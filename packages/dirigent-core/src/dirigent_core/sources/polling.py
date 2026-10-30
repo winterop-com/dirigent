@@ -29,7 +29,7 @@ from dirigent_client.enums import InputOutcome, TriggerKind
 from dirigent_common import JsonMap
 from dirigent_core import telemetry
 from dirigent_core.database import session_scope
-from dirigent_core.engine.context import ConnectionRecord, build_http_client, load_connections
+from dirigent_core.engine.context import ConnectionRecord, build_http_client, load_connections, open_record
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.runs import Attribution, Entry, create_run
 from dirigent_core.engine.services import EngineServices
@@ -404,7 +404,7 @@ class _OutsideRun:
     def connection[C: BaseModel](self, ref: ConnectionRef, model: type[C]) -> C:
         """Resolve a connection by code, opened and validated against the sensor's own model."""
         record = self._record(ref)
-        return self._services.secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
+        return open_record(self._services.secrets, record, model, self._services.connection_models)
 
     def storage_connection[C: BaseModel](self, scheme: str, model: type[C]) -> C | None:
         """Resolve the connection this instance configures a storage scheme from, or None."""

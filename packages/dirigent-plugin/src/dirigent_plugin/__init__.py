@@ -46,6 +46,8 @@ from dirigent_plugin.blocks import (
     mark_refusal,
     reference_fields,
     shell_string_fields,
+    sql_fields_of,
+    sql_string_fields,
 )
 from dirigent_plugin.contribution import Contribution, merge_contributions
 from dirigent_plugin.markers import (
@@ -70,6 +72,7 @@ from dirigent_plugin.transforms import (
     Transformer,
     TransformError,
     TransformOutput,
+    csv_header,
 )
 
 __all__ = [
@@ -128,6 +131,7 @@ __all__ = [
     "StorageBackend",
     "TransformConfig",
     "TransformError",
+    "csv_header",
     "TransformOutput",
     "Transformer",
     "classify_default",
@@ -140,4 +144,6 @@ __all__ = [
     "merge_contributions",
     "reference_fields",
     "shell_string_fields",
+    "sql_fields_of",
+    "sql_string_fields",
 ]

@@ -50,6 +50,7 @@ command.
 | `worker_tags` | `DIRIGENT_WORKER_TAGS` | `[]` | Capability tags a worker advertises to the claim query. |
 | `worker_name` | `DIRIGENT_WORKER_NAME` | `null` | Registry name of this worker; defaults to hostname plus process id. |
 | `lease` | `DIRIGENT_LEASE` | `"1m"` | How long a claimed attempt's lease is valid before the sweeper may reclaim it. |
+| `lease_recovery_limit` | `DIRIGENT_LEASE_RECOVERY_LIMIT` | `5` | How many times one attempt may be taken back from a worker and run again before it fails. |
 | `heartbeat` | `DIRIGENT_HEARTBEAT` | `"15s"` | How often a worker refreshes the leases it holds and its registry row. |
 | `claim_idle` | `DIRIGENT_CLAIM_IDLE` | `"500ms"` | How long an idle worker waits before asking for work again when nothing wakes it. |
 | `log_flush_interval` | `DIRIGENT_LOG_FLUSH_INTERVAL` | `"1s"` | How often a running attempt's buffered log entries are written to the run. |
@@ -83,7 +84,8 @@ command.
 | `notification_lease` | `DIRIGENT_NOTIFICATION_LEASE` | `"1m"` | How long a claimed notification's lease is valid before another worker may take it. |
 | `endpoint_prefix` | `DIRIGENT_ENDPOINT_PREFIX` | `"/endpoints"` | Where endpoint sources are served, outside the versioned API. |
 | `source_max_body` | `DIRIGENT_SOURCE_MAX_BODY` | `1048576` | The largest body any endpoint reads, whatever its own `max_body` says; reading stops one byte past it. |
-| `source_intake_rate_per_minute` | `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast calls to one method and path are taken, before any source is looked up. |
+| `source_body_timeout` | `DIRIGENT_SOURCE_BODY_TIMEOUT` | `"30s"` | How long an endpoint waits for a whole body before it answers 408; no database connection is held meanwhile. |
+| `source_intake_rate_per_minute` | `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast one address's calls to one method and route are taken, before any source is read. |
 | `source_signature_window` | `DIRIGENT_SOURCE_SIGNATURE_WINDOW` | `"5m"` | How far a signed call's `X-Dirigent-Timestamp` may stand from this server's clock, either way. |
 | `source_reply_max` | `DIRIGENT_SOURCE_REPLY_MAX` | `"1m"` | The longest a caller is held for a reply, whatever a reply node's `timeout` says. |
 | `source_max_waiting` | `DIRIGENT_SOURCE_MAX_WAITING` | `256` | How many callers one server process holds open for their replies at once. |

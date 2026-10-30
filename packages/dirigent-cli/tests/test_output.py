@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 import pytest
 from pydantic import BaseModel
+from rich.console import Group, RenderableType
+from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 from typer.testing import CliRunner
@@ -13,16 +15,19 @@ from typer.testing import CliRunner
 from clisupport import asking_for_the_rendering
 from dirigent_cli import stream
 from dirigent_cli.context import CliState
+from dirigent_cli.formatters import registry, rendered
 from dirigent_cli.main import app, hoist_globals
 from dirigent_cli.output import (
     Detail,
     TerminalConsole,
+    build_fields,
     emit_json,
     emit_records,
     printable,
     prioritised,
     render_output,
 )
+from dirigent_cli.summaries import beneath
 from dirigent_core.protocol import PROTOCOL_VERSION
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
@@ -211,3 +216,76 @@ def test_a_listing_is_written_as_one_record_per_row(capsys: pytest.CaptureFixtur
         {"code": "hourly", "kind": "interval"},
     ]
     assert all(record["v"] == PROTOCOL_VERSION for record in written)
+
+
+def test_a_link_in_a_style_never_reaches_the_terminal() -> None:
+    """A style's link is written as it stands, so controls in one would pass the text's filter."""
+    console, written = terminal(color_system="truecolor")
+    console.print(Text("click", style=Style(color="red", link="https://example.org/\x1bc")))
+    assert "\x1b]8" not in written.getvalue()
+    assert "\x1bc" not in written.getvalue()
+    assert "\x1b[31m" in written.getvalue(), "the rest of the style stays"
+    assert "click" in written.getvalue()
+
+
+def test_markup_that_does_not_parse_is_shown_as_it_was_written() -> None:
+    console, written = terminal()
+    console.print("failed with [/nope]", highlight=False)
+    assert written.getvalue() == "failed with [/nope]\n"
+
+
+PAYLOAD = "[link=https://attacker.example/\x1bc]open me[/link] [/nope]"
+
+
+def rendered_on_a_terminal(item: RenderableType) -> str:
+    """Print what a formatter answered with on a colour terminal, the way a command prints it."""
+    console, written = terminal(color_system="truecolor")
+    for part in item.renderables if isinstance(item, Group) else [item]:
+        console.print(part, soft_wrap=True, highlight=False)
+    return written.getvalue()
+
+
+def assert_shown_literally(drawn: str) -> None:
+    """Assert a hostile value reached the screen as its own characters and nothing else."""
+    assert "\x1b]8" not in drawn
+    assert "\x1bc" not in drawn
+    assert "[link=https://attacker.example/c]open me[/link]" in drawn
+    assert "[/nope]" in drawn
+
+
+def test_a_failed_runs_error_and_logs_are_shown_literally() -> None:
+    drawn = rendered_on_a_terminal(
+        beneath(
+            {
+                "kind": "run",
+                "failures": [{"step": "s", "block": "b", "attempt": 1, "error": PAYLOAD, "logs": [PAYLOAD]}],
+            }
+        )
+        or ""
+    )
+    assert drawn.count("[/nope]") == 2
+    assert_shown_literally(drawn)
+
+
+def test_a_watched_runs_step_error_is_shown_literally() -> None:
+    drawn = rendered_on_a_terminal(
+        beneath(
+            {
+                "kind": "run",
+                "duration_ms": 1000,
+                "steps": [{"step": "s", "block": "b", "status": "failed", "error": "[bold]held[/bold]"}],
+            }
+        )
+        or ""
+    )
+    assert "[bold]held[/bold]" in drawn
+
+
+def test_a_stored_line_that_is_not_a_record_is_shown_literally() -> None:
+    formatter = registry()["console"]
+    assert_shown_literally(rendered_on_a_terminal(next(iter(rendered([PAYLOAD], formatter)))))
+
+
+def test_a_value_in_a_fields_table_is_shown_literally() -> None:
+    drawn = rendered_on_a_terminal(build_fields("run", {"error": "[bold]held[/bold]"}))
+    assert "[bold]held[/bold]" in drawn

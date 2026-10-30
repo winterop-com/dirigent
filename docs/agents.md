@@ -92,7 +92,13 @@ running instance serves the same schema for its own catalog at `GET /api/v1/sche
 The loop above writes documents and checks them without a server. To let an agent operate an
 instance that is running -- apply a document, start a run, read its logs, pause a source --
 give it the MCP server, `dirigent-mcp`. Its tools are calls the API already answers, so what
-the agent may do is what its token's role may do, and none of them deletes anything.
+the agent may do is what its token's role may do.
+
+No tool is a delete, but `apply_document` retires what a document stops declaring: a source, with
+its input journal and its token, and a schedule the document managed. Runs and pipeline versions
+stay. `plan_document` lists what would go under `sources.removed` and
+`triggers.schedules_removed`, and `apply_document` carries the destructive hint, so a client that
+asks before such a call asks here.
 
 ```bash
 dg admin token create agent --user AGENT_USER     # the token is shown once

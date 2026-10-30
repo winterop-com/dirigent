@@ -4,10 +4,12 @@ A profile is client-side only and must never hold a database URL: a CLI that cou
 database would bypass authentication, attribution, and validation.
 
 A project's file travels with its repository, so whoever wrote it may not be the person running
-the CLI. It is read only when this user owns it, it can never name a command to run, and a
-credential from this user's shell does not follow a URL it chose off this host.
+the CLI. It is read only when it is a regular file this user owns and nobody else may rewrite,
+it can never name a command to run, and a credential from this user's shell does not follow a
+URL it chose off this host. A project's ``.env`` is taken literally: a ``${VAR}`` in it is text.
 """
 
+import io
 import ipaddress
 import os
 import shutil
@@ -144,9 +146,11 @@ class ProfileStore(BaseModel):
     def environment(self, environ: Mapping[str, str]) -> dict[str, str]:
         """The environment a profile resolves in: the process's, with the project's ``.env`` filling gaps."""
         path = self.env_file
-        if path is None or not path.is_file() or not _owned_here(path):
+        text = None if path is None else _read_project_file(path)
+        if text is None:
             return dict(environ)
-        from_file = {key: value for key, value in dotenv_values(path).items() if value is not None}
+        parsed = dotenv_values(stream=io.StringIO(text), interpolate=False)
+        from_file = {key: value for key, value in parsed.items() if value is not None}
         return {**from_file, **environ}
 
     def select(self, name: str | None) -> Profile | None:
@@ -167,17 +171,38 @@ def _is_project(path: Path) -> bool:
     return path.parent.name == PROJECT_PROFILES.parent.name
 
 
-def _owned_here(path: Path) -> bool:
-    """Whether this user owns a file and nobody else may rewrite it."""
-    status = path.stat()
-    return status.st_uid == os.getuid() and not status.st_mode & stat.S_IWOTH
+def _read_project_file(path: Path) -> str | None:
+    """Read a project's file, or answer none unless it may be trusted as the project's own.
+
+    Neither the file nor its directory may be a symbolic link, and the file must be a regular
+    one this user owns that neither group nor others may write. Every check is made on the
+    opened descriptor, so the file read is the file checked.
+    """
+    try:
+        directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        finally:
+            os.close(directory)
+        with os.fdopen(descriptor, encoding="utf-8") as opened:
+            status = os.fstat(opened.fileno())
+            if not stat.S_ISREG(status.st_mode):
+                return None
+            if status.st_uid != os.getuid() or status.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+                return None
+            return opened.read()
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def _is_loopback(url: str) -> bool:
     """Whether a URL names this host, so a token sent to it does not leave the machine."""
     host = urlsplit(url).hostname
-    if host is None or "\\" in url:
-        return False
+    return host is not None and "\\" not in url and is_loopback_host(host)
+
+
+def is_loopback_host(host: str) -> bool:
+    """Whether a host names this machine alone: ``localhost`` or a loopback address, and nothing else."""
     if host == "localhost":
         return True
     try:
@@ -196,8 +221,17 @@ def candidate_paths(start: Path | None = None) -> list[Path]:
 def load_store(path: Path) -> ProfileStore:
     """Read one profiles file, naming the profile in every error it raises."""
     try:
-        loaded: object = yaml.safe_load(path.read_text())
-    except (OSError, yaml.YAMLError) as error:
+        text = path.read_text()
+    except OSError as error:
+        raise ProfileError(f"{path} could not be read: {error}") from error
+    return _parse_store(path, text)
+
+
+def _parse_store(path: Path, text: str) -> ProfileStore:
+    """Turn a profiles file's text into a store, naming the profile in every error it raises."""
+    try:
+        loaded: object = yaml.safe_load(text)
+    except yaml.YAMLError as error:
         raise ProfileError(f"{path} could not be read: {error}") from error
     if loaded is None:
         loaded = {}
@@ -230,11 +264,17 @@ def load_store(path: Path) -> ProfileStore:
 def find_store(start: Path | None = None) -> ProfileStore:
     """Read the first profiles file that exists and may be read, or an empty store when none does.
 
-    A project's file this user does not own is passed over, as though it were not there.
+    A project's file that ``_read_project_file`` refuses is passed over, as though it were not
+    there.
     """
     for path in candidate_paths(start):
-        if path.is_file() and (not _is_project(path) or _owned_here(path)):
-            return load_store(path)
+        if not _is_project(path):
+            if path.is_file():
+                return load_store(path)
+            continue
+        text = _read_project_file(path)
+        if text is not None:
+            return _parse_store(path, text)
     return ProfileStore()
 
 

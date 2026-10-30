@@ -117,7 +117,10 @@ configured database the way `dg db upgrade` does, and `DIRIGENT_BOOTSTRAP_ADMIN_
 creates the first admin unattended in a container. Both are one-way -- they do nothing once
 any account exists -- so leaving the variable set on every deploy cannot reset a live
 instance's password. `dg dev` mints a development admin and prints its token once, because
-that is a SQLite file on a laptop.
+that is a SQLite file on a laptop. Its password is the fixed `admin`, so it stays on loopback:
+`dg dev` refuses a non-loopback bind, whether from `--host` or `DIRIGENT_HOST`, while that login
+would be made or still stands. `scripts/seed_dev.py`, which pairs the login with an unsafe
+allowlist, refuses one outright.
 
 ### The account lifecycle
 
@@ -185,8 +188,9 @@ than by an exception list each endpoint remembers:
   instance data. It shares the UI's origin, so what a caller can make it answer is contained:
   every answer carries `nosniff` and a sandboxing CSP, it answers under no content type a browser
   runs, it sets no header that would make the origin act for the caller, it redirects only on
-  its own origin, and it reads at most 1 MiB of a body. `DIRIGENT_PLAYGROUND_ENABLED=false`
-  unmounts it.
+  its own origin, and it reads at most 1 MiB of a body. A stream ends 95 seconds after it arrives
+  whether or not its client reads it, and one process holds 32 of them.
+  `DIRIGENT_PLAYGROUND_ENABLED=false` unmounts it.
 
 Every other route under `/api/v1` requires a principal, as a property of the router mount.
 
@@ -404,8 +408,10 @@ The comparison is constant-time and operates on bytes rather than strings, becau
 attacker-controlled and `hmac.compare_digest` raises on a non-ASCII `str`. The signing secret
 is minted at apply from the CSPRNG and shown once, or set with `dg source set-secret` when the
 sender issues it, and is sealed with the instance key, the way a connection's secret is. None
-of it is stored in clear: a listing shows `secret_fingerprint`, the first 12 hex characters of
-its SHA-256, which a holder can recompute to tell which secret they have. A bearer token keeps
+of it is stored in clear: a listing shows `secret_fingerprint`, 12 hex characters of an HMAC of
+it under a key derived from the instance key. It says whether the secret changed. It cannot be
+recomputed from the secret alone, so a reader who can list sources cannot test a guess at a
+hand-set secret against it, and neither can a holder check which secret they have. A bearer token keeps
 its eight-character prefix, because a minted token has 256 bits of entropy and the 48 shown
 leave 208 to guess, while a signing secret can be one a provider issued, of any length, so a
 prefix could be most of it. A re-apply keeps it, and `dg source rotate-token` replaces it. A signature is checked as soon as
@@ -423,12 +429,17 @@ headers with `authorization`, `cookie`, `proxy-authorization` and `x-dirigent-si
 removed.
 
 **Nothing before the source's own rate writes a row.** A call is checked in one order: the
-instance's bucket for the method and path (`DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE`, before
-anything is looked up), the route, the token or, for a signed source, the capped read, the
+instance's bucket for the caller's address, the method and the route
+(`DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE`, before any source is read), the route, the token or, for a signed source, the capped read, the
 timestamp and the signature, then the source's own `rate`. A refusal at any of those -- 429, 404, 405, 401, and a
-signed source's 413 -- is counted in telemetry (`dirigent.source.inputs`) and logged, writes
+signed source's 408 and 413 -- is counted in telemetry (`dirigent.source.inputs`) and logged, writes
 nothing and spends nothing from the source's own bucket, so a stranger without the token or
 the secret, or a caller in a loop, cannot cause writes or starve the source's real callers.
+The first bucket is counted per address, so a stranger elsewhere spends their own count: behind a
+reverse proxy that is the proxy's address unless uvicorn trusts it, so set `FORWARDED_ALLOW_IPS`
+to the proxy's address, or every caller shares one count and a stranger can again spend it.
+Every spelling of a route and every value of its parameters share one count, and every path no
+route answers shares another, so a caller cannot widen its own count by spelling a path anew.
 The record of a signature taken is the one write ahead of the rate, and only a caller holding
 the secret causes it.
 From there on every refusal, and every accepted input, is recorded against the source. Both
@@ -440,6 +451,13 @@ updated on every call turns a cheap refusal into a database write.
 `max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller. For a source
 taking a token, the content type is checked against what the source `accepts` before a byte of
 the body is read; a signed source reads its capped body first, because the signature covers it.
+A text body is decoded only from UTF-8, UTF-16, ASCII, ISO-8859-1 or Windows-1252, under their usual
+spellings, so handling a capped body costs time in step with its size. Any other `charset` is
+refused 415 (`source.charset_refused`) without decoding.
+A read holds no database connection: the call's transaction ends before it, and the source and
+its pipeline are read again after it. A body that has not arrived whole within
+`DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,
+so a stranger who stops sending holds one socket for that long and nothing the API shares.
 
 **A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
 UI's origin, so it answers with `X-Content-Type-Options: nosniff` and
@@ -502,9 +520,9 @@ not contain a pipeline that has taken over the sidecar. **Run these blocks on a 
 A `docker` connection carries the two docker credentials there are, and both are sealed: the
 client TLS key that reaches a remote daemon, and the registry password a `docker.build` pushes
 with. Sealed means encrypted at rest, redacted in every API response, and never an argument or
-an inherited variable. Each reaches the CLI only as a 0600 file in a 0700 directory under the
-run's work directory -- the key as `DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own
--- and both directories are removed when the step leaves, whether it succeeded, failed or was
+an inherited variable. Each reaches the CLI only as a 0600 file in a 0700 directory in the
+system's temporary directory, outside the roots a sibling step can read -- the key as
+`DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own -- and both directories are removed when the step leaves, whether it succeeded, failed or was
 cancelled. A push logs out before it returns, so the worker's own docker config is never
 written to and no session survives the step.
 
@@ -593,6 +611,12 @@ evaluates a variable's value as an expression, and a subscript in that expressio
 substitution: `a[$(id)]` runs `id`. So a reference inside `$(( ))`, `(( ))` or `$[ ]` must resolve
 to an integer, and anything else fails the step as `rejected` before the command starts. Declare
 the parameter as `type: integer` and a caller's bad value is refused at the door instead.
+
+Those spellings are looked for with no regard to quoting, so a quote in a comment, a here-document
+or `$'...'` cannot hide one. That reads a literal opener as one too: after `'$(( '`, in a comment
+or in a program another tool reads, a reference must be an integer until the opener closes. So
+must one inside a `$( )` within arithmetic, because the shell evaluates what that prints. A step
+that needs another value there uses `argv`, which involves no shell.
 
 The check reads those three spellings and nothing else. It does not cover a reference that bash
 evaluates some other way: the operands of `[[ -eq ]]`, `let`, `declare -i`, an indexed array's
@@ -696,6 +720,13 @@ pipeline definition, an export, or a process log. No route carries a credential 
 so a log line or an OpenTelemetry span name never holds one. A secret field that is not set reads as `null`, not as
 `***`: the marker means a credential is stored.
 
+A step or a source that names a connection of another kind than it reads is refused with
+`run.connection_wrong_kind`, naming the connection and both kinds and opening nothing. A stored
+connection that does not validate against the configuration it was read for fails with
+`secret.connection_unreadable`, which names each field and the kind of error and no value, so
+neither failure writes a secret into a run's attempts, its logs, a source's `last_error`, or a
+process log.
+
 That is what makes a redacted read editable. `PATCH /api/v1/connections/{code}` replaces the
 config whole, and a secret field carrying the marker means **keep what is stored** -- the
 sealed value is put back before the config is validated and sealed again, so changing a base
@@ -779,8 +810,10 @@ Stated plainly, because a security page that lists only what exists is not much 
   (`http.url_beside_connection`), and refuse one a reference resolves to at run time unless it
   is on that origin (`http.off_origin`), before anything is sent. A step whose config still
   holds a reference is not checked at apply, so its literal URL is refused at run time the same
-  way. An absolute link the service itself hands back, such as a next page on the same origin,
-  is still followed. A step that calls another service names no connection and gives the `url`.
+  way. A `Host` header a step sets beside a `connection` is held to that origin too, at run
+  time and before anything is sent (`http.host_off_origin`), because a front that routes on
+  `Host` would otherwise hand the credential to another name it serves. An absolute link the
+  service itself hands back, such as a next page on the same origin, is still followed. A step that calls another service names no connection and gives the `url`.
 - **Rate limiting on the authenticated API.** Only login and endpoint sources are limited.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every
   cookie-authenticated write described in [cross-site writes](#cross-site-writes), on top of

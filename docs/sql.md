@@ -93,7 +93,9 @@ steps:
 A `${...}` reference resolves into a **value in `params`**, and never into the SQL. That is the
 whole rule, and it is what makes a pipeline safe to hand to somebody who writes documents but
 not code: a parameter that reads as `'; DROP TABLE reading --` is compared against the `site`
-column and matches nothing.
+column and matches nothing. A reference in `sql` or in `statements` is refused when the document
+is applied (`document.step_reference_in_sql`), and again when the step starts
+(`reference.in_sql`). `$${...}` stays the literal text `${...}`.
 
 It also means a table or a column name cannot come from a parameter, because those are not
 values. A pipeline that needs to read two tables writes two steps.
@@ -277,16 +279,21 @@ of a parquet file read the same:
 
 ## Read-only
 
-`read_only: true` on a connection is enforced by the database, not by a check here:
+`read_only: true` on a connection is enforced by the database, and on DuckDB by a check here
+as well:
 
 - **PostgreSQL** runs every session as `SET TRANSACTION READ ONLY`, so a write is refused by
   the server with `cannot execute ... in a read-only transaction`.
 - **SQLite** sets `PRAGMA query_only = 1`, which does the same for that file.
-- **DuckDB** opens the database file itself read-only, so the refusal comes from the engine
-  before a statement is parsed. It needs a file that exists, and `duckdb:///:memory:` cannot be
-  `read_only` at all -- DuckDB refuses to open an in-memory database read-only, because one
-  starts empty and a read-only one could never be filled -- so that connection is refused when
-  it is written.
+- **DuckDB** opens the database file itself read-only, and runs only a statement that parses
+  as `SELECT` (`sql.duckdb.read_only_runs_select`), because a read-only open covers the catalog
+  and not file output: `COPY ... TO` could otherwise replace the database file. That refuses
+  `COPY`, `EXPLAIN`, `SET`, `ATTACH`, `CALL`, `PRAGMA` and a `PIVOT`, and a statement that does
+  not parse is refused rather than run (`sql.duckdb.read_only_unparsed`). `SELECT`, `FROM`-first,
+  `WITH ... SELECT`, `VALUES`, `DESCRIBE`, `SHOW` and `SUMMARIZE` all parse as `SELECT`. It needs
+  a file that exists, and `duckdb:///:memory:` cannot be `read_only` at all -- DuckDB refuses to
+  open an in-memory database read-only, because one starts empty and a read-only one could never
+  be filled -- so that connection is refused when it is written.
 
 `sql.execute` refuses a `read_only` connection outright, before it opens anything, because that
 block exists to write. And a connection on a dialect with no read-only mode cannot be marked

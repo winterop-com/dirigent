@@ -7,9 +7,12 @@ from typing import Any
 
 import pytest
 import yaml
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from dirigent_client.schemas import AttemptOut, Page, SourceInputOut, SourceOut
+from dirigent_core.config import Settings
+from dirigent_server import create_app
 from tests_support import apply_document
 
 PREFIX = "/api/v1"
@@ -225,6 +228,96 @@ def test_a_rotated_token_replaces_the_old_one_at_once(client: TestClient) -> Non
     assert client.post("/endpoints/echo/ann", json={}, headers=bearer(old)).status_code == 401
     assert client.post("/endpoints/echo/ann", json={}, headers=bearer(new)).status_code == 200
     assert source(client, "echo").token_prefix == new[:8]
+
+
+def _flood(settings: Settings, per_minute: int) -> FastAPI:
+    return create_app(settings.model_copy(update={"source_intake_rate_per_minute": per_minute}))
+
+
+def test_a_stranger_elsewhere_cannot_spend_a_signed_senders_count(settings: Settings, admin_token: str) -> None:
+    app = _flood(settings, 6)
+    admin = {"Authorization": f"Bearer {admin_token}"}
+    with TestClient(app, client=("203.0.113.1", 50000), headers=admin) as stranger:
+        secret = apply_document(stranger, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]["token"]
+        answered = [stranger.post("/endpoints/held", content=b"{}").status_code for _ in range(10)]
+    assert answered[0] == 401
+    assert answered[-1] == 429, "a stranger has a count of its own"
+    with TestClient(app, client=("203.0.113.2", 50000)) as sender:
+        called = sender.post("/endpoints/held", content=b"{}", headers=signed(secret, b"{}"))
+    assert called.status_code == 202, called.text
+
+
+def test_a_stranger_elsewhere_cannot_spend_a_token_holders_count(settings: Settings, admin_token: str) -> None:
+    app = _flood(settings, 6)
+    admin = {"Authorization": f"Bearer {admin_token}"}
+    with TestClient(app, client=("203.0.113.1", 50000), headers=admin) as stranger:
+        token = token_of(apply_document(stranger, held()))
+        answered = [stranger.post("/endpoints/held", json={}, headers=bearer("wrong")).status_code for _ in range(10)]
+    assert answered[-1] == 429
+    with TestClient(app, client=("203.0.113.2", 50000)) as holder:
+        called = holder.post("/endpoints/held", json={}, headers=bearer(token))
+    assert called.status_code == 202, called.text
+
+
+def test_every_spelling_of_a_route_and_every_value_of_its_parameters_share_one_count(
+    settings: Settings, admin_token: str
+) -> None:
+    with TestClient(_flood(settings, 4), headers={"Authorization": f"Bearer {admin_token}"}) as client:
+        apply_document(client, echo())
+        answered = [
+            client.post(path, json={}, headers=bearer("wrong")).status_code
+            for path in ("/endpoints/echo/a", "/endpoints/echo/a/", "/endpoints/echo//a", "/endpoints/echo/b")
+        ]
+        assert answered == [401, 401, 401, 401]
+        assert client.post("/endpoints/echo/c", json={}, headers=bearer("wrong")).status_code == 429
+        put = client.put("/endpoints/echo/c", json={}, headers=bearer("wrong"))
+        assert put.status_code == 401, "another method has its own count"
+
+
+def test_every_path_no_route_answers_shares_one_count(settings: Settings, admin_token: str) -> None:
+    with TestClient(_flood(settings, 2), headers={"Authorization": f"Bearer {admin_token}"}) as client:
+        answered = [client.post(f"/endpoints/nothing/{index}").status_code for index in range(3)]
+    assert answered == [404, 404, 429]
+
+
+@pytest.mark.parametrize("charset", ["punycode", "idna", "undefined", "utf-7", "rot13", "base64", "no-such-codec"])
+def test_a_charset_outside_the_list_is_refused_without_decoding(client: TestClient, charset: str) -> None:
+    apply_document(client, echo("      auth: {kind: public}"))
+    called = client.post(
+        "/endpoints/echo/ann", content=b"abc-", headers={"Content-Type": f"text/plain; charset={charset}"}
+    )
+    assert called.status_code == 415, called.text
+    assert called.json()["code"] == "source.charset_refused"
+
+
+@pytest.mark.parametrize(
+    ("charset", "body", "text"),
+    [
+        ("utf-8", "blåbær".encode(), "blåbær"),
+        ("UTF-8", "blåbær".encode(), "blåbær"),
+        ('"utf-8"', "blåbær".encode(), "blåbær"),
+        ("us-ascii", b"plain", "plain"),
+        ("iso-8859-1", "blåbær".encode("latin-1"), "blåbær"),
+        ("windows-1252", "blåbær".encode("cp1252"), "blåbær"),
+        ("utf-16", "blåbær".encode("utf-16"), "blåbær"),
+        ("utf-16le", "blåbær".encode("utf-16-le"), "blåbær"),
+        ("utf-16be", "blåbær".encode("utf-16-be"), "blåbær"),
+    ],
+)
+def test_a_charset_on_the_list_decodes_the_body(client: TestClient, charset: str, body: bytes, text: str) -> None:
+    apply_document(client, echo("      auth: {kind: public}"))
+    called = client.post(
+        "/endpoints/echo/ann", content=body, headers={"Content-Type": f"text/plain; charset={charset}"}
+    )
+    assert called.status_code == 200, called.text
+    assert called.json() == text
+
+
+def test_a_body_its_charset_cannot_read_is_refused_400(client: TestClient) -> None:
+    apply_document(client, echo("      auth: {kind: public}"))
+    called = client.post("/endpoints/echo/ann", content=b"\xff", headers={"Content-Type": "text/plain; charset=utf-8"})
+    assert called.status_code == 400, called.text
+    assert called.json()["code"] == "source.body_not_text"
 
 
 def test_a_public_source_has_no_token_to_rotate(client: TestClient) -> None:
@@ -466,7 +559,8 @@ def test_a_signing_secret_is_listed_by_a_hash_and_none_of_it_in_clear(client: Te
     minted = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]
     secret = minted["token"]
     assert minted["prefix"] is None
-    assert minted["fingerprint"] == hashlib.sha256(secret.encode()).hexdigest()[:12]
+    assert len(minted["fingerprint"]) == 12
+    assert minted["fingerprint"] != hashlib.sha256(secret.encode()).hexdigest()[:12]
     listed = source(client, "held")
     assert listed.token_prefix is None
     assert listed.secret_fingerprint == minted["fingerprint"]
@@ -475,7 +569,9 @@ def test_a_signing_secret_is_listed_by_a_hash_and_none_of_it_in_clear(client: Te
     replaced = client.post(f"{PREFIX}/pipelines/held/sources/ask/$set-secret", json={"secret": issued})
     assert replaced.status_code == 200, replaced.text
     assert issued[:8] not in replaced.text
-    assert replaced.json()["secret_fingerprint"] == hashlib.sha256(issued.encode()).hexdigest()[:12]
+    fingerprint = replaced.json()["secret_fingerprint"]
+    assert fingerprint != minted["fingerprint"], "a change of secret stays visible"
+    assert fingerprint != hashlib.sha256(issued.encode()).hexdigest()[:12], "a guess cannot be tested offline"
 
 
 def test_moving_a_signed_source_to_a_token_drops_the_fingerprint(client: TestClient) -> None:

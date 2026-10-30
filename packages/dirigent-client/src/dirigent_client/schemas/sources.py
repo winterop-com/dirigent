@@ -89,7 +89,7 @@ class SourceOut(WireModel):
     """The leading characters of a bearer token, so a caller's copy can be told apart."""
 
     secret_fingerprint: str | None = None
-    """For an ``hmac`` source, the first 12 hex characters of the SHA-256 of its signing secret."""
+    """For an ``hmac`` source, 12 hex characters of a hash of its signing secret, keyed by the instance."""
 
     signature_header: str | None = None
     """For an ``hmac`` source, the header a caller's signature of the body arrives in."""
@@ -140,7 +140,7 @@ class SourceTokenOut(WireModel):
     """The leading characters of a bearer token."""
 
     fingerprint: str | None = None
-    """For ``hmac``, the first 12 hex characters of the SHA-256 of the signing secret."""
+    """For ``hmac``, 12 hex characters of a hash of the signing secret, keyed by the instance."""
 
     url_path: str
     """Where the source is called, so a caller can be configured without assembling the path by hand."""

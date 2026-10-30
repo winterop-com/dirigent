@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import DocumentKind, ProvenanceSource
-from dirigent_client.schemas import ApplyResult, PipelinePlan, PlanAction
+from dirigent_client.schemas import ApplyResult, Materialized, PipelinePlan, PlanAction
 from dirigent_core.documents import TriggerTarget, digest_of, validate_against_catalog
 from dirigent_core.engine.definition import TriggersDefinition, canonical_document, load_definition
 from dirigent_core.engine.runs import Provenance
@@ -20,7 +20,7 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.logging import get_logger
 from dirigent_core.models import Pipeline, Schedule, TriggerDocument
-from dirigent_core.triggers.materialize import materialize_triggers, owner_issues
+from dirigent_core.triggers.materialize import materialize_triggers, owner_issues, retiring_schedules
 
 _logger = get_logger("triggers")
 
@@ -160,11 +160,17 @@ async def apply_triggers_document(
     existing = await find_trigger_document(session, definition.code)
     plan = await plan_triggers_apply(session, services, definition, pipeline, existing)
     if pipeline is None or dry_run or plan.action is PlanAction.INVALID:
+        retiring = (
+            await retiring_schedules(session, pipeline, definition, owner=existing.id)
+            if pipeline is not None and existing is not None and plan.action is not PlanAction.INVALID
+            else Materialized()
+        )
         return ApplyResult(
             kind=DocumentKind.TRIGGERS,
             plan=plan,
             pipeline_id=pipeline.id if pipeline is not None else None,
             dry_run=dry_run,
+            triggers=retiring,
         )
     row = existing or TriggerDocument(code=definition.code)
     row.name = definition.name

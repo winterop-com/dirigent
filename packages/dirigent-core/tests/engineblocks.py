@@ -6,7 +6,7 @@ from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_common import BlockModel, Duration, StorageUri
+from dirigent_common import SQL_MEDIA_TYPE, BlockModel, Duration, StorageUri
 from dirigent_plugin import (
     BlockFailure,
     Contribution,
@@ -122,6 +122,30 @@ class ShellishOperator(Operator[ShellishConfig, ShellishOutput]):
     async def execute(self, config: ShellishConfig, ctx: StepContext) -> ShellishOutput | RemoteHandle:
         """Return the command exactly as it arrived, with the variables it now reads."""
         return ShellishOutput(command=config.command, variables=config.shell_variables)
+
+
+class SqlishConfig(BlockModel):
+    """A config with a field the block publishes as SQL."""
+
+    sql: Annotated[str, Field(json_schema_extra={"contentMediaType": SQL_MEDIA_TYPE})] = ""
+
+
+class SqlishOutput(BaseModel):
+    """What the SQL operator saw after the engine resolved its config."""
+
+    sql: str
+
+
+class SqlishOperator(Operator[SqlishConfig, SqlishOutput]):
+    """Reports what it was handed, so a test can read what the engine substituted."""
+
+    spec = OperatorSpec(id="test.sqlish", summary="Report a SQL statement.", idempotent=True)
+    config_model = SqlishConfig
+    output_model = SqlishOutput
+
+    async def execute(self, config: SqlishConfig, ctx: StepContext) -> SqlishOutput | RemoteHandle:
+        """Return the statement exactly as it arrived."""
+        return SqlishOutput(sql=config.sql)
 
 
 class FailConfig(BaseModel):
@@ -555,6 +579,7 @@ class EngineTestPlugin:
                 NonIdempotentOperator(),
                 RemoteOperator(),
                 ShellishOperator(),
+                SqlishOperator(),
                 StoringOperator(),
                 UnsafeOperator(),
             ],

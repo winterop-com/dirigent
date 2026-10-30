@@ -14,8 +14,10 @@ from typing import Any, Final, cast
 
 from pydantic import BaseModel
 from rich.console import Console, ConsoleOptions, Group, RenderableType
+from rich.errors import MarkupError
 from rich.markup import escape
 from rich.segment import Segment
+from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
@@ -49,13 +51,28 @@ class TerminalConsole(Console):
 
     Rich removes a few controls itself and leaves ``ESC``. Its own colour and cursor codes are
     not in the text of a segment: colour is applied from the style when the segment is written,
-    and a cursor movement is a segment marked as control, so filtering here touches neither.
+    a cursor movement is a segment marked as control, so filtering here touches neither.
+
+    A style's link is written to the terminal as it stands and nothing here draws one, so every
+    link is dropped. Text whose markup does not parse is shown as it was written.
     """
 
     def render(self, renderable: RenderableType, options: ConsoleOptions | None = None) -> Iterable[Segment]:
-        """Render as rich does, removing control characters from every segment of text."""
+        """Render as rich does, removing control characters and links from every segment of text."""
         for segment in super().render(renderable, options):
-            yield segment if segment.control else Segment(printable(segment.text), segment.style)
+            yield segment if segment.control else Segment(printable(segment.text), _unlinked(segment.style))
+
+    def render_str(self, text: str, *, markup: bool | None = None, **options: Any) -> Text:
+        """Read a string as markup, or literally where it is not valid markup."""
+        try:
+            return super().render_str(text, markup=markup, **options)
+        except MarkupError:
+            return super().render_str(text, markup=False, **options)
+
+
+def _unlinked(style: Style | None) -> Style | None:
+    """Take any link out of a style."""
+    return style.update_link(None) if style is not None and style.link else style
 
 
 def build_console(*, stderr: bool = False) -> Console:
@@ -445,7 +462,7 @@ def styled(value: object) -> str:
     """Render a value, colouring the ones that are a status."""
     text = "-" if value is None else str(value)
     style = STATUS_STYLES.get(text)
-    return f"[{style}]{text}[/]" if style else text
+    return f"[{style}]{text}[/]" if style else escape(text)
 
 
 STATUS_WIDTH = 15

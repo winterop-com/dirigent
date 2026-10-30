@@ -861,6 +861,7 @@ def upgrade() -> None:
         sa.Column("lease_token", sa.Uuid(), nullable=True),
         sa.Column("lease_expires_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("heartbeat_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column("lease_recoveries", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column(
             "remote_handle", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True
         ),

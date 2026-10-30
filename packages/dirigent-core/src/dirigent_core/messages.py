@@ -86,6 +86,11 @@ SECRET_KEY_MISMATCH = SECRET.define(
     "either the key changed or the row belongs to another instance",
 )
 
+CONNECTION_UNREADABLE = SECRET.define(
+    "connection_unreadable",
+    "a stored connection does not fit the configuration read from it: {detail}",
+)
+
 ARTIFACTS = Catalogue("artifacts")
 
 NOT_A_URI = ARTIFACTS.define("not_a_uri", "{uri} is not a URI: it names no scheme")
@@ -287,6 +292,12 @@ REQUIRED_SCHEMA_MISSING = DOCUMENT.define(
 STEP_BLOCK_MISSING = DOCUMENT.define(
     "step_block_missing",
     "no block {block} is installed; install the plugin package that contributes it",
+)
+
+STEP_REFERENCE_IN_SQL = DOCUMENT.define(
+    "step_reference_in_sql",
+    "${{{reference}}} is inside {field}, and a value reaches SQL only as a bound parameter; "
+    "write :name there and give the reference to params",
 )
 
 STEP_UNSAFE_BLOCK = DOCUMENT.define(
@@ -556,6 +567,12 @@ SHELL_ARITHMETIC = _unresolved(
     "it is inside shell arithmetic, which evaluates a value as an expression, and it is not an integer",
 )
 
+SQL_REFERENCE = _unresolved(
+    "in_sql",
+    "it is inside {field}, and a value reaches SQL only as a bound parameter; "
+    "write :name there and give the reference to params",
+)
+
 RUN = Catalogue("run")
 
 RUN_UNKNOWN_CONNECTION = RUN.define("unknown_connection", "no connection coded {ref} ({available})")
@@ -575,6 +592,11 @@ RUN_SCHEMA_NOT_HELD = RUN.define(
 UNKNOWN_CONNECTION_KIND = RUN.define(
     "unknown_connection_kind",
     "connection {ref} has kind {kind}, which no installed plugin contributes",
+)
+
+CONNECTION_WRONG_KIND = RUN.define(
+    "connection_wrong_kind",
+    "connection {ref} has kind {kind}, and this reads a connection of kind {wanted}",
 )
 
 STEP_NOT_IN_VERSION = RUN.define("step_not_in_version", "step {step} is not in the pinned pipeline version")
@@ -602,6 +624,11 @@ GONE_PROBES = RUN.define("gone_probes", "{detail} (after {probes} consecutive GO
 DEADLINE_PASSED = RUN.define("deadline_passed", "the deadline {deadline} passed before the step finished")
 
 DEADLINE_SKIPPED = RUN.define("deadline_skipped", "the deadline {deadline} passed; the step is skipped")
+
+LEASE_RECOVERIES = RUN.define(
+    "lease_recoveries",
+    "step {step} was taken back from a worker more than {limit} times without an outcome, so it is not run again",
+)
 
 CALL_TIMED_OUT = RUN.define("call_timed_out", "the block call timed out")
 
@@ -859,6 +886,10 @@ ENDPOINT_BODY_NOT_JSON = SOURCE.define("body_not_json", "the body is not JSON: {
 
 ENDPOINT_BODY_NOT_TEXT = SOURCE.define("body_not_text", "the body is not {charset} text: {detail}")
 
+ENDPOINT_CHARSET_REFUSED = SOURCE.define(
+    "charset_refused", "this endpoint reads a text body in {accepted}, and {charset} is not one of them"
+)
+
 REFERENCE_MALFORMED_ERROR = SOURCE.define(
     "reference_malformed_error",
     "{reference} reads a failure, which is written steps.<name>.error.code, .message, or .params",
@@ -888,7 +919,9 @@ TOKEN_REFUSED = SOURCE.define(
     "token_refused", "this endpoint takes the bearer token minted for it, in an Authorization header"
 )
 
-INTAKE_RATE = SOURCE.define("intake_rate", "this instance takes {per_minute} calls a minute at one path")
+INTAKE_RATE = SOURCE.define(
+    "intake_rate", "this instance takes {per_minute} calls a minute from one address at one route"
+)
 
 SOURCE_RATE = SOURCE.define("rate", "this endpoint takes {per_minute} calls a minute")
 
@@ -903,6 +936,8 @@ SOURCE_KIND_MISSING = SOURCE.define(
 )
 
 SOURCE_BODY_TOO_LARGE = SOURCE.define("body_too_large", "the body is larger than the {limit} bytes this endpoint reads")
+
+SOURCE_BODY_TIMED_OUT = SOURCE.define("body_timed_out", "the body did not arrive within {timeout}")
 
 SOURCE_BACKLOGGED = SOURCE.define(
     "backlogged",

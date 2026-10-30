@@ -92,20 +92,23 @@ A profile names a server and how to obtain a token for it. Profiles are resolved
 `~/.config/dirigent/profiles.yaml` -- so `cd`-ing into a pipeline repository points the CLI at
 that repository's server without anyone remembering a flag.
 
-A project's file travels with its repository, so whoever wrote it may not be you. Three rules
+A project's file travels with its repository, so whoever wrote it may not be you. Four rules
 hold it to addressing:
 
 - **It may not name a command.** `token_cmd` is refused in a `.dirigent/profiles.yaml`, and
   nothing runs. A profile that needs a command lives in the user file.
-- **It must be yours.** A project's `profiles.yaml` or `.env` that another user owns, or that
-  anyone may rewrite, is passed over as though it were not there. In a container or a shared
-  directory, a project file owned by another uid is not read at all, so name the server with
-  `--url` or `DG_URL`.
+- **It must be yours, and really there.** A project's `profiles.yaml` or `.env` that another
+  user owns, that its group or anyone else may rewrite, or that is a symbolic link is passed over
+  as though it were not there, and so is a `.dirigent` directory that is a link. In a container
+  or a shared directory, a project file owned by another uid is not read at all, so name the
+  server with `--url` or `DG_URL`.
+- **Its `.env` is taken literally.** A `${VAR}` in a project's `.env` stays those characters, so
+  the file cannot copy a value out of your shell.
 - **A token from your shell does not follow its URL off this host.** A `--token`, a `DG_TOKEN`,
   or a variable a `token_env` reads out of your shell is refused on its way to a server the
   project's file or `.env` named, unless that server is on loopback. Name the server yourself
   with `--url` or `DG_URL`, or keep a token for it in the project's `.env`, and the refusal says
-  so. A token the project supplied itself, in that `.env`, goes to the project's server.
+  so. A token the project supplied itself, written out in that `.env`, goes to the project's server.
 
 ```yaml
 # ~/.config/dirigent/profiles.yaml
@@ -387,7 +390,8 @@ with the `next` commands that start the stack, beginning with `uv sync`. Both ca
 `template`, and the stack's `services`, any `packs`, and `workflow` when one was written.
 
 Inside a project, `dg apply` with no argument applies every document, and `dg apply
---dry-run` is the whole-project diff. That plus a pipeline repository on GitHub is the entire
+--dry-run` is the whole-project diff, and it names the sources and managed schedules an apply
+would retire. That plus a pipeline repository on GitHub is the entire
 promotion story.
 
 `--prune` reconciles the whole project: after applying every document, a pipeline an
@@ -942,7 +946,7 @@ verb and whose fields are the identity of what changed:
 | `source.input` | `dg source inputs` | One per input, newest first, under `fields`: `outcome`, the HTTP `status` it was answered with, the `run_id` or the refusal's `code` and `reason`, `method`, `path`, `body_bytes`, `duration_ms`, `caller` |
 | `source.paused` / `.resumed` | `dg source pause`, `dg source resume` | `code`, `pipeline`, and the `state` it is in now |
 | `source.token_rotated` | `dg source rotate-token` | `code`, `pipeline`, the `url` to call, its `auth` and, for a signed source, the signature `header`, and the new `token` or signing secret, once |
-| `source.secret_set` | `dg source set-secret` | `code`, `pipeline`, and the `fingerprint` of the secret it now holds, a short SHA-256 and none of the secret |
+| `source.secret_set` | `dg source set-secret` | `code`, `pipeline`, and the `fingerprint` of the secret it now holds, a short hash keyed by the instance and none of the secret |
 | `source.called` | `dg source call` | `code`, `pipeline`, `method`, `url`, and the `status` and `body` it was answered with |
 | `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
@@ -1223,7 +1227,9 @@ ever sees a page boundary. `dg runs list --limit` bounds the total rather than o
 Defaults worth knowing: `dg runs list --limit` is 50, which is the server's own default for
 that endpoint rather than a second number the CLI invented; `--tz` is `UTC`; an alert rule's `--throttle` is `0s`, meaning no
 throttling. `--host` and `--port` default to whatever the instance's
-settings say, which is `127.0.0.1:3333` out of the box.
+settings say, which is `127.0.0.1:3333` out of the box. `dg dev` on any other address needs an
+admin that does not use the fixed `admin` password, created first with `dg db upgrade` and
+`dg admin user create --role admin`.
 
 Every `list` above also answers to `ls` -- `dg runs ls`, `dg pipeline ls`, `dg alerts rules
 ls`. The alias is hidden from `--help`, which teaches one name; it exists because fingers

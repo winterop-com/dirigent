@@ -292,19 +292,19 @@ def _print_plan(result: ApplyResult, origin: str) -> bool:
     """Print one apply result the way a plan reads, and say whether it was accepted."""
     plan = result.plan
     if plan.action is PlanAction.INVALID:
-        console.print(f"[red]invalid[/]  {plan.code}  [dim]({result.kind.value}, {origin})[/]")
+        console.print(f"[red]invalid[/]  {escape(plan.code)}  [dim]({result.kind.value}, {escape(origin)})[/]")
         for issue in plan.issues:
-            console.print(f"  [red]-[/] {issue.location}: {issue.message}")
+            console.print(f"  [red]-[/] {escape(f'{issue.location}: {issue.message}')}")
         return False
     version = result.version or plan.next_version
     detail = (
-        f"triggers for {plan.pipeline}"
+        f"triggers for {escape(str(plan.pipeline))}"
         if result.kind is DocumentKind.TRIGGERS
         else (f"version {version}" if version else "")
     )
-    console.print(f"{styled(plan.action.value):<10} {plan.code}  [dim]{detail} ({origin})[/]")
+    console.print(f"{styled(plan.action.value):<10} {escape(plan.code)}  [dim]{detail} ({escape(origin)})[/]")
     for warning in plan.warnings:
-        console.print(f"  [yellow]![/] {warning.location}: {warning.message}")
+        console.print(f"  [yellow]![/] {escape(f'{warning.location}: {warning.message}')}")
     diff = plan.diff
     if diff and plan.action is PlanAction.UPDATE:
         for label, changed in (
@@ -313,10 +313,13 @@ def _print_plan(result: ApplyResult, origin: str) -> bool:
             ("changed", diff.steps_changed),
         ):
             if changed:
-                console.print(f"  [dim]steps {label}:[/] {', '.join(changed)}")
+                console.print(f"  [dim]steps {label}:[/] {escape(', '.join(changed))}")
         for label, flag in (("params", diff.params_changed), ("triggers", diff.triggers_changed)):
             if flag:
                 console.print(f"  [dim]{label} changed[/]")
+    for label, removed in (("sources", result.sources.removed), ("schedules", result.triggers.schedules_removed)):
+        if removed:
+            console.print(f"  [yellow]{label} removed:[/] {escape(', '.join(removed))}")
     return True
 
 
@@ -326,8 +329,8 @@ def _print_source_tokens(result: ApplyResult, *, base_url: str) -> None:
     There is no second chance to read either.
     """
     for minted in result.sources.tokens:
-        console.print(f"\n  source [bold]{minted.code}[/]  {base_url.rstrip('/')}{minted.url_path}")
-        console.print(f"  {credential_line(minted.auth, minted.header, minted.token)}")
+        console.print(f"\n  source [bold]{escape(minted.code)}[/]  {escape(base_url.rstrip('/') + minted.url_path)}")
+        console.print(f"  {escape(credential_line(minted.auth, minted.header, minted.token))}")
     if result.sources.tokens:
         console.print("\n[yellow]Each token and signing secret is shown once.[/]\n")
 
@@ -899,8 +902,8 @@ def pipeline_list(
         [
             [
                 row.code,
-                row.name or "-",
-                " ".join(row.tags) or "-",
+                escape(row.name or "-"),
+                escape(" ".join(row.tags)) or "-",
                 str(row.current_version or "-"),
                 render_bool(row.active),
                 str(row.active_runs),
@@ -956,8 +959,8 @@ def pipeline_versions(
             [
                 str(row.version),
                 row.digest[7:19],
-                row.provenance_ref or row.provenance_source.value,
-                row.applied_by or "-",
+                escape(row.provenance_ref or row.provenance_source.value),
+                escape(row.applied_by or "-"),
                 moment(row.created_at),
             ]
             for row in rows
@@ -1005,11 +1008,11 @@ def pipeline_validate(
         return
     for one, found in checked.items():
         if not found:
-            console.print(f"[green]valid[/]    {one}")
+            console.print(f"[green]valid[/]    {escape(str(one))}")
             continue
-        console.print(f"[red]invalid[/]  {one}")
+        console.print(f"[red]invalid[/]  {escape(str(one))}")
         for issue in found:
-            stream_line(f"  {issue}")
+            stream_line(f"  {escape(str(issue))}")
     if any(checked.values()):
         raise typer.Exit(code=1)
 
@@ -1378,7 +1381,7 @@ def _report_skipped(accepted: RunAccepted, *, state: CliState) -> None:
             detail=accepted.detail or CONCURRENCY_REFUSED.render(),
         )
         return
-    console.print(f"[yellow]skipped[/] {accepted.detail or CONCURRENCY_REFUSED.render()}")
+    console.print(f"[yellow]skipped[/] {escape(accepted.detail or CONCURRENCY_REFUSED.render())}")
 
 
 def backfill_command(
@@ -2054,9 +2057,9 @@ def runs_list(
         [
             [
                 str(row.id) + prioritised(row.priority.value),
-                row.pipeline,
+                escape(row.pipeline),
                 styled(row.status.value),
-                row.triggered_by_label or row.triggered_by_kind.value,
+                escape(row.triggered_by_label or row.triggered_by_kind.value),
                 moment(row.started_at),
                 moment(row.finished_at),
             ]
@@ -2156,10 +2159,10 @@ def runs_show(
         ["step", "block", "outcome", "after", "attempts", "queued", "running", "waiting", "items"],
         [
             [
-                node.code,
-                node.block,
+                escape(node.code),
+                escape(node.block),
                 styled(node.outcome),
-                ", ".join(node.depends_on) or "-",
+                escape(", ".join(node.depends_on)) or "-",
                 str(node.attempts),
                 elapsed(timings[node.code].queued_ms),
                 elapsed(timings[node.code].running_ms),
@@ -2176,11 +2179,11 @@ def runs_show(
             ["step", "index", "key", "status", "error"],
             [
                 [
-                    item.step_name,
+                    escape(item.step_name),
                     str(item.item_index),
-                    item.item_key,
+                    escape(str(item.item_key)),
                     styled(item.status.value),
-                    item.error or "-",
+                    escape(item.error or "-"),
                 ]
                 for item in items
             ],
@@ -2364,13 +2367,13 @@ def _print_report(report: RunReport) -> None:
         ["step", "block", "outcome", "after", "attempts", "duration", "error"],
         [
             [
-                step.step + flagged(step.warnings),
-                step.block,
+                escape(step.step) + flagged(step.warnings),
+                escape(step.block),
                 styled(step.outcome),
-                ", ".join(step.depends_on) or "-",
+                escape(", ".join(step.depends_on)) or "-",
                 str(step.attempts),
                 elapsed(step.duration_ms),
-                step.error or "-",
+                escape(step.error or "-"),
             ]
             for step in report.steps
         ],
@@ -2503,7 +2506,7 @@ def blocks_list(
     table(
         "blocks",
         ["id", "kind", "plugin", "summary"],
-        [[block.id, block.kind.value, block.plugin, block.summary] for block in catalog.blocks],
+        [[escape(block.id), block.kind.value, escape(block.plugin), escape(block.summary)] for block in catalog.blocks],
     )
     console.print(
         f"[dim]storage schemes:[/] {', '.join(entry.id for entry in catalog.storage_schemes) or '-'}   "
@@ -2573,11 +2576,11 @@ def connection_list(
         [
             [
                 row.code,
-                row.name or "-",
-                row.kind,
+                escape(row.name or "-"),
+                escape(row.kind),
                 moment(row.last_check_at),
                 render_check(row.last_check_at, row.last_check_healthy),
-                row.description or "-",
+                escape(row.description or "-"),
             ]
             for row in rows
         ],
@@ -2718,7 +2721,12 @@ def schema_list(ctx: typer.Context) -> None:
         "schemas",
         ["code", "name", "description", "used by"],
         [
-            [row.code, row.name or "-", row.description or "-", str(len(row.used_by)) if row.used_by else "-"]
+            [
+                row.code,
+                escape(row.name or "-"),
+                escape(row.description or "-"),
+                str(len(row.used_by)) if row.used_by else "-",
+            ]
             for row in rows
         ],
     )
@@ -2865,9 +2873,9 @@ def workers_command(
         ["name", "host", "version", "status", "concurrency", "same code", "last seen"],
         [
             [
-                row.name,
-                row.hostname,
-                row.version,
+                escape(row.name),
+                escape(row.hostname),
+                escape(row.version),
                 styled(row.status.value),
                 str(row.concurrency),
                 render_bool(row.code_matches_server),
@@ -2909,11 +2917,11 @@ def system_info(
             [
                 [
                     row.code,
-                    row.name or "-",
-                    row.kind,
+                    escape(row.name or "-"),
+                    escape(row.kind),
                     moment(row.last_check_at),
                     render_check(row.last_check_at, row.last_check_healthy),
-                    row.last_check_detail or "-",
+                    escape(row.last_check_detail or "-"),
                 ]
                 for row in info.connections
             ],
@@ -2977,9 +2985,9 @@ def token_list(
         ["user", "name", "prefix", "created", "last used", "expires", "revoked"],
         [
             [
-                row.username,
-                row.name,
-                row.prefix,
+                escape(row.username),
+                escape(row.name),
+                escape(row.prefix),
                 moment(row.created_at),
                 moment(row.last_used_at),
                 moment(row.expires_at),
@@ -3209,9 +3217,9 @@ def examples_list(
         [
             [
                 row.code,
-                row.name or "-",
-                " ".join(one for one in row.tags if one != STARTER_TAG) or "-",
-                row.plugin,
+                escape(row.name or "-"),
+                escape(" ".join(one for one in row.tags if one != STARTER_TAG)) or "-",
+                escape(row.plugin),
                 "[green]*[/]" if row.starter else "",
                 starters.summary(row.requires),
             ]

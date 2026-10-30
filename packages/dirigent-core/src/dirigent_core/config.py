@@ -264,6 +264,9 @@ class Settings(BaseSettings):
     lease: Duration = Field(default=timedelta(seconds=60), ge=timedelta(seconds=5))
     """How long a claimed attempt's lease is valid before the sweeper may reclaim it."""
 
+    lease_recovery_limit: int = Field(default=5, ge=0)
+    """How many times one attempt may be taken back from a worker and run again before it fails."""
+
     heartbeat: Duration = Field(default=timedelta(seconds=15), ge=timedelta(seconds=1))
     """How often a worker refreshes the leases it holds and its registry row."""
 
@@ -384,8 +387,11 @@ class Settings(BaseSettings):
     source_max_body: Size = Field(default=1_048_576, ge=1)
     """The largest body any endpoint reads, whatever its own ``max_body`` says; reading stops one byte past it."""
 
+    source_body_timeout: Duration = Field(default=timedelta(seconds=30), gt=timedelta(0))
+    """How long an endpoint waits for a whole body before it answers 408; no database connection is held meanwhile."""
+
     source_intake_rate_per_minute: int = Field(default=600, ge=1)
-    """How fast calls to one method and path are taken, before any source is looked up.
+    """How fast one address's calls to one method and route are taken, before any source is read.
 
     A source's own ``rate`` applies on top of this."""
 
