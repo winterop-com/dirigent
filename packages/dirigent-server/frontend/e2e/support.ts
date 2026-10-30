@@ -18,8 +18,8 @@ import { LABELS } from '../src/lib/labels.ts'
  * rather than transcribed into a spec, where it would drift the moment either changed.
  */
 
-export const DEV_USERNAME = 'dev'
-export const DEV_PASSWORD = 'dirigent-dev'
+export const DEV_USERNAME = 'admin'
+export const DEV_PASSWORD = 'admin'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
