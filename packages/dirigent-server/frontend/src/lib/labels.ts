@@ -987,6 +987,8 @@ const refused = {
         carried_schemas:
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
+        step_reference_in_sql:
+            '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write :name there and give the reference to params.',
         step_schema_interpolated:
             '{code} is resolved once the run has started, and a schema is named by its code. A run takes the shapes its document names when it starts, so write the code this step checks against.',
         unsatisfied: 'The document does not satisfy {format}.',
@@ -1019,6 +1021,7 @@ const refused = {
             'Source kind {kind} is {hosting}, and a contributed kind is the ReceivedSource, PolledSource or HeldSource its hosting names.',
     },
     reference: {
+        in_sql: '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write :name there and give the reference to params.',
         not_failed:
             '{reference} cannot be resolved: step {step} did not fail, and its error is read only when it did.',
         shell_arithmetic:
