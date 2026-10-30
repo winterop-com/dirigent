@@ -339,7 +339,10 @@ it keeps running, and serves the UI at `http://127.0.0.1:3333`. `dg dev --wipe-s
 empty `.dirigent/state/` first, taking the admin and the token `dg init` just created with it.
 A state an older dirigent wrote is refused at boot with `database.schema_stale`, naming the
 first column that differs, because before 1.0 the schema is not migrated between versions:
-wipe the state or point at a database this version created.
+wipe the state or point at a database this version created. A state a checkout could have
+supplied, one that is a link, is another user's, others can write or git tracks, is refused with
+a `database.state_*` code; [security](security.md) has the rule. A wipe never deletes through a
+link and leaves a tracked state in place.
 
 It never outlives the process that started it: a wrapper killed outright forwards no signal,
 so `dg dev` watches its own parent and shuts down the way SIGTERM shuts it down once it is

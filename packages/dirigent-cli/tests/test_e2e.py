@@ -1,5 +1,6 @@
 """The whole product, driven the way a person drives it: dg dev, dg apply, dg run, dg runs."""
 
+import asyncio
 import json
 import os
 import socket
@@ -18,6 +19,7 @@ import pytest
 from cryptography.fernet import Fernet
 
 from clisupport import LINE, asking_for_the_rendering, closing, of_kind, plain, records
+from dirigent_cli.commands import GUARD_EXIT
 
 pytestmark = pytest.mark.e2e
 
@@ -190,6 +192,14 @@ def read_records(process: subprocess.Popen[str], deadline: float) -> Iterator[di
             continue
         if isinstance(record, dict):
             yield record
+
+
+def read_records_until_ready(process: subprocess.Popen[str], deadline: float) -> Iterator[dict[str, Any]]:
+    """Read dg dev's stream up to and including the record saying it is ready."""
+    for record in read_records(process, deadline):
+        yield record
+        if record.get("kind") == "process" and record.get("message") == "ready":
+            return
 
 
 def read_token(process: subprocess.Popen[str], deadline: float) -> str:
@@ -550,6 +560,129 @@ def test_dg_dev_announces_itself_as_records_and_not_a_schema_history(tmp_path: P
     messages = [str(record.get("message", "")) for record in emitted]
     for noise in ("Running upgrade", "user created", "token issued", "Application startup complete"):
         assert noise not in messages, f"{noise!r} is detail, and detail is what -v is for"
+
+
+def hostile_checkout(tmp_path: Path, planted: Path) -> Path:
+    """Clone a repository whose author committed a state with a shell step already queued."""
+    from dirigent_core import migrations
+    from dirigent_core.config import Settings
+    from dirigent_core.database import create_engine, create_session_factory, session_scope
+    from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
+    from dirigent_core.engine.runs import create_run, save_pipeline
+    from dirigent_core.engine.services import EngineServices
+    from dirigent_core.plugins import load_plugin_host
+
+    author = tmp_path / "author"
+    state = author / ".dirigent" / "state"
+    state.mkdir(parents=True)
+    settings = Settings(
+        database_url=f"sqlite+aiosqlite:///{state / 'dirigent.db'}",
+        artifact_root=f"file://{state / 'artifacts'}",
+        enabled_unsafe_blocks=["shell.run"],
+    )
+
+    async def queue() -> None:
+        await migrations.upgrade_async(settings=settings)
+        engine = create_engine(settings)
+        definition = PipelineDefinition(
+            code="planted",
+            steps={"plant": StepDefinition(block="shell.run", config={"argv": ["touch", str(planted)]})},
+        )
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                version = await save_pipeline(session, definition)
+                await create_run(session, EngineServices.build(settings, load_plugin_host()), version)
+        finally:
+            await engine.dispose()
+
+    asyncio.run(queue())
+    isolated = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+    identity = ["-c", "user.name=author", "-c", "user.email=author@example.test"]
+    for argv in (["init", "-q"], ["add", "-f", ".dirigent"], [*identity, "commit", "-qm", "state"]):
+        subprocess.run(["git", *argv], cwd=author, env=isolated, check=True)  # noqa: S603, S607 - this test's own
+    checkout = tmp_path / "checkout"
+    subprocess.run(["git", "clone", "-q", str(author), str(checkout)], env=isolated, check=True)  # noqa: S603, S607
+    return checkout
+
+
+def test_dg_dev_does_not_run_what_a_checkout_committed_as_its_state(tmp_path: Path) -> None:
+    """A clone holding a queued shell step: with the shell allowlisting it, nothing of the clone's runs."""
+    planted = tmp_path / "planted"
+    checkout = hostile_checkout(tmp_path, planted)
+    env = {
+        **os.environ,
+        "NO_COLOR": "1",
+        "DIRIGENT_SECRET_KEY": Fernet.generate_key().decode(),
+        "DIRIGENT_ENABLED_UNSAFE_BLOCKS": "shell.run",
+    }
+    env.pop("DIRIGENT_CONFIG_FILE", None)
+    env.pop("DIRIGENT_DATABASE_URL", None)
+    process = subprocess.Popen(  # noqa: S603 - the argv is this test's own
+        [str(dg_path()), "dev", "--port", str(free_port())],
+        cwd=checkout,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    deadline = time.monotonic() + STARTUP_TIMEOUT
+    while process.poll() is None and not planted.exists() and time.monotonic() < deadline:
+        time.sleep(0.1)
+    if process.poll() is None:  # pragma: no cover - only when the guard is gone
+        process.terminate()
+    output, _ = process.communicate(timeout=30)
+
+    assert not planted.exists(), "the step the checkout queued ran on this machine"
+    assert closing(output)["code"] == "database.state_tracked", output
+    assert process.returncode == GUARD_EXIT
+
+
+def test_a_committed_scaffold_starts_twice_and_wipes(tmp_path: Path) -> None:
+    """The project `dg init` makes, under git as it would be, is an honest state on every start."""
+    root = tmp_path / "project"
+    env = {
+        **os.environ,
+        "NO_COLOR": "1",
+        "DIRIGENT_SECRET_KEY": Fernet.generate_key().decode(),
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_CONFIG_NOSYSTEM": "1",
+    }
+    env.pop("DIRIGENT_CONFIG_FILE", None)
+    env.pop("DIRIGENT_DATABASE_URL", None)
+    made = subprocess.run(  # noqa: S603 - the argv is this test's own
+        [str(dg_path()), "init", str(root), "--password", "a test password", "--json"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert made.returncode == 0, made.stdout + made.stderr
+    identity = ["-c", "user.name=author", "-c", "user.email=author@example.test"]
+    for argv in (["init", "-q"], ["add", "."], [*identity, "commit", "-qm", "project"]):
+        subprocess.run(["git", *argv], cwd=root, env=env, check=True)  # noqa: S603, S607 - this test's own
+
+    for flags in ([], [], ["--wipe-state"], []):
+        process = subprocess.Popen(  # noqa: S603 - the argv is this test's own
+            [str(dg_path()), "dev", "--port", str(free_port()), *flags],
+            cwd=root,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        try:
+            deadline = time.monotonic() + STARTUP_TIMEOUT
+            said = [r.get("message") for r in read_records_until_ready(process, deadline)]
+            assert said[-1:] == ["ready"], f"{flags}: {said}"
+        finally:
+            process.terminate()
+            process.wait(timeout=30)
+            if process.stdout is not None:
+                process.stdout.close()
+        assert (root / ".dirigent" / "state" / "dirigent.db").is_file()
+
+    assert (root / ".dirigent" / "state").stat().st_mode & 0o777 == 0o700
 
 
 def test_dg_dev_renders_its_lines_when_asked_to(project: Path) -> None:

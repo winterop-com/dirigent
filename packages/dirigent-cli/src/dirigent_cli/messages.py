@@ -67,6 +67,12 @@ DEV_IS_SQLITE_ONLY = CLI.define("dev_is_sqlite_only", "dg dev is the SQLite stan
 
 USE_DG_SERVER = CLI.define("use_dg_server", "use dg server on PostgreSQL")
 
+STATE_WAY_OUT = CLI.define(
+    "state_way_out",
+    "read what is there, remove it yourself if none of it is yours, and start again; "
+    "dg dev --wipe-state clears a state that is only too open",
+)
+
 DEV_FIXTURE_NEEDS_LOOPBACK = CLI.define(
     "dev_fixture_needs_loopback",
     "dg dev keeps its admin/admin login to loopback, and {address} is not a loopback address",

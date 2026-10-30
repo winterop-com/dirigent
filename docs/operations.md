@@ -19,7 +19,9 @@ dg dev
 
 SQLite in a file, the API, the scheduler, and a worker in a single asyncio process. Its
 database and its artifacts go in `.dirigent/state/` under the working directory, kept
-between starts unless `--wipe-state` says otherwise. It migrates, mints a development admin
+between starts unless `--wipe-state` says otherwise. That directory is private to the user
+running it, and one a checkout could have supplied is
+[refused](security.md#local-execution-and-the-unsafe-block-allowlist). It migrates, mints a development admin
 on an empty instance, emits the token once, and then goes quiet. At a terminal it renders
 its lines; under compose or `docker logs` it writes NDJSON, which `dg format` renders back:
 
