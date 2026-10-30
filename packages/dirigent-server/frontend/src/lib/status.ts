@@ -47,7 +47,15 @@ export type AttemptKind = 'automatic' | 'manual'
 export type LogLevel = 'debug' | 'info' | 'warning' | 'error'
 
 /** What started a run. `TriggerKind` in dirigent_client.enums. */
-export type TriggerKind = 'adhoc' | 'schedule' | 'api_token' | 'user' | 'pipeline' | 'backfill'
+export type TriggerKind =
+    | 'adhoc'
+    | 'schedule'
+    | 'api_token'
+    | 'user'
+    | 'pipeline'
+    | 'backfill'
+    | 'source'
+    | 'rerun'
 
 /** Every state a run can be in, in the order a filter offers them. `RunStatus`. */
 export const RUN_STATUSES: readonly RunStatus[] = [

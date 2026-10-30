@@ -1714,6 +1714,30 @@ def test_a_run_can_be_cancelled(client: TestClient) -> None:
     assert "tester" in cancelled.json()["error"]
 
 
+def test_a_settled_run_is_rerun_and_one_in_flight_is_refused(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    run_id = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {"greeting": "hei"}}).json()["run_id"]
+
+    refused = client.post(f"{PREFIX}/runs/{run_id}/$rerun")
+    assert refused.status_code == 409
+    assert refused.json()["code"] == "run.rerun_in_flight"
+    assert refused.json()["params"]["status"] == "queued"
+
+    assert client.post(f"{PREFIX}/runs/{run_id}/$cancel").status_code == 200
+    accepted = client.post(f"{PREFIX}/runs/{run_id}/$rerun")
+    assert accepted.status_code == 202, accepted.text
+    again = client.get(f"{PREFIX}/runs/{accepted.json()['run_id']}").json()["run"]
+    assert (again["triggered_by_kind"], again["triggered_by_id"]) == ("rerun", run_id)
+    assert again["params"] == {"greeting": "hei"}
+    assert again["parent_run_id"] is None, "a rerun is not a child run"
+
+    current = client.post(f"{PREFIX}/runs/{run_id}/$rerun", json={"version": "current"})
+    assert current.status_code == 202, current.text
+    assert client.post(f"{PREFIX}/runs/{run_id}/$rerun", json={"version": "latest"}).status_code == 422
+    missing = "00000000-0000-7000-8000-000000000000"
+    assert client.post(f"{PREFIX}/runs/{missing}/$rerun").status_code == 404
+
+
 class _Aborted(Exception):
     """A driver error carrying the SQLSTATE PostgreSQL breaks a deadlock with."""
 

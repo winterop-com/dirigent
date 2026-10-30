@@ -1093,6 +1093,7 @@ GET           /api/v1/runs/{id}              # run + DAG view model + item and a
 GET           /api/v1/runs/{id}/items        # the fan-out grid, paged in creation order
 GET           /api/v1/runs/{id}/attempts     # paged in creation order; filters: step, status
 POST          /api/v1/runs/{id}/$cancel
+POST          /api/v1/runs/{id}/$rerun       # same params and source input; version: pinned | current
 POST          /api/v1/attempts/{id}/$retry   # Idempotency-Key header required
 GET           /api/v1/runs/{id}/$logs        # a page like every listing; ?follow=sse tails it
 GET           /api/v1/runs/{id}/$events      # the whole run as one SSE stream, for a watcher
@@ -1536,6 +1537,7 @@ dg schema list | create file|- | show | update CODE [file|-] | delete CODE   # n
 # execution
 dg run NAME|file|url [-p key=value ...] [-P FILE] [--watch] [--local] [--window START..END]
 dg runs list | stats | show | cancel | report | profile | logs [--follow] | retry RUN --step NAME
+dg runs rerun RUN [--current] [--watch]   # a settled run again, a dead letter replayed
 dg backfill PIPELINE --schedule S --from WHEN --to WHEN [--dry-run]   # the windows a cadence went past
 dg format [FILE]                        # render a kept or piped NDJSON stream for reading
 

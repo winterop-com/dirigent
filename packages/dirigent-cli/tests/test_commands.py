@@ -932,6 +932,21 @@ def test_showing_a_run_says_where_each_steps_time_went(tmp_path: Path, server: s
     assert first["queued_ms"] + first["running_ms"] + first["waiting_ms"] >= 0
 
 
+def test_rerunning_a_settled_run_records_the_new_run_and_its_original(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path)
+    assert invoke("run", "cli-demo").exit_code == 0
+    original = latest_run()
+    assert invoke("runs", "cancel", original).exit_code == 0
+
+    started = only(invoke("runs", "rerun", original, "--json").stdout, "run")
+    assert (started["message"], started["pipeline"], started["rerun_of"]) == ("started", "cli-demo", original)
+    assert started["run_id"] == latest_run() != original
+
+    refused = invoke("runs", "rerun", started["run_id"], "--current", "--json")
+    assert refused.exit_code != 0
+    assert refusal(refused.stdout)["code"] == "run.rerun_in_flight"
+
+
 def test_run_stats_are_one_record_carrying_the_days_and_the_durations(tmp_path: Path, server: str) -> None:
     import sqlalchemy as sa
 

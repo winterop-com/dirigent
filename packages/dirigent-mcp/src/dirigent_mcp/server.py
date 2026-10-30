@@ -44,7 +44,7 @@ This server operates one dirigent instance: a data pipeline orchestrator whose p
 YAML documents of steps, each step a block with a config. Before writing a document, read
 the blocks it will use (list_blocks, get_block) and an example close to it (list_examples,
 get_example); plan_document checks a document against the instance without storing it.
-A run is started with run_pipeline and read with get_run, run_logs and run_attempts."""
+A run is started with run_pipeline, read with get_run, run_logs and run_attempts, and run again with rerun_run."""
 
 
 class Clients:
@@ -193,6 +193,14 @@ def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MC
     async def cancel_run(run_id: str) -> Any:
         """Cancel a run: what has not started never does, and running remote work is told to stop."""
         return await call(lambda dg: dg.runs.cancel(run_id))
+
+    @tool(WRITES)
+    async def rerun_run(run_id: str, current: bool = False) -> Any:
+        """Run a settled run again with its parameters, and for a run entered at a source its input, which replays it.
+
+        The new run pins the version the original ran, or with `current` the pipeline's current one.
+        """
+        return await call(lambda dg: dg.runs.rerun(run_id, current=current))
 
     @tool(WRITES)
     async def pause_run(run_id: str) -> Any:

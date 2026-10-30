@@ -1025,6 +1025,8 @@ const refused = {
         reply_refused: 'Reply {step} could not be rendered: {detail}',
         reply_status:
             "Reply {step} answers with {status}, and a reply's status is a whole number from 200 to 599.",
+        rerun_in_flight: 'Run {run} is still {status}, and only a settled run can be rerun.',
+        rerun_input_gone: 'Run {run} no longer holds the input that entered it at {step}.',
         schema_not_held:
             'No schema coded {code} exists on this instance ({held}), and this pipeline checks against it. Store that shape, or apply a version of the pipeline that does not name it.',
         server_settled: 'Step {step} is a {kind}, which the server settles and no worker claims.',

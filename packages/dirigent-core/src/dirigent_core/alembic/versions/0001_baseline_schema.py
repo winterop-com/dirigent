@@ -551,6 +551,8 @@ def upgrade() -> None:
                 "user",
                 "pipeline",
                 "backfill",
+                "source",
+                "rerun",
                 name="trigger_kind",
                 native_enum=False,
                 length=32,

@@ -121,6 +121,21 @@ async def test_a_document_is_planned_applied_and_run(server: MCPServer) -> None:
     ]
 
 
+async def test_a_settled_run_is_rerun_and_one_in_flight_is_refused(server: MCPServer) -> None:
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    assert tools["rerun_run"].annotations is not None and not tools["rerun_run"].annotations.read_only_hint
+
+    await call(server, "apply_document", document=DOCUMENT)
+    original = (await call(server, "run_pipeline", code="mcp-demo"))["run_id"]
+    with pytest.raises(ToolError, match="only a settled run can be rerun"):
+        await server.call_tool("rerun_run", {"run_id": original})
+
+    await call(server, "cancel_run", run_id=original)
+    accepted = await call(server, "rerun_run", run_id=original, current=True)
+    again = (await call(server, "get_run", run_id=accepted["run_id"]))["run"]
+    assert (again["triggered_by_kind"], again["triggered_by_id"]) == ("rerun", original)
+
+
 async def test_run_stats_are_read_only_and_answer_the_window(server: MCPServer) -> None:
     tools = {tool.name: tool for tool in await server.list_tools()}
     assert tools["run_stats"].annotations is not None and tools["run_stats"].annotations.read_only_hint

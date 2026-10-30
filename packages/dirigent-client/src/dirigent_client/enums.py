@@ -117,6 +117,9 @@ class TriggerKind(StrEnum):
     SOURCE = "source"
     """An input arrived at a source node, and ``triggered_by_id`` names the source."""
 
+    RERUN = "rerun"
+    """An operator reran a settled run, and ``triggered_by_id`` names that run."""
+
 
 class ScheduleKind(StrEnum):
     """How a schedule computes its next firing."""

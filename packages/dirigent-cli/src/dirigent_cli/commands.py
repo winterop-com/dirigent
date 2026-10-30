@@ -164,6 +164,7 @@ from dirigent_client import (
     Page,
     PlanAction,
     ProvenanceSource,
+    RunAccepted,
     RunDetail,
     RunOut,
     RunPriority,
@@ -1350,15 +1351,7 @@ def run_command(
             )
         )
         if accepted.run_id is None:
-            if state.json_output:
-                emit_problem(
-                    RUN_SKIPPED,
-                    status=409,
-                    title="Skipped",
-                    detail=accepted.detail or CONCURRENCY_REFUSED.render(),
-                )
-                return
-            console.print(f"[yellow]skipped[/] {accepted.detail or CONCURRENCY_REFUSED.render()}")
+            _report_skipped(accepted, state=state)
             return
         sink(state).event(
             "run",
@@ -1370,6 +1363,19 @@ def run_command(
         )
         if watch:
             _watch(dg, accepted.run_id, code, strict=strict, state=state)
+
+
+def _report_skipped(accepted: RunAccepted, *, state: CliState) -> None:
+    """Say that the pipeline's concurrency policy refused the run, and why."""
+    if state.json_output:
+        emit_problem(
+            RUN_SKIPPED,
+            status=409,
+            title="Skipped",
+            detail=accepted.detail or CONCURRENCY_REFUSED.render(),
+        )
+        return
+    console.print(f"[yellow]skipped[/] {accepted.detail or CONCURRENCY_REFUSED.render()}")
 
 
 def backfill_command(
@@ -2237,6 +2243,39 @@ def runs_retry(
                 run_id=str(run_id),
                 attempt=created.attempt,
             )
+
+
+@runs_app.command("rerun")
+def runs_rerun(
+    ctx: typer.Context,
+    run_id: Annotated[UUID, typer.Argument(help="The settled run to run again.")],
+    current: Annotated[
+        bool, typer.Option("--current", help="Run the pipeline's current version, not the one the run pinned.")
+    ] = False,
+    watch: Annotated[bool, typer.Option("--watch", help="Follow the new run until it finishes.")] = False,
+) -> None:
+    """Run a settled run again, with its parameters and, for a run entered at a source, its input.
+
+    The new run is attributed to the original, and pins the version the original ran unless
+    `--current` asks for the pipeline's current one. A run still in flight is refused.
+    """
+    state = state_of(ctx)
+    with client_for(state) as dg:
+        accepted = dg.call(dg.runs.rerun(run_id, current=current))
+        if accepted.run_id is None:
+            _report_skipped(accepted, state=state)
+            return
+        pipeline = dg.call(dg.runs.get(accepted.run_id)).run.pipeline
+        sink(state).event(
+            "run",
+            message="started",
+            pipeline=pipeline,
+            run_id=str(accepted.run_id),
+            rerun_of=str(run_id),
+            local=False,
+        )
+        if watch:
+            _watch(dg, accepted.run_id, pipeline, strict=False, state=state)
 
 
 @runs_app.command("logs")
