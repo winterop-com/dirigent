@@ -41,7 +41,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from dirigent_common import Duration, Size, filler
 from dirigent_core.config import Settings
-from dirigent_server.bodies import read_capped
+from dirigent_server.bodies import read_within_deadline
 from dirigent_server.errors import Refusal
 from dirigent_server.logging import get_logger
 from dirigent_server.messages import (
@@ -142,6 +142,10 @@ INERT_CONTENT_TYPES: Final = frozenset(
         "text/tab-separated-values",
     }
 )
+
+#: How ``response-headers`` reads a content type: one media type and at most a charset. Anything
+#: else is refused, because a browser splits a value on its commas and acts on the last type.
+CONTENT_TYPE: Final = re.compile(r"([^ ;,/]+/[^ ;,/]+)(?: *; *charset=[A-Za-z0-9._-]+)?")
 
 #: The largest body a call may send, read no further than one byte past it.
 MAX_BODY: Final = 1024 * 1024
@@ -379,7 +383,7 @@ def _body(raw: bytes, content_type: str | None) -> tuple[JsonValue, str]:
 
 async def _facts(request: Request) -> RequestFacts:
     """Gather what arrived, for the envelope every route shares."""
-    raw = await read_capped(request, MAX_BODY)
+    raw = await read_within_deadline(request, MAX_BODY)
     if len(raw) > MAX_BODY:
         raise Refusal(PLAYGROUND_BODY_TOO_LARGE, status=http_status.HTTP_413_CONTENT_TOO_LARGE, limit=MAX_BODY)
     content_type = request.headers.get("content-type")
@@ -803,7 +807,10 @@ def _may_set(name: str, value: str) -> bool:
         or HEADER_VALUE.fullmatch(value) is None
     ):
         return False
-    return lowered != "content-type" or value.split(";")[0].strip().lower() in INERT_CONTENT_TYPES
+    if lowered != "content-type":
+        return True
+    parsed = CONTENT_TYPE.fullmatch(value)
+    return parsed is not None and parsed[1].lower() in INERT_CONTENT_TYPES
 
 
 @router.get(

@@ -996,6 +996,14 @@ const refused = {
         weak_password: 'A password must be at least {minimum} characters.',
         wrong_password: 'The current password is not correct.',
     },
+    common: {
+        yaml_alias_cycle: 'This YAML has an alias inside the node it names, so it cannot be written out.',
+        yaml_aliases_expand_too_far:
+            "This YAML's aliases would add more than {limit} values once written out. Write the repeated parts out, or repeat them less.",
+        yaml_aliases_write_too_much:
+            "This YAML's aliases would add more than {limit} bytes of text once written out. Write the repeated parts out, or repeat them less.",
+        yaml_nested_too_deep: 'This YAML nests too deeply to be read.',
+    },
     document: {
         carried_connections:
             'This document carries its own connections ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.connections.',
@@ -1107,6 +1115,7 @@ const refused = {
     server: {
         bad_credentials: 'Invalid username or password.',
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',
+        body_timed_out: 'The whole body did not arrive within {timeout}.',
         connection_exists: 'A connection coded {code} exists.',
         connection_referenced: 'Still in use. Delete what uses it first.',
         /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */

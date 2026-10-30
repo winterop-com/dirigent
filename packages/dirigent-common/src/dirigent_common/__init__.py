@@ -5,6 +5,7 @@ more than one package has to agree on: how a document spells a duration or a siz
 name may be, and the small schemas a plugin and the API both name.
 """
 
+from dirigent_common.bounded_yaml import BoundedLoader, YamlExpansionError, bounded_load, bounded_load_all
 from dirigent_common.clients import BaseRedirect, build_client
 from dirigent_common.docstrings import as_markdown
 from dirigent_common.durations import (
@@ -64,7 +65,11 @@ from dirigent_common.versions import API_VERSION
 
 __all__ = [
     "LOCAL_REFERENCES",
+    "BoundedLoader",
     "Unresolvable",
+    "YamlExpansionError",
+    "bounded_load",
+    "bounded_load_all",
     "base_format_checker",
     "format_checker_with",
     "API_VERSION",
