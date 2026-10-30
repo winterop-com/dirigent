@@ -446,6 +446,9 @@ updated on every call turns a cheap refusal into a database write.
 `max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller. For a source
 taking a token, the content type is checked against what the source `accepts` before a byte of
 the body is read; a signed source reads its capped body first, because the signature covers it.
+A text body is decoded only from UTF-8, UTF-16, ASCII, ISO-8859-1 or Windows-1252, under their usual
+spellings, so handling a capped body costs time in step with its size. Any other `charset` is
+refused 415 (`source.charset_refused`) without decoding.
 A read holds no database connection: the call's transaction ends before it, and the source and
 its pipeline are read again after it. A body that has not arrived whole within
 `DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,

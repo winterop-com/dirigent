@@ -227,6 +227,46 @@ def test_a_rotated_token_replaces_the_old_one_at_once(client: TestClient) -> Non
     assert source(client, "echo").token_prefix == new[:8]
 
 
+@pytest.mark.parametrize("charset", ["punycode", "idna", "undefined", "utf-7", "rot13", "base64", "no-such-codec"])
+def test_a_charset_outside_the_list_is_refused_without_decoding(client: TestClient, charset: str) -> None:
+    apply_document(client, echo("      auth: {kind: public}"))
+    called = client.post(
+        "/endpoints/echo/ann", content=b"abc-", headers={"Content-Type": f"text/plain; charset={charset}"}
+    )
+    assert called.status_code == 415, called.text
+    assert called.json()["code"] == "source.charset_refused"
+
+
+@pytest.mark.parametrize(
+    ("charset", "body", "text"),
+    [
+        ("utf-8", "blåbær".encode(), "blåbær"),
+        ("UTF-8", "blåbær".encode(), "blåbær"),
+        ('"utf-8"', "blåbær".encode(), "blåbær"),
+        ("us-ascii", b"plain", "plain"),
+        ("iso-8859-1", "blåbær".encode("latin-1"), "blåbær"),
+        ("windows-1252", "blåbær".encode("cp1252"), "blåbær"),
+        ("utf-16", "blåbær".encode("utf-16"), "blåbær"),
+        ("utf-16le", "blåbær".encode("utf-16-le"), "blåbær"),
+        ("utf-16be", "blåbær".encode("utf-16-be"), "blåbær"),
+    ],
+)
+def test_a_charset_on_the_list_decodes_the_body(client: TestClient, charset: str, body: bytes, text: str) -> None:
+    apply_document(client, echo("      auth: {kind: public}"))
+    called = client.post(
+        "/endpoints/echo/ann", content=body, headers={"Content-Type": f"text/plain; charset={charset}"}
+    )
+    assert called.status_code == 200, called.text
+    assert called.json() == text
+
+
+def test_a_body_its_charset_cannot_read_is_refused_400(client: TestClient) -> None:
+    apply_document(client, echo("      auth: {kind: public}"))
+    called = client.post("/endpoints/echo/ann", content=b"\xff", headers={"Content-Type": "text/plain; charset=utf-8"})
+    assert called.status_code == 400, called.text
+    assert called.json()["code"] == "source.body_not_text"
+
+
 def test_a_public_source_has_no_token_to_rotate(client: TestClient) -> None:
     apply_document(client, echo("      auth: {kind: public}"))
     refused = client.post(f"{PREFIX}/pipelines/echo/sources/ask/$rotate-token")
