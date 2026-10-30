@@ -2855,6 +2855,61 @@ def test_the_openapi_document_declares_how_a_credential_is_presented(client: Tes
     assert "security" not in document["paths"][f"{PREFIX}/auth/login"]["post"]
 
 
+def _session_cookie(answered: httpx2.Response) -> str:
+    """Read the Set-Cookie header a login answered with, lowercased."""
+    assert answered.status_code == 200, answered.text
+    return answered.headers["set-cookie"].lower()
+
+
+def test_the_session_cookie_is_secure_when_the_login_arrived_over_https(settings: Settings, admin_token: str) -> None:
+    """The scheme decides on a local instance: plain HTTP keeps working, and TLS is never downgraded."""
+    from dirigent_server import create_app
+    from tests_support import PASSWORD, USERNAME
+
+    LOGIN_BUCKETS.buckets.clear()
+    login = {"username": USERNAME, "password": PASSWORD}
+    assert settings.environment == "local"
+    app = create_app(settings)
+    with TestClient(app) as plain:
+        assert "; secure" not in _session_cookie(plain.post(f"{PREFIX}/auth/login", json=login))
+    with TestClient(app, base_url="https://testserver") as tls:
+        assert "; secure" in _session_cookie(tls.post(f"{PREFIX}/auth/login", json=login))
+    LOGIN_BUCKETS.buckets.clear()
+
+
+def test_a_forwarded_scheme_counts_only_from_a_trusted_proxy(settings: Settings, admin_token: str) -> None:
+    """Behind uvicorn's proxy middleware, the header is believed from the address it trusts."""
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    from dirigent_server import create_app
+    from tests_support import PASSWORD, USERNAME
+
+    LOGIN_BUCKETS.buckets.clear()
+    login = {"username": USERNAME, "password": PASSWORD}
+    forwarded = {"X-Forwarded-Proto": "https"}
+    app: Any = create_app(settings)
+    proxied: Any = ProxyHeadersMiddleware(app, trusted_hosts="198.51.100.1")
+    with TestClient(proxied, client=("198.51.100.1", 50000)) as trusted:
+        assert "; secure" in _session_cookie(trusted.post(f"{PREFIX}/auth/login", json=login, headers=forwarded))
+    with TestClient(proxied, client=("198.51.100.2", 50000)) as stranger:
+        assert "; secure" not in _session_cookie(stranger.post(f"{PREFIX}/auth/login", json=login, headers=forwarded))
+    LOGIN_BUCKETS.buckets.clear()
+
+
+def test_a_deployed_instance_marks_the_session_cookie_secure_over_plain_http(
+    settings: Settings, admin_token: str
+) -> None:
+    from dirigent_server import create_app
+    from tests_support import PASSWORD, USERNAME
+
+    LOGIN_BUCKETS.buckets.clear()
+    deployed = settings.model_copy(update={"environment": "prod"})
+    with TestClient(create_app(deployed)) as plain:
+        answered = plain.post(f"{PREFIX}/auth/login", json={"username": USERNAME, "password": PASSWORD})
+    assert "; secure" in _session_cookie(answered)
+    LOGIN_BUCKETS.buckets.clear()
+
+
 def test_logging_out_clears_the_cookie_it_set(anonymous: TestClient) -> None:
     """Revoking the session stops it working; the browser still holds the cookie until told."""
     from tests_support import PASSWORD, USERNAME
