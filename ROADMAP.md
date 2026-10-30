@@ -42,122 +42,58 @@ it; what it forbids is here, because that is what somebody is liable to undo.
 - **A row's age is `created_at`, on every table.** Every table carries `created_at`, so
   anything asking how old a row is asks one question. An entity carries `updated_at` besides;
   a journal row, which is written once and never touched again, does not.
-- **There is one migration.** Nothing has shipped, so the history has no consumer, and an
-  amendment is where an ALTER behaves differently from the CREATE that would say the same
-  thing. What proves the baseline faithful is the two drift tests, on SQLite and PostgreSQL.
+- **There is one migration, before 1.0.** The baseline is edited in place, because an amendment
+  is where an ALTER behaves differently from the CREATE that would say the same thing, and a
+  state an older dirigent wrote is refused at boot rather than migrated. What proves the baseline
+  faithful is the two drift tests, on SQLite and PostgreSQL.
 - **`common` holds what more than one package needs.** A thing two packages need belongs
   below both. `status_class`, `is_success` and `ErrorClass` are deliberately not there: lift
   a plugin helper when a second adapter pack duplicates it, not before.
 - **A reference entry says what a thing is and stops.** Both generators render the first
   paragraph of a description; tuning advice lives in operations, beside the arithmetic.
-
 - **A request's transaction commits before its response is sent.** The exit of a dependency
   that yields runs after the response has gone out, so committing there told a client its
   write had happened before it had: a client reading straight back could miss what it just
   wrote, and a commit that failed did so after a 2xx. `Transactional` commits while the
   response can still become the error instead.
+- **A step is exactly one of `block`, `source` or `reply`.** Sources are roots, and in a pipeline
+  with sources every other step descends from one: a root beside them would run on every input
+  from every source. A step joining two sources' branches says `all_done` or `always`, since
+  under `all_success` it could never run. Such a pipeline carries no schedules, because what they
+  started would enter no source.
+- **Neither a source nor a reply is retried.** Running an input again is a new run. A reply
+  settles once, rendered by the server when the steps it answers from have settled, and no worker
+  claims it, so a reply costs no queue hop.
+- **Nothing before an endpoint source's own bucket writes a journal row or spends from it.** A
+  caller without the token or the secret, or in a loop, cannot cause writes; those are counted in
+  telemetry instead. The one write ahead of the bucket is the record of a signature taken, which
+  only a caller holding the secret causes. An endpoint takes no files: a caller with a file posts
+  a URI and the pipeline fetches it.
+- **A source kind is hosted one of three ways, and its contract says which.** The server receives
+  it, with no connection and no secret in reach while a request becomes an input; a worker polls
+  it; or a worker holds it open through a lease. A pack contributes a kind through
+  `Contribution.sources`, and never a fourth way of being hosted.
 
 ## Next up
 
 Ordered. Each is one working chunk. Working rules for any session picking these up: read
-CLAUDE.md first, commit signed with conventional messages, every change ships with its test,
-`make check` and
-`make test-postgres` stay green, coverage stays at or above 90, `mkdocs build --strict`
-stays clean, and every example stays executable.
+CLAUDE.md first, commit with conventional messages, every change ships with its test,
+`make check` and `make test-postgres` stay green, coverage stays at or above 90,
+`mkdocs build --strict` stays clean, and every example stays executable.
 
-1. **Input sources: a pipeline that is always listening.** A source is a pipeline's first
-   node, `steps: echo: source: {kind: endpoint, path: /echo, methods: [POST]}`, and its
-   lifecycle belongs to the pipeline: it listens from the moment the pipeline is applied and
-   active until it is paused. Each input becomes one run, whose source node is already
-   settled with the input as its output (`${steps.echo.output.body}`). The design round:
-
-   **The node model.**
-   - A step is exactly one of `block`, `source` or `reply`. A source takes `name`,
-     `description`, `sample` and its kind's own fields, nothing else; a reply takes
-     `depends_on`, `rule`, `name`, `description` and what it answers with.
-   - Sources are roots, and in a pipeline with sources every other step descends from one:
-     a root beside them would run on every input from every source, and is refused. Several
-     sources give several entries. A run enters at one, the others are settled skipped as not
-     entered, and a step joining two sources' branches must say `all_done` or `always`, since
-     under `all_success` it could never run.
-   - A pipeline with sources carries no schedules, since what they started would
-     enter no source. A run by hand (`dg run`, the trigger dialog) names the source it enters
-     at and gives an input, or falls back to the source's `sample`; a pipeline with one
-     source needs no name.
-   - Neither a source nor a reply is retried. Running an input again is a new run, and a
-     reply settles once, rendered by the server when the steps it answers from have
-     settled; it is never claimed by a worker, so a reply costs no queue hop.
-
-   **The source rows and states.** Every source node has a row, reconciled on each apply by
-   step code: its declaration follows the pipeline's current version, and what an operator
-   did to it (paused, a rotated token) and what it counted are the instance's and survive
-   the apply. A route another pipeline's source answers, one method at one template, is
-   refused at apply. A source is `listening`; `backlogged` once as many runs from it are
-   unsettled as `max_in_flight` allows, refusing new inputs 503 until one settles; `draining`
-   when it or its pipeline is paused with runs still in flight; then `paused`, its token and
-   cursor kept. A worker-held kind adds `starting` and `failing`, the listener backing off.
-   Every input has a journal row naming its outcome: `accepted`, `replied`, `refused` (with
-   the reason) or `timed_out`.
-
-   **The endpoint kind** is received by dirigent's own server under `/endpoints`, in the
-   shape of Camel's REST DSL. It declares a `path` template (`/customers/{id}`, `{rest:path}`
-   for a tail), `methods` (POST unless written), `accepts` (JSON and any `+json`, a
-   urlencoded form and text unless narrowed), `max_body` under the instance's cap, `auth`
-   (a per-source token by default, shown once at apply and rotatable, `{kind: public}` only
-   when written out), a `rate` bucket and `max_in_flight`. No files: a caller with a file
-   posts a URI and the pipeline fetches it. A request is checked in one order, each step
-   answering for itself: the instance's intake bucket, the route (404, 405), auth (401: the
-   token, or for a signed source the capped read and the timestamped signature), the source's bucket
-   (429), the pipeline being active (503), the content type (415), the capped read (413), the
-   parse (400), the in-flight count (503), then the run. Nothing before the source's own
-   bucket writes a row or spends from it -- not a 404, 405, 401 or 429 -- so a caller without
-   the token or the secret, or in a loop, cannot cause writes; those are counted in telemetry
-   instead.
-
-   **The reply contract.** Without a reply node the caller is answered 202 with the run it
-   started and where to read it. With one, the caller is held for the longest timeout among
-   the replies its input can reach, under the instance's cap, and the first reply to settle
-   is the answer, rendered from the run's outputs: a status (200 to 599, or a reference to
-   one), headers, a content type, and a body, or `body_from` a storage URI streamed back.
-   When no reply can answer any more, the run's failure is mapped: a step on the replying
-   path refusing the input as `rejected` answers 422, anything else 502, both as
-   problem+json naming the run. A caller still waiting when its timeout passes is answered
-   504 and the run carries on. The waiter is one batched reader per server process, woken by
-   the run's `dirigent_settled` commit rather than polling.
-
-   **Hosting.** A kind is hosted one of three ways, and the contract says which: the server
-   receives it (`endpoint`), a worker polls it (`storage`, `sensor`), or a worker holds it open through
-   a lease (Kafka and RabbitMQ consumers, which bring `starting` and `failing`). A received
-   kind turns a request into an input with no connection and no secret in reach, may answer
-   a handshake or heartbeat without making a run, and may refuse an input with the status
-   its caller is answered with. Packs contribute kinds through pluginkit as
-   `Contribution.sources`; `dirigent_sources` is already defined for a source's change to
-   restart whoever holds it.
-
-   **Slices,** each its own PR and each runnable. The node model and entry, the endpoint
-   intake with the source rows, replies over the wire (the held caller, the batched waiter,
-   and the 504, 422 and 502 mappings), the contract on pluginkit, so a pack contributes a
-   received kind, and the screens (sources in the triggers screen with their state, one
-   source's inputs in its panel), polled kinds (the `PolledSource` contract, every worker
-   polling due sources under a lease, and the built-in `storage` kind), and held kinds (the
-   `HeldSource` contract, each consumer held by one worker under a renewed lease and
-   acknowledged only once its runs are committed, and the `kafka` and `rabbitmq` kinds in the
-   queues pack), webhooks folded in (inbound webhook triggers removed, an endpoint taking
-   a signed body with `auth: {kind: hmac}` in their place), and watches folded in (watches
-   removed, a `sensor` kind a worker polls in their place, poking a sensor that declares
-   itself a source outside any run) have landed.
-
-   **The examples shelf** (`shelves/sources/`), each runnable with `dg run --local` and its
-   `sample`: an echo endpoint with a reply; a form taken and answered 202; a JSON body held
-   to a schema with `validate.schema`, a bad one answered 422; a reply streaming a stored
-   file with `body_from`; two sources joined under `all_done`; an endpoint feeding
-   `transform.jq` and the dhis2 pack's import (in `dirigent-integration`); FHIR in once
-   `dirigent-fhir` lands; a Kafka consumer; and a sensor poked by a source, `playground.arrive`
-   feeding `transform.jq`.
-
-   **Still open:** an `Idempotency-Key` header de-duplicating a caller's retries into one
-   run; authentication beyond tokens, which waits on the OIDC open question; and whether a
-   public endpoint needs an instance-wide switch before any pipeline may declare one.
+1. **A full UI redesign.** The fonts, the corners and many of the components are not good enough,
+   and the screens say less about a pipeline than they should. The order is fixed: Codex first,
+   for directions; then a Claude Design canvas, to choose among them and work the choice out;
+   then `docs/ui-conventions.md`, which stays binding and changes before the code does; then the
+   code across every screen, reviewed with the `ui-review` skill in both palettes. What it has to
+   settle:
+   - **The type.** The faces, their sizes and weights, and where mono is used.
+   - **Corners.** The 1/2/2 radius ladder reads as square, which is not what was wanted, so the
+     radius is open again.
+   - **The components that read weakest.** Which ones is listed as part of the directions.
+   - **The pipelines list and its panel show what a pipeline does,** a graph first.
+   - **Examples are separated from a person's own pipelines.**
+   - **No column that says nothing.**
 2. **dirigent-fhir: FHIR as a system of its own.** A general FHIR pack, not a DHIS2 one: a
    pipeline that pulls from one FHIR server and pushes to another, neither of them DHIS2, is as
    much its purpose as feeding DHIS2. It depends on the FHIR engine only, and carries no DHIS2
@@ -173,8 +109,7 @@ stays clean, and every example stays executable.
      and a transaction rewrites references between the resources it carries as `urn:uuid`
      entries. An `OperationOutcome` is classified the way the dhis2 pack classifies an import
      conflict, and the health check reads `/metadata`. The first flagship is FHIR to FHIR on a
-     schedule against a public test server (`hapi.fhir.org/baseR4`), which needs no input
-     sources and so does not wait for them.
+     schedule against a public test server (`hapi.fhir.org/baseR4`).
    - **FHIRPath on the verb frames:** `transform.fhirpath`, `map.fhirpath`, `filter.fhirpath`,
      the mapping between two servers' profiles being where FHIRPath earns its place over jq.
    - **CQL and measures.** `fhir.cql` evaluates a library over the resources a step produced
@@ -186,8 +121,7 @@ stays clean, and every example stays executable.
    - **Validation, profiles and IG packages:** structural validation first, then a profile
      resolved from a pinned package (`name#version` from the FHIR package registry), a
      package cache, and terminology for bindings.
-   - **FHIR in through an endpoint source,** once input sources land: `application/fhir+json`
-     taken, shaped, imported into DHIS2 by the dhis2 pack, and answered with a reply, in
+   - **FHIR in through an endpoint source:** `application/fhir+json` taken, shaped, imported into DHIS2 by the dhis2 pack, and answered with a reply, in
      `dirigent-integration`'s `shelves/fhir/` with a standalone `fhir-to-dhis2` walkthrough.
      Converting a QuestionnaireResponse into DHIS2 uses `dhis2w-fhir` and belongs in
      `dirigent-dhis2`, not here.
@@ -218,8 +152,8 @@ stays clean, and every example stays executable.
      package reader `dhis2w-fhir` has is for its own organisation-unit registry. It belongs
      beside the engine too, since validation in both repositories needs it.
    The pack depends on these by package name, not by repository.
-3. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project at `~/dev/winterop-com/dirigent-full-demo`, beside the
-   `dirigent-examples` folder. It is one instance that has it all:
+3. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project
+   in the workspace, beside `dirigent-examples`. It is one instance that has it all:
    - every package and pack as dependencies, `dirigent-integration`'s shelves included;
    - every service the corpus teaches with, running in its compose stack: object storage
      (S3), Kafka and RabbitMQ, PostgreSQL, the warehouse, and the telemetry and alert
@@ -230,11 +164,67 @@ stays clean, and every example stays executable.
    - a `verify.sh` that brings it up from nothing, applies, runs the corpus and asserts
      green, the way the example repos do.
    It is a demo, not a product install; a real instance still installs only what it uses.
-   It is built once input sources slices 1 to 3 have landed.
-4. **Adapter packs.** Every further pack takes the shape `dirigent-dhis2` set: its own
-   repository, its own examples and tests, self-testing against `dirigent-plugin`'s main,
-   wired through a connection kind, with a client written fresh or wrapping a stable one, and
-   assembled by `dirigent-integration`.
+4. **A DHIS2 app for dirigent, shipped with dirigent-dhis2.** DHIS2 people want to see and run
+   their pipelines from inside DHIS2: an App Platform app, installed through App Management,
+   listing the pipelines that touch this DHIS2 instance, their runs and logs, and the sources
+   waiting for input, with run, pause and rerun where the user may. It belongs to
+   `dirigent-dhis2`, not here, and it reuses this repository's design system rather than
+   re-drawing it. Most of the work is identity, and it has to be settled before any screen:
+   - *Who the caller is.* A DHIS2 app runs on the DHIS2 origin with the DHIS2 session; dirigent
+     has its own users, roles and tokens. The candidates are DHIS2's Route API (2.41+) holding a
+     dirigent token server-side and proxying under `/api/routes/<id>/run`, which keeps the token
+     out of the browser but makes every DHIS2 user who may use the route the same dirigent
+     principal; dirigent trusting a DHIS2 session it verifies against that instance's
+     `/api/me`, mapping DHIS2 users or groups onto dirigent roles; or OIDC with DHIS2, or the
+     identity provider both already use, as the issuer. It meets the open question on
+     authentication beyond tokens.
+   - *What a DHIS2 user may see.* Roles alone are too coarse when one dirigent serves several
+     DHIS2 instances: a pipeline needs to say which instance, or which DHIS2 user groups, it
+     belongs to, and listings and actions filter on that.
+   - *Embedding.* The security headers deny framing (`frame-ancestors 'none'`), and the API
+     takes no cross-origin calls. The app either talks only through a DHIS2 route, which needs
+     neither, or dirigent gains a configured list of DHIS2 origins it allows, for framing and
+     for CORS.
+   - *Where it ships.* A built app zip as a release asset of `dirigent-dhis2`, versioned with
+     the pack, with the App Hub as a later option.
+5. **More packs.** An outside system goes in the one `dirigent-contrib` package, beside Chap and
+   the open climate service, rather than in a package or a repository of its own. Only a system
+   big enough to carry its own repository takes one, as `dirigent-dhis2` does, with its own
+   examples and tests, self-testing against `dirigent-plugin`'s main and assembled by
+   `dirigent-integration`. Either way a pack is wired through a connection kind, with a client
+   written fresh or wrapping a stable one.
+6. **AI blocks: local models and hosted APIs, both first-class.** A pipeline step that asks a
+   model, whose answer is data a later step can read rather than prose. Local is the starting
+   point, so an AI step runs in `dg run --local` with nothing in the cloud; a hosted API sits
+   behind the same blocks, and a document moves between them by changing the connection.
+   - **What is decided.** Local and hosted share one set of blocks, with local first. Providers
+     are connection kinds, each holding its endpoint and sealed key: the OpenAI wire shape first,
+     since most hosted and local servers speak it, and Anthropic beside it. Every call is recorded
+     like an HTTP call (model, tokens, `duration_ms`), and an answer is validated before it counts.
+   - **`ai.complete`, `ai.classify` and `ai.embed` for models that generate.** A prompt, optional
+     context from upstream outputs, and a JSON Schema the answer must fit. The local start is
+     LiquidAI's LFM3 family: `text` (LFM3-1.7B, with tool calling), `vision` (LFM3-VL-2B, images
+     in), `omni` (LFM3-Omni-2B, images, video and audio in, text or speech out) and `audio`
+     (LFM3-Audio-2B, speech in, speech or text out), as GGUF and as MLX.
+   - **`ai.decide` for the d1 decision models,** a block of its own because d1 does not generate
+     and chat routes refuse it. Given a situation (text, JSON, images, and audio for d1-Omni) and
+     named questions, d1 answers all of them in one forward pass, in milliseconds, with calibrated
+     probabilities: `noul` (P(yes)), `choice` and `score`. The MLX builds add multi-choice,
+     extracted `text`, `number` and `date` with a span and P(found), number estimates with an
+     interval, and boxes. llama-server answers d1 at `/v1/systemone`. It fits gates and branching
+     because a probability can be compared against a threshold, and since a document has no
+     branching on a value, the comparison belongs in the block: it decides, and fails or succeeds
+     accordingly, and `one_failed` takes the other edge.
+   - **What is open.** Whether dirigent talks to `lfm3`'s API as a connection or directly to
+     llama-server. `lfm3` is a playground rather than a product: one binary serving a JSON API, an
+     OpenAI-compatible API and an MCP server over llama-server (GGUF) and mlx-vlm (MLX). Going
+     direct leaves the MLX-only d1 answers behind, because mlx-vlm's server refuses d1 and the
+     bridge serving it is `lfm3`'s own. Also open: who starts and stops a local model's process,
+     how a question's threshold is written on `ai.decide`, and which LFM3 uses beyond text get a
+     block (speech, transcription, images in). The likely home is a pack rather than a built-in,
+     so an instance that runs no model carries nothing for it: by the naming rule a block family
+     is `dirigent-block-ai`, outside the `dirigent-blocks` umbrella. Whether it lives in this
+     repository or in `dirigent-contrib` is open too.
 
 ## Open questions
 
@@ -276,42 +266,32 @@ stays clean, and every example stays executable.
 - **A server in the mix.** Everything dirigent runs today is a step that starts, does its work
   and ends, and everything it talks to is somewhere else. Two things a person might mean by
   "add a FastAPI server" are worth deciding between. One is a pack contributing HTTP routes
-  and a screen to the dirigent server itself through pluginkit -- a seventh surface beside
+  and a screen to the dirigent server itself through pluginkit -- a new surface beside
   blocks and connection kinds, the server mounting a pack's router under `/api/v1/<pack>` --
-  which raises who authenticates those routes, how they appear in the OpenAPI document, and
-  whether the outbound-only decision admits a pack that listens. Input sources above answer the narrower case, a pipeline
-  answering a path. dirigent-fhir's read side is the first concrete user of the other: a pack
-  mounting routers. The other is a pipeline whose
+  which raises who authenticates those routes and how they appear in the OpenAPI document.
+  Endpoint sources answer the narrower case, a pipeline answering a path, and dirigent-fhir's
+  read side is the first concrete user of the wider one. The other is a pipeline whose
   step is a long-lived service: an app a run starts, health-checks with `http.ready`, uses for
   the rest of the run, and tears down, the shape `docker.compose.up` and `.down` already give a
   compose stack, but for a process the worker owns. To decide first: which of the two is
   wanted, since they share a word and nothing else.
 
-## Wanted
+- **What input sources still leave open.** An `Idempotency-Key` header de-duplicating a caller's
+  retries into one run; authentication beyond tokens, which waits on the OIDC question above; and
+  whether a public endpoint needs an instance-wide switch before any pipeline may declare one.
 
-- **A DHIS2 app for dirigent, shipped with dirigent-dhis2.** DHIS2 people want to see and run
-  their pipelines from inside DHIS2: an App Platform app, installed through App Management,
-  listing the pipelines that touch this DHIS2 instance, their runs and logs, and the sources
-  waiting for input, with run, pause and rerun where the user may. It belongs to
-  `dirigent-dhis2`, not here, and it reuses this repository's design system rather than
-  re-drawing it. Most of the work is identity, and it has to be settled before any screen:
-  - *Who the caller is.* A DHIS2 app runs on the DHIS2 origin with the DHIS2 session; dirigent
-    has its own users, roles and tokens. The candidates are DHIS2's Route API (2.41+) holding a
-    dirigent token server-side and proxying under `/api/routes/<id>/run`, which keeps the token
-    out of the browser but makes every DHIS2 user who may use the route the same dirigent
-    principal; dirigent trusting a DHIS2 session it verifies against that instance's
-    `/api/me`, mapping DHIS2 users or groups onto dirigent roles; or OIDC with DHIS2, or the
-    identity provider both already use, as the issuer. It meets the open question on
-    authentication beyond tokens.
-  - *What a DHIS2 user may see.* Roles alone are too coarse when one dirigent serves several
-    DHIS2 instances: a pipeline needs to say which instance, or which DHIS2 user groups, it
-    belongs to, and listings and actions filter on that.
-  - *Embedding.* The security headers deny framing (`frame-ancestors 'none'`), and the API
-    takes no cross-origin calls. The app either talks only through a DHIS2 route, which needs
-    neither, or dirigent gains a configured list of DHIS2 origins it allows, for framing and
-    for CORS.
-  - *Where it ships.* A built app zip as a release asset of `dirigent-dhis2`, versioned with
-    the pack, with the App Hub as a later option.
+- **`starter` or `template`.** The web UI calls a copyable document a template, and the API, the
+  CLI and the packs still say `starter`: the `starter` tag and field, `dg examples list --starter`,
+  `dg pipeline new <starter>`. Whether to rename them to match, given that `dg init --template`
+  already means which kind of project to scaffold.
+
+- **Whether the worker and its Docker daemon need their own host.** The dind sidecar shares a
+  network with the worker alone, so the database and the bucket have no name a container can
+  resolve, but the route to their addresses stays open on Docker Desktop, as
+  [measured here](docs/docker.md#the-reference-shape-a-dind-sidecar). To decide: whether the
+  reference deployment moves them to a host of their own rather than only recommending it.
+
+## Wanted
 
 - **What else importance should reach.** The field is declared and the alert rules match on
   it, so a critical failure pages while a routine one logs. Three readers are still missing,
@@ -326,18 +306,18 @@ stays clean, and every example stays executable.
   not artifacts: `shell.run`'s captured streams and `storage.copy`'s target are storage URIs
   mentioned inside an output, with no row of their own. So the thing a person most wants --
   the fetched payload, the command's stdout -- is untracked, while the small JSON that merely
-  names it is tracked. Three consequences: `dg artifact` has no subcommands, so nothing can
-  be listed or downloaded; retention cannot clean up files it holds no reference to; and a
-  run cannot answer what it produced.
+  names it is tracked. Three consequences: the API lists and serves only the small JSON, and
+  there is no `dg artifact` command at all; retention cannot clean up files it holds no
+  reference to; and a run cannot answer what it produced.
   Which way to close it is genuinely open. Either a block DECLARES a URI as an output and the
   engine tracks, lists, retains and serves it -- which makes downloads, retention and the
-  future run view work from one concept -- or artifacts stay strictly the step's return value
+  run view work from one concept -- or artifacts stay strictly the step's return value
   and files remain incidental, which is simpler and leaves the gap. Decide it against a real
   pipeline rather than in advance, and revisit if the answer turns out to be that everything
   lives in object storage anyway, where a URI and a bucket policy may be all the tracking
   anyone needs.
 
-- **The Examples screen for a slim install.** `dirigent-integration` is published from 0.22.0
+- **The Examples screen for a slim install.** `dirigent-integration` is published
   as the cross-boundary shelves alone: its only runtime dependency is `dirigent-plugin`, and
   the assembly the control center tests is a dependency group that never reaches PyPI. So
   `uv add dirigent-integration` adds 24 documents that each name the packs they need under
@@ -353,7 +333,7 @@ stays clean, and every example stays executable.
   version of the same idea if the full app is too much.
 
 - **Provisioning, in the order we are likely to want it.** `infra/` holds the compose stack
-  and the Dockerfile; nothing yet installs dirigent on a machine. Started thinking 2026-09-07.
+  and the Dockerfile; nothing yet installs dirigent on a machine.
   The destination is not known in advance -- a rented Ubuntu box at Hetzner or Linode, a
   system container on a box that runs other things, a VM somewhere else -- so the shape is
   "apply this service to this host", and the host is whatever the inventory names.
@@ -396,13 +376,7 @@ stays clean, and every example stays executable.
 - **A better logo.** The current mark and banner are placeholders generated early. Rounded
   corners at least, or a different mark entirely; whatever it becomes, it needs the square
   favicon, the README banner, and a dark-background variant, and `docs/assets/logo.png` and
-  `banner.png` keep their names so nothing needs rewiring.
-
-- **A typography and component pass on the web UI.** The fonts, and some of the UI's elements,
-  are not good enough yet. Wanted: a pass over the type itself (the faces, their sizes and
-  weights, and where mono is used) and over the components that read weakest, settled in
-  `docs/ui-conventions.md` first and then applied across every screen, reviewed with the
-  `ui-review` skill in both palettes. Which elements need it is still to be listed.
+  `banner.png` keep their names so nothing needs rewiring. It may fold into the UI redesign.
 
 - **Reusable step groups.** Blocks are the unit below a pipeline and `pipeline.run` composes
   above it, but a repeated five-step idiom has nowhere to live except duplication or its own
@@ -429,19 +403,6 @@ stays clean, and every example stays executable.
   live if anywhere (document metadata, a sidecar the server stores per pipeline, or nowhere),
   who wins when the document changes shape under a stored layout, and whether better flow
   algorithms close the gap without storing anything.
-
-- **The corner belongs to the person, not to a keyboard hint.** The topbar's right corner
-  holds three unrelated controls: a dropdown of instance facts and health that also happens to
-  carry the username and Sign out, a button whose entire content is the chord `⌘K`, and the
-  panel toggle. Wanted instead: one profile control there, holding who is signed in, what this
-  instance is and how it is doing, the theme mode, Settings and Sign out -- so the shell's own
-  facts are gathered the way a screen's already are. Settings is then reached from the profile
-  rather than from the foot's cell and the drawer's row, which leaves the foot carrying only
-  what the current screen is doing.
-  Two things to settle rather than assume: whether the palette keeps any visible affordance
-  once the button that spells out its chord is gone, since a person who does not know the chord
-  would have nothing left to discover it by; and what happens below the breakpoint, where there
-  is no keyboard and the search glyph is the only way into the palette at all.
 
 ## Blocks wanted
 
@@ -481,16 +442,6 @@ requires touching the engine. None is near-term.
   The boundary to keep: in-memory transforms are for records you can hold -- API payloads,
   a few thousand rows -- not a data-engineering framework. Past that line the answer is SQL
   over files or a container, and saying so early avoids a half-built pandas.
-
-- **AI, an important addition.** A pipeline step that asks
-  a model: an `ai.complete` operator (a prompt, optional context from upstream outputs, a
-  JSON Schema the answer must fit so the result is data a later step can read rather than
-  prose), an `ai.classify` over the same shape, and an `ai.embed` for the vector datastores
-  above. Providers are connection kinds, each holding its endpoint and sealed key: the OpenAI
-  wire shape first since most hosted and local servers speak it, Anthropic beside it, and a
-  local llama.cpp or mlx runtime as the third, which is what makes an AI step runnable in
-  `dg run --local` with nothing in the cloud. Every call is recorded like an HTTP call (model, tokens, duration_ms) and the
-  answer is validated against the schema before it counts. Not for now.
 
 - **The datastores we actually use, as engines of the `sql.*` family.** ClickHouse first,
   Apache Doris after it, `dirigent-block-clickhouse` and `dirigent-block-doris`, each on the
