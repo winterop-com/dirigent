@@ -450,6 +450,7 @@ def upgrade() -> None:
         sa.Column("token_hash", sa.String(length=128), nullable=True),
         sa.Column("token_prefix", sa.String(length=16), nullable=True),
         sa.Column("signing_secret", sa.LargeBinary(), nullable=True),
+        sa.Column("secret_fingerprint", sa.String(length=16), nullable=True),
         sa.Column("signing_key_id", sa.String(length=64), nullable=True),
         sa.Column("paused", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("accepted", sa.Integer(), server_default=sa.text("0"), nullable=False),

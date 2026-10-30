@@ -37,6 +37,8 @@ export interface SourceOut {
     url_path: string | null
     auth: string | null
     token_prefix: string | null
+    /** For an `hmac` source, a short hash of its signing secret; none of the secret itself. */
+    secret_fingerprint: string | null
     /** For an `hmac` source, the header a caller's signature of the body arrives in. */
     signature_header: string | null
     in_flight: number
@@ -81,7 +83,8 @@ export interface SourceTokenOut {
     auth: string
     header: string | null
     token: string
-    prefix: string
+    prefix: string | null
+    fingerprint: string | null
     url_path: string
 }
 
@@ -175,13 +178,13 @@ export function inputLine(input: Pick<SourceInputOut, 'method' | 'path' | 'label
 
 /** How a caller authenticates, in the words the panel uses, or null for a kind with no caller. */
 export function authLine(
-    source: Pick<SourceOut, 'auth' | 'token_prefix' | 'signature_header'>,
+    source: Pick<SourceOut, 'auth' | 'token_prefix' | 'secret_fingerprint' | 'signature_header'>,
 ): string | null {
     if (source.auth === 'public') return LABELS.triggers.source.public
     if (source.auth === 'token' && source.token_prefix !== null)
         return LABELS.triggers.source.token(source.token_prefix)
     if (source.auth === 'hmac' && source.signature_header !== null)
-        return LABELS.triggers.source.signed(source.signature_header, source.token_prefix ?? '')
+        return LABELS.triggers.source.signed(source.signature_header, source.secret_fingerprint ?? '')
     return null
 }
 

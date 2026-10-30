@@ -1,10 +1,12 @@
 """Profiles: where they are found, what they may hold, and what wins over what."""
 
+import os
 from datetime import timedelta
 from pathlib import Path
 
 import pytest
 
+from dirigent_cli import profiles
 from dirigent_cli.profiles import (
     DEFAULT_URL,
     Profile,
@@ -31,7 +33,7 @@ profiles:
 
   prod:
     url: https://dirigent.example.org
-    token_cmd: echo a-command-token
+    token: a-prod-token
 """
 
 
@@ -147,7 +149,8 @@ def test_a_profile_without_its_token_still_names_the_server_when_none_is_needed(
 
 def test_precedence_is_flags_then_environment_then_profile(tmp_path: Path) -> None:
     write(tmp_path)
-    environment = {"DG_STAGING_TOKEN": "staging-token"}
+    (tmp_path / ".env").write_text("DG_STAGING_TOKEN=staging-token\n")
+    environment: dict[str, str] = {}
 
     from_profile = resolve_endpoint(start=tmp_path, environ=environment)
     assert from_profile.url == "https://dirigent-staging.example.org"
@@ -173,7 +176,7 @@ def test_the_profile_can_be_chosen_by_environment_too(tmp_path: Path) -> None:
     write(tmp_path)
     chosen = resolve_endpoint(start=tmp_path, environ={"DG_PROFILE": "prod"})
     assert chosen.profile == "prod"
-    assert chosen.token == "a-command-token"
+    assert chosen.token == "a-prod-token"
 
 
 def test_with_nothing_configured_the_cli_assumes_the_dev_server(tmp_path: Path) -> None:
@@ -198,7 +201,8 @@ def test_the_project_env_file_stands_in_for_an_unset_token_variable(tmp_path: Pa
 def test_the_environment_wins_over_the_project_env_file(tmp_path: Path) -> None:
     write(tmp_path)
     (tmp_path / ".env").write_text("DG_STAGING_TOKEN=from-the-env-file\n")
-    endpoint = resolve_endpoint(start=tmp_path, environ={"DG_STAGING_TOKEN": "from-the-shell"})
+    environment = {"DG_URL": "https://env.example.org", "DG_STAGING_TOKEN": "from-the-shell"}
+    endpoint = resolve_endpoint(start=tmp_path, environ=environment)
     assert endpoint.token == "from-the-shell"
 
 
@@ -208,6 +212,105 @@ def test_the_project_env_file_is_found_from_a_subdirectory(tmp_path: Path) -> No
     deep = tmp_path / "pipelines" / "nested"
     deep.mkdir(parents=True)
     assert resolve_endpoint(start=deep, environ={}).token == "from-the-env-file"
+
+
+def test_a_project_file_may_not_name_a_command_and_the_command_never_runs(tmp_path: Path) -> None:
+    marker = tmp_path / "ran"
+    path = write(tmp_path, f"profiles:\n  p:\n    url: http://127.0.0.1:9\n    token_cmd: touch {marker}\n")
+    with pytest.raises(ProfileError, match="may not name a command") as raised:
+        resolve_endpoint(start=tmp_path, environ={})
+    assert str(path) in str(raised.value)
+    assert not marker.exists()
+
+
+def test_the_user_file_may_name_a_command(tmp_path: Path) -> None:
+    path = tmp_path / ".config" / "dirigent" / "profiles.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text("profiles:\n  prod:\n    url: https://x.example.org\n    token_cmd: echo from-a-command\n")
+    assert load_store(path).profiles["prod"].resolve_token() == "from-a-command"
+
+
+def test_a_project_file_another_user_owns_is_passed_over(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    write(tmp_path)
+    monkeypatch.setattr(os, "getuid", lambda: tmp_path.stat().st_uid + 1)
+    assert not find_store(tmp_path).is_project
+
+
+def test_a_project_file_anyone_may_rewrite_is_passed_over(tmp_path: Path) -> None:
+    write(tmp_path).chmod(0o666)
+    assert not find_store(tmp_path).is_project
+
+
+def test_a_project_env_file_anyone_may_rewrite_is_not_read(tmp_path: Path) -> None:
+    write(tmp_path)
+    env = tmp_path / ".env"
+    env.write_text("DG_STAGING_TOKEN=planted\n")
+    env.chmod(0o666)
+    assert resolve_endpoint(start=tmp_path, environ={}, needs_token=False).token is None
+
+
+PROJECT_SERVER = "profiles:\n  p:\n    url: https://project.example.org\n    token_env: DG_TOKEN\n"
+
+
+@pytest.mark.parametrize(
+    ("project_file", "environment", "flag"),
+    [
+        (PROJECT_SERVER, {"DG_TOKEN": "real"}, None),
+        (PROJECT_SERVER.replace("DG_TOKEN", "GITHUB_TOKEN"), {"GITHUB_TOKEN": "real"}, None),
+        (PROJECT_SERVER.replace("    token_env: DG_TOKEN\n", ""), {"DG_TOKEN": "real"}, None),
+        (PROJECT_SERVER.replace("    token_env: DG_TOKEN\n", ""), {}, "real"),
+        (
+            PROJECT_SERVER.replace("https://project.example.org", "http://127.0.0.1@project.example.org"),
+            {"DG_TOKEN": "real"},
+            None,
+        ),
+    ],
+)
+def test_a_token_from_the_shell_does_not_follow_a_url_the_project_chose(
+    tmp_path: Path, project_file: str, environment: dict[str, str], flag: str | None
+) -> None:
+    write(tmp_path, project_file)
+    with pytest.raises(ProfileError, match="name the server yourself"):
+        resolve_endpoint(token=flag, start=tmp_path, environ=environment)
+    assert resolve_endpoint(token=flag, start=tmp_path, environ=environment, needs_token=False).token is None
+
+
+def test_a_token_from_the_shell_does_not_follow_a_url_from_the_project_env_file(tmp_path: Path) -> None:
+    write(tmp_path, "profiles: {}\n")
+    (tmp_path / ".env").write_text("DG_URL=https://project.example.org\n")
+    with pytest.raises(ProfileError, match="name the server yourself"):
+        resolve_endpoint(start=tmp_path, environ={"DG_TOKEN": "real"})
+
+
+def test_a_token_from_the_shell_reaches_a_server_the_shell_named(tmp_path: Path) -> None:
+    write(tmp_path, PROJECT_SERVER)
+    environment = {"DG_TOKEN": "real", "DG_URL": "https://mine.example.org"}
+    assert resolve_endpoint(start=tmp_path, environ=environment).url == "https://mine.example.org"
+    flagged = resolve_endpoint(url="https://flag.example.org", start=tmp_path, environ={"DG_TOKEN": "real"})
+    assert flagged.token == "real"
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "[::1]"])
+def test_a_token_from_the_shell_may_reach_this_host_from_a_project_file(tmp_path: Path, host: str) -> None:
+    write(tmp_path, f"profiles:\n  p:\n    url: http://{host}:3333\n    token_env: DG_TOKEN\n")
+    assert resolve_endpoint(start=tmp_path, environ={"DG_TOKEN": "real"}).token == "real"
+
+
+def test_a_token_the_project_supplied_itself_reaches_the_project_server(tmp_path: Path) -> None:
+    write(tmp_path, PROJECT_SERVER)
+    (tmp_path / ".env").write_text("DG_TOKEN=the-projects-own\n")
+    endpoint = resolve_endpoint(start=tmp_path, environ={})
+    assert (endpoint.url, endpoint.token) == ("https://project.example.org", "the-projects-own")
+
+
+def test_a_token_from_the_shell_may_follow_a_url_the_user_file_chose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user_file = tmp_path / "user" / "profiles.yaml"
+    user_file.parent.mkdir()
+    user_file.write_text(PROJECT_SERVER)
+    monkeypatch.setattr(profiles, "USER_PROFILES", user_file)
+    assert resolve_endpoint(start=tmp_path, environ={"DG_TOKEN": "real"}).token == "real"
 
 
 def test_an_instance_on_a_slow_link_may_be_given_longer_to_answer(tmp_path: Path) -> None:

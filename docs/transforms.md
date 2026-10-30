@@ -611,7 +611,8 @@ compiling the program and releasing it are the frame's.
 two pipes, and one reply read for each request sent. A runner is any program, in any language,
 that reads its standard input and writes its standard output. It reads one JSON object per
 line and answers one JSON object per line, one reply per request and in the order the requests
-arrived, and it ends when the pipe closes:
+arrived, and it ends when the pipe closes. It starts with `PATH`, `LANG`, `LC_ALL` and `TZ` from
+the worker's environment and nothing else:
 
 | The request | The answer |
 | --- | --- |
