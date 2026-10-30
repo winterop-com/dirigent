@@ -40,6 +40,17 @@ STATEMENT_LOADS_AN_EXTENSION = DUCKDB.define(
     "was opened with; a bucket a statement names is opened through its storage connection",
 )
 
+READ_ONLY_RUNS_SELECT = DUCKDB.define(
+    "read_only_runs_select",
+    "a read_only duckdb connection runs only SELECT, and this statement is {kinds}; "
+    "point this step at a connection that may write",
+)
+
+READ_ONLY_UNPARSED = DUCKDB.define(
+    "read_only_unparsed",
+    "a read_only duckdb connection runs only a statement it can read as SELECT, and this one does not parse: {detail}",
+)
+
 CONNECT_TIMED_OUT = DUCKDB.define("connect_timed_out", "the database did not answer within {timeout}")
 
 
