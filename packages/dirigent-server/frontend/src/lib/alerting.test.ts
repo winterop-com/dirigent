@@ -6,6 +6,7 @@ import {
     channelLink,
     channelsOf,
     channelView,
+    channelWord,
     deliverySettled,
     importanceNote,
     matchNote,
@@ -361,5 +362,32 @@ describe('what a patch of a rule sends', () => {
         const calls = stubFetch()
         await setRulePaused('page-ops', true)
         expect(calls[calls.length - 1].init.body).toBe(JSON.stringify({ paused: true }))
+    })
+})
+
+describe('the word a chip says after its dot', () => {
+    const base = {
+        id: 'c',
+        notifier: 'email',
+        connection: 'ops-mail',
+        reachable: true,
+        last_check_at: '2026-01-01T00:00:00Z',
+        last_check_healthy: true,
+        last_check_detail: null,
+    } as Channel
+
+    test('is nothing on a healthy credential', () => {
+        expect(channelWord(base)).toBeNull()
+    })
+
+    test('is the word where a check failed or proved nothing', () => {
+        expect(channelWord({ ...base, last_check_healthy: false })).toBe('failed')
+        expect(channelWord({ ...base, last_check_healthy: null })).toBe('not verified')
+        expect(channelWord({ ...base, last_check_at: null, last_check_healthy: null })).toBe('never checked')
+    })
+
+    test('is nothing on what is not a credential', () => {
+        expect(channelWord({ ...base, notifier: 'log' })).toBeNull()
+        expect(channelWord({ ...base, reachable: false })).toBeNull()
     })
 })

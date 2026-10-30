@@ -9,6 +9,7 @@ import type { JsonMap } from '@/lib/api'
 import { shortDigest } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { headingOf } from '@/lib/identity'
+import { HealthSaid } from '@/components/connections/Health'
 import { type ConnectionOut, healthOf } from '@/lib/connections'
 import type { PipelineOut, PipelineVersionOut } from '@/lib/pipelines'
 import {
@@ -162,8 +163,9 @@ export function PipelineTab({
                                                     : LABELS.editor.pipeline_pane.health_unread}
                                             </span>
                                         ) : (
-                                            <span className="text-muted-foreground">
-                                                {held.kind} · {healthSaid(held)}
+                                            <span className="flex items-center gap-1.5 text-muted-foreground">
+                                                {held.kind}
+                                                <HealthSaid view={healthOf(held)} />
                                             </span>
                                         )
                                     }
@@ -284,18 +286,6 @@ function defaultOf(field: FieldDescriptor): string | null {
     return field.fallback === undefined
         ? null
         : LABELS.editor.pipeline_pane.default_of(String(field.fallback))
-}
-
-/**
- * How a connection's last check reads here, which is how it reads everywhere.
- *
- * The words are `healthOf`'s in `lib/connections`: this pane spelled two of its own until the
- * catalogue showed the product saying "answering" where every other screen says "healthy".
- * What the check actually said still wins, because this row has room for the whole of it.
- */
-function healthSaid(connection: ConnectionOut): string {
-    const view = healthOf(connection)
-    return view.state === 'failed' ? (view.detail ?? view.label) : view.label
 }
 
 /** One chip under "requires": what is needed, and whether this instance has it. */

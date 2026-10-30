@@ -504,14 +504,15 @@ not already the code -- and nothing stands under it. What a credential is pointe
 the connection's own page, beside the boxes that change it: a settings line per row is a column
 of `url=` and `timeout=` to scan past before the health cell is reached, and it pushes the cells
 that matter off the side of the table. There is no description column either, for the same
-reason and because a description is the panel's. **Health is an 8px dot and one word**, and the
-words are `healthOf`'s -- `healthy`, `failed`, `never checked`{ .label }, `not verified`{ .label } -- in the channel
-strip's three colours: green where the last check passed, red where it failed, grey where
-nothing was proved. One vocabulary, decided in `lib/connections` and read by every screen that
-draws a credential's health. **The check's own sentence is not on the row**: it is the tooltip on
-the health cell, on hover and on keyboard focus alike, and it is on the connection's page in
-full, where there is room for the whole of it. On a card the row carries the dot and the word
-alone: there is no pointer to hover with, and tapping the card opens the page that says it. Checked
+reason and because a description is the panel's. **A healthy connection is a bare dot, and failed or
+unknown gets the word**, which is the top bar's rule: words only when something is wrong. The dot
+is 8px; the words are `healthOf`'s -- `failed`, `never checked`{ .label }, `not verified`{ .label }, and `healthy` as
+the bare dot's tooltip -- in the channel strip's three colours: green where the last check
+passed, red where it failed, a hollow ring where nothing was proved. One vocabulary, decided in
+`lib/connections` and drawn by `HealthSaid` on every screen that draws a credential's health: this
+listing, a pipeline's requirements, the reference row under a field. **The check's own sentence is
+not on the row**: it is the tooltip on the health cell, on hover and on keyboard focus alike, and
+it is on the connection's page in full, where there is room for the whole of it. Checked
 is how long ago, and nothing at all where nothing has ever asked -- so a row nothing has checked
 has no Checked line on its card either. The row ends in the control that asks: a 36px icon button
 wearing `RefreshCw`, labelled `Check <code>`, which checks that row and leaves the listing where
@@ -621,7 +622,8 @@ quarter of the table.
 
 **A card's rows follow the same rule as a listing's columns.** The dashboard's health card
 lines a mark, a code, what the thing last said and when up on one line in a card a third of the
-screen wide, which is a table's problem in something that is not a table: the mark is a value
+screen wide, which is a table's problem in something that is not a table. A healthy connection says
+nothing there, its dot's tooltip carrying the word and the check's sentence: the mark is a value
 and holds its width, the code is the identity and keeps a floor of six characters, what it said
 is prose and truncates in what is left with the whole of it on its title, and the instant is a
 value out of a fixed vocabulary and holds its own. Nothing on such a row is `shrink-0` unless
@@ -744,7 +746,7 @@ in the step panel's own group gesture: a shut row with a one-line summary, and t
 it against the group rule when it is opened. A schema the document carries in its top-level
 `schemas:` resolves before one the instance holds, which is the order the engine resolves them in,
 and says `carried by this document`{ .label }; one the instance holds says `instance` and opens with a link
-to `/schemas/<code>`, a connection with `<kind> · <state>` and a link to `/connections/<code>`. A
+to `/schemas/<code>`, a connection with its kind, its health as every screen draws it, and a link to `/connections/<code>`. A
 code nothing holds is `not stored`{ .label } or `not configured`{ .label }, muted, and not a button -- there is nothing
 under it to open. Nothing is called missing while the listing behind the answer is still being
 read, and a value written `${...}` names no code at all, so neither draws a row. The code itself is
@@ -1297,10 +1299,13 @@ rules: one path on the 24 grid, filled in `currentColor`.
 
 ## The channel strip
 
-**The strip is one wrapping line of chips, and a chip holds three things.** The kind's glyph at
+**The strip is one wrapping line of chips, and a chip holds three things, and a fourth when
+something is wrong.** The kind's glyph at
 16px in muted ink, the code in mono, and an 8px dot: 36px tall, on the control's rung, on the card's ground
-with the app's own border. Nothing else is on it -- no state word, no time, no sentence -- because
-a paragraph per channel is a screenful of channels on a screen whose subject is rules.
+with the app's own border. A credential that failed or has proved nothing says so after the dot,
+in `healthOf`'s word; a healthy one, the log and a kind nothing is set up for say nothing. Nothing
+else is on it -- no time, no sentence -- because a paragraph per channel is a screenful of channels
+on a screen whose subject is rules.
 
 **A connection is a channel and a notifier is a kind**, so a chip says the connection's code and
 the glyph says the kind: five email credentials are five envelope chips reading `ops-mail`,
@@ -1312,7 +1317,7 @@ notifier, or a connection whose last check passed. Red where the last check fail
 everything else: a kind nothing is set up for, a credential nobody has checked, a probe that
 proved nothing. A reader learns three colours once; six would be a legend.
 
-**The words are the tooltip's, and a credential's are the connections listing's**: `healthy`,
+**The rest of the words are the tooltip's, and a credential's are the connections listing's**: `healthy`,
 `failed`, `not verified`{ .label } and `never checked`{ .label } are `healthOf`'s, read through it rather than said a
 second way here, so one credential reads the same wherever it is drawn. The strip adds two of its
 own, for the two things that are not a credential: `ready` for the log channel, which nothing
@@ -1965,7 +1970,7 @@ first, then on the page that asked.
 | --- | --- |
 | `EntityHeading` | Any addressable thing headed by its name and code. `row-stacked` for a listing's lead cell, `row-inline` where a row has one line, `panel` for a panel's head. The name, else the code; the code always on screen in mono and never twice (`headingOf`); chips beside the title; an optional one-line description. One title weight in all three |
 | `Chip` | A word on a chip: `neutral`, `mono` for a key, `dashed` for an absence, `good`, `critical`, `edit`. `onSelect` makes it a button, `onRemove` adds an X with its own focus ring. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` and `StatusChip` stay, on the same 20px and the same radius |
-| `ToneDot` | Every state drawn as a dot, from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `StatusChip` takes a `label` where a screen names the state in its own terms |
+| `ToneDot` | Every state drawn as a dot, from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `tip` adds a sentence to the tooltip, and `focusable` puts the dot in the tab order where nothing around it is a control. `StatusChip` takes a `label` where a screen names the state in its own terms |
 | `IconButton` | Any button that is an icon and nothing else. Its type requires `label`; the tooltip is the label, a longer `tooltip`, or `why` when it is shut. Sizes `sm` and `md`. Shut with `why`, never with `disabled`, so it stays reachable |
 | `SearchField` | Every box that narrows a screen. A leading search glyph, a clear button once there is text, Escape to clear, and the `/` key cap: `/` moves the caret into the first box marked for it, never while another field or the editor has focus |
 | `SectionHeading` | A heading inside a screen. `section` is sentence case at `text-sm font-semibold`; `group` is the one faint uppercase label over a run of rows. An optional `aside` and `link` |

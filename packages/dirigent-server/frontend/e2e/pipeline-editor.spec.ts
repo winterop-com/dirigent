@@ -1306,7 +1306,8 @@ test('a field naming a connection reads its kind and where its last check left i
     const panel = page.locator('aside')
     await expect(panel.getByLabel('connection', { exact: true })).toHaveValue(REFERENCE_CONNECTION)
     const row = panel.getByRole('button', { name: /never checked/ })
-    await expect(row).toContainText('http · never checked')
+    await expect(row).toContainText('http')
+    await expect(row).toContainText('never checked')
     // And it leads with the mark that kind wears everywhere else.
     await expect(row.locator('[data-slot="mark"]')).toHaveCount(1)
 

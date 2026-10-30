@@ -1,31 +1,27 @@
-import type { CSSProperties } from 'react'
-
+import { ToneDot } from '@/components/ds/ToneDot'
 import type { HealthView } from '@/lib/connections'
-import { cn } from '@/lib/utils'
-
-/** What a dot is filled with. The aliases are index.css's, for what is not a run. */
-const FILL: Record<'good' | 'critical', string> = { good: 'var(--good)', critical: 'var(--critical)' }
-
-/** Three colours and no more: green where the check passed, red where it failed, grey otherwise. */
-function fillOf(tone: HealthView['tone']): string {
-    return tone === null ? 'var(--faint)' : FILL[tone]
-}
 
 /**
- * A credential's health, as the dot and the one word every screen says it in.
- *
- * The sentence the check itself wrote is not here: a row has no room for it, and where there is
- * room -- the connection's own page, the tooltip on its row -- it is drawn beside this.
+ * A credential's health, as every screen says it: a bare dot when it is healthy, and the dot and
+ * the word when it failed or nothing was proved. The check's own sentence is the tooltip.
  */
-export function HealthSaid({ view, className }: { view: HealthView; className?: string }) {
+export function HealthSaid({
+    view,
+    focusable,
+    className,
+}: {
+    view: HealthView
+    /** Put the tooltip in the tab order, where nothing around the dot is a control. */
+    focusable?: boolean
+    className?: string
+}) {
     return (
-        <span className={cn('flex items-center gap-2 text-xs', className)}>
-            <span
-                className="status-dot"
-                style={{ '--chip': fillOf(view.tone) } as CSSProperties}
-                aria-hidden
-            />
-            <span className={cn('whitespace-nowrap', view.tone === null && 'text-faint')}>{view.label}</span>
-        </span>
+        <ToneDot
+            tone={view.tone ?? 'unknown'}
+            label={view.label}
+            tip={view.detail}
+            focusable={focusable}
+            className={className}
+        />
     )
 }

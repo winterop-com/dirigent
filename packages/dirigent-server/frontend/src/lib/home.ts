@@ -266,6 +266,8 @@ export interface HealthRow {
     tone: TileTone
     /** The one line on the right, which is what it said the last time anything asked. */
     detail: string
+    /** What reaching the dot says, or nothing where the dot has no tooltip. */
+    tip: string | null
     /** When that was, where it is a fact this row has. */
     at: string | null
 }
@@ -302,6 +304,7 @@ export function healthRows(
                 concern === null
                     ? pick(worker.concurrency, LABELS.dashboard.health.worker)(String(worker.concurrency))
                     : concernSaid(concern),
+            tip: null,
             at: concern === null ? null : worker.last_seen_at,
         }
     })
@@ -314,13 +317,17 @@ export function healthRows(
             label: connection.code,
             tone: view.tone ?? 'neutral',
             detail: detailOf(view),
+            tip:
+                view.state === 'healthy' && view.detail !== null
+                    ? LABELS.dashboard.health.healthy_tip(view.label, view.detail)
+                    : view.label,
             at: connection.last_check_at,
         }
     })
     return [...fleet, ...held]
 }
 
-/** What a connection's row says on the right: what the check said, or what its state is. */
+/** What a connection's row says on the right: nothing while it is healthy, as its dot says that. */
 function detailOf(view: HealthView): string {
     switch (view.state) {
         case 'unchecked':
@@ -328,7 +335,7 @@ function detailOf(view: HealthView): string {
         case 'unverified':
             return LABELS.state.health.unverified
         case 'healthy':
-            return view.detail ?? LABELS.state.health.healthy
+            return ''
         case 'failed':
             return view.detail ?? LABELS.state.health.failed.sentence
     }

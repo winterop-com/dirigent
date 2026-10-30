@@ -7,7 +7,6 @@ import { ConnectionForm } from '@/components/connections/ConnectionForm'
 import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
 import { KindChip } from '@/components/KindChip'
-import { useListCards } from '@/components/list/ListForm'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { Mark } from '@/components/Mark'
 import { PageHeader } from '@/components/ds/PageHeader'
@@ -15,7 +14,6 @@ import { PageState } from '@/components/PageState'
 import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
 import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
@@ -52,7 +50,7 @@ const connectionId = (row: ConnectionOut) => row.code
  * no row reads a config value at all: what a row says is a code, a kind, and how the last check
  * went. The settings are the form's, where a secret is a write-only box.
  *
- * A ROW IS ONE LINE. The code and its kind, the health dot and its word, how long ago, and the
+ * A ROW IS ONE LINE. The code and its kind, the health dot, how long ago, and the
  * button that asks again -- four cells that fit the window rather than a summary line and a
  * description column that push the health off the side of the table.
  *
@@ -365,35 +363,9 @@ function Named({ row }: { row: ConnectionOut }) {
     )
 }
 
-/**
- * Whether this credential answered the last time anything asked it.
- *
- * THE DOT AND THE WORD ARE THE CELL, and the check's own sentence is what reaching it says. A
- * sentence drawn on the row is either a row as tall as the sentence or an ellipsis saying
- * nothing, and the whole of it is on the connection's page either way.
- */
+/** Whether this credential answered the last time anything asked it. */
 function Health({ row }: { row: ConnectionOut }) {
-    const view = healthOf(row)
-    // A card has no pointer to hover with, and it opens the page that says the whole of it.
-    const cards = useListCards()
-    if (view.detail === null || cards) return <HealthSaid view={view} />
-    return (
-        <Tooltip>
-            <TooltipTrigger
-                render={
-                    <button
-                        type="button"
-                        // Reached by a pointer or by the keyboard, and pressing it does what the
-                        // row does, because the row is what it stands in.
-                        className="rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-                    >
-                        <HealthSaid view={view} />
-                    </button>
-                }
-            />
-            <TooltipContent side="bottom">{view.detail}</TooltipContent>
-        </Tooltip>
-    )
+    return <HealthSaid view={healthOf(row)} focusable />
 }
 
 /** When the last check was made. A row nothing has checked says so in the health cell. */

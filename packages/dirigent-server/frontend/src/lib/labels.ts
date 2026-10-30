@@ -1338,6 +1338,8 @@ const dashboard = {
 
     /** The panel beside the chart: the workers and the connections as one list. */
     health: {
+        /** A healthy connection's dot, on the dashboard: the word, and what the check said. */
+        healthy_tip: (word: string, said: string) => `${word}: ${said}`,
         hint: 'The workers claiming work, and every connection.',
         /** A worker with nothing to report: what it is, and how much it can take. */
         worker: {
