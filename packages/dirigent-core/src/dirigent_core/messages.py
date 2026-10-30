@@ -65,7 +65,7 @@ SECRET_KEY_MISSING = SECRET.define(
 
 SECRET_KEY_MALFORMED = SECRET.define(
     "key_malformed",
-    "DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken: generate one with dg secret-key",
+    "DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken",
 )
 
 EMPTY_SECRET = SECRET.define("empty", "{fields} cannot be stored empty: a required secret needs a value")
