@@ -19,7 +19,10 @@ format: dirigent/v1
 kind: pipeline
 code: docker-compose-stack
 name: A compose stack, driven and torn down
-description: Bring a two-service stack up, reach it from a container, and tear it down on any outcome.
+description: |
+  Start a Docker stack, reach it from a container, and tear it down.
+
+  The teardown runs on any outcome.
 
 tags: [docker, execute]
 

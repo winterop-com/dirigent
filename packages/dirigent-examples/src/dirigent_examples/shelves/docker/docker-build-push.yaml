@@ -45,7 +45,11 @@ format: dirigent/v1
 kind: pipeline
 code: docker-build-push
 name: Build an image and push it
-description: Build an image from a context in the work directory and push every tag to the registry a docker connection names.
+description: |
+  Build a Docker image and push it to a registry.
+
+  The image is built from a context in the work directory, and every tag goes to the registry
+  a `docker` connection names.
 
 tags: [docker, execute]
 

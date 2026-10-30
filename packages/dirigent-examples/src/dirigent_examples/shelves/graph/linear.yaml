@@ -22,7 +22,7 @@ format: dirigent/v1
 kind: pipeline
 code: linear
 name: A straight line of steps
-description: Generate a payload, store it, archive the object, then report what was archived.
+description: Generate a payload, store it, archive it, then report what was archived.
 
 tags: [graph, execute, playground, storage]
 

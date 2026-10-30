@@ -36,6 +36,8 @@ kind: pipeline
 code: fan-out-too-wide
 name: A fan-out too wide to write
 description: |
+  Fail on purpose on a list too long to process, before any item runs.
+
   A `for_each` over a step's output that lists more than `fan_out_max_items` fails as
   rejected with `run.fan_out_too_wide`, before a single item is written.
 

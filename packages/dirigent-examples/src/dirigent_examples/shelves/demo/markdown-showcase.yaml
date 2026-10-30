@@ -24,8 +24,10 @@ kind: pipeline
 code: markdown-showcase
 name: Markdown showcase
 description: |
-  A pipeline whose **description** is the point. Everything below is one markdown document,
-  rendered as the body of this pipeline's screen.
+  Count a list of markdown elements, under a description that uses all of them.
+
+  The **description** is the point. Everything below is one markdown document, rendered as the
+  body of this pipeline's screen.
 
   ## Headings, and what they are for
 

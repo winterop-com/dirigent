@@ -39,7 +39,7 @@ kind: pipeline
 code: skip-diamond
 name: Skip diamond
 description: |
-  A load that works, an alarm that is therefore skipped, and a close-out that runs either way.
+  Verify a load, skip the alarm when it passes, and close out either way.
 
   **A skip is not a failure.** It is an edge condition that evaluated false, and a run
   full of them can be perfectly green.

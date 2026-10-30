@@ -42,7 +42,10 @@ format: dirigent/v1
 kind: pipeline
 code: git-checkout-public
 name: Check a public repository out
-description: Clone a public repository at its default branch into the run's work directory and report the commit.
+description: |
+  Clone a public repository and report the commit it landed on.
+
+  The clone is of the default branch, into the run's work directory.
 
 tags: [git]
 

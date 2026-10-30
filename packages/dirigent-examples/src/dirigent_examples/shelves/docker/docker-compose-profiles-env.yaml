@@ -42,7 +42,11 @@ format: dirigent/v1
 kind: pipeline
 code: docker-compose-profiles-env
 name: Parameters into a compose stack
-description: A compose stack whose greeting comes from a parameter and whose optional service comes from a profile.
+description: |
+  Start a Docker stack whose greeting and optional service come from parameters.
+
+  The greeting comes from a parameter compose interpolates, and the optional service comes
+  from a profile.
 
 tags: [docker, execute]
 

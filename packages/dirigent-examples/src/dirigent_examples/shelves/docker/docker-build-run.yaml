@@ -34,7 +34,11 @@ format: dirigent/v1
 kind: pipeline
 code: docker-build-run
 name: Build an image, then run it
-description: Write a Dockerfile into the run's work directory, build it with buildx, and run the tag.
+description: |
+  Write a Dockerfile, build the image, and run it.
+
+  The Dockerfile goes into the run's work directory, buildx builds it, and the last step runs
+  the image by its tag.
 
 tags: [docker, execute, starter]
 

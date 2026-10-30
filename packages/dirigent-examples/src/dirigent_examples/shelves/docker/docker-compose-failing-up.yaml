@@ -41,7 +41,10 @@ format: dirigent/v1
 kind: pipeline
 code: docker-compose-failing-up
 name: A stack that will not come up
-description: A service whose healthcheck never passes, so the bring-up fails and cleans up after itself.
+description: |
+  Start a Docker stack that fails on purpose, and clean up what it left behind.
+
+  One service's healthcheck never passes, so the bring-up fails and cleans up after itself.
 
 tags: [docker, execute]
 

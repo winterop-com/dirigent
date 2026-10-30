@@ -42,7 +42,10 @@ format: dirigent/v1
 kind: pipeline
 code: docker-compose-database
 name: A database stack, queried and torn down
-description: Bring PostgreSQL up behind its healthcheck, run SQL against it, and remove it with its volumes.
+description: |
+  Start a PostgreSQL database, run SQL against it, and remove it.
+
+  The database comes up behind its healthcheck, and it is removed with its volumes.
 
 tags: [docker, execute]
 

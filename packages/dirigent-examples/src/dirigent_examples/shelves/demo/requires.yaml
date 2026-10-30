@@ -24,7 +24,10 @@ format: dirigent/v1
 kind: pipeline
 code: requires
 name: Declared requirements
-description: Declare the blocks and connections this document cannot run without.
+description: |
+  Log in to the playground, post a result, and archive the receipt.
+
+  The `requires` section declares the blocks and connections this document cannot run without.
 
 tags: [demo, http, storage]
 

@@ -27,7 +27,7 @@ format: dirigent/v1
 kind: pipeline
 code: retries
 name: Retry behavior
-description: Publish through a step that refuses, then warm an optional cache that is slow.
+description: Retry a publish that refuses, then warm an optional cache that is slow.
 
 tags: [failure, execute, playground, retry]
 

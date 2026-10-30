@@ -47,7 +47,10 @@ format: dirigent/v1
 kind: pipeline
 code: git-checkout-compose
 name: A stack from a repository's compose file
-description: Check a repository out, bring up the compose file it ships, probe it, and tear it down.
+description: |
+  Check out a repository, start the compose file it ships, and tear it down.
+
+  A container probes the stack before the teardown.
 
 tags: [git, execute]
 

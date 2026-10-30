@@ -14,7 +14,7 @@ format: dirigent/v1
 kind: pipeline
 code: docker-ticker
 name: Docker ticker
-description: A container printing a line every two seconds, streamed into the run as it goes.
+description: Run a container that prints a line every two seconds, streamed to the run log.
 
 tags: [docker, execute]
 

@@ -34,7 +34,10 @@ format: dirigent/v1
 kind: pipeline
 code: docker-remote-daemon
 name: A compose stack on a named daemon
-description: Bring a stack up, drive it and tear it down on the daemon a docker connection names.
+description: |
+  Start a Docker stack on a remote daemon, use it, and tear it down.
+
+  The stack is brought up, driven and torn down on the daemon a `docker` connection names.
 
 tags: [docker, execute]
 

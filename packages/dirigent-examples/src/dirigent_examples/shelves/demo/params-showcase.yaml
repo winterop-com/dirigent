@@ -33,7 +33,10 @@ format: dirigent/v1
 kind: pipeline
 code: params-showcase
 name: Every parameter shape
-description: Everything a run form is built from, in one parameter schema.
+description: |
+  Run once per region, echoing every kind of parameter a run form can ask for.
+
+  Everything a run form is built from, in one parameter schema.
 
 tags: [demo, playground]
 

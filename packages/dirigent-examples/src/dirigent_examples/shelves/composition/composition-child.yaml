@@ -18,7 +18,7 @@ format: dirigent/v1
 kind: pipeline
 code: composition-child
 name: The called pipeline
-description: Load one region's data for one day; callable on its own or by a parent pipeline.
+description: Load one region's data for one day. Callable on its own or by a parent pipeline.
 
 tags: [composition, playground, storage]
 
