@@ -5,7 +5,9 @@ else is refused before its body is read, and a file is posted as a URI in a JSON
 """
 
 import json
+from collections.abc import Mapping
 from datetime import datetime
+from types import MappingProxyType
 from typing import Final, Literal, cast
 from urllib.parse import urlencode
 
@@ -20,6 +22,7 @@ from dirigent_core.messages import (
     ENDPOINT_ACCEPTS_REFUSED,
     ENDPOINT_BODY_NOT_JSON,
     ENDPOINT_BODY_NOT_TEXT,
+    ENDPOINT_CHARSET_REFUSED,
     ENDPOINT_METHOD_NOT_DECLARED,
     ENDPOINT_PATH_PARAMS_MISSING,
     UNSUPPORTED_MEDIA,
@@ -56,6 +59,25 @@ def _credentials(config: "EndpointConfig") -> frozenset[str]:
 
 #: What a text body is decoded with when its content type names no charset.
 DEFAULT_CHARSET: Final = "utf-8"
+
+#: Every charset a text body may name, lowercased, and the codec that reads it. A caller's name
+#: is never handed to Python's codec lookup, which also finds codecs whose cost grows faster than
+#: their input.
+CHARSETS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "utf-8": "utf-8",
+        "utf8": "utf-8",
+        "utf-16": "utf-16",
+        "utf-16le": "utf-16-le",
+        "utf-16be": "utf-16-be",
+        "us-ascii": "ascii",
+        "ascii": "ascii",
+        "iso-8859-1": "latin-1",
+        "latin-1": "latin-1",
+        "latin1": "latin-1",
+        "windows-1252": "cp1252",
+    }
+)
 
 type Method = Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
 
@@ -259,9 +281,12 @@ def _read_body(raw: bytes, family: BodyKind, charset: str) -> JsonValue | Refusa
             return cast("JsonValue", json.loads(raw))
         except ValueError as error:
             return Refusal.of(ENDPOINT_BODY_NOT_JSON, status=400, detail=str(error))
+    codec = CHARSETS.get(charset.strip().lower()) if family is BodyKind.TEXT else "ascii"
+    if codec is None:
+        return Refusal.of(ENDPOINT_CHARSET_REFUSED, status=415, charset=repr(charset), accepted=", ".join(CHARSETS))
     try:
-        text = raw.decode(charset if family is BodyKind.TEXT else "ascii")
-    except (LookupError, UnicodeDecodeError) as error:
+        text = raw.decode(codec)
+    except UnicodeError as error:
         return Refusal.of(ENDPOINT_BODY_NOT_TEXT, status=400, charset=charset, detail=str(error))
     return form_values(text) if family is BodyKind.FORM else text
 

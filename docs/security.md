@@ -440,6 +440,9 @@ updated on every call turns a cheap refusal into a database write.
 `max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller. For a source
 taking a token, the content type is checked against what the source `accepts` before a byte of
 the body is read; a signed source reads its capped body first, because the signature covers it.
+A text body is decoded only from UTF-8, UTF-16, ASCII, ISO-8859-1 or Windows-1252, under their usual
+spellings, so handling a capped body costs time in step with its size. Any other `charset` is
+refused 415 (`source.charset_refused`) without decoding.
 
 **A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
 UI's origin, so it answers with `X-Content-Type-Options: nosniff` and

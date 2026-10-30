@@ -859,6 +859,10 @@ ENDPOINT_BODY_NOT_JSON = SOURCE.define("body_not_json", "the body is not JSON: {
 
 ENDPOINT_BODY_NOT_TEXT = SOURCE.define("body_not_text", "the body is not {charset} text: {detail}")
 
+ENDPOINT_CHARSET_REFUSED = SOURCE.define(
+    "charset_refused", "this endpoint reads a text body in {accepted}, and {charset} is not one of them"
+)
+
 REFERENCE_MALFORMED_ERROR = SOURCE.define(
     "reference_malformed_error",
     "{reference} reads a failure, which is written steps.<name>.error.code, .message, or .params",
