@@ -96,7 +96,7 @@ what differs. `make docker-run-all` is every one of them at once:
 | `infra/compose.sql.yaml` | A second PostgreSQL, `warehouse`, seeded from `examples/sql/warehouse.sql`, for the [sql examples](sql.md#on-the-compose-stack). `make docker-run-sql`. |
 | `infra/compose.otel.yaml` | A collector, Prometheus, Tempo and Grafana, for [telemetry](telemetry.md). `make docker-run-otel`. |
 | `infra/compose.sinks.yaml` | Mailpit and an HTTP sink, so an alert's arrival is something to look at. `make docker-run-sinks`. |
-| `infra/compose.queues.yaml` | Not an overlay: a standalone project publishing both brokers on the host, which is what the `queues` pytest lane runs against. |
+| `infra/compose.queues.yaml` | Not an overlay: a standalone project publishing both brokers on the host's loopback, which is what the `queues` pytest lane runs against. |
 
 **Pointing at a database compose did not start.** `infra/compose.yaml` honours
 `DIRIGENT_DATABASE_URL` when `.env` sets it, and falls back to a URL assembled from
@@ -545,21 +545,22 @@ pipeline declaring `requires.workers: [docker]` to route to it).
 `ghcr.io/winterop-com/dirigent:<version>` and `ghcr.io/winterop-com/dirigent:latest`, stamped
 with `org.opencontainers.image.version` and `.revision`.
 
-**Packs by build argument.** `DIRIGENT_PACKS` names a whitespace-separated list of pip
-requirement specifiers, installed into the venv once the workspace is in place, so the stock
-image carries a pack without a Dockerfile of its own:
+**Packs by build argument.** `DIRIGENT_PACKS` names a whitespace-separated list of requirements,
+each pinned as `name==version`, installed into the venv once the workspace is in place, so the
+stock image carries a pack without a Dockerfile of its own:
 
 ```bash
-docker build -f infra/Dockerfile --build-arg DIRIGENT_PACKS="dirigent-dhis2 dirigent-block-parquet" -t dirigent-with-packs .
+docker build -f infra/Dockerfile --build-arg DIRIGENT_PACKS="dirigent-dhis2==<version> dirigent-block-parquet==<version>" -t dirigent-with-packs .
 ```
 
-`infra/compose.yaml` passes the argument through, so `DIRIGENT_PACKS=dirigent-dhis2 make
+`infra/compose.yaml` passes the argument through, so `DIRIGENT_PACKS=dirigent-dhis2==<version> make
 docker-build` builds the stack's image with it, and `.env` is where a checkout keeps the list.
-A pack named here is resolved from PyPI at build time and sits outside the workspace lock, so a
+The build refuses anything else, a bare name, a range, a URL or an option, so a package
+someone publishes later cannot arrive in a rebuild under a name you already trusted. Use the image's
+version: a pack releases at the same version as the runtime. The pin covers the pack alone: its
+own dependencies are resolved from PyPI at build time and sit outside the workspace lock, so a
 deployment that wants a locked assembly with every official pack builds `dirigent-full` from
-`dirigent-integration` instead. Pinning the pack to the image's version
-(`dirigent-dhis2==<version>`) is what keeps the two in step: a pack releases at the same version
-as the runtime.
+`dirigent-integration` instead.
 
 **Building on it.** The image is a base. `uv` is on its PATH, `VIRTUAL_ENV` names the venv at
 `/app/.venv`, git is installed, and the stage ends as the `dirigent` user, which owns the venv.

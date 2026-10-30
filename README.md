@@ -203,7 +203,7 @@ image in which `dg server`, `dg worker`, and `dg scheduler` are the same code wi
 entry points.
 
 ```bash
-cp .env.example .env      # then set DIRIGENT_SECRET_KEY and the bootstrap admin password
+cp .env.example .env      # then set DIRIGENT_SECRET_KEY, the bootstrap admin password, POSTGRES_PASSWORD and S3_SECRET_KEY
 docker compose --project-directory . -f infra/compose.yaml up --build
 
 export DG_URL=http://localhost:3333

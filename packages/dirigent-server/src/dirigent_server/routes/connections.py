@@ -15,8 +15,9 @@ from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.schemas import ConnectionIn, ConnectionOut, ConnectionUpdate, Page
+from dirigent_client.schemas import ConnectionDetail, ConnectionIn, ConnectionOut, ConnectionUpdate, Page
 from dirigent_common import HealthReport, JsonMap, validation_issues
+from dirigent_core.connections import ConnectionInUse, connection_users, remove_connection, said
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, utcnow
 from dirigent_core.secrets import REDACTED, redact, secret_fields
@@ -26,6 +27,7 @@ from dirigent_server.logging import get_logger
 from dirigent_server.messages import (
     CONNECTION_CONFIG_INVALID,
     CONNECTION_EXISTS,
+    CONNECTION_IN_USE,
     CONNECTION_REFERENCED,
     NO_CONNECTION,
     REDACTED_SECRET,
@@ -203,13 +205,15 @@ async def create_connection(
     "/connections/{code}",
     operation_id="getConnection",
     summary="Read a connection",
-    response_model=ConnectionOut,
+    response_model=ConnectionDetail,
 )
 async def get_connection(
     code: str, session: SessionDep, services: ServicesDep, principal: PrincipalDep
-) -> ConnectionOut:
-    """Read one credential record, with its secrets redacted."""
-    return render(await find(session, code), services)
+) -> ConnectionDetail:
+    """Read one credential record, with its secrets redacted, and what uses it."""
+    row = await find(session, code)
+    users = await connection_users(session, services.host.catalog(), services.settings.storage_connections, code)
+    return ConnectionDetail(**render(row, services).model_dump(), used_by=users)
 
 
 @router.patch(
@@ -250,12 +254,23 @@ async def update_connection(
     summary="Delete a connection",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_connection(code: str, session: SessionDep, principal: AdminDep) -> Response:
-    """Remove a credential record, refusing one something still delivers or connects through."""
+async def delete_connection(code: str, session: SessionDep, services: ServicesDep, principal: AdminDep) -> Response:
+    """Remove a credential record, refusing one a pipeline, a rule or a storage scheme still uses.
+
+    The foreign key answers for what the read before it cannot have seen: a test message still
+    queued, and a rule created while this was waiting.
+    """
     row = await find(session, code)
-    await session.delete(row)
     try:
-        await session.flush()
+        await remove_connection(session, services.host.catalog(), services.settings.storage_connections, row)
+    except ConnectionInUse as error:
+        raise Refusal(
+            CONNECTION_IN_USE,
+            status=status.HTTP_409_CONFLICT,
+            code=repr(code),
+            users=said(error.users),
+            used_by=error.users.model_dump(mode="json"),
+        ) from error
     except IntegrityError as error:
         raise Refusal(CONNECTION_REFERENCED, status=status.HTTP_409_CONFLICT, code=repr(code)) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)

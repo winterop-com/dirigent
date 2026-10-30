@@ -281,6 +281,24 @@ def shell_string_fields(model: type[BaseModel]) -> frozenset[str]:
     )
 
 
+def shell_fields_of(schema: JsonMap) -> frozenset[str]:
+    """Name the fields a config schema publishes as a shell string, or an optional one."""
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return frozenset()
+    return frozenset(
+        str(name)
+        for name, declared in cast("dict[str, Any]", properties).items()
+        if isinstance(declared, dict) and _publishes_shell(cast("dict[str, Any]", declared))
+    )
+
+
+def _publishes_shell(shape: dict[str, Any]) -> bool:
+    """Whether a field's schema or a branch of its union carries the shell media type."""
+    options = cast("list[dict[str, Any]]", shape.get("anyOf") or [])
+    return shape.get("contentMediaType") == SHELL_MEDIA_TYPE or any(_publishes_shell(option) for option in options)
+
+
 def sql_values_of(config: JsonMap, schema: JsonMap) -> dict[str, JsonValue]:
     """Find what a config holds where its schema publishes SQL, by dotted location.
 

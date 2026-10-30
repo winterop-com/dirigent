@@ -120,7 +120,7 @@ export function SendTest({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+            <DialogContent className="sm:max-w-lg" showCloseButton={watching !== null}>
                 <DialogHeader>
                     <DialogTitle>{LABELS.action.send_test}</DialogTitle>
                     <DialogDescription>{LABELS.alerting.test_explained}</DialogDescription>
@@ -145,7 +145,9 @@ export function SendTest({
                 {delivery !== null && <Delivery row={delivery} />}
 
                 <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
+                    {watching === null && (
+                        <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
+                    )}
                     {watching !== null && (
                         <Button
                             variant="outline"

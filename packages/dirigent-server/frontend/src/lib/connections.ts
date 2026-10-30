@@ -48,6 +48,48 @@ export interface ConnectionOut {
     updated_at: string
 }
 
+/** One pipeline whose current version names a connection, and where. `PipelineUse`. */
+export interface PipelineUse {
+    pipeline: string
+    steps: string[]
+    sources: string[]
+}
+
+/** What stops a connection being deleted. `ConnectionUsers`. */
+export interface ConnectionUsers {
+    pipelines: PipelineUse[]
+    alert_rules: string[]
+    storage_schemes: string[]
+}
+
+/** A connection as a single read answers: its row, and what uses it. `ConnectionDetail`. */
+export interface ConnectionDetail extends ConnectionOut {
+    used_by: ConnectionUsers
+}
+
+/** Whether anything uses a connection, which is what shuts its delete. */
+export function isUsed(users: ConnectionUsers): boolean {
+    return users.pipelines.length + users.alert_rules.length + users.storage_schemes.length > 0
+}
+
+/** One family of what uses a connection, named in the number it holds; nothing where it holds none. */
+function familyClause(noun: Counted<string>, codes: readonly string[]): string[] {
+    return codes.length === 0 ? [] : [`${counted(codes.length, noun)} ${codes.join(', ')}`]
+}
+
+/** What uses a connection, one clause per family, as the question before a delete says it. */
+export function usersSaid(users: ConnectionUsers): string {
+    const said = LABELS.connections.users
+    return [
+        ...familyClause(
+            said.pipeline,
+            users.pipelines.map((one) => one.pipeline),
+        ),
+        ...familyClause(said.alert_rule, users.alert_rules),
+        ...familyClause(said.storage_scheme, users.storage_schemes),
+    ].join(', ')
+}
+
 /** The outcome of checking a connection against its external system. `HealthReport`. */
 export interface HealthReport {
     /** Whether the system answered, where `null` means the check ran and could not decide. */
@@ -134,8 +176,8 @@ export function newConnectionPath(kind: string): string {
 }
 
 /** Read one connection by the code it is addressed by, secrets redacted as every read is. */
-export function readConnection(code: string): Promise<ConnectionOut> {
-    return apiJson<ConnectionOut>(`/connections/${encodeURIComponent(code)}`)
+export function readConnection(code: string): Promise<ConnectionDetail> {
+    return apiJson<ConnectionDetail>(`/connections/${encodeURIComponent(code)}`)
 }
 
 /** Ask a connection's kind whether the external system answers, and record what it said. */
@@ -169,7 +211,7 @@ export function updateConnection(code: string, body: ConnectionUpdate): Promise<
     return apiSend<ConnectionOut>(`/connections/${encodeURIComponent(code)}`, 'PATCH', body)
 }
 
-/** Delete a connection. Refused while something still delivers or connects through it. */
+/** Delete a connection. Refused while a pipeline, a rule or a storage scheme still uses it. */
 export function deleteConnection(code: string): Promise<void> {
     return apiJson<void>(`/connections/${encodeURIComponent(code)}`, { method: 'DELETE' })
 }

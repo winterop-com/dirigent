@@ -11,7 +11,14 @@
  */
 
 import { counted, type Counted, LABELS } from '@/lib/labels'
-import type { ApplyResult, DiffSummary, Materialized, PipelinePlan, ValidationIssue } from '@/lib/pipelines'
+import type {
+    ApplyResult,
+    DiffSummary,
+    Materialized,
+    PipelinePlan,
+    SourceChanges,
+    ValidationIssue,
+} from '@/lib/pipelines'
 
 /** How loudly a plan reads: a refusal is not the same news as a version being written. */
 export type PlanTone = 'good' | 'quiet' | 'critical'
@@ -23,6 +30,8 @@ export interface PlanView {
     tone: PlanTone
     /** What differs from the version the instance holds, one line per kind of change. */
     changes: string[]
+    /** What applying would take away from the instance, one line per kind of thing. */
+    retiring: string[]
     /** What the instance refuses about the document, each addressed at a place in it. */
     issues: ValidationIssue[]
     /** Whether applying is offered at all. */
@@ -39,15 +48,18 @@ export function unchangedNote(plan: PipelinePlan): string {
     return LABELS.editor.apply.unchanged(plan.code)
 }
 
-/** What one plan says, as the dialog lays it out. */
-export function planView(plan: PipelinePlan): PlanView {
+/** What one dry run says, as the dialog lays it out. */
+export function planView(result: Pick<ApplyResult, 'plan' | 'triggers' | 'sources'>): PlanView {
+    const { plan } = result
     const issues = plan.issues
+    const retiring = retiringIn(result)
     switch (plan.action) {
         case 'invalid':
             return {
                 headline: LABELS.editor.plan.refuse(plan.code),
                 tone: 'critical',
                 changes: [],
+                retiring: [],
                 issues,
                 applicable: false,
             }
@@ -56,6 +68,7 @@ export function planView(plan: PipelinePlan): PlanView {
                 headline: LABELS.editor.plan.unchanged(plan.code),
                 tone: 'quiet',
                 changes: [],
+                retiring: [],
                 issues,
                 applicable: false,
             }
@@ -64,6 +77,7 @@ export function planView(plan: PipelinePlan): PlanView {
                 headline: LABELS.editor.plan.create(plan.code),
                 tone: 'good',
                 changes: changesIn(plan.diff),
+                retiring,
                 issues,
                 applicable: true,
             }
@@ -72,10 +86,20 @@ export function planView(plan: PipelinePlan): PlanView {
                 headline: LABELS.editor.plan.update(String(plan.next_version ?? 0), plan.code),
                 tone: 'good',
                 changes: changesIn(plan.diff),
+                retiring,
                 issues,
                 applicable: true,
             }
     }
+}
+
+/** What a dry run says applying would take away, and nothing where it takes nothing. */
+export function retiringIn(result: Pick<ApplyResult, 'triggers' | 'sources'>): string[] {
+    const lines: string[] = []
+    const said = LABELS.editor.plan.retiring
+    named(lines, result.sources.removed, said.sources)
+    named(lines, result.triggers.schedules_removed, said.schedules)
+    return lines
 }
 
 /** What a diff amounts to, one line per kind of change, in the order a reader scans them. */
@@ -117,16 +141,30 @@ export function appliedLine(result: ApplyResult): string {
     return LABELS.editor.plan.at_version(result.plan.code, String(result.version))
 }
 
-/** What an apply that was carried out says once it lands: the line, and what it did to the triggers. */
+/** What an apply did to the source rows, or nothing when it left every one of them alone. */
+export function sourceChanges(sources: SourceChanges): string[] {
+    const lines: string[] = []
+    const said = LABELS.editor.plan.materialized
+    for (const [what, names] of [
+        [said.sources_created, sources.created],
+        [said.sources_updated, sources.updated],
+        [said.sources_removed, sources.removed],
+    ] as const) {
+        if (names.length > 0) lines.push(LABELS.editor.plan.change_line(what, names.join(', ')))
+    }
+    return lines
+}
+
+/** What an apply that was carried out says once it lands: the line, and what it did to the triggers and sources. */
 export interface AppliedNote {
     line: string
-    /** The trigger changes joined into one sentence, or undefined when there were none. */
+    /** The trigger and source changes joined into one sentence, or undefined when there were none. */
     detail: string | undefined
 }
 
 /** What an apply that was carried out amounts to, as the note that follows it. */
 export function appliedNote(result: ApplyResult): AppliedNote {
-    const changes = triggerChanges(result.triggers)
+    const changes = [...triggerChanges(result.triggers), ...sourceChanges(result.sources)]
     return { line: appliedLine(result), detail: changes.length === 0 ? undefined : changes.join('; ') }
 }
 

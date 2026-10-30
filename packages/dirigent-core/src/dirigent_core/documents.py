@@ -37,7 +37,7 @@ from dirigent_core.engine.definition import (
     TriggersDefinition,
     canonical_document,
 )
-from dirigent_core.engine.references import has_reference, is_whole_program, references_in
+from dirigent_core.engine.references import has_reference, is_whole_program, references_in, shell_unreadable
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     ADOPTED_NOT_FAN_OUT,
@@ -84,6 +84,7 @@ from dirigent_core.messages import (
     STEP_REFERENCE_IN_TEMPLATE,
     STEP_SCHEMA_INTERPOLATED,
     STEP_SCHEMA_MISSING,
+    STEP_SHELL_UNREADABLE,
     STEP_UNSAFE_BLOCK,
     STORAGE_SCHEME_MISSING,
     TARGET_PIPELINE_INACTIVE,
@@ -93,7 +94,7 @@ from dirigent_core.messages import (
     WRONG_DOCUMENT_KIND,
     WRONG_FORMAT,
 )
-from dirigent_plugin import media_fields_of, reference_fields, sql_values_of
+from dirigent_plugin import media_fields_of, reference_fields, shell_fields_of, sql_values_of
 
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
@@ -652,6 +653,7 @@ def _step_block_issues(
         issues.extend(_schema_issues(name, step.config, entry.config_schema, schemas))
         issues.extend(_sql_reference_issues(name, step.config, entry.config_schema))
         issues.extend(_program_reference_issues(name, step.config, entry.config_schema))
+        issues.extend(_shell_issues(name, step.config, entry.config_schema))
         issues.extend(_allowlist_issues(name, step.block, entry, allowed))
         issues.extend(_scheme_issues(name, step.config, entry.config_schema, schemes))
         if not malformed:
@@ -687,6 +689,25 @@ def _program_reference_issues(step: str, config: JsonMap, schema: JsonMap) -> li
             issues.append(
                 ValidationIssue.of(
                     STEP_PROGRAM_IS_A_REFERENCE, location=f"steps.{step}.config.{field}", reference=whole, field=field
+                )
+            )
+    return issues
+
+
+def _shell_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
+    """Refuse a reference in a shell string that cannot be read to its end, wherever its value lands."""
+    issues: list[ValidationIssue] = []
+    for field in sorted(shell_fields_of(schema)):
+        value = config.get(field)
+        unread = shell_unreadable(value) if isinstance(value, str) else None
+        if unread is not None:
+            issues.append(
+                ValidationIssue.of(
+                    STEP_SHELL_UNREADABLE,
+                    location=f"steps.{step}.config.{field}",
+                    field=field,
+                    opener=unread.opener,
+                    line=unread.line,
                 )
             )
     return issues

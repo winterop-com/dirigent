@@ -193,7 +193,7 @@ async def test_a_substituted_value_inside_single_quotes_is_the_variable_the_shel
 
     output = await run(local_ctx, ShellRunConfig.model_validate(resolved))
 
-    assert output.stdout == "$DIRIGENT_V0"
+    assert output.stdout == '"$DIRIGENT_V0"'
 
 
 async def test_a_command_that_is_entirely_a_reference_is_a_word_and_not_a_program(

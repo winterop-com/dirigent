@@ -48,6 +48,7 @@ from dirigent_plugin.blocks import (
     media_fields_of,
     published_config_schema,
     reference_fields,
+    shell_fields_of,
     shell_string_fields,
     sql_values_of,
 )
@@ -152,6 +153,7 @@ __all__ = [
     "shell_string_fields",
     "media_fields",
     "media_fields_of",
+    "shell_fields_of",
     "published_config_schema",
     "sql_values_of",
 ]

@@ -514,8 +514,9 @@ run's working files on that worker, and a privileged container inside a privileg
 step from the host's kernel. `docker.compose.up` passes on whatever a document's services ask for.
 The stack keeps the daemon on a network it shares with the worker alone, so the database and the
 artifact bucket have no name a container can resolve. That narrows what is easy to reach and is
-not a firewall: whether their addresses route is up to the host's Docker firewall, and it does
-not contain a pipeline that has taken over the sidecar. **Run these blocks on a dedicated worker host, tagged
+not a firewall. Their addresses do not route on the Linux runner CI measures and do route on Docker
+Desktop, as [measured here](docker.md#the-reference-shape-a-dind-sidecar), and it does not contain a
+pipeline that has taken over the sidecar. **Run these blocks on a dedicated worker host, tagged
 `--tag docker`**, with `requires.workers: [docker]` on the pipelines that use them. See
 [what allowlisting these blocks grants](docker.md#what-allowlisting-these-blocks-grants).
 
@@ -582,14 +583,24 @@ What holds, and what it covers:
 - **`dg worker` and `dg dev` take `DIRIGENT_SECRET_KEY` out of `os.environ` at start-up.** That
   covers what `os.environ` reaches: a subprocess a plugin starts without naming an environment,
   and a library reading a variable.
+- **On Linux, `dg worker`, `dg dev`, `dg server` and `dg scheduler` clear their dumpable flag at
+  start-up.** The kernel keeps the environment a process started with in `/proc/<pid>/environ`,
+  and removing a variable from `os.environ` does not change it. With the flag cleared, a process of
+  the same user cannot open that file, or `mem`, `maps` or `fd` beside it, and cannot attach with
+  ptrace, so `cat /proc/$PPID/environ` in a command gets `Permission denied`. That covers
+  `DIRIGENT_DATABASE_URL` and everything else the process was started with, not only the key. Each
+  process pays for it: it writes no core dump, and a debugger or `py-spy` of the same user cannot
+  attach, so use root for that. It does nothing on other platforms, where no such file exists.
 
 What does not hold:
 
-- **On Linux the variable is still in `/proc/<pid>/environ`.** That file is the environment the
-  process was started with, kept by the kernel, and removing a variable from `os.environ` does not
-  change it. Any process of the same user can read it, which includes a command the worker
-  started: `cat /proc/$PPID/environ` prints the key. The same file holds every other variable the
-  worker was started with, including `DIRIGENT_DATABASE_URL` and its password.
+- **Whatever started the process still holds the same environment.** A shell, `uv run` or a
+  supervisor that stays alive above the worker keeps its own `/proc/<pid>/environ`, which any
+  process of the user can read. So exec the worker or start it from a clean environment; the image
+  does, because `dg` is the entrypoint. `dg server --reload` loses the flag in the process it
+  reloads, and that is a development mode.
+- **Root reads it all the same.** A worker running as root on a host starts commands that hold
+  `CAP_SYS_PTRACE`, which passes the check. A container's default capabilities leave that one out.
 - **A key file only moves the problem.** `DIRIGENT_SECRET_KEY_FILE` keeps the key out of
   `/proc/<pid>/environ` altogether, so prefer it, and it is what makes a leaked environment dump
   harmless. But a command running as the worker's user can open the same file the worker did,
@@ -617,23 +628,47 @@ becomes shell source. The engine rewrites each reference to a variable it invent
 variable in the command's environment, so what a webhook payload carries is text the shell
 expands and does not parse.
 
-Shell arithmetic is the exception, because there the shell does read the value again. Bash
-evaluates a variable's value as an expression, and a subscript in that expression runs a command
-substitution: `a[$(id)]` runs `id`. So a reference inside `$(( ))`, `(( ))` or `$[ ]` must resolve
-to an integer, and anything else fails the step as `rejected` before the command starts. Declare
-the parameter as `type: integer` and a caller's bad value is refused at the door instead.
+Quoting decides whether the value stays one word, so the engine reads the command as a shell would:
+quotes, comments, here-documents, substitutions and parameter expansions. Inside double quotes or a
+here-document the variable takes no quotes of its own, and anywhere else it takes a pair. Inside
+single quotes a shell keeps the text, so a command gets `"$DIRIGENT_V0"` there rather than the value,
+which is still safe if a shell it starts reads that text later.
 
-Those spellings are looked for with no regard to quoting, so a quote in a comment, a here-document
-or `$'...'` cannot hide one. That reads a literal opener as one too: after `'$(( '`, in a comment
-or in a program another tool reads, a reference must be an integer until the opener closes. So
-must one inside a `$( )` within arithmetic, because the shell evaluates what that prints. A step
-that needs another value there uses `argv`, which involves no shell.
+**A command the engine cannot read to its end is refused** when it holds a reference, at apply
+(`document.step_shell_unreadable`) and when the step starts (`reference.shell_unreadable`), because
+where the value lands in it is not known. That is a quote, substitution, `[[` or here-document never
+closed, a here-document delimiter holding a reference, a bare `\${x}`, or `$'..\'..'`, which bash
+and dash close in different places. A command with no reference is never read.
 
-The check reads those three spellings and nothing else. It does not cover a reference that bash
-evaluates some other way: the operands of `[[ -eq ]]`, `let`, `declare -i`, an indexed array's
-subscript, or a `${var:offset}`. Nor does it cover a command that hands its own variable to
-arithmetic or `eval`, or a value read from `env`. Where the value came from a caller and a step
-needs one of those, use `argv`, which involves no shell, or hold the value to a schema first.
+Bash also evaluates a value as an arithmetic expression in several places, and a subscript in that
+expression runs a command substitution: `a[$(id)]` runs `id`. So in each of these a reference must
+resolve to an integer, and anything else fails the step as `rejected` before the command starts:
+
+- `$(( ))`, `(( ))` and `$[ ]`
+- the operands of `[[ -eq ]]`, `-ne`, `-lt`, `-le`, `-gt`, `-ge`, and of `[[ -v ]]`. Another clause
+  of the same `[[ ]]` is not held to it, and neither is `[ ]` or `test`, which do not evaluate.
+- `let` and `unset`, in any word
+- `declare`, `typeset`, `local`, `readonly` and `export`, in the word's name, so `export X=${v}` takes
+  any value and `export ${v}=1` does not
+- anywhere in a command that declares an integer variable, with `declare -i` or the like, because a
+  later assignment to it evaluates. So one such line holds every reference in that command.
+- an indexed array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`. An array the same
+  command declares with `declare -A` is not held to it, and neither is `echo a[${v}]`, which is a glob.
+- `${var:offset}` and `${var:offset:length}`, but not `${var:-default}` and its kin
+
+Declare the parameter as `type: integer` and a caller's bad value is refused at the door instead. A
+step that needs another value there uses `argv`, which involves no shell.
+
+`$(( ))`, `(( ))` and `$[ ]` are also looked for with no regard to quoting, so nothing the reader gets
+wrong can hide one. That reads a literal opener as one too: after `'$(( '`, in a comment or in a
+program another tool reads, a reference must be an integer until the opener closes. So must one
+inside a `$( )` within any of the places above, because the shell evaluates what that prints.
+
+What the check does not cover is a command that hands a value on: the author's own variable to
+arithmetic or `eval`, a value read from `env`, a program in single quotes given to `bash -c`, and a
+variable named by a value through `read`, `printf -v`, `getopts` or `${!var}`, which is not read from
+the command text. Where the value came from a caller and a step needs one of those, use `argv`, which
+involves no shell, or hold the value to a schema first.
 
 ### A reference in a program
 
@@ -721,10 +756,10 @@ Given what the code supports, rotating a key means re-entering the credentials:
 2. Stop the writers, or accept a window in which runs needing a credential fail.
 3. Set the new `DIRIGENT_SECRET_KEY` on every process.
 4. Re-enter each connection's secret fields, which seals them with the new key. The CLI has no
-   update command, so this is `dg connection delete CODE` followed by `dg connection create
-   KIND CODE --set field=value` -- documents reference a connection by code, so recreating it
-   under the same code is invisible to them. `PATCH /api/v1/connections/{code}` does it in
-   place if you would rather script it against the API.
+   update command, so this is `PATCH /api/v1/connections/{code}`, in place. A connection nothing
+   uses can be deleted with `dg connection delete CODE` and made again with `dg connection create
+   KIND CODE --set field=value` instead; one that a pipeline, an alert rule or a storage scheme
+   names is refused the delete.
 5. Run `dg connection check CODE` for each, which is the one command that actually opens an
    envelope and uses what is inside it.
 

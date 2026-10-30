@@ -3,6 +3,8 @@ import { describe, expect, test } from 'vitest'
 import {
     FIT_MAX_ZOOM,
     FIT_MIN_ZOOM,
+    OVERFLOW_MARGIN,
+    startOfOverflow,
     LAYOUT_OPTIONS,
     MAX_ZOOM,
     MIN_ZOOM,
@@ -381,6 +383,46 @@ describe('the zoom a fit settles at', () => {
 
     test('is what the fit asked for when that is between the two', () => {
         expect(fittedZoom(0.9)).toBe(0.9)
+    })
+
+    test('keeps a title above ten pixels and every other word above eight', () => {
+        expect(13 * FIT_MIN_ZOOM).toBeGreaterThanOrEqual(10)
+        expect(11 * FIT_MIN_ZOOM).toBeGreaterThanOrEqual(8)
+    })
+})
+
+describe('a graph past the floor', () => {
+    /** The view a fit leaves a graph in, centred on a canvas of this size. */
+    const centred = (
+        canvas: number,
+        tall: number,
+        bounds: { x: number; y: number; width: number; height: number },
+    ) => ({
+        x: canvas / 2 - (bounds.x + bounds.width / 2) * FIT_MIN_ZOOM,
+        y: tall / 2 - (bounds.y + bounds.height / 2) * FIT_MIN_ZOOM,
+        zoom: FIT_MIN_ZOOM,
+    })
+
+    test('stays centred on an axis it fits on', () => {
+        const bounds = { x: 10, y: 20, width: 300, height: 100 }
+        const view = centred(1000, 600, bounds)
+        expect(startOfOverflow(view, bounds)).toEqual(view)
+    })
+
+    test('starts at the margin on an axis it does not, and stays centred on the other', () => {
+        const bounds = { x: 10, y: 20, width: 3000, height: 100 }
+        const view = centred(1000, 600, bounds)
+        const placed = startOfOverflow(view, bounds)
+        expect(placed.x + bounds.x * placed.zoom).toBeCloseTo(OVERFLOW_MARGIN)
+        expect(placed.y).toBeCloseTo(view.y)
+        expect(placed.zoom).toBe(FIT_MIN_ZOOM)
+    })
+
+    test('starts at the margin on both when it fits on neither', () => {
+        const bounds = { x: 10, y: 20, width: 3000, height: 3000 }
+        const placed = startOfOverflow(centred(1000, 600, bounds), bounds)
+        expect(placed.x + bounds.x * placed.zoom).toBeCloseTo(OVERFLOW_MARGIN)
+        expect(placed.y + bounds.y * placed.zoom).toBeCloseTo(OVERFLOW_MARGIN)
     })
 })
 

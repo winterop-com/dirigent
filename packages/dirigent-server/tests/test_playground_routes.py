@@ -511,12 +511,42 @@ class _NotReading:
         await asyncio.Event().wait()
 
 
+@pytest.fixture
+def stream_deadlines(monkeypatch: pytest.MonkeyPatch) -> list[asyncio.Timeout]:
+    """Set every stream's deadline far off, and collect each one for a test to fire when it is ready.
+
+    A deadline measured in milliseconds also ends a stream that a stalled machine has not yet got
+    as far as its first write, which is not the state these tests are about.
+    """
+    far_off = timedelta(minutes=10)
+    monkeypatch.setattr(routes, "STREAM_DEADLINE", far_off, raising=False)
+    taken: list[asyncio.Timeout] = []
+    real = asyncio.timeout
+
+    def watched(delay: float | None) -> asyncio.Timeout:
+        timeout = real(delay)
+        if delay == far_off.total_seconds():
+            taken.append(timeout)
+        return timeout
+
+    monkeypatch.setattr(asyncio, "timeout", watched)
+    return taken
+
+
+def _reach(deadline: asyncio.Timeout) -> None:
+    """Make a deadline expire now, through the timer it was set with."""
+    deadline.reschedule(asyncio.get_running_loop().time())
+
+
 async def test_a_stream_a_client_stopped_reading_ends_at_its_deadline(
-    settings: Settings, admin_token: str, monkeypatch: pytest.MonkeyPatch
+    settings: Settings, admin_token: str, stream_deadlines: list[asyncio.Timeout]
 ) -> None:
-    monkeypatch.setattr(routes, "STREAM_DEADLINE", timedelta(milliseconds=200), raising=False)
     client = _NotReading()
-    await asyncio.wait_for(create_app(settings)(_stream_scope(), client.receive, client.send), timeout=5)
+    running = asyncio.create_task(create_app(settings)(_stream_scope(), client.receive, client.send))
+    await asyncio.wait_for(client.blocked.wait(), timeout=60)
+    assert not running.done(), "the stream is blocked on a write its client will not read"
+    _reach(stream_deadlines[0])
+    await asyncio.wait_for(running, timeout=60)
     assert client.statuses == [200]
     assert client.written, "the stream got as far as a write it could not finish"
 
@@ -543,21 +573,22 @@ async def playground_stream_lines(settings: Settings, admin_token: str) -> list[
 
 
 async def test_one_process_holds_only_so_many_streams_and_frees_a_seat_at_the_deadline(
-    settings: Settings, admin_token: str, monkeypatch: pytest.MonkeyPatch
+    settings: Settings, admin_token: str, monkeypatch: pytest.MonkeyPatch, stream_deadlines: list[asyncio.Timeout]
 ) -> None:
     monkeypatch.setattr(routes, "MAX_STREAMS", 1, raising=False)
-    monkeypatch.setattr(routes, "STREAM_DEADLINE", timedelta(milliseconds=300), raising=False)
     app = create_app(settings)
     first = _NotReading()
     held = asyncio.create_task(app(_stream_scope(), first.receive, first.send))
-    await asyncio.wait_for(first.blocked.wait(), timeout=5)
+    await asyncio.wait_for(first.blocked.wait(), timeout=60)
 
     async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app), base_url="http://testserver") as client:
         refused = await client.get(f"{PREFIX}/stream", params={"messages": 1, "every": "0s"})
         assert refused.status_code == 503, refused.text
         assert refused.json()["code"] == "server.playground_streams_full"
         assert refused.headers["retry-after"] == "10"
-        await asyncio.wait_for(held, timeout=5)
+        assert not held.done(), "the seat was refused while the stream that holds it was still blocked"
+        _reach(stream_deadlines[0])
+        await asyncio.wait_for(held, timeout=60)
         answered = await client.get(f"{PREFIX}/stream", params={"messages": 1, "every": "0s"})
         assert answered.status_code == 200, answered.text
 

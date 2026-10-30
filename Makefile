@@ -217,9 +217,11 @@ docker-clean: ## Remove the stack: containers, volumes, orphans, and the images 
 	$(COMPOSE_ALL) down --volumes --remove-orphans --rmi local
 
 .env:
-	@echo "No .env yet. Copy the example and set the one value it asks for:"
+	@echo "No .env yet. Copy the example and set the values it asks for:"
 	@echo "  cp .env.example .env"
 	@echo '  DIRIGENT_SECRET_KEY='$$(python3 -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')
+	@echo '  POSTGRES_PASSWORD='$$(python3 -c 'import secrets; print(secrets.token_hex(24))')
+	@echo '  S3_SECRET_KEY='$$(python3 -c 'import secrets; print(secrets.token_hex(24))')
 	@exit 1
 
 coverage: ## Run the test suite once, under coverage, and hold the gate

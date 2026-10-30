@@ -312,6 +312,12 @@ STEP_REFERENCE_IN_TEMPLATE = DOCUMENT.define(
     "give the reference to values under a name, and read that name in the template",
 )
 
+STEP_SHELL_UNREADABLE = DOCUMENT.define(
+    "step_shell_unreadable",
+    "{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a "
+    "value lands in it is not known; close it or write it another way, or pass the value through argv",
+)
+
 STEP_UNSAFE_BLOCK = DOCUMENT.define(
     "step_unsafe_block",
     "block {block} executes code on the worker and DIRIGENT_ENABLED_UNSAFE_BLOCKS "
@@ -589,6 +595,12 @@ TEMPLATE_REFERENCE = _unresolved(
     "in_template",
     "it is inside {field}, and a value reaches a template only through values; "
     "give the reference to values under a name, and read that name in the template",
+)
+
+SHELL_UNREADABLE = _unresolved(
+    "shell_unreadable",
+    "the command's quoting cannot be read past {opener} on line {line}, so where a value lands in it "
+    "is not known; close it or write it another way, or pass the value through argv, which involves no shell",
 )
 
 SQL_REFERENCE = _unresolved(

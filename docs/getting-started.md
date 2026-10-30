@@ -253,7 +253,7 @@ uv run dg auth login --username admin
 ```
 
 `--template compose` writes the same documents plus `compose.yaml`, a `Dockerfile`, a `.env`
-holding a generated `DIRIGENT_SECRET_KEY` and the password given here, and a root
+holding a generated `DIRIGENT_SECRET_KEY`, database password and bucket secret, and the password given here, and a root
 `.gitignore` keeping that `.env` out of the repository. The stack it describes is PostgreSQL, the API with
 the scheduler embedded, object storage for artifacts and a worker, all running the image that
 `Dockerfile` builds on `ghcr.io/winterop-com/dirigent`, pinned to the version of the `dg` that

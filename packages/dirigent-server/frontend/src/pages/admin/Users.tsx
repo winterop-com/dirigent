@@ -2,6 +2,7 @@ import { KeyRound, RefreshCw, UserPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ApiChip } from '@/components/ApiChip'
+import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
 import { AccountTokens } from '@/components/admin/AccountTokens'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { CreateToken } from '@/components/admin/CreateToken'
@@ -28,6 +29,7 @@ import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
+import { refusalOf } from '@/lib/refusal'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import {
@@ -83,6 +85,10 @@ function Users() {
     const [minting, setMinting] = useState(false)
     const [mintingFor, setMintingFor] = useState<string | null>(null)
     const [resetting, setResetting] = useState<string | null>(null)
+    // The account Deactivate is asking about, and what the server said when it was answered.
+    const [deactivating, setDeactivating] = useState<UserOut | null>(null)
+    const [deactivateRefused, setDeactivateRefused] = useState<Problem | null>(null)
+    const [deactivateBusy, setDeactivateBusy] = useState(false)
     // Which accounts stand open, and how many times each one's tokens have changed from outside.
     const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
     const [revisions, setRevisions] = useState<Readonly<Record<string, number>>>({})
@@ -188,7 +194,12 @@ function Users() {
                                 )
                             }}
                             onActive={(active) => {
-                                change(setUserActive(chosen.username, active))
+                                if (active) {
+                                    change(setUserActive(chosen.username, true))
+                                    return
+                                }
+                                setDeactivateRefused(null)
+                                setDeactivating(chosen)
                             }}
                             onResetPassword={() => {
                                 setResetting(chosen.username)
@@ -320,6 +331,36 @@ function Users() {
                     }}
                 />
             )}
+            <ConfirmDialog
+                open={deactivating !== null}
+                onOpenChange={(next) => {
+                    if (!next) setDeactivating(null)
+                }}
+                ask={LABELS.users.deactivate_ask}
+                code={deactivating?.username ?? ''}
+                verb={LABELS.action.deactivate}
+                busy={deactivateBusy}
+                problem={deactivateRefused}
+                onConfirm={() => {
+                    if (deactivating === null) return
+                    setDeactivateBusy(true)
+                    setDeactivateRefused(null)
+                    void setUserActive(deactivating.username, false)
+                        .then(
+                            (user) => {
+                                setDeactivating(null)
+                                setChosen(user)
+                                reloadUsers()
+                            },
+                            (error: unknown) => {
+                                setDeactivateRefused(refusalOf(error))
+                            },
+                        )
+                        .finally(() => {
+                            setDeactivateBusy(false)
+                        })
+                }}
+            />
             {resetting !== null && (
                 <ResetPassword
                     open

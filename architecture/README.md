@@ -13,7 +13,7 @@ regenerate; there are no hand-drawn images to keep in sync.
 Open them in this order:
 
 1. **L1 - System landscape** (`L1_Landscape`) - the people, Dirigent, the packs in their own
-   repositories (`dirigent-dhis2`, and `dirigent-chap` and `dirigent-climate` in
+   repositories (`dirigent-dhis2`, and the Chap and open climate service packs in
    `dirigent-contrib`), and the outside systems the packs and the built-in blocks reach.
 2. **L2 - Containers** (`L2_Dirigent`) - the web UI, the API server, the scheduler, the
    workers, the database, artifact storage, the `dg` CLI and `dirigent-mcp`, and how they talk.

@@ -537,11 +537,14 @@ a required text field, a map, a JSON value and a program taking both, a footer o
 than closing, and a press outside does nothing at all while a form is open, because a typed
 credential is not something to lose to a stray click. A save checks the connection, because the
 health on screen was about the settings that were just replaced. `Delete` raises `ConfirmDialog`
-over the dialog. **What is known to use the credential shuts it**: the alert rules naming that code
-are read as it opens, and the question says `Used by <rules>.` with Delete shut and saying why. A
-refusal for anything that read cannot see stays in the question as one line.
-`GET /connections` carries nothing about what uses a credential, and a pipeline naming one is not
-on any listing, so the dialog has no Used by fact and the question names rules alone.
+over the dialog. **What uses the credential shuts it**: `GET /connections/{code}` answers `used_by`
+-- the pipelines whose current version names the code with the steps and sources that do, the alert
+rules delivering through it, the storage schemes configured from it -- and where any of that is true
+the reading draws it as a `Used by` fact, each one linked where it has a screen. The same read is
+made again as the question opens, and the question says `Used by <what>.` with Delete shut and saying
+why. The server checks again at the delete and holds what it finds, so a refusal for what that read
+did not see stays in the question as one line. `GET /connections` carries nothing about what uses a
+credential, because a listing would have to walk every document for every row.
 
 `hooks/use-read` is the one-page sibling of `use-paged`, for a read that is a document rather than
 a listing -- what this instance has installed, how the last day of runs came out. Same rule: the
@@ -893,6 +896,13 @@ references it, and asking for it first was asking the least of the step first.
 **Apply is quiet until it would write.** The button takes the identity colour where the document
 differs from the version the instance holds, and where there is no version at all; where applying
 would write nothing it stands in outline beside Validate, which is what it would do.
+
+**A plan says what an apply takes away before it is pressed.** The dry run answers with the source
+rows and the managed schedules a document has stopped declaring, and those are the one consequence
+in the dialog that cannot be read back from the document: a source goes with its inputs and its
+token. They stand under the changes in the warning ink, with the words a reader would ask for, and
+only where there are any. What an apply did to its sources and schedules is the note that follows
+it.
 
 **A refusal the dialog can answer is answered in the dialog.** A top-level `connections:` or
 `schemas:` section is what lets a document run alone under `dg run --local`, and an apply refuses
@@ -1540,7 +1550,10 @@ is dismissed by the corner's close and by Escape, so no footer ever says `Close`
 `Dismiss`. `DialogShell` is that rule written once -- `confirm` given, the footer and no corner
 close; `confirm` absent, the corner close and no footer. **A dialog that reads one thing is the third
 case**, and it is a connection's: the corner close, and a footer of `verbs` on that thing rather
-than a confirm, so nothing in it says Cancel because nothing has been started.
+than a confirm, so nothing in it says Cancel because nothing has been started. **A dialog that asks
+and then tells changes case when it has answered**: a token made, whose secret it now shows, and a
+test message sent, whose delivery it now reads, take the corner close from that moment, because
+nothing is left that a Cancel could take back.
 
 **One dismissal, one control.** A dialog whose footer carries the way out does not also draw the
 corner's own -- `showCloseButton={false}` -- because two ways out of one dialog are two answers to
@@ -1648,14 +1661,18 @@ run it is the kind, which is what the pinned graph carries. A step with neither 
 
 Both canvases open with the whole DAG in view: `fitView` with padding, held between the two
 bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` is 1, so a fit never draws a box above its own size and a pipeline of two boxes is
-not magnified to fill the space, and `FIT_MIN_ZOOM` keeps a node above the size its 13px title
-stops being readable at -- a graph too big for that is panned to rather than shrunk past
-legibility. It re-fits when the node set changes and when the canvas is resized -- the right
+not magnified to fill the space. `FIT_MIN_ZOOM` is 0.8, so a fit never draws a 13px title under
+10.4px or an 11px word under 8.8px. **Past that floor the graph is not shrunk: it stays at the floor,
+hangs off the canvas, and is panned.** A view too wide or too tall for the canvas opens with the
+start of the graph at the top left and the rest off the far edges, because a graph is read from its
+first steps and a centred one has both ends cut, and dragging the ground is how the rest is reached.
+Zooming further out is still there by hand, down to `MIN_ZOOM`, and that view is the reader's. It
+re-fits when the node set changes and when the canvas is resized -- the right
 panel opening is a resize -- and stops the moment the reader pans, zooms or drags a box: after
 that the view is theirs, and Re-layout is how they hand it back. A press that moves nothing, on
 the ground or on a run's box, is not a pan. A resize of a view the reader took over only brings
 the chosen box back onto the canvas, at their zoom, if the resize cut it. The browser suite
-asserts every node's box lies inside the canvas.
+asserts every node's box lies inside the canvas for a graph that fits at the floor.
 
 **A deep graph is wrapped onto rows rather than drawn as one.** Seventeen steps in one
 left-to-right row is three thousand pixels of canvas, and a fit answers that by putting a node's

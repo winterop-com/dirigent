@@ -284,7 +284,7 @@ export function NewRule({
                     <p className="mr-auto self-center text-xs text-muted-foreground">
                         {LABELS.alerting.declare_only}
                     </p>
-                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.close}</DialogClose>
+                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
                             {busy ? LABELS.action.create.busy : LABELS.action.create.verb}

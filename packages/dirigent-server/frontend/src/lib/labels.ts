@@ -55,10 +55,6 @@ export type Catalogue = { readonly [name: string]: Label | Catalogue }
 const action = {
     /** Leave a dialog that would have written something, writing nothing. */
     cancel: 'Cancel',
-    /** Leave a dialog that has already done what it was opened for. */
-    close: 'Close',
-    /** Leave a dialog whose work is finished and whose answer has been read. */
-    done: 'Done',
     /** Write the new thing the dialog was opened to make. */
     create: {
         verb: 'Create',
@@ -1013,6 +1009,8 @@ const refused = {
             '{reference} is the whole of {field}, and a value is never a program. Write the program, and read the reference in it as the value it is.',
         step_reference_in_template:
             '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
+        step_shell_unreadable:
+            '{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a value lands in it is not known. Close it or write it another way, or pass the value through argv.',
         step_reference_in_sql:
             '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
         step_schema_interpolated:
@@ -1060,6 +1058,8 @@ const refused = {
             '{reference} cannot be resolved: step {step} did not fail, and its error is read only when it did.',
         shell_arithmetic:
             '{reference} is inside shell arithmetic, which evaluates its value as an expression, so it must resolve to an integer. Declare the parameter as an integer, or keep the value out of arithmetic.',
+        shell_unreadable:
+            "{reference} cannot be placed, because the command's quoting cannot be read past {opener} on line {line}. Close it or write it another way, or pass the value through argv.",
     },
     run: {
         connection_wrong_kind:
@@ -1124,6 +1124,8 @@ const refused = {
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',
         body_timed_out: 'The whole body did not arrive within {timeout}.',
         connection_exists: 'A connection coded {code} exists.',
+        connection_in_use:
+            'Connection {code} cannot be removed while {users} name it. They must stop naming it first.',
         connection_referenced: 'Still in use. Delete what uses it first.',
         /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */
         forbidden: 'Not permitted for your role.',
@@ -1798,11 +1800,25 @@ const editor = {
         /** What an apply that was carried out amounts to, in one line. */
         left_as_it_was: (pipeline: string) => `${pipeline} was left as it was`,
         at_version: (pipeline: string, version: string) => `${pipeline} is at version ${version}`,
+        /** What applying would take away, which the dry run answers with and the document cannot say. */
+        retiring: {
+            schedules: {
+                one: (codes: string) => `Removes schedule ${codes}.`,
+                many: (codes: string) => `Removes schedules ${codes}.`,
+            },
+            sources: {
+                one: (codes: string) => `Removes source ${codes}, with its inputs and its token.`,
+                many: (codes: string) => `Removes sources ${codes}, with their inputs and their tokens.`,
+            },
+        },
         /** What an apply did to the triggers the document declares. */
         materialized: {
             schedules_created: 'schedules created',
             schedules_updated: 'schedules updated',
             schedules_removed: 'schedules removed',
+            sources_created: 'sources created',
+            sources_updated: 'sources updated',
+            sources_removed: 'sources removed',
         },
         /** One line of that: what happened, and the triggers it happened to. */
         change_line: (what: string, names: string) => `${what}: ${names}`,
@@ -2498,6 +2514,13 @@ const connections = {
     /** What stops a delete, and what the shut confirm says on hover. */
     used_by: (names: string) => `Used by ${names}.`,
     in_use: 'Still in use, so it cannot be deleted.',
+    /** The fact in the reading that lists what names it, one word per family. */
+    used_by_term: 'Used by',
+    users: {
+        pipeline: { one: 'pipeline', many: 'pipelines' },
+        alert_rule: { one: 'alert rule', many: 'alert rules' },
+        storage_scheme: { one: 'storage scheme', many: 'storage schemes' },
+    },
 
     /** The one clause every screen states a set of connections' health in. */
     note: {
@@ -2901,6 +2924,8 @@ const users = {
     revoke_row: (token: string) => `Revoke ${token}`,
     /** The question before a revoke, around the name. */
     revoke_ask: { before: 'Revoke ', after: '?' },
+    /** The question before a deactivate, around the username. */
+    deactivate_ask: { before: 'Deactivate ', after: '?' },
     /** Where the name is shared: the API revokes by name, so they go together. */
     revoke_shared: (many: string) => `Revokes all ${many} live tokens with this name.`,
 
