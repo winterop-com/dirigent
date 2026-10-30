@@ -286,7 +286,7 @@ Contributed by `block-jq`. Idempotent.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `input` | `any` | yes |  | The value to work on, written inline or referenced from an earlier step's output. |
-| `program` | `string` | yes |  | The jq program this step runs. |
+| `program` | `string` | yes |  | The jq program this step runs. Try one in [playground-jq](https://mortenoh.github.io/playground-jq/). |
 
 **Output**
 
@@ -413,7 +413,7 @@ Contributed by `block-jq`. Idempotent.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `input` | `any` | yes |  | The value to work on, written inline or referenced from an earlier step's output. |
-| `program` | `string` | yes |  | The jq program this step runs. |
+| `program` | `string` | yes |  | The jq program this step runs. Try one in [playground-jq](https://mortenoh.github.io/playground-jq/). |
 
 **Output**
 
@@ -693,7 +693,7 @@ Contributed by `block-jq`. Idempotent.
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `input` | `any` | yes |  | The value to work on, written inline or referenced from an earlier step's output. |
-| `program` | `string` | yes |  | The jq program this step runs. |
+| `program` | `string` | yes |  | The jq program this step runs. Try one in [playground-jq](https://mortenoh.github.io/playground-jq/). |
 
 **Output**
 
