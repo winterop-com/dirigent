@@ -25,6 +25,7 @@ from dirigent_client.enums import (
 from dirigent_core import migrations, pipelines
 from dirigent_core.alerting import raise_for_stuck, recover_notifications, renew_lease
 from dirigent_core.config import Settings
+from dirigent_core.connections import ConnectionInUse, remove_connection
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.engine import EngineServices, executor, recovery
 from dirigent_core.engine import runs as engine_runs
@@ -48,6 +49,7 @@ from dirigent_core.ids import uuid7
 from dirigent_core.models import (
     AlertRule,
     Base,
+    Connection,
     LogEntry,
     Notification,
     Pipeline,
@@ -1860,6 +1862,66 @@ async def test_items_of_a_source_settling_at_once_expand_a_late_grid_exactly_onc
     assert sorted(value for value in EchoOperator.calls if value.startswith("late-")) == sorted(
         f"late-item-{index}" for index in range(UNITS)
     )
+
+
+def _naming_a_connection() -> PipelineDefinition:
+    """A document one step of which names the connection these two tests race over."""
+    return PipelineDefinition.model_validate(
+        {
+            "code": "nightly",
+            "steps": {"fetch": {"block": "test.echo", "config": {"connection": "ops-api"}}},
+        }
+    )
+
+
+async def test_a_delete_waits_for_an_apply_naming_the_connection_and_then_refuses(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices, pg_host: PluginHost
+) -> None:
+    """The refusal holds at the delete: a read before it would have seen nothing naming the code."""
+    async with session_scope(pg_sessions) as session:
+        session.add(Connection(code="ops-api", kind="http", config={"base_url": "https://ops.example.org"}))
+    catalog = pg_host.catalog()
+
+    async with pg_sessions() as applying:
+        await apply_document(applying, pg_services, _naming_a_connection())
+
+        async def delete() -> None:
+            async with session_scope(pg_sessions) as session:
+                found = await session.execute(sa.select(Connection).where(Connection.code == "ops-api"))
+                await remove_connection(session, catalog, {}, found.scalar_one())
+
+        deleting = asyncio.create_task(delete())
+        done, _ = await asyncio.wait({deleting}, timeout=0.5)
+        assert not done, "the delete waits for the apply holding the connection"
+        await applying.commit()
+
+    with pytest.raises(ConnectionInUse) as refused:
+        await deleting
+    assert [one.pipeline for one in refused.value.users.pipelines] == ["nightly"]
+
+
+async def test_an_apply_waits_for_a_delete_of_the_connection_it_names_and_then_refuses(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices, pg_host: PluginHost
+) -> None:
+    """The other order: the plan must read which connections exist after the delete has gone."""
+    async with session_scope(pg_sessions) as session:
+        session.add(Connection(code="ops-api", kind="http", config={"base_url": "https://ops.example.org"}))
+
+    async with pg_sessions() as deleting:
+        found = await deleting.execute(sa.select(Connection).where(Connection.code == "ops-api"))
+        await remove_connection(deleting, pg_host.catalog(), {}, found.scalar_one())
+
+        async def apply() -> Any:
+            async with session_scope(pg_sessions) as session:
+                return await apply_document(session, pg_services, _naming_a_connection())
+
+        applying = asyncio.create_task(apply())
+        done, _ = await asyncio.wait({applying}, timeout=0.5)
+        assert not done, "the apply waits for the delete holding the connection"
+        await deleting.commit()
+
+    result = await applying
+    assert result.plan.issues, "and the plan finds the connection gone"
 
 
 async def test_which_pipelines_name_a_schema_answers_the_same_over_jsonb(

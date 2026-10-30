@@ -54,3 +54,36 @@ class ConnectionOut(WireModel):
     last_check_detail: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class PipelineUse(WireModel):
+    """One pipeline whose current version names a connection, and where it does."""
+
+    pipeline: str
+    steps: list[str] = Field(default_factory=list[str])
+    """The step keys that name it."""
+
+    sources: list[str] = Field(default_factory=list[str])
+    """The source keys that name it; a version naming it under ``requires`` alone has neither."""
+
+
+class ConnectionUsers(WireModel):
+    """What stops a connection being deleted: everything this instance reads it through."""
+
+    pipelines: list[PipelineUse] = Field(default_factory=list[PipelineUse])
+    alert_rules: list[str] = Field(default_factory=list[str])
+    """The codes of the alert rules delivering through it."""
+
+    storage_schemes: list[str] = Field(default_factory=list[str])
+    """The storage schemes this instance's ``storage_connections`` configures from it."""
+
+    @property
+    def empty(self) -> bool:
+        """Report whether nothing uses it at all."""
+        return not (self.pipelines or self.alert_rules or self.storage_schemes)
+
+
+class ConnectionDetail(ConnectionOut):
+    """A connection as a single read answers: its row, and what uses it."""
+
+    used_by: ConnectionUsers = Field(default_factory=ConnectionUsers)

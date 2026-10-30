@@ -25,13 +25,21 @@ from dirigent_client.schemas import (
     ValidationIssue,
 )
 from dirigent_common import JsonMap
+from dirigent_core.connections import hold_connections
 from dirigent_core.documents import (
     digest_of,
     to_yaml,
     validate_against_catalog,
     worker_routing_issues,
 )
-from dirigent_core.engine.definition import Document, PipelineDefinition, TriggersDefinition, load_definition
+from dirigent_core.engine.definition import (
+    Document,
+    PipelineDefinition,
+    TriggersDefinition,
+    connections_named,
+    dump_definition,
+    load_definition,
+)
 from dirigent_core.engine.runs import Provenance, save_pipeline
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
@@ -299,6 +307,10 @@ async def apply_document(
         # pipeline that does not exist yet has no row to lock, and the unique code refuses
         # the second of two creations.
         await lock_pipeline(session, pipeline.id)
+    if not dry_run:
+        # Held from before the plan reads which connections exist until this version commits, so
+        # a delete either finished first and the plan refuses, or waits and then sees this version.
+        await hold_connections(session, connections_named(dump_definition(definition), services.host.catalog()))
     plan = await plan_apply(session, services, definition)
     if dry_run or plan.action in (PlanAction.INVALID, PlanAction.UNCHANGED):
         # An unchanged document still reconciles its triggers: the digest covers the
@@ -355,10 +367,9 @@ async def revalidate(
 ) -> list[ValidationIssue]:
     """Check a stored version against what the instance has **now**.
 
-    An instance drifts: a plugin package is uninstalled, a connection deleted, the allowlist
-    tightened. A pipeline that applied cleanly then fails when it next runs, which is the
-    worst moment to find out. This is the same check apply makes, run against a version the
-    instance already holds.
+    An instance drifts: a plugin package is uninstalled, the allowlist tightened. A pipeline that
+    applied cleanly then fails when it next runs, which is the worst moment to find out. This is
+    the same check apply makes, run against a version the instance already holds.
     """
     pipeline = await require_pipeline(session, code)
     stored = await get_version(session, pipeline, version)

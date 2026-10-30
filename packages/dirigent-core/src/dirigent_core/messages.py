@@ -165,6 +165,13 @@ SCHEMA_IN_USE = SCHEMA.define(
     "schema {code} cannot be removed while pipelines name it ({pipelines}); a pipeline must stop naming it first",
 )
 
+CONNECTION = Catalogue("connection")
+
+CONNECTION_IN_USE = CONNECTION.define(
+    "in_use",
+    "connection {code} cannot be removed while {users} name it; they must stop naming it first",
+)
+
 PARAMETER = Catalogue("parameter")
 
 PARAMETER_INVALID = PARAMETER.define("invalid", "parameter {location} is invalid: {detail}")

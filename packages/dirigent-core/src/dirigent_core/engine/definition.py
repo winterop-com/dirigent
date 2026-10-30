@@ -826,6 +826,59 @@ def _with_defaults(schema: JsonMap, params: JsonMap) -> JsonMap:
     return filled
 
 
+class ConnectionNaming(BaseModel):
+    """Where one pipeline document names one connection: its step and source keys, in order."""
+
+    steps: list[str] = Field(default_factory=list[str])
+    sources: list[str] = Field(default_factory=list[str])
+
+
+def connections_named(document: JsonMap, catalog: Catalog) -> dict[str, ConnectionNaming]:
+    """Every connection code one pipeline document names, and the steps and sources that do.
+
+    A step or a source names one under ``connection``, the key every apply checks whatever the
+    block, and under every field its block or source kind publishes as a connection reference.
+    A code under ``requires.connections`` alone has no step behind it. A block or a source kind
+    this instance no longer has still answers for ``connection``. A code written as a ``${...}``
+    reference is not one this can know.
+    """
+    named: dict[str, ConnectionNaming] = {}
+    requires = document.get("requires")
+    if isinstance(requires, dict):
+        asked = cast("dict[str, Any]", requires).get("connections")
+        if isinstance(asked, list):
+            for one in cast("list[object]", asked):
+                if isinstance(one, str) and not has_reference(one):
+                    named.setdefault(one, ConnectionNaming())
+    steps = document.get("steps")
+    if not isinstance(steps, dict):
+        return named
+    for key, step in cast("dict[str, Any]", steps).items():
+        if not isinstance(step, dict):
+            continue
+        held = cast("dict[str, Any]", step)
+        source = held.get("source")
+        is_source = isinstance(source, dict)
+        settings = cast("object", source if is_source else held.get("config"))
+        if not isinstance(settings, dict):
+            continue
+        written = cast("dict[str, Any]", settings)
+        chosen = written.get("kind") if is_source else held.get("block")
+        entry = None
+        if isinstance(chosen, str):
+            entry = catalog.source(chosen) if is_source else catalog.block(chosen)
+        fields = {"connection"} | (reference_fields(entry.config_schema, "connection") if entry else set[str]())
+        for field in sorted(fields):
+            value = written.get(field)
+            if not isinstance(value, str) or has_reference(value):
+                continue
+            naming = named.setdefault(value, ConnectionNaming())
+            where = naming.sources if is_source else naming.steps
+            if key not in where:
+                where.append(key)
+    return named
+
+
 def schemas_named(document: JsonMap, catalog: Catalog) -> set[str]:
     """Every stored-schema code one pipeline document names, by requirement or by step.
 

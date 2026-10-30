@@ -1000,6 +1000,9 @@ const refused = {
         weak_password: 'A password must be at least {minimum} characters.',
         wrong_password: 'The current password is not correct.',
     },
+    connection: {
+        in_use: 'Connection {code} cannot be removed while {users} name it. They must stop naming it first.',
+    },
     document: {
         carried_connections:
             'This document carries its own connections ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.connections.',
@@ -2523,6 +2526,13 @@ const connections = {
     /** What stops a delete, and what the shut confirm says on hover. */
     used_by: (names: string) => `Used by ${names}.`,
     in_use: 'Still in use, so it cannot be deleted.',
+    /** The fact in the reading that lists what names it, one word per family. */
+    used_by_term: 'Used by',
+    users: {
+        pipeline: { one: 'pipeline', many: 'pipelines' },
+        alert_rule: { one: 'alert rule', many: 'alert rules' },
+        storage_scheme: { one: 'storage scheme', many: 'storage schemes' },
+    },
 
     /** The one clause every screen states a set of connections' health in. */
     note: {
