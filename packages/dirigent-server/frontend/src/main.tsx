@@ -29,7 +29,7 @@ window.addEventListener('vite:preloadError', (event) => {
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         {/* The mode axis. `class` matches the `.dark` variant index.css defines, and the palette
-            axis is `data-theme`, written before first paint by the script in index.html. */}
+            axis is `data-theme`, written before first paint by public/palette.js. */}
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             {/* Slow enough that a tooltip is an answer somebody waited for rather than noise
                 chasing the pointer. */}

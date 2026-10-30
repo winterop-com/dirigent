@@ -190,6 +190,17 @@ than by an exception list each endpoint remembers:
 
 Every other route under `/api/v1` requires a principal, as a property of the router mount.
 
+### What every response says to a browser
+
+Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: same-origin` and a `Content-Security-Policy` that includes
+`frame-ancestors 'none'`, so no page of this instance can be framed by another site. The UI's
+policy allows scripts only from this origin, workers from this origin or `blob:` for the
+editor, and inline styles. `/docs` and `/redoc` load FastAPI's viewers from `cdn.jsdelivr.net`,
+so they have a policy of their own that allows that CDN and their inline bootstrap, and nothing
+else. A route that sets one of these headers itself keeps its own value. A terminating proxy
+that also sets them should agree with these, because a browser enforces every policy it is sent.
+
 ### Cross-site writes
 
 The session cookie is an ambient credential: a browser attaches it to a request another site's
