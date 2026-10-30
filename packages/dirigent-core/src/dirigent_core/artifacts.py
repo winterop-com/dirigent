@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_common import JsonMap
 from dirigent_core.errors import DomainError
-from dirigent_core.messages import OBJECT_MISSING
+from dirigent_core.messages import OBJECT_ALTERED, OBJECT_MISSING
 from dirigent_core.models import ArtifactRef, StepAttempt
 from dirigent_core.storage import Storage, StorageError, join_uri, parse_uri
 
@@ -34,6 +34,21 @@ class ObjectMissing(DomainError):
 
     def __init__(self, reference: ArtifactRef) -> None:
         """Name the object that is gone, and the run and attempt whose row still names it."""
+        super().__init__(
+            uri=reference.uri or "",
+            run=str(reference.run_id),
+            attempt=str(reference.step_attempt_id) if reference.step_attempt_id else NO_ATTEMPT,
+        )
+
+
+class ArtifactAltered(DomainError):
+    """The object in storage is not the one this row recorded when it was written."""
+
+    status = 500
+    message = OBJECT_ALTERED
+
+    def __init__(self, reference: ArtifactRef) -> None:
+        """Name the object, and the run and attempt whose row recorded something else."""
         super().__init__(
             uri=reference.uri or "",
             run=str(reference.run_id),
@@ -137,14 +152,39 @@ async def _present_uri(storage: Storage, reference: ArtifactRef) -> str:
     where one that opened the stream first would break mid-body with the status already sent.
     """
     uri = reference.uri or ""
-    if await storage.stat(uri) is None:
+    found = await storage.stat(uri)
+    if found is None:
         raise ObjectMissing(reference)
+    if reference.size_bytes is not None and found.size != reference.size_bytes:
+        raise ArtifactAltered(reference)
     return uri
 
 
+async def _verified(chunks: AsyncGenerator[bytes], reference: ArtifactRef) -> AsyncGenerator[bytes]:
+    """Pass a stored object through, and fail at its end if it is not what the row recorded.
+
+    A stream's status has gone by then, so what this can do is end the response as an error
+    rather than a complete body. A row with no digest has nothing to check against.
+    """
+    hashed = hashlib.sha256()
+    async for chunk in chunks:
+        hashed.update(chunk)
+        yield chunk
+    if reference.digest is not None and f"sha256:{hashed.hexdigest()}" != reference.digest:
+        raise ArtifactAltered(reference)
+
+
+async def _read_verified(storage: Storage, reference: ArtifactRef) -> bytes:
+    """Read a whole stored object, refusing one that is not what the row recorded."""
+    payload = await storage.read_bytes(await _present_uri(storage, reference))
+    if reference.digest is not None and digest_of(payload) != reference.digest:
+        raise ArtifactAltered(reference)
+    return payload
+
+
 async def open_artifact(storage: Storage, reference: ArtifactRef) -> AsyncGenerator[bytes]:
-    """Open the stored object a row names for streaming, refusing before the first byte."""
-    return storage.open_read(await _present_uri(storage, reference))
+    """Open the stored object a row names for streaming, refusing what it can before the first byte."""
+    return _verified(storage.open_read(await _present_uri(storage, reference)), reference)
 
 
 async def load_document(storage: Storage, reference: ArtifactRef) -> str:
@@ -154,7 +194,7 @@ async def load_document(storage: Storage, reference: ArtifactRef) -> str:
         return inlined if isinstance(inlined, str) else ""
     if reference.uri is None:
         return ""
-    return (await storage.read_bytes(await _present_uri(storage, reference))).decode()
+    return (await _read_verified(storage, reference)).decode()
 
 
 async def load_artifact(session: AsyncSession, storage: Storage, artifact_id: UUID) -> JsonMap | None:
@@ -166,6 +206,6 @@ async def load_artifact(session: AsyncSession, storage: Storage, artifact_id: UU
         return reference.inline_value
     if reference.uri is None:
         return None
-    payload = await storage.read_bytes(await _present_uri(storage, reference))
+    payload = await _read_verified(storage, reference)
     loaded: JsonMap = json.loads(payload)
     return loaded

@@ -12,7 +12,7 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { SEARCH_PLACEHOLDER } from '@/components/SearchField'
+import { SEARCH_PLACEHOLDER } from '@/components/ds/SearchField'
 import { Input } from '@/components/ui/input'
 import { blockShelves, searchBlocks, type BlockCrumb } from '@/lib/add-step'
 import { catalogUnread, type BlockEntry } from '@/lib/blocks'
