@@ -1,8 +1,11 @@
 """Tests for the layered instance configuration."""
 
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
@@ -14,6 +17,7 @@ from dirigent_core.config import (
     STATE_DIR,
     Settings,
     host_config_paths,
+    keep_same_user_out,
     project_config_paths,
 )
 
@@ -67,6 +71,53 @@ def test_dropping_the_variable_leaves_the_kernels_copy_of_the_environment() -> N
         check=True,
     )
     assert finished.stdout.strip() == b"True"
+
+
+def read_by_a_same_user_child(*, keeping_out: bool) -> dict[str, object]:
+    """Start a process holding a key, and report what a child of the same user reads of it."""
+    program = (
+        "import json, os, subprocess, tempfile\n"
+        "from dirigent_core.config import keep_same_user_out\n"
+        f"if {keeping_out}:\n"
+        "    keep_same_user_out()\n"
+        "child = subprocess.run(['sh', '-c', 'cat /proc/$PPID/environ'], capture_output=True, env={})\n"
+        "held = tempfile.NamedTemporaryFile()\n"
+        "print(json.dumps({\n"
+        "    'key_seen': b'the-envelope-key' in child.stdout,\n"
+        "    'own_descriptor': os.readlink(f'/proc/self/fd/{held.fileno()}') == held.name,\n"
+        "}))\n"
+    )
+    finished = subprocess.run(  # noqa: S603 - a fixed program, run by this interpreter
+        [sys.executable, "-c", program],
+        env={**os.environ, "DIRIGENT_SECRET_KEY": "the-envelope-key"},
+        capture_output=True,
+        check=True,
+    )
+    return cast("dict[str, object]", json.loads(finished.stdout))
+
+
+@pytest.mark.skipif(
+    not Path("/proc/self/environ").exists() or os.geteuid() == 0,
+    reason="/proc holds an environment only on Linux, and root with CAP_SYS_PTRACE reads it regardless",
+)
+def test_a_same_user_child_reads_the_key_of_a_process_that_does_not_keep_it_out() -> None:
+    assert read_by_a_same_user_child(keeping_out=False)["key_seen"] is True
+
+
+@pytest.mark.skipif(
+    not Path("/proc/self/environ").exists() or os.geteuid() == 0,
+    reason="/proc holds an environment only on Linux, and root with CAP_SYS_PTRACE reads it regardless",
+)
+def test_a_same_user_child_cannot_read_the_key_of_a_process_that_keeps_it_out() -> None:
+    read = read_by_a_same_user_child(keeping_out=True)
+
+    assert read["key_seen"] is False
+    assert read["own_descriptor"] is True
+
+
+@pytest.mark.skipif(sys.platform == "linux", reason="this is the no-op on every other platform")
+def test_keeping_a_process_out_does_nothing_off_linux() -> None:
+    keep_same_user_out()
 
 
 def test_defaults_target_sqlite_for_development() -> None:

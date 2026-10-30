@@ -580,14 +580,24 @@ What holds, and what it covers:
 - **`dg worker` and `dg dev` take `DIRIGENT_SECRET_KEY` out of `os.environ` at start-up.** That
   covers what `os.environ` reaches: a subprocess a plugin starts without naming an environment,
   and a library reading a variable.
+- **On Linux, `dg worker`, `dg dev`, `dg server` and `dg scheduler` clear their dumpable flag at
+  start-up.** The kernel keeps the environment a process started with in `/proc/<pid>/environ`,
+  and removing a variable from `os.environ` does not change it. With the flag cleared, a process of
+  the same user cannot open that file, or `mem`, `maps` or `fd` beside it, and cannot attach with
+  ptrace, so `cat /proc/$PPID/environ` in a command gets `Permission denied`. That covers
+  `DIRIGENT_DATABASE_URL` and everything else the process was started with, not only the key. Each
+  process pays for it: it writes no core dump, and a debugger or `py-spy` of the same user cannot
+  attach, so use root for that. It does nothing on other platforms, where no such file exists.
 
 What does not hold:
 
-- **On Linux the variable is still in `/proc/<pid>/environ`.** That file is the environment the
-  process was started with, kept by the kernel, and removing a variable from `os.environ` does not
-  change it. Any process of the same user can read it, which includes a command the worker
-  started: `cat /proc/$PPID/environ` prints the key. The same file holds every other variable the
-  worker was started with, including `DIRIGENT_DATABASE_URL` and its password.
+- **Whatever started the process still holds the same environment.** A shell, `uv run` or a
+  supervisor that stays alive above the worker keeps its own `/proc/<pid>/environ`, which any
+  process of the user can read. So exec the worker or start it from a clean environment; the image
+  does, because `dg` is the entrypoint. `dg server --reload` loses the flag in the process it
+  reloads, and that is a development mode.
+- **Root reads it all the same.** A worker running as root on a host starts commands that hold
+  `CAP_SYS_PTRACE`, which passes the check. A container's default capabilities leave that one out.
 - **A key file only moves the problem.** `DIRIGENT_SECRET_KEY_FILE` keeps the key out of
   `/proc/<pid>/environ` altogether, so prefer it, and it is what makes a leaked environment dump
   harmless. But a command running as the worker's user can open the same file the worker did,
