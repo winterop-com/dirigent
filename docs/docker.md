@@ -66,9 +66,26 @@ The sidecar runs `privileged: true`, which docker-in-docker requires -- it has n
 mode that starts containers. It keeps `/var/lib/docker` on a named volume, so an image pulled
 once survives a restart. It shares a compose network, `docker`, with the worker alone, so the
 names `postgres` and `s3` do not resolve for a pipeline's container. It still reaches the
-internet, and whether it can reach the database **by address** is up to the host's Docker
-firewall, not this file: Docker Desktop 29.9.2 routed that connection when it was tried. Change
-the stack's default database and bucket credentials either way.
+internet, and whether it reaches the database **by address** depends on the host's Docker, not
+on this file:
+
+| Measured from the sidecar | Linux: Docker Engine on a GitHub `ubuntu-24.04` runner | macOS: Docker Desktop 29.9.2 |
+| --- | --- | --- |
+| The database, by name | does not resolve | does not resolve |
+| The database, by address | **no connection** | **connects** |
+| The same, from a container inside the sidecar | no connection | connects |
+| A port published on the host's loopback | not through the network's gateway | not through the gateway, but **connects** through `host.docker.internal` |
+
+The Linux column is what the `compose` CI lane checks on every change. It says nothing about
+another distribution, Docker version or firewall setup. The macOS column was measured by hand
+with the sidecar's image on two networks, once.
+
+**So on Docker Desktop this network is no boundary**: the name is gone and the route is not, and a
+pipeline's container that guesses an address reaches the database and the bucket. The stack does
+not close that route. A firewall rule inside the sidecar would not hold, because a pipeline
+allowed `docker.compose.up` can start a privileged container there and remove it. What stands in
+its way on such a host is the database password and the bucket secret, so neither should be a
+default. Where the data matters, run the worker and its daemon on their own host.
 
 ### What allowlisting these blocks grants
 

@@ -1,9 +1,12 @@
 """Layered configuration: defaults, a YAML file, a ``.env``, then DIRIGENT_-prefixed variables."""
 
+import ctypes
 import io
 import json
+import logging
 import os
 import stat
+import sys
 from collections.abc import Mapping
 from datetime import timedelta
 from functools import lru_cache
@@ -26,9 +29,14 @@ from pydantic_settings.sources.utils import parse_env_vars
 from dirigent_common import Duration, EntityName, Size
 from dirigent_core.messages import POOL_TOO_SMALL, SECRET_KEY_FILE_UNREADABLE, SECRET_KEY_TWICE
 
+logger = logging.getLogger(__name__)
+
 CONFIG_FILE_ENV = "DIRIGENT_CONFIG_FILE"
 
 SECRET_KEY_ENV = "DIRIGENT_SECRET_KEY"
+
+#: The ``prctl`` option that sets whether a process is dumpable, from ``linux/prctl.h``.
+PR_SET_DUMPABLE = 4
 
 #: The project file that carries an instance's own variables, read from the working
 #: directory. A command run elsewhere does not see it. None reads no such file.
@@ -641,10 +649,29 @@ def drop_secret_key_variable() -> None:
     """Take the envelope key out of ``os.environ``, for a process whose settings already hold it.
 
     What a child inherits by default and what a library reads from ``os.environ`` stop finding
-    it. The kernel keeps the environment a process started with, so ``/proc/<pid>/environ``
-    still shows it to anything running as the same user.
+    it. The kernel keeps the environment a process started with, in ``/proc/<pid>/environ``,
+    which :func:`keep_same_user_out` closes on Linux.
     """
     os.environ.pop(SECRET_KEY_ENV, None)
+
+
+def keep_same_user_out() -> None:
+    """Stop another process of this user reading this one through ``/proc`` or attaching to it.
+
+    On Linux this clears the process's dumpable flag. ``/proc/<pid>/environ``, ``mem``, ``maps``
+    and ``fd`` stop opening for a process of the same user, ptrace refuses it, and this process
+    writes no core dump. This process keeps ``/proc/self/fd``, and loses its own ``environ`` and
+    ``mem``. A child gets the flag back for itself when it executes a program. It does nothing
+    on any other platform.
+    """
+    if sys.platform != "linux":
+        return
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0:
+        logger.warning(
+            "could not clear the dumpable flag, so a process of this user can read this one through /proc: %s",
+            os.strerror(ctypes.get_errno()),
+        )
 
 
 def redacted_url(settings: Settings) -> str:

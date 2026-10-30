@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
+import { FIT_MIN_ZOOM } from '../src/lib/dag-layout.ts'
 import { LABELS } from '../src/lib/labels.ts'
 import {
     DEV_USERNAME,
@@ -418,6 +419,58 @@ test('the source tab marks a key the schema does not take, on its line', async (
         .toBe(true)
 })
 
+/** Hold a document on the instance, then ask what replacing it with one plain step would take away. */
+async function planWithoutIt(page: Page, pipeline: string, held: Record<string, unknown>): Promise<Locator> {
+    const prefix = await apiPrefix(page.request)
+    await page.request.delete(`${prefix}/pipelines/${pipeline}`)
+    await applyDocument(page.request, {
+        format: 'dirigent/v1',
+        kind: 'pipeline',
+        code: pipeline,
+        ...held,
+    })
+    await page.goto(`/pipelines/${pipeline}`)
+    await page.locator('.react-flow__node').first().click()
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    await writeInEditor(
+        page,
+        panel.getByTestId('code-editor'),
+        [
+            'format: dirigent/v1',
+            'kind: pipeline',
+            `code: ${pipeline}`,
+            'steps:',
+            '  plain:',
+            '    block: http.request',
+            '    config: { url: "http://127.0.0.1:9/after" }',
+            '',
+        ].join('\n'),
+    )
+    await page.getByRole('button', { name: LABELS.action.validate }).click()
+    return page.getByRole('dialog')
+}
+
+test('a plan says when applying would take a source away', async ({ page }) => {
+    await signIn(page)
+    const dialog = await planWithoutIt(page, 'e2e-plan-retires-source', {
+        steps: {
+            ask: { source: { kind: 'endpoint', path: '/e2e-plan-retires-source' } },
+            answer: { depends_on: ['ask'], reply: { status: 200, body: 'done' } },
+        },
+    })
+    await expect(dialog).toContainText(LABELS.editor.plan.retiring.sources.one('ask'))
+})
+
+test('a plan says when applying would take a schedule away', async ({ page }) => {
+    await signIn(page)
+    const dialog = await planWithoutIt(page, 'e2e-plan-retires-schedule', {
+        triggers: { schedules: [{ code: 'nightly', cron: '0 3 * * *' }] },
+        steps: { plain: { block: 'http.request', config: { url: 'http://127.0.0.1:9/before' } } },
+    })
+    await expect(dialog).toContainText(LABELS.editor.plan.retiring.schedules.one('nightly'))
+})
+
 test('validating an intact document reports no issues', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
@@ -587,6 +640,39 @@ test('the editor opens with the whole graph in view, at a zoom that does not blo
     // FIT_MAX_ZOOM in lib/dag-layout: a graph of a few boxes sits at a size worth reading
     // rather than blown up to fill the canvas.
     expect(await graphZoom(page)).toBeLessThanOrEqual(1)
+})
+
+test('a graph too big for the floor opens readable, from its start, and is panned to', async ({ page }) => {
+    await signIn(page)
+    const prefix = await apiPrefix(page.request)
+    const pipeline = 'e2e-past-the-floor'
+    await page.request.delete(`${prefix}/pipelines/${pipeline}`)
+    const count = 40
+    const steps = Object.fromEntries(
+        Array.from({ length: count }, (_, at) => [
+            `step_${String(at).padStart(2, '0')}`,
+            {
+                block: 'http.request',
+                config: { url: `http://127.0.0.1:9/${String(at)}` },
+                ...(at === 0 ? {} : { depends_on: [`step_${String(at - 1).padStart(2, '0')}`] }),
+            },
+        ]),
+    )
+    await applyDocument(page.request, { format: 'dirigent/v1', kind: 'pipeline', code: pipeline, steps })
+
+    await page.goto(`/pipelines/${pipeline}`)
+    await expect(page.locator('.react-flow__node')).toHaveCount(count)
+    await canvasSettled(page)
+
+    expect(await graphZoom(page)).toBeCloseTo(FIT_MIN_ZOOM)
+    const first = page.locator('.react-flow__node[data-id="step_00"]')
+    const canvas = page.locator('.react-flow')
+    const inside = async () => {
+        const [box, frame] = await Promise.all([first.boundingBox(), canvas.boundingBox()])
+        return box !== null && frame !== null && box.x >= frame.x && box.y >= frame.y
+    }
+    await expect.poll(inside).toBe(true)
+    await page.request.delete(`${prefix}/pipelines/${pipeline}`)
 })
 
 test('a graph of two steps is fully visible rather than filling the canvas', async ({ page }) => {

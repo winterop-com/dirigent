@@ -897,6 +897,13 @@ references it, and asking for it first was asking the least of the step first.
 differs from the version the instance holds, and where there is no version at all; where applying
 would write nothing it stands in outline beside Validate, which is what it would do.
 
+**A plan says what an apply takes away before it is pressed.** The dry run answers with the source
+rows and the managed schedules a document has stopped declaring, and those are the one consequence
+in the dialog that cannot be read back from the document: a source goes with its inputs and its
+token. They stand under the changes in the warning ink, with the words a reader would ask for, and
+only where there are any. What an apply did to its sources and schedules is the note that follows
+it.
+
 **A refusal the dialog can answer is answered in the dialog.** A top-level `connections:` or
 `schemas:` section is what lets a document run alone under `dg run --local`, and an apply refuses
 one that carries either -- a refusal that stays, because a reference by code is the single
@@ -1654,14 +1661,18 @@ run it is the kind, which is what the pinned graph carries. A step with neither 
 
 Both canvases open with the whole DAG in view: `fitView` with padding, held between the two
 bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` is 1, so a fit never draws a box above its own size and a pipeline of two boxes is
-not magnified to fill the space, and `FIT_MIN_ZOOM` keeps a node above the size its 13px title
-stops being readable at -- a graph too big for that is panned to rather than shrunk past
-legibility. It re-fits when the node set changes and when the canvas is resized -- the right
+not magnified to fill the space. `FIT_MIN_ZOOM` is 0.8, so a fit never draws a 13px title under
+10.4px or an 11px word under 8.8px. **Past that floor the graph is not shrunk: it stays at the floor,
+hangs off the canvas, and is panned.** A view too wide or too tall for the canvas opens with the
+start of the graph at the top left and the rest off the far edges, because a graph is read from its
+first steps and a centred one has both ends cut, and dragging the ground is how the rest is reached.
+Zooming further out is still there by hand, down to `MIN_ZOOM`, and that view is the reader's. It
+re-fits when the node set changes and when the canvas is resized -- the right
 panel opening is a resize -- and stops the moment the reader pans, zooms or drags a box: after
 that the view is theirs, and Re-layout is how they hand it back. A press that moves nothing, on
 the ground or on a run's box, is not a pan. A resize of a view the reader took over only brings
 the chosen box back onto the canvas, at their zoom, if the resize cut it. The browser suite
-asserts every node's box lies inside the canvas.
+asserts every node's box lies inside the canvas for a graph that fits at the floor.
 
 **A deep graph is wrapped onto rows rather than drawn as one.** Seventeen steps in one
 left-to-right row is three thousand pixels of canvas, and a fit answers that by putting a node's

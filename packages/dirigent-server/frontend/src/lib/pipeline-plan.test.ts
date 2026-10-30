@@ -36,6 +36,13 @@ function plan(over: Partial<PipelinePlan> = {}): PipelinePlan {
     }
 }
 
+const NO_SOURCES = { created: [], updated: [], removed: [] }
+
+/** A dry run of one plan that takes nothing away. */
+function dry(over: Partial<PipelinePlan> = {}) {
+    return { plan: plan(over), triggers: materialized(), sources: NO_SOURCES }
+}
+
 function materialized(over: Partial<Materialized> = {}): Materialized {
     return {
         schedules_created: [],
@@ -47,20 +54,20 @@ function materialized(over: Partial<Materialized> = {}): Materialized {
 
 describe('what a plan says', () => {
     test('an update names the version applying would write', () => {
-        const view = planView(plan())
+        const view = planView(dry())
         expect(view.headline).toBe('Apply writes version 4 of convert-one')
         expect(view.tone).toBe('good')
         expect(view.applicable).toBe(true)
     })
 
     test('a create says the pipeline is not here yet', () => {
-        const view = planView(plan({ action: 'create', current_version: null, next_version: 1 }))
+        const view = planView(dry({ action: 'create', current_version: null, next_version: 1 }))
         expect(view.headline).toBe('Apply creates convert-one at version 1')
         expect(view.applicable).toBe(true)
     })
 
     test('an unchanged document offers no apply, because applying it writes nothing', () => {
-        const view = planView(plan({ action: 'unchanged' }))
+        const view = planView(dry({ action: 'unchanged' }))
         expect(view.headline).toContain('Apply writes nothing')
         expect(view.tone).toBe('quiet')
         expect(view.applicable).toBe(false)
@@ -86,7 +93,7 @@ describe('what a plan says', () => {
                 params: {},
             },
         ]
-        const view = planView(plan({ action: 'invalid', next_version: null, diff: null, issues }))
+        const view = planView(dry({ action: 'invalid', next_version: null, diff: null, issues }))
         expect(view.headline).toBe('Applying convert-one will be refused')
         expect(view.tone).toBe('critical')
         expect(view.applicable).toBe(false)
@@ -128,6 +135,7 @@ describe('what an apply did', () => {
             version: 4,
             dry_run: false,
             triggers: materialized(),
+            sources: NO_SOURCES,
         }
         expect(appliedLine(result)).toBe('convert-one is at version 4')
     })
@@ -139,6 +147,7 @@ describe('what an apply did', () => {
             version: null,
             dry_run: false,
             triggers: materialized(),
+            sources: NO_SOURCES,
         }
         expect(appliedLine(result)).toBe('convert-one was left as it was')
     })
@@ -160,6 +169,7 @@ describe('what an apply did', () => {
             version: 2,
             dry_run: false,
             triggers: materialized({ schedules_created: ['nightly'], schedules_updated: ['hourly'] }),
+            sources: NO_SOURCES,
         }
         expect(appliedNote(result)).toEqual({
             line: 'convert-one is at version 2',
@@ -201,5 +211,43 @@ describe('what the status bar says about a validation', () => {
 
     test('says nothing at all when the document validated', () => {
         expect(issuesNote([])).toBeNull()
+    })
+})
+
+describe('what an apply would take away', () => {
+    test('names each source and schedule a document stopped declaring', () => {
+        const view = planView({
+            plan: plan(),
+            triggers: materialized({ schedules_removed: ['nightly'] }),
+            sources: { created: [], updated: [], removed: ['orders', 'refunds'] },
+        })
+        expect(view.retiring).toEqual([
+            'Removes sources orders, refunds, with their inputs and their tokens.',
+            'Removes schedule nightly.',
+        ])
+    })
+
+    test('is nothing where it takes nothing, and on a plan that writes nothing', () => {
+        expect(planView(dry()).retiring).toEqual([])
+        const refused = planView({
+            plan: plan({ action: 'invalid' }),
+            triggers: materialized({ schedules_removed: ['nightly'] }),
+            sources: NO_SOURCES,
+        })
+        expect(refused.retiring).toEqual([])
+    })
+
+    test('is said in the past tense once it has been done', () => {
+        const result: ApplyResult = {
+            plan: plan(),
+            pipeline_id: 'an-id',
+            version: 2,
+            dry_run: false,
+            triggers: materialized({ schedules_removed: ['nightly'] }),
+            sources: { created: ['orders'], updated: [], removed: ['refunds'] },
+        }
+        expect(appliedNote(result).detail).toBe(
+            'schedules removed: nightly; sources created: orders; sources removed: refunds',
+        )
     })
 })

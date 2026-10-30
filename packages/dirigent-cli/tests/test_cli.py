@@ -351,6 +351,31 @@ def test_the_worker_refuses_to_start_on_sqlite() -> None:
     assert problem["status"] == GUARD_EXIT
 
 
+@pytest.mark.parametrize("command", ["worker", "server", "scheduler"])
+def test_a_long_running_process_keeps_same_user_processes_out(command: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each is refused on SQLite after the point this has to happen by."""
+    called: list[bool] = []
+    monkeypatch.setattr(main, "keep_same_user_out", lambda: called.append(True))
+
+    runner.invoke(app, [command])
+
+    assert called == [True]
+
+
+def test_dev_keeps_same_user_processes_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Dev is refused off SQLite after the point this has to happen by."""
+    called: list[bool] = []
+    monkeypatch.setattr(main, "keep_same_user_out", lambda: called.append(True))
+    monkeypatch.setenv("DIRIGENT_DATABASE_URL", "postgresql+asyncpg://u:p@localhost/dirigent")
+    reset_settings_cache()
+
+    result = runner.invoke(app, ["dev"])
+
+    reset_settings_cache()
+    assert result.exit_code == GUARD_EXIT
+    assert called == [True]
+
+
 def test_the_worker_takes_the_secret_key_out_of_its_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """What a child inherits or a library reads from ``os.environ`` no longer finds it."""
     monkeypatch.setenv("DIRIGENT_SECRET_KEY", "the-envelope-key")
