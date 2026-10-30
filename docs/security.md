@@ -597,6 +597,12 @@ substitution: `a[$(id)]` runs `id`. So a reference inside `$(( ))`, `(( ))` or `
 to an integer, and anything else fails the step as `rejected` before the command starts. Declare
 the parameter as `type: integer` and a caller's bad value is refused at the door instead.
 
+Those spellings are looked for with no regard to quoting, so a quote in a comment, a here-document
+or `$'...'` cannot hide one. That reads a literal opener as one too: after `'$(( '`, in a comment
+or in a program another tool reads, a reference must be an integer until the opener closes. So
+must one inside a `$( )` within arithmetic, because the shell evaluates what that prints. A step
+that needs another value there uses `argv`, which involves no shell.
+
 The check reads those three spellings and nothing else. It does not cover a reference that bash
 evaluates some other way: the operands of `[[ -eq ]]`, `let`, `declare -i`, an indexed array's
 subscript, or a `${var:offset}`. Nor does it cover a command that hands its own variable to
