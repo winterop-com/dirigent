@@ -33,7 +33,7 @@ COMPOSE_SINKS ?= $(COMPOSE) -f infra/compose.sinks.yaml
 #: Every overlay at once, which is what "take it all away" has to name to reach every volume.
 COMPOSE_ALL ?= $(COMPOSE) -f infra/compose.brokers.yaml -f infra/compose.sql.yaml -f infra/compose.otel.yaml -f infra/compose.sinks.yaml
 
-.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-shots ui-test ui-e2e ui-gate ui-static ui-wheel docs-shots docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-affected test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf clean refresh
+.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-shots ui-test ui-e2e ui-gate ui-static ui-wheel docs-shots docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-affected test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf architecture architecture-validate architecture-export architecture-export-docs architecture-check-docs architecture-clean clean refresh
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -253,6 +253,64 @@ docs-build: ## Build the documentation site, failing on any warning
 docs-pdf: ## Build the site and print the basics tutorial to site/basics.pdf
 	$(UV) run --with playwright playwright install chromium
 	$(UV) run --with playwright python scripts/docs_pdf.py
+
+#: The renderers the architecture model goes through. A bump re-exports in the same commit.
+STRUCTURIZR_IMAGE ?= structurizr/structurizr:2026.06.28
+PLAYWRIGHT_VERSION ?= 1.63.0
+PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v$(PLAYWRIGHT_VERSION)-noble
+
+#: The image runs as its own uid, which cannot write a bind-mounted directory on Linux.
+DOCKER_AS_HOST_USER := --user $(shell id -u):$(shell id -g)
+
+#: The generated docs page that renders architecture/workspace.dsl.
+ARCHITECTURE_PAGE := docs/architecture-model.md
+
+architecture: ## Serve the interactive C4 model (Structurizr) on http://localhost:6080
+	docker rm -f dirigent-structurizr dirigent-structurizr-export >/dev/null 2>&1 || true
+	@echo "Serving at http://localhost:6080 (Ctrl-C to stop)"
+	docker run -it --rm --name dirigent-structurizr $(DOCKER_AS_HOST_USER) -p 6080:8080 -v "$(CURDIR)/architecture:/usr/local/structurizr" $(STRUCTURIZR_IMAGE) local
+
+architecture-validate: ## Validate architecture/workspace.dsl
+	docker run --rm $(DOCKER_AS_HOST_USER) -v "$(CURDIR)/architecture:/work" -w /work $(STRUCTURIZR_IMAGE) validate -workspace workspace.dsl
+
+architecture-export: ## Export every view to architecture/diagrams as PNG (needs port 6080 free)
+	@set -e; \
+	docker rm -f dirigent-structurizr-export >/dev/null 2>&1 || true; \
+	docker run -d --name dirigent-structurizr-export $(DOCKER_AS_HOST_USER) -p 6080:8080 -v "$(CURDIR)/architecture:/usr/local/structurizr" $(STRUCTURIZR_IMAGE) local >/dev/null; \
+	trap 'docker rm -f dirigent-structurizr-export >/dev/null 2>&1 || true' EXIT; \
+	echo "Waiting for Structurizr to start..."; \
+	for i in $$(seq 1 30); do curl -fsS -o /dev/null http://localhost:6080/ 2>/dev/null && break; sleep 2; done; \
+	docker run --rm --network container:dirigent-structurizr-export $(DOCKER_AS_HOST_USER) \
+		-e STRUCTURIZR_URL=http://localhost:8080 -e PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+		-e HOME=/tmp -e npm_config_cache=/tmp/.npm \
+		-v "$(CURDIR)/architecture:/work" -w /work $(PLAYWRIGHT_IMAGE) \
+		sh -c 'npm i playwright@$(PLAYWRIGHT_VERSION) --no-save --no-fund --no-audit --silent 2>/dev/null && node export-diagrams.js'; \
+	echo "Diagrams exported to architecture/diagrams/"
+
+architecture-export-docs: ## Regenerate docs/architecture-model.md (native Mermaid) from workspace.dsl
+	@set -e; \
+	mkdir -p architecture/exports/mermaid; \
+	docker run --rm $(DOCKER_AS_HOST_USER) -v "$(CURDIR)/architecture:/work" -w /work $(STRUCTURIZR_IMAGE) export -workspace workspace.dsl -format mermaid -output exports/mermaid >/dev/null; \
+	$(UV) run python architecture/mermaid_to_docs.py
+
+architecture-check-docs: ## Fail when docs/architecture-model.md is stale against workspace.dsl
+	@set -e; \
+	before=$$(mktemp); \
+	cp "$(ARCHITECTURE_PAGE)" "$$before"; \
+	$(MAKE) --no-print-directory architecture-export-docs >/dev/null; \
+	if ! diff -u "$$before" "$(ARCHITECTURE_PAGE)"; then \
+		echo; \
+		echo "ERROR: $(ARCHITECTURE_PAGE) is out of sync with architecture/workspace.dsl."; \
+		echo "It has been regenerated in place; review and commit it."; \
+		rm -f "$$before"; \
+		exit 1; \
+	fi; \
+	rm -f "$$before"; \
+	echo "$(ARCHITECTURE_PAGE) is in sync with workspace.dsl"
+
+architecture-clean: ## Remove what the architecture targets generate
+	rm -rf architecture/diagrams architecture/exports architecture/node_modules \
+		architecture/.structurizr architecture/workspace.json
 
 refresh: ## Start over: forget every build and cache, take every docker stack away, rebuild the UI and the venv
 	@test -z "$$(lsof -tiTCP:$(SEED_PORT) -sTCP:LISTEN 2>/dev/null)" \
