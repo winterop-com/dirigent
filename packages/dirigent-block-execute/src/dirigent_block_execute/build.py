@@ -177,7 +177,7 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
             raise BlockFailure(NO_REGISTRY_CREDENTIAL, error_class=ErrorClass.REJECTED)
         timeout = config.timeout.total_seconds()
 
-        with sealed(settings, isolate_config=config.push) as material:
+        with sealed(settings, root, isolate_config=config.push) as material:
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )

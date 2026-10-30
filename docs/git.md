@@ -73,12 +73,10 @@ carries one in its own `connections:` section -- which is what the
 A credential reaches git, and reaches nothing else. In one paragraph:
 
 **Never in argv.** Every process on the host can read another's command line, so nothing
-secret is ever an argument. A token is written into a directory of its own in the system's
-temporary directory, created `0700`, holding two `0600` files and a `0700` `GIT_ASKPASS` helper
-that `cat`s the right one when git asks for a username or a password -- so the token is not in
-the environment either, only in a file that one process may read. It is outside the run's work
-directory and scratch space, which a sibling step such as `sql.query` on duckdb can read, so the
-temporary directory has to allow running that helper. An ssh key is a `0600` file in
+secret is ever an argument. A token is written into a directory of its own under the run's
+work directory, created `0700`, holding two `0600` files and a `0700` `GIT_ASKPASS` helper that
+`cat`s the right one when git asks for a username or a password -- so the token is not in the
+environment either, only in a file that one process may read. An ssh key is a `0600` file in
 the same directory, named by `GIT_SSH_COMMAND`, with `IdentitiesOnly=yes` and `BatchMode=yes`
 so ssh uses that key and never prompts. **Never in the checkout.** The remote is handed to git
 with any userinfo stripped, and that stripped URL is what the clone writes into `.git/config`

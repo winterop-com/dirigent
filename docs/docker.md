@@ -138,8 +138,8 @@ dg connection check build-daemon
 
 `tls_key` and `password` are **sealed**: encrypted at rest, redacted in every API response, and
 never an argument or an inherited variable. Each reaches the CLI and the Engine API as a 0600
-file in a 0700 directory in the system's temporary directory, outside the roots a sibling step
-can read -- the TLS triple as `DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own -- and both directories are removed when the step
+file in a 0700 directory under the run's work directory -- the TLS triple as `DOCKER_CERT_PATH`,
+the login as a `DOCKER_CONFIG` of its own -- and both directories are removed when the step
 leaves, on success, on failure and on cancellation.
 
 **Every step of one stack names the same connection.** A stack exists only on the daemon that

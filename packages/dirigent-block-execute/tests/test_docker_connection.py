@@ -20,7 +20,6 @@ from dirigent_block_execute.docker import (
     DockerConnectionKind,
     DockerRunConfig,
     DockerRunOperator,
-    _material,  # pyright: ignore[reportPrivateUsage]
     daemon_environment,
     resolve_endpoint,
     sealed,
@@ -147,8 +146,8 @@ def test_a_credential_with_no_registry_means_docker_hub() -> None:
 # -- what a connection becomes on the filesystem ---------------------------------
 
 
-def test_the_tls_triple_becomes_three_private_files_a_private_directory_holds() -> None:
-    with sealed(REMOTE) as material:
+def test_the_tls_triple_becomes_three_private_files_a_private_directory_holds(tmp_path: Path) -> None:
+    with sealed(REMOTE, tmp_path) as material:
         directory = Path(material.environ["DOCKER_CERT_PATH"])
         assert material.environ["DOCKER_HOST"] == "tcp://dind:2376"
         assert material.environ["DOCKER_TLS_VERIFY"] == "1"
@@ -161,33 +160,26 @@ def test_the_tls_triple_becomes_three_private_files_a_private_directory_holds() 
     assert not directory.exists()
 
 
-def test_the_material_is_written_outside_the_runs_work_directory(local_ctx: FakeContext) -> None:
-    local_ctx.connections["daemon"] = REMOTE
-    step = DockerRunConfig(connection="daemon", image="alpine:3")
-    with _material(step, local_ctx.as_context()) as environ:
-        assert not Path(environ["DOCKER_CERT_PATH"]).is_relative_to(local_ctx.work)
-
-
-def test_the_material_goes_when_the_step_fails() -> None:
+def test_the_material_goes_when_the_step_fails(tmp_path: Path) -> None:
     held: Path | None = None
-    with pytest.raises(RuntimeError), sealed(REMOTE) as material:
+    with pytest.raises(RuntimeError), sealed(REMOTE, tmp_path) as material:
         held = Path(material.environ["DOCKER_CERT_PATH"])
         raise RuntimeError("the step failed")
     assert held is not None
     assert not held.exists()
 
 
-def test_the_material_goes_when_the_step_is_cancelled() -> None:
+def test_the_material_goes_when_the_step_is_cancelled(tmp_path: Path) -> None:
     held: Path | None = None
-    with pytest.raises(asyncio.CancelledError), sealed(REMOTE) as material:
+    with pytest.raises(asyncio.CancelledError), sealed(REMOTE, tmp_path) as material:
         held = Path(material.environ["DOCKER_CERT_PATH"])
         raise asyncio.CancelledError
     assert held is not None
     assert not held.exists()
 
 
-def test_a_login_gets_a_docker_config_directory_of_its_own() -> None:
-    with sealed(REGISTRY, isolate_config=True) as material:
+def test_a_login_gets_a_docker_config_directory_of_its_own(tmp_path: Path) -> None:
+    with sealed(REGISTRY, tmp_path, isolate_config=True) as material:
         config = Path(material.environ["DOCKER_CONFIG"])
         assert stat.S_IMODE(config.stat().st_mode) == 0o700
         assert "DOCKER_HOST" not in material.environ
@@ -195,30 +187,30 @@ def test_a_login_gets_a_docker_config_directory_of_its_own() -> None:
     assert not config.exists()
 
 
-def test_no_connection_leaves_the_workers_own_environment_alone() -> None:
-    with sealed(None) as material:
+def test_no_connection_leaves_the_workers_own_environment_alone(tmp_path: Path) -> None:
+    with sealed(None, tmp_path) as material:
         assert material.environ == {}
         assert material.secrets == []
 
 
-def test_a_connections_daemon_replaces_the_workers_own() -> None:
+def test_a_connections_daemon_replaces_the_workers_own(tmp_path: Path) -> None:
     worker = {"DOCKER_HOST": "unix:///var/run/docker.sock", "DOCKER_CERT_PATH": "/certs/client", "PATH": "/bin"}
-    with sealed(REMOTE) as material:
+    with sealed(REMOTE, tmp_path) as material:
         built = daemon_environment(worker, material)
     assert built["DOCKER_HOST"] == "tcp://dind:2376"
     assert built["DOCKER_CERT_PATH"] != "/certs/client"
     assert built["PATH"] == "/bin"
 
 
-def test_a_registry_only_connection_leaves_the_workers_daemon_where_it_was() -> None:
+def test_a_registry_only_connection_leaves_the_workers_daemon_where_it_was(tmp_path: Path) -> None:
     worker = {name: f"worker-{name}" for name in DAEMON_ENV}
-    with sealed(REGISTRY, isolate_config=True) as material:
+    with sealed(REGISTRY, tmp_path, isolate_config=True) as material:
         built = daemon_environment(worker, material)
     assert {name: built[name] for name in DAEMON_ENV} == worker
 
 
-def test_the_endpoint_is_resolved_from_the_connections_environment_rather_than_the_workers() -> None:
-    with sealed(REMOTE) as material:
+def test_the_endpoint_is_resolved_from_the_connections_environment_rather_than_the_workers(tmp_path: Path) -> None:
+    with sealed(REMOTE, tmp_path) as material:
         endpoint = resolve_endpoint(None, daemon_environment(dict(os.environ), material))
         assert endpoint.base_url == "https://dind:2376"
         assert endpoint.uds is None
