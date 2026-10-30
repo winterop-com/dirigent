@@ -204,7 +204,28 @@ test('deleting a connection asks first, and a refusal stays in the question', as
     await expect(asking).toHaveCount(0)
     await expect(page.getByRole('dialog')).toContainText(CONNECTION)
 
+    // A refusal is said in the question, and the question stays.
+    await page.route(`**/connections/${CONNECTION}`, (route) =>
+        route.request().method() === 'DELETE'
+            ? route.fulfill({
+                  status: 409,
+                  contentType: 'application/problem+json',
+                  body: JSON.stringify({
+                      status: 409,
+                      title: 'Conflict',
+                      detail: 'still referenced',
+                      code: 'server.connection_referenced',
+                      params: { code: CONNECTION },
+                  }),
+              })
+            : route.continue(),
+    )
     await page.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
+    await asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
+    await expect(asking).toContainText('still referenced')
+    await page.unrouteAll()
+
+    // And with nothing in the way the connection goes, and the address with it.
     await asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(page).toHaveURL(/\/connections$/)

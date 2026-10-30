@@ -216,6 +216,13 @@ export function settingsSummary(row: Pick<ConnectionOut, 'config' | 'secret_fiel
     return parts.length === 0 ? LABELS.connections.no_settings : parts.join(' · ')
 }
 
+/** Whether a setting's value says nothing: unset, or an empty text, list or map. */
+function holdsNothing(value: unknown): boolean {
+    if (value === null || value === undefined || value === '') return true
+    if (Array.isArray(value)) return value.length === 0
+    return typeof value === 'object' && Object.keys(value).length === 0
+}
+
 /** One setting as a connection's dialog reads it, which for a secret is only whether it is set. */
 export interface SettingFact {
     name: string
@@ -240,7 +247,7 @@ export function settingFacts(
     const rest = Object.keys(row.config).filter((name) => !secret.has(name) && !known.includes(name))
     const settings = [...known, ...rest].flatMap((name): SettingFact[] => {
         const value = row.config[name]
-        if (value === null || value === undefined) return []
+        if (holdsNothing(value)) return []
         return [{ name, value: typeof value === 'string' ? value : JSON.stringify(value), secret: false }]
     })
     const secrets = row.secret_fields.map((name): SettingFact => ({

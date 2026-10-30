@@ -365,6 +365,14 @@ describe('what the dialog says about the settings', () => {
         ])
     })
 
+    test('leaves out a setting that holds an empty text, list or map', () => {
+        const facts = settingFacts(
+            { config: { headers: {}, tags: [], note: '', verify: false }, secret_fields: [] },
+            null,
+        )
+        expect(facts.map((fact) => fact.name)).toEqual(['verify'])
+    })
+
     test('draws a value that is not text as the JSON it is', () => {
         const fact = settingFacts({ config: { headers: { a: 1 } }, secret_fields: [] }, null)[0]
         expect(fact?.value).toBe('{"a":1}')
