@@ -16,6 +16,12 @@ A project's `.env` is that middle layer, which is where `dg init` puts the insta
 compose reads it to fill in `${...}` and passes what it resolves to the containers as
 environment, and the server inside one never opens the file.
 
+`enabled_unsafe_blocks` is the exception to the layers. A `.env` and a `dirigent.yaml` or
+`.dirigent/dirigent.yaml` in the working directory travel with a checkout, so they cannot set
+it. It comes from the environment variable, from the file `DIRIGENT_CONFIG_FILE` names, or from
+`~/.config/dirigent/dirigent.yaml`, and `dg run --local --enable-unsafe` adds to it for one
+command.
+
 | Setting | Environment | Default | What it does |
 | --- | --- | --- | --- |
 | `environment` | `DIRIGENT_ENVIRONMENT` | `"local"` | Which deployment this instance believes it is, reported on telemetry. |
@@ -65,7 +71,7 @@ environment, and the server inside one never opens the file.
 | `retention_interval` | `DIRIGENT_RETENTION_INTERVAL` | `"1h"` | How often the scheduler sweeps whatever the retention ages have outlived. |
 | `retention_batch` | `DIRIGENT_RETENTION_BATCH` | `500` | How many rows of one family a single sweep deletes before committing. |
 | `lost_job_max_gone` | `DIRIGENT_LOST_JOB_MAX_GONE` | `3` | Consecutive GONE probes before the lost-job policy fails a waiting attempt. |
-| `enabled_unsafe_blocks` | `DIRIGENT_ENABLED_UNSAFE_BLOCKS` | `[]` | Block ids permitted to execute code on a worker; empty means none. |
+| `enabled_unsafe_blocks` | `DIRIGENT_ENABLED_UNSAFE_BLOCKS` | `[]` | Block ids permitted to execute code on a worker; empty means none. A `.env` or YAML file in the working directory cannot set this. |
 | `scheduler_enabled` | `DIRIGENT_SCHEDULER_ENABLED` | `true` | Whether `dg server` embeds the scheduler rather than leaving it to its own process. |
 | `scheduler_tick` | `DIRIGENT_SCHEDULER_TICK` | `"5s"` | How often the leader asks the database which schedules are due. |
 | `scheduler_misfire_grace` | `DIRIGENT_SCHEDULER_MISFIRE_GRACE` | `"5m"` | How late a firing may be before it counts as a misfire: fire once, advance, no catchup storm. |

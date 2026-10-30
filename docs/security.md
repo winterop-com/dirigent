@@ -489,6 +489,12 @@ host administrator would be a distinction nobody could rely on. The allowlist is
 enabling that an explicit, host-level decision -- taken by whoever configures the deployment,
 not by whoever writes a document.
 
+A document's author can often write the files beside it too, so a `.env`, `dirigent.yaml` or
+`.dirigent/dirigent.yaml` in the working directory cannot set the allowlist. It comes from the
+process environment, the file `DIRIGENT_CONFIG_FILE` names, or
+`~/.config/dirigent/dirigent.yaml`. A deployment that runs `dg server` from a directory holding
+its configuration names that file with `DIRIGENT_CONFIG_FILE`.
+
 The gate is enforced **twice**: when a run is created, and again when a worker claims the
 step. Two checks rather than one, so that tightening the configuration stops work that was
 already queued.
