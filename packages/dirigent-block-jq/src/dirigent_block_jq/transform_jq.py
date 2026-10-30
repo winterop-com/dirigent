@@ -75,7 +75,7 @@ class JqProgramConfig(ProgramConfig):
     """
 
     program: Annotated[str, Field(min_length=1, json_schema_extra={"contentMediaType": JQ_MEDIA_TYPE})]
-    """The jq program this step runs."""
+    """The jq program this step runs. Try one in [playground-jq](https://mortenoh.github.io/playground-jq/)."""
 
 
 class JqTransformer(JqEngine, Transformer):
