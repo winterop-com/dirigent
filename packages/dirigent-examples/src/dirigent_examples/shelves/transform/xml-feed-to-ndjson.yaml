@@ -25,6 +25,8 @@ kind: pipeline
 code: xml-feed-to-ndjson
 name: An XML feed as records
 description: |
+  Read an XML feed as records, average them by region, and convert it to JSON.
+
   Store an XML feed, convert it to one record per line, aggregate the records with jq, and
   convert the same object to one whole value to show the mapping that round-trips.
 

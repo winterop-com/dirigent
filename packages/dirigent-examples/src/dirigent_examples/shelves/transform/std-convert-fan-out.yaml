@@ -26,6 +26,8 @@ kind: pipeline
 code: std-convert-fan-out
 name: Convert and fan out
 description: |
+  Read a csv, average its active readings by region, and write a new csv.
+
   Store an inline csv, re-encode it as json, reshape it with jq, and fan out over the
   regions.
 

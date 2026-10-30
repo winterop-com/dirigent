@@ -26,7 +26,10 @@ format: dirigent/v1
 kind: pipeline
 code: jq-filter-and-map
 name: Filter and map with jq
-description: Keep the active readings with filter.jq, convert each with map.jq, and summarise them.
+description: |
+  Keep the active readings, convert each to fahrenheit, and summarise them.
+
+  `filter.jq` keeps the active readings and `map.jq` converts each one.
 
 tags: [transform]
 

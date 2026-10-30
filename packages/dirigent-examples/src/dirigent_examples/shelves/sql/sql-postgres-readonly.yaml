@@ -50,7 +50,10 @@ format: dirigent/v1
 kind: pipeline
 code: sql-postgres-readonly
 name: Read a warehouse through a read-only connection
-description: Query a PostgreSQL warehouse over a connection that refuses writes, with both values bound as parameters.
+description: |
+  Query a PostgreSQL warehouse through a connection that cannot write.
+
+  The connection refuses writes, and both values are bound as parameters.
 
 tags: [sql, starter]
 

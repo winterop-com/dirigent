@@ -63,6 +63,8 @@ kind: pipeline
 code: nightly-regional-load
 name: The nightly regional load
 description: |
+  Load eight regions overnight, check each one, and write a page about the night.
+
   A night's load over eight regions: a maintenance window, a catalogue read gated on its
   shape, one export submitted, deposited and waited on per region, a per-region gate and
   write, the joins over them, and a page saved beside the data.

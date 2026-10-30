@@ -32,7 +32,11 @@ format: dirigent/v1
 kind: pipeline
 code: jq-stream-through-storage
 name: A value through storage
-description: Write a generated list to storage, read it back as a value, and write the smaller result out the same way.
+description: |
+  Save a generated list to a file, read it back, and save the cold readings.
+
+  The list goes to storage, comes back as a value, and the smaller result is written out the
+  same way.
 
 tags: [transform, storage]
 

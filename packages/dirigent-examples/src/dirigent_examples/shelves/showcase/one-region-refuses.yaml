@@ -53,6 +53,8 @@ kind: pipeline
 code: one-region-refuses
 name: One region refuses
 description: |
+  Load eight regions where one always fails, and report the one that is missing.
+
   Eight regional exports where one fails every attempt and is given up on: the item is
   recorded against itself, the other seven finish, and the run ends `completed_with_errors`.
 

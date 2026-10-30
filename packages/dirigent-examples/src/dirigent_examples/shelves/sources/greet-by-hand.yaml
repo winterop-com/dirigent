@@ -23,6 +23,8 @@ kind: pipeline
 code: greet-by-hand
 name: Greet, by hand
 description: |
+  Answer a request with a greeting for the name in its path.
+
   A request names someone in its path, a jq step shapes the greeting, and a reply answers
   201 with it. Run by hand with the source's sample, or with an input given.
 

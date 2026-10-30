@@ -13,7 +13,10 @@ format: dirigent/v1
 kind: pipeline
 code: the-shape-is-wrong
 name: The shape is wrong
-description: A payload missing a required field, refused at the gate with the path that is wrong.
+description: |
+  Check a payload that is missing a required field, which fails on purpose.
+
+  The gate refuses it and names the path that is wrong.
 
 tags: [validate, transform, failure]
 
