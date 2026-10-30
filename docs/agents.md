@@ -112,6 +112,10 @@ there. So choose the role for what the agent is for:
 - **To write and run,** give it an `operator` token, never `admin`, on an instance whose
   connections and enabled blocks you would let it use; a staging instance is the usual place.
 
+The server reaches the instance and nothing else on its host. The `document` of `plan_document`
+and `apply_document` is always the document's text: a string naming a local file is refused as
+text that is not a document, and the file is not opened.
+
 | Tools | What they do |
 | --- | --- |
 | `list_blocks`, `get_block`, `list_examples`, `get_example` | The catalog and the shipped examples, to write a document from |
