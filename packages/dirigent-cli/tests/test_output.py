@@ -1,20 +1,92 @@
 """The end-of-run table's ladder, and the spelling the CLI writes in."""
 
+import io
 import json
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from pydantic import BaseModel
+from rich.table import Table
 from rich.text import Text
 from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering
+from dirigent_cli import stream
 from dirigent_cli.context import CliState
 from dirigent_cli.main import app, hoist_globals
-from dirigent_cli.output import Detail, emit_records, prioritised, render_output
+from dirigent_cli.output import (
+    Detail,
+    TerminalConsole,
+    emit_json,
+    emit_records,
+    printable,
+    prioritised,
+    render_output,
+)
 from dirigent_core.protocol import PROTOCOL_VERSION
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
+
+
+#: A value carrying what a terminal acts on: clears the screen, sets the clipboard, and a C1 CSI.
+HOSTILE = "a\x1b[2Jb\x1b]52;c;aGk=\x07c\x9b31md\x00e\x7ff"
+
+#: What a person should see of it: everything printable, including what followed each control.
+SHOWN = "a[2Jb]52;c;aGk=c31mdef"
+
+
+def terminal(*, color_system: Literal["truecolor"] | None = None) -> tuple[TerminalConsole, io.StringIO]:
+    """A console writing as it does to a terminal, with its colour chosen rather than detected."""
+    written = io.StringIO()
+    console = TerminalConsole(file=written, force_terminal=True, no_color=False, color_system=color_system, width=200)
+    return console, written
+
+
+def test_a_control_character_in_a_value_does_not_reach_the_terminal() -> None:
+    console, written = terminal()
+    console.print(HOSTILE, highlight=False, soft_wrap=True, markup=False)
+    assert written.getvalue() == f"{SHOWN}\n"
+
+
+def test_a_table_cell_does_not_carry_a_control_character_to_the_terminal() -> None:
+    """A table renders its cells apart from the line, so it is a path of its own."""
+    console, written = terminal()
+    table = Table()
+    table.add_column("name")
+    table.add_row(Text(HOSTILE))
+    console.print(table)
+    assert "\x1b" not in written.getvalue()
+    assert SHOWN in written.getvalue()
+    assert len({len(line) for line in written.getvalue().splitlines()}) == 1, "the table's columns no longer line up"
+
+
+def test_the_colour_a_console_writes_itself_survives() -> None:
+    """The value's escapes go and the console's stay, or the filter would have cost the colour."""
+    console, written = terminal(color_system="truecolor")
+    console.print(Text("value\x1b[2J", style="red"))
+    assert "\x1b[31m" in written.getvalue()
+    assert "\x1b[2J" not in written.getvalue()
+    assert "value[2J" in written.getvalue()
+
+
+def test_tab_and_newline_are_shown_as_a_person_wrote_them() -> None:
+    assert printable("a\tb\nc") == "a\tb\nc"
+
+
+def test_a_control_character_does_not_reach_the_log_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The logging handler writes to its stream directly, with no console to filter it."""
+    monkeypatch.setattr(stream, "_colouring", lambda: True)
+    painted = stream.ansi("message", HOSTILE)
+    assert "\x1b[2J" not in painted
+    assert "\x9b" not in painted
+    monkeypatch.setattr(stream, "_colouring", lambda: False)
+    assert stream.ansi("message", HOSTILE) == SHOWN
+
+
+def test_a_record_keeps_a_control_character_as_the_data_it_is(capsys: pytest.CaptureFixture[str]) -> None:
+    """Only what is shown is filtered: a record says exactly what the server said."""
+    emit_json({"message": HOSTILE})
+    assert json.loads(capsys.readouterr().out) == {"message": HOSTILE}
 
 
 class Row(BaseModel):

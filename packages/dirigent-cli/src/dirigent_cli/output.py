@@ -10,11 +10,12 @@ import sys
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any, cast
+from typing import Any, Final, cast
 
 from pydantic import BaseModel
-from rich.console import Console, Group, RenderableType
+from rich.console import Console, ConsoleOptions, Group, RenderableType
 from rich.markup import escape
+from rich.segment import Segment
 from rich.table import Table
 from rich.text import Text
 
@@ -27,13 +28,43 @@ from dirigent_core.protocol import Format, Record, as_json, make
 NO_COLOUR = "NO_COLOR" in os.environ
 
 
+#: The characters a terminal acts on rather than shows: the C0 controls but tab and newline,
+#: DEL, and the C1 controls, some of which open an escape sequence by themselves.
+TERMINAL_CONTROLS: Final = dict.fromkeys(
+    (*range(0x00, 0x09), *range(0x0B, 0x20), 0x7F, *range(0x80, 0xA0)),
+)
+
+
+def printable(text: str) -> str:
+    """Remove what a terminal would act on from a value that is about to be shown on one.
+
+    A name, a log line or an error can come from a webhook payload by way of the server, and an
+    escape sequence in one could rewrite the screen or set the clipboard of whoever is reading.
+    """
+    return text.translate(TERMINAL_CONTROLS)
+
+
+class TerminalConsole(Console):
+    """A console that shows values and never hands a terminal a control character from one.
+
+    Rich removes a few controls itself and leaves ``ESC``. Its own colour and cursor codes are
+    not in the text of a segment: colour is applied from the style when the segment is written,
+    and a cursor movement is a segment marked as control, so filtering here touches neither.
+    """
+
+    def render(self, renderable: RenderableType, options: ConsoleOptions | None = None) -> Iterable[Segment]:
+        """Render as rich does, removing control characters from every segment of text."""
+        for segment in super().render(renderable, options):
+            yield segment if segment.control else Segment(printable(segment.text), segment.style)
+
+
 def build_console(*, stderr: bool = False) -> Console:
     """Build a console that writes no escape sequence at all where NO_COLOR asked for none.
 
     Rich's ``no_color`` drops colour and keeps every other attribute, so bold would still
     reach a terminal that asked for a plain stream; naming no colour system drops all of it.
     """
-    return Console(stderr=stderr, no_color=NO_COLOUR, color_system=None if NO_COLOUR else "auto")
+    return TerminalConsole(stderr=stderr, no_color=NO_COLOUR, color_system=None if NO_COLOUR else "auto")
 
 
 console = build_console()

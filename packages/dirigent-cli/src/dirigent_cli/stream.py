@@ -87,12 +87,16 @@ def ansi(role: str, text: str) -> str:
 
     The logging handler writes to its stream directly, so rich markup would arrive as the
     literal brackets that spell it. The roles and their colours are the ones the rendered
-    stream uses, resolved to escape sequences here.
+    stream uses, resolved to escape sequences here. Nothing rich renders passes through this
+    handler, so what a terminal would act on is removed from the value here too.
     """
+    from dirigent_cli.output import printable
+
+    shown = printable(text)
     style = _style_for(role)
     if style is None or not _colouring():
-        return text
-    return Style.parse(style).render(text)
+        return shown
+    return Style.parse(style).render(shown)
 
 
 def _style_for(role: str) -> str | None:

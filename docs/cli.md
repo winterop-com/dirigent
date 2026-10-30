@@ -642,6 +642,11 @@ the flag, then the setting, then the terminal.
     a field is stable, a column is not. `dg run --json | jq` is the supported way to read a
     run by machine, and `dg format` is how the same records are made readable again.
 
+A value shown here has its control characters removed, tab and newline aside, because a name
+or a log line can carry an escape sequence from a webhook payload, and a terminal would act on
+it. Records are left exactly as the server sent them, so a value read with `jq -r` and printed
+at a terminal is yours to clean.
+
 ```text
 AT  [LEVEL]  MESSAGE  [KIND SOURCE]  key=value key=value ...
 ```
