@@ -26,9 +26,10 @@
   never only in `tool.uv.sources`.
 - Run their gates with `env -u VIRTUAL_ENV`, or uv may resync this repository's venv against
   theirs.
-- `dirigent-contrib` is a third sibling: a uv workspace of packs for outside systems, one
-  package per system (`dirigent-chap`, `dirigent-climate`). It pins this repository's packages
-  from PyPI like `dirigent-dhis2`, so a contract change reaches it at the next release.
+- `dirigent-contrib` is a third sibling: one package of packs for outside systems, with a
+  subpackage and an entry point per system (`dirigent_contrib.chap`, `dirigent_contrib.climate`).
+  It pins this repository's packages from PyPI like `dirigent-dhis2`, so a contract change
+  reaches it at the next release.
 
 ## Architecture model
 
@@ -95,6 +96,8 @@
   `dirigent-notify-<channel>`. A runtime package is `dirigent-<role>` (`core`, `server`,
   `cli`, `client`, `common`, `plugin`, `testing`). `dirigent-blocks` is the umbrella over
   the built-in `dirigent-block-*` families.
+- `dirigent-contrib` is the one package for outside systems other than DHIS2, an exception to
+  `dirigent-<system>`: a new system is a subpackage and an entry point in it, not a package.
 - YAML files we own end in `.yaml`, never `.yml`. A file a tool insists on naming for us,
   such as `mkdocs.yml`, keeps the name that tool expects.
 
