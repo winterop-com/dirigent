@@ -121,6 +121,16 @@ async def test_a_document_is_planned_applied_and_run(server: MCPServer) -> None:
     ]
 
 
+@pytest.mark.parametrize("code", ["mcp-demo/$deactivate#", "x/../mcp-demo/$deactivate#"])
+async def test_a_reading_tool_cannot_be_steered_to_another_route_by_its_argument(server: MCPServer, code: str) -> None:
+    await call(server, "apply_document", document=DOCUMENT)
+
+    with pytest.raises(ToolError, match="not an identifier"):
+        await server.call_tool("validate_pipeline", {"code": code})
+
+    assert (await call(server, "get_pipeline", code="mcp-demo"))["active"] is True
+
+
 @pytest.mark.parametrize("tool", ["plan_document", "apply_document"])
 @pytest.mark.parametrize("contents", ["[default]\nkey = DUMMYKEY\n", '{"format": "dirigent/v1", "DUMMYKEY": 1}'])
 async def test_a_document_argument_naming_a_local_file_is_text_and_the_file_is_never_read(

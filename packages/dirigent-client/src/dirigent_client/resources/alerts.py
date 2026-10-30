@@ -4,7 +4,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from dirigent_client.enums import AlertEvent, AlertScope, Importance
-from dirigent_client.resources.base import Resource, query, request_body
+from dirigent_client.resources.base import Resource, query, request_body, segment
 from dirigent_client.schemas import (
     AlertRuleIn,
     AlertRuleOut,
@@ -76,11 +76,11 @@ class Alerts(Resource):
         """
         named = query(paused=paused, template=template, body=body, importance=importance, connection=connection)
         body_json = AlertRuleUpdate.model_validate(named).model_dump(mode="json", exclude_unset=True)
-        return await self._one(AlertRuleOut, "PATCH", f"/alert-rules/{code}", json=body_json)
+        return await self._one(AlertRuleOut, "PATCH", f"/alert-rules/{segment(code)}", json=body_json)
 
     async def delete_rule(self, code: str) -> None:
         """Remove an alert rule; the notifications it already raised are kept."""
-        await self._transport.request("DELETE", f"/alert-rules/{code}")
+        await self._transport.request("DELETE", f"/alert-rules/{segment(code)}")
 
     async def test(
         self,
@@ -98,11 +98,11 @@ class Alerts(Resource):
 
     async def notification(self, notification_id: UUID | str) -> NotificationOut:
         """Read one notification, which is how a caller watches a delivery it just queued."""
-        return await self._one(NotificationOut, "GET", f"/notifications/{notification_id}")
+        return await self._one(NotificationOut, "GET", f"/notifications/{segment(notification_id)}")
 
     async def retry(self, notification_id: UUID | str) -> NotificationOut:
         """Put one notification back on the queue, due now."""
-        return await self._one(NotificationOut, "POST", f"/notifications/{notification_id}/$retry")
+        return await self._one(NotificationOut, "POST", f"/notifications/{segment(notification_id)}/$retry")
 
     async def notifications(
         self, *, run_id: UUID | str | None = None, after: str | None = None, limit: int | None = None

@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 
 from dirigent_client.enums import LogLevel, RunPriority
-from dirigent_client.resources.base import Resource, query, request_body
+from dirigent_client.resources.base import Resource, query, request_body, segment
 from dirigent_client.schemas import FiringOut, Page, ScheduleIn, ScheduleOut
 from dirigent_common import JsonMap, to_timedelta
 
@@ -16,13 +16,13 @@ class Schedules(Resource):
         return await self._many(
             ScheduleOut,
             "GET",
-            f"/pipelines/{pipeline}/triggers/schedules",
+            f"/pipelines/{segment(pipeline)}/triggers/schedules",
             params=query(after=after, limit=limit),
         )
 
     async def get(self, pipeline: str, code: str) -> ScheduleOut:
         """Read one schedule by code."""
-        return await self._one(ScheduleOut, "GET", f"/pipelines/{pipeline}/triggers/schedules/{code}")
+        return await self._one(ScheduleOut, "GET", f"/pipelines/{segment(pipeline)}/triggers/schedules/{segment(code)}")
 
     async def create(
         self,
@@ -44,7 +44,7 @@ class Schedules(Resource):
         return await self._one(
             ScheduleOut,
             "POST",
-            f"/pipelines/{pipeline}/triggers/schedules",
+            f"/pipelines/{segment(pipeline)}/triggers/schedules",
             json=_declaration(
                 code, name, description, cron, interval, at, timezone, params, connection_pins, log_levels, priority
             ),
@@ -70,7 +70,7 @@ class Schedules(Resource):
         return await self._one(
             ScheduleOut,
             "PATCH",
-            f"/pipelines/{pipeline}/triggers/schedules/{code}",
+            f"/pipelines/{segment(pipeline)}/triggers/schedules/{segment(code)}",
             json=_declaration(
                 code, name, description, cron, interval, at, timezone, params, connection_pins, log_levels, priority
             ),
@@ -78,15 +78,19 @@ class Schedules(Resource):
 
     async def pause(self, pipeline: str, code: str) -> ScheduleOut:
         """Stop a schedule firing, without losing it or its history."""
-        return await self._one(ScheduleOut, "POST", f"/pipelines/{pipeline}/triggers/schedules/{code}/$pause")
+        return await self._one(
+            ScheduleOut, "POST", f"/pipelines/{segment(pipeline)}/triggers/schedules/{segment(code)}/$pause"
+        )
 
     async def resume(self, pipeline: str, code: str) -> ScheduleOut:
         """Start a schedule firing again, from the next slot rather than the ones it missed."""
-        return await self._one(ScheduleOut, "POST", f"/pipelines/{pipeline}/triggers/schedules/{code}/$resume")
+        return await self._one(
+            ScheduleOut, "POST", f"/pipelines/{segment(pipeline)}/triggers/schedules/{segment(code)}/$resume"
+        )
 
     async def delete(self, pipeline: str, code: str) -> None:
         """Remove a schedule and its firing history."""
-        await self._transport.request("DELETE", f"/pipelines/{pipeline}/triggers/schedules/{code}")
+        await self._transport.request("DELETE", f"/pipelines/{segment(pipeline)}/triggers/schedules/{segment(code)}")
 
     async def firings(
         self, pipeline: str, code: str, *, after: str | None = None, limit: int | None = None
@@ -95,7 +99,7 @@ class Schedules(Resource):
         return await self._many(
             FiringOut,
             "GET",
-            f"/pipelines/{pipeline}/triggers/schedules/{code}/firings",
+            f"/pipelines/{segment(pipeline)}/triggers/schedules/{segment(code)}/firings",
             params=query(after=after, limit=limit),
         )
 

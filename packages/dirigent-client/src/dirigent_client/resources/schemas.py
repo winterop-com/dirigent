@@ -1,6 +1,6 @@
 """Schemas: named JSON Schemas an instance holds, addressable by code and referenced by name."""
 
-from dirigent_client.resources.base import CLEAR, Clear, Resource, edit_body, query, request_body
+from dirigent_client.resources.base import CLEAR, Clear, Resource, edit_body, query, request_body, segment
 from dirigent_client.schemas import Page, SchemaIn, SchemaOut, SchemaUpdate
 from dirigent_common import JsonMap
 
@@ -28,7 +28,7 @@ class Schemas(Resource):
 
     async def get(self, code: str) -> SchemaOut:
         """Read one schema by its code."""
-        return await self._one(SchemaOut, "GET", f"/schemas/{code}")
+        return await self._one(SchemaOut, "GET", f"/schemas/{segment(code)}")
 
     async def create(
         self,
@@ -58,8 +58,8 @@ class Schemas(Resource):
         the one that is stored.
         """
         sent = edit_body(SchemaUpdate, name=name, description=description, body=body)
-        return await self._one(SchemaOut, "PATCH", f"/schemas/{code}", json=sent)
+        return await self._one(SchemaOut, "PATCH", f"/schemas/{segment(code)}", json=sent)
 
     async def delete(self, code: str) -> None:
         """Remove a schema."""
-        await self._transport.request("DELETE", f"/schemas/{code}")
+        await self._transport.request("DELETE", f"/schemas/{segment(code)}")

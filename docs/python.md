@@ -55,7 +55,9 @@ its credentials come from.
 
 ## The accessors
 
-One per API resource, and the method names are the CLI's verbs.
+One per API resource, and the method names are the CLI's verbs. An identifier passed to one is
+always exactly one path segment: it is percent-encoded, and a value holding a `/`, an empty one,
+and `.` or `..` are refused with a `DirigentError` before any request is made.
 
 | Accessor | What it reaches |
 | --- | --- |

@@ -2,9 +2,11 @@
 
 from enum import Enum
 from typing import Any, Final
+from urllib.parse import quote
 
 from pydantic import BaseModel, SecretStr
 
+from dirigent_client.errors import DirigentError
 from dirigent_client.schemas import Page
 from dirigent_client.transport import Transport
 
@@ -38,6 +40,18 @@ class Resource:
         """Make one request and read its body as one page of the schema it answers with."""
         payload: dict[str, Any] = await self._transport.json(method, path, **kwargs)
         return Page(items=[model.model_validate(row) for row in payload["items"]], next=payload.get("next"))
+
+
+def segment(value: object) -> str:
+    """Percent-encode an identifier as exactly one path segment of a request.
+
+    A value that cannot be one is refused: an empty one or a dot segment is collapsed out of the
+    path, and a slash is decoded back into a separator by the server that routes the request.
+    """
+    text = str(value)
+    if text in ("", ".", "..") or "/" in text:
+        raise DirigentError(f"{text!r} is not an identifier this instance could hold")
+    return quote(text, safe="")
 
 
 def query(**values: object) -> dict[str, Any]:

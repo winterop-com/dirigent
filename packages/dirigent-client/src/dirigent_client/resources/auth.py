@@ -5,7 +5,7 @@ from datetime import timedelta
 from pydantic import SecretStr
 
 from dirigent_client.enums import UserRole
-from dirigent_client.resources.base import Resource, query, request_body
+from dirigent_client.resources.base import Resource, query, request_body, segment
 from dirigent_client.schemas import (
     Identity,
     IssuedTokenOut,
@@ -102,33 +102,35 @@ class Users(Resource):
         if role is not None:
             named["role"] = role
         body = UserUpdate.model_validate(named).model_dump(mode="json", exclude_unset=True)
-        return await self._one(UserOut, "PATCH", f"/users/{username}", json=body)
+        return await self._one(UserOut, "PATCH", f"/users/{segment(username)}", json=body)
 
     async def deactivate(self, username: str) -> UserOut:
         """Bar an account from logging in and revoke the sessions it already holds."""
-        return await self._one(UserOut, "POST", f"/users/{username}/$deactivate")
+        return await self._one(UserOut, "POST", f"/users/{segment(username)}/$deactivate")
 
     async def activate(self, username: str) -> UserOut:
         """Let an account log in again; the sessions it lost are not restored."""
-        return await self._one(UserOut, "POST", f"/users/{username}/$activate")
+        return await self._one(UserOut, "POST", f"/users/{segment(username)}/$activate")
 
     async def reset_password(self, username: str, password: str) -> None:
         """Set an account's password without its old one, ending every session it holds."""
         payload = PasswordResetRequest(password=SecretStr(password))
-        await self._transport.request("POST", f"/users/{username}/$reset-password", json=request_body(payload))
+        await self._transport.request("POST", f"/users/{segment(username)}/$reset-password", json=request_body(payload))
 
     async def tokens(self, username: str, *, after: str | None = None, limit: int | None = None) -> Page[TokenOut]:
         """List the API tokens one account holds, without their secrets."""
-        return await self._many(TokenOut, "GET", f"/users/{username}/tokens", params=query(after=after, limit=limit))
+        return await self._many(
+            TokenOut, "GET", f"/users/{segment(username)}/tokens", params=query(after=after, limit=limit)
+        )
 
     async def create_token(self, username: str, name: str, *, expires_in: timedelta | None = None) -> IssuedTokenOut:
         """Mint a bearer token for another account; its secret is returned exactly once."""
         payload = TokenRequest(name=name, expires_in=expires_in)
-        return await self._one(IssuedTokenOut, "POST", f"/users/{username}/tokens", json=request_body(payload))
+        return await self._one(IssuedTokenOut, "POST", f"/users/{segment(username)}/tokens", json=request_body(payload))
 
     async def revoke_token(self, username: str, name: str) -> None:
         """Revoke that account's live tokens of the given name."""
-        await self._transport.request("DELETE", f"/users/{username}/tokens/{name}")
+        await self._transport.request("DELETE", f"/users/{segment(username)}/tokens/{segment(name)}")
 
 
 class Tokens(Resource):
@@ -145,7 +147,7 @@ class Tokens(Resource):
 
     async def revoke(self, name: str) -> None:
         """Revoke this account's own live tokens of the given name."""
-        await self._transport.request("DELETE", f"/tokens/{name}")
+        await self._transport.request("DELETE", f"/tokens/{segment(name)}")
 
 
 class Admin:
