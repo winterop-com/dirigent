@@ -83,7 +83,6 @@ test('the gallery', async ({ page }) => {
             ['triggers', '/triggers'],
             ['connections', '/connections'],
             ['blocks', '/blocks'],
-            ['admin-overview', '/admin'],
             ['admin-users', '/admin/users'],
             ['admin-workers', '/admin/workers'],
             ['admin-alerting', '/admin/alerting'],

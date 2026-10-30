@@ -17,12 +17,8 @@ const workerId = (worker: WorkerOut) => worker.id
 /**
  * The whole registry, walked a page at a time.
  *
- * THE TABLE IS THE DASHBOARD'S. One implementation, drawn small on the overview and whole here,
- * so the two cannot come to disagree about what a stale worker looks like.
- *
- * THE STATUS BAR CARRIES THE WORST FACT. The tile on the dashboard states it because a
- * dashboard is read at a glance; this screen states it along the foot because somebody who
- * opened the registry has already been told there is something to find and wants to know what.
+ * THE STATUS BAR CARRIES THE WORST FACT, along the foot, because somebody who opened the registry
+ * has already been told there is something to find and wants to know what.
  */
 export function AdminWorkers() {
     return (

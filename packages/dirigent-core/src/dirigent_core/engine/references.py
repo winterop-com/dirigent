@@ -52,7 +52,7 @@ from dirigent_core.messages import (
     TEMPLATE_REFERENCE,
     UNKNOWN_NAMESPACE,
 )
-from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD
+from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD, sql_values_of
 
 REFERENCE_PATTERN: Final = re.compile(r"(\$+)\{([^{}]+)\}")
 """A run of dollars before a braced name.
@@ -155,7 +155,7 @@ def resolve_config(
     scope: ReferenceScope,
     *,
     shell_fields: Collection[str] = (),
-    sql_fields: Collection[str] = (),
+    config_schema: JsonMap | None = None,
     jq_fields: Collection[str] = (),
     template_fields: Collection[str] = (),
 ) -> JsonMap:
@@ -169,8 +169,9 @@ def resolve_config(
     keep their meaning, and a value that arrived in a caller's input is never shell source,
     however the author quoted the reference.
 
-    ``sql_fields`` names the config keys a block publishes as SQL. A reference in one is refused
-    rather than resolved, because a value reaches SQL only as a bound parameter.
+    ``config_schema`` is what the block publishes for this config. A reference anywhere it
+    publishes SQL is refused rather than resolved, because a value reaches SQL only as a bound
+    parameter.
 
     ``template_fields`` names the keys a block publishes as a template, refused the same way,
     because a value reaches a template only through what it renders against.
@@ -178,9 +179,10 @@ def resolve_config(
     ``jq_fields`` names the keys a block publishes as a jq program, where a reference is bound to
     a jq variable rather than spliced into the program's text.
     """
-    for key in sql_fields:
-        for reference in references_in(config.get(key)):
-            raise UnknownReference(SQL_REFERENCE, reference=reference, field=key)
+    if config_schema is not None:
+        for field, held in sql_values_of(config, config_schema).items():
+            for reference in references_in(held):
+                raise UnknownReference(SQL_REFERENCE, reference=reference, field=field)
     for key in template_fields:
         for reference in references_in(config.get(key)):
             raise UnknownReference(TEMPLATE_REFERENCE, reference=reference, field=key)

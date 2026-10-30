@@ -85,8 +85,8 @@ from dirigent_plugin import (
     ProbeStatus,
     RemoteHandle,
     media_fields,
+    published_config_schema,
     shell_string_fields,
-    sql_string_fields,
 )
 
 DEFAULT_PROBE_INTERVAL = timedelta(seconds=30)
@@ -313,7 +313,7 @@ class Engine:
                 step.config,
                 scope,
                 shell_fields=shell_string_fields(block.config_model),
-                sql_fields=sql_string_fields(block.config_model),
+                config_schema=published_config_schema(block.config_model),
                 jq_fields=media_fields(block.config_model, JQ_MEDIA_TYPE),
                 template_fields=media_fields(block.config_model, TEMPLATE_MEDIA_TYPE),
             )
