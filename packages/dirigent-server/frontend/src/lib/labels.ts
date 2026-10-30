@@ -1788,11 +1788,25 @@ const editor = {
         /** What an apply that was carried out amounts to, in one line. */
         left_as_it_was: (pipeline: string) => `${pipeline} was left as it was`,
         at_version: (pipeline: string, version: string) => `${pipeline} is at version ${version}`,
+        /** What applying would take away, which the dry run answers with and the document cannot say. */
+        retiring: {
+            schedules: {
+                one: (codes: string) => `Removes schedule ${codes}.`,
+                many: (codes: string) => `Removes schedules ${codes}.`,
+            },
+            sources: {
+                one: (codes: string) => `Removes source ${codes}, with its inputs and its token.`,
+                many: (codes: string) => `Removes sources ${codes}, with their inputs and their tokens.`,
+            },
+        },
         /** What an apply did to the triggers the document declares. */
         materialized: {
             schedules_created: 'schedules created',
             schedules_updated: 'schedules updated',
             schedules_removed: 'schedules removed',
+            sources_created: 'sources created',
+            sources_updated: 'sources updated',
+            sources_removed: 'sources removed',
         },
         /** One line of that: what happened, and the triggers it happened to. */
         change_line: (what: string, names: string) => `${what}: ${names}`,
