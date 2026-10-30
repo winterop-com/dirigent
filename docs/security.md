@@ -514,8 +514,9 @@ run's working files on that worker, and a privileged container inside a privileg
 step from the host's kernel. `docker.compose.up` passes on whatever a document's services ask for.
 The stack keeps the daemon on a network it shares with the worker alone, so the database and the
 artifact bucket have no name a container can resolve. That narrows what is easy to reach and is
-not a firewall: whether their addresses route is up to the host's Docker firewall, and it does
-not contain a pipeline that has taken over the sidecar. **Run these blocks on a dedicated worker host, tagged
+not a firewall. Their addresses do not route on the Linux runner CI measures and do route on Docker
+Desktop, as [measured here](docker.md#the-reference-shape-a-dind-sidecar), and it does not contain a
+pipeline that has taken over the sidecar. **Run these blocks on a dedicated worker host, tagged
 `--tag docker`**, with `requires.workers: [docker]` on the pipelines that use them. See
 [what allowlisting these blocks grants](docker.md#what-allowlisting-these-blocks-grants).
 
