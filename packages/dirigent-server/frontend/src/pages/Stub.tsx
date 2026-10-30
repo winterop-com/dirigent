@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 
-import { PageHeader, PageState } from '@/components/PageState'
+import { PageHeader } from '@/components/ds/PageHeader'
+import { PageState } from '@/components/PageState'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 
 /**
@@ -15,14 +16,11 @@ import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
  */
 export function Stub({
     title,
-    description,
     waiting,
     note,
     aside,
 }: {
     title: string
-    /** The line under the title; a screen whose title says the whole thing carries none. */
-    description?: string
     waiting: string
     /** The one fact the status bar states while this screen is open. */
     note: string
@@ -35,7 +33,7 @@ export function Stub({
 
     return (
         <>
-            <PageHeader title={title} description={description} aside={aside} />
+            <PageHeader title={title} aside={aside} />
             <PageState loading={false} problem={null} empty emptyMessage={waiting}>
                 {null}
             </PageState>

@@ -32,7 +32,7 @@ wrong is changed on this page first and in the code second.
 | Toasts | sonner | |
 | Mode | next-themes, `class` strategy | |
 | Fonts | IBM Plex Sans and JetBrains Mono, self-hosted through `@fontsource` | No CDN: a UI served from a private network has to work on one |
-| Lint | oxlint, plus `scripts/check_ui_classes.py` | A JS linter cannot see inside a `className`, so the type scale gets a check of its own |
+| Lint | oxlint, plus `scripts/check_ui_classes.py` and `scripts/check_ui_system.py` | A JS linter cannot see inside a `className`, so the type scale and the design system get checks of their own |
 | Format | oxfmt, pinned exactly, configured in `.oxfmtrc.json` | Prettier's output from the linter's own project, and it sorts Tailwind classes against `src/index.css` rather than guessing at the theme |
 | Tests | vitest in `environment: node`, playwright for the browser | |
 | Packages | **bun**, always. Never npm, yarn, or pnpm | |
@@ -761,7 +761,8 @@ and every `validate.schema` step and `requires.schemas` entry names it.
 **The label is the key.** What is being edited is a document, and the word an author writes in it
 is `max_response` rather than "Max Response". `description` is the help under the label, and whether a
 field is required is said beside the label rather than inside it, so the control's accessible
-name stays the key.
+name stays the key. **The required word is body ink, never amber**: amber is a link's and an
+action's, and a field label is neither. `FormField` draws it.
 
 **Every field is a design-system control, and an empty one looks like an empty one.** A field
 renders through `ui/input`, `ui/textarea`, `ui/select` or `ui/switch` and never a bare element,
@@ -1465,13 +1466,17 @@ the dialog is shut and says why, and no dialog opens: the pipeline editor's Appl
 document that is already the version the instance holds, because a dialog whose own answer is
 that its button would write nothing is friction with a question mark on it. Where there is
 nothing to decide -- the outcome is certain and harmless -- the action happens and reports
-itself in one line, the way every other action that completed without incident does. **A dialog
-that only tells carries one control, and the word on it says dismissal**: `Close`, not `Cancel`
-beside a confirm that cannot act. `Cancel` appears only where something is being cancelled.
+itself in one line, the way every other action that completed without incident does.
+
+**A footer has one dismissal word, and it is `Cancel`.** A dialog that asks carries `Cancel` and
+its confirm, and nothing else in its footer. A dialog that only tells carries no footer at all: it
+is dismissed by the corner's close and by Escape, so no footer ever says `Close`, `Done` or
+`Dismiss`. `DialogShell` is that rule written once -- `confirm` given, the footer and no corner
+close; `confirm` absent, the corner close and no footer.
 
 **One dismissal, one control.** A dialog whose footer carries the way out does not also draw the
-corner's own -- `showCloseButton={false}` -- because two controls named Close in one dialog are
-two answers to one question, and a reader counting controls is counting wrong.
+corner's own -- `showCloseButton={false}` -- because two ways out of one dialog are two answers to
+one question, and a reader counting controls is counting wrong.
 
 **A confirm is drawn only where pressing it would do something.** A plan the instance would
 refuse, a carried code that collides with what the instance holds, a connection nobody has
@@ -1913,8 +1918,9 @@ product's own facts are on it: there is no data to read, no title to take a head
 shell around it, so the screen has to say where somebody has arrived and what to do next. No
 other screen may copy any of it -- an eyebrow over a page title, a subtitle under a heading, a
 placeholder repeating a label or the heading it sits under, or an icon inside a field is a defect
-everywhere behind this door. **A listing's search box says `Search` and nothing more**, from
-`components/SearchField`: the heading over it already names what is being searched, and the noun
+everywhere behind this door -- with one exception, the search glyph that leads every search box,
+which says what kind of box it is rather than repeating a label. **A listing's search box says
+`Search` and nothing more**, from `components/ds/SearchField`: the heading over it already names what is being searched, and the noun
 and what a match is made over stay on its accessible name, which is read without that heading
 beside it. A box on a surface whose subject no heading states says what it matches over instead
 -- a picker's `Search by name or code`{ .label }, the terminal's `Search lines`{ .label }, the palette's own row.
@@ -1923,6 +1929,56 @@ beside it. A box on a surface whose subject no heading states says what it match
 the instance and the version the door answers for. A line saying what the product is for is
 marketing on the one screen whose only question is who is asking, and the graph behind the lockup
 already says what is through the door.
+
+## Design system
+
+**Every recurring shape on a screen is one component in `src/components/ds`, and a page does not
+hand-build what one of them covers.** A lead cell, a chip, a dot, an icon-only button, a search
+box, a heading inside a screen, a list of facts, a field, a notice, a dialog, a page heading and
+a link are each drawn one way, by the component below, and a screen that typed the classes out
+again is a second answer to a question the system has already answered. `/design` draws every
+component in every variant and state -- enabled, shut with a reason, hovered, focused, empty,
+loading, long text truncating -- in both modes; it is offered by the palette ("Design system")
+and not by the rail. A component that needs a new variant gets it in `ds/` and on that screen
+first, then on the page that asked.
+
+| Component | When |
+| --- | --- |
+| `EntityHeading` | Any addressable thing headed by its name and code. `row-stacked` for a listing's lead cell, `row-inline` where a row has one line, `panel` for a panel's head. The name, else the code; the code always on screen in mono and never twice (`headingOf`); chips beside the title; an optional one-line description. One title weight in all three |
+| `Chip` | A word on a chip: `neutral`, `mono` for a key, `dashed` for an absence, `good`, `critical`, `edit`. `onSelect` makes it a button, `onRemove` adds an X with its own focus ring. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` and `StatusChip` stay, on the same 20px and the same radius |
+| `ToneDot` | Every state drawn as a dot, from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `StatusChip` takes a `label` where a screen names the state in its own terms |
+| `IconButton` | Any button that is an icon and nothing else. Its type requires `label`; the tooltip is the label, a longer `tooltip`, or `why` when it is shut. Sizes `sm` and `md`. Shut with `why`, never with `disabled`, so it stays reachable |
+| `SearchField` | Every box that narrows a screen. A leading search glyph, a clear button once there is text, Escape to clear, and the `/` key cap: `/` moves the caret into the first box marked for it, never while another field or the editor has focus |
+| `SectionHeading` | A heading inside a screen. `section` is sentence case at `text-sm font-semibold`; `group` is the one faint uppercase label over a run of rows. An optional `aside` and `link` |
+| `FactList`, `Fact` | Facts about one thing. `grid` is a term column beside a value column, a panel's; `row` is small facts wrapping on one line, a heading's strip |
+| `FormField`, `SwitchField` | Every field: a prose label or a mono key, the required word in body ink, a hint, the default, help in one ink, an error, one 6px gap. `SwitchField` is a boolean setting as a row, the whole row its label |
+| `Notice`, `Well` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a neutral inset box at 8px for a block that belongs together. A refusal off the wire is still `Refusal` |
+| `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm |
+| `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. It names the thing in mono, says what is lost, and confirms in the critical fill. No such verb is immediate |
+| `SecretReveal` | A secret the server answers with once: the value in mono, a copy button that says it copied and resets, and the line saying it is shown once |
+| `PageHeader`, `SplitButton` | A screen's heading. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `trail` for a detail screen. No subtitle |
+| `TextLink` | Every link that is text. `inline` in prose, `data` for a number or a reference in a table, `external` with its mark and a new tab. The one amber treatment of text, and nothing but a link wears it |
+
+**A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface
+draws a mark for -- create, edit, delete, run, rerun, pause, resume, cancel, refresh, recheck,
+clear a filter, search, copy, external, settings, fit the view, open in a window, a starter, and
+the nouns: pipeline, run, step, block, connection, schema, trigger, schedule, source, user,
+token, worker -- to one lucide icon, and no two concepts to the same one: fitting the canvas is
+`Scan` and opening a pane in a window is `Maximize2`. A page or a component that needs a mark
+with no concept adds the concept there. A kind's mark is still `lib/glyphs`.
+
+**Nothing is fully round but a status dot and an avatar.** A chip, a control, a card, a dialog
+and a switch take the radius ladder's rungs, and no class names a radius of its own.
+
+**`scripts/check_ui_system.py` holds the system**, in `make static` and `make ui-lint`. Under
+`src/pages` and `src/components`, the generated primitives and `components/ds` excepted, it
+refuses a hand-typed word chip (one class string holding `rounded-sm`, `border`, `px-1.5` and
+`text-xs`), a `Button` sized `icon*` rather than an `IconButton`, an import from `lucide-react`
+(which it refuses in `components/ds` as well), and an arbitrary `rounded-[...]`. What predates
+the check is recorded in `scripts/ui_system_offenders.txt`, one line per rule and file with its
+count. It is a ratchet: a file may hold exactly what is recorded, one more is refused as new and
+one fewer as stale, so the change that moves a screen onto the system shrinks the record with
+`--write` in the same commit.
 
 ## A create button says `New`
 

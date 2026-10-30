@@ -2,12 +2,14 @@
 
 import json
 from typing import Any
+from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus
 from dirigent_core.artifacts import (
+    ArtifactAltered,
     ObjectMissing,
     canonical_json,
     digest_of,
@@ -193,3 +195,72 @@ async def test_a_stored_artifact_is_streamed_only_once_storage_answers_for_it(
         await services.storage.delete(uri)
         with pytest.raises(ObjectMissing):
             await open_artifact(services.storage, found)
+
+
+async def stored_artifact(sessions: async_sessionmaker[AsyncSession], services: Any) -> tuple[UUID, str, bytes]:
+    """A large output behind a URI: its row's id, the URI, and the bytes the row recorded."""
+    attempt = await make_attempt(sessions)
+    payload = {"rows": ["z" * 100 for _ in range(50)]}
+    async with session_scope(sessions) as session:
+        stored = await session.get(StepAttempt, attempt.id)
+        assert stored is not None
+        reference = await persist_output(session, services.storage, stored, payload, inline_max_bytes=64)
+        assert reference.uri is not None
+        return reference.id, reference.uri, canonical_json(payload)
+
+
+def same_size(written: bytes) -> bytes:
+    """Other bytes of one length, which only the digest can tell from the original."""
+    return written.replace(b"z", b"q")
+
+
+async def test_an_object_altered_at_the_same_size_is_refused_on_read(
+    sessions: async_sessionmaker[AsyncSession], services: Any
+) -> None:
+    artifact_id, uri, written = await stored_artifact(sessions, services)
+    await services.storage.write_bytes(uri, same_size(written))
+    async with sessions() as session:
+        with pytest.raises(ArtifactAltered) as raised:
+            await load_artifact(session, services.storage, artifact_id)
+    assert raised.value.code == "artifacts.object_altered"
+    assert raised.value.status == 500
+
+
+async def test_a_stream_of_an_altered_object_fails_rather_than_finishing(
+    sessions: async_sessionmaker[AsyncSession], services: Any
+) -> None:
+    """Its status is gone by the time the digest is known, so a body that ends cleanly is what is withheld."""
+    artifact_id, uri, written = await stored_artifact(sessions, services)
+    await services.storage.write_bytes(uri, same_size(written))
+    async with sessions() as session:
+        found = await session.get(ArtifactRef, artifact_id)
+        assert found is not None
+        stream = await open_artifact(services.storage, found)
+        with pytest.raises(ArtifactAltered):
+            [chunk async for chunk in stream]
+
+
+async def test_an_object_of_another_size_is_refused_before_the_stream_opens(
+    sessions: async_sessionmaker[AsyncSession], services: Any
+) -> None:
+    artifact_id, uri, written = await stored_artifact(sessions, services)
+    await services.storage.write_bytes(uri, written + b" ")
+    async with sessions() as session:
+        found = await session.get(ArtifactRef, artifact_id)
+        assert found is not None
+        with pytest.raises(ArtifactAltered):
+            await open_artifact(services.storage, found)
+
+
+async def test_a_row_that_recorded_no_digest_or_size_has_nothing_to_hold_an_object_to(
+    sessions: async_sessionmaker[AsyncSession], services: Any
+) -> None:
+    artifact_id, uri, written = await stored_artifact(sessions, services)
+    await services.storage.write_bytes(uri, same_size(written))
+    async with session_scope(sessions) as session:
+        found = await session.get(ArtifactRef, artifact_id)
+        assert found is not None
+        found.digest = None
+        found.size_bytes = None
+    async with sessions() as session:
+        assert await load_artifact(session, services.storage, artifact_id) == json.loads(same_size(written))

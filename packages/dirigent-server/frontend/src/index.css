@@ -1593,3 +1593,34 @@ html.dark[data-theme='contrast'],
     border-radius: 2px;
     background-color: var(--sidebar-primary);
 }
+
+/* ---------------------------------------------------------------------------
+   THE DESIGN SYSTEM'S OWN RULES, for the components in `components/ds`.
+
+   Every chip is 20px tall on the chip radius: `Chip` states it in its classes, and the kind and
+   status chips state it here. An unknown state's dot is hollow. A destructive confirm is the
+   critical fill with the ground's ink on it: dark on the dark mode's lighter red, light on the
+   light mode's deeper one, as `--primary` is. A search box draws its own clear button.
+   --------------------------------------------------------------------------- */
+.status-chip,
+.kind-chip {
+    box-sizing: border-box;
+    height: 1.25rem;
+}
+.status-dot[data-hollow] {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--chip);
+}
+.confirm-destructive {
+    background-color: var(--destructive);
+    color: var(--background);
+}
+.confirm-destructive:hover:not([aria-disabled='true']) {
+    background-color: color-mix(in oklab, var(--destructive) 85%, var(--foreground));
+}
+.confirm-destructive:focus-visible {
+    --tw-ring-color: color-mix(in oklab, var(--destructive) 40%, transparent);
+}
+[data-slot='search-field'] input::-webkit-search-cancel-button {
+    appearance: none;
+}

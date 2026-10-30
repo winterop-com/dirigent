@@ -4,7 +4,7 @@ import { Route, Routes } from 'react-router'
 import { AppShell } from '@/components/AppShell'
 import { PageState } from '@/components/PageState'
 import { useStore } from '@/hooks/use-store'
-import { LOGIN_PATH } from '@/lib/nav'
+import { DESIGN_PATH, LOGIN_PATH } from '@/lib/nav'
 import { timesMode } from '@/lib/times'
 import { Login } from '@/pages/Login'
 import { Pipelines } from '@/pages/Pipelines'
@@ -85,6 +85,11 @@ const AdminAlerting = lazy(() =>
     import('@/pages/admin/Alerting').then((module) => ({ default: module.AdminAlerting })),
 )
 
+/** The design system's gallery, which no reader on the way to a run needs. */
+const DesignSystem = lazy(() =>
+    import('@/pages/DesignSystem').then((module) => ({ default: module.DesignSystem })),
+)
+
 /** What stands in the content column while a screen's chunk is being fetched. */
 function Loading() {
     return (
@@ -156,6 +161,14 @@ export default function App() {
                     }
                 />
                 <Route path="runs" element={<Runs />} />
+                <Route
+                    path={DESIGN_PATH}
+                    element={
+                        <Suspense fallback={<Loading />}>
+                            <DesignSystem />
+                        </Suspense>
+                    }
+                />
                 <Route
                     path="runs/:id"
                     element={
