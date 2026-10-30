@@ -2893,6 +2893,8 @@ const users = {
     revoke_row: (token: string) => `Revoke ${token}`,
     /** The question before a revoke, around the name. */
     revoke_ask: { before: 'Revoke ', after: '?' },
+    /** The question before a deactivate, around the username. */
+    deactivate_ask: { before: 'Deactivate ', after: '?' },
     /** Where the name is shared: the API revokes by name, so they go together. */
     revoke_shared: (many: string) => `Revokes all ${many} live tokens with this name.`,
 
