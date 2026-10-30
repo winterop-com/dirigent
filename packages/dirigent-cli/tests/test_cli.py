@@ -3,6 +3,7 @@
 import asyncio
 import importlib.util
 import os
+import sys
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -605,6 +606,67 @@ def test_dev_refuses_to_clear_a_directory_it_did_not_name(tmp_path: Path) -> Non
 
     assert main.clear_state(settings) is None, "nothing was cleared, so nothing is reported"
     assert beside.exists()
+
+
+def test_a_wipe_does_not_delete_through_a_link(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A link spelled .dirigent/state to another project's state leaves that state alone."""
+    victim = tmp_path / "victim" / ".dirigent" / "state"
+    victim.mkdir(parents=True)
+    (victim / "dirigent.db").write_text("somebody else's instance")
+    project = tmp_path / "project"
+    (project / ".dirigent").mkdir(parents=True)
+    (project / ".dirigent" / "state").symlink_to(victim)
+    monkeypatch.chdir(project)
+    monkeypatch.setenv("DIRIGENT_DATABASE_URL", "sqlite+aiosqlite:///./.dirigent/state/dirigent.db")
+    reset_settings_cache()
+
+    result = runner.invoke(app, ["dev", "--wipe-state"])
+
+    assert result.exit_code == GUARD_EXIT, result.output
+    assert closing(result.stdout)["code"] == "database.state_is_a_link"
+    assert (victim / "dirigent.db").read_text() == "somebody else's instance"
+
+
+def test_dev_refuses_a_state_directory_that_is_a_link(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Whatever the link names, nothing is opened or migrated through it."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    project = tmp_path / "project"
+    (project / ".dirigent").mkdir(parents=True)
+    (project / ".dirigent" / "state").symlink_to(elsewhere)
+    monkeypatch.chdir(project)
+    monkeypatch.setenv("DIRIGENT_DATABASE_URL", "sqlite+aiosqlite:///./.dirigent/state/dirigent.db")
+    reset_settings_cache()
+
+    result = runner.invoke(app, ["dev"])
+
+    assert result.exit_code == GUARD_EXIT, result.output
+    record = closing(result.stdout)
+    assert record["kind"] == "error"
+    assert record["code"] == "database.state_is_a_link"
+    assert record["problems"], "the refusal says what to do about it"
+    assert not list(elsewhere.iterdir()), "no database was made through the link"
+
+
+def test_every_command_that_opens_the_state_is_refused_rather_than_failing_outright(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Beyond dg dev the refusal comes from opening the engine, and the entry point says it."""
+    (tmp_path / "elsewhere").mkdir()
+    project = tmp_path / "project"
+    (project / ".dirigent").mkdir(parents=True)
+    (project / ".dirigent" / "state").symlink_to(tmp_path / "elsewhere")
+    monkeypatch.chdir(project)
+    monkeypatch.setenv("DIRIGENT_DATABASE_URL", "sqlite+aiosqlite:///./.dirigent/state/dirigent.db")
+    monkeypatch.setattr(sys, "argv", ["dg", "db", "upgrade"])
+    reset_settings_cache()
+
+    with pytest.raises(SystemExit) as leaving:
+        main.run()
+
+    assert leaving.value.code == GUARD_EXIT
+    assert closing(capsys.readouterr().out)["code"] == "database.state_is_a_link"
+    assert not list((tmp_path / "elsewhere").iterdir())
 
 
 def test_dev_clears_nothing_on_a_first_start(tmp_path: Path) -> None:

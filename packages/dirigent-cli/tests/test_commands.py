@@ -1784,6 +1784,22 @@ def test_init_initialises_an_instance_that_dg_dev_can_run(tmp_path: Path) -> Non
     assert "admin" in result.output and "token" in result.output
 
 
+def test_init_refuses_a_state_directory_that_is_a_link(tmp_path: Path) -> None:
+    """Nothing is scaffolded or migrated through a link the directory already holds."""
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    root = tmp_path / "instance"
+    (root / ".dirigent").mkdir(parents=True)
+    (root / ".dirigent" / "state").symlink_to(elsewhere)
+
+    result = machine("init", str(root), "--password", "a test password", "--json")
+
+    assert result.exit_code == 1, result.output
+    assert closing(result.stdout)["code"] == "database.state_is_a_link"
+    assert not list(elsewhere.iterdir())
+    assert not (root / ".env").exists()
+
+
 def test_init_puts_the_token_where_the_local_profile_reads_it(tmp_path: Path) -> None:
     """The token lands in the project's .env, so no shell has to export it."""
     root = tmp_path / "instance"

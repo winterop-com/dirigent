@@ -514,6 +514,40 @@ serve a page on the instance's origin, `secret_key_file` would read any file thi
 [settings reference](settings.md) marks each of these host only. A project's `pipelines` directory
 has to be inside the project, and `dg apply` refuses a document that is a link to a file outside it.
 
+A checkout cannot supply the state either. The default database is `.dirigent/state/dirigent.db`
+under the working directory, and a state that arrived with a clone could hold queued runs, which
+would execute on `dg dev` if the shell allowlists their blocks. So before opening or deleting any
+SQLite database in a directory spelled `.dirigent/state`, dirigent refuses it when:
+
+- `.dirigent` or `state` is a symbolic link, or either belongs to another user;
+- `state` can be written by group or others, or `.dirigent` by others;
+- anything directly inside `state` is a link, a special file, or another user's;
+- the enclosing git repository tracks anything under it, including under another case's spelling
+  of the path.
+
+A clone's files are the user's own with ordinary modes, so the last check is what stops a
+committed database. git is not run to make it: a repository's own configuration can start programs,
+so the index is read as bytes, which starts nothing. An index that cannot be read refuses the state.
+Each file check is made on a descriptor reached without following a link. dirigent creates the
+directory with mode `0700`. A database opened by SQLite is opened by path, so a process already
+running as this user could still swap the file between the check and the open.
+
+`dg dev --wipe-state` deletes through a descriptor as well, and refuses the same links, another
+user's directory and a tracked state, leaving the files in place. It does clear a state that is
+only too open, and links inside the directory are removed rather than followed.
+
+This covers a state delivered by git. A tar or zip archive carries no index, so a database
+unpacked from one looks exactly like one this user made and is opened: do not run `dg dev` in an
+unpacked tree you do not trust, or pass `--wipe-state` the first time. A host that names a database
+anywhere else, through the environment or `DIRIGENT_CONFIG_FILE`, has chosen it, and these checks
+do not apply.
+
+**All of this protects a separately installed `dg`, and only that.** `uv run dg`, and anything else
+that resolves `dg` from the project, runs the checkout's own `pyproject.toml` first: its dependencies
+and its build backend are code the checkout chose, and they have run before dirigent reads a single
+setting. In a checkout you do not trust, run a `dg` installed outside it, such as with
+`uv tool install dirigent-cli`.
+
 The gate is enforced **twice**: when a run is created, and again when a worker claims the
 step. Two checks rather than one, so that tightening the configuration stops work that was
 already queued.

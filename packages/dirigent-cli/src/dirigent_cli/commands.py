@@ -192,6 +192,7 @@ from dirigent_core.engine.runs import RunWindow
 from dirigent_core.engine.state import in_execution_order
 from dirigent_core.examples import STARTER_TAG, ExampleEntry
 from dirigent_core.schemas import code_from_id
+from dirigent_core.statedir import StateRefused, check_state
 
 RUNS_PAGE = 50
 
@@ -826,8 +827,13 @@ def _refuse_an_existing_instance(root: Path) -> None:
     """Refuse to initialise over an instance that is already there.
 
     Migrating and re-admining a live database is not what somebody running init a second
-    time means by it, and there is no undo for the version it would apply.
+    time means by it, and there is no undo for the version it would apply. A state directory
+    an instance may not open is refused first, because the scaffold would write beside it.
     """
+    try:
+        check_state(instance_settings(root))
+    except StateRefused as error:
+        _init_fail(error.reason, **error.params)
     existing = instance_settings(root).sqlite_path
     if existing is not None and existing.exists():
         _init_fail(

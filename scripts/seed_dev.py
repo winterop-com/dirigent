@@ -118,7 +118,7 @@ def instance_env(root: Path) -> dict[str, str]:
     `dg dev` is started with --wipe-state, so the key below is minted per seeding rather than
     kept: an instance that begins empty holds no connection an older key would have to open.
     """
-    state = (root / STATE_DIR).resolve()
+    state = root.resolve() / STATE_DIR
     return os.environ | {
         "DIRIGENT_DATABASE_URL": f"sqlite+aiosqlite:///{state / 'dirigent.db'}",
         "DIRIGENT_ARTIFACT_ROOT": f"file://{state / 'artifacts'}",
