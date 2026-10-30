@@ -107,7 +107,7 @@ class PipelineRunOperator(Operator[PipelineRunConfig, PipelineRunOutput]):
         if snapshot is None:
             return ProbeResult(status=ProbeStatus.GONE, message=f"this instance no longer holds run {handle.ref}")
         match snapshot.state:
-            case RunState.QUEUED | RunState.RUNNING:
+            case RunState.QUEUED | RunState.RUNNING | RunState.PAUSED:
                 return ProbeResult(
                     status=ProbeStatus.RUNNING,
                     message=_progress_message(snapshot),

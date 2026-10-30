@@ -524,6 +524,7 @@ def upgrade() -> None:
             sa.Enum(
                 "queued",
                 "running",
+                "paused",
                 "succeeded",
                 "completed_with_errors",
                 "failed",
@@ -567,6 +568,7 @@ def upgrade() -> None:
         ),
         sa.Column("started_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("finished_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column("paused_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("window_start", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("window_end", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column(

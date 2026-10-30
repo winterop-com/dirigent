@@ -16,7 +16,7 @@ from dirigent_client.enums import AttemptStatus, FiringOutcome, RunStatus, Sched
 from dirigent_core import telemetry
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import ConcurrencyPolicy, PipelineDefinition, StepDefinition
-from dirigent_core.engine.runs import Attribution, create_run, save_pipeline
+from dirigent_core.engine.runs import Attribution, create_run, pause_run, save_pipeline
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Pipeline, PipelineVersion, Run, Schedule, ScheduleFiring, StepAttempt, utcnow
 from dirigent_core.scheduler import (
@@ -606,6 +606,28 @@ async def test_a_schedule_copies_its_log_levels_onto_the_runs_it_fires(
     assert fired.outcome is FiringOutcome.FIRED
     runs = await runs_of(sessions, pipeline_id)
     assert runs[0].log_levels == {"*": "debug"}
+
+
+async def test_a_skipped_firing_names_the_paused_run_that_holds_the_slot(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    now = utcnow()
+    pipeline_id, schedule_id = await declare(
+        sessions,
+        one_step("paused-skipper", concurrency=ConcurrencyPolicy.SKIP),
+        ScheduleRequest(code="minutely", cron="* * * * *"),
+    )
+    await set_columns(sessions, schedule_id, next_fire_at=now - timedelta(minutes=1))
+    held = await start_a_run(sessions, services, pipeline_id)
+    async with session_scope(sessions) as session:
+        run = await session.get(Run, held.id)
+        assert run is not None
+        await pause_run(session, run)
+
+    fired = await fire_once(sessions, services, schedule_id, now=now)
+
+    assert fired.outcome is FiringOutcome.SKIPPED
+    assert fired.detail == f"run {held.id} of this pipeline is paused, and holds its slot"
 
 
 async def test_a_skip_policy_with_a_run_in_flight_records_a_skip_and_creates_nothing(

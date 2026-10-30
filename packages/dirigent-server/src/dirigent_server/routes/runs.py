@@ -34,7 +34,7 @@ from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json, open_artifact
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
-from dirigent_core.engine.runs import cancel_run, retry_step
+from dirigent_core.engine.runs import cancel_run, pause_run, resume_run, retry_step
 from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, item_wise_parent, step_states
 from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import (
@@ -407,6 +407,32 @@ async def cancel(run_id: UUID, session: SessionDep, services: ServicesDep, princ
         return _render_run(run, pipeline, version)
 
     return await retried_on_deadlock(session, cancel_once)
+
+
+@router.post("/runs/{run_id}/$pause", operation_id="pauseRun", summary="Pause a run", response_model=RunOut)
+async def pause(run_id: UUID, session: SessionDep, principal: OperatorDep) -> RunOut:
+    """Hold a queued or running run: nothing more of it starts, and its deadlines stand still."""
+
+    async def pause_once() -> RunOut:
+        run = await _run_row(session, run_id)
+        pipeline, version, _ = await _context(session, run)
+        await pause_run(session, run)
+        return _render_run(run, pipeline, version)
+
+    return await retried_on_deadlock(session, pause_once)
+
+
+@router.post("/runs/{run_id}/$resume", operation_id="resumeRun", summary="Resume a paused run", response_model=RunOut)
+async def resume(run_id: UUID, session: SessionDep, principal: OperatorDep) -> RunOut:
+    """Let a paused run go on, its open deadlines moved on by as long as it was paused."""
+
+    async def resume_once() -> RunOut:
+        run = await _run_row(session, run_id)
+        pipeline, version, _ = await _context(session, run)
+        await resume_run(session, run)
+        return _render_run(run, pipeline, version)
+
+    return await retried_on_deadlock(session, resume_once)
 
 
 @router.post(

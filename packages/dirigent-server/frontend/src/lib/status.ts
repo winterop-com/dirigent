@@ -14,7 +14,14 @@
 import { LABELS } from '@/lib/labels'
 
 /** Where a run is. `RunStatus` in dirigent_client.enums. */
-export type RunStatus = 'queued' | 'running' | 'succeeded' | 'completed_with_errors' | 'failed' | 'cancelled'
+export type RunStatus =
+    | 'queued'
+    | 'running'
+    | 'paused'
+    | 'succeeded'
+    | 'completed_with_errors'
+    | 'failed'
+    | 'cancelled'
 
 /** Where one try of one step is. `AttemptStatus` in dirigent_client.enums. */
 export type AttemptStatus =
@@ -46,6 +53,7 @@ export type TriggerKind = 'adhoc' | 'schedule' | 'api_token' | 'user' | 'pipelin
 export const RUN_STATUSES: readonly RunStatus[] = [
     'queued',
     'running',
+    'paused',
     'succeeded',
     'completed_with_errors',
     'failed',

@@ -25,6 +25,7 @@ from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
 from dirigent_core.database import session_scope, with_deadlock_retry
 from dirigent_core.engine.claim import (
+    CLAIMABLE_RUN_STATUSES,
     MAX_SETTLED_PER_CLAIM,
     ClaimedUnit,
     is_postgres,
@@ -48,7 +49,6 @@ from dirigent_core.engine.failure import Failure, backoff_delay, should_retry
 from dirigent_core.engine.recovery import overdue_deadlines
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, references_in, resolve_config
 from dirigent_core.engine.runs import (
-    ACTIVE_RUN_STATUSES,
     EngineRuns,
     cancel_remote,
     promote_queued_run,
@@ -883,7 +883,8 @@ class Engine:
             if run is None:  # pragma: no cover - the foreign key makes this unreachable
                 continue
             await session.refresh(run)
-            if run.status not in ACTIVE_RUN_STATUSES:
+            # A paused run's deadlines stand still; a resume moves them on by the pause.
+            if run.status not in CLAIMABLE_RUN_STATUSES:
                 continue
             await session.refresh(attempt)
             if attempt.status not in (AttemptStatus.PENDING, AttemptStatus.QUEUED, AttemptStatus.WAITING):

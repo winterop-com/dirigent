@@ -326,6 +326,12 @@ was tolerable. Every run points at whatever started it (a user, a token, a sched
 source, or another run) through a real foreign key, so "who ran this?" is a join rather than
 a free-text field.
 
+An operator may pause a queued or running run (`dg runs pause`, `$pause`): nothing more of it
+is claimed, an attempt already running finishes, and its deadlines stand still, so a resume
+(`dg runs resume`) moves every open deadline on by as long as the run was paused. A paused run
+still holds its pipeline's concurrency slot, so a `skip` schedule records a skipped firing
+that names it, and a `queue` one waits behind it, until it resumes or is cancelled.
+
 ## Item
 
 Also called a **RunItem**. When a step declares `for_each`, the run gets one item per element
