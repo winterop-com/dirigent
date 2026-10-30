@@ -387,6 +387,21 @@ def test_a_signed_source_takes_a_body_signed_with_its_secret_and_refuses_any_oth
     assert taken.status_code == 202, taken.text
 
 
+def test_a_caller_who_cannot_sign_spends_no_rate_and_writes_no_row(client: TestClient) -> None:
+    applied = apply_document(client, held("      auth: {kind: hmac}\n      rate: {per_minute: 1}"))
+    secret = applied["sources"]["tokens"][0]["token"]
+    body = b'{"order": 1}'
+    for _ in range(3):
+        forged = client.post("/endpoints/held", content=body, headers=signed("not the secret", body))
+        assert forged.status_code == 401, forged.text
+    assert client.post("/endpoints/held", content=body, headers=signed(secret, body)).status_code == 202
+
+    client.post(f"{PREFIX}/pipelines/held/sources/ask/$pause")
+    forged = client.post("/endpoints/held", content=b"x" * 10, headers=signed("not the secret", b"x" * 10))
+    assert forged.status_code == 401, "the signature is checked before the source's state is"
+    assert [entry.status for entry in inputs(client, "held")] == [202]
+
+
 def test_a_signing_secret_is_rotated_or_replaced_with_the_senders_own(client: TestClient) -> None:
     secret = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]["token"]
     body = b"{}"

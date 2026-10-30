@@ -351,8 +351,9 @@ The comparison is constant-time and operates on bytes rather than strings, becau
 attacker-controlled and `hmac.compare_digest` raises on a non-ASCII `str`. The signing secret
 is minted at apply from the CSPRNG and shown once, or set with `dg source set-secret` when the
 sender issues it, and is sealed with the instance key, the way a connection's secret is; a
-re-apply keeps it, and `dg source rotate-token` replaces it. A signature is checked once the
-capped body is read, so a call without one costs the read and no more.
+re-apply keeps it, and `dg source rotate-token` replaces it. A signature is checked as soon as
+the capped body is read, before the source's own rate and before anything is written, so a
+call without one costs the read and no more.
 
 **The token or secret is shown once, in the apply that created the source.** It is in the
 apply's result, which `dg apply` writes as a record. An apply run in CI that creates a source
@@ -366,18 +367,20 @@ removed.
 
 **Nothing before the source's own rate writes a row.** A call is checked in one order: the
 instance's bucket for the method and path (`DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE`, before
-anything is looked up), the route, the token, then the source's own `rate`. A refusal at any of
-those -- 429, 404, 405, 401 -- is counted in telemetry (`dirigent.source.inputs`) and logged,
-and writes nothing, so a stranger without the token, or a caller in a loop, cannot cause
-writes. From there on every refusal, and every accepted input, is recorded against the source,
-except a missing or wrong signature, which is counted and logged the same way and writes
-nothing. Both buckets are in memory and therefore per process: behind N API replicas the
+anything is looked up), the route, the token or, for a signed source, the capped read and the
+signature, then the source's own `rate`. A refusal at any of those -- 429, 404, 405, 401, and a
+signed source's 413 -- is counted in telemetry (`dirigent.source.inputs`) and logged, writes
+nothing and spends nothing from the source's own bucket, so a stranger without the token or
+the secret, or a caller in a loop, cannot cause writes or starve the source's real callers.
+From there on every refusal, and every accepted input, is recorded against the source. Both
+buckets are in memory and therefore per process: behind N API replicas the
 effective limit is the configured rate times N, documented rather than fixed, because a row
 updated on every call turns a cheap refusal into a database write.
 
-**The body is bounded before it is read.** The content type is checked against what the source
-`accepts` before a byte of the body is read, and reading stops one byte past the source's
-`max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller.
+**The body is bounded before it is read.** Reading stops one byte past the source's
+`max_body` or the instance's `DIRIGENT_SOURCE_MAX_BODY`, whichever is smaller. For a source
+taking a token, the content type is checked against what the source `accepts` before a byte of
+the body is read; a signed source reads its capped body first, because the signature covers it.
 
 **A route is one source's.** Two sources answering one method at one template are refused at
 apply, across pipelines, and a unique constraint holds it when two applies race.

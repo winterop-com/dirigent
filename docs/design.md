@@ -810,6 +810,9 @@ so their rules are worth stating exactly:
 - **The body never becomes parameters.** It is the source's output, and a step reads from it
   what it names with `${steps.<source>.output.body}`, so a caller cannot smuggle configuration
   past the pipeline's own parameter schema.
+- **Nothing before the source's own rate writes a row or spends from it**: the route, the
+  token, and for a signed source the capped read and the signature are checked first, so a
+  caller who cannot authenticate costs a lookup and no write.
 - **Every input past the source's own rate is recorded, refusals included**, with what arrived
   and the run or the reason. A refusal is therefore a *returned value* inside the intake
   rather than a raised exception: the row explaining why a call was refused is written in the
