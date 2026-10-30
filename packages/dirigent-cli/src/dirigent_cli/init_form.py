@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, cast
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.markup import escape
 from textual.theme import Theme
 from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSet, SelectionList
 
@@ -81,7 +82,8 @@ def starter_label(entry: ExampleEntry) -> str:
     if len(first) > DESCRIPTION_WIDTH:
         first = first[: DESCRIPTION_WIDTH - 1].rstrip() + "\u2026"
     trailing = "  ".join(part for part in ([entry.code] if entry.name else []) + ([first] if first else []))
-    return f"{entry.name or entry.code}  [dim]{trailing}[/]" if trailing else entry.name or entry.code
+    title = escape(entry.name or entry.code)
+    return f"{title}  [dim]{escape(trailing)}[/]" if trailing else title
 
 
 class InitForm(App[InitChoices | None]):

@@ -156,11 +156,11 @@ def schedule_list(
     if state_of(ctx).json_output:
         return emit_records("schedule", rows)
     table(
-        f"schedules of {pipeline}",
+        f"schedules of {escape(pipeline)}",
         ["code", "name", "clock", "timezone", "paused", "next firing", "last fired"],
         [
             [
-                row.code,
+                escape(row.code),
                 escape(row.name or "-"),
                 escape(str(row.cron or row.interval or row.at)),
                 escape(row.timezone),
@@ -217,7 +217,7 @@ def schedule_firings(
     if state_of(ctx).json_output:
         return emit_records("firing", rows)
     table(
-        f"firings of {code}",
+        f"firings of {escape(code)}",
         ["due", "fired", "outcome", "misfired", "run", "detail"],
         [
             [
@@ -259,7 +259,7 @@ def alerts_rules_list(
         ["code", "name", "event", "scope", "target", "throttle", "active", "last sent"],
         [
             [
-                row.code,
+                escape(row.code),
                 escape(row.name or "-"),
                 alert_event(row.event.value),
                 escape(watching(row.pipeline or row.scope.value, row.importance)),
@@ -441,7 +441,7 @@ def trigger_document_list(ctx: typer.Context) -> None:
         ["code", "name", "pipeline", "source", "applied by", "applied"],
         [
             [
-                row.code,
+                escape(row.code),
                 escape(row.name or "-"),
                 escape(row.pipeline),
                 row.provenance_source.value,

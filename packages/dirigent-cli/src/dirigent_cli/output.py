@@ -555,7 +555,7 @@ ALERT_EVENTS: Mapping[str, str] = {
 
 def alert_event(event: object) -> str:
     """Render what a rule watches for, falling back to the wire's word for an unknown event."""
-    return ALERT_EVENTS.get(str(event), str(event))
+    return ALERT_EVENTS.get(str(event), escape(str(event)))
 
 
 def throttle_note(window: object) -> str:
@@ -567,7 +567,7 @@ def throttle_note(window: object) -> str:
     try:
         held = to_timedelta(window)
     except DurationError:
-        return str(window)
+        return escape(str(window))
     return format_duration(held) if held else "none"
 
 
@@ -580,7 +580,7 @@ def status_cell(value: object, width: int = STATUS_WIDTH) -> str:
     text = "-" if value is None else str(value)
     style = STATUS_STYLES.get(text)
     padded = f"{text:<{width}}"
-    return f"[{style}]{padded}[/]" if style else padded
+    return f"[{style}]{padded}[/]" if style else escape(padded)
 
 
 def render_bool(value: object) -> str:
@@ -632,7 +632,7 @@ def moment(value: object) -> str:
     try:
         parsed = datetime.fromisoformat(str(value))
     except ValueError:
-        return str(value)
+        return escape(str(value))
     return parsed.astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -655,9 +655,14 @@ def titled(title: str, built: Table) -> RenderableType:
 
     Rich folds a table's own title to the width of the table, which the widest row sets, so a
     title carrying a 36-character run id breaks in half wherever the rows are narrower than
-    it. Above the table the title is folded only by the console.
+    it. Above the table the title is folded only by the console. A title is markup, so a value
+    in one is escaped by whoever built it; one that does not parse is shown as it was written.
     """
-    return Group(Text.from_markup(title, style="table.title"), built)
+    try:
+        heading = Text.from_markup(title, style="table.title")
+    except MarkupError:
+        heading = Text(title, style="table.title")
+    return Group(heading, built)
 
 
 def build_table(title: str, columns: Sequence[str], rows: Iterable[Sequence[str]]) -> RenderableType:
@@ -683,7 +688,7 @@ def build_fields(title: str, values: Mapping[str, Any]) -> RenderableType:
     built.add_column(style="bold")
     built.add_column()
     for name, value in values.items():
-        built.add_row(name, styled(value))
+        built.add_row(escape(name), styled(value))
     return titled(title, built)
 
 
@@ -699,5 +704,5 @@ def age(value: object) -> str:
     try:
         parsed = datetime.fromisoformat(str(value))
     except ValueError:
-        return str(value)
+        return escape(str(value))
     return elapsed((datetime.now(UTC) - parsed).total_seconds() * 1000) + " ago"
