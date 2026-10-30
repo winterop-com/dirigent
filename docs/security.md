@@ -773,8 +773,10 @@ Stated plainly, because a security page that lists only what exists is not much 
   (`http.url_beside_connection`), and refuse one a reference resolves to at run time unless it
   is on that origin (`http.off_origin`), before anything is sent. A step whose config still
   holds a reference is not checked at apply, so its literal URL is refused at run time the same
-  way. An absolute link the service itself hands back, such as a next page on the same origin,
-  is still followed. A step that calls another service names no connection and gives the `url`.
+  way. A `Host` header a step sets beside a `connection` is held to that origin too, at run
+  time and before anything is sent (`http.host_off_origin`), because a front that routes on
+  `Host` would otherwise hand the credential to another name it serves. An absolute link the
+  service itself hands back, such as a next page on the same origin, is still followed. A step that calls another service names no connection and gives the `url`.
 - **Rate limiting on the authenticated API.** Only login and endpoint sources are limited.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every
   cookie-authenticated write described in [cross-site writes](#cross-site-writes), on top of

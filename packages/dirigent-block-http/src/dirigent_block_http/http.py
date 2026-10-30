@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from dirigent_block_http.connections import HttpConnectionConfig
 from dirigent_block_http.messages import (
+    HOST_OFF_ORIGIN,
     NO_TARGET,
     OFF_ORIGIN,
     RESPONSE_TOO_LARGE,
@@ -106,13 +107,25 @@ def on_origin(target: HttpTarget, client: httpx2.AsyncClient, request: httpx2.Re
     """Refuse a request that would carry a connection's credentials off the connection's origin.
 
     Checked on the request as built, after the client has merged it onto ``base_url``, so an
-    absolute ``url`` or ``path`` is judged by where it will actually be sent.
+    absolute ``url`` or ``path`` is judged by where it will actually be sent, and a ``Host``
+    header by the name it hands a front that routes on one.
     """
-    if target.connection and _origin(request.url) != _origin(client.base_url):
+    if not target.connection:
+        return
+    if _origin(request.url) != _origin(client.base_url):
         raise BlockFailure(
             OFF_ORIGIN,
             error_class=ErrorClass.REJECTED,
             url=request_url(target),
+            origin=_shown(client.base_url),
+            connection=repr(target.connection),
+        )
+    host = request.headers.get("host", "")
+    if host.lower() != request.url.netloc.decode("ascii").lower():
+        raise BlockFailure(
+            HOST_OFF_ORIGIN,
+            error_class=ErrorClass.REJECTED,
+            host=repr(host),
             origin=_shown(client.base_url),
             connection=repr(target.connection),
         )

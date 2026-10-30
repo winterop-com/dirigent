@@ -18,6 +18,12 @@ OFF_ORIGIN = HTTP.define(
     "and a connection's credentials go only to its own origin",
 )
 
+HOST_OFF_ORIGIN = HTTP.define(
+    "host_off_origin",
+    "the Host header {host} does not name {origin}, the origin of connection {connection}, "
+    "and a connection's credentials go only to its own origin",
+)
+
 WEBHOOK_STATUS_REFUSED = HTTP.define("webhook.status_refused", "the receiver at {url} answered {status}")
 
 WEBHOOK_NO_SECRET = HTTP.define(
