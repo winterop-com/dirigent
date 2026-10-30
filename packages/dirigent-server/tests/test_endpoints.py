@@ -421,6 +421,30 @@ def test_a_signing_secret_is_rotated_or_replaced_with_the_senders_own(client: Te
     )
 
 
+def test_a_signing_secret_is_listed_by_a_hash_and_none_of_it_in_clear(client: TestClient) -> None:
+    minted = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]
+    secret = minted["token"]
+    assert minted["prefix"] is None
+    assert minted["fingerprint"] == hashlib.sha256(secret.encode()).hexdigest()[:12]
+    listed = source(client, "held")
+    assert listed.token_prefix is None
+    assert listed.secret_fingerprint == minted["fingerprint"]
+
+    issued = "whsec_from_the_provider"
+    replaced = client.post(f"{PREFIX}/pipelines/held/sources/ask/$set-secret", json={"secret": issued})
+    assert replaced.status_code == 200, replaced.text
+    assert issued[:8] not in replaced.text
+    assert replaced.json()["secret_fingerprint"] == hashlib.sha256(issued.encode()).hexdigest()[:12]
+
+
+def test_moving_a_signed_source_to_a_token_drops_the_fingerprint(client: TestClient) -> None:
+    apply_document(client, held("      auth: {kind: hmac}"))
+    token = token_of(apply_document(client, held()))
+    listed = source(client, "held")
+    assert listed.secret_fingerprint is None
+    assert listed.token_prefix == token[:8]
+
+
 def test_a_source_that_does_not_sign_has_no_secret_to_set(client: TestClient) -> None:
     apply_document(client, held())
     refused = client.post(f"{PREFIX}/pipelines/held/sources/ask/$set-secret", json={"secret": "anything"})
