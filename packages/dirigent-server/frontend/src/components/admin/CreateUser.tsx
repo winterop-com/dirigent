@@ -1,12 +1,13 @@
 import { useState } from 'react'
 
 import { Refusal } from '@/components/Refusal'
+import { RoleSelect } from '@/components/admin/RoleSelect'
+import { FormField } from '@/components/ds/FormField'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
     DialogClose,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -17,7 +18,7 @@ import { type Problem } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import type { UserRole } from '@/lib/auth'
-import { createUser, MIN_PASSWORD_LENGTH, ROLE_HINTS, USER_ROLES } from '@/lib/users'
+import { createUser, MIN_PASSWORD_LENGTH } from '@/lib/users'
 
 /** Nothing typed yet. A new account is a viewer until somebody says otherwise. */
 const BLANK = { username: '', password: '', name: '', email: '', role: 'viewer' as UserRole }
@@ -80,7 +81,6 @@ export function CreateUser({
             <DialogContent className="sm:max-w-md" showCloseButton={false}>
                 <DialogHeader>
                     <DialogTitle>{LABELS.users.new_account}</DialogTitle>
-                    <DialogDescription>{LABELS.users.new_account_hint}</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-2">
@@ -101,7 +101,6 @@ export function CreateUser({
                         id="new-name"
                         value={form.name}
                         autoComplete="off"
-                        placeholder={LABELS.users.optional}
                         onChange={(event) => {
                             setForm((current) => ({ ...current, name: event.target.value }))
                         }}
@@ -114,7 +113,6 @@ export function CreateUser({
                         id="new-email"
                         value={form.email}
                         autoComplete="off"
-                        placeholder={LABELS.users.optional}
                         onChange={(event) => {
                             setForm((current) => ({ ...current, email: event.target.value }))
                         }}
@@ -134,28 +132,15 @@ export function CreateUser({
                     />
                 </div>
 
-                <fieldset className="space-y-2">
-                    <legend className="text-sm font-medium">{LABELS.word.role}</legend>
-                    {USER_ROLES.map((role) => (
-                        <label key={role} className="flex items-start gap-2 text-sm">
-                            <input
-                                type="radio"
-                                name="new-role"
-                                className="mt-1 accent-primary"
-                                checked={form.role === role}
-                                onChange={() => {
-                                    setForm((current) => ({ ...current, role }))
-                                }}
-                            />
-                            <span>
-                                {role}
-                                <span className="block text-xs text-muted-foreground">
-                                    {ROLE_HINTS[role]}
-                                </span>
-                            </span>
-                        </label>
-                    ))}
-                </fieldset>
+                <FormField id="new-role" label={LABELS.word.role}>
+                    <RoleSelect
+                        id="new-role"
+                        value={form.role}
+                        onChange={(role) => {
+                            setForm((current) => ({ ...current, role }))
+                        }}
+                    />
+                </FormField>
 
                 {problem !== null && <Refusal problem={problem} />}
 
