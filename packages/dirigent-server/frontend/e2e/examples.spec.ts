@@ -60,7 +60,7 @@ function openRow(page: Page, code: string): Promise<void> {
     return rowOf(page, code).getByRole('cell').first().click()
 }
 
-test('the corpus is listed, and the Starters filter narrows it to what may be copied', async ({ page }) => {
+test('the corpus is listed, and the Templates filter narrows it to what may be copied', async ({ page }) => {
     await signIn(page)
     await page.goto('/examples')
 
@@ -134,12 +134,12 @@ test('a document that is not a starter is offered no way to copy it', async ({ p
     await expect(panel.getByRole('button', { name: LABELS.examples.use_as_starter })).toHaveCount(0)
 })
 
-test('From a starter opens the editor on a copy with the starter tag gone', async ({ page }) => {
+test('From a template opens the editor on a copy with the starter tag gone', async ({ page }) => {
     await signIn(page)
     await page.goto('/pipelines')
 
     await page.getByRole('button', { name: LABELS.pipelines.more_ways }).click()
-    await page.getByRole('menuitem', { name: 'From a starter' }).click()
+    await page.getByRole('menuitem', { name: LABELS.pipelines.from_starter }).click()
 
     // The picker is the palette's own card: a search row over shelved rows.
     await page.getByPlaceholder(LABELS.pipelines.starters.placeholder).fill(STARTER)

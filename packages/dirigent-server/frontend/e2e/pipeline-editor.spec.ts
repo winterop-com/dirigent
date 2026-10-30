@@ -509,7 +509,9 @@ test('apply is shut on a document the instance already holds, and says why', asy
 
     // The two verbs beside it act on a document that has not changed, so both stay live.
     await expect(page.getByRole('button', { name: LABELS.action.validate })).toBeEnabled()
-    await expect(page.getByRole('button', { name: LABELS.action.run, exact: true })).toBeEnabled()
+    await expect(
+        page.getByRole('button', { name: LABELS.action.asks(LABELS.action.run), exact: true }),
+    ).toBeEnabled()
 
     await apply.click({ force: true })
     await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -520,7 +522,7 @@ test('the run dialog is built from the pipeline own parameter schema', async ({ 
     await applyExample(page.request, PARAMS_EXAMPLE)
 
     await page.goto(`/pipelines/${PARAMS_PIPELINE}`)
-    await page.getByRole('button', { name: 'Run', exact: true }).click()
+    await page.getByRole('button', { name: 'Run…', exact: true }).click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByRole('heading', { name: 'Run', exact: true })).toBeVisible()
@@ -541,7 +543,7 @@ test('a document that reads a window is not run until it is given one', async ({
     await applyDocument(page.request, WINDOWED)
 
     await page.goto(`/pipelines/${WINDOWED_PIPELINE}`)
-    await page.getByRole('button', { name: 'Run', exact: true }).click()
+    await page.getByRole('button', { name: 'Run…', exact: true }).click()
 
     const dialog = page.getByRole('dialog')
     const start = dialog.getByLabel(LABELS.word.start, { exact: true })
@@ -581,7 +583,7 @@ test('a document that reads no window keeps its window behind a link and runs wi
     await applyDocument(page.request, PLAIN)
 
     await page.goto(`/pipelines/${PLAIN_PIPELINE}`)
-    await page.getByRole('button', { name: 'Run', exact: true }).click()
+    await page.getByRole('button', { name: 'Run…', exact: true }).click()
 
     const dialog = page.getByRole('dialog')
     const add = dialog.getByRole('button', { name: LABELS.editor.run.add_window })
@@ -1157,7 +1159,7 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
 
     // Validate works on the draft; Run does not, and says why rather than failing at the server.
     await expect(page.getByRole('button', { name: LABELS.action.validate })).toBeEnabled()
-    const run = page.getByRole('button', { name: 'Run', exact: true })
+    const run = page.getByRole('button', { name: 'Run…', exact: true })
     await expect(run).toBeDisabled()
     // A shut button takes no pointer events, so the reason is on what the pointer lands on.
     await expect(run.locator('..')).toHaveAttribute('title', /Apply this document/)

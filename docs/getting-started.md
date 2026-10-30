@@ -295,17 +295,18 @@ the document's title, its code and the first line of its description, with the t
 the shelf and the distribution it came from, and what it needs of this instance -- each
 required connection, schema and block checked against what the instance actually holds, so
 "2 connections, 1 missing" is a fact about this server rather than about the file. One that
-opted into being copied wears a Starter badge, and a document carrying its own `connections:`
+opted into being copied wears a Template badge, and a document carrying its own `connections:`
 or `schemas:` says so, because an instance refuses those at apply. The filters are the tags,
-the shelf, the distribution and a Starters-only switch, and they live in the address, so a
+the shelf, the distribution and a Templates-only switch, and they live in the address, so a
 narrowed catalogue is a link; a block row on the Blocks screen says how many of these
 documents require it and links here narrowed to that block. Choosing a row opens the whole
 file beside the listing -- comments and all, in the editor a document is written in, with the
 requirements listed item by item.
 
-**From a starter** is how one of them becomes a pipeline of yours. It sits in the New pipeline
-menu on the Pipelines screen, on the Examples panel as *Use as starter*, and on the empty
-canvas of a new document; it opens a search over the installed starters, shelved by
+**From a template…** is how one of them becomes a pipeline of yours. What the command line calls
+a starter, the web UI calls a template. It sits in the New pipeline
+menu on the Pipelines screen, on the Examples panel as *Use as template*, and on the empty
+canvas of a new document; it opens a search over the installed templates, shelved by
 distribution and directory, with what each needs of this instance on the row. Choosing one
 makes the copy `dg pipeline new` would have written -- the document verbatim, the `code:` line
 rewritten and the `starter` tag dropped -- and opens the editor on it, on the source pane,

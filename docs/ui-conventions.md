@@ -589,7 +589,7 @@ found nothing rather than that there is nothing yet.
 **An examples row says what a copy of it would have to change.** A document carrying a top-level
 `connections:` or `schemas:` section is what runs alone under `dg run --local`, and an apply
 refuses it, so the row states `carries connections; a copy names them` -- `carriesNote` in
-`lib/examples` -- and a starter's copy names them under `requires` instead. A document carrying
+`lib/examples` -- and a template's copy names them under `requires` instead. A document carrying
 neither says nothing, because a column saying "nothing" of a hundred rows is a column of noise.
 
 **A tag filter is a set, and its members stand beside the control.** `tag` repeats on the wire
@@ -881,12 +881,12 @@ Run is shut, because `$run` runs the version the instance holds and there is not
 apply creates the pipeline and the screen goes to the address it will answer at from then on --
 which is why a static `pipelines/$new` route sits beside the dynamic `pipelines/:code`, and why
 `New` is the primary half of the listing's split button while the two doors for a document
-written somewhere else, `From a starter`{ .label } and `From file…`{ .label }, are in the menu beside it.
+written somewhere else, `From a template…`{ .label } and `From a file…`{ .label }, are in the menu beside it.
 
 **A document opens on the source that holds it.** The editor's panel opens on the step tab,
 because a pipeline is read a step at a time, and choosing a box on the canvas opens that tab
 rather than whichever one was last in front of somebody. The exception is a document that arrived
-as text: `From file…`{ .label } on the listing hands the editor what it read and `From a starter`{ .label } hands
+as text: `From a file…`{ .label } on the listing hands the editor what it read and `From a template…`{ .label } hands
 it the copy it made, and the editor opens on the source pane, which is where that document
 actually is. A blank `/pipelines/$new` opens on the step tab like every other screen -- the canvas
 says how to add the first step, and the source, whose schema would mark an empty `steps` map
@@ -993,7 +993,7 @@ confirm being drawn; nothing says it a second time as a line or a toast. A remed
 send somebody to another screen belongs on a document the instance already holds a version of,
 and there is no such remedy in this dialog.
 
-**What a copy of a starter still needs is said where the copy lands.** A copy rewrites the two
+**What a copy of a template still needs is said where the copy lands.** A copy rewrites the two
 lines that make it somebody's own and leaves what the document carries in it, because the apply
 is what refuses a carried section and the dialog it raises is where the shapes in it can still be
 stored; a copy that lifted them first would name schemas nothing holds, and an apply refuses that
@@ -1006,7 +1006,7 @@ the last one that parsed and nothing else may write to it. A form quietly replac
 is halfway through fixing is worse than a form that says it cannot.
 
 **The source pane holds the text it was handed, then renders the document.** A document that
-arrived as text -- a picked file, a starter's copy, something typed into the pane -- is shown in
+arrived as text -- a picked file, a template's copy, something typed into the pane -- is shown in
 that text, comments and blank lines and all, until a structural edit moves past it; from the first
 edit on the canvas or in the step form, the pane renders the local document, because no renderer
 can put a comment back. `GET /pipelines/{code}/$export` stays the canonical text: it orders steps
@@ -2098,6 +2098,27 @@ the check is recorded in `scripts/ui_system_offenders.txt`, one line per rule an
 count. It is a ratchet: a file may hold exactly what is recorded, one more is refused as new and
 one fewer as stale, so the change that moves a screen onto the system shrinks the record with
 `--write` in the same commit.
+
+## An ellipsis means the action asks for more before it acts
+
+**A control's word ends in `…` when pressing it does not yet do what the word says, because it needs
+something more from the person first**: a file, a choice from a picker, a form. `From a file…`,
+`From a template…`, `Add step after…`, `Run…`, `Send a test…`, `Reset password…`, `Change…`,
+`Set up slack…`. The same action is written the same way on a button, a menu item and a palette row.
+What it opens is titled without the mark, because by then the question is on screen.
+
+These do not wear it, and each is a decision:
+
+- **A create following the `New` rule below.** `New`, `New token` and a palette's `New alert rule` or
+  `Create an account` say what they open, and every create is one.
+- **A verb raising `ConfirmDialog`, and an `Apply` opening its plan.** Those ask for a yes and nothing
+  else, so `Delete`, `Deactivate`, `Revoke`, `Rotate token` and `Apply` stay as they are. A confirm's
+  own verb is the act. `Reset password…` wears it because that question also needs a new password.
+- **A word whose outcome is the opening.** `Edit` is true the moment it is pressed: you are editing.
+  `Add a window` adds the section. `Change…` wears it because nothing has changed yet.
+- **A place.** `Settings` and `Keyboard shortcuts` are somewhere to go, not an action.
+- **A control with no word.** The canvas's `+` is an icon, and its tooltip names it.
+- **An action that acts.** `Use as template` copies and goes there, and `Validate` answers at once.
 
 ## A create button says `New`
 

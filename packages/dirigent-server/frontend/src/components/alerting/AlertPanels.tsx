@@ -186,7 +186,7 @@ export function RulePanel({
                         title={write.why}
                         onClick={onTest}
                     >
-                        {LABELS.action.send_test}
+                        {LABELS.action.asks(LABELS.action.send_test)}
                     </Button>
                 </Refusable>
                 <Refusable why={write.why}>

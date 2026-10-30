@@ -237,7 +237,7 @@ test.beforeEach(async ({ page }) => {
 test('a run dialog on a long parameter form keeps Run now on the screen', async ({ page }) => {
     for (const mode of MODES) {
         await open(page, mode, `/pipelines/${PIPELINE}`)
-        await page.getByRole('button', { name: LABELS.action.run, exact: true }).click()
+        await page.getByRole('button', { name: LABELS.action.asks(LABELS.action.run), exact: true }).click()
         const dialog = page.getByRole('dialog')
         await expect(dialog.getByLabel(LAST, { exact: true })).toBeAttached()
         await capsAndScrolls(page, dialog, LABELS.editor.run.confirm, `the run dialog in ${mode}`)

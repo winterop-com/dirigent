@@ -240,7 +240,7 @@ function Alerting() {
                 actions={[
                     {
                         id: 'test',
-                        label: LABELS.action.send_test,
+                        label: LABELS.action.asks(LABELS.action.send_test),
                         icon: Send,
                         variant: 'outline',
                         disabled: !write.may,
