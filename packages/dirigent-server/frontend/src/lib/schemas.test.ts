@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { bodyText, schemaPatch, schemasNote, wholeSchema, whyKept, type SchemaOut } from '@/lib/schemas'
+import { bodyText, schemaPatch, wholeSchema, whyKept, type SchemaOut } from '@/lib/schemas'
 
 const STORED: SchemaOut = {
     id: '9f2a4c1e-0000-4000-8000-000000000001',
@@ -78,14 +78,6 @@ describe('replacing a stored schema with one written elsewhere', () => {
             name: null,
             description: null,
         })
-    })
-})
-
-describe('what the screen says it holds', () => {
-    test('counts the rows read, singular where there is one of them', () => {
-        expect(schemasNote([])).toBeNull()
-        expect(schemasNote([STORED])).toBe('1 schema')
-        expect(schemasNote([STORED, { ...STORED, code: 'field-unit' }])).toBe('2 schemas')
     })
 })
 

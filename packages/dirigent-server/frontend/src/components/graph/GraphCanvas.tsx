@@ -210,7 +210,7 @@ export function GraphCanvas({
         >
             <FitToGraph nodes={nodes} moved={moved} />
             <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
-            <ZoomControls control={control} />
+            <ZoomControls control={control} empty={nodes.length === 0} />
             {children}
         </ReactFlow>
     )
@@ -222,9 +222,10 @@ export const FIT_VIEW_LABEL = LABELS.shell.fit_view
 
 /**
  * What the canvas offers in its corner: a zoom step worth pressing either way, the shared fit,
- * and whatever one control the screen adds above them.
+ * and whatever one control the screen adds above them. A canvas with nothing on it has nothing to
+ * zoom, so it offers the screen's control alone.
  */
-function ZoomControls({ control }: { control: ReactNode }) {
+function ZoomControls({ control, empty }: { control: ReactNode; empty: boolean }) {
     const flow = useReactFlow()
     const step = (direction: 'in' | 'out') => () => {
         void flow.zoomTo(steppedZoom(flow.getZoom(), direction), { duration: 120 })
@@ -233,21 +234,25 @@ function ZoomControls({ control }: { control: ReactNode }) {
     return (
         <Controls showZoom={false} showFitView={false} showInteractive={false}>
             {control}
-            <ControlButton onClick={step('in')} title={ZOOM_IN_LABEL} aria-label={ZOOM_IN_LABEL}>
-                <ZoomIn />
-            </ControlButton>
-            <ControlButton onClick={step('out')} title={ZOOM_OUT_LABEL} aria-label={ZOOM_OUT_LABEL}>
-                <ZoomOut />
-            </ControlButton>
-            <ControlButton
-                onClick={() => {
-                    void fitCapped(flow)
-                }}
-                title={FIT_VIEW_LABEL}
-                aria-label={FIT_VIEW_LABEL}
-            >
-                <Maximize2 />
-            </ControlButton>
+            {!empty && (
+                <>
+                    <ControlButton onClick={step('in')} title={ZOOM_IN_LABEL} aria-label={ZOOM_IN_LABEL}>
+                        <ZoomIn />
+                    </ControlButton>
+                    <ControlButton onClick={step('out')} title={ZOOM_OUT_LABEL} aria-label={ZOOM_OUT_LABEL}>
+                        <ZoomOut />
+                    </ControlButton>
+                    <ControlButton
+                        onClick={() => {
+                            void fitCapped(flow)
+                        }}
+                        title={FIT_VIEW_LABEL}
+                        aria-label={FIT_VIEW_LABEL}
+                    >
+                        <Maximize2 />
+                    </ControlButton>
+                </>
+            )}
         </Controls>
     )
 }

@@ -2779,11 +2779,6 @@ const schemas = {
     /** The palette's row for reading the listing again. */
     reload: 'Read the schemas listing again',
     empty: 'No schemas.',
-    /** How many shapes this instance holds, which the screen states under its heading. */
-    count: {
-        one: (many: string) => `${many} schema`,
-        many: (many: string) => `${many} schemas`,
-    },
     /** Over the schema body in the panel. */
     body_title: (code: string) => `${code} · schema`,
 

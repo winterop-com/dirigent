@@ -54,8 +54,8 @@ export function RunsChart({
 }) {
     const most = tallest(buckets)
     return (
-        <Card className={cn('gap-0 p-0', className)}>
-            <CardContent className="space-y-3 p-3">
+        <Card className={cn('h-full gap-0 p-0', className)}>
+            <CardContent className="flex h-full flex-col gap-3 p-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <div className="space-y-1">
                         <h2 className="text-sm font-semibold">{LABELS.dashboard.chart.title}</h2>
@@ -76,7 +76,11 @@ export function RunsChart({
                     </ul>
                 </div>
 
-                <div className="flex h-32 items-end gap-px" role="img" aria-label={chartSummary(buckets)}>
+                <div
+                    className="flex min-h-32 flex-1 items-end gap-px"
+                    role="img"
+                    aria-label={chartSummary(buckets)}
+                >
                     {buckets.map((bucket) => (
                         <div
                             key={bucket.start}

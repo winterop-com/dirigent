@@ -471,6 +471,13 @@ test('a plan says when applying would take a schedule away', async ({ page }) =>
     await expect(dialog).toContainText(LABELS.editor.plan.retiring.schedules.one('nightly'))
 })
 
+test('a canvas with nothing on it offers nothing to zoom', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/pipelines/$new')
+    await expect(page.getByText(LABELS.editor.canvas.no_steps)).toBeVisible()
+    await expect(page.getByRole('button', { name: LABELS.shell.fit_view })).toHaveCount(0)
+})
+
 test('validating an intact document reports no issues', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)

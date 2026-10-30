@@ -131,14 +131,3 @@ export function whyKept(schema: Pick<SchemaOut, 'used_by'>): string | undefined 
     if (schema.used_by.length === 0) return undefined
     return counted(schema.used_by.length, LABELS.schemas.in_use)(schema.used_by.join(', '))
 }
-
-/**
- * What the schemas listing says when it has nothing in it.
- *
- * A schema is authored, not discovered, so an empty instance is one nobody has written a
- * shape for yet -- which is what the empty state says, rather than a bare "none".
- */
-export function schemasNote(rows: readonly SchemaOut[]): string | null {
-    if (rows.length === 0) return null
-    return counted(rows.length, LABELS.schemas.count)(String(rows.length))
-}
