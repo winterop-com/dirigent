@@ -16,6 +16,68 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.27.0
+
+Released 2026-10-30. Every package in the workspace moves to 0.27.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`. Input sources are complete: a pipeline listens
+at an endpoint, polls a storage location or a sensor, or holds a queue consumer, and inbound
+webhooks and watches are gone in their favour.
+
+**Upgrading.** Two removals and one change of behaviour reach callers and documents:
+
+- **Inbound webhook triggers are removed.** `triggers: webhooks:`, `POST /hooks/{token}`,
+  `dg webhook`, the webhook settings (`DIRIGENT_WEBHOOK_MAX_PAYLOAD`,
+  `DIRIGENT_WEBHOOK_INTAKE_RATE_PER_MINUTE`, `DIRIGENT_RETENTION_DELIVERIES`) and
+  `dg prune --deliveries` are gone. An `endpoint` source takes their place; one taking a signed
+  body writes `auth: {kind: hmac}`. The outbound `webhook.post` block and the webhook notifier
+  are unchanged.
+- **Watches are removed.** `triggers: watches:`, `dg watch`, the watch routes, the
+  `watch_backoff` settings and the `watch` trigger kind are gone. A `sensor` source takes their
+  place: `source: {kind: sensor, block: kafka.consume, config: {...}}`.
+- **An endpoint with a reply holds its caller.** Before, every call was answered 202 at once.
+  A caller of a pipeline with a reply node now waits for the reply, up to its timeout.
+
+**The schema changed.** `sources` gains `signing_secret` and `signing_key_id`, and the
+`webhook_triggers`, `webhook_deliveries` and `watches` tables are gone. The baseline migration
+is edited in place while nothing has shipped, so a database created before 0.27.0 does not get
+these from `dg db upgrade`; recreate the database.
+
+- **An endpoint answers with its reply.** A reply node renders the caller's answer from the
+  run's outputs: a status, headers, a content type, and a body or `body_from` a stored file.
+  The caller is held for the longest timeout among the replies its input can reach, under the
+  instance's cap. A run that can no longer reply is answered 422 when a step on the replying
+  path refused the input as `rejected`, 502 otherwise, and 504 when the timeout passes first;
+  the run carries on. One batched waiter per server process is woken by the run's commit. The
+  journal records `replied` and `timed_out`. `source_max_waiting_per_source` (64) keeps one slow
+  pipeline from taking every seat (`source.waiting_share`).
+- **A pack contributes a source kind.** `Contribution.sources` takes `ReceivedSource`,
+  `PolledSource` and `HeldSource` kinds through pluginkit; dirigent itself claims `endpoint`,
+  `storage` and `sensor`. `dirigent_testing.receive_request` and `FakeReceiveContext` test a
+  received kind without a server.
+- **The Triggers screen lists sources.** Each source with its pipeline, what it listens to, its
+  state and what is in flight; its panel reads the source's inputs and rotates its credential.
+- **A worker polls the polled sources.** Every worker polls the sources that are due under a
+  lease. A poll is all or nothing: its inputs become runs and its cursor moves in one
+  transaction, or none of it does and the source backs off (`starting`, `failing`).
+  `concurrency: skip` is refused beside a polled or held source.
+- **The `storage` source.** Each object that lands under a prefix or matches a glob becomes one
+  run. An object is known by its URI, so one copied in still carrying an old date is found and
+  one re-copied with a fresh date is not run twice; `rerun_changed: true` runs an object again
+  when its modification time changes.
+- **Held sources: Kafka and RabbitMQ consumers.** The queues pack adds `kafka` and `rabbitmq`
+  source kinds. A worker holds each consumer under a renewed lease and acknowledges a message
+  only once its run is committed, so a message is never lost and may, after a crash, arrive
+  twice. `source_held_max` and `source_hold_wait` bound them.
+- **Signed endpoints.** `auth: {kind: hmac}` checks an HMAC-SHA256 of the body in
+  `X-Dirigent-Signature` (or the `header` it names); the signing secret is created at apply,
+  sealed with the instance key, shown once and rotated with `dg source set-secret` or Rotate
+  secret in the UI. `dg source call --signing-secret` signs a test call.
+- **The `sensor` source.** A worker pokes a sensor block outside any run; each success starts a
+  run, and the next wait reads on from where it ended. A sensor opts in with
+  `SensorSpec(source=True)`: `kafka.consume` and `playground.arrive` do. A sensor that reads part
+  of a run (scratch, work, the runs handle) fails the poll.
+- **A nested list in a description is drawn as a list inside its item.**
+
 ## 0.26.1
 
 Released 2026-10-29. Every package in the workspace moves to 0.26.1 together, and so do

@@ -33,6 +33,25 @@ uv tool upgrade dirigent-cli
 That moves every dirigent package, not only the CLI: each one pins its dirigent dependencies
 at the release's exact version, so the whole set arrives on the new release together.
 
+**With a pack.** A pack such as [dirigent-dhis2](https://github.com/winterop-com/dirigent-dhis2)
+is a package installed beside the CLI, found through its entry point with nothing to configure.
+Install it into the same tool environment:
+
+```bash
+uv tool install dirigent-cli --with dirigent-dhis2
+```
+
+or run once without installing anything, which is what `uvx` is for:
+
+```bash
+uvx --from dirigent-cli --with dirigent-dhis2 dg dev
+```
+
+The command is in the `dirigent-cli` package, so `uvx` is always given `--from dirigent-cli`:
+`uvx dirigent` does not resolve to it. A pack pins its dirigent packages at its own version, so
+name one release for both, `--from dirigent-cli==0.27.0 --with dirigent-dhis2==0.27.0`, or
+leave both unpinned and let the resolver match them.
+
 **From source**, which is what a contributor does:
 
 ```bash
