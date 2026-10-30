@@ -223,9 +223,11 @@ docker-clean: ## Remove the stack: containers, volumes, orphans, and the images 
 	@exit 1
 
 coverage: ## Run the test suite once, under coverage, and hold the gate
-	# pytest-cov rather than `coverage run`: an xdist worker is a subprocess of its own, and
-	# this is what gathers each one's data into the single file the report then reads.
-	$(UV) run pytest -n $(WORKERS) --cov --cov-report=
+	# `coverage run` measures each xdist worker from its first line, including what the pytest
+	# plugin imports. The workers write one data file each, and `combine` joins them.
+	$(UV) run coverage erase
+	$(UV) run coverage run -m pytest -n $(WORKERS)
+	$(UV) run coverage combine -q
 	$(UV) run coverage report --fail-under=90
 
 gate: static coverage ## What CI runs: the static gate, then the tests once, under coverage
@@ -329,6 +331,6 @@ refresh: ## Start over: forget every build and cache, take every docker stack aw
 	@echo "Fresh. Next: make dev, or make dev-seeded."
 
 clean: ## Remove build artifacts and tool caches
-	rm -rf .ruff_cache .mypy_cache .pytest_cache htmlcov site .coverage coverage.xml
+	rm -rf .ruff_cache .mypy_cache .pytest_cache htmlcov site .coverage .coverage.* coverage.xml
 	find . -name '__pycache__' -type d -prune -exec rm -rf {} +
 	find . -name '*.egg-info' -type d -prune -exec rm -rf {} +
