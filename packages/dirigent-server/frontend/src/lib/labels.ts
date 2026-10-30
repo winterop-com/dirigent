@@ -1126,10 +1126,9 @@ const refused = {
         no_icon: 'This bundle carries no icon.',
         no_run: 'No run {run_id}.',
         no_schema: 'No schema coded {code}.',
-        no_token: 'No live token named {name}.',
+        no_token: 'No live token with id {id}.',
         no_trigger_document: 'No triggers document coded {code}.',
         no_user: 'No user named {username}.',
-        no_user_token: 'No live token named {name} for {username}.',
         playground_body_too_large: 'The body is larger than the {limit} bytes the playground reads.',
         playground_header_refused:
             'The playground will not set {header} on itself as asked. It sets no header that plants a cookie, asks for a password, navigates a browser off this instance, opens this origin to another site, or weakens what a browser enforces here, and no content type a browser runs.',
