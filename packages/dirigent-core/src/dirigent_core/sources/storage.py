@@ -1,12 +1,14 @@
 """The storage kind: each object that appears under a prefix, or matching a glob, becomes one input.
 
-A worker lists the location on the source's cadence and hands over what is newer than its
-cursor, oldest first. The cursor is the last object handed over, by its modification time and
-then its URI, so an object written later with an earlier timestamp than one already handed
-over is not seen.
+A worker lists the location on the source's cadence and hands over every object it has not
+handed over before, oldest first. The cursor maps each object handed over that is still listed
+to its modification time, so an object is new whatever its timestamp, and the cursor holds as
+many entries as the location holds objects. An object is known by its URI alone unless the
+source asks for one whose modification time changed to be handed over again.
 """
 
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,6 +27,9 @@ class StorageConfig(BaseModel):
 
     poll: Duration = timedelta(minutes=1)
     """How long a worker waits between two looks."""
+
+    rerun_changed: bool = False
+    """Whether an object already handed over is handed over again once its modification time changes."""
 
     max_in_flight: int | None = Field(default=None, ge=1)
     """How many unsettled runs from this source may exist before the next look waits for one to settle."""
@@ -86,12 +91,14 @@ class StorageSource(PolledSource[StorageConfig, StorageInput]):
     async def poll(
         self, config: StorageConfig, cursor: JsonMap | None, ctx: PollContext, limit: int
     ) -> Polled[StorageInput]:
-        """List the location, and hand over what is newer than the cursor, oldest first."""
+        """List the location, and hand over what the cursor has not seen, oldest first."""
         listed = [found async for found in ctx.storage.list(config.uri)]
-        mark = _mark_of(cursor)
-        newer = sorted((one for one in listed if mark is None or _key(one) > mark), key=_key)[:limit]
+        seen = _seen_of(cursor)
+        known = [one for one in listed if _known(one, seen, rerun_changed=config.rerun_changed)]
+        newer = sorted((one for one in listed if one not in known), key=_key)[:limit]
+        kept = {one.uri: seen[one.uri] for one in known}
         if not newer:
-            return Polled(inputs=[], cursor=cursor)
+            return Polled(inputs=[], cursor={"seen": kept} if kept else None)
         now = datetime.now(UTC)
         inputs = [
             StorageInput(
@@ -103,9 +110,8 @@ class StorageSource(PolledSource[StorageConfig, StorageInput]):
             )
             for one in newer
         ]
-        last = newer[-1]
         ctx.log.info("objects found", location=config.uri, found=len(inputs))
-        return Polled(inputs=inputs, cursor={"modified_at": last.modified_at.isoformat(), "uri": last.uri})
+        return Polled(inputs=inputs, cursor={"seen": kept | {one.uri: _stamp(one) for one in newer}})
 
 
 def _key(found: StatResult) -> tuple[datetime, str]:
@@ -113,14 +119,19 @@ def _key(found: StatResult) -> tuple[datetime, str]:
     return (found.modified_at, found.uri)
 
 
-def _mark_of(cursor: JsonMap | None) -> tuple[datetime, str] | None:
-    """Read the last object a cursor handed over, or None for a source that has handed over nothing."""
-    if cursor is None:
-        return None
-    modified, uri = cursor.get("modified_at"), cursor.get("uri")
-    if not isinstance(modified, str) or not isinstance(uri, str):
-        return None
-    try:
-        return (datetime.fromisoformat(modified), uri)
-    except ValueError:
-        return None
+def _stamp(found: StatResult) -> str:
+    """Write an object's modification time the way the cursor keeps it."""
+    return found.modified_at.isoformat()
+
+
+def _known(found: StatResult, seen: dict[str, str], *, rerun_changed: bool) -> bool:
+    """Whether an object is one the cursor has already handed over."""
+    return found.uri in seen and (not rerun_changed or seen[found.uri] == _stamp(found))
+
+
+def _seen_of(cursor: JsonMap | None) -> dict[str, str]:
+    """Read the objects a cursor has handed over, by URI, or none for a source that has handed over nothing."""
+    seen = cursor.get("seen") if cursor is not None else None
+    if not isinstance(seen, dict):
+        return {}
+    return {uri: stamp for uri, stamp in cast("dict[str, object]", seen).items() if isinstance(stamp, str)}

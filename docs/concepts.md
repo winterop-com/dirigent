@@ -205,8 +205,11 @@ callers on one reader, woken when a run settles, and a held input's journal row 
 `replied` or `timed_out`.
 
 A `storage` source is polled rather than called: a worker lists its `uri`, a prefix or a glob,
-every `poll`, and each object newer than the last one it handed over becomes one run,
-`${steps.<source>.output.uri}` naming it. Every worker polls, and a lease on the source's row
+every `poll`, and each object it has not handed over before becomes one run,
+`${steps.<source>.output.uri}` naming it. An object is known by its URI, so one copied in still
+carrying an old date is found and one re-copied with a fresh date is not run twice;
+`rerun_changed: true` runs an object again whenever its modification time changes, for a file
+that is overwritten in place. Every worker polls, and a lease on the source's row
 keeps two from polling one source at once. The source keeps a cursor, so a restarted worker
 carries on where the last stopped; moving the `uri` starts the cursor over. A polled source is
 `starting` until its first poll succeeds, and `failing` while its polls fail, each failure
