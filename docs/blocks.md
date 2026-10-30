@@ -1085,6 +1085,7 @@ format checker, is in [JSON Schema](json-schema.md).
 | --- | --- | --- | --- | --- |
 | `uri` | `string` | yes |  | A prefix such as `s3://landing/incoming/`, or a glob such as `file:///data/in/*.csv`. |
 | `poll` | `string (humane-duration)` |  | `"1m"` | How long a worker waits between two looks. |
+| `rerun_changed` | `boolean` |  | `false` | Whether an object already handed over is handed over again once its modification time changes. |
 | `max_in_flight` | `integer or null` |  | `null` | How many unsettled runs from this source may exist before the next look waits for one to settle. |
 
 **Input it hands on**
