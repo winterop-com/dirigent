@@ -619,7 +619,10 @@ class Settings(BaseSettings):
 
 def ignored_project_settings() -> list[str]:
     """Name the host-only settings the working directory's files try to set, which have no effect."""
-    layers = (DotEnvSettingsSource(Settings), YamlConfigSettingsSource(Settings, yaml_file=project_config_paths()))
+    layers = (
+        _ProjectDotEnv(Settings, env_file=ENV_FILE),
+        YamlConfigSettingsSource(Settings, yaml_file=project_config_paths()),
+    )
     return sorted(HOST_ONLY_SETTINGS.intersection(name for layer in layers for name in layer()))
 
 
