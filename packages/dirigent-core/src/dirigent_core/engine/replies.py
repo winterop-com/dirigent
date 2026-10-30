@@ -7,7 +7,8 @@ no other reply of the run may have answered first.
 """
 
 import json
-from collections.abc import Sequence
+import re
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Final, cast
 
@@ -18,7 +19,7 @@ from dirigent_client.enums import AttemptKind, AttemptStatus
 from dirigent_common import JsonMap
 from dirigent_common.requests import media_type
 from dirigent_core.artifacts import persist_output
-from dirigent_core.engine.definition import PipelineDefinition, ReplyNode
+from dirigent_core.engine.definition import PipelineDefinition, ReplyNode, reply_may_set
 from dirigent_core.engine.expansion import collect_errors, collect_outputs
 from dirigent_core.engine.failure import Failure
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, resolve
@@ -34,6 +35,9 @@ OCTET_STREAM: Final = "application/octet-stream"
 
 #: How an attempt says it was entered by a request, rather than by a hand run.
 VIA_REQUEST: Final = "request"
+
+#: What a rendered header value may hold: a value carrying a line break would start another header.
+HEADER_VALUE: Final = re.compile(r"[\t\x20-\x7e\x80-\xff]*")
 
 #: Statuses whose answer carries no body.
 BODYLESS: Final = frozenset({204, 304})
@@ -124,7 +128,7 @@ async def _render(
         status = int(status.strip())
     if not isinstance(status, int) or isinstance(status, bool) or not 200 <= status <= 599:
         raise _Unrenderable(Failure.rejected(REPLY_STATUS, step=repr(name), status=repr(status)))
-    headers = {header.lower(): _as_text(resolve(value, scope)) for header, value in reply.headers.items()}
+    headers = _rendered_headers(name, reply.headers, scope)
     rendered: JsonMap = {"status": status, "headers": cast("JsonValue", headers)}
     if reply.body_from is not None:
         uri = resolve(reply.body_from, scope)
@@ -143,6 +147,22 @@ async def _render(
     body = None if status in BODYLESS else resolve(reply.body, scope)
     content_type = reply.content_type or JSON
     rendered.update(content_type=content_type, body=body, body_bytes=len(encode_body(body, content_type)))
+    return rendered
+
+
+def _rendered_headers(step: str, headers: Mapping[str, str], scope: ReferenceScope) -> dict[str, str]:
+    """Resolve a reply's headers, refusing a name it may not set and a value no header can carry."""
+    rendered: dict[str, str] = {}
+    for header, value in headers.items():
+        text = _as_text(resolve(value, scope))
+        if not reply_may_set(header):
+            detail = f"a reply does not set {header}"
+        elif HEADER_VALUE.fullmatch(text) is None:
+            detail = f"the value of {header} holds what a header cannot carry"
+        else:
+            rendered[header.lower()] = text
+            continue
+        raise _Unrenderable(Failure.rejected(REPLY_REFUSED, step=repr(step), detail=detail))
     return rendered
 
 

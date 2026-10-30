@@ -161,8 +161,53 @@ class SourceNode(BaseModel):
         return extra
 
 
-#: The response headers a reply may not set, because the server writes them itself.
-REPLY_HEADERS_REFUSED: Final = frozenset({"connection", "content-length", "transfer-encoding", "upgrade"})
+#: The response headers a reply may not set: the server writes these itself, and a reply shares
+#: the UI's origin, so it may not plant a cookie, ask for a password, navigate or clear a browser,
+#: or change what a browser or a proxy enforces there.
+REPLY_HEADERS_REFUSED: Final = frozenset(
+    {
+        "alt-svc",
+        "clear-site-data",
+        "connection",
+        "content-length",
+        "content-security-policy",
+        "content-security-policy-report-only",
+        "nel",
+        "permissions-policy",
+        "proxy-authenticate",
+        "refresh",
+        "report-to",
+        "reporting-endpoints",
+        "service-worker-allowed",
+        "set-cookie",
+        "set-cookie2",
+        "strict-transport-security",
+        "transfer-encoding",
+        "upgrade",
+        "www-authenticate",
+        "x-content-type-options",
+        "x-frame-options",
+        "x-sendfile",
+        "x-xss-protection",
+    }
+)
+
+#: Families refused like the names above.
+REPLY_HEADER_PREFIXES_REFUSED: Final = ("cross-origin-", "x-accel-")
+
+#: What a header name may be spelled with: an RFC 9110 token.
+HEADER_NAME: Final = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+
+
+def reply_may_set(header: str) -> bool:
+    """Whether a reply may answer with a header of this name."""
+    lowered = header.lower()
+    return (
+        HEADER_NAME.fullmatch(header) is not None
+        and lowered not in REPLY_HEADERS_REFUSED
+        and not lowered.startswith(REPLY_HEADER_PREFIXES_REFUSED)
+    )
+
 
 #: The default for how long an endpoint holds its caller while it waits for a reply.
 DEFAULT_REPLY_TIMEOUT: Final = timedelta(seconds=30)
@@ -193,7 +238,7 @@ class ReplyNode(BaseModel):
 
     @model_validator(mode="after")
     def _check_reply(self) -> Self:
-        """Refuse a body given twice, a literal status out of range, and a header the server owns."""
+        """Refuse a body given twice, a literal status out of range, and a header a reply may not set."""
         if self.body is not None and self.body_from is not None:
             raise ValueError(REPLY_BODY_TWICE.render())
         if isinstance(self.status, int) and not REPLY_MIN_STATUS <= self.status <= REPLY_MAX_STATUS:
@@ -201,7 +246,7 @@ class ReplyNode(BaseModel):
         if isinstance(self.status, str) and not references_in(self.status):
             raise ValueError(REPLY_BAD_STATUS.render(status=repr(self.status)))
         for header in self.headers:
-            if header.lower() in REPLY_HEADERS_REFUSED:
+            if not reply_may_set(header):
                 raise ValueError(REPLY_BAD_HEADER.render(header=repr(header)))
         return self
 

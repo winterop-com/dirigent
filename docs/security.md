@@ -414,6 +414,18 @@ updated on every call turns a cheap refusal into a database write.
 taking a token, the content type is checked against what the source `accepts` before a byte of
 the body is read; a signed source reads its capped body first, because the signature covers it.
 
+**A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
+UI's origin, so it answers with `X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: sandbox; default-src 'none'; frame-ancestors 'none'` whatever it
+rendered. A `text/html` reply is displayed but runs no script, and has no access to the
+instance's cookies or storage. A reply may not set `set-cookie`, `www-authenticate`, `refresh`,
+`clear-site-data`, `content-security-policy`, `x-content-type-options`, `x-frame-options`,
+`strict-transport-security`, `cross-origin-*`, or what a proxy acts on (`x-accel-*`,
+`x-sendfile`), among others. That is refused at apply (`source.reply_bad_header`) and again when
+the reply renders, where a value a reference resolved to that holds a line break is refused too
+(`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
+pipeline's to set, so a reply can redirect, name a download or answer a browser caller.
+
 **A route is one source's.** Two sources answering one method at one template are refused at
 apply, across pipelines, and a unique constraint holds it when two applies race.
 
