@@ -909,6 +909,13 @@ references it, and asking for it first was asking the least of the step first.
 differs from the version the instance holds, and where there is no version at all; where applying
 would write nothing it stands in outline beside Validate, which is what it would do.
 
+**A plan says what an apply takes away before it is pressed.** The dry run answers with the source
+rows and the managed schedules a document has stopped declaring, and those are the one consequence
+in the dialog that cannot be read back from the document: a source goes with its inputs and its
+token. They stand under the changes in the warning ink, with the words a reader would ask for, and
+only where there are any. What an apply did to its sources and schedules is the note that follows
+it.
+
 **A refusal the dialog can answer is answered in the dialog.** A top-level `connections:` or
 `schemas:` section is what lets a document run alone under `dg run --local`, and an apply refuses
 one that carries either -- a refusal that stays, because a reference by code is the single

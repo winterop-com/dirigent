@@ -325,23 +325,44 @@ jobs:
           done
           $COMPOSE exec -T worker docker version --format '{{.Server.Version}}'
 
-      # What a pipeline's container reaches is what the daemon reaches. The daemon reaching
-      # itself is what shows a refused connection below means the network, not a missing nc.
+      # What this answers is true of this runner's Docker alone. docs/docker.md says what Docker
+      # Desktop does instead. Each control is what shows a failed connection below means the network
+      # and not a missing nc, an empty address or a service that is not listening.
       - name: Prove the daemon cannot reach the database or the bucket
         run: |
           COMPOSE="docker compose --project-directory . -f infra/compose.yaml"
+          echo "engine: $(docker version --format '{{.Server.Version}}')"
           $COMPOSE exec -T docker nc -z -w 3 docker 2376
+          echo "control: the daemon reaches itself"
           for target in postgres:5432 s3:9000; do
             service="${target%:*}"
             port="${target#*:}"
             address=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$($COMPOSE ps -q "$service")")
+            test -n "$address"
+            $COMPOSE exec -T worker python -c "import socket; socket.create_connection(('$address', $port), 3).close()"
+            echo "control: the worker reaches $service at $address:$port"
             for host in "$service" "$address"; do
               if $COMPOSE exec -T docker nc -z -w 3 "$host" "$port"; then
                 echo "the daemon reached $service at $host:$port"
                 exit 1
               fi
+              echo "the daemon does not reach $service at $host:$port"
             done
           done
+          gateway=$($COMPOSE exec -T docker sh -c "ip route show default | cut -d' ' -f3")
+          test -n "$gateway"
+          for port in "${POSTGRES_PORT:-5432}" "${S3_PORT:-9010}"; do
+            if $COMPOSE exec -T docker nc -z -w 3 "$gateway" "$port"; then
+              echo "the daemon reached port $port published on the host, through $gateway"
+              exit 1
+            fi
+            echo "the daemon does not reach port $port published on the host's loopback, through $gateway"
+          done
+          if $COMPOSE exec -T docker nc -z -w 3 "$gateway" "${DIRIGENT_PORT:-3333}"; then
+            echo "the daemon reaches the server's published port, which asks every caller to authenticate"
+          else
+            echo "the daemon does not reach the server's published port"
+          fi
 
       # The server applies examples/ at boot, so the document is already stored; this starts
       # a run of it and waits for the whole compose lifecycle to settle.
@@ -367,6 +388,28 @@ jobs:
             done
             echo "$code: $status"
             [ "$status" = succeeded ]
+          done
+
+      # A pipeline's container is one more hop from the daemon, through the daemon's own NAT, and
+      # the example above left its image on the sidecar. It reaching the daemon is the control.
+      - name: Prove a pipeline's container cannot reach the database or the bucket
+        run: |
+          COMPOSE="docker compose --project-directory . -f infra/compose.yaml"
+          contained() { $COMPOSE exec -T docker docker run --rm --pull never alpine:3 nc -z -w 3 "$1" "$2"; }
+          daemon=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$($COMPOSE ps -q docker)")
+          test -n "$daemon"
+          contained "$daemon" 2376
+          echo "control: a contained process reaches the daemon at $daemon:2376"
+          for target in postgres:5432 s3:9000; do
+            service="${target%:*}"
+            port="${target#*:}"
+            address=$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$($COMPOSE ps -q "$service")")
+            test -n "$address"
+            if contained "$address" "$port"; then
+              echo "a contained process reached $service at $address:$port"
+              exit 1
+            fi
+            echo "a contained process does not reach $service at $address:$port"
           done
 
       # The git examples carry their own git connections, which an applying instance refuses

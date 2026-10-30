@@ -91,7 +91,7 @@ export function ApplyDialog({
         void applyPipeline(document, true).then(
             (result: ApplyResult) => {
                 if (cancelled) return
-                setView(planView(result.plan))
+                setView(planView(result))
                 onPlan?.(result.plan)
             },
             (error: unknown) => {
@@ -237,7 +237,7 @@ export function ApplyDialog({
                     return
                 }
                 const result = await applyPipeline(lifted, false)
-                const read = planView(result.plan)
+                const read = planView(result)
                 if (!read.applicable) {
                     // The lift wrote nothing new: the instance is already at this document,
                     // which is an outcome to report rather than a dialog to keep open.

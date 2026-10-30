@@ -426,6 +426,28 @@ def test_a_reference_in_params_beside_sql_is_applied() -> None:
     assert validate_against_catalog(definition, load_plugin_host().catalog(), connections=None) == []
 
 
+def test_a_shell_string_that_cannot_be_read_is_refused_when_the_document_is_applied(host: PluginHost) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: open\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        """steps:\n  a: {block: test.shellish, config: {command: "true\\necho 'open ${params.day}"}}\n"""
+    )
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [(issue.code, issue.location) for issue in issues] == [
+        ("document.step_shell_unreadable", "steps.a.config.command")
+    ]
+    assert issues[0].params == {"field": "command", "opener": "'", "line": 2}
+
+
+def test_a_shell_string_with_a_comment_is_applied(host: PluginHost) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: fine\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        """steps:\n  a: {block: test.shellish, config: {command: "# don't\\necho ${params.day}"}}\n"""
+    )
+    assert validate_against_catalog(definition, host.catalog()) == []
+
+
 def test_a_block_that_runs_code_is_refused_where_the_instance_does_not_allow_it(host: PluginHost) -> None:
     """The execution path refuses it too; saying so at apply is what stops it being stored."""
     definition = load_text("format: dirigent/v1\ncode: unsafe\nsteps:\n  a: { block: test.unsafe }\n")
