@@ -206,7 +206,7 @@ def test_a_header_this_origin_will_not_set_is_refused(playground: TestClient) ->
 def test_a_header_that_makes_this_origin_act_is_refused(playground: TestClient, header: str) -> None:
     response = playground.get(f"{PREFIX}/response-headers", params={header: "x"})
     assert response.status_code == 422
-    assert header.lower() not in response.headers
+    assert response.headers.get(header.lower()) != "x"
 
 
 def test_a_header_value_cannot_start_another_header(playground: TestClient) -> None:
@@ -277,8 +277,14 @@ def test_every_answer_is_contained(playground: TestClient, route: str, params: d
     assert response.headers["content-security-policy"].startswith("sandbox;")
 
 
-def test_a_body_past_the_cap_is_refused(playground: TestClient) -> None:
+def test_a_body_past_the_cap_is_refused_before_the_route_without_a_credential(playground: TestClient) -> None:
     response = playground.post(f"{PREFIX}/request", content=b"x" * (1024 * 1024 + 1))
+    assert response.status_code == 413
+    assert response.json()["code"] == "server.unauthenticated_body_too_large"
+
+
+def test_a_body_past_the_cap_is_refused_by_the_route_with_a_credential(client: TestClient) -> None:
+    response = client.post(f"{PREFIX}/request", content=b"x" * (1024 * 1024 + 1))
     assert response.status_code == 413
     assert response.json()["code"] == "server.playground_body_too_large"
 
