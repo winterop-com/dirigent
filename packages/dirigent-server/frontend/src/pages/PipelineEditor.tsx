@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { ApplyDialog } from '@/components/pipeline/ApplyDialog'
+import { MintedToken } from '@/components/triggers/NewTrigger'
 import { PipelineTab } from '@/components/pipeline/PipelineTab'
 import { ReportPane } from '@/components/pipeline/ReportPane'
 import { RunDialog } from '@/components/pipeline/RunDialog'
@@ -66,6 +67,7 @@ import { anythingUnmet, unmetIn, unmetLines } from '@/lib/requirements'
 import { EVERY_RUN, readRuns, type RunOut } from '@/lib/runs'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'
+import type { SourceTokenOut } from '@/lib/sources'
 
 /**
  * One pipeline: its document as a graph, the step in front of somebody, and what applying does.
@@ -148,6 +150,11 @@ export function PipelineEditor() {
         problem: null,
     })
     const [dialog, setDialog] = useState<'none' | 'apply' | 'validate' | 'run'>('none')
+    // The tokens the last apply created, and where the screen goes once each has been read.
+    const [minted, setMinted] = useState<{ tokens: SourceTokenOut[]; after: string | null }>({
+        tokens: [],
+        after: null,
+    })
     const [issues, setIssues] = useState<string | null>(null)
     const [picking, setPicking] = useState(false)
 
@@ -731,6 +738,18 @@ export function PipelineEditor() {
                 </Suspense>
             )}
 
+            {minted.tokens[0] !== undefined && (
+                <MintedToken
+                    key={minted.tokens[0].source_id}
+                    token={minted.tokens[0]}
+                    onClose={() => {
+                        const rest = minted.tokens.slice(1)
+                        setMinted({ tokens: rest, after: minted.after })
+                        if (rest.length === 0 && minted.after !== null) void navigate(minted.after)
+                    }}
+                />
+            )}
+
             {local !== null && (
                 <ApplyDialog
                     open={dialog === 'apply' || dialog === 'validate'}
@@ -747,9 +766,13 @@ export function PipelineEditor() {
                         setIssues(issuesNote(result.plan.issues))
                         const note = appliedNote(result)
                         toast.success(note.line, { description: note.detail })
+                        const address = creating ? `/pipelines/${encodeURIComponent(result.plan.code)}` : null
+                        const { tokens } = result.sources
+                        setMinted({ tokens, after: address })
+                        if (tokens.length > 0 && address !== null) return
                         // The document has an address of its own now, and it is not this one.
-                        if (creating) {
-                            void navigate(`/pipelines/${encodeURIComponent(result.plan.code)}`)
+                        if (address !== null) {
+                            void navigate(address)
                             return
                         }
                         void readPipeline(code).then(
