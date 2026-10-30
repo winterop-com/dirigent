@@ -48,11 +48,9 @@ class TokenRequest(BaseModel):
     """What creating an API token asks for."""
 
     name: EntityName
-    """The token's name, which is how it is revoked and how it reads in an audit trail.
+    """What a person calls the token, and how it reads in an audit trail; two may share one.
 
-    An entity name like every other named thing an instance holds: it appears in a REST
-    path (``DELETE /users/{username}/tokens/{name}`` and ``DELETE /tokens/{name}``), so a
-    name with a slash or a space in it is a token nobody can revoke."""
+    An entity name like every other named thing an instance holds."""
 
     expires_in: TokenLifetime | None = None
     """How long the token lives from now, such as ``90d``; unset, it lives until it is revoked."""

@@ -5,7 +5,7 @@ import contextlib
 import json
 import time
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -17,7 +17,8 @@ from dirigent_block_storage.storage import (
     StorageWriteOperator,
     StorageWriteOutput,
 )
-from dirigent_common import JQ_MEDIA_TYPE
+from dirigent_common import JQ_MEDIA_TYPE, JsonMap
+from dirigent_core.engine.references import ReferenceScope, resolve_config
 from dirigent_plugin import (
     BlockFailure,
     ErrorClass,
@@ -381,3 +382,71 @@ async def test_a_value_comes_in_through_a_read_and_goes_out_through_a_write(
     assert json.loads(landed) == [{"fahrenheit": 39, "id": "r1"}, {"fahrenheit": 27, "id": "r2"}]
     assert written.content_type == "application/json"
     assert written.bytes_written == len(landed)
+
+
+def bound(program: str, **params: object) -> str:
+    """A program as the engine hands it to a jq block, with these params resolved into it."""
+    scope = ReferenceScope(params=cast("JsonMap", params))
+    return cast("str", resolve_config({"program": program}, scope, jq_fields={"program"})["program"])
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        'x" or true or "',
+        'x") or true or ("',
+        '\\") or true or ("',
+        '\\(1)" or true or "',
+        "x\nor true",
+    ],
+)
+async def test_a_value_bound_into_a_filter_cannot_change_what_it_keeps(ctx: FakeContext, value: str) -> None:
+    program = bound('.tenant == "${params.tenant}"', tenant=value)
+    output = await call_block(JqFilterer(), {"input": [{"tenant": "a"}], "program": program}, ctx)
+    assert output.model_dump()["value"] == []
+
+
+async def test_a_bound_value_is_compared_as_itself_and_keeps_its_type(ctx: FakeContext) -> None:
+    keeps = await call_block(
+        JqFilterer(),
+        {
+            "input": [{"tenant": 'x" or true or "'}, {"tenant": "b"}],
+            "program": bound('.tenant == "${params.t}"', t='x" or true or "'),
+        },
+        ctx,
+    )
+    assert keeps.model_dump()["value"] == [{"tenant": 'x" or true or "'}]
+    numbers = await call_block(JqFilterer(), {"input": [1, 5, 9], "program": bound(". >= ${params.n}", n=5)}, ctx)
+    assert numbers.model_dump()["value"] == [5, 9]
+    lists = await call_block(
+        JqTransformer(), {"input": 2, "program": bound(". as $i | ${params.xs}[$i]", xs=[7, 8, 9])}, ctx
+    )
+    assert lists.model_dump()["value"] == 9
+
+
+@pytest.mark.parametrize(
+    ("program", "params", "expected"),
+    [
+        (
+            '{value: ., band: (if . >= ${params.at} then "high" else "watch" end)}',
+            {"at": 6},
+            {"value": 7, "band": "high"},
+        ),
+        ('"\\(.) of ${params.total}"', {"total": 9}, "7 of 9"),
+        ("def twice: . * 2; twice + ${params.n}", {"n": 1}, 15),
+        (". + ${params.n} # and ${params.n} in a comment", {"n": 1}, 8),
+    ],
+)
+async def test_a_bound_program_keeps_its_shape(
+    ctx: FakeContext, program: str, params: dict[str, object], expected: object
+) -> None:
+    output = await call_block(JqTransformer(), {"input": 7, "program": bound(program, **params)}, ctx)
+    assert output.model_dump()["value"] == expected
+
+
+async def test_a_refusal_of_a_bound_program_names_the_line_the_same_program_unbound_does(ctx: FakeContext) -> None:
+    with pytest.raises(BlockFailure) as bound_refusal:
+        await call_block(JqTransformer(), {"input": 1, "program": bound(". >= ${params.n} |\n| .", n=1)}, ctx)
+    with pytest.raises(BlockFailure) as plain_refusal:
+        await call_block(JqTransformer(), {"input": 1, "program": ". >= 1 |\n| ."}, ctx)
+    assert bound_refusal.value.message == plain_refusal.value.message

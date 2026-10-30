@@ -300,6 +300,18 @@ STEP_REFERENCE_IN_SQL = DOCUMENT.define(
     "write :name there and give the reference to params",
 )
 
+STEP_PROGRAM_IS_A_REFERENCE = DOCUMENT.define(
+    "step_program_is_a_reference",
+    "${{{reference}}} is the whole of {field}, and a value is never a program; write the program, "
+    "and read the reference in it as the value it is",
+)
+
+STEP_REFERENCE_IN_TEMPLATE = DOCUMENT.define(
+    "step_reference_in_template",
+    "${{{reference}}} is inside {field}, and a value reaches a template only through values; "
+    "give the reference to values under a name, and read that name in the template",
+)
+
 STEP_SHELL_UNREADABLE = DOCUMENT.define(
     "step_shell_unreadable",
     "{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a "
@@ -571,6 +583,18 @@ NOT_FAILED = _unresolved("not_failed", "step {step} did not fail, and its error 
 SHELL_ARITHMETIC = _unresolved(
     "shell_arithmetic",
     "it is inside shell arithmetic, which evaluates a value as an expression, and it is not an integer",
+)
+
+JQ_WHOLE_PROGRAM = _unresolved(
+    "jq_whole_program",
+    "it is the whole of {field}, and a value is never a program; write the program, "
+    "and read the reference in it as the value it is",
+)
+
+TEMPLATE_REFERENCE = _unresolved(
+    "in_template",
+    "it is inside {field}, and a value reaches a template only through values; "
+    "give the reference to values under a name, and read that name in the template",
 )
 
 SHELL_UNREADABLE = _unresolved(

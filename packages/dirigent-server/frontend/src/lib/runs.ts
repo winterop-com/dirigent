@@ -375,7 +375,9 @@ export function triggerSummary(run: RunOut): TriggerSummary {
             parent: run.parent_run_id,
         }
     }
-    return { kind, who: said, said, parent: null }
+    // What the server records of a source or a schedule leads with the kind the row already says.
+    const who = said !== null && said.startsWith(`${kind} `) ? said.slice(kind.length + 1) : said
+    return { kind, who, said, parent: null }
 }
 
 /** Whether anything has been asked of the listing at all. */

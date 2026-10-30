@@ -117,6 +117,46 @@ def test_a_sql_field_keeps_its_escape_and_a_reference_beside_it_resolves(scope: 
     assert resolved == {"sql": "SELECT '${params.day}' WHERE a = :day", "params": {"day": "2026-08-28"}}
 
 
+@pytest.mark.parametrize(
+    ("program", "expected"),
+    [
+        (". >= ${params.count}", "3 as $DIRIGENT_V0 | (. >= $DIRIGENT_V0\n)"),
+        ('.a == "${params.day}"', '"2026-08-28" as $DIRIGENT_V0 | (.a == "\\($DIRIGENT_V0)"\n)'),
+        ('"${params.day}-x"', '"2026-08-28" as $DIRIGENT_V0 | ("\\($DIRIGENT_V0)-x"\n)'),
+        ('"a\\"${params.day}"', '"2026-08-28" as $DIRIGENT_V0 | ("a\\"\\($DIRIGENT_V0)"\n)'),
+        ('"\\(.a) ${params.day}"', '"2026-08-28" as $DIRIGENT_V0 | ("\\(.a) \\($DIRIGENT_V0)"\n)'),
+        ('"\\(.a + ${params.count})"', '3 as $DIRIGENT_V0 | ("\\(.a + $DIRIGENT_V0)"\n)'),
+        (
+            '"\\((.a) + ${params.count}) ${params.day}"',
+            '3 as $DIRIGENT_V0 | "2026-08-28" as $DIRIGENT_V1 | ("\\((.a) + $DIRIGENT_V0) \\($DIRIGENT_V1)"\n)',
+        ),
+        ('# say "hi\n. >= ${params.count}', '3 as $DIRIGENT_V0 | (# say "hi\n. >= $DIRIGENT_V0\n)'),
+        ("${params.regions} | length", '["no", "se"] as $DIRIGENT_V0 | ($DIRIGENT_V0 | length\n)'),
+        (".a", ".a"),
+        ("$${params.day}", "${params.day}"),
+    ],
+)
+def test_a_reference_in_a_jq_program_is_bound_as_a_variable(scope: ReferenceScope, program: str, expected: str) -> None:
+    assert resolve_config({"program": program}, scope, jq_fields={"program"})["program"] == expected
+
+
+@pytest.mark.parametrize("program", ["${params.day}", "  ${params.day}\n"])
+def test_a_jq_program_that_is_only_a_reference_is_refused(scope: ReferenceScope, program: str) -> None:
+    with pytest.raises(UnknownReference) as raised:
+        resolve_config({"program": program}, scope, jq_fields={"program"})
+    assert raised.value.code == "reference.jq_whole_program"
+
+
+def test_a_reference_in_a_template_is_refused_and_one_in_its_values_resolves(scope: ReferenceScope) -> None:
+    with pytest.raises(UnknownReference) as raised:
+        resolve_config({"template": "Day ${params.day}"}, scope, template_fields={"template"})
+    assert raised.value.code == "reference.in_template"
+    resolved = resolve_config(
+        {"template": "Day {{ day }} $${x}", "values": {"day": "${params.day}"}}, scope, template_fields={"template"}
+    )
+    assert resolved == {"template": "Day {{ day }} ${x}", "values": {"day": "2026-08-28"}}
+
+
 def test_a_reference_beside_a_nested_sql_field_resolves(scope: ReferenceScope) -> None:
     resolved = resolve_config(
         {"source": {"query": "SELECT :day", "params": {"day": "${params.day}"}}},

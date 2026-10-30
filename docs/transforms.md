@@ -502,6 +502,21 @@ One exception, and it is deliberate: a config still carrying a `${...}` referenc
 at apply, so it is left to the run. A block asked to compile `${params.filter}` would refuse
 the reference rather than the program.
 
+**A reference in a jq program is a variable, never text.** The engine binds it to a jq variable ahead
+of the program, so a value arriving in a webhook payload is data and cannot end a string or add an
+expression. `. >= ${params.threshold}` compares against the value as its type, and
+`.status == "${params.keep}"` interpolates it into the string. Two things follow:
+
+- A reference is a value and cannot be part of the program. `.${params.field}` does not compile:
+  write `.[${params.field}]`. A program that is nothing but a reference is refused at apply
+  (`document.step_program_is_a_reference`) and when the step starts
+  (`reference.jq_whole_program`).
+- A value keeps its type, so a string `"5"` no longer compares as the number 5. Declare the parameter
+  `type: integer`, or write `tonumber`.
+
+Only `transform.jq`, `map.jq` and `filter.jq` do this. A pack's own engine that takes a program in
+another language, and does not publish `application/jq`, still gets a value spliced into its text.
+
 ## Writing an engine
 
 An engine is a small class. It subclasses the frame for its verb, names its kind, and

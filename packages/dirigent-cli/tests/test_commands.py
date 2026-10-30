@@ -1615,7 +1615,8 @@ def test_tokens_and_users_and_auth_status(server: str) -> None:
     assert created.exit_code == 0
     assert "only time" in created.output
     assert "ci" in invoke("admin", "token", "list").output
-    assert only(machine("admin", "token", "revoke", "ci").stdout, "token.revoked")["code"] == "ci"
+    token = next(row["id"] for row in rows(machine("admin", "token", "list").stdout) if row["name"] == "ci")
+    assert only(machine("admin", "token", "revoke", token).stdout, "token.revoked")["id"] == token
     assert "tester" in invoke("admin", "user", "list").output
     status = machine("auth", "status")
     assert status.exit_code == 0, status.output
@@ -1643,9 +1644,9 @@ def test_a_token_is_minted_and_revoked_for_another_account(server: str) -> None:
     assert minted["name"] == "ci"
     listed = {(row["username"], row["name"]) for row in rows(machine("admin", "token", "list").stdout)}
     assert ("second", "ci") in listed
-    revoked = only(machine("admin", "token", "revoke", "ci", "--user", "second").stdout, "token.revoked")
-    assert revoked["code"] == "ci"
-    assert revoked["username"] == "second"
+    assert only(machine("admin", "token", "revoke", minted["id"]).stdout, "token.revoked")["id"] == minted["id"]
+    listed_after = rows(machine("admin", "token", "list").stdout)
+    assert next(row for row in listed_after if row["id"] == minted["id"])["revoked_at"] is not None
 
 
 def test_an_admin_resets_another_accounts_password(server: str) -> None:

@@ -488,7 +488,7 @@ const state = {
         completed_with_errors: {
             chip: 'completed with errors',
             tile: 'With errors',
-            sentence: 'finished with errors',
+            sentence: 'completed with errors',
         },
         /** Settled with a step that stopped it. */
         failed: {
@@ -1004,6 +1004,10 @@ const refused = {
         carried_schemas:
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
+        step_program_is_a_reference:
+            '{reference} is the whole of {field}, and a value is never a program. Write the program, and read the reference in it as the value it is.',
+        step_reference_in_template:
+            '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
         step_shell_unreadable:
             '{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a value lands in it is not known. Close it or write it another way, or pass the value through argv.',
         step_reference_in_sql:
@@ -1044,6 +1048,10 @@ const refused = {
             'Source kind {kind} is {hosting}, and a contributed kind is the ReceivedSource, PolledSource or HeldSource its hosting names.',
     },
     reference: {
+        in_template:
+            '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
+        jq_whole_program:
+            '{reference} is the whole of {field}, and a value is never a program. Write the program, and read the reference in it as the value it is.',
         in_sql: '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
         not_failed:
             '{reference} cannot be resolved: step {step} did not fail, and its error is read only when it did.',
@@ -1132,10 +1140,9 @@ const refused = {
         no_icon: 'This bundle carries no icon.',
         no_run: 'No run {run_id}.',
         no_schema: 'No schema coded {code}.',
-        no_token: 'No live token named {name}.',
+        no_token: 'No live token with id {id}.',
         no_trigger_document: 'No triggers document coded {code}.',
         no_user: 'No user named {username}.',
-        no_user_token: 'No live token named {name} for {username}.',
         playground_body_too_large: 'The body is larger than the {limit} bytes the playground reads.',
         playground_header_refused:
             'The playground will not set {header} on itself as asked. It sets no header that plants a cookie, asks for a password, navigates a browser off this instance, opens this origin to another site, or weakens what a browser enforces here, and no content type a browser runs.',
@@ -1332,7 +1339,7 @@ const dashboard = {
     nothing_in_flight: 'Nothing is in flight.',
     /** The runs that want somebody, on both screens. */
     troubled_runs: 'Runs in trouble',
-    nothing_troubled: 'Nothing has failed or finished with errors.',
+    nothing_troubled: 'Nothing has failed or completed with errors.',
     /** The firings still ahead. */
     next_firings: 'Next firings',
     no_fire_due: 'No firing is due.',
@@ -1527,8 +1534,6 @@ const editor = {
         tab: (step: string) => `Step · ${step}`,
         /** The panel with no step chosen. */
         none_chosen: 'No step chosen.',
-        /** Under the name box: a name is a display string and the key is what is referenced. */
-        name_note: (step: string) => `Display only. Every reference to this step is by its key, ${step}.`,
         /** Above the list of what one field's own schema refuses. */
         refused_at_apply: 'Applying will be refused because of this step.',
         add_prerequisite: 'Add a prerequisite',
@@ -2530,8 +2535,6 @@ const connections = {
     /** The settings the summary line had no room for. */
     more_settings: (many: string) => `+${many} more`,
 
-    /** Under the name box: what a name is not, and what a reference uses instead. */
-    name_hint: (code: string) => `Display only. Every reference to this credential is by its code, ${code}.`,
     description_placeholder: 'What this credential is for. Markdown is rendered.',
     /** The heading over the controls the kind's own schema built. */
     settings_heading: 'Settings',
@@ -2917,8 +2920,6 @@ const users = {
     revoke_ask: { before: 'Revoke ', after: '?' },
     /** The question before a deactivate, around the username. */
     deactivate_ask: { before: 'Deactivate ', after: '?' },
-    /** Where the name is shared: the API revokes by name, so they go together. */
-    revoke_shared: (many: string) => `Revokes all ${many} live tokens with this name.`,
 
     /** Refused in the browser, so a password the server was always going to refuse never leaves it. */
     password_too_short: (minimum: string) => `A password must be at least ${minimum} characters.`,
@@ -2928,7 +2929,7 @@ const users = {
     /** The same line, where the token is minted for another account. */
     token_scope_for: (username: string) => `This token can do whatever ${username} can.`,
     token_name_placeholder: 'ci-deploy',
-    token_name_hint: 'Lower case, digits and single hyphens. It is what the token is revoked by.',
+    token_name_hint: 'Lower case, digits and single hyphens.',
     /** Beside the secret, which the server answers once and cannot answer again. */
     token_once: 'This is the only time this token will be shown.',
     copy_token: 'Copy the token',

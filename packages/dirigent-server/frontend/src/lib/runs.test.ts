@@ -159,7 +159,12 @@ describe('what started a run', () => {
             triggered_by_kind: 'backfill' as const,
             triggered_by_label: 'backfill nightly',
         }
-        expect(triggerSummary(filled)).toMatchObject({ kind: 'backfill', who: 'backfill nightly' })
+        expect(triggerSummary(filled)).toMatchObject({ kind: 'backfill', who: 'nightly' })
+    })
+
+    test('does not say its kind twice, and keeps what the server recorded whole', () => {
+        const fired = { ...RUN, triggered_by_kind: 'source' as const, triggered_by_label: 'source arrive' }
+        expect(triggerSummary(fired)).toMatchObject({ kind: 'source', who: 'arrive', said: 'source arrive' })
     })
 
     test('names a parent run by its short id, and keeps what the server recorded whole', () => {

@@ -273,10 +273,9 @@ may, and an operator everything a viewer may.
 | --- | --- |
 | `GET /api/v1/tokens` | Listing credentials |
 | `POST /api/v1/tokens` | Minting a credential |
-| `DELETE /api/v1/tokens/{name}` | Revoking a credential |
+| `DELETE /api/v1/tokens/{id}` | Revoking a credential |
 | `GET /api/v1/users/{username}/tokens` | Listing another account's credentials |
 | `POST /api/v1/users/{username}/tokens` | Minting a credential for another account |
-| `DELETE /api/v1/users/{username}/tokens/{name}` | Revoking another account's credential |
 | `GET /api/v1/users` | Listing accounts |
 | `POST /api/v1/users` | Creating an account |
 | `PATCH /api/v1/users/{username}` | Changing what an account may do |
@@ -347,11 +346,12 @@ where it is genuinely useful.
 ## Token lifecycle
 
 A token belongs to exactly one account, and it authenticates as that account with that
-account's role. There are two paths to one. `/api/v1/tokens` is the instance-wide listing plus
-the caller's own mint and revoke: `POST` mints for whoever is calling, and `DELETE` reaches
-only the caller's own tokens. `/api/v1/users/{username}/tokens` is the admin's path over any
-account: list, mint, and revoke a token that belongs to someone else. Both are admin-only, the
-first because listing every credential an instance holds is itself authority.
+account's role. There are two paths to one. `/api/v1/tokens` is the instance-wide listing, the
+caller's own mint, and the revoke: `POST` mints for whoever is calling, and `DELETE
+/api/v1/tokens/{id}` revokes one token, whichever account holds it.
+`/api/v1/users/{username}/tokens` is the admin's path over any account: list and mint a token that
+belongs to someone else. Both are admin-only, the first because listing every credential an instance
+holds is itself authority.
 
 **Minting.** `dg admin token create NAME [--expires 90d]`, or `POST /api/v1/tokens` with
 `expires_in`; `dg admin token create NAME --user U` and `POST /api/v1/users/{username}/tokens` mint for another account. The secret
@@ -367,12 +367,11 @@ answer -- no principal.
 `last_used_at`, `expires_at`, and whether it is revoked. Sessions are excluded from the listing, because a
 browser session is not something an operator manages by name.
 
-**Revocation.** `dg admin token revoke NAME` for the caller's own, `--user U` for another
-account's; over HTTP that is `DELETE /api/v1/tokens/{name}` and
-`DELETE /api/v1/users/{username}/tokens/{name}`. It sets `revoked_at` and takes effect on the
-next request. Revocation matches by **name**, and a name is unique only within an account --
-revoking a name revokes that account's live tokens holding it and reaches no one else's.
-Logging out revokes the session the cookie carries by the same mechanism.
+**Revocation.** `dg admin token revoke ID`, or `DELETE /api/v1/tokens/{id}` over HTTP, with the
+id `dg admin token list` prints. It sets `revoked_at` on that one token and takes effect on the next
+request. Two tokens may share a name, so a name is not what is revoked. A browser session shares the
+table and is not reached from this path. Logging out revokes the session the cookie carries by the
+same mechanism.
 
 **Expiry.** A token may be minted with a lifetime, `--expires 90d` or `expires_in` over HTTP, in
 which case it stops resolving at that instant. There is no default lifetime for an API token,
@@ -687,6 +686,15 @@ arithmetic or `eval`, a value read from `env`, a program in single quotes given 
 variable named by a value through `read`, `printf -v`, `getopts` or `${!var}`, which is not read from
 the command text. Where the value came from a caller and a step needs one of those, use `argv`, which
 involves no shell, or hold the value to a schema first.
+
+### A reference in a program
+
+The same rule holds for what a step hands to another language. A value reaches SQL as a bound
+parameter and never as text (see [SQL](sql.md)). In a jq program a reference is bound to a jq
+variable, so `.tenant == "${params.t}"` compares against the value however it is quoted, and a
+program that is only a reference is refused. In a `report.render` template a reference is refused at
+apply and at the start of the step, because `values` is how a template reads anything. A template or
+a program that means the literal text writes `$${...}`.
 
 ## Secrets lifecycle
 

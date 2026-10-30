@@ -170,14 +170,6 @@ export function sharedNames(
     return shared
 }
 
-/** How many tokens a revoke by this name takes: every one not yet revoked, expired or not. */
-export function revokedTogether(
-    tokens: readonly Pick<TokenOut, 'name' | 'revoked_at'>[],
-    name: string,
-): number {
-    return tokens.filter((token) => token.name === name && token.revoked_at === null).length
-}
-
 /**
  * How many live tokens each account holds, or null where the read did not reach the end.
  *
@@ -206,8 +198,7 @@ export function createTokenFor(username: string, name: string): Promise<IssuedTo
     return apiSend<IssuedTokenOut>(`/users/${encodeURIComponent(username)}/tokens`, 'POST', { name })
 }
 
-/** Revoke one account's live tokens of this name. */
-export function revokeToken(username: string, name: string): Promise<void> {
-    const path = `/users/${encodeURIComponent(username)}/tokens/${encodeURIComponent(name)}`
-    return apiJson<void>(path, { method: 'DELETE' })
+/** Revoke the one live token with this id. */
+export function revokeToken(id: string): Promise<void> {
+    return apiJson<void>(`/tokens/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }

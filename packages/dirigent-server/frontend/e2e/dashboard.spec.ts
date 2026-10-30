@@ -98,7 +98,7 @@ test('the last day is counted by what settled, and a state at zero is not writte
     // fails. A tile is a fixed slot and states its own zero; a clause in prose is the thing that
     // may not, because a reader has to read it to find out nothing happened.
     await expect(main).not.toContainText(/\b0 failed/)
-    await expect(main).not.toContainText(/\b0 finished with errors/)
+    await expect(main).not.toContainText(/\b0 completed with errors/)
     await expect(main).not.toContainText(/\b0 succeeded/)
     await expect(main).not.toContainText(/\b0 running/)
     await expect(main).not.toContainText(/\b0 cancelled/)

@@ -19,11 +19,7 @@ import { LABELS } from '@/lib/labels'
 export function ConnectionForm({ connection, form }: { connection: ConnectionOut; form: ConnectionEdit }) {
     return (
         <>
-            <FormField
-                id="connection-name"
-                label={LABELS.word.name.label}
-                help={LABELS.connections.name_hint(connection.code)}
-            >
+            <FormField id="connection-name" label={LABELS.word.name.label}>
                 <Input
                     id="connection-name"
                     value={form.named}

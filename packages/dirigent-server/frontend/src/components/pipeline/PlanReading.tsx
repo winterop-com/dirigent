@@ -55,10 +55,10 @@ export function PlanReading({ view }: { view: PlanView }) {
                     </ul>
                 </div>
             )}
-            {view.issues.length === 0 &&
+            {view.updates &&
+                view.issues.length === 0 &&
                 view.changes.length === 0 &&
-                view.retiring.length === 0 &&
-                view.tone !== 'critical' && (
+                view.retiring.length === 0 && (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.plan.no_changes}</p>
                 )}
         </div>

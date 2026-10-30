@@ -36,7 +36,7 @@ function plan(over: Partial<PipelinePlan> = {}): PipelinePlan {
     }
 }
 
-const NO_SOURCES = { created: [], updated: [], removed: [] }
+const NO_SOURCES = { created: [], updated: [], removed: [], tokens: [] }
 
 /** A dry run of one plan that takes nothing away. */
 function dry(over: Partial<PipelinePlan> = {}) {
@@ -219,7 +219,7 @@ describe('what an apply would take away', () => {
         const view = planView({
             plan: plan(),
             triggers: materialized({ schedules_removed: ['nightly'] }),
-            sources: { created: [], updated: [], removed: ['orders', 'refunds'] },
+            sources: { ...NO_SOURCES, removed: ['orders', 'refunds'] },
         })
         expect(view.retiring).toEqual([
             'Removes sources orders, refunds, with their inputs and their tokens.',
@@ -244,10 +244,19 @@ describe('what an apply would take away', () => {
             version: 2,
             dry_run: false,
             triggers: materialized({ schedules_removed: ['nightly'] }),
-            sources: { created: ['orders'], updated: [], removed: ['refunds'] },
+            sources: { ...NO_SOURCES, created: ['orders'], removed: ['refunds'] },
         }
         expect(appliedNote(result).detail).toBe(
             'schedules removed: nightly; sources created: orders; sources removed: refunds',
         )
+    })
+})
+
+describe('whether a plan can be said to change nothing', () => {
+    test('is only where it writes over a stored version', () => {
+        expect(planView(dry({ action: 'update' })).updates).toBe(true)
+        expect(planView(dry({ action: 'create' })).updates).toBe(false)
+        expect(planView(dry({ action: 'unchanged' })).updates).toBe(false)
+        expect(planView(dry({ action: 'invalid' })).updates).toBe(false)
     })
 })
