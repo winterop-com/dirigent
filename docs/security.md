@@ -185,8 +185,9 @@ than by an exception list each endpoint remembers:
   instance data. It shares the UI's origin, so what a caller can make it answer is contained:
   every answer carries `nosniff` and a sandboxing CSP, it answers under no content type a browser
   runs, it sets no header that would make the origin act for the caller, it redirects only on
-  its own origin, and it reads at most 1 MiB of a body. `DIRIGENT_PLAYGROUND_ENABLED=false`
-  unmounts it.
+  its own origin, and it reads at most 1 MiB of a body. A stream ends 95 seconds after it arrives
+  whether or not its client reads it, and one process holds 32 of them.
+  `DIRIGENT_PLAYGROUND_ENABLED=false` unmounts it.
 
 Every other route under `/api/v1` requires a principal, as a property of the router mount.
 

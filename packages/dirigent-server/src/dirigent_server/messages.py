@@ -116,6 +116,10 @@ PLAYGROUND_HEADER_REFUSED = SERVER.define(
     "another site, or weakens what a browser enforces here, and no content type a browser runs",
 )
 
+PLAYGROUND_STREAMS_FULL = SERVER.define(
+    "playground_streams_full", "the playground holds {limit} streams at once, so send again once one ends"
+)
+
 PLAYGROUND_BODY_TOO_LARGE = SERVER.define(
     "playground_body_too_large", "the body is larger than the {limit} bytes the playground reads"
 )
