@@ -1112,6 +1112,7 @@ const refused = {
             'The playground will not set {header} on itself as asked. It sets no header that plants a cookie, asks for a password, navigates a browser off this instance, opens this origin to another site, or weakens what a browser enforces here, and no content type a browser runs.',
         playground_off_instance:
             '{to} is not a path on this instance. The playground redirects only to paths on this instance.',
+        playground_streams_full: 'The playground holds {limit} streams at once. Send again once one ends.',
         playground_unauthenticated:
             'This route wants a credential: the basic pair {username}/{username}, or the documented bearer token. Both are public constants.',
         prune_names_nothing:

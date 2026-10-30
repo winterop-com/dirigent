@@ -33,23 +33,29 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Final
 from urllib.parse import SplitResult, unquote_plus, urlencode, urlsplit
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, FastAPI, Query, Request, Response
 from fastapi import status as http_status
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, JsonValue
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from dirigent_common import Duration, Size, filler
+from dirigent_core.config import Settings
 from dirigent_server.bodies import read_capped
 from dirigent_server.errors import Refusal
+from dirigent_server.logging import get_logger
 from dirigent_server.messages import (
     PLAYGROUND_BAD_KNOB,
     PLAYGROUND_BODY_TOO_LARGE,
     PLAYGROUND_HEADER_REFUSED,
     PLAYGROUND_OFF_INSTANCE,
+    PLAYGROUND_STREAMS_FULL,
     PLAYGROUND_UNAUTHENTICATED,
 )
 
 router = APIRouter(tags=["playground"])
+
+_logger = get_logger("playground")
 
 PREFIX: Final = "/playground"
 
@@ -158,6 +164,17 @@ MAX_GAP: Final = timedelta(seconds=10)
 #: The longest a whole stream may take. The gap and the message count multiply, so each one
 #: being inside its own bound is not enough to keep an unauthenticated connection short.
 MAX_SPAN: Final = timedelta(seconds=60)
+
+#: How long after it arrives a call to the stream route ends, read or not: its longest delay and
+#: span, and a moment to send what is left.
+STREAM_DEADLINE: Final = timedelta(seconds=30) + MAX_SPAN + timedelta(seconds=5)
+
+#: How many streams one process keeps open at once, which is what one stream's deadline leaves unbounded.
+MAX_STREAMS: Final = 32
+
+#: The most one stream hands the server in one write. A server keeps a write it has accepted until
+#: the client reads it, deadline or not, so this is what a client that stopped reading can still hold.
+MAX_STREAM_WRITE: Final = 64 * 1024
 
 #: The largest filler one stream message may carry. The same ceiling the ``playground.generate``
 #: node puts on its own ``payload``, which is the same filler at the same size.
@@ -595,6 +612,7 @@ async def unreliable(
     responses={
         200: {"content": {NDJSON: {}}, "description": "One JSON record per line: an envelope, messages, an end."},
         422: {"description": "A stream that would run longer than the playground holds a connection open."},
+        503: {"description": "This process holds as many streams as it may."},
     },
 )
 async def stream(
@@ -636,7 +654,14 @@ async def stream(
         gap_ms=round(every.total_seconds() * 1000),
         payload_bytes=payload,
     )
-    return StreamingResponse(
+    if not _SEATS.take():
+        raise Refusal(
+            PLAYGROUND_STREAMS_FULL,
+            status=http_status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": str(int(MAX_GAP.total_seconds()))},
+            limit=MAX_STREAMS,
+        )
+    return _SeatedStream(
         _lines(opened, every, None if payload is None else filler(payload)),
         media_type=NDJSON,
         # A stream a proxy holds until it is whole is not a stream, and the point of the route
@@ -645,7 +670,79 @@ async def stream(
     )
 
 
+class _Seats:
+    """How many streams this process holds, counted so an anonymous caller cannot open them without end."""
+
+    def __init__(self) -> None:
+        """Start with every seat free."""
+        self.taken = 0
+
+    def take(self) -> bool:
+        """Take a seat, or say none is free."""
+        if self.taken >= MAX_STREAMS:
+            return False
+        self.taken += 1
+        return True
+
+    def give_back(self) -> None:
+        """Free a seat."""
+        self.taken -= 1
+
+
+_SEATS: Final = _Seats()
+
+
+class _SeatedStream(StreamingResponse):
+    """A stream that gives back the seat the route took for it, however it ended."""
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Send the stream, and free its seat whether it finished or was cancelled."""
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            _SEATS.give_back()
+
+
+class StreamDeadline:
+    """End a call to the stream route at its deadline, even with a write blocked on a client not reading.
+
+    It wraps every other middleware, because an ``http`` middleware relays a response from a task
+    of its own and a deadline inside it would leave that relay blocked on the client. The response
+    ends without a last chunk, so the server closes the connection and the client sees a cut
+    stream rather than a finished one.
+    """
+
+    def __init__(self, app: ASGIApp, *, path: str) -> None:
+        """Wrap the application, and bound the calls to this one path."""
+        self.app = app
+        self.path = path
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Pass one request through, cancelling all of it once a stream call passes its deadline."""
+        if scope["type"] != "http" or scope.get("path") != self.path:
+            await self.app(scope, receive, send)
+            return
+        try:
+            async with asyncio.timeout(STREAM_DEADLINE.total_seconds()):
+                await self.app(scope, receive, send)
+        except TimeoutError:
+            _logger.info("a playground stream reached its deadline", path=self.path)
+
+
+def install_stream_deadline(app: FastAPI, settings: Settings) -> None:
+    """Bound the stream route's calls, when the playground is mounted. Registered last, so it wraps the rest."""
+    if settings.playground_enabled:
+        app.add_middleware(StreamDeadline, path=f"{settings.api_prefix}{PREFIX}/stream")
+
+
 async def _lines(opened: StreamOpened, every: timedelta, padding: str | None) -> AsyncIterator[str]:
+    """The pieces one stream sends: the envelope, a message per gap, and the end, none past one write."""
+    async for line in _whole_lines(opened, every, padding):
+        for start in range(0, len(line), MAX_STREAM_WRITE):
+            yield line[start : start + MAX_STREAM_WRITE]
+
+
+async def _whole_lines(opened: StreamOpened, every: timedelta, padding: str | None) -> AsyncIterator[str]:
     """The lines one stream sends: the envelope, a message per gap, and the end."""
     started = time.monotonic()
     yield opened.model_dump_json() + "\n"

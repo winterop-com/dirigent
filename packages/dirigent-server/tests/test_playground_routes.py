@@ -1,15 +1,20 @@
 """The playground's routes: the envelope, the knobs, the credential, and the setting."""
 
+import asyncio
 import json
+from datetime import timedelta
 from typing import Any
 
+import httpx2
 import pytest
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+from starlette.types import Message, Scope
 
 from dirigent_core.config import Settings
 from dirigent_server import create_app
+from dirigent_server.routes import playground as routes
 
 PREFIX = "/api/v1/playground"
 
@@ -441,6 +446,100 @@ def test_a_payload_larger_than_the_playground_fills_is_refused(playground: TestC
     assert (
         playground.get(f"{PREFIX}/stream", params={"messages": 1, "every": "0s", "payload": "8mb"}).status_code == 422
     )
+
+
+def _stream_scope() -> Scope:
+    return {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": f"{PREFIX}/stream",
+        "raw_path": f"{PREFIX}/stream".encode(),
+        "root_path": "",
+        "query_string": b"messages=100&every=0s&payload=1mb",
+        "headers": [(b"host", b"testserver")],
+        "client": ("203.0.113.9", 4000),
+        "server": ("testserver", 80),
+    }
+
+
+class _NotReading:
+    """A client that takes the response head and one write, and then never reads again."""
+
+    def __init__(self) -> None:
+        """Start having read nothing."""
+        self.statuses: list[int] = []
+        self.written: list[int] = []
+        self.blocked = asyncio.Event()
+
+    async def receive(self) -> Message:
+        """Send an empty body, then stay connected."""
+        if not self.blocked.is_set():
+            return {"type": "http.request", "body": b"", "more_body": False}
+        await asyncio.Event().wait()
+        return {"type": "http.disconnect"}
+
+    async def send(self, message: Message) -> None:
+        """Take the head and one write, and block on anything after them."""
+        if message["type"] == "http.response.start":
+            self.statuses.append(int(message["status"]))
+            return
+        self.written.append(len(message.get("body", b"")))
+        self.blocked.set()
+        await asyncio.Event().wait()
+
+
+async def test_a_stream_a_client_stopped_reading_ends_at_its_deadline(
+    settings: Settings, admin_token: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes, "STREAM_DEADLINE", timedelta(milliseconds=200), raising=False)
+    client = _NotReading()
+    await asyncio.wait_for(create_app(settings)(_stream_scope(), client.receive, client.send), timeout=5)
+    assert client.statuses == [200]
+    assert client.written, "the stream got as far as a write it could not finish"
+
+
+async def test_a_stream_hands_the_server_no_write_past_the_bound(playground_stream_lines: list[int]) -> None:
+    assert max(playground_stream_lines) <= 64 * 1024, "a client that stops reading holds at most this much of a write"
+
+
+@pytest.fixture
+async def playground_stream_lines(settings: Settings, admin_token: str) -> list[int]:
+    written: list[int] = []
+
+    async def receive() -> Message:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: Message) -> None:
+        if message["type"] == "http.response.body":
+            written.append(len(message.get("body", b"")))
+
+    scope = {**_stream_scope(), "query_string": b"messages=2&every=0s&payload=1mb"}
+    await asyncio.wait_for(create_app(settings)(scope, receive, send), timeout=30)
+    assert sum(written) > 2 * 1024 * 1024
+    return written
+
+
+async def test_one_process_holds_only_so_many_streams_and_frees_a_seat_at_the_deadline(
+    settings: Settings, admin_token: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes, "MAX_STREAMS", 1, raising=False)
+    monkeypatch.setattr(routes, "STREAM_DEADLINE", timedelta(milliseconds=300), raising=False)
+    app = create_app(settings)
+    first = _NotReading()
+    held = asyncio.create_task(app(_stream_scope(), first.receive, first.send))
+    await asyncio.wait_for(first.blocked.wait(), timeout=5)
+
+    async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app), base_url="http://testserver") as client:
+        refused = await client.get(f"{PREFIX}/stream", params={"messages": 1, "every": "0s"})
+        assert refused.status_code == 503, refused.text
+        assert refused.json()["code"] == "server.playground_streams_full"
+        assert refused.headers["retry-after"] == "10"
+        await asyncio.wait_for(held, timeout=5)
+        answered = await client.get(f"{PREFIX}/stream", params={"messages": 1, "every": "0s"})
+        assert answered.status_code == 200, answered.text
 
 
 def test_a_stream_needs_no_credential_either(playground: TestClient) -> None:
