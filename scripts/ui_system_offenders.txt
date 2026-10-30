@@ -3,13 +3,9 @@
 # A ratchet, not a backlog: `scripts/check_ui_system.py` refuses a new offence and refuses to
 # keep a count a migration has lowered. One line per rule and file: rule, path, count.
 # Written by that script's --write; shrink it by moving a screen onto components/ds.
-icon-button	packages/dirigent-server/frontend/src/components/PanelSheet.tsx	1
 icon-button	packages/dirigent-server/frontend/src/components/Rail.tsx	1
 icon-button	packages/dirigent-server/frontend/src/components/ThemeToggle.tsx	1
 icon-button	packages/dirigent-server/frontend/src/components/ToolbarActions.tsx	1
-icon-button	packages/dirigent-server/frontend/src/components/WindowedPane.tsx	1
-icon-button	packages/dirigent-server/frontend/src/components/pipeline/SchemaForm.tsx	1
-icon-button	packages/dirigent-server/frontend/src/components/pipeline/StepTab.tsx	1
 icon-button	packages/dirigent-server/frontend/src/components/run/Panel.tsx	1
 icon-button	packages/dirigent-server/frontend/src/components/run/RunTerminal.tsx	3
 icon-button	packages/dirigent-server/frontend/src/pages/RunDetail.tsx	1
@@ -18,11 +14,9 @@ lucide-import	packages/dirigent-server/frontend/src/components/AppShell.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/CommandPalette.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/NavDrawer.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/PageState.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/PanelSheet.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/Rail.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/RefreshControl.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/ThemeToggle.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/WindowedPane.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/admin/CreateToken.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/alerting/ChannelStrip.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/graph/GraphCanvas.tsx	1
@@ -31,9 +25,7 @@ lucide-import	packages/dirigent-server/frontend/src/components/list/TagFilter.ts
 lucide-import	packages/dirigent-server/frontend/src/components/login/BrandPane.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/AddStepMenu.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/Disclosure.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/pipeline/SchemaForm.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/StepNode.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/pipeline/StepTab.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/run/Panel.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/run/RunTerminal.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/run/StepTab.tsx	1

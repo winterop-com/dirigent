@@ -1,7 +1,7 @@
-import { X } from 'lucide-react'
 import { useEffect } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ds/IconButton'
+import { ICONS } from '@/lib/icons'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
@@ -83,15 +83,12 @@ export function PanelSheet() {
                                     </TabsTrigger>
                                 ))}
                             </TabsList>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label={CLOSE_PANEL_LABEL}
+                            <IconButton
+                                icon={ICONS.clear}
+                                label={CLOSE_PANEL_LABEL}
                                 onClick={closeSheet}
                                 className="ml-auto shrink-0 text-muted-foreground"
-                            >
-                                <X className="size-4" aria-hidden />
-                            </Button>
+                            />
                         </div>
                         {tabs.map((tab) => (
                             <TabsContent

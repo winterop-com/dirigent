@@ -42,6 +42,7 @@ export function Copyable({ value, label }: { value: string; label: string }) {
                 variant="ghost"
                 size="icon-xs"
                 aria-label={label}
+                title={label}
                 onClick={() => {
                     void navigator.clipboard?.writeText(value).then(
                         () => {

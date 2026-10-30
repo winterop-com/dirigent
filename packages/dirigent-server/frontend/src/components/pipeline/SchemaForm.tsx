@@ -1,4 +1,5 @@
-import { X } from 'lucide-react'
+import { IconButton } from '@/components/ds/IconButton'
+import { ICONS } from '@/lib/icons'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { MarkdownLine } from '@/components/Markdown'
@@ -574,17 +575,15 @@ function PairsTable({
                         </td>
                         <td className="pt-1 align-middle">
                             {index < rows.length - 1 && (
-                                <Button
-                                    variant="ghost"
-                                    size="icon-xs"
+                                <IconButton
+                                    icon={ICONS.clear}
+                                    size="xs"
                                     disabled={disabled}
-                                    aria-label={removeLabel(field.name, row, index)}
+                                    label={removeLabel(field.name, row, index)}
                                     onClick={() => {
                                         put(rows.filter((_, at) => at !== index))
                                     }}
-                                >
-                                    <X className="size-3" aria-hidden />
-                                </Button>
+                                />
                             )}
                         </td>
                     </tr>

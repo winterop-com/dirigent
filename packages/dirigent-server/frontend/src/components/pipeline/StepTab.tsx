@@ -1,11 +1,11 @@
-import { X } from 'lucide-react'
+import { IconButton } from '@/components/ds/IconButton'
+import { ICONS } from '@/lib/icons'
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 
 import { KindChip } from '@/components/KindChip'
 import { Disclosure } from '@/components/pipeline/Disclosure'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
 import { Section } from '@/components/run/Panel'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -356,17 +356,15 @@ function Prerequisites({
                         className="flex items-center gap-1 rounded-sm border border-border bg-secondary px-1.5 py-0.5 text-xs"
                     >
                         {name}
-                        <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            aria-label={LABELS.editor.step.stop_waiting(name)}
+                        <IconButton
+                            icon={ICONS.clear}
+                            size="xs"
+                            label={LABELS.editor.step.stop_waiting(name)}
                             disabled={disabled !== undefined}
                             onClick={() => {
                                 onDependsOn(prerequisites.filter((one) => one !== name))
                             }}
-                        >
-                            <X className="size-3" aria-hidden />
-                        </Button>
+                        />
                     </span>
                 ))}
             </div>

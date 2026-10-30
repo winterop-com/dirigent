@@ -21,13 +21,15 @@ export interface IconButtonProps extends Omit<
     shortcut?: string
     /** Why the control is shut. It stays focusable and hoverable, and its tooltip says this. */
     why?: string
-    size?: 'sm' | 'md'
+    size?: 'xs' | 'sm' | 'md'
     variant?: 'ghost' | 'outline'
     /** A control that takes something away, which tints critical under the pointer. */
     destructive?: boolean
 }
 
-const SIZES = { sm: 'icon-sm', md: 'icon' } as const
+const SIZES = { xs: 'icon-xs', sm: 'icon-sm', md: 'icon' } as const
+
+const GLYPHS = { xs: 'size-3', sm: 'size-3.5', md: 'size-4' } as const
 
 /**
  * A button that is an icon and nothing else, with a name and a tooltip it cannot be drawn without.
@@ -68,7 +70,7 @@ export function IconButton({
                     />
                 }
             >
-                <Glyph className={size === 'sm' ? 'size-3.5' : 'size-4'} aria-hidden />
+                <Glyph className={GLYPHS[size]} aria-hidden />
             </TooltipTrigger>
             <TooltipContent>
                 {iconButtonTip({ label, tooltip, why })}
