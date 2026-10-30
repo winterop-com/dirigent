@@ -1,5 +1,6 @@
 """Tests for the dirigent command line."""
 
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -302,6 +303,14 @@ def test_the_worker_refuses_to_start_on_sqlite() -> None:
     problem = refusal(result.stdout)
     assert "refuses to start on SQLite" in problem["message"]
     assert problem["status"] == GUARD_EXIT
+
+
+def test_the_worker_takes_the_secret_key_out_of_its_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """What a child inherits or a library reads from ``os.environ`` no longer finds it."""
+    monkeypatch.setenv("DIRIGENT_SECRET_KEY", "the-envelope-key")
+    runner.invoke(app, ["worker"])
+    assert "DIRIGENT_SECRET_KEY" not in os.environ
+    assert get_settings().secret_key is not None
 
 
 def test_the_server_refuses_to_embed_the_scheduler_on_sqlite() -> None:

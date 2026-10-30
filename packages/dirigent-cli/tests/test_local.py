@@ -494,6 +494,18 @@ steps:
 """
 
 
+def test_a_local_run_keeps_its_own_key_beside_a_configured_key_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A throwaway instance mints its key, so the host's key file is not a second one to refuse."""
+    held = tmp_path / "key"
+    held.write_text("the-hosts-key")
+    monkeypatch.setenv("DIRIGENT_SECRET_KEY_FILE", str(held))
+    settings = local.local_settings(tmp_path, inherited=Settings())
+    assert settings.secret_key is not None
+    assert settings.secret_key.get_secret_value() != "the-hosts-key"
+
+
 def test_the_parallel_sleep_example_waits_three_times_at_once(tmp_path: Path) -> None:
     """Steps with no edges between them are all roots, so nine seconds of waiting takes five."""
     started = time.monotonic()

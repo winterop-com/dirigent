@@ -65,6 +65,16 @@ SECRET_KEY_MISSING = SECRET.define(
 
 EMPTY_SECRET = SECRET.define("empty", "{fields} cannot be stored empty: a required secret needs a value")
 
+SECRET_KEY_TWICE = SECRET.define(
+    "key_twice",
+    "secret_key and secret_key_file are both set: name the envelope key one way, so which one seals is not a guess",
+)
+
+SECRET_KEY_FILE_UNREADABLE = SECRET.define(
+    "key_file_unreadable",
+    "the secret key file {path} cannot be read as a key: {detail}",
+)
+
 SECRET_KEY_MISMATCH = SECRET.define(
     "key_mismatch",
     "the configured DIRIGENT_SECRET_KEY cannot open this envelope{sealed_by}: "
