@@ -44,8 +44,9 @@ class ShellRunConfig(ShellVariables):
     Every ``${...}`` in it is rewritten by the engine to a variable it sets in this command's
     environment, so a value that came from a webhook payload is one word the shell never
     parses, however the reference was quoted -- and inside single quotes, which a shell keeps
-    literal, the command reads that variable's name rather than its value. Prefer ``argv``
-    anyway: it involves no shell at all."""
+    literal, the command reads that variable's name rather than its value. Inside shell
+    arithmetic, which evaluates a value as an expression, a reference must resolve to an
+    integer. Prefer ``argv`` anyway: it involves no shell at all."""
 
     cwd: str | None = None
     """A directory relative to the run's work directory; never an absolute path."""

@@ -91,6 +91,21 @@ A profile names a server and how to obtain a token for it. Profiles are resolved
 `~/.config/dirigent/profiles.yaml` -- so `cd`-ing into a pipeline repository points the CLI at
 that repository's server without anyone remembering a flag.
 
+A project's file travels with its repository, so whoever wrote it may not be you. Three rules
+hold it to addressing:
+
+- **It may not name a command.** `token_cmd` is refused in a `.dirigent/profiles.yaml`, and
+  nothing runs. A profile that needs a command lives in the user file.
+- **It must be yours.** A project's `profiles.yaml` or `.env` that another user owns, or that
+  anyone may rewrite, is passed over as though it were not there. In a container or a shared
+  directory, a project file owned by another uid is not read at all, so name the server with
+  `--url` or `DG_URL`.
+- **A token from your shell does not follow its URL off this host.** A `--token`, a `DG_TOKEN`,
+  or a variable a `token_env` reads out of your shell is refused on its way to a server the
+  project's file or `.env` named, unless that server is on loopback. Name the server yourself
+  with `--url` or `DG_URL`, or keep a token for it in the project's `.env`, and the refusal says
+  so. A token the project supplied itself, in that `.env`, goes to the project's server.
+
 ```yaml
 # ~/.config/dirigent/profiles.yaml
 default: local
@@ -138,7 +153,7 @@ Precedence is `--url` / `--token` flags, then `DG_URL` / `DG_TOKEN`, then the se
 profile. A `.env` at the root of the project, beside `.dirigent/`, stands in for any of these
 variables the shell does not set, including the one a `token_env` names: that is where
 `dg init` puts the token it mints, and where a `DG_STAGING_TOKEN` for the profile above can
-live too. The shell's own value always wins over the file's. The same file is the settings
+live too. The shell's own value always wins over the file's, within the rules above. The same file is the settings
 layer under the environment, which is how the `DIRIGENT_SECRET_KEY` beside that token reaches
 every command run in the project directory.
 
@@ -921,7 +936,7 @@ verb and whose fields are the identity of what changed:
 | `source.input` | `dg source inputs` | One per input, newest first, under `fields`: `outcome`, the HTTP `status` it was answered with, the `run_id` or the refusal's `code` and `reason`, `method`, `path`, `body_bytes`, `duration_ms`, `caller` |
 | `source.paused` / `.resumed` | `dg source pause`, `dg source resume` | `code`, `pipeline`, and the `state` it is in now |
 | `source.token_rotated` | `dg source rotate-token` | `code`, `pipeline`, the `url` to call, its `auth` and, for a signed source, the signature `header`, and the new `token` or signing secret, once |
-| `source.secret_set` | `dg source set-secret` | `code`, `pipeline`, and the `prefix` of the secret it now holds |
+| `source.secret_set` | `dg source set-secret` | `code`, `pipeline`, and the `fingerprint` of the secret it now holds, a short SHA-256 and none of the secret |
 | `source.called` | `dg source call` | `code`, `pipeline`, `method`, `url`, and the `status` and `body` it was answered with |
 | `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |

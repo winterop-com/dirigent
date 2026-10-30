@@ -18,9 +18,14 @@ that reads it out of a file in a 0700 directory of its own; an ssh key is a 0600
 ``GIT_SSH_COMMAND`` names. The remote is always given to git with any userinfo stripped, so the
 checkout's ``.git/config`` holds no credential either, and the directory holding both goes away
 when the step leaves however it leaves.
+
+Git reads no configuration a step could have written. ``HOME`` and ``XDG_CONFIG_HOME`` are an
+empty directory inside that private one, the global and system files are switched off, and the
+one command that talks to a remote from inside an existing checkout runs from outside it.
 """
 
 import contextlib
+import os
 import re
 import shutil
 import tempfile
@@ -58,6 +63,9 @@ from dirigent_plugin import (
 
 #: How long a connection check may spend listing a remote's refs.
 CHECK_TIMEOUT_SECONDS = 30.0
+
+#: The file git reads as its global configuration, which is no file at all.
+GLOBAL_CONFIG = os.devnull
 
 #: A ref written as a full object name, which no clone can resolve by ``--branch``.
 COMMIT_SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -169,7 +177,7 @@ class GitConnectionKind(ConnectionKind):
                 try:
                     code, out, err = await subprocess.output(
                         argv=[binary, "ls-remote", "--heads", "--", public_url(settings.url)],
-                        directory=root,
+                        directory=sealed.home,
                         environ=environ,
                         timeout_seconds=CHECK_TIMEOUT_SECONDS,
                         what="git ls-remote",
@@ -263,7 +271,7 @@ class GitCheckoutOperator(Operator[GitCheckoutConfig, GitCheckoutOutput]):
 
         with credentials(settings, root) as sealed:
             environ = {**subprocess.environment([], {}, root), **sealed.environ}
-            git = _Git(binary, environ, config.timeout.total_seconds(), sealed.secrets, ctx)
+            git = _Git(binary, environ, config.timeout.total_seconds(), sealed, ctx)
             standing = await _standing(git, config, destination, remote)
             if not standing:
                 _clear(destination)
@@ -284,12 +292,13 @@ class GitCheckoutOperator(Operator[GitCheckoutConfig, GitCheckoutOutput]):
 
 
 class Sealed:
-    """What one step's credential became: an environment for git, and the strings to scrub."""
+    """What one step's credential became: an environment for git, the strings to scrub, and its home."""
 
-    def __init__(self, environ: dict[str, str], secrets: list[str]) -> None:
-        """Hold the variables git is given and the values that must never be logged."""
+    def __init__(self, environ: dict[str, str], secrets: list[str], home: Path) -> None:
+        """Hold the variables git is given, the values that must never be logged, and the empty home."""
         self.environ = environ
         self.secrets = secrets
+        self.home = home
 
 
 @contextlib.contextmanager
@@ -297,8 +306,9 @@ def credentials(settings: GitConnectionConfig, parent: Path) -> Generator[Sealed
     """Materialise the connection's credential into a private directory, and take it away again.
 
     The directory is 0700 and holds a 0700 askpass helper and its two 0600 answers, or a 0600
-    private key and the host keys to check against. Nothing in it outlives the step: the
-    directory goes whether the checkout succeeded, failed, or was cancelled.
+    private key and the host keys to check against, beside the empty directory git is given as
+    its home. Nothing in it outlives the step: the directory goes whether the checkout
+    succeeded, failed, or was cancelled.
     """
     with secrets.private_directory(parent, "dirigent-git-") as directory:
         yield _materialise(settings, directory)
@@ -308,7 +318,16 @@ def _materialise(settings: GitConnectionConfig, directory: Path) -> Sealed:
     """Write the credential's files and name the environment that points git at them."""
     # git never asks a terminal for anything: there is none, and a prompt would hang the step
     # until its deadline instead of failing it with what went wrong.
-    environ = {"GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1"}
+    home = directory / "home"
+    home.mkdir()
+    environ = {
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": GLOBAL_CONFIG,
+        "GIT_CEILING_DIRECTORIES": str(directory),
+        "HOME": str(home),
+        "XDG_CONFIG_HOME": str(home),
+    }
     hidden: list[str] = []
     if settings.token is not None:
         token = settings.token.get_secret_value()
@@ -330,20 +349,19 @@ def _materialise(settings: GitConnectionConfig, directory: Path) -> Sealed:
             options += ["-o", "StrictHostKeyChecking=accept-new"]
         environ["GIT_SSH_COMMAND"] = " ".join(["ssh", *(_quote(one) for one in options)])
         hidden += [settings.ssh_key.get_secret_value(), str(key)]
-    return Sealed(environ, hidden)
+    return Sealed(environ, hidden, home)
 
 
 class _Git:
     """One repository's git, with the binary, the environment and the redaction already bound."""
 
-    def __init__(
-        self, binary: str, environ: dict[str, str], timeout: float, secrets: list[str], ctx: StepContext
-    ) -> None:
+    def __init__(self, binary: str, environ: dict[str, str], timeout: float, sealed: Sealed, ctx: StepContext) -> None:
         """Hold what every invocation of this step's git shares."""
         self.binary = binary
         self.environ = environ
         self.timeout = timeout
-        self.secrets = secrets
+        self.secrets = sealed.secrets
+        self.home = sealed.home
         self.ctx = ctx
         self.stdout_uri = ""
         self.stderr_uri = ""
@@ -410,6 +428,9 @@ async def _standing(git: _Git, config: GitCheckoutConfig, destination: Path, rem
 
     A target that is itself a symlink is never standing: what it points at is some other
     directory, so it is unlinked and replaced rather than looked into.
+
+    The ref listing runs from the empty home rather than the target, because a ``.git/config``
+    already in the work directory could name a command for git to run when it reaches a remote.
     """
     if destination.is_symlink() or not (destination / ".git").exists():
         return False
@@ -419,7 +440,7 @@ async def _standing(git: _Git, config: GitCheckoutConfig, destination: Path, rem
     head = out.decode("utf-8", errors="replace").strip()
     if config.ref is not None and COMMIT_SHA.match(config.ref):
         return head == config.ref
-    code, out, _err = await git.call(destination, "ls-remote", "--", remote, config.ref or "HEAD")
+    code, out, _err = await git.call(git.home, "ls-remote", "--", remote, config.ref or "HEAD")
     if code != 0:
         return False
     lines = _first_lines(out)
