@@ -1054,6 +1054,10 @@ const refused = {
         no_code:
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
     },
+    secret: {
+        key_file_unreadable: 'The secret key file {path} cannot be read as a key: {detail}',
+        key_twice: 'Both secret_key and secret_key_file are set. Name the envelope key one way.',
+    },
     server: {
         bad_credentials: 'Invalid username or password.',
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',

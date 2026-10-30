@@ -52,7 +52,14 @@ from dirigent_cli.output import configure, detail_mode, emit_fact, emit_problem,
 from dirigent_client.enums import UserRole
 from dirigent_common import Issue, raised_detail, validation_issues
 from dirigent_core import migrations
-from dirigent_core.config import STATE_DIR, Settings, get_settings, redacted_url, reset_settings_cache
+from dirigent_core.config import (
+    STATE_DIR,
+    Settings,
+    drop_secret_key_variable,
+    get_settings,
+    redacted_url,
+    reset_settings_cache,
+)
 from dirigent_core.logging import configure_logging, silence_stdout
 from dirigent_core.messages import SCHEMA_STALE
 from dirigent_core.protocol import FORMATS, Format, Record, make
@@ -952,6 +959,7 @@ def dev(
         reset_settings_cache()
     state = ctx.find_object(CliState)
     settings = get_settings()
+    drop_secret_key_variable()
     # A developer convenience starts its own logging at WARNING and -v is what asks for more,
     # while a named DIRIGENT_LOG_LEVEL still wins.
     _process_logging(
@@ -1303,6 +1311,7 @@ def worker(
     import asyncio
 
     settings = get_settings()
+    drop_secret_key_variable()
     _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
     configure_telemetry(settings)
     if settings.is_sqlite:

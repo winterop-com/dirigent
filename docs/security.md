@@ -454,6 +454,40 @@ expires, when the engine's step timeout cancels the attempt, and on any other wa
 block. A command is usually `sh -c`, so killing only the process that was started would
 leave the children doing the work still running.
 
+### What an allowlisted command can still reach
+
+The denial above and the built environment stop a step from being *handed* a secret. They are
+not a boundary against a command that goes looking, and allowlisting `shell.run` means allowing
+that. A command runs as the worker's user, so it can do what that user can do.
+
+What holds, and what it covers:
+
+- **Every block's child process starts from an explicit environment.** `shell.run`,
+  `docker.compose.*`, `docker.build` and `git.checkout` build one from `PATH`, `LANG`, `LC_ALL`,
+  `TZ` and what the step names, and a `docker.run` container gets only what its step names. A
+  secret is not in what they inherit.
+- **`dg worker` and `dg dev` take `DIRIGENT_SECRET_KEY` out of `os.environ` at start-up.** That
+  covers what `os.environ` reaches: a subprocess a plugin starts without naming an environment,
+  and a library reading a variable.
+
+What does not hold:
+
+- **On Linux the variable is still in `/proc/<pid>/environ`.** That file is the environment the
+  process was started with, kept by the kernel, and removing a variable from `os.environ` does not
+  change it. Any process of the same user can read it, which includes a command the worker
+  started: `cat /proc/$PPID/environ` prints the key. The same file holds every other variable the
+  worker was started with, including `DIRIGENT_DATABASE_URL` and its password.
+- **A key file only moves the problem.** `DIRIGENT_SECRET_KEY_FILE` keeps the key out of
+  `/proc/<pid>/environ` altogether, so prefer it, and it is what makes a leaked environment dump
+  harmless. But a command running as the worker's user can open the same file the worker did,
+  unless the deployment removes it or takes it away from that user after start-up.
+
+**So treat a worker that may run `shell.run` as holding the instance's key.** Where that matters,
+run those steps on a dedicated worker with its own `--tag`, on a host that holds nothing else, and
+declare `requires.workers` on the pipelines that use them. An instance with no key configured
+still starts, so a worker whose steps open no connection can be started without one; a stack
+whose artifact root resolves through a sealed connection cannot, because every worker opens it.
+
 ## Secrets lifecycle
 
 A connection's secret fields never sit in a readable column. The mechanism is envelope
@@ -476,12 +510,14 @@ for its connection. It does not happen when a connection is listed, shown, or ap
 
 ### Where the key comes from
 
-`DIRIGENT_SECRET_KEY`, and nothing else. Per twelve-factor, it is configuration in the
-environment: an environment variable, a line in the `.env` of the directory the process runs
-in, or a value in the `dirigent.yaml` it reads at boot, in that order of precedence.
+`DIRIGENT_SECRET_KEY` or `DIRIGENT_SECRET_KEY_FILE`, and nothing else; naming both is refused at
+start-up. Per twelve-factor, the key is configuration in the environment: an environment
+variable, a line in the `.env` of the directory the process runs in, or a value in the
+`dirigent.yaml` it reads at boot, in that order of precedence. `DIRIGENT_SECRET_KEY_FILE` names a
+file holding it instead, such as a mounted secret under `/run/secrets`, read once at start-up.
 **Dirigent assumes no secret manager.** There is no KMS integration, no Vault client, no
-key-fetch hook. If your platform provides secrets, its job is to put this variable in the
-process environment before dirigent starts; dirigent does not reach out for it.
+key-fetch hook. If your platform provides secrets, its job is to put this variable or that file
+in place before dirigent starts; dirigent does not reach out for it.
 
 `dg init --template local` writes a generated key into the project's `.env`, which that
 project's `.gitignore` keeps out of the repository and whose mode is owner-only, so a local

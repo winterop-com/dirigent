@@ -1,5 +1,7 @@
 """Tests for the layered instance configuration."""
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,57 @@ from dirigent_core.config import (
     Settings,
     candidate_config_paths,
 )
+
+
+def test_a_key_file_supplies_the_secret_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A trailing newline is how a file ends, and is no part of the key."""
+    held = tmp_path / "key"
+    held.write_text("a-key-from-a-file\n")
+    monkeypatch.setenv("DIRIGENT_SECRET_KEY_FILE", str(held))
+    secret_key = Settings().secret_key
+    assert secret_key is not None
+    assert secret_key.get_secret_value() == "a-key-from-a-file"
+
+
+def test_a_key_named_two_ways_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    held = tmp_path / "key"
+    held.write_text("one")
+    monkeypatch.setenv("DIRIGENT_SECRET_KEY_FILE", str(held))
+    monkeypatch.setenv("DIRIGENT_SECRET_KEY", "another")
+    with pytest.raises(ValidationError, match="both set"):
+        Settings()
+
+
+@pytest.mark.parametrize("content", [None, "", "  \n"])
+def test_a_key_file_that_holds_no_key_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, content: str | None
+) -> None:
+    """An instance that started without its key would fail far later, on the first secret."""
+    held = tmp_path / "key"
+    if content is not None:
+        held.write_text(content)
+    monkeypatch.setenv("DIRIGENT_SECRET_KEY_FILE", str(held))
+    with pytest.raises(ValidationError, match="cannot be read as a key"):
+        Settings()
+
+
+@pytest.mark.skipif(not Path("/proc/self/environ").exists(), reason="/proc holds an environment only on Linux")
+def test_dropping_the_variable_leaves_the_kernels_copy_of_the_environment() -> None:
+    """What docs/security.md says the drop does not do, held so the page stays true."""
+    program = (
+        "import os\n"
+        "from dirigent_core.config import drop_secret_key_variable\n"
+        "drop_secret_key_variable()\n"
+        "assert 'DIRIGENT_SECRET_KEY' not in os.environ\n"
+        "print(b'the-envelope-key' in open('/proc/self/environ', 'rb').read())\n"
+    )
+    finished = subprocess.run(  # noqa: S603 - a fixed program, run by this interpreter
+        [sys.executable, "-c", program],
+        env={"DIRIGENT_SECRET_KEY": "the-envelope-key"},
+        capture_output=True,
+        check=True,
+    )
+    assert finished.stdout.strip() == b"True"
 
 
 def test_defaults_target_sqlite_for_development() -> None:

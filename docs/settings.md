@@ -39,6 +39,7 @@ environment, and the server inside one never opens the file.
 | `inline_artifact_max` | `DIRIGENT_INLINE_ARTIFACT_MAX` | `16384` | Outputs at or below this serialized size are stored inline instead of as a file. |
 | `inline_capture` | `DIRIGENT_INLINE_CAPTURE` | `8192` | How much of a captured stream a block may inline in its output. |
 | `secret_key` | `DIRIGENT_SECRET_KEY` | `null` | Envelope key for connection secrets; required before any secret is stored. |
+| `secret_key_file` | `DIRIGENT_SECRET_KEY_FILE` | `null` | A file holding the envelope key, in place of `secret_key`; setting both is refused. |
 | `worker_concurrency` | `DIRIGENT_WORKER_CONCURRENCY` | `8` | How many step attempts one worker process executes at once. |
 | `worker_tags` | `DIRIGENT_WORKER_TAGS` | `[]` | Capability tags a worker advertises to the claim query. |
 | `worker_name` | `DIRIGENT_WORKER_NAME` | `null` | Registry name of this worker; defaults to hostname plus process id. |

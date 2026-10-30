@@ -5,7 +5,7 @@ import os
 from datetime import timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import (
@@ -17,9 +17,11 @@ from pydantic_settings import (
 )
 
 from dirigent_common import Duration, EntityName, Size
-from dirigent_core.messages import POOL_TOO_SMALL
+from dirigent_core.messages import POOL_TOO_SMALL, SECRET_KEY_FILE_UNREADABLE, SECRET_KEY_TWICE
 
 CONFIG_FILE_ENV = "DIRIGENT_CONFIG_FILE"
+
+SECRET_KEY_ENV = "DIRIGENT_SECRET_KEY"
 
 #: The project file that carries an instance's own variables, read from the working
 #: directory. A command run elsewhere does not see it.
@@ -206,6 +208,12 @@ class Settings(BaseSettings):
 
     secret_key: SecretStr | None = None
     """Envelope key for connection secrets; required before any secret is stored."""
+
+    secret_key_file: Path | None = None
+    """A file holding the envelope key, in place of ``secret_key``; setting both is refused.
+
+    Read once at start-up, its surrounding whitespace dropped. The key is then never in the
+    process's environment, which is what ``/proc/<pid>/environ`` shows."""
 
     worker_concurrency: int = Field(default=8, ge=1)
     """How many step attempts one worker process executes at once.
@@ -427,6 +435,23 @@ class Settings(BaseSettings):
         prefix = "/" + value.strip("/")
         return prefix.rstrip("/") or "/"
 
+    @model_validator(mode="before")
+    @classmethod
+    def _read_secret_key_file(cls, data: dict[str, Any]) -> dict[str, Any]:
+        """Put the key a named file holds where ``secret_key`` is read from, refusing two sources."""
+        named = data.get("secret_key_file")
+        if not named:
+            return data
+        if data.get("secret_key"):
+            raise ValueError(SECRET_KEY_TWICE.render())
+        try:
+            key = Path(named).expanduser().read_text().strip()
+        except (OSError, UnicodeDecodeError) as error:
+            raise ValueError(SECRET_KEY_FILE_UNREADABLE.render(path=str(named), detail=str(error))) from error
+        if not key:
+            raise ValueError(SECRET_KEY_FILE_UNREADABLE.render(path=str(named), detail="it is empty"))
+        return {**data, "secret_key": key}
+
     @model_validator(mode="after")
     def _pool_covers_concurrency(self) -> "Settings":
         """Refuse a pool too small for the concurrency it has to carry.
@@ -497,6 +522,16 @@ def get_settings() -> Settings:
 def reset_settings_cache() -> None:
     """Forget the cached settings, so a test or a CLI flag can re-resolve them."""
     get_settings.cache_clear()
+
+
+def drop_secret_key_variable() -> None:
+    """Take the envelope key out of ``os.environ``, for a process whose settings already hold it.
+
+    What a child inherits by default and what a library reads from ``os.environ`` stop finding
+    it. The kernel keeps the environment a process started with, so ``/proc/<pid>/environ``
+    still shows it to anything running as the same user.
+    """
+    os.environ.pop(SECRET_KEY_ENV, None)
 
 
 def redacted_url(settings: Settings) -> str:
