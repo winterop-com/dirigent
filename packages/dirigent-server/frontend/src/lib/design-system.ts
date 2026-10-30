@@ -82,3 +82,35 @@ export const DIALOG_WIDTHS = {
 } as const
 
 export type DialogWidth = keyof typeof DIALOG_WIDTHS
+
+/** One section of the gallery, by the id its heading and its index entry share. */
+export type GallerySection =
+    | 'titles'
+    | 'headings'
+    | 'links'
+    | 'labels'
+    | 'dots'
+    | 'icons'
+    | 'buttons'
+    | 'search'
+    | 'forms'
+    | 'switches'
+    | 'notices'
+    | 'dialogs'
+    | 'facts'
+
+/** The gallery's index: what somebody is looking for, in the order the page draws it. */
+export const GALLERY_INDEX: readonly {
+    group: 'text' | 'marks' | 'controls' | 'containers'
+    sections: readonly GallerySection[]
+}[] = [
+    { group: 'text', sections: ['titles', 'headings', 'links'] },
+    { group: 'marks', sections: ['labels', 'dots', 'icons'] },
+    { group: 'controls', sections: ['buttons', 'search', 'forms', 'switches'] },
+    { group: 'containers', sections: ['notices', 'dialogs', 'facts'] },
+]
+
+/** The anchor of one gallery section, which is what its index entry links to. */
+export function galleryAnchor(section: GallerySection): string {
+    return `ds-${section}`
+}

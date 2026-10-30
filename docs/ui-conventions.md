@@ -2005,7 +2005,12 @@ again is a second answer to a question the system has already answered. `/design
 component in every variant and state -- enabled, shut with a reason, hovered, focused, empty,
 loading, long text truncating -- in both modes; it is offered by the palette ("Design system")
 and not by the rail. A component that needs a new variant gets it in `ds/` and on that screen
-first, then on the page that asked.
+first, then on the page that asked. **The gallery is named for what somebody is looking for, not
+for how the code files it**: Text (Titles, Headings, Links), Marks (Labels, Status dots, Icons),
+Controls (Buttons, Search, Form fields, Switches), Containers (Notices, Dialogs, Lists of facts),
+with an index beside them that follows the scroll and a plain sentence under a heading only where it
+adds a fact. A component keeps its own name in the code. A specimen stands on the section's card with
+no frame of its own.
 
 | Component | When |
 | --- | --- |
@@ -2026,9 +2031,10 @@ first, then on the page that asked.
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface
 draws a mark for -- create, edit, delete, run, rerun, pause, resume, cancel, refresh, recheck,
-clear a filter, search, copy, external, settings, fit the view, open in a window, a starter, and
-the nouns: pipeline, run, step, block, connection, schema, trigger, schedule, source, user,
-token, worker -- to one lucide icon, and no two concepts to the same one: fitting the canvas is
+clear a filter, search, copy, external, settings, fit the view, open in a window, upload, a
+template, the sidebar, and the nouns: pipeline, run history, step, block, connection, schema, trigger, schedule, source, user,
+token, worker -- to one lucide icon, named for what it means rather than where it was first drawn,
+and no two concepts to the same one: fitting the canvas is
 `Scan` and opening a pane in a window is `Maximize2`. A page or a component that needs a mark
 with no concept adds the concept there. A kind's mark is still `lib/glyphs`.
 
