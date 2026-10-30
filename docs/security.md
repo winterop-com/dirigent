@@ -445,8 +445,9 @@ before the check existed.
 
 The same boundary holds for a block that never touches the environment on purpose but could:
 `transform.jq` shadows jq's own `env` and `$ENV`, so a program reads an empty object rather
-than the worker's process. An engine that runs behind no allowlist must not be a way around
-one.
+than the worker's process, and the process a program runs in starts with `PATH`, `LANG`,
+`LC_ALL` and `TZ` and nothing else from the worker's environment, so a way past the shadow finds
+no secret behind it. An engine that runs behind no allowlist must not be a way around one.
 
 `shell.run` additionally passes only `PATH`, `LANG`, `LC_ALL`, and `TZ` plus whatever the
 allowlist names -- never the worker's environment wholesale -- and gets a working directory

@@ -24,6 +24,7 @@ pipe closing is how the parent says it is done.
 import asyncio
 import atexit
 import json
+import os
 import subprocess
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar
@@ -40,6 +41,10 @@ from dirigent_plugin.transforms import Engine, ProgramConfig, TransformError
 #: TransformError, because nothing about the program says it will happen again.
 RUNNER_STOPPED = "the process running the program stopped before it answered"
 
+#: All of the worker's environment a runner starts with. A program runs behind no allowlist,
+#: and the worker's environment holds the instance's secrets.
+RUNNER_ENVIRONMENT = ("PATH", "LANG", "LC_ALL", "TZ")
+
 
 class ProgramRunner:
     """One runner process, and the two pipes a program and its outputs cross."""
@@ -51,6 +56,7 @@ class ProgramRunner:
             self.command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
+            env={name: os.environ[name] for name in RUNNER_ENVIRONMENT if name in os.environ},
         )
         # Popen types both pipes as optional; both were asked for.
         self._to = cast("IO[bytes]", self.process.stdin)
