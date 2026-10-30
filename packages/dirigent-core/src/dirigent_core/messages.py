@@ -289,6 +289,12 @@ STEP_BLOCK_MISSING = DOCUMENT.define(
     "no block {block} is installed; install the plugin package that contributes it",
 )
 
+STEP_REFERENCE_IN_SQL = DOCUMENT.define(
+    "step_reference_in_sql",
+    "${{{reference}}} is inside {field}, and a value reaches SQL only as a bound parameter; "
+    "write :name there and give the reference to params",
+)
+
 STEP_UNSAFE_BLOCK = DOCUMENT.define(
     "step_unsafe_block",
     "block {block} executes code on the worker and DIRIGENT_ENABLED_UNSAFE_BLOCKS "
@@ -554,6 +560,12 @@ NOT_FAILED = _unresolved("not_failed", "step {step} did not fail, and its error 
 SHELL_ARITHMETIC = _unresolved(
     "shell_arithmetic",
     "it is inside shell arithmetic, which evaluates a value as an expression, and it is not an integer",
+)
+
+SQL_REFERENCE = _unresolved(
+    "in_sql",
+    "it is inside {field}, and a value reaches SQL only as a bound parameter; "
+    "write :name there and give the reference to params",
 )
 
 RUN = Catalogue("run")

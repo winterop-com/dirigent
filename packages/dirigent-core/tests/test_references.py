@@ -6,6 +6,7 @@ from typing import cast
 
 import pytest
 
+from dirigent_common import JsonMap
 from dirigent_core.engine.references import (
     ReferenceScope,
     UnknownReference,
@@ -58,6 +59,31 @@ def test_references_resolve_through_nested_structure(scope: ReferenceScope) -> N
         scope,
     )
     assert resolved == {"headers": {"X-Day": "2026-08-28"}, "body": ["oslo", {"n": 3}]}
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"sql": "SELECT * FROM t WHERE a = '${params.day}'"},
+        {"sql": "${params.day}"},
+        {"sql": ["SELECT 1", "DELETE FROM t WHERE a = ${item}"]},
+    ],
+    ids=["embedded", "whole", "list"],
+)
+def test_a_reference_in_a_sql_field_is_refused_and_not_spliced(scope: ReferenceScope, config: JsonMap) -> None:
+    with pytest.raises(UnknownReference) as raised:
+        resolve_config(config, scope, sql_fields={"sql"})
+    assert raised.value.code == "reference.in_sql"
+    assert raised.value.reference in ("params.day", "item")
+
+
+def test_a_sql_field_keeps_its_escape_and_a_reference_beside_it_resolves(scope: ReferenceScope) -> None:
+    resolved = resolve_config(
+        {"sql": "SELECT '$${params.day}' WHERE a = :day", "params": {"day": "${params.day}"}},
+        scope,
+        sql_fields={"sql"},
+    )
+    assert resolved == {"sql": "SELECT '${params.day}' WHERE a = :day", "params": {"day": "2026-08-28"}}
 
 
 def test_a_dotted_path_walks_objects_and_lists(scope: ReferenceScope) -> None:

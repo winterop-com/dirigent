@@ -331,6 +331,40 @@ def test_a_deferred_reference_is_not_type_checked_but_the_rest_still_is(host: Pl
     assert validate_against_catalog(definition, host.catalog()) == []
 
 
+@pytest.mark.parametrize(
+    ("config", "field"),
+    [
+        ("{block: sql.query, config: {connection: db, sql: \"SELECT '${params.day}'\"}}", "sql"),
+        (
+            "{block: sql.execute, config: {connection: db, statements: ['SELECT 1', 'DELETE FROM ${params.day}']}}",
+            "statements",
+        ),
+    ],
+    ids=["query", "execute"],
+)
+def test_a_reference_in_sql_is_refused_when_the_document_is_applied(config: str, field: str) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: spliced\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        f"steps:\n  a: {config}\n"
+    )
+    issues = validate_against_catalog(definition, load_plugin_host().catalog(), connections=None)
+    assert [(issue.code, issue.location) for issue in issues] == [
+        ("document.step_reference_in_sql", f"steps.a.config.{field}")
+    ]
+    assert issues[0].params["reference"] == "params.day"
+
+
+def test_a_reference_in_params_beside_sql_is_applied() -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: bound\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        "steps:\n  a:\n    block: sql.query\n"
+        "    config: {connection: db, sql: 'SELECT :day', params: {day: '${params.day}'}}\n"
+    )
+    assert validate_against_catalog(definition, load_plugin_host().catalog(), connections=None) == []
+
+
 def test_a_block_that_runs_code_is_refused_where_the_instance_does_not_allow_it(host: PluginHost) -> None:
     """The execution path refuses it too; saying so at apply is what stops it being stored."""
     definition = load_text("format: dirigent/v1\ncode: unsafe\nsteps:\n  a: { block: test.unsafe }\n")

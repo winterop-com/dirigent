@@ -2193,6 +2193,25 @@ async def test_a_value_interpolated_into_a_shell_field_reaches_the_block_as_a_va
     }
 
 
+async def test_a_reference_in_a_field_a_block_publishes_as_sql_is_refused_when_the_step_starts(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="spliced",
+        steps=steps(
+            only=StepDefinition(block="test.sqlish", config={"sql": "SELECT '${params.region}'"}, retry=FAST_RETRY)
+        ),
+    )
+    run = await start(sessions, services, definition, region="' OR 1=1 --")
+    await drain(engine)
+    attempts = await attempts_of(sessions, run.id)
+    assert len(attempts) == 1
+    assert attempts[0].status is AttemptStatus.FAILED
+    assert attempts[0].error_class == ErrorClass.REJECTED.value
+    assert "a value reaches SQL only as a bound parameter" in (attempts[0].error or "")
+    assert attempts[0].output is None
+
+
 async def test_a_manual_retry_is_keyed_on_the_step_it_retries(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
