@@ -359,6 +359,12 @@ and `.nan` or `.inf`. Each is refused at `$.retention.before` rather than conver
 deciding what text a date meant is the kind of guess a codec does not make. Quote it in the
 source and it converts as the text it is.
 
+**An alias is written out in place, within a bound.** JSON has no anchors, so `*base` and a
+`<<: *base` merge become copies of what they name. A document whose aliases would add more than
+100,000 values once written out is refused before anything is built, because a few hundred
+bytes of aliases nested inside each other expand to billions. An alias inside the node it
+names is refused too: JSON cannot spell a value that contains itself.
+
 ### xml is one root element, and one mapping
 
 An element is an object, and four rules make it reversible:
