@@ -95,6 +95,7 @@ jobs:
           - dirigent-examples
           - dirigent-server
           - dirigent-cli
+          - dirigent-mcp
           - dirigent-storage-s3
           - dirigent-testing
     # One environment per package: PyPI's trusted publisher for a project is the tuple of
