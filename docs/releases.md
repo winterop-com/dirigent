@@ -156,8 +156,8 @@ protect a separately installed `dg`: `uv run dg` runs the checkout's own pyproje
   `--user` on revoke and `users.revoke_token` are gone, so a script revoking by name has to change.
 - `/admin` is gone, and a dry run's plan names the sources and schedules an apply would remove.
 - `dg dev`'s admin has no display name, and a graph stops fitting at 80% zoom and pans past it.
-- An attempt recovered from a dead worker, a read-only DuckDB connection and shipped examples behave
-  as the sections above say: an example's `dry_run` and comments were corrected, so re-read one you
+- Shipped examples were corrected where their behaviour or comments were wrong, and
+  `endpoint-payload-to-tracker-event` is now `endpoint-payload-to-data-values`, so re-read one you
   copied from.
 - The web UI calls a starter a template. The API, CLI and packs still say `starter`.
 - `dg config show` hides the database password, and `dg apply` refuses a pipelines directory or a
