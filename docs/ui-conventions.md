@@ -1543,7 +1543,10 @@ is dismissed by the corner's close and by Escape, so no footer ever says `Close`
 `Dismiss`. `DialogShell` is that rule written once -- `confirm` given, the footer and no corner
 close; `confirm` absent, the corner close and no footer. **A dialog that reads one thing is the third
 case**, and it is a connection's: the corner close, and a footer of `verbs` on that thing rather
-than a confirm, so nothing in it says Cancel because nothing has been started.
+than a confirm, so nothing in it says Cancel because nothing has been started. **A dialog that asks
+and then tells changes case when it has answered**: a token made, whose secret it now shows, and a
+test message sent, whose delivery it now reads, take the corner close from that moment, because
+nothing is left that a Cancel could take back.
 
 **One dismissal, one control.** A dialog whose footer carries the way out does not also draw the
 corner's own -- `showCloseButton={false}` -- because two ways out of one dialog are two answers to

@@ -278,6 +278,15 @@ test('a connection opens a form whose secret box is empty and whose kind is fixe
     await expect(dialog.getByLabel('base_url')).toHaveValue(baseURL ?? '')
 })
 
+test('a new connection has one way out, and it says Cancel', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/connections')
+    await page.getByRole('button', { name: LABELS.connections.new }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('button', { name: LABELS.action.cancel, exact: true })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toHaveCount(0)
+})
+
 test('a connection a rule delivers through says so, and its delete is shut', async ({ page }) => {
     await signIn(page)
     const prefix = await apiPrefix(page.request)
