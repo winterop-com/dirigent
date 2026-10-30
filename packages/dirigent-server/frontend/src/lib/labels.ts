@@ -676,11 +676,6 @@ const screen = {
     reference: 'Reference',
     /** The section the admin screens sit under. */
     admin: 'Admin',
-    /** The instance, for whoever runs it. */
-    overview: {
-        name: 'Overview',
-        hint: 'This instance, at a glance',
-    },
     /** Accounts and the tokens under them. */
     users: {
         name: 'Users',
@@ -1000,6 +995,14 @@ const refused = {
         weak_password: 'A password must be at least {minimum} characters.',
         wrong_password: 'The current password is not correct.',
     },
+    common: {
+        yaml_alias_cycle: 'This YAML has an alias inside the node it names, so it cannot be written out.',
+        yaml_aliases_expand_too_far:
+            "This YAML's aliases would add more than {limit} values once written out. Write the repeated parts out, or repeat them less.",
+        yaml_aliases_write_too_much:
+            "This YAML's aliases would add more than {limit} bytes of text once written out. Write the repeated parts out, or repeat them less.",
+        yaml_nested_too_deep: 'This YAML nests too deeply to be read.',
+    },
     document: {
         carried_connections:
             'This document carries its own connections ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.connections.',
@@ -1111,6 +1114,7 @@ const refused = {
     server: {
         bad_credentials: 'Invalid username or password.',
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',
+        body_timed_out: 'The whole body did not arrive within {timeout}.',
         connection_exists: 'A connection coded {code} exists.',
         connection_referenced: 'Still in use. Delete what uses it first.',
         /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */
@@ -1264,55 +1268,18 @@ const login = {
 } as const
 
 /**
- * What the front door and the admin overview say.
- *
- * ONE SECTION FOR TWO SCREENS. The dashboard and the admin overview ask the same questions of
- * the same listings and draw the answers with the same components, so a word one of them uses
- * is a word the other reaches for; the few places where they say the same fact differently are
- * two codes here, next to each other, rather than two files apart.
+ * What the front door says.
  */
 const dashboard = {
     /** The palette row that reads the front door's listings again. */
     refresh: 'Refresh the dashboard',
-    /** The palette row that reads the admin overview's listings again. */
-    refresh_overview: 'Refresh the overview',
     /** A count and the noun it counts, which every tile's sentence is assembled out of. */
     counted: (count: string, noun: string) => `${count} ${noun}`,
-    /** Some out of a whole, which is what a tile reads when its value counts two numbers. */
-    of: (some: string, all: string) => `${some} of ${all}`,
 
-    /** The numbers each screen opens with, and the one line under each of them. */
+    /** The numbers the screen opens with, and the line under them. */
     tile: {
-        /** Under the front door's count of the window. */
+        /** Under the count of the window. */
         runs_window: 'Last 24 hours.',
-        /** The admin overview's name for the same window, which carries no full stop. */
-        day: 'Last 24 hours',
-        /** Nothing at all was started in the window. */
-        day_empty: 'Nothing has run in the last day.',
-        /** Something was started in the window and none of it has settled. */
-        day_none_settled: 'Nothing has finished.',
-        /** Nothing has registered with this instance. */
-        workers_empty: 'No worker has ever registered with this instance.',
-        /** Every worker answered. */
-        workers_well: 'Every worker is answering.',
-        /** This instance holds no credentials at all. */
-        connections_empty: 'This instance holds no connections.',
-        /** One credential refused: which one, what its state is called, and what it said. */
-        connection_failed: (code: string, said: string, detail: string) => `${code} ${said}${detail}`,
-        /** What the external system said, where it said anything. */
-        said: (detail: string) => `: ${detail}`,
-        unverified: (count: string) => `${count} could not be verified.`,
-        never_checked: {
-            one: (count: string) => `${count} has never been checked.`,
-            many: (count: string) => `${count} have never been checked.`,
-        },
-        /** Every credential answered. */
-        connections_well: 'Every connection answered when it was last checked.',
-        schedules_empty: 'Nothing on this instance fires on its own.',
-        schedules_across: {
-            one: (scheduled: string, pipelines: string) => `Across ${scheduled} of ${pipelines} pipeline.`,
-            many: (scheduled: string, pipelines: string) => `Across ${scheduled} of ${pipelines} pipelines.`,
-        },
     },
 
     /** The bar chart of the last day, and the reading of it for somebody not seeing it. */

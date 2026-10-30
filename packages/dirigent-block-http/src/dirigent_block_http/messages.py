@@ -24,6 +24,12 @@ HOST_OFF_ORIGIN = HTTP.define(
     "and a connection's credentials go only to its own origin",
 )
 
+ROUTING_HEADER_REFUSED = HTTP.define(
+    "routing_header_refused",
+    "the {header} header can route a request away from {origin}, the origin of connection {connection}, "
+    "and a connection's credentials go only to its own origin",
+)
+
 WEBHOOK_STATUS_REFUSED = HTTP.define("webhook.status_refused", "the receiver at {url} answered {status}")
 
 WEBHOOK_NO_SECRET = HTTP.define(

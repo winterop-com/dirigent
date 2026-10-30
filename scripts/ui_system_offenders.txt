@@ -42,7 +42,6 @@ lucide-import	packages/dirigent-server/frontend/src/pages/Runs.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/Schemas.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/Triggers.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/admin/Alerting.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/pages/admin/Overview.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/admin/Users.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/admin/Workers.tsx	1
 word-chip	packages/dirigent-server/frontend/src/components/TagChip.tsx	1

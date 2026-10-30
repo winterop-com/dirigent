@@ -19,7 +19,6 @@ import {
     Cpu,
     FileJson,
     House,
-    LayoutDashboard,
     Play,
     Plug,
     Users,
@@ -54,8 +53,6 @@ export interface NavSection {
     label: string | null
     /** The role an account needs before this section is offered at all. */
     requires: UserRole | null
-    /** Where the heading itself goes, for a section with a screen of its own. */
-    to?: string
     entries: NavEntry[]
 }
 
@@ -75,14 +72,6 @@ export const NEW_PIPELINE_PATH = '/pipelines/$new'
 
 /** The design system's gallery: offered by the palette, never by the rail. */
 export const DESIGN_PATH = '/design'
-
-/** The instance at a glance: offered by the palette to an admin, and linked from the section's heading. */
-export const ADMIN_OVERVIEW: NavEntry = {
-    path: '/admin',
-    label: LABELS.screen.overview.name,
-    hint: LABELS.screen.overview.hint,
-    icon: LayoutDashboard,
-}
 
 export const NAV: NavSection[] = [
     {
@@ -165,7 +154,6 @@ export const NAV: NavSection[] = [
         id: 'admin',
         label: LABELS.screen.admin,
         requires: 'admin',
-        to: ADMIN_OVERVIEW.path,
         entries: [
             {
                 path: '/admin/users',
@@ -202,8 +190,7 @@ export function sectionsFor(role: UserRole | null): NavSection[] {
 
 /** Every screen an account is offered, flattened, which is what the palette shelves. */
 export function entriesFor(role: UserRole | null): NavEntry[] {
-    const rail = sectionsFor(role).flatMap((section) => section.entries)
-    return role === 'admin' ? [...rail, ADMIN_OVERVIEW] : rail
+    return sectionsFor(role).flatMap((section) => section.entries)
 }
 
 /**

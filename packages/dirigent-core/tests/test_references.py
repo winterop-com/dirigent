@@ -47,6 +47,32 @@ def test_an_embedded_reference_interpolates_as_text(scope: ReferenceScope) -> No
     assert resolve("${params.day} has ${params.count}", scope) == "2026-08-28 has 3"
 
 
+#: A config publishing SQL on a top-level field, and on a field of a definition two ways.
+SQL_SCHEMA: JsonMap = {
+    "type": "object",
+    "properties": {
+        "sql": {
+            "anyOf": [
+                {"type": "string", "contentMediaType": "application/sql"},
+                {"type": "array", "items": {"type": "string", "contentMediaType": "application/sql"}},
+            ]
+        },
+        "params": {"type": "object"},
+        "source": {"$ref": "#/$defs/Source"},
+        "sources": {"type": "array", "items": {"$ref": "#/$defs/Source"}},
+    },
+    "$defs": {
+        "Source": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "contentMediaType": "application/sql"},
+                "params": {"type": "object"},
+            },
+        }
+    },
+}
+
+
 def test_a_value_with_no_reference_is_returned_unchanged(scope: ReferenceScope) -> None:
     assert resolve("plain", scope) == "plain"
     assert resolve(7, scope) == 7
@@ -68,12 +94,15 @@ def test_references_resolve_through_nested_structure(scope: ReferenceScope) -> N
         {"sql": "SELECT * FROM t WHERE a = '${params.day}'"},
         {"sql": "${params.day}"},
         {"sql": ["SELECT 1", "DELETE FROM t WHERE a = ${item}"]},
+        {"source": {"query": "SELECT '${params.day}'"}},
+        {"sources": [{"query": "SELECT 1"}, {"query": "DELETE FROM ${item}"}]},
+        {"source": "${params.day}"},
     ],
-    ids=["embedded", "whole", "list"],
+    ids=["embedded", "whole", "list", "nested", "nested-list", "whole-object"],
 )
 def test_a_reference_in_a_sql_field_is_refused_and_not_spliced(scope: ReferenceScope, config: JsonMap) -> None:
     with pytest.raises(UnknownReference) as raised:
-        resolve_config(config, scope, sql_fields={"sql"})
+        resolve_config(config, scope, config_schema=SQL_SCHEMA)
     assert raised.value.code == "reference.in_sql"
     assert raised.value.reference in ("params.day", "item")
 
@@ -82,9 +111,18 @@ def test_a_sql_field_keeps_its_escape_and_a_reference_beside_it_resolves(scope: 
     resolved = resolve_config(
         {"sql": "SELECT '$${params.day}' WHERE a = :day", "params": {"day": "${params.day}"}},
         scope,
-        sql_fields={"sql"},
+        config_schema=SQL_SCHEMA,
     )
     assert resolved == {"sql": "SELECT '${params.day}' WHERE a = :day", "params": {"day": "2026-08-28"}}
+
+
+def test_a_reference_beside_a_nested_sql_field_resolves(scope: ReferenceScope) -> None:
+    resolved = resolve_config(
+        {"source": {"query": "SELECT :day", "params": {"day": "${params.day}"}}},
+        scope,
+        config_schema=SQL_SCHEMA,
+    )
+    assert resolved == {"source": {"query": "SELECT :day", "params": {"day": "2026-08-28"}}}
 
 
 def test_a_dotted_path_walks_objects_and_lists(scope: ReferenceScope) -> None:
