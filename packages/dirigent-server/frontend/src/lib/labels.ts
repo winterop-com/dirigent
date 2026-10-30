@@ -2386,7 +2386,7 @@ const triggers = {
         /** A token, shown by the prefix that tells one copy from another. */
         token: (prefix: string) => `token ${prefix}…`,
         /** A signed source: the header its signature arrives in, and which secret signs it. */
-        signed: (header: string, prefix: string) => `signed in ${header}, secret ${prefix}…`,
+        signed: (header: string, fingerprint: string) => `signed in ${header}, secret fingerprint ${fingerprint}`,
         rotate_secret: 'Rotate secret',
         public: 'public',
         /** What it has taken: inputs that became runs, and inputs refused. */

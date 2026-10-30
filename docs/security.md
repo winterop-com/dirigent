@@ -350,8 +350,12 @@ parsed JSON, because those are not the same string -- in `X-Dirigent-Signature`,
 The comparison is constant-time and operates on bytes rather than strings, because a header is
 attacker-controlled and `hmac.compare_digest` raises on a non-ASCII `str`. The signing secret
 is minted at apply from the CSPRNG and shown once, or set with `dg source set-secret` when the
-sender issues it, and is sealed with the instance key, the way a connection's secret is; a
-re-apply keeps it, and `dg source rotate-token` replaces it. A signature is checked as soon as
+sender issues it, and is sealed with the instance key, the way a connection's secret is. None
+of it is stored in clear: a listing shows `secret_fingerprint`, the first 12 hex characters of
+its SHA-256, which a holder can recompute to tell which secret they have. A bearer token keeps
+its eight-character prefix, because a minted token has 256 bits of entropy and the 48 shown
+leave 208 to guess, while a signing secret can be one a provider issued, of any length, so a
+prefix could be most of it. A re-apply keeps it, and `dg source rotate-token` replaces it. A signature is checked as soon as
 the capped body is read, before the source's own rate and before anything is written, so a
 call without one costs the read and no more.
 

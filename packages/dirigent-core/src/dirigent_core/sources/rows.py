@@ -4,6 +4,7 @@ A row's declaration follows the pipeline's current version. Whether it is paused
 and what it has counted are the instance's, and survive an apply.
 """
 
+import hashlib
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
 from uuid import UUID
@@ -42,6 +43,9 @@ type AnyReceived = ReceivedSource[Any, Any]
 
 #: The field a signing secret is sealed under.
 SIGNING_FIELD: Final = "signing_secret"
+
+#: How many hex characters of a signing secret's SHA-256 a listing shows.
+FINGERPRINT_LENGTH: Final = 12
 
 type RouteKey = tuple[str, str]
 """A method and a normalised template, which is what two routes collide on."""
@@ -316,12 +320,11 @@ def _mint_if_wanted(kinds: Mapping[str, AnySource], secrets: SecretBox, row: Sou
     kind = auth.kind if auth is not None else None
     if kind != "token":
         row.token_hash = None
+        row.token_prefix = None
     if kind != "hmac":
         row.signing_secret = None
         row.signing_key_id = None
-    if kind not in {"token", "hmac"}:
-        row.token_prefix = None
-        return None
+        row.secret_fingerprint = None
     if kind == "token" and row.token_hash is None:
         return _set_token(row)
     if kind == "hmac" and row.signing_secret is None:
@@ -343,8 +346,14 @@ def _set_signing_secret(row: Source, secrets: SecretBox, secret: str) -> str:
         raise EmptySigningSecret
     row.signing_secret = secrets.seal({SIGNING_FIELD: secret})
     row.signing_key_id = secrets.key_id
-    row.token_prefix = secret[:PREFIX_LENGTH]
+    row.secret_fingerprint = fingerprint_of(secret)
+    row.token_prefix = None
     return secret
+
+
+def fingerprint_of(secret: str) -> str:
+    """Name a signing secret by a short hash, which a holder can recompute and which reveals none of it."""
+    return hashlib.sha256(secret.encode()).hexdigest()[:FINGERPRINT_LENGTH]
 
 
 def open_signing_secret(secrets: SecretBox, row: Source) -> bytes | None:
@@ -369,7 +378,8 @@ def _token_out(
         auth="hmac" if signed else "token",
         header=auth.header if signed and auth is not None else None,
         token=token,
-        prefix=row.token_prefix or "",
+        prefix=row.token_prefix,
+        fingerprint=row.secret_fingerprint,
         url_path=endpoint_path(settings, route.template if route else "/"),
     )
 
@@ -462,6 +472,7 @@ def source_out(
         auth=found[0].auth(found[1]).kind if found else None,
         signature_header=_signature_header(kinds, row),
         token_prefix=row.token_prefix,
+        secret_fingerprint=row.secret_fingerprint,
         in_flight=unsettled,
         max_in_flight=bound,
         accepted=row.accepted,
