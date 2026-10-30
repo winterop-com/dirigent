@@ -2853,6 +2853,7 @@ const users = {
     tokens_hint: 'A session is never listed here.',
     tokens_empty: 'No tokens.',
     last_used_column: 'Last used',
+    expires_column: 'Expires',
     /** The accessible name of a row's revoke button, which the row itself does not repeat. */
     revoke_row: (token: string) => `Revoke ${token}`,
 

@@ -74,6 +74,7 @@ export interface IssuedTokenOut {
     prefix: string
     /** The secret, in full, once. It is not stored and cannot be read again. */
     token: string
+    expires_at: string | null
 }
 
 /** How short a password this server refuses. `MIN_PASSWORD_LENGTH` in the server's security module. */

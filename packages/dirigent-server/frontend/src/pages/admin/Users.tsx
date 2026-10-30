@@ -441,6 +441,16 @@ function tokenRows(revoke: (token: TokenOut) => void): Column<TokenOut>[] {
             ),
         },
         {
+            id: 'expires',
+            header: LABELS.users.expires_column,
+            className: 'text-xs',
+            cell: (token) => (
+                <span className="text-muted-foreground" title={formatInstant(token.expires_at)}>
+                    {token.expires_at === null ? LABELS.word.never : formatRelative(token.expires_at)}
+                </span>
+            ),
+        },
+        {
             id: 'revoke',
             header: '',
             className: 'text-right',

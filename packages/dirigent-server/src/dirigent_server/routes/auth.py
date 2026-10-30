@@ -183,13 +183,14 @@ async def list_api_tokens(
 async def create_api_token(payload: TokenRequest, session: SessionDep, principal: AdminDep) -> IssuedTokenOut:
     """Mint a bearer token for automation and return its secret exactly once."""
     user = await _require_user(session, principal.username)
-    issued = await issue_token(session, user, name=payload.name)
+    issued = await issue_token(session, user, name=payload.name, lifetime=payload.expires_in)
     return IssuedTokenOut(
         id=issued.id,
         name=issued.name,
         username=issued.username,
         prefix=issued.prefix,
         token=issued.secret.get_secret_value(),
+        expires_at=issued.expires_at,
     )
 
 
