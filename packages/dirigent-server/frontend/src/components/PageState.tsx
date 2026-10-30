@@ -1,7 +1,6 @@
 import { Loader2, ServerCrash } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { ToolbarActions, type ToolbarAction } from '@/components/ToolbarActions'
 import { Card, CardContent } from '@/components/ui/card'
 import type { Problem } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
@@ -83,40 +82,4 @@ export function PageState({
         )
     }
     return <>{children}</>
-}
-
-/**
- * A page's heading, one line saying what the page is for, and whatever the page states beside it.
- *
- * `aside` sits opposite the title on the same baseline, which is where a page's metadata about
- * itself belongs. The title is never cut: the actions fold into their menu before it would be. It stays outside the heading element, so the heading's accessible name is the
- * title alone.
- */
-export function PageHeader({
-    title,
-    description,
-    aside,
-    actions,
-}: {
-    title: string
-    /** The line under the title; a screen whose title says the whole thing carries none. */
-    description?: string
-    aside?: ReactNode
-    /** The screen's verbs, which collapse into one menu below the breakpoint. */
-    actions?: readonly ToolbarAction[]
-}) {
-    return (
-        <div className="mb-6 flex flex-nowrap items-start justify-between gap-4">
-            <div className="shrink-0 space-y-1">
-                <h1 className="text-base font-semibold tracking-tight whitespace-nowrap">{title}</h1>
-                {description !== undefined && <p className="text-sm text-muted-foreground">{description}</p>}
-            </div>
-            {(aside !== undefined || actions !== undefined) && (
-                <div className="flex min-w-0 flex-1 items-center justify-end gap-2 pt-1">
-                    {aside}
-                    {actions !== undefined && <ToolbarActions actions={actions} measured />}
-                </div>
-            )}
-        </div>
-    )
 }
