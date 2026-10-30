@@ -45,6 +45,7 @@ from dirigent_plugin.blocks import (
     classify_default,
     mark_refusal,
     reference_fields,
+    shell_fields_of,
     shell_string_fields,
     sql_fields_of,
     sql_string_fields,
@@ -144,6 +145,7 @@ __all__ = [
     "merge_contributions",
     "reference_fields",
     "shell_string_fields",
+    "shell_fields_of",
     "sql_fields_of",
     "sql_string_fields",
 ]

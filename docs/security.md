@@ -606,23 +606,47 @@ becomes shell source. The engine rewrites each reference to a variable it invent
 variable in the command's environment, so what a webhook payload carries is text the shell
 expands and does not parse.
 
-Shell arithmetic is the exception, because there the shell does read the value again. Bash
-evaluates a variable's value as an expression, and a subscript in that expression runs a command
-substitution: `a[$(id)]` runs `id`. So a reference inside `$(( ))`, `(( ))` or `$[ ]` must resolve
-to an integer, and anything else fails the step as `rejected` before the command starts. Declare
-the parameter as `type: integer` and a caller's bad value is refused at the door instead.
+Quoting decides whether the value stays one word, so the engine reads the command as a shell would:
+quotes, comments, here-documents, substitutions and parameter expansions. Inside double quotes or a
+here-document the variable takes no quotes of its own, and anywhere else it takes a pair. Inside
+single quotes a shell keeps the text, so a command gets `"$DIRIGENT_V0"` there rather than the value,
+which is still safe if a shell it starts reads that text later.
 
-Those spellings are looked for with no regard to quoting, so a quote in a comment, a here-document
-or `$'...'` cannot hide one. That reads a literal opener as one too: after `'$(( '`, in a comment
-or in a program another tool reads, a reference must be an integer until the opener closes. So
-must one inside a `$( )` within arithmetic, because the shell evaluates what that prints. A step
-that needs another value there uses `argv`, which involves no shell.
+**A command the engine cannot read to its end is refused** when it holds a reference, at apply
+(`document.step_shell_unreadable`) and when the step starts (`reference.shell_unreadable`), because
+where the value lands in it is not known. That is a quote, substitution, `[[` or here-document never
+closed, a here-document delimiter holding a reference, a bare `\${x}`, or `$'..\'..'`, which bash
+and dash close in different places. A command with no reference is never read.
 
-The check reads those three spellings and nothing else. It does not cover a reference that bash
-evaluates some other way: the operands of `[[ -eq ]]`, `let`, `declare -i`, an indexed array's
-subscript, or a `${var:offset}`. Nor does it cover a command that hands its own variable to
-arithmetic or `eval`, or a value read from `env`. Where the value came from a caller and a step
-needs one of those, use `argv`, which involves no shell, or hold the value to a schema first.
+Bash also evaluates a value as an arithmetic expression in several places, and a subscript in that
+expression runs a command substitution: `a[$(id)]` runs `id`. So in each of these a reference must
+resolve to an integer, and anything else fails the step as `rejected` before the command starts:
+
+- `$(( ))`, `(( ))` and `$[ ]`
+- the operands of `[[ -eq ]]`, `-ne`, `-lt`, `-le`, `-gt`, `-ge`, and of `[[ -v ]]`. Another clause
+  of the same `[[ ]]` is not held to it, and neither is `[ ]` or `test`, which do not evaluate.
+- `let` and `unset`, in any word
+- `declare`, `typeset`, `local`, `readonly` and `export`, in the word's name, so `export X=${v}` takes
+  any value and `export ${v}=1` does not
+- anywhere in a command that declares an integer variable, with `declare -i` or the like, because a
+  later assignment to it evaluates. So one such line holds every reference in that command.
+- an indexed array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`. An array the same
+  command declares with `declare -A` is not held to it, and neither is `echo a[${v}]`, which is a glob.
+- `${var:offset}` and `${var:offset:length}`, but not `${var:-default}` and its kin
+
+Declare the parameter as `type: integer` and a caller's bad value is refused at the door instead. A
+step that needs another value there uses `argv`, which involves no shell.
+
+`$(( ))`, `(( ))` and `$[ ]` are also looked for with no regard to quoting, so nothing the reader gets
+wrong can hide one. That reads a literal opener as one too: after `'$(( '`, in a comment or in a
+program another tool reads, a reference must be an integer until the opener closes. So must one
+inside a `$( )` within any of the places above, because the shell evaluates what that prints.
+
+What the check does not cover is a command that hands a value on: the author's own variable to
+arithmetic or `eval`, a value read from `env`, a program in single quotes given to `bash -c`, and a
+variable named by a value through `read`, `printf -v`, `getopts` or `${!var}`, which is not read from
+the command text. Where the value came from a caller and a step needs one of those, use `argv`, which
+involves no shell, or hold the value to a schema first.
 
 ## Secrets lifecycle
 

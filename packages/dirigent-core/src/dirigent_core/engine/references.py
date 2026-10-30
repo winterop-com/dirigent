@@ -31,6 +31,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from dirigent_common import JsonMap, Message
+from dirigent_core.engine.shell import REFERENCE_MARK, Quoting, Unread, read_shell
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     ITEM_FAILED,
@@ -46,6 +47,7 @@ from dirigent_core.messages import (
     NOT_FAILED,
     NOT_PAIRED,
     SHELL_ARITHMETIC,
+    SHELL_UNREADABLE,
     SQL_REFERENCE,
     UNKNOWN_NAMESPACE,
 )
@@ -62,12 +64,6 @@ is not matched at all and passes through untouched.
 
 #: All a reference inside shell arithmetic may resolve to: an integer, which no shell evaluates.
 SHELL_INTEGER: Final = re.compile(r"-?[0-9]+")
-
-#: What opens shell arithmetic: ``$((``, the ``((`` command, and the older ``$[``.
-SHELL_ARITHMETIC_OPENERS: Final = ("((", "$[")
-
-#: A parenthesis grouping inside arithmetic, which one ``)`` closes.
-ARITHMETIC_GROUP: Final = "group"
 
 #: A reference that is the entire value, which resolves to the typed value rather than text.
 WHOLE_REFERENCE: Final = re.compile(r"^\$\{([^{}]+)\}$")
@@ -240,59 +236,93 @@ def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str,
     that is entirely one reference is one word, and therefore the name of a program to run
     and never a program.
 
-    Shell arithmetic is the one place a shell re-reads a variable's value: bash evaluates it
-    as an expression, and an array subscript in that expression runs a command substitution.
-    So a reference inside ``$(( ))``, ``(( ))`` or ``$[ ]`` resolves only to an integer, and
-    any other value is refused before the command starts. Whether one is open is read twice,
-    by the quote tracker and with no regard to quotes, so that a quote the tracker misreads in
-    a comment, a here-document or ``$'...'`` cannot switch the check off.
+    Bash re-reads a value in arithmetic, where a subscript in it runs a command substitution. So
+    a reference inside ``$(( ))``, ``(( ))``, ``$[ ]``, ``let``, ``unset``, the operands of
+    ``[[ -eq ]]`` and ``[[ -v ]]``, an indexed array's subscript, ``${var:offset}``, the name of
+    a declared variable, or anywhere in a command that declares an integer variable, resolves only
+    to an integer, and any other value is refused before the command starts. The first three are
+    also looked for with no regard to quotes, so that one cannot be hidden by a misreading.
+
+    A command the reader cannot follow to its end is refused whatever its values are, because
+    where a reference lands in it is not known.
     """
     if not isinstance(value, str):
         return value
+    literal_text, offsets = _shell_text(value)
+    if not offsets:
+        return literal_text
+    reading = read_shell(literal_text, offsets.values())
     rewritten: list[str] = []
-    context: tuple[str, ...] = ()
     read = 0
+    last_reference = ""
     for match in REFERENCE_PATTERN.finditer(value):
-        before = value[read : match.start()]
-        context = _shell_context(before, context)
-        arithmetic = _in_arithmetic(context) or _arithmetic_open(value[: match.start()])
         literal, resolves = _collapse(match.group(1), match.group(2))
-        rewritten.append(before + literal)
+        rewritten.append(value[read : match.start()] + literal)
         if resolves:
             reference = match.group(2).strip()
+            last_reference = reference
             text = _as_text(lookup(reference, scope))
-            if arithmetic and SHELL_INTEGER.fullmatch(text) is None:
+            place = reading.places[offsets[match.start()]]
+            integer = place.integer or _arithmetic_open(value[: match.start()])
+            if integer and SHELL_INTEGER.fullmatch(text) is None:
                 raise UnknownReference(SHELL_ARITHMETIC, reference=reference)
             name = f"{SHELL_VARIABLE_PREFIX}{len(variables)}"
             variables[name] = text
-            rewritten.append(_shell_word(name, context, arithmetic=arithmetic))
+            rewritten.append(_shell_word(name, place.quoting, integer=integer))
         read = match.end()
     rewritten.append(value[read:])
+    if reading.unread is not None:
+        raise UnknownReference(
+            SHELL_UNREADABLE,
+            reference=last_reference,
+            opener=reading.unread.opener,
+            line=reading.unread.line,
+        )
     return "".join(rewritten)
 
 
-def _shell_word(name: str, context: tuple[str, ...], *, arithmetic: bool) -> str:
+def _shell_text(value: str) -> tuple[str, dict[int, int]]:
+    """A command as its shell reads it, with each reference one mark wide, and where each mark is.
+
+    The offsets are keyed by where the reference's match starts in ``value``. Escaped references
+    are collapsed to the text a shell receives.
+    """
+    pieces: list[str] = []
+    offsets: dict[int, int] = {}
+    read = 0
+    length = 0
+    for match in REFERENCE_PATTERN.finditer(value):
+        literal, resolves = _collapse(match.group(1), match.group(2))
+        piece = value[read : match.start()] + literal
+        pieces.append(piece)
+        length += len(piece)
+        if resolves:
+            offsets[match.start()] = length
+            pieces.append(REFERENCE_MARK)
+            length += 1
+        read = match.end()
+    pieces.append(value[read:])
+    return "".join(pieces), offsets
+
+
+def shell_unreadable(value: str) -> Unread | None:
+    """What stops a command with a reference in it being read, or nothing when it reads through."""
+    text, offsets = _shell_text(value)
+    return read_shell(text, offsets.values()).unread if offsets else None
+
+
+def _shell_word(name: str, quoting: Quoting, *, integer: bool) -> str:
     """A reference to the variable that is one word where the author put it.
 
-    Inside the author's quotes it takes none of its own: a second pair would end theirs and
-    leave the value to be split into words. Anywhere else it takes a pair, or the shell would
+    Inside the author's double quotes or a here-document it takes none of its own: a second pair
+    would end theirs, or be written out as text. Anywhere else it takes a pair, or the shell would
     split the value and expand any glob in it -- bare, and inside a ``$( )`` or a backquoted
-    command, which quote nothing they hold. Inside single quotes, which a shell keeps
-    literal, this text is what the author gets rather than the value. Inside arithmetic it
-    is bare: the value is an integer, and dash refuses a quote there.
+    command, which quote nothing they hold. Inside single quotes, which a shell keeps literal,
+    this text is what the author gets rather than the value, and it is quoted for a shell that
+    reads it later. Where a value is evaluated it is bare: it is an integer, and dash refuses a
+    quote in arithmetic.
     """
-    quoted = bool(context) and context[-1] in "'\""
-    return f"${name}" if quoted or arithmetic else f'"${name}"'
-
-
-def _in_arithmetic(context: tuple[str, ...]) -> bool:
-    """Whether the innermost substitution or arithmetic the shell has open is arithmetic."""
-    for opened in reversed(context):
-        if opened in SHELL_ARITHMETIC_OPENERS:
-            return True
-        if opened in ("(", "`"):
-            return False
-    return False
+    return f"${name}" if integer or quoting in (Quoting.DOUBLE, Quoting.HERE_DOCUMENT) else f'"${name}"'
 
 
 def _arithmetic_open(text: str) -> bool:
@@ -328,60 +358,6 @@ def _arithmetic_open(text: str) -> bool:
             stack.pop()
         index += step
     return bool(stack)
-
-
-def _shell_context(text: str, context: tuple[str, ...]) -> tuple[str, ...]:
-    """Where in a shell's quoting this text leaves it, given where it began.
-
-    The stack holds what the shell has opened and not yet closed: a quote, a ``$( )``
-    substitution, or a backquoted one, each of which quotes what is inside it in its own
-    right. Only the innermost decides how a reference there is written, and getting that
-    wrong can only cost a value its word boundaries -- never make it shell source.
-
-    It also holds arithmetic -- ``$((``, ``((`` and ``$[`` -- and the parentheses grouping
-    inside it, so the ``))`` that closes arithmetic is told apart from a group closing.
-    """
-    stack = list(context)
-    escaped = False
-    skip = 0
-    for index, character in enumerate(text):
-        inner = stack[-1] if stack else ""
-        ahead = text[index + 1 : index + 3]
-        if skip:
-            skip -= 1
-        elif escaped:
-            escaped = False
-        elif inner == "'":
-            if character == "'":
-                stack.pop()
-        elif character == "\\":
-            escaped = True
-        elif inner in '"`' and character == inner:
-            stack.pop()
-        elif character == ")" and inner == "((" and ahead[:1] == ")":
-            stack.pop()
-            skip = 1
-        elif character == "]" and inner == "$[":
-            stack.pop()
-        elif character == "$" and ahead == "((":
-            stack.append("((")
-            skip = 2
-        elif character == "$" and ahead[:1] == "[":
-            stack.append("$[")
-            skip = 1
-        elif character == "$" and ahead[:1] == "(":
-            stack.append("(")
-            skip = 1
-        elif character == "(" and inner in ("((", ARITHMETIC_GROUP):
-            stack.append(ARITHMETIC_GROUP)
-        elif character == "(" and ahead[:1] == "(" and inner in ("", "(", "`"):
-            stack.append("((")
-            skip = 1
-        elif character == "`" or (character in "'\"" and inner != '"'):
-            stack.append(character)
-        elif character == ")" and inner in ("(", ARITHMETIC_GROUP):
-            stack.pop()
-    return tuple(stack)
 
 
 def _as_text(value: JsonValue) -> str:
