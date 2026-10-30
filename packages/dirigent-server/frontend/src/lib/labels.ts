@@ -1025,6 +1025,8 @@ const refused = {
             '{reference} is inside shell arithmetic, which evaluates its value as an expression, so it must resolve to an integer. Declare the parameter as an integer, or keep the value out of arithmetic.',
     },
     run: {
+        connection_wrong_kind:
+            'Connection {ref} has kind {kind}, and this reads a connection of kind {wanted}.',
         entry_ambiguous: 'Pipeline {code} has the sources {sources}. Name the one this run enters at.',
         entry_input_refused:
             'The input for source {step} is not one its kind {kind} can make whole: {detail}',
@@ -1073,6 +1075,7 @@ const refused = {
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
     },
     secret: {
+        connection_unreadable: 'A stored connection does not fit the configuration read from it: {detail}',
         key_file_unreadable: 'The secret key file {path} cannot be read as a key: {detail}',
         key_malformed: 'DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken.',
         key_twice: 'Both secret_key and secret_key_file are set. Name the envelope key one way.',
