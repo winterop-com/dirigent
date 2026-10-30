@@ -6,6 +6,10 @@ CLI = Catalogue("cli")
 
 NOT_AN_OUTPUT_FORMAT = CLI.define("not_an_output_format", "{chosen} is not an output format")
 
+TOKEN_EXPIRY_INVALID = CLI.define(
+    "token_expiry_invalid", "--expires takes a duration above zero and under 100 years, such as 90d, not {value}"
+)
+
 OUTPUTS_ARE = CLI.define("outputs_are", "the outputs are {formats}")
 
 FORMATTER_TAKES_NO_TEMPLATE = CLI.define(
