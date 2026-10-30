@@ -40,8 +40,14 @@ nothing to do. An instance on a passphrase re-keys one of two ways:
    done.
 
 **The schema changed, and `dg db upgrade` does not carry it.** The baseline migration is edited in
-place, so an existing database gets neither `sources.secret_fingerprint` nor the
-`source_signatures` table from an upgrade. Recreate the database, or add both by hand.
+place, so an existing database gets none of `sources.secret_fingerprint`, the `source_signatures`
+table or `step_attempts.lease_recoveries` from an upgrade. Recreate the database, or add them by
+hand.
+
+**Rotate any credential a wrong-kind connection reference may have exposed.** A step or source
+naming a connection of another kind used to write that connection's decrypted secrets into attempts,
+run logs, `last_error` and worker logs. It is now refused with `run.connection_wrong_kind`, but the
+records already written are not rewritten.
 
 **A signed call carries a timestamp, and its signature is taken once.** The signature is now
 HMAC-SHA256 over `X-Dirigent-Timestamp`, a dot, and the raw body, and a timestamp outside
@@ -64,7 +70,43 @@ HMAC-SHA256 over `X-Dirigent-Timestamp`, a dot, and the raw body, and a timestam
   and reply headers such as `set-cookie` are refused.
 - A connection's credentials go only to its own origin, so a step's absolute URL elsewhere is
   refused.
-- `dg dev` creates its admin as `admin` / `admin` on an empty database.
+- `dg dev` creates its admin as `admin` / `admin` on an empty database, and only on a loopback
+  address. On any other address it exits 3 while the state is empty or still holds that login, and
+  that includes `dg dev` in the published image, which sets `DIRIGENT_HOST=0.0.0.0`.
+- The unsafe-block allowlist no longer comes from a working directory's `.env` or `dirigent.yaml`.
+  Set it in the process environment or in the file `DIRIGENT_CONFIG_FILE` names. Compose passes
+  `.env` as environment, so a compose stack keeps working.
+- `dg` reads a project's `.env` literally, so `${VAR}` stays those characters. It ignores a symlinked
+  or group-writable `.env` or `.dirigent/profiles.yaml`.
+- A `${...}` reference in `sql` or `statements` is refused at apply and when the step starts. Put it
+  in `params`.
+- A `read_only` DuckDB connection runs only SELECT, so a step writing run files through one needs a
+  writable connection.
+- `git.checkout` and the docker blocks write credentials to the system temporary directory, which
+  has to allow executing a file. A worker with a `noexec` `/tmp` sets `TMPDIR`.
+- A step's `Host` beside a connection has to match the connection's origin, so an IP `base_url` with
+  a routing `Host` stops working.
+- Shell arithmetic is found regardless of quoting, and a literal unclosed `((` or `$[` needs an
+  integer reference until it closes.
+- `convert.std` also bounds the text YAML aliases add, at 16 MiB, and its limits count across a whole
+  stream. Writing CSV refuses more than 10,000 columns or 10 million empty cells.
+- An endpoint source holds no database connection while it reads a body, and answers 408 to a body
+  not whole within `DIRIGENT_SOURCE_BODY_TIMEOUT` (30s by default). A slow sender with a large
+  `max_body` may need that raised.
+- An endpoint source decodes a text body only from UTF-8, UTF-16, ASCII, ISO-8859-1 or Windows-1252,
+  and answers 415 to any other `charset`.
+- `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` counts per caller address, method and route, so calls from
+  one address to one templated route share a count across parameter values.
+- A reply that cannot be rendered fails its run with a 422 to the caller. An attempt taken back from
+  a worker more than `DIRIGENT_LEASE_RECOVERY_LIMIT` times (5 by default) fails with
+  `run.lease_recoveries`.
+- A playground stream ends 95 seconds after it arrives, and a process holds at most 32, answering
+  others 503.
+- A signing secret's fingerprint is keyed by the instance, so its holder can no longer recompute it.
+  A row keeps its unkeyed fingerprint until `dg source set-secret` or `dg source rotate-token` next
+  replaces it, so an instance with a guessable hand-set secret should set a strong one.
+- MCP `apply_document` is marked destructive, because applying can remove sources and schedules, and
+  a dry run now lists those removals.
 
 ## 0.27.1
 
