@@ -1,15 +1,21 @@
 # The build context. Everything the image needs is copied by name in infra/Dockerfile;
 # what is listed here would otherwise be sent to the daemon, and a stale copy of a built
 # artifact from a developer's working tree could shadow what the build produces.
+#
+# A pattern with no leading **/ matches at the root of the context alone, and `COPY packages/`
+# copies whatever sits below it, so a pattern that names a kind of file starts with **/.
 
-.git
-.github
-.venv
+**/.git
+**/.github
+**/.venv
 **/__pycache__
 **/*.egg-info
 **/.mypy_cache
 **/.pytest_cache
 **/.ruff_cache
+**/.coverage
+**/.coverage.*
+**/htmlcov
 
 # The frontend is built inside the image, from source only.
 **/node_modules
@@ -20,13 +26,14 @@ packages/dirigent-server/frontend/playwright-report
 **/test-results
 packages/dirigent-server/src/dirigent_server/static
 
-.dirigent
-.playwright-mcp
+**/.claude
+**/.dirigent
+**/.playwright-mcp
 docs
 site
 reports
 
 # A secret in the working tree is never build input.
-.env
-.env.*
-!.env.example
+**/.env
+**/.env.*
+!**/.env.example
