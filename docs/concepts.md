@@ -479,7 +479,9 @@ instance to resolve a name against. It may carry the connection instead, beside 
 ```yaml
 connections:
   demo:
+    name: Demo API
     kind: http
+    description: The public demo API, with its documented demo login.
     config:
       base_url: https://demo.example.org/api
       basic_username: demo
@@ -487,7 +489,8 @@ connections:
 ```
 
 `dg run --local` seeds these into its throwaway instance, so the document runs with nothing to
-set up first. `--connections FILE` replaces one by code, which is how the same document is
+set up first. `name` and `description` are optional and label the connection it seeds; a
+connections file takes the same fields. `--connections FILE` replaces one by code, which is how the same document is
 pointed at your own instance without editing it.
 
 A document carries its JSON Schemas the same way, in a top-level `schemas:` section keyed by

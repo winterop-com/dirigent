@@ -55,6 +55,11 @@ requires:
 
 connections:
   playground-receiver:
+    name: Playground webhook receiver
+    description: |
+      The playground as the receiver a report or a notification is posted to. Used by
+      `report-daily-digest`, `report-to-webhook`, `webhook-post-hmac` and
+      `webhook-post-summary`; `webhook-post-hmac` also seals a signing secret on it.
     kind: http
     config:
       base_url: http://127.0.0.1:3333/api/v1/playground

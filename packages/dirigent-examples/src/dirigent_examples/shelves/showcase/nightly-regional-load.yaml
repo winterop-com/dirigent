@@ -112,6 +112,10 @@ params:
 # refuses a document that carries a schema, so a copy of this names them in requires instead.
 schemas:
   nightly-catalogue:
+    title: Nightly catalogue
+    description: |
+      The catalogue read that opens a night's load: the `day` and the `release` it covers. The
+      first gate in `nightly-regional-load`.
     type: object
     required: [day, release]
     additionalProperties: false
@@ -120,6 +124,10 @@ schemas:
       release: { type: string, minLength: 1 }
 
   nightly-region:
+    title: Nightly region export
+    description: |
+      One region's export for a night: the `region`, the `day`, each dataset with its row count,
+      and an optional `export_ms`. The per-region gate in `nightly-regional-load`.
     type: object
     required: [region, day, datasets]
     additionalProperties: false

@@ -82,6 +82,10 @@ requires:
 #     --set base_url=http://127.0.0.1:3333/api/v1/playground --set hmac_secret=...
 connections:
   ops-receiver:
+    name: Signed webhook receiver
+    description: |
+      The playground as a webhook receiver, with the HMAC secret an outbound post is signed
+      with. Used by `webhook-signed`.
     kind: http
     config:
       base_url: http://127.0.0.1:3333/api/v1/playground

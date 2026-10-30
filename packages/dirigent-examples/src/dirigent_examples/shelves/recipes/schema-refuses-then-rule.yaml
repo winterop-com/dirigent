@@ -52,6 +52,10 @@ requires:
 
 schemas:
   recipe-levelled-units:
+    title: Levelled org units
+    description: |
+      An `organisationUnits` envelope where every unit has an `id` and a `level` of 1 or more.
+      `schema-refuses-then-rule` holds a payload that fails it on purpose.
     type: object
     required: [organisationUnits]
     properties:

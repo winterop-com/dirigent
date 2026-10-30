@@ -104,6 +104,10 @@ params:
 # Carried, so `dg run --local` has the shape without an instance holding it.
 schemas:
   regional-batch:
+    title: Regional batch
+    description: |
+      A day's regional exports: the `day` and, per region, the attempts it took and the rows
+      that arrived. The gate in `one-region-refuses`.
     type: object
     required: [day, regions]
     additionalProperties: false

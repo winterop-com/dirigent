@@ -80,6 +80,7 @@ class ConnectionSpec(BaseModel):
     code: str
     name: str | None = None
     kind: str = "http"
+    description: str | None = None
     config: JsonMap = Field(default_factory=dict)
 
 
@@ -236,7 +237,16 @@ def connections_for(definitions: Sequence[PipelineDefinition], given: Sequence[C
     embedded: dict[str, ConnectionSpec] = {}
     for definition in definitions:
         for code, carried in definition.connections.items():
-            embedded.setdefault(code, ConnectionSpec(code=code, kind=carried.kind, config=carried.config))
+            embedded.setdefault(
+                code,
+                ConnectionSpec(
+                    code=code,
+                    name=carried.name,
+                    kind=carried.kind,
+                    description=carried.description,
+                    config=carried.config,
+                ),
+            )
     replaced = {spec.code for spec in given}
     return [spec for code, spec in embedded.items() if code not in replaced] + list(given)
 
@@ -349,6 +359,7 @@ async def _seed_connections(
                     code=spec.code,
                     name=spec.name,
                     kind=spec.kind,
+                    description=spec.description,
                     config=public,
                     secret_envelope=envelope,
                     secret_key_id=key_id,

@@ -19,6 +19,11 @@
 
 connections:
   playground:
+    name: Playground
+    description: |
+      The playground this instance serves under `/api/v1/playground`, with its documented
+      basic-auth pair and an HMAC secret. Used by `requires`, `chained-instances` and
+      `connections-referenced-vs-carried`.
     kind: http
     config:
       # A document names the connection and a path; the base URL lives here, so moving an
@@ -39,6 +44,10 @@ connections:
   # sasl_ssl and a sealed password beside these; a plaintext one refuses a credential it
   # would never send, so there is none here.
   orders-topic:
+    name: Local Kafka cluster
+    description: |
+      The one-node Redpanda cluster `infra/compose.queues.yaml` starts on `127.0.0.1:9092`,
+      unauthenticated. Used by the Kafka examples on the queues shelf.
     kind: kafka
     config:
       bootstrap_servers:
@@ -49,6 +58,11 @@ connections:
   # readable by anyone who can list connections. This pair is the compose file's own demo
   # credential and protects nothing.
   shop-queue:
+    name: Local RabbitMQ broker
+    description: |
+      The RabbitMQ broker `infra/compose.queues.yaml` starts on `127.0.0.1:5672`, with the
+      compose file's demo credential. Used by `report-to-rabbitmq` and
+      `rabbitmq-consume-ack-on-success`.
     kind: rabbitmq
     config:
       url: amqp://dirigent@127.0.0.1:5672/

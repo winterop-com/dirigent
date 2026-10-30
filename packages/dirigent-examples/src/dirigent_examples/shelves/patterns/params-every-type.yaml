@@ -66,6 +66,10 @@ tags: [patterns, transform, validate, params]
 # this way for a pipeline it stores; a published example is where carrying one is right.
 schemas:
   run-inputs:
+    title: Run inputs
+    description: |
+      The four formatted parameters of `params-every-type`: a `date`, a `uuid4`, a `ulid` and a
+      `sha256` digest. Its gate is where those formats are checked.
     type: object
     required: [day, correlation_id, upload_id, expected_digest]
     properties:

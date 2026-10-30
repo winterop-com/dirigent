@@ -72,6 +72,10 @@ requires:
 # named by code, and an instance refuses to store a document that carries a connection at all.
 connections:
   playground-auth:
+    name: Playground, basic auth
+    description: |
+      The playground with its basic-auth pair, so a step sends credentials it never holds. Used
+      by `http-headers-and-auth-connection`.
     kind: http
     config:
       base_url: http://127.0.0.1:3333/api/v1/playground
