@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dirigent_common import JsonMap
 from dirigent_core import wakeups
 from dirigent_core.database import session_scope
-from dirigent_core.engine.context import ConnectionRecord, load_connections
+from dirigent_core.engine.context import ConnectionRecord, load_connections, open_record
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
@@ -334,7 +334,7 @@ class _HoldContext:
         if record is None:
             known = ", ".join(sorted(self._connections)) or "none are configured"
             raise LookupError(RUN_UNKNOWN_CONNECTION.render(ref=repr(ref), available=known))
-        return self._services.secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
+        return open_record(self._services.secrets, record, model, self._services.connection_models)
 
 
 class _ProcessLog:
