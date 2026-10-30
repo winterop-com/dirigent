@@ -663,6 +663,10 @@ file holding it instead, such as a mounted secret under `/run/secrets`, read onc
 key-fetch hook. If your platform provides secrets, its job is to put this variable or that file
 in place before dirigent starts; dirigent does not reach out for it.
 
+A working directory's `.env` is read literally, so a `${VAR}` in it stays those characters and
+cannot copy a value out of the environment. It is read only when it is a regular file, not a
+symbolic link, that this user owns and neither group nor others may write.
+
 `dg init --template local` writes a generated key into the project's `.env`, which that
 project's `.gitignore` keeps out of the repository and whose mode is owner-only, so a local
 instance seals credentials from its first command with nothing exported. A stack keeps its key

@@ -32,9 +32,10 @@ out, beside the working `dirigent.yaml` -- so the file a person edits stays shor
 surface is still one file away.
 
 A project's `.env` is that middle layer, which is where `dg init` puts the instance's
-`DIRIGENT_SECRET_KEY`. A compose stack's `.env` is a different thing with the same name:
-compose reads it to fill in `${...}` and passes what it resolves to the containers as
-environment, and the server inside one never opens the file.
+`DIRIGENT_SECRET_KEY`. It is read literally, so `${VAR}` stays those characters, and only from a
+regular file this user owns that neither group nor others may write. A compose stack's `.env`
+is a different thing with the same name: compose reads it to fill in `${...}` and passes what it
+resolves to the containers as environment, and the server inside one never opens the file.
 
 A setting marked **Host only** below is the exception to the layers. A `.env` and a
 `dirigent.yaml` or `.dirigent/dirigent.yaml` in the working directory travel with a checkout, so

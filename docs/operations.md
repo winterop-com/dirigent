@@ -487,7 +487,9 @@ The `.env` is the one in the directory the command runs in -- a project's, where
 puts the instance's `DIRIGENT_SECRET_KEY` -- and it is read by whatever runs there, `dg dev`
 and `dg server` alike. A compose stack's `.env` is a different thing wearing the same name:
 compose reads it to fill in `${...}` and hands the result to the containers as environment,
-and the server inside one never opens the file.
+and the server inside one never opens the file. The project's `.env` is read literally, so
+`${VAR}` stays those characters, and a symbolic link, or a file another user owns or its group
+may write, is passed over as though it were not there.
 
 The YAML file is `$DIRIGENT_CONFIG_FILE` if that is set; otherwise `dirigent.yaml`,
 `.dirigent/dirigent.yaml`, and `~/.config/dirigent/dirigent.yaml` are all read, with the
