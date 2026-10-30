@@ -138,13 +138,14 @@ async function nothingScrollsSideways(page: Page, name: string): Promise<void> {
 /**
  * Wait until the screen has stopped changing under the camera.
  *
- * The corner identity fills over its reads after every full load, so a shot taken while it is
- * asking would put the wrong topbar in the frame. What says the read landed is the corner
- * naming the instance and its environment; the version is in the popover and never in the bar,
- * so a camera waiting for one waits out its whole timeout before every picture.
+ * The corner's dot fills over its read after every full load, so a shot taken while it is asking
+ * would put the wrong topbar in the frame. What says the read landed is its accessible name, once
+ * that says how the instance is.
  */
 async function readyForShot(page: Page, name: string): Promise<void> {
-    await page.getByRole('button', { name: 'Instance' }).filter({ hasText: '·' }).waitFor({ timeout: 15_000 })
+    await page
+        .getByRole('button', { name: /^Instance: (healthy|degraded|unhealthy)/ })
+        .waitFor({ timeout: 15_000 })
     await page.waitForTimeout(900)
     await nothingScrollsSideways(page, name)
 }
@@ -292,7 +293,9 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
     // THE RUN THAT ENDED SHORT, on its report: the page the engine wrote when the run settled.
     await page.goto(`/runs/${degraded}`)
     await page.locator('.react-flow__node').first().waitFor({ timeout: 30_000 })
-    await page.getByRole('tab', { name: 'Report' }).click()
+    // The panel is shut on a first visit, and choosing a step is what opens it.
+    await page.locator('.react-flow__node').first().click()
+    await page.getByRole('tab', { name: 'Report' }).click({ timeout: 30_000 })
     await page.waitForTimeout(1200)
     await shot(page, 'run-failed')
 

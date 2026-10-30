@@ -20,9 +20,9 @@ instance talks to are answering.
 
 ## Pipelines
 
-![The pipelines listing filtered to the fan-out tag: fourteen documents, their tags, their schedules and how each last run ended.](images/screens/pipelines.png)
+![The pipelines listing filtered to the fan-out tag: the documents wearing it, their tags, their schedules and how each last run ended.](images/screens/pipelines.png)
 
-A hundred and seventy-two documents, narrowed to the fourteen that fan out. Pipelines are found
+Every document on the shelf, narrowed to the ones that fan out. Pipelines are found
 by the tags they wear rather than by a folder somebody agreed on, and the last run is on the row.
 
 ## The editor
