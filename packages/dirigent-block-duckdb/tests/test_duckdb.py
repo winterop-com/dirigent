@@ -167,6 +167,25 @@ async def test_a_file_outside_the_run_is_refused_rather_than_read(ducked: FakeCo
     assert raised.value.error_class is ErrorClass.REJECTED
 
 
+async def test_a_file_reached_through_dot_dot_is_refused_before_any_directory_is_made(
+    ducked: FakeContext, tmp_path: Path
+) -> None:
+    escape = "/..".join([""] * (len(ducked.work.parts)))
+    target = f"file://{ducked.work}{escape}{tmp_path}/planted/x.csv"
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, "SELECT 1 AS n", params={"target": target})
+    assert "outside this run's own directories" in str(raised.value)
+    assert not (tmp_path / "planted").exists()
+
+
+async def test_a_file_reached_through_a_symlink_out_of_the_run_is_refused(ducked: FakeContext, tmp_path: Path) -> None:
+    (ducked.work / "link").symlink_to(tmp_path)
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, "SELECT 1 AS n", params={"target": f"file://{ducked.work}/link/planted/x.csv"})
+    assert "outside this run's own directories" in str(raised.value)
+    assert not (tmp_path / "planted").exists()
+
+
 async def test_a_plain_path_parameter_outside_the_run_is_refused_by_the_engine(
     ducked: FakeContext, tmp_path: Path
 ) -> None:

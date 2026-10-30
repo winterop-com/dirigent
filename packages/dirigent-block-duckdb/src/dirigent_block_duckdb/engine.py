@@ -15,6 +15,7 @@ reachable beside the run's directories.
 """
 
 import asyncio
+import os
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
@@ -228,8 +229,8 @@ def _file(name: str, uri: str, ctx: StepContext) -> str:
     if split.scheme != "file":
         return uri
     roots = _readable(ctx)
-    path = Path(f"{split.netloc}{split.path}").absolute()
-    if not any(path.is_relative_to(root) for root in roots):
+    path = Path(os.path.normpath(Path(f"{split.netloc}{split.path}").absolute()))
+    if not any(_inside(path, root) for root in roots):
         named = ", ".join(str(root) for root in roots)
         raise BlockFailure(
             PARAMETER_OUTSIDE_THE_RUN,
@@ -241,6 +242,12 @@ def _file(name: str, uri: str, ctx: StepContext) -> str:
     # A ``COPY ... TO`` names a file duckdb creates but not a directory it creates.
     path.parent.mkdir(parents=True, exist_ok=True)
     return str(path)
+
+
+def _inside(path: Path, root: Path) -> bool:
+    """Whether a path is under a root both as written and once every symlink is followed."""
+    root = Path(os.path.normpath(root))
+    return path.is_relative_to(root) and path.resolve().is_relative_to(root.resolve())
 
 
 def _readable(ctx: StepContext) -> list[Path]:

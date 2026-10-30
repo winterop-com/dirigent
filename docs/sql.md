@@ -221,7 +221,9 @@ is both directions in one run.
 **A parameter that is a storage URI becomes a path.** On a duckdb connection, and on no other,
 a `file://` value in `params` is resolved to the path duckdb opens. The run's own directories
 are the boundary: a URI outside them is refused, so a query reads and writes the files of the
-run it belongs to and nothing else on the worker.
+run it belongs to and nothing else on the worker. The path is held to them with every `..`
+collapsed and every symlink followed, before the directory a `COPY ... TO` needs is made, so a
+refused parameter leaves nothing behind on the worker.
 
 **The boundary is duckdb's own, not a check on the parameters.** A session is opened, given the
 run's work directory and its local scratch space as its `allowed_directories`, and then closed
