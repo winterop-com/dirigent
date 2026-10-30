@@ -1614,6 +1614,11 @@ html.dark[data-theme='contrast'],
     background-color: var(--sidebar-primary);
 }
 
+/* The generated small button says `0.8rem`, which is not on the scale. */
+[data-slot='button'].text-\[0\.8rem\] {
+    font-size: var(--text-xs);
+}
+
 /* A switch stands on the ladder. The generated track and thumb both say `rounded-full`. */
 [data-slot='switch'],
 [data-slot='switch-thumb'] {

@@ -13,14 +13,16 @@ site's page caused. So a write that spends it has to say it came from this insta
 is what the cross-site guard below requires. A bearer token is not ambient and is exempt.
 """
 
+import re
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Final
 
 from fastapi import FastAPI, Request, Response, Security, status
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
-from starlette.datastructures import MutableHeaders
+from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from dirigent_common.hosts import is_loopback_host
 from dirigent_core.auth import Principal, resolve_token
 from dirigent_core.config import Settings
 from dirigent_server.dependencies import SessionDep
@@ -32,8 +34,12 @@ from dirigent_server.messages import (
     FORBIDDEN as FORBIDDEN_MESSAGE,
 )
 from dirigent_server.messages import (
+    HOST_NOT_LOOPBACK,
+)
+from dirigent_server.messages import (
     UNAUTHENTICATED as UNAUTHENTICATED_MESSAGE,
 )
+from dirigent_server.viewers import REDOC_JS, SWAGGER_BOOTSTRAP_SOURCE, SWAGGER_CSS, SWAGGER_JS
 
 SESSION_COOKIE = "dirigent_session"
 
@@ -195,16 +201,15 @@ UI_POLICY: Final = "; ".join(
     )
 )
 
-#: What FastAPI's two API viewers load: the CDN's bundles and fonts, their own inline bootstrap,
-#: and the blob worker ReDoc starts.
+#: What the two API viewers load: their pinned bundles, Swagger UI's one inline bootstrap by its
+#: hash, the styles they set on elements, and the blob worker ReDoc starts.
 DOCS_POLICY: Final = "; ".join(
     (
         "default-src 'none'",
-        "script-src https://cdn.jsdelivr.net 'unsafe-inline'",
+        f"script-src {SWAGGER_JS} {REDOC_JS} {SWAGGER_BOOTSTRAP_SOURCE}",
         "worker-src blob:",
-        "style-src https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'",
-        "img-src 'self' data: https://fastapi.tiangolo.com https://cdn.redoc.ly",
-        "font-src https://fonts.gstatic.com",
+        f"style-src {SWAGGER_CSS} 'unsafe-inline'",
+        "img-src 'self' data: https://cdn.redoc.ly",
         "connect-src 'self'",
         "base-uri 'none'",
         "form-action 'none'",
@@ -270,6 +275,47 @@ def install_security_headers(app: FastAPI) -> None:
     """
     app.add_middleware(SecurityHeaders)
     app.add_exception_handler(Exception, _unhandled_with_headers)
+
+
+#: A ``Host`` value: a name or an address, or an address in brackets, then perhaps a port.
+HOST_HEADER: Final = re.compile(r"(?:\[(?P<bracketed>[^\]]*)\]|(?P<name>[^:\[\]]*))(?::[0-9]*)?")
+
+
+def _names_loopback(authority: str) -> bool:
+    """Whether a ``Host`` value, with or without its port, is a loopback name or address."""
+    parsed = HOST_HEADER.fullmatch(authority.lower())
+    return parsed is not None and is_loopback_host(parsed["bracketed"] or parsed["name"] or "")
+
+
+class LoopbackHostsOnly:
+    """Refuse a request whose ``Host`` is not a loopback name.
+
+    A page on a name that resolves to 127.0.0.1 is same-origin with itself, so a browser lets it
+    read what this instance answers and send it the cookies this name earned. The ``Host`` it
+    arrives with is that name.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        """Wrap the application."""
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Pass one request through, or answer 421 without reading any of it."""
+        if scope["type"] != "http" or all(_names_loopback(host) for host in Headers(scope=scope).getlist("host")):
+            await self.app(scope, receive, send)
+            return
+        problem = render(
+            status.HTTP_421_MISDIRECTED_REQUEST,
+            HOST_NOT_LOOPBACK.render(),
+            code=HOST_NOT_LOOPBACK.code,
+            instance=scope["path"],
+        )
+        await answer(problem)(scope, receive, send)
+
+
+def install_loopback_hosts_only(app: FastAPI) -> None:
+    """Keep a loopback bind to loopback names. Registered inside the security headers, which it answers under."""
+    app.add_middleware(LoopbackHostsOnly)
 
 
 def set_session_cookie(response: Response, secret: str, *, max_age: int, secure: bool) -> None:

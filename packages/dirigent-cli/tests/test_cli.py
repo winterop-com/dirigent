@@ -11,6 +11,8 @@ from typing import Any, cast
 import click
 import pytest
 import typer
+from fastapi.testclient import TestClient
+from structlog.testing import capture_logs
 from typer.testing import CliRunner
 
 from clisupport import closing, of_kind, only, plain, records, refusal
@@ -25,6 +27,7 @@ from dirigent_cli.main import (
     build_worker,
     distribution_version,
     hoist_globals,
+    warn_of_ignored_settings,
 )
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, get_settings, redacted_url, reset_settings_cache
 from dirigent_core.database import create_engine, create_session_factory, session_scope
@@ -105,6 +108,47 @@ def test_config_show_writes_the_effective_settings_as_a_record() -> None:
     settings = only(result.stdout, "config")["settings"]
     assert "database_url" in settings
     assert "worker_concurrency" in settings
+
+
+def test_config_show_names_what_the_working_directory_could_not_set_and_hides_the_password(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    (tmp_path / ".env").write_text("DIRIGENT_HOST=192.0.2.1\nDIRIGENT_DATABASE_URL=sqlite+aiosqlite:///./other.db\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIRIGENT_DATABASE_URL", "postgresql+asyncpg://user:a-password@db.example.org/dirigent")
+    reset_settings_cache()
+
+    result = runner.invoke(app, ["config", "show"])
+
+    assert result.exit_code == 0, result.output
+    shown = only(result.stdout, "config")
+    assert shown["ignored"] == ["database_url", "host"]
+    assert shown["settings"]["host"] == "127.0.0.1"
+    assert shown["settings"]["database_url"] == "postgresql+asyncpg://user:***@db.example.org/dirigent"
+
+
+def test_a_process_warns_of_what_the_working_directory_could_not_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    (tmp_path / ".env").write_text("DIRIGENT_UI_DIR=/somewhere/else\n")
+    monkeypatch.chdir(tmp_path)
+
+    with capture_logs() as held:
+        warn_of_ignored_settings()
+
+    assert [entry["settings"] for entry in held if entry["log_level"] == "warning"] == [["ui_dir"]]
+
+
+def test_a_process_says_nothing_when_the_working_directory_keeps_to_its_own_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dotenv_layer: None
+) -> None:
+    (tmp_path / ".env").write_text("DIRIGENT_PORT=4444\n")
+    monkeypatch.chdir(tmp_path)
+
+    with capture_logs() as held:
+        warn_of_ignored_settings()
+
+    assert held == []
 
 
 def test_a_cli_message_never_names_a_param_the_refusal_helper_reserves() -> None:
@@ -431,6 +475,27 @@ def test_a_fixture_login_an_earlier_loopback_start_left_is_not_served_on_another
 
     with pytest.raises(typer.Exit):
         asyncio.run(main.dev_admin(settings, exposed_on="0.0.0.0"))  # noqa: S104
+
+
+@pytest.mark.parametrize("address", ["127.0.0.1", "127.0.0.2", "localhost", "::1"])
+def test_dev_on_loopback_answers_only_to_a_loopback_name(address: str) -> None:
+    from dirigent_core import migrations
+
+    settings = get_settings()
+    migrations.upgrade("head", settings)
+    with TestClient(main.build_dev_app(settings, address)) as client:
+        assert client.get("/health", headers={"host": "127.0.0.1:3333"}).status_code == 200
+        assert client.get("/health", headers={"host": "evil.example:3333"}).status_code == 421
+
+
+def test_dev_on_another_address_answers_to_any_name() -> None:
+    """A real admin may serve a dev instance to the network, under whatever name reaches it."""
+    from dirigent_core import migrations
+
+    settings = get_settings()
+    migrations.upgrade("head", settings)
+    with TestClient(main.build_dev_app(settings, "0.0.0.0")) as client:  # noqa: S104
+        assert client.get("/health", headers={"host": "my-laptop.lan:3333"}).status_code == 200
 
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "127.0.0.2", "localhost", "::1"])

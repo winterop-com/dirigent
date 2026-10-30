@@ -312,7 +312,7 @@ async def test_logging_out_revokes_exactly_that_session(
 
 async def test_only_the_fixture_admin_may_have_a_short_password(sessions: async_sessionmaker[AsyncSession]) -> None:
     async with session_scope(sessions) as session:
-        await create_fixture_admin(session, "admin", "admin", name="Development admin")
+        await create_fixture_admin(session, "admin", "admin")
         with pytest.raises(WeakPassword):
             await create_user(session, "other", "admin", role=UserRole.ADMIN)
     async with session_scope(sessions) as session:

@@ -169,7 +169,7 @@ configuration planes and this is only the first of them:
 | Plane | Holds | Lives |
 | --- | --- | --- |
 | Profiles | A server URL, how to get a token, and how patient to be | Beside you, in a project or `~/.config` |
-| Server settings | `DIRIGENT_DATABASE_URL`, `DIRIGENT_SECRET_KEY`, the artifact root | The environment, the project's `.env`, or `dirigent.yaml`, on the host running the server and the workers |
+| Server settings | `DIRIGENT_DATABASE_URL`, `DIRIGENT_SECRET_KEY`, the artifact root | The environment, the file `DIRIGENT_CONFIG_FILE` names, or `~/.config/dirigent/dirigent.yaml`, on the host running the server and the workers; a project's `.env` or `dirigent.yaml` sets only what the [settings reference](settings.md) does not mark host only |
 | Connections | Third-party credentials | Encrypted inside the server's database |
 
 ## Seeing a pipeline's shape
@@ -1229,7 +1229,8 @@ that endpoint rather than a second number the CLI invented; `--tz` is `UTC`; an 
 throttling. `--host` and `--port` default to whatever the instance's
 settings say, which is `127.0.0.1:3333` out of the box. `dg dev` on any other address needs an
 admin that does not use the fixed `admin` password, created first with `dg db upgrade` and
-`dg admin user create --role admin`.
+`dg admin user create --role admin`. On a loopback address it answers only to a loopback name, so
+another name that resolves to this machine is refused.
 
 Every `list` above also answers to `ls` -- `dg runs ls`, `dg pipeline ls`, `dg alerts rules
 ls`. The alias is hidden from `--help`, which teaches one name; it exists because fingers
