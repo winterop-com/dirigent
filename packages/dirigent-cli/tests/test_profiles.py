@@ -249,6 +249,76 @@ def test_a_project_env_file_anyone_may_rewrite_is_not_read(tmp_path: Path) -> No
     assert resolve_endpoint(start=tmp_path, environ={}, needs_token=False).token is None
 
 
+def test_a_project_file_its_group_may_rewrite_is_passed_over(tmp_path: Path) -> None:
+    write(tmp_path).chmod(0o664)
+    assert not find_store(tmp_path).is_project
+
+
+def test_a_project_env_file_its_group_may_rewrite_is_not_read(tmp_path: Path) -> None:
+    write(tmp_path)
+    env = tmp_path / ".env"
+    env.write_text("DG_STAGING_TOKEN=planted\n")
+    env.chmod(0o660)
+    assert resolve_endpoint(start=tmp_path, environ={}, needs_token=False).token is None
+
+
+def test_a_symlinked_project_file_is_passed_over(tmp_path: Path) -> None:
+    held = tmp_path / "elsewhere.yaml"
+    held.write_text(FILE)
+    (tmp_path / "project" / ".dirigent").mkdir(parents=True)
+    (tmp_path / "project" / ".dirigent" / "profiles.yaml").symlink_to(held)
+    assert not find_store(tmp_path / "project").is_project
+
+
+def test_a_symlinked_dirigent_directory_is_passed_over(tmp_path: Path) -> None:
+    held = tmp_path / "held"
+    held.mkdir()
+    (held / "profiles.yaml").write_text(FILE)
+    (tmp_path / "project").mkdir()
+    (tmp_path / "project" / ".dirigent").symlink_to(held)
+    assert not find_store(tmp_path / "project").is_project
+
+
+def test_a_project_file_that_is_a_fifo_is_passed_over_without_blocking(tmp_path: Path) -> None:
+    (tmp_path / ".dirigent").mkdir()
+    os.mkfifo(tmp_path / ".dirigent" / "profiles.yaml")
+    assert not find_store(tmp_path).is_project
+
+
+@pytest.mark.parametrize("key", ["DG_TOKEN", "aws_secret_access_key"])
+def test_a_symlinked_env_file_supplies_no_token(tmp_path: Path, key: str) -> None:
+    held = tmp_path / "credentials"
+    held.write_text(f"{key}=held-elsewhere\n")
+    project = tmp_path / "project"
+    write(project, f"profiles:\n  p:\n    url: https://project.example.org\n    token_env: {key}\n")
+    (project / ".env").symlink_to(held)
+    assert resolve_endpoint(start=project, environ={}, needs_token=False).token is None
+
+
+@pytest.mark.parametrize(
+    ("profile", "env_line"),
+    [
+        ("profiles:\n  p:\n    url: https://project.example.org\n", "DG_TOKEN=${SHELL_SECRET}\n"),
+        ("profiles:\n  p:\n    url: https://project.example.org\n    token_env: T\n", "T=${SHELL_SECRET}\n"),
+    ],
+)
+def test_an_env_file_cannot_copy_a_variable_out_of_the_shell(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str, env_line: str
+) -> None:
+    write(tmp_path, profile)
+    (tmp_path / ".env").write_text(env_line)
+    monkeypatch.setenv("SHELL_SECRET", "held-in-the-shell")
+    endpoint = resolve_endpoint(start=tmp_path, environ={"SHELL_SECRET": "held-in-the-shell"})
+    assert endpoint.token == "${SHELL_SECRET}"
+
+
+def test_a_literal_token_in_a_regular_env_file_still_reaches_the_projects_server(tmp_path: Path) -> None:
+    write(tmp_path, "profiles:\n  p:\n    url: https://project.example.org\n")
+    (tmp_path / ".env").write_text("DG_TOKEN=the-projects-own\n")
+    endpoint = resolve_endpoint(start=tmp_path, environ={})
+    assert (endpoint.url, endpoint.token) == ("https://project.example.org", "the-projects-own")
+
+
 PROJECT_SERVER = "profiles:\n  p:\n    url: https://project.example.org\n    token_env: DG_TOKEN\n"
 
 

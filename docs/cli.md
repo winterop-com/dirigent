@@ -92,20 +92,23 @@ A profile names a server and how to obtain a token for it. Profiles are resolved
 `~/.config/dirigent/profiles.yaml` -- so `cd`-ing into a pipeline repository points the CLI at
 that repository's server without anyone remembering a flag.
 
-A project's file travels with its repository, so whoever wrote it may not be you. Three rules
+A project's file travels with its repository, so whoever wrote it may not be you. Four rules
 hold it to addressing:
 
 - **It may not name a command.** `token_cmd` is refused in a `.dirigent/profiles.yaml`, and
   nothing runs. A profile that needs a command lives in the user file.
-- **It must be yours.** A project's `profiles.yaml` or `.env` that another user owns, or that
-  anyone may rewrite, is passed over as though it were not there. In a container or a shared
-  directory, a project file owned by another uid is not read at all, so name the server with
-  `--url` or `DG_URL`.
+- **It must be yours, and really there.** A project's `profiles.yaml` or `.env` that another
+  user owns, that its group or anyone else may rewrite, or that is a symbolic link is passed over
+  as though it were not there, and so is a `.dirigent` directory that is a link. In a container
+  or a shared directory, a project file owned by another uid is not read at all, so name the
+  server with `--url` or `DG_URL`.
+- **Its `.env` is taken literally.** A `${VAR}` in a project's `.env` stays those characters, so
+  the file cannot copy a value out of your shell.
 - **A token from your shell does not follow its URL off this host.** A `--token`, a `DG_TOKEN`,
   or a variable a `token_env` reads out of your shell is refused on its way to a server the
   project's file or `.env` named, unless that server is on loopback. Name the server yourself
   with `--url` or `DG_URL`, or keep a token for it in the project's `.env`, and the refusal says
-  so. A token the project supplied itself, in that `.env`, goes to the project's server.
+  so. A token the project supplied itself, written out in that `.env`, goes to the project's server.
 
 ```yaml
 # ~/.config/dirigent/profiles.yaml
