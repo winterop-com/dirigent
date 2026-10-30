@@ -1,8 +1,11 @@
 """The source command group: where a pipeline's inputs enter, what has arrived, and calling one."""
 
+import hashlib
+import hmac
 import json
 from pathlib import Path
 from typing import Annotated, Final
+from urllib.parse import urlencode
 
 import httpx2
 import typer
@@ -17,6 +20,9 @@ from dirigent_plugin.sources import Route
 
 #: Where ``dg source call`` reads the token a source was given when ``--source-token`` names none.
 TOKEN_ENV: Final = "DIRIGENT_SOURCE_TOKEN"
+
+#: Where ``dg source call`` and ``dg source set-secret`` read a signing secret when no option names one.
+SECRET_ENV: Final = "DIRIGENT_SOURCE_SECRET"
 
 #: How long a call waits for its answer, past the longest an instance holds a caller by default.
 CALL_TIMEOUT: Final = httpx2.Timeout(90.0, connect=DEFAULT_CONNECT_TIMEOUT)
@@ -80,8 +86,27 @@ def source_rotate(ctx: typer.Context, pipeline: PipelineArg, code: SourceArg) ->
         code=code,
         pipeline=pipeline,
         url=f"{base.rstrip('/')}{minted.url_path}",
+        auth=minted.auth,
+        header=minted.header,
         token=minted.token,
     )
+
+
+@source_app.command("set-secret")
+def source_set_secret(
+    ctx: typer.Context,
+    pipeline: PipelineArg,
+    code: SourceArg,
+    secret: Annotated[
+        str | None,
+        typer.Option("--secret", envvar=SECRET_ENV, help="The secret its sender issued; prompted for when unset."),
+    ] = None,
+) -> None:
+    """Replace a signed source's signing secret with one its sender issued, such as a provider's own."""
+    given = secret or typer.prompt("signing secret", hide_input=True)
+    with client_for(state_of(ctx)) as dg:
+        row = dg.call(dg.sources.set_secret(pipeline, code, given))
+    emit_fact("source.secret_set", message="secret set", code=code, pipeline=pipeline, prefix=row.token_prefix)
 
 
 @source_app.command("inputs")
@@ -120,6 +145,10 @@ def source_call(
         str | None,
         typer.Option("--source-token", envvar=TOKEN_ENV, help="The source's own token, not the CLI's credential."),
     ] = None,
+    signing_secret: Annotated[
+        str | None,
+        typer.Option("--signing-secret", envvar=SECRET_ENV, help="The secret a signed source's body is signed with."),
+    ] = None,
 ) -> None:
     """Call a received source the way its callers do, and write down what it answered.
 
@@ -143,6 +172,12 @@ def source_call(
     elif text is not None:
         content = _read(text).encode()
         headers["Content-Type"] = "text/plain; charset=utf-8"
+    elif form is not None:
+        content = urlencode(_pairs(form)).encode()
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+    if signing_secret and row.signature_header:
+        digest = hmac.new(signing_secret.encode(), content or b"", hashlib.sha256).hexdigest()
+        headers[row.signature_header] = f"sha256={digest}"
     try:
         with httpx2.Client(timeout=CALL_TIMEOUT) as http:
             answered = http.request(
@@ -151,7 +186,6 @@ def source_call(
                 headers=headers,
                 params=_pairs(query),
                 content=content,
-                data=_pairs(form) if form is not None else None,
             )
     except httpx2.HTTPError as error:
         fail(SOURCE_UNREACHABLE, url=url, detail=str(error))

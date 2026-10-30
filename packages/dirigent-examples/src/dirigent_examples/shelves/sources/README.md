@@ -8,11 +8,13 @@ renders from the run's outputs to answer whoever sent it.
 | --- | --- |
 | [`echo-by-hand.yaml`](echo-by-hand.yaml) | The smallest pipeline with a source: the input answered straight back. |
 | [`greet-by-hand.yaml`](greet-by-hand.yaml) | A path parameter, a jq step between the source and the reply, and a status of its own. |
+| [`signed-nested-payload.yaml`](signed-nested-payload.yaml) | A body signed with HMAC-SHA256 instead of a token, and a jq step that takes only the fields it names from a nested payload. |
 | [`signup-form.yaml`](signup-form.yaml) | A urlencoded form taken, and its caller answered 202 the moment the run exists. |
 | [`landing-files.yaml`](landing-files.yaml) | A storage source a worker polls: each CSV landing under a prefix becomes one run, two in flight at most. |
 
 Each runs by hand: `dg run --local` takes the source's `sample`, and `--input` gives one
 instead (`--source` names which source when a pipeline has several). Applied to a server, an
-endpoint is called at its route under `/endpoints` with the token the apply printed, and
-`dg source call` does that for you. A caller of a pipeline with a reply is held until the reply
+endpoint is called at its route under `/endpoints` with the token the apply printed, or
+signed with the secret it printed for an `auth: {kind: hmac}` source, and `dg source call`
+does either for you. A caller of a pipeline with a reply is held until the reply
 answers; one with none is answered 202.

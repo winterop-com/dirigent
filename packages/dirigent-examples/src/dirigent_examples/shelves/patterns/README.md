@@ -89,8 +89,7 @@ stays on the instance.
 | [schedule-interval.yaml](schedule-interval.yaml) | A cadence rather than a calendar, and the misfire grace | `succeeded` |
 | [schedule-at-once.yaml](schedule-at-once.yaml) | One instant, anchored in the zone the schedule declares | `succeeded` |
 | [schedule-window-half-open.yaml](schedule-window-half-open.yaml) | `${run.window.*}`, half-open; needs `--window` | `succeeded` |
-| [webhook-mapping-nested-payload.yaml](webhook-mapping-nested-payload.yaml) | JSONPaths onto parameters, and the parameter left unreachable | `succeeded` |
-| [webhook-signed.yaml](webhook-signed.yaml) | Outbound HMAC with `sign_with`, and where each secret lives | `succeeded` |
+| [webhook-signed.yaml](webhook-signed.yaml) | Outbound HMAC with `sign_with`, the signature a signed endpoint verifies, and where each secret lives | `succeeded` |
 
 ## Concurrency
 

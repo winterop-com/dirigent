@@ -60,10 +60,7 @@ def triggers_issues(code: str, triggers: TriggerSpecs, *, prefix: str = "trigger
         ValidationIssue.of(SCHEDULE_ON_SOURCES, location=f"{prefix}.schedules[{index}]", code=repr(code))
         for index, _ in enumerate(triggers.schedules)
     ]
-    for section, label, declared in (
-        ("webhooks", "webhook", triggers.webhooks),
-        ("watches", "watch", triggers.watches),
-    ):
+    for section, label, declared in (("watches", "watch", triggers.watches),):
         issues.extend(
             ValidationIssue.of(
                 TRIGGERS_ON_SOURCES, location=f"{prefix}.{section}[{index}]", code=repr(code), label=label

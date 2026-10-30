@@ -360,7 +360,7 @@ itself.
 ## A thing is titled by name and addressed by code
 
 Every addressable thing the API answers with -- a pipeline, a connection, a schedule, a
-webhook, an alert rule -- carries the same four fields, and the UI renders them the same way
+source, an alert rule -- carries the same four fields, and the UI renders them the same way
 everywhere: `id`, which nothing draws; `code`, the kebab-case key that appears in the URL and
 in every document that references the thing; `name`, an optional human title with no identity
 at all; and `description`, the long-form body.
@@ -1412,8 +1412,8 @@ field, or anything else with a control inside it. That is the fault the rule was
 settings group capped at `40vh` hid the last password box under its own fold, and what was on
 screen was a label with no control beneath it. Everything else between a header and a footer
 still declares no height -- and it came back in three dialogs at once, each in that same shape:
-the run dialog capped the parameter form it wrapped at `50vh`, the new webhook capped its payload
-mapping at `32vh` and the new schedule its pinned parameters at the same, every one of them
+the run dialog capped the parameter form it wrapped at `50vh`, the new source capped its sample
+at `32vh` and the new schedule its pinned parameters at the same, every one of them
 inside a surface that declared no height of its own. So two of the three stood taller than a
 768px window with nothing to scroll, and the third hid 1372px of its own form under a fold
 nothing drew. **A share of the viewport named anywhere but on the surface is the tell**, and it

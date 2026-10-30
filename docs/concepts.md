@@ -21,7 +21,7 @@ The second half describes what the engine writes down about it.
      |     |                             |     |
      |     +-- references a Block        |     +-- StepAttempt   (one per try)
      |                                   |            |
-     +-- Trigger (schedule / webhook)    |            +-- ArtifactRef  (the output)
+     +-- Trigger (schedule / watch)      |            +-- ArtifactRef  (the output)
      |
      +-- names a Connection by code (a credential the instance holds)
 ```
@@ -88,8 +88,8 @@ concurrency: allow
 priority: low            # a nightly bulk job, behind whatever a person is waiting on
 ```
 
-Priority layers the way parameters do. The document declares the default, a schedule or a
-webhook may override it for what it triggers, and an ad hoc run may override it again --
+Priority layers the way parameters do. The document declares the default, a schedule may
+override it for what it fires, and an ad hoc run may override it again --
 `dg run bulk-load --priority high` is the same pipeline during an incident. Whichever wins is
 pinned on the run at creation, so editing the document never reorders a run already in
 flight. Nothing is preempted: a `high` run's attempts are claimed before any other's the
@@ -179,14 +179,20 @@ with its state.
 An `endpoint` source is called at its route under `/endpoints`: `path: /greet/{name}` answers
 `POST /endpoints/greet/Bergen`. Unless it writes `auth: {kind: public}`, its caller presents the
 token the apply minted for it as `Authorization: Bearer`; the token is shown once, in the
-apply's result, and `dg source rotate-token` replaces it. A route is answered by one source
-on the whole instance, and an apply claiming one another pipeline answers is refused. A call
-is checked in one order, each check answering for itself: the instance's rate for the path
-(429), the route (404, 405), the token (401), the source's own `rate` (429), the source and
-its pipeline taking input (503), the content type (415), the body under `max_body` (413), the
-body parsing (400), the runs in flight (503), and, when a reply can answer, a free seat among
-the callers this server holds (503); then the run is created. Every input from the source's own
-rate onwards is recorded, refusals included, and `dg source inputs` reads them.
+apply's result, and `dg source rotate-token` replaces it. With `auth: {kind: hmac}` the caller
+presents no token: it signs the raw body with HMAC-SHA256 and sends `sha256=<hex>` in
+`X-Dirigent-Signature`, or in the header `auth.header` names (`X-Hub-Signature-256`, say). The
+apply mints the signing secret and shows it once, `dg source rotate-token` replaces it, and
+`dg source set-secret` sets one the sender issued; a `webhook.post` step with `sign_with`
+produces exactly that signature. A route is answered by one source on the whole instance, and
+an apply claiming one another pipeline answers is refused. A call is checked in one order,
+each check answering for itself: the instance's rate for the path (429), the route (404, 405),
+the token (401), the source's own `rate` (429), the source and its pipeline taking input (503),
+the content type (415), the body under `max_body` (413), the signature (401), the body parsing
+(400), the runs in flight (503), and, when a reply can answer, a free seat among the callers
+this server holds (503); then the run is created. Every input from the source's own rate
+onwards is recorded, refusals included, except one refused for its signature, and
+`dg source inputs` reads them.
 
 When no reply is downstream of the source, the caller is answered 202 with where to read the
 run. When one is, the caller is held for the longest `timeout` among the replies its input can
@@ -281,7 +287,7 @@ One execution of one pipeline version, with resolved parameters and an attribute
 A run's status derives mechanically from its leaves: `succeeded`, `failed`, `cancelled`, or
 `completed_with_errors` -- that last one meaning something failed and the pipeline said that
 was tolerable. Every run points at whatever started it (a user, a token, a schedule, a
-webhook, or another run) through a real foreign key, so "who ran this?" is a join rather than
+source, or another run) through a real foreign key, so "who ran this?" is a join rather than
 a free-text field.
 
 ## Item
@@ -462,35 +468,29 @@ already public and the document has to stand alone; anywhere else the instance h
 
 ## Trigger
 
-What starts a run. Four kinds:
+What starts a run on its own, or by hand. Three kinds:
 
 - **Ad hoc** -- `dg run`, the API, or the UI. Always available, always parameterized.
 - **A schedule** -- cron, a fixed interval, or a single instant, each with its own timezone and
   its own parameter overrides. Several per pipeline is the normal case: nightly against
   staging and weekly against production is two schedules on one pipeline, not two pipelines.
-- **A webhook** -- `POST /hooks/{token}`, with a token that is the whole credential, optional
-  HMAC over the raw body, a rate limit, and a small declarative mapping from the JSON payload
-  to run parameters.
 - **A watch** -- a sensor made a continuous source: one run always waiting on a root sensor
   step, and the next armed the moment it succeeds. See [watches](#watches) below.
 
+A run started by a call, a file landing or a message is not a trigger's: the pipeline's first
+step is a [source](#source-and-reply), and the input reaches its steps as that step's output.
+
 Each carries a `code` unique within its pipeline, plus the same optional `name` and
-`description` a pipeline has. A schedule and a webhook may each pin a `priority` on the runs
-they start, overriding the pipeline's.
+`description` a pipeline has. A schedule may pin a `priority` on the runs it
+starts, overriding the pipeline's.
 
-A webhook's `params_from_payload` is checked where it is declared, not where it fires: every
-path parses as `$` followed by dotted, non-empty segments, every mapped name is a parameter
-the pipeline declares, and every required parameter without a default is mapped. All the
-problems are reported at once. The mapped *values* are not checked here -- they exist only
-once a delivery arrives, and are validated then.
-
-Schedules, webhooks and watches can be declared in the document's `triggers:` section, in which
+Schedules and watches can be declared in the document's `triggers:` section, in which
 case an apply materialises them and marks them *managed*. One created by hand with `dg schedule
 create` is not managed, and an apply that does not mention it leaves it alone. A watch is only
 ever declared by a document.
 
-A `kind: triggers` document is the third owner. It names one pipeline and declares clocks,
-webhooks and watches for it, which is how an operations team keeps a clock file over a pipeline another
+A `kind: triggers` document is the third owner. It names one pipeline and declares clocks
+and watches for it, which is how an operations team keeps a clock file over a pipeline another
 team defines:
 
 ```yaml
@@ -505,11 +505,6 @@ triggers:
       cron: "0 4 * * *"
       timezone: Europe/Oslo
       params: {day: "2026-01-01", environment: production}
-  webhooks:
-    - code: ops-manual-kick
-      params_from_payload:
-        day: "$.run.date"
-        environment: "$.run.environment"
 ```
 
 It has no steps and writes no pipeline versions. It is applied through the same `dg apply`
@@ -522,7 +517,7 @@ orders pipeline documents before triggers documents, so a directory carrying bot
 in one pass.
 
 The instance's triggers documents are read at `GET /api/v1/trigger-documents` and
-`GET /api/v1/trigger-documents/{code}`, which names the schedules, webhooks and watches the
+`GET /api/v1/trigger-documents/{code}`, which names the schedules and watches the
 document owns, and with `dg trigger-document list` and `dg trigger-document show CODE`. Deleting one --
 `DELETE /api/v1/trigger-documents/{code}` or `dg trigger-document delete CODE` -- takes its
 rows with it and leaves the pipeline, its inline triggers, and every hand-made row alone.
@@ -586,8 +581,8 @@ A watch refuses at apply to name anything but a root sensor step that does not f
 pipeline version is refused when a watch another document declares could not wait on it.
 `dg watch list | show | pause | resume` and the Triggers screen read and steer them.
 
-Detail: [design.md section 8](design.md#8-triggers) for the misfire policy, the webhook
-security model, and exactly what an apply does and does not touch.
+Detail: [design.md section 8](design.md#8-triggers) for the misfire policy and exactly what an
+apply does and does not touch.
 
 ## Artifact
 

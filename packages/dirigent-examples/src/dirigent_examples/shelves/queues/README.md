@@ -1,6 +1,6 @@
 # Queue examples
 
-A queue sensor starts a run from a message instead of a clock or a webhook. Each poke reads
+A queue sensor starts a run from a message instead of a clock or a call. Each poke reads
 what has arrived since the last one and succeeds the moment there is enough, so the batch
 becomes ordinary step output and the rest of the DAG never learns where it came from. A publish
 goes the other way: a step puts records on a topic and succeeds once the broker has them.

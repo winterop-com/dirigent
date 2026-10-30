@@ -1007,7 +1007,7 @@ format checker, is in [JSON Schema](json-schema.md).
 | `methods` | `"GET" or "POST" or "PUT" or "PATCH" or "DELETE"[]` |  |  | The methods answered at the path; another method at it is answered 405. |
 | `accepts` | `string[] or null` |  | `null` | The content types a body may arrive as; unset takes JSON, forms and text. |
 | `max_body` | `string or integer or null` |  | `null` | The largest body read, below the instance's own cap; one byte past it is refused 413. |
-| `auth` | `object` |  | `{"kind": "token"}` | How a caller authenticates: a token by default, or `{kind: public}` when written out. |
+| `auth` | `object` |  | `{"kind": "token", "header": "X-Dirigent-Signature"}` | How a caller authenticates: a token by default, or `{kind: public}` when written out. |
 | `rate` | `object` |  | `{"per_minute": 600, "burst": null}` | How fast calls are taken; one past it is answered 429 before its body is read. |
 | `max_in_flight` | `integer or null` |  | `null` | How many unsettled runs from this source may exist before a new input is refused 503. |
 

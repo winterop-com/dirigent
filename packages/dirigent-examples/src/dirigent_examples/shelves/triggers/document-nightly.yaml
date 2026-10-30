@@ -1,21 +1,20 @@
 # Clocks for a pipeline defined somewhere else: the ops team's clock file.
 #
-# A kind: triggers document declares nothing but schedules and webhooks, and names the
-# pipeline they fire. The pipeline itself lives in managed-and-manual.yaml, owned by
+# A kind: triggers document declares nothing but schedules, and names the pipeline they
+# fire. The pipeline itself lives in managed-and-manual.yaml, owned by
 # whoever writes pipelines; this file is owned by whoever decides when they run. Two files,
 # two review cycles, one instance.
 #
 # Applying it does exactly what a pipeline document's triggers: section does, with one
 # difference: the rows it creates are owned by THIS document rather than by the pipeline's.
-# So an apply here creates, redeclares and retires its own schedules and its own webhook,
-# and never touches the two schedules and the webhook managed-and-manual.yaml declares, nor
-# anything an operator made by hand.
+# So an apply here creates, redeclares and retires its own schedules, and never touches the
+# two schedules managed-and-manual.yaml declares, nor anything an operator made by hand.
 #
 # It refuses three things, and says which at apply:
 #
 #   - a pipeline: that no instance holds, or that is deactivated. Apply the pipeline first;
 #     a directory apply does that for you, because pipelines go before triggers documents.
-#   - a schedule or webhook code the pipeline already carries under a different owner, and
+#   - a schedule code the pipeline already carries under a different owner, and
 #     names the owner in the refusal.
 #   - pinned params: the pipeline's current parameter schema would reject, checked here at
 #     apply and again at every firing.
@@ -35,7 +34,7 @@ format: dirigent/v1
 kind: triggers
 code: document-nightly
 name: Nightly batch clocks
-description: Schedules and a webhook for a pipeline another document defines.
+description: Schedules for a pipeline another document defines.
 
 pipeline: managed-and-manual
 
@@ -69,12 +68,3 @@ triggers:
       params:
         day: "2026-01-01"
         environment: staging
-
-  webhooks:
-    # The operations team's own endpoint, beside the pipeline's. Its token is minted by the
-    # instance and shown once, and deleting this document deletes the endpoint with it --
-    # which is the point of putting it here rather than in the pipeline's own file.
-    - code: ops-manual-kick
-      params_from_payload:
-        day: "$.run.date"
-        environment: "$.run.environment"

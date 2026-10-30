@@ -1,4 +1,4 @@
-import { CalendarPlus, RefreshCw, Webhook } from 'lucide-react'
+import { CalendarPlus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
@@ -7,8 +7,8 @@ import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader, PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
 import { Chip, Clock, Dot, NextFire, OwnerChip, WatchState } from '@/components/triggers/marks'
-import { MintedToken, NewSchedule, NewWebhook } from '@/components/triggers/NewTrigger'
-import { SchedulePanel, SourcePanel, WatchPanel, WebhookPanel } from '@/components/triggers/TriggerPanel'
+import { MintedToken, NewSchedule } from '@/components/triggers/NewTrigger'
+import { SchedulePanel, SourcePanel, WatchPanel } from '@/components/triggers/TriggerPanel'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { formatInstant, formatRelative } from '@/lib/format'
@@ -17,15 +17,19 @@ import { LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { listensTo, readSourcePage, sourceId, stateView, type SourceOut } from '@/lib/sources'
+import {
+    listensTo,
+    readSourcePage,
+    sourceId,
+    stateView,
+    type SourceOut,
+    type SourceTokenOut,
+} from '@/lib/sources'
 import { cn } from '@/lib/utils'
 import {
-    deliveryView,
     firingView,
-    hookPath,
     nextFireView,
     readTriggerPage,
-    signing,
     triggerId,
     watchView,
     type ScheduleOut,
@@ -33,33 +37,29 @@ import {
     type TriggerRow,
     type WatchOut,
     type WatchRow,
-    type WebhookOut,
-    type WebhookRow,
-    type WebhookTokenOut,
 } from '@/lib/triggers'
 
 /**
  * Everything that fires a pipeline without a person: the sources a pipeline listens on, the
- * clocks, the inbound endpoints, and the watches that keep a run waiting on a sensor.
+ * clocks, and the watches that keep a run waiting on a sensor.
  *
  * SOURCES ARE READ ON THEIR OWN CURSOR. `/sources` lists every source on the instance, so that
- * section pages by itself; the three trigger sections share the pipelines walk below.
+ * section pages by itself; the two trigger sections share the pipelines walk below.
  *
- * THREE SECTIONS, ONE WALK. This API has no listing of every schedule on the instance -- a
+ * TWO SECTIONS, ONE WALK. This API has no listing of every schedule on the instance -- a
  * trigger hangs off the pipeline it fires -- so the screen walks pipelines and reads the
  * triggers of the ones the pipelines listing already counted at least one of. Every section
  * grows from the same page, which is why every foot states the same walk and one "load more"
  * carries them together.
  *
  * MANAGED IS NOT A LOCK, IT IS A SOURCE. A trigger a document declared changes when that
- * document is applied again, and the chip says so; whether it is paused, whether it accepts
- * deliveries, and what token it answers on are the instance's, and those are the verbs the
- * panel offers. A watch is only ever declared by a document, so there is no New for one.
+ * document is applied again, and the chip says so; whether it is paused is the instance's,
+ * and that is the verb the panel offers. A watch is only ever declared by a document, so there is no New for one.
  */
 export function Triggers() {
     const [chosen, setChosen] = useState<string | null>(null)
-    const [creating, setCreating] = useState<'schedule' | 'webhook' | null>(null)
-    const [minted, setMinted] = useState<WebhookTokenOut | null>(null)
+    const [creating, setCreating] = useState<'schedule' | null>(null)
+    const [minted, setMinted] = useState<SourceTokenOut | null>(null)
     // What a verb has since made of a row, over the page it was read on.
     const [fresher, setFresher] = useState<Record<string, TriggerRow>>({})
 
@@ -76,7 +76,6 @@ export function Triggers() {
 
     const rows = useMemo(() => state.rows.map((row) => fresher[triggerId(row)] ?? row), [fresher, state.rows])
     const schedules = useMemo(() => rows.filter(isSchedule), [rows])
-    const webhooks = useMemo(() => rows.filter(isWebhook), [rows])
     const watches = useMemo(() => rows.filter(isWatch), [rows])
     const scheduleCols = useMemo(() => scheduleColumns(schedules), [schedules])
     const watchCols = useMemo(() => watchColumns(watches), [watches])
@@ -137,18 +136,6 @@ export function Triggers() {
                                         }}
                                     />
                                 )
-                            case 'webhook':
-                                return (
-                                    <WebhookPanel
-                                        pipeline={open.pipeline}
-                                        pipelineName={open.pipelineName}
-                                        webhook={open.webhook}
-                                        onChanged={(webhook: WebhookOut) => {
-                                            held({ ...open, webhook })
-                                        }}
-                                        onMinted={setMinted}
-                                    />
-                                )
                             case 'watch':
                                 return (
                                     <WatchPanel
@@ -187,17 +174,6 @@ export function Triggers() {
                               setCreating('schedule')
                           },
                       },
-                      {
-                          id: 'triggers:webhook',
-                          title: LABELS.triggers.webhook.new,
-                          group: LIST_GROUP,
-                          screen: true,
-                          icon: Webhook,
-                          keywords: ['hook', 'inbound', 'token', 'create'],
-                          run: () => {
-                              setCreating('webhook')
-                          },
-                      },
                   ]
                 : []),
             {
@@ -227,7 +203,7 @@ export function Triggers() {
         openPanel()
     }
 
-    /** What taking the open row back means here, whichever of the four listings it is in. */
+    /** What taking the open row back means here, whichever of the three listings it is in. */
     const unchoose = () => {
         setChosen(null)
         setChosenSource(null)
@@ -248,16 +224,6 @@ export function Triggers() {
                         why: write.why,
                         onClick: () => {
                             setCreating('schedule')
-                        },
-                    },
-                    {
-                        id: 'webhook',
-                        label: LABELS.triggers.webhook.new,
-                        icon: Webhook,
-                        disabled: !write.may,
-                        why: write.why,
-                        onClick: () => {
-                            setCreating('webhook')
                         },
                     },
                 ]}
@@ -311,26 +277,6 @@ export function Triggers() {
                     </section>
 
                     <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">{LABELS.word.webhook.heading}</h2>
-                        {webhooks.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">{LABELS.triggers.webhook.empty}</p>
-                        ) : (
-                            <ListTable
-                                columns={WEBHOOK_COLUMNS}
-                                rows={webhooks}
-                                rowKey={triggerId}
-                                reading={state.reading}
-                                next={state.next}
-                                onMore={more}
-                                noun={LABELS.word.webhook.count}
-                                onSelect={select}
-                                selected={(row) => triggerId(row) === chosen}
-                                onClose={unchoose}
-                            />
-                        )}
-                    </section>
-
-                    <section className="space-y-2">
                         <h2 className="text-sm font-semibold">{LABELS.word.watch.heading}</h2>
                         {watches.length === 0 ? (
                             <p className="text-sm text-muted-foreground">{LABELS.triggers.watch.empty}</p>
@@ -358,16 +304,6 @@ export function Triggers() {
                     setCreating(next ? 'schedule' : null)
                 }}
                 onCreated={reload}
-            />
-            <NewWebhook
-                open={creating === 'webhook'}
-                onOpenChange={(next) => {
-                    setCreating(next ? 'webhook' : null)
-                }}
-                onMinted={(token) => {
-                    setMinted(token)
-                    reload()
-                }}
             />
             {minted !== null && (
                 <MintedToken
@@ -459,13 +395,11 @@ function sourceColumns(rows: readonly SourceOut[]): Column<SourceOut>[] {
 }
 
 const isSchedule = (row: TriggerRow): row is ScheduleRow => row.kind === 'schedule'
-const isWebhook = (row: TriggerRow): row is WebhookRow => row.kind === 'webhook'
 const isWatch = (row: TriggerRow): row is WatchRow => row.kind === 'watch'
 
 /** What the panel's strip calls the trigger it holds. */
 const PANEL_LABEL: Record<TriggerRow['kind'], string> = {
     schedule: LABELS.word.schedule.label,
-    webhook: LABELS.word.webhook.label,
     watch: LABELS.word.watch.label,
 }
 
@@ -510,58 +444,6 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
         id: 'last',
         header: LABELS.word.firing.last,
         cell: (row) => <LastFiring row={row} />,
-    },
-]
-
-const WEBHOOK_COLUMNS: Column<WebhookRow>[] = [
-    {
-        id: 'webhook',
-        header: LABELS.word.webhook.label,
-        kind: 'title',
-        cell: (row) => (
-            <Titled thing={row.webhook}>
-                <OwnerChip managed={row.webhook.managed} document={row.webhook.trigger_document} />
-                {!row.webhook.active && <Chip>{LABELS.state.armed.disabled}</Chip>}
-            </Titled>
-        ),
-    },
-    {
-        id: 'pipeline',
-        header: LABELS.word.pipeline.label,
-        kind: 'prose',
-        cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
-    },
-    {
-        id: 'endpoint',
-        header: LABELS.word.endpoint,
-        kind: 'prose',
-        className: 'font-mono text-xs',
-        cell: (row) => (
-            <span className="block truncate" title={LABELS.triggers.webhook.post(hookPath(row.webhook))}>
-                {LABELS.triggers.webhook.post(hookPath(row.webhook))}
-            </span>
-        ),
-    },
-    {
-        id: 'signed',
-        header: LABELS.word.signature,
-        className: 'text-xs',
-        cell: (row) => <span className="text-muted-foreground">{signing(row.webhook)}</span>,
-    },
-    {
-        id: 'rate',
-        header: LABELS.word.rate_limit.label,
-        className: 'text-right font-mono text-xs',
-        cell: (row) => (
-            <span className="text-muted-foreground">
-                {LABELS.word.rate_limit.value(String(row.webhook.rate_limit_per_minute))}
-            </span>
-        ),
-    },
-    {
-        id: 'last',
-        header: LABELS.triggers.webhook.last_delivery,
-        cell: (row) => <LastDelivery row={row} />,
     },
 ]
 
@@ -679,37 +561,6 @@ function LastFiring({ row }: { row: ScheduleRow }) {
             {view !== null && view.detail !== null && (
                 <span className="max-w-48 truncate text-muted-foreground" title={view.detail}>
                     {view.detail}
-                </span>
-            )}
-        </span>
-    )
-}
-
-/** When something last arrived, and what came of it. */
-function LastDelivery({ row }: { row: WebhookRow }) {
-    if (row.webhook.last_delivery_at === null)
-        return <span className="text-xs text-faint">{LABELS.word.never}</span>
-    const view = row.latest === null ? null : deliveryView(row.latest)
-    return (
-        <span className="flex items-center gap-2 text-xs">
-            {view !== null && <Dot tone={view.tone} />}
-            <span className="text-muted-foreground" title={formatInstant(row.webhook.last_delivery_at)}>
-                {formatRelative(row.webhook.last_delivery_at)}
-            </span>
-            {view !== null && view.runId !== null && (
-                <Link
-                    className="font-mono text-primary-ink hover:underline"
-                    to={`/runs/${view.runId}`}
-                    onClick={(event) => {
-                        event.stopPropagation()
-                    }}
-                >
-                    {LABELS.word.run.term}
-                </Link>
-            )}
-            {view !== null && view.reason !== null && (
-                <span className="max-w-48 truncate text-muted-foreground" title={view.reason}>
-                    {view.reason}
                 </span>
             )}
         </span>

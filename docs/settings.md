@@ -56,7 +56,6 @@ environment, and the server inside one never opens the file.
 | `docker_reap_grace` | `DIRIGENT_DOCKER_REAP_GRACE` | `"10m"` | How old a compose project must be before the reaper will consider it at all. |
 | `retention_runs` | `DIRIGENT_RETENTION_RUNS` | `null` | How long a settled run is kept, with its items, attempts, artifacts and alerts. |
 | `retention_logs` | `DIRIGENT_RETENTION_LOGS` | `null` | How long a log entry is kept, for runs too young to be pruned themselves. |
-| `retention_deliveries` | `DIRIGENT_RETENTION_DELIVERIES` | `null` | How long a webhook delivery is kept. |
 | `retention_inputs` | `DIRIGENT_RETENTION_INPUTS` | `null` | How long the record of an input that reached a source is kept. |
 | `retention_firings` | `DIRIGENT_RETENTION_FIRINGS` | `null` | How long a schedule firing is kept. |
 | `retention_notifications` | `DIRIGENT_RETENTION_NOTIFICATIONS` | `null` | How long an alert that was sent is kept, for runs too young to be pruned themselves. |
@@ -77,8 +76,6 @@ environment, and the server inside one never opens the file.
 | `notification_max_attempts` | `DIRIGENT_NOTIFICATION_MAX_ATTEMPTS` | `5` | How many times a notification delivery is retried before it is recorded as failed. |
 | `notification_backoff` | `DIRIGENT_NOTIFICATION_BACKOFF` | `"30s"` | The delay after a notification's first failed delivery; later ones double from it. |
 | `notification_lease` | `DIRIGENT_NOTIFICATION_LEASE` | `"1m"` | How long a claimed notification's lease is valid before another worker may take it. |
-| `webhook_max_payload` | `DIRIGENT_WEBHOOK_MAX_PAYLOAD` | `1048576` | The largest body the webhook intake will read; reading stops one byte past it. |
-| `webhook_intake_rate_per_minute` | `DIRIGENT_WEBHOOK_INTAKE_RATE_PER_MINUTE` | `120` | How fast one *offered* token may deliver, before anything is looked up. |
 | `endpoint_prefix` | `DIRIGENT_ENDPOINT_PREFIX` | `"/endpoints"` | Where endpoint sources are served, outside the versioned API. |
 | `source_max_body` | `DIRIGENT_SOURCE_MAX_BODY` | `1048576` | The largest body any endpoint reads, whatever its own `max_body` says; reading stops one byte past it. |
 | `source_intake_rate_per_minute` | `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast calls to one method and path are taken, before any source is looked up. |

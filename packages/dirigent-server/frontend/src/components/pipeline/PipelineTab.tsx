@@ -68,7 +68,6 @@ export function PipelineTab({
     const named = connectionsNamed(document)
     const triggers = mapAt(document, 'triggers')
     const schedules = mapsIn(triggers, 'schedules')
-    const webhooks = mapsIn(triggers, 'webhooks')
     const watches = mapsIn(triggers, 'watches')
 
     return (
@@ -204,7 +203,7 @@ export function PipelineTab({
             </Section>
 
             <Section title={LABELS.word.trigger.heading}>
-                {schedules.length === 0 && webhooks.length === 0 && watches.length === 0 ? (
+                {schedules.length === 0 && watches.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_triggers}</p>
                 ) : (
                     <ul className="space-y-0.5 text-xs text-muted-foreground">
@@ -213,12 +212,6 @@ export function PipelineTab({
                                 {LABELS.word.schedule.term}{' '}
                                 <span className="font-mono">{stringAt(schedule, 'code') ?? '--'}</span>{' '}
                                 {clockOf(schedule)}
-                            </li>
-                        ))}
-                        {webhooks.map((webhook, index) => (
-                            <li key={`webhook-${String(index)}`}>
-                                {LABELS.word.webhook.term}{' '}
-                                <span className="font-mono">{stringAt(webhook, 'code') ?? '--'}</span>
                             </li>
                         ))}
                         {watches.map((watch, index) => (

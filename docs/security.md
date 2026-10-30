@@ -30,12 +30,12 @@ rather than leaving the gap for you to find.
 **What it is designed to resist.**
 
 - An unauthenticated caller reaching anything but the health probes, the login route, the
-  OpenAPI document, and the webhook intake.
+  OpenAPI document, and the endpoint sources a pipeline declares.
 - Enumeration of accounts through the login endpoint -- a missing account and a wrong password
   return the same answer and take the same time, because a short-circuit on a missing user
   answered "does this account exist?" to anyone with a stopwatch.
-- Enumeration of webhook tokens -- an unknown token, a revoked one, and a disabled webhook all
-  answer identically, under load as well as at rest.
+- A forged call to a signed endpoint source -- a body is admitted only under a signature made
+  with the source's secret, compared in constant time.
 - Credential exfiltration through a stored pipeline: a document cannot inherit the instance's
   own environment variables, cannot address a `file://` URI outside the artifact root, and
   cannot execute code on a worker at all unless the instance allowlisted the block.
@@ -55,7 +55,7 @@ rather than leaving the gap for you to find.
   everything else is in the clear.
 - Multi-tenant separation of any kind. One dirigent instance is one team's instance.
 - Denial of service from an authenticated principal. Rate limiting exists on the two
-  unauthenticated write paths (login and webhook intake) and nowhere else.
+  unauthenticated write paths (login and endpoint sources) and nowhere else.
 - Anything a pipeline's own outbound traffic can reach. `http.request` will call the URL it is
   given; there is no egress allowlist.
 
@@ -158,10 +158,8 @@ than by an exception list each endpoint remembers:
 - `POST /api/v1/auth/login`, which cannot require what it hands out.
 - `/docs`, `/redoc`, and `/openapi.json`. These are FastAPI's defaults and are open. If your
   deployment does not want the API surface published, do not expose them past your proxy.
-- `POST /hooks/{token}`, which has its own credential and its own rules. See
-  [webhook hardening](#webhook-hardening).
 - Every route under `/endpoints`, which a pipeline's endpoint sources declare, each with its own
-  token unless it writes itself public. See [endpoint hardening](#endpoint-hardening).
+  token or signing secret unless it writes itself public. See [endpoint hardening](#endpoint-hardening).
 
 Every other route under `/api/v1` requires a principal, as a property of the router mount.
 
@@ -193,8 +191,8 @@ login POST is the login-fixation vector: it logs the victim's browser into an ac
 attacker controls, and everything the victim then does is attributed there.
 
 The check runs in middleware, ahead of routing, so no route can be added past it and no
-dependency ordering can skip it. `POST /hooks/{token}` is outside the API prefix and outside
-this: its token is its credential, and no browser holds one.
+dependency ordering can skip it. `/endpoints` is outside the API prefix and outside this: a
+source's token or signature is its credential, and no browser holds one.
 
 **Behind a TLS-terminating proxy**, make sure the proxy sets `X-Forwarded-Proto` and that
 uvicorn is trusting it, or the fallback `Origin` comparison sees `http` where the browser
@@ -213,7 +211,7 @@ may, and an operator everything a viewer may.
   it reports what a stored version would fail on and writes nothing. Anything else that writes
   is a `403`.
 - An **operator** may in addition change pipelines and runs: apply, prune, activate, deactivate,
-  run, backfill, cancel, retry, every schedule and webhook operation, deleting a triggers
+  run, backfill, cancel, retry, every schedule, watch and source operation, deleting a triggers
   document with the rows it owns, alert rules, and the notifier test.
 - An **admin** may in addition hand out authority. That set is exact:
 
@@ -330,85 +328,13 @@ mint the new token, deploy it wherever the old one is used, then revoke the old 
 checking `last_used_at` first, which is exactly what it is there for. Do not revoke before
 you have confirmed nothing is still presenting it.
 
-## Webhook hardening
-
-`POST /hooks/{token}` is the only unauthenticated write surface the product exposes, and it is
-mounted at the application root rather than under `/api/v1` on purpose. Authentication under
-`/api/v1` is a property of the mount: every route there requires a principal. A webhook has no
-principal to present -- its token *is* its credential, and it authenticates as the trigger
-rather than as a person. Two authentication models on one mount is how one of them eventually
-ends up wrong.
-
-**The token is the whole credential.** It is 32 bytes from the CSPRNG, minted server-side,
-stored only as a SHA-256 with an eight-character prefix beside it, and shown exactly once --
-when the webhook is created, or when `dg webhook rotate-token` replaces it. It never appears in
-a document, in an export, or in a listing; there is nowhere in `dirigent/v1` to write one, and
-a document that declares a webhook re-applies without rotating it, because breaking every
-caller as a side effect of an unrelated edit is not a behaviour anyone wants.
-
-**Unknown, revoked, and disabled answer identically.** A token that resolves to nothing and a
-token that resolves to a disabled webhook both return 404 with the same body, so the endpoint
-is not an oracle for discovering which tokens once addressed something real. That equivalence
-is maintained under load too: a disabled webhook's own rate limit is deliberately *not*
-applied, because a different 429 threshold would have leaked exactly what the matching 404s
-exist to hide.
-
-**HMAC is optional and additive.** A webhook carrying a signing secret requires an
-`X-Dirigent-Signature` header: HMAC-SHA256 over the **raw body** -- the bytes as they arrived,
-not a re-serialization of the parsed JSON, because those are not the same string. A `sha256=`
-prefix is accepted, since several popular senders write one. The comparison is constant-time
-and operates on bytes rather than strings, because a header is attacker-controlled and
-`hmac.compare_digest` raises on a non-ASCII `str`: the string version turned a one-byte change
-in a request header into a 500 and a rolled-back session, which meant the refusal left no
-evidence at all. The signing secret itself is sealed with the instance key, the way a
-connection's secret is. An empty secret is refused at declaration rather than stored, because
-a webhook that reads as signed and verifies nothing is worse than an honestly unsigned one:
-either send a secret or send none.
-
-**Rate limiting happens before the body is read**, in two layers:
-
-- An **intake** bucket keyed on the hash of whatever token was *offered*, checked before
-  anything is looked up, at `DIRIGENT_WEBHOOK_INTAKE_RATE_PER_MINUTE` (default 120). This is
-  what bounds a stranger spraying the endpoint: a dictionary lookup each, rather than a
-  database query each.
-- The webhook's own `rate_limit_per_minute` (default 60), applied only to a live webhook.
-
-Both buckets are in memory and therefore per process: behind N API replicas the effective
-limit is the configured rate times N. That is documented rather than fixed, because the
-alternative -- a row updated on every delivery -- turns a cheap refusal into a database write,
-which is precisely what a caller hammering the endpoint would be trying to cause. The trade is
-that a throttled delivery leaves no row in the delivery history; it is logged instead.
-
-**The body is bounded.** Reading stops one byte past
-`DIRIGENT_WEBHOOK_MAX_PAYLOAD` (default 1 MiB) rather than buffering whatever arrives and
-measuring afterwards, so an unauthenticated caller cannot make the process allocate a gigabyte
-in order to be told that a megabyte is the maximum. An oversized delivery still reaches the
-refusal path, so it is still recorded.
-
-**The mapping is strict and small.** `params_from_payload` is JSONPath-lite: a leading `$.`,
-dotted keys, and a numeric segment for a list element. No filters, wildcards, or slices, for
-the same reason the reference language has no expressions -- a mapping a reviewer cannot
-evaluate in their head is a mapping nobody can audit. It reads the JSON body and nothing else:
-not headers, not the query string. What it produces is validated against the pipeline's own
-parameter schema like any other run's parameters, so a webhook cannot smuggle configuration
-past the schema.
-
-**Every delivery is recorded, refusals included** -- what arrived (truncated past 8 KiB), what
-it mapped to, the source address, and the run id or the reason. This is why a refusal inside
-the delivery path is a *returned value* rather than a raised exception: the row explaining why
-a call was refused is written in the same transaction, and an exception escaping would roll
-back exactly the evidence someone debugging their sender needs. Read it with `dg webhook
-deliveries PIPELINE CODE`.
-
-Note the asymmetry that follows from the two paragraphs above: a *refused* delivery leaves a
-row, a *throttled* one does not. If a sender insists it has been calling all night and the
-history is empty, check the process log for rate limiting before concluding nothing arrived.
-
 ## Endpoint hardening
 
 The routes under `/endpoints` are a pipeline's endpoint sources, mounted under their own prefix
-(`DIRIGENT_ENDPOINT_PREFIX`) for the reason `/hooks` is mounted at the root: a call there
-authenticates as the source, not as a person, and has no principal to present.
+(`DIRIGENT_ENDPOINT_PREFIX`) rather than under `/api/v1`: a call there authenticates as the
+source, not as a person, and has no principal to present. Authentication under `/api/v1` is a
+property of the mount, and two authentication models on one mount is how one of them
+eventually ends up wrong.
 
 **A token unless public is written out.** An endpoint source takes `Authorization: Bearer`
 with the token the instance minted for it, 32 bytes from the CSPRNG, stored only as a SHA-256
@@ -416,10 +342,22 @@ with an eight-character prefix beside it, and compared in constant time. `auth: 
 admits anyone, and only when the document says so. A re-apply keeps the token; `dg source
 rotate-token` replaces it at once.
 
-**The token is shown once, in the apply that created the source.** It is in the apply's
-result, which `dg apply` writes as a record. An apply run in CI that creates a source therefore
-writes that source's token into the CI log. Either create sources from a terminal, or treat a
-token first shown in a log as exposed and rotate it before giving it to a caller.
+**Or a signature, with `auth: {kind: hmac}`.** The caller presents no token; it sends
+HMAC-SHA256 over the **raw body** -- the bytes as they arrived, not a re-serialization of the
+parsed JSON, because those are not the same string -- in `X-Dirigent-Signature`, or the header
+`auth.header` names. A `sha256=` prefix is accepted, since several popular senders write one.
+The comparison is constant-time and operates on bytes rather than strings, because a header is
+attacker-controlled and `hmac.compare_digest` raises on a non-ASCII `str`. The signing secret
+is minted at apply from the CSPRNG and shown once, or set with `dg source set-secret` when the
+sender issues it, and is sealed with the instance key, the way a connection's secret is; a
+re-apply keeps it, and `dg source rotate-token` replaces it. A signature is checked once the
+capped body is read, so a call without one costs the read and no more.
+
+**The token or secret is shown once, in the apply that created the source.** It is in the
+apply's result, which `dg apply` writes as a record. An apply run in CI that creates a source
+therefore writes that source's token or signing secret into the CI log. Either create sources
+from a terminal, or treat a credential first shown in a log as exposed and rotate it before
+giving it to a caller.
 
 **A credential never reaches a run.** The input a run is entered with carries the request's
 headers with `authorization`, `cookie`, `proxy-authorization` and `x-dirigent-signature`
@@ -430,8 +368,11 @@ instance's bucket for the method and path (`DIRIGENT_SOURCE_INTAKE_RATE_PER_MINU
 anything is looked up), the route, the token, then the source's own `rate`. A refusal at any of
 those -- 429, 404, 405, 401 -- is counted in telemetry (`dirigent.source.inputs`) and logged,
 and writes nothing, so a stranger without the token, or a caller in a loop, cannot cause
-writes. From there on every refusal, and every accepted input, is recorded against the source.
-Both buckets are per process, as the webhook ones are.
+writes. From there on every refusal, and every accepted input, is recorded against the source,
+except a missing or wrong signature, which is counted and logged the same way and writes
+nothing. Both buckets are in memory and therefore per process: behind N API replicas the
+effective limit is the configured rate times N, documented rather than fixed, because a row
+updated on every call turns a cheap refusal into a database write.
 
 **The body is bounded before it is read.** The content type is checked against what the source
 `accepts` before a byte of the body is read, and reading stops one byte past the source's
@@ -590,10 +531,10 @@ Given what the code supports, rotating a key means re-entering the credentials:
 5. Run `dg connection check CODE` for each, which is the one command that actually opens an
    envelope and uses what is inside it.
 
-The same applies to any webhook HMAC secret, which is sealed with the same key. There is no
-update command for a webhook either, so re-entering a signing secret means `dg webhook delete`
-and `dg webhook create ... --hmac-secret`. Note that this mints a new token as well, so every
-sender has to be updated.
+The same applies to a signed endpoint source's secret, which is sealed with the same key.
+Re-entering it is `dg source set-secret PIPELINE SOURCE --secret ...` with the secret its
+senders already hold, or `dg source rotate-token`, which mints a new one every sender then has
+to be given.
 
 Treat losing the key as losing the credentials. Back it up somewhere that is not the database
 backup, because a backup containing both the envelopes and the key that opens them is not an
@@ -602,10 +543,8 @@ encrypted backup.
 ### Where secrets are not
 
 Marked-secret fields are redacted as `***` in every API response, and they never appear in a
-pipeline definition, an export, or a process log. Paths carrying credentials are redacted
-before they reach a log line or an OpenTelemetry span name -- a delivery to
-`POST /hooks/<token>` carries its whole credential in the URL path, and a span name travels to
-every trace viewer the operator has. A secret field that is not set reads as `null`, not as
+pipeline definition, an export, or a process log. No route carries a credential in its path,
+so a log line or an OpenTelemetry span name never holds one. A secret field that is not set reads as `null`, not as
 `***`: the marker means a credential is stored.
 
 That is what makes a redacted read editable. `PATCH /api/v1/connections/{code}` replaces the
@@ -636,16 +575,12 @@ Dirigent does not terminate TLS itself.
 to expose. The compose file publishes the Postgres port for local convenience; a real
 deployment should not.
 
-**The hooks endpoint.** `POST /hooks/{token}` sits at the application root, deliberately
-outside `/api/v1`. If senders are outside your network and operators are inside, that split is
-your seam: a proxy can publish `/hooks/*` to the internet and keep `/api/v1/*` on the internal
-side, with no change to dirigent. Note that this only works because the split is structural.
-Do not invert it -- publishing `/api/v1` and firewalling `/hooks` gets you nothing, since
-`/api/v1` is the surface that holds the credentials.
-
-**The endpoints.** Everything under `/endpoints` is a pipeline's endpoint sources, and the
-same seam applies: a proxy can publish `/endpoints/*` to the callers outside and keep
-`/api/v1/*` inside.
+**The endpoints.** Everything under `/endpoints` is a pipeline's endpoint sources, deliberately
+outside `/api/v1`. If callers are outside your network and operators are inside, that split is
+your seam: a proxy can publish `/endpoints/*` to the internet and keep `/api/v1/*` on the
+internal side, with no change to dirigent. Note that this only works because the split is
+structural. Do not invert it -- publishing `/api/v1` and firewalling `/endpoints` gets you
+nothing, since `/api/v1` is the surface that holds the credentials.
 
 **The OpenAPI document, `/docs`, and `/redoc` are unauthenticated.** If the API is
 internet-facing and you would rather not publish its shape, block those three paths at the
@@ -666,7 +601,7 @@ Stated plainly, because a security page that lists only what exists is not much 
   the whole model: the role is a property of the account and applies to the entire instance.
   There are no custom roles and no way to grant one operation without the rest of its rung.
 - **Per-pipeline permissions.** None. Every operator can run every pipeline, read every run and
-  every log, and create schedules and webhooks on anything.
+  every log, and create schedules on anything.
 - **Per-connection permissions.** None. Any principal can list connections, and any operator
   can write a pipeline that uses any of them. Admin gates creating and modifying a connection, not using
   it.
@@ -688,7 +623,7 @@ Stated plainly, because a security page that lists only what exists is not much 
   `follow_redirects_with_auth`: its `base_url` is followed once, without the credential, and
   every request then goes, credential and all, to wherever it landed. Set it only on a
   `base_url` whose redirect you trust, such as `https://play.dhis2.org/2.43`.
-- **Rate limiting on the authenticated API.** Only login and webhook intake are limited.
+- **Rate limiting on the authenticated API.** Only login and endpoint sources are limited.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every
   cookie-authenticated write described in [cross-site writes](#cross-site-writes), on top of
   the cookie's `SameSite=Lax`. That is the modern shape and it is what the UI relies on; a

@@ -9,13 +9,13 @@ import { applyDocument, signIn } from './support.ts'
  * WHAT THIS CATCHES AND NOTHING ELSE DOES. A block between a dialog's header and its footer that
  * declares a height puts a second scroll inside the first and cuts its own content off at a line
  * nothing drew -- and where the surface around it declares no height either, the verbs at the
- * foot go off the bottom of the window with nothing to scroll to reach them. Three surfaces had
- * it: the run dialog capped its parameter form at `50vh`, and both trigger dialogs capped a
- * payload mapping and a pinned-parameters form at `32vh`. Every gate passed the whole time.
+ * foot go off the bottom of the window with nothing to scroll to reach them. The run dialog
+ * capped its parameter form at `50vh`, and the schedule dialog its pinned-parameters form at
+ * `32vh`. Every gate passed the whole time.
  *
  * THE FORM HAS TO BE LONGER THAN THE SCREEN OR THERE IS NOTHING TO SEE. A pipeline with five
- * parameters fits, so the fixture declares eighteen; a webhook's mapping draws a row per
- * parameter and a schedule's pinned box draws the same form again, so one fixture is all three.
+ * parameters fits, so the fixture declares eighteen; a schedule's pinned box draws the same form
+ * the run dialog does, so one fixture serves both.
  *
  * EVERY PARAMETER IS A SCALAR. An array or a bare object is drawn as a code pane, which brings
  * an editor and the editor's own scrolling into the very thing being measured.
@@ -252,16 +252,5 @@ test('a new schedule on a long pinned-parameters form keeps Create on the screen
         await pick(page, LABELS.word.pipeline.label, PIPELINE, TITLE)
         await expect(dialog.getByLabel(LAST, { exact: true })).toBeAttached()
         await capsAndScrolls(page, dialog, LABELS.action.create.verb, `the new schedule dialog in ${mode}`)
-    }
-})
-
-test('a new webhook on a wide payload mapping keeps Create on the screen', async ({ page }) => {
-    for (const mode of MODES) {
-        await open(page, mode, '/triggers')
-        await page.getByRole('button', { name: LABELS.triggers.webhook.new, exact: true }).click()
-        const dialog = page.getByRole('dialog')
-        await pick(page, LABELS.word.pipeline.label, PIPELINE, TITLE)
-        await expect(dialog.getByLabel(LAST, { exact: true })).toBeAttached()
-        await capsAndScrolls(page, dialog, LABELS.action.create.verb, `the new webhook dialog in ${mode}`)
     }
 })

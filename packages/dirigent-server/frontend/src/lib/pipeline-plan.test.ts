@@ -41,9 +41,6 @@ function materialized(over: Partial<Materialized> = {}): Materialized {
         schedules_created: [],
         schedules_updated: [],
         schedules_removed: [],
-        webhooks_created: [],
-        webhooks_updated: [],
-        webhooks_removed: [],
         watches_created: [],
         watches_updated: [],
         watches_removed: [],
@@ -151,8 +148,8 @@ describe('what an apply did', () => {
 
     test('lists what it did to the triggers, and nothing when it left them alone', () => {
         expect(
-            triggerChanges(materialized({ schedules_created: ['nightly'], webhooks_removed: ['intake'] })),
-        ).toEqual(['schedules created: nightly', 'webhooks removed: intake'])
+            triggerChanges(materialized({ schedules_created: ['nightly'], watches_updated: ['follow'] })),
+        ).toEqual(['schedules created: nightly', 'watches updated: follow'])
         expect(triggerChanges(materialized({ watches_removed: ['follow'] }))).toEqual([
             'watches removed: follow',
         ])

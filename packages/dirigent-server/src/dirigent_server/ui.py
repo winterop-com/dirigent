@@ -56,7 +56,6 @@ HTML_ACCEPT = ("text/html", "application/xhtml+xml")
 #: layers away, and a missing hashed asset answered with the page that asked for it loops.
 RESERVED_PREFIXES = (
     "/health",
-    "/hooks",
     "/docs",
     "/redoc",
     "/openapi.json",

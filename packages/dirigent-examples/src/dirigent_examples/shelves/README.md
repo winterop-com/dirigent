@@ -18,8 +18,8 @@ The documents live on topic shelves, each with its own README:
 | [`failure/`](failure) | Retries, budgets, timeouts, tolerated failures, and the cleanup edge. |
 | [`transform/`](transform) | The reshaping verbs: jq programs and the `convert.std` codec, no allowlist anywhere. |
 | [`recipes/`](recipes) | One question per file: how to group, join, pivot, clean, convert, check, store, and call. |
-| [`triggers/`](triggers) | What starts a run on its own: the three clocks, the inbound webhook, and a watch on a sensor. |
-| [`sources/`](sources) | A pipeline that starts where an input arrives: a source, a reply, and a run entered by hand. |
+| [`triggers/`](triggers) | What starts a run on its own: the three clocks and a watch on a sensor. |
+| [`sources/`](sources) | A pipeline that starts where an input arrives: a source, a signed call, a reply, and a run entered by hand. |
 | [`sensors/`](sensors) | Steps that wait for the world: a drop landing, a clock window opening. |
 | [`queues/`](queues) | A run started by a message: a Kafka topic and a RabbitMQ queue, waited on as sensors. |
 | [`execute/`](execute) | Code on the worker: a shell step behind the allowlist. |
@@ -39,7 +39,7 @@ nothing else. The **shelf** is the directory the file sits in, exactly one, and 
 wears it. The **block families** are what its steps use, read off the block ids: `http`,
 `transform` (the jq verbs and the `convert.std` codec), `storage` (a storage block, or a
 converter's `source` and `target`), `execute` (shell and docker), `sql`, `git`, `webhook`
-(`webhook.post`, or an inbound webhook trigger), `kafka`, `rabbitmq`, `pipeline`, `validate`,
+(`webhook.post`), `kafka`, `rabbitmq`, `pipeline`, `validate`,
 and `sensor` for any sensor block. The **behaviours** are what the document teaches and what a
 reader filters by: `schedule`, `fan-out`, `graph`, `failure`, `retry`, `timeout`,
 `concurrency`, `params`, `references`, `rules`, `priority`, `window`, `composition`,
@@ -117,7 +117,7 @@ dg run linear -p day=2026-01-01 --watch
 
 The documents that are *about* HTTP are the exception, and they call the playground routes a
 dirigent instance serves under `/api/v1/playground`, unauthenticated: the whole
-[`recipes/` HTTP section](recipes/README.md), the connection and webhook files on
+[`recipes/` HTTP section](recipes/README.md), the connection and signed-delivery files on
 [`patterns/`](patterns), [`demo/requires.yaml`](demo/requires.yaml) and
 [`composition/chained-instances.yaml`](composition/chained-instances.yaml). A local run mounts
 no API of its own, so start an instance first and they reach that:
@@ -270,12 +270,12 @@ dg run --local examples/composition/composition-parent.yaml \
 
 ## Why every example is self-contained
 
-Almost every document here defines the pipeline it schedules or hooks, because a pipeline
+Almost every document here defines the pipeline it schedules, because a pipeline
 document carries its own `triggers:` section and one file is then one deployable unit. That
 is what keeps the schedule examples runnable on their own: each teaches one clock, and a
 reader can fire it ad hoc without applying anything else first.
 
-The other form has its own example. A `kind: triggers` document declares clocks and webhooks
+The other form has its own example. A `kind: triggers` document declares clocks
 for a pipeline defined somewhere else and names it -- the ops team's clock file over a
 pipeline another team owns. [triggers/document-nightly.yaml](triggers/document-nightly.yaml)
 is that document, and it targets the pipeline in

@@ -81,7 +81,6 @@ test('a viewer is offered no write control, and each shut one says why', async (
     const schedule = page.getByRole('button', { name: LABELS.triggers.schedule.new })
     await expect(schedule).toBeDisabled()
     await expect(schedule).toHaveAttribute('title', SHUT)
-    await expect(page.getByRole('button', { name: LABELS.triggers.webhook.new })).toBeDisabled()
 
     await rowOf(page, CRON.title).getByText(CRON.title, { exact: true }).click()
     const pause = page.getByRole('tabpanel').getByRole('button', { name: /Pause|Resume/ })

@@ -5,7 +5,7 @@ and what it has counted are the instance's, and survive an apply.
 """
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Final
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -23,14 +23,25 @@ from dirigent_core.engine.definition import PipelineDefinition
 from dirigent_core.engine.runs import ACTIVE_RUN_STATUSES
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
-from dirigent_core.messages import ROUTE_CLAIMED, ROUTE_RACED, SOURCE_TAKES_NO_TOKEN, UNKNOWN_SOURCE
+from dirigent_core.messages import (
+    ROUTE_CLAIMED,
+    ROUTE_RACED,
+    SOURCE_EMPTY_SECRET,
+    SOURCE_NOT_SIGNED,
+    SOURCE_TAKES_NO_TOKEN,
+    UNKNOWN_SOURCE,
+)
 from dirigent_core.models import Pipeline, Run, Source, SourceInput, SourceRoute, utcnow
+from dirigent_core.secrets import SecretBox
 from dirigent_core.sources.rules import declared_routes, source_config
-from dirigent_plugin.sources import AnySource, HeldSource, PolledSource, ReceivedSource, Route
+from dirigent_plugin.sources import AnySource, HeldSource, PolledSource, ReceivedSource, Route, SourceAuth
 
 _logger = get_logger("sources")
 
 type AnyReceived = ReceivedSource[Any, Any]
+
+#: The field a signing secret is sealed under.
+SIGNING_FIELD: Final = "signing_secret"
 
 type RouteKey = tuple[str, str]
 """A method and a normalised template, which is what two routes collide on."""
@@ -52,6 +63,20 @@ class TakesNoToken(SourceError):
 
     status = 409
     message = SOURCE_TAKES_NO_TOKEN
+
+
+class NotSigned(SourceError):
+    """A signing secret was given to a source whose callers do not sign."""
+
+    status = 409
+    message = SOURCE_NOT_SIGNED
+
+
+class EmptySigningSecret(SourceError):
+    """An empty string was offered as a signing secret."""
+
+    status = 422
+    message = SOURCE_EMPTY_SECRET
 
 
 class RouteRaced(SourceError):
@@ -126,6 +151,7 @@ async def reconcile_sources(
     session: AsyncSession,
     settings: Settings,
     kinds: Mapping[str, AnySource],
+    secrets: SecretBox,
     pipeline: Pipeline,
     definition: PipelineDefinition,
 ) -> SourceChanges:
@@ -172,7 +198,7 @@ async def reconcile_sources(
         row.name, row.description, row.kind, row.config = declared
         _schedule_poll(kinds, row, redeclared=code in created or code in updated)
         await session.flush()
-        minted = _mint_if_wanted(kinds, row)
+        minted = _mint_if_wanted(kinds, secrets, row)
         if minted is not None:
             tokens.append(_token_out(settings, kinds, pipeline, row, minted))
         await _claim(session, row, wanted[code], kept.get(code, set()))
@@ -278,17 +304,29 @@ async def _claim(session: AsyncSession, row: Source, wanted: dict[RouteKey, str]
         raise RouteRaced(method=method, template=template) from error
 
 
-def _mint_if_wanted(kinds: Mapping[str, AnySource], row: Source) -> str | None:
-    """Mint a token for a row whose callers present one and that holds none yet."""
-    if row.token_hash is not None:
-        return None
+def auth_of(kinds: Mapping[str, AnySource], row: Source) -> SourceAuth | None:
+    """Read how a received source's callers authenticate, or None for a source nobody calls."""
     found = received(kinds, row)
-    if found is None:
+    return found[0].auth(found[1]) if found else None
+
+
+def _mint_if_wanted(kinds: Mapping[str, AnySource], secrets: SecretBox, row: Source) -> str | None:
+    """Give a row the credential its auth takes when it holds none, and drop one it no longer takes."""
+    auth = auth_of(kinds, row)
+    kind = auth.kind if auth is not None else None
+    if kind != "token":
+        row.token_hash = None
+    if kind != "hmac":
+        row.signing_secret = None
+        row.signing_key_id = None
+    if kind not in {"token", "hmac"}:
+        row.token_prefix = None
         return None
-    kind, config = found
-    if kind.auth(config).kind != "token":
-        return None
-    return _set_token(row)
+    if kind == "token" and row.token_hash is None:
+        return _set_token(row)
+    if kind == "hmac" and row.signing_secret is None:
+        return _set_signing_secret(row, secrets, mint_secret())
+    return None
 
 
 def _set_token(row: Source) -> str:
@@ -299,15 +337,37 @@ def _set_token(row: Source) -> str:
     return token
 
 
+def _set_signing_secret(row: Source, secrets: SecretBox, secret: str) -> str:
+    """Seal a signing secret on a row with the instance key, and hand it back."""
+    if not secret:
+        raise EmptySigningSecret
+    row.signing_secret = secrets.seal({SIGNING_FIELD: secret})
+    row.signing_key_id = secrets.key_id
+    row.token_prefix = secret[:PREFIX_LENGTH]
+    return secret
+
+
+def open_signing_secret(secrets: SecretBox, row: Source) -> bytes | None:
+    """Open the signing secret sealed on a row, or None for a row that holds none."""
+    if row.signing_secret is None:
+        return None
+    value = secrets.open(row.signing_secret, key_id=row.signing_key_id).get(SIGNING_FIELD)
+    return value.encode() if isinstance(value, str) else None
+
+
 def _token_out(
     settings: Settings, kinds: Mapping[str, AnySource], pipeline: Pipeline, row: Source, token: str
 ) -> SourceTokenOut:
-    """Render a minted token with where it is presented."""
+    """Render a minted credential with where it is presented, and how."""
     route = route_of(kinds, row)
+    auth = auth_of(kinds, row)
+    signed = auth is not None and auth.kind == "hmac"
     return SourceTokenOut(
         source_id=row.id,
         pipeline=pipeline.code,
         code=row.code,
+        auth="hmac" if signed else "token",
+        header=auth.header if signed and auth is not None else None,
         token=token,
         prefix=row.token_prefix or "",
         url_path=endpoint_path(settings, route.template if route else "/"),
@@ -400,6 +460,7 @@ def source_out(
         route=route.template if route else None,
         url_path=endpoint_path(settings, route.template) if route else None,
         auth=found[0].auth(found[1]).kind if found else None,
+        signature_header=_signature_header(kinds, row),
         token_prefix=row.token_prefix,
         in_flight=unsettled,
         max_in_flight=bound,
@@ -413,6 +474,12 @@ def source_out(
         last_error=row.last_error,
         created_at=row.created_at,
     )
+
+
+def _signature_header(kinds: Mapping[str, AnySource], row: Source) -> str | None:
+    """Name the header an ``hmac`` source's signature arrives in, or None for any other source."""
+    auth = auth_of(kinds, row)
+    return auth.header if auth is not None and auth.kind == "hmac" else None
 
 
 def summary_of(kinds: Mapping[str, AnySource], row: Source) -> str | None:
@@ -438,18 +505,43 @@ async def set_paused(session: AsyncSession, pipeline: Pipeline, row: Source, *, 
 
 
 async def rotate_source_token(
-    session: AsyncSession, settings: Settings, kinds: Mapping[str, AnySource], pipeline: Pipeline, row: Source
+    session: AsyncSession,
+    settings: Settings,
+    kinds: Mapping[str, AnySource],
+    secrets: SecretBox,
+    pipeline: Pipeline,
+    row: Source,
 ) -> SourceTokenOut:
-    """Mint a new token for a source and forget the old one, immediately."""
-    found = received(kinds, row)
-    auth = found[0].auth(found[1]).kind if found else None
-    if auth != "token":
-        raise TakesNoToken(code=repr(row.code), pipeline=repr(pipeline.code), auth=auth or "not received")
-    token = _set_token(row)
+    """Mint a new token or signing secret for a source and forget the old one, immediately."""
+    auth = auth_of(kinds, row)
+    kind = auth.kind if auth is not None else None
+    if kind not in {"token", "hmac"}:
+        raise TakesNoToken(code=repr(row.code), pipeline=repr(pipeline.code), auth=kind or "not received")
+    token = _set_token(row) if kind == "token" else _set_signing_secret(row, secrets, mint_secret())
     await session.flush()
     await wakeups.publish(session, wakeups.SOURCES, f"{pipeline.code}/{row.code}")
     _logger.info("source token rotated", pipeline=pipeline.code, source=row.code)
     return _token_out(settings, kinds, pipeline, row, token)
+
+
+async def set_signing_secret(
+    session: AsyncSession,
+    kinds: Mapping[str, AnySource],
+    secrets: SecretBox,
+    pipeline: Pipeline,
+    row: Source,
+    secret: str,
+) -> Source:
+    """Replace an ``hmac`` source's signing secret with one a sender issued, such as a provider's own."""
+    auth = auth_of(kinds, row)
+    kind = auth.kind if auth is not None else None
+    if kind != "hmac":
+        raise NotSigned(code=repr(row.code), pipeline=repr(pipeline.code), auth=kind or "not received")
+    _set_signing_secret(row, secrets, secret)
+    await session.flush()
+    await wakeups.publish(session, wakeups.SOURCES, f"{pipeline.code}/{row.code}")
+    _logger.info("source signing secret set", pipeline=pipeline.code, source=row.code)
+    return row
 
 
 async def list_inputs(

@@ -79,7 +79,6 @@ export interface PipelineOut {
     current_version: number | null
     active_runs: number
     schedules: number
-    webhooks: number
     /** How many watches keep a run of this pipeline waiting on a sensor. */
     watches: number
     last_run: LastRun | null
@@ -151,9 +150,6 @@ export interface Materialized {
     schedules_created: string[]
     schedules_updated: string[]
     schedules_removed: string[]
-    webhooks_created: string[]
-    webhooks_updated: string[]
-    webhooks_removed: string[]
     watches_created: string[]
     watches_updated: string[]
     watches_removed: string[]
@@ -363,10 +359,9 @@ export function applyPipeline(document: JsonMap, dryRun: boolean): Promise<Apply
 }
 
 /** What fires a pipeline on its own, in words, which is what the glyphs are titled with. */
-export function triggerSummary(row: Pick<PipelineOut, 'schedules' | 'webhooks' | 'watches'>): string {
+export function triggerSummary(row: Pick<PipelineOut, 'schedules' | 'watches'>): string {
     const parts = [
         count(row.schedules, LABELS.word.schedule.count),
-        count(row.webhooks, LABELS.word.webhook.count),
         count(row.watches, LABELS.word.watch.count),
     ].filter((part) => part !== null)
     if (parts.length === 0) return LABELS.pipelines.trigger_summary.none

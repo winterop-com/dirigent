@@ -33,9 +33,6 @@ BRIDGED_LOGGERS = (
     "alembic",
 )
 
-#: Loggers that render a raw request line, and therefore need the credential scrubber.
-ACCESS_LOGGERS = ("uvicorn.access", "gunicorn.access")
-
 #: Libraries floored above DEBUG even when the process runs at DEBUG; the floor is a
 #: parameter rather than a constant so a caller can lift it. The queue clients are floored at
 #: CRITICAL: they log a refused connection as an error of their own, and the check or the step
@@ -51,44 +48,10 @@ NOISY_LOGGERS: dict[str, int] = {
 #: Marks the handler this module owns, so repeated configuration never stacks handlers.
 _OWNED = "_dirigent_handler"
 
-#: Path prefixes whose *next* segment is a credential rather than an identifier. A webhook
-#: token is the entire authentication for a delivery, and span names, span attributes and
-#: access log lines are read by people who may not start the pipeline, so the segment is
-#: replaced with a placeholder before it reaches any of them.
-SECRET_PATH_PREFIXES = ("/hooks/",)
-
-#: Marks the log filter this module owns, so repeated configuration never stacks filters.
-_OWNED_FILTER = "_dirigent_filter"
-
 #: Where a foreign logger is floored when verbosity was a request for dirigent's own reasoning.
 FOREIGN_FLOOR = logging.WARNING
 
 type LogFormat = Literal["console", "json"]
-
-
-def redact_path(path: str) -> str:
-    """Replace a credential-bearing path segment with a placeholder."""
-    for prefix in SECRET_PATH_PREFIXES:
-        if path.startswith(prefix):
-            return f"{prefix}{{token}}"
-    return path
-
-
-class RedactAccessPath(logging.Filter):
-    """Scrub credential-bearing paths out of uvicorn's access log records.
-
-    Uvicorn formats ``%s - "%s %s HTTP/%s" %d`` from ``record.args``, whose third element is
-    the request path; for ``POST /hooks/<token>`` that path is a live credential.
-    """
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        """Rewrite the path argument in place, and always keep the record."""
-        args = record.args
-        if isinstance(args, tuple) and len(args) > 2 and isinstance(args[2], str):
-            redacted = redact_path(args[2])
-            if redacted != args[2]:
-                record.args = (*args[:2], redacted, *args[3:])
-        return True
 
 
 class CapForeignLoggers(logging.Filter):
@@ -248,14 +211,6 @@ def configure_logging(
         bridged.handlers.clear()
         bridged.setLevel(logging.NOTSET)
         bridged.propagate = True
-
-    for name in ACCESS_LOGGERS:
-        access = logging.getLogger(name)
-        for existing_filter in [f for f in access.filters if getattr(f, _OWNED_FILTER, False)]:
-            access.removeFilter(existing_filter)
-        scrubber = RedactAccessPath()
-        setattr(scrubber, _OWNED_FILTER, True)
-        access.addFilter(scrubber)
 
     # Reset first, so lifting a floor actually lifts it: configuration is called more than
     # once in a process and must be idempotent.

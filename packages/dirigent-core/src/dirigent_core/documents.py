@@ -76,7 +76,6 @@ from dirigent_core.messages import (
     TARGET_PIPELINE_MISSING,
     UNKNOWN_DOCUMENT_KIND,
     WATCH_PARAMS_REFUSED,
-    WEBHOOK_MAPPING_REFUSED,
     WORKER_TAGS_MISSING,
     WRONG_DOCUMENT_KIND,
     WRONG_FORMAT,
@@ -520,7 +519,6 @@ def _trigger_issues(
         check_schedule,
         check_schedule_params,
     )
-    from dirigent_core.triggers.webhooks import WebhookError, check_webhook_mapping
 
     pins_against = against if against is not None else definition
     issues: list[ValidationIssue] = []
@@ -551,19 +549,6 @@ def _trigger_issues(
         issues.extend(
             _watch_issues(definition, pins_against, format_checker, check_params=check_params, sensors=sensors)
         )
-    if not check_params or not isinstance(pins_against, PipelineDefinition):
-        return issues
-    for index, hook in enumerate(definition.triggers.webhooks):
-        try:
-            check_webhook_mapping(pins_against, hook.params_from_payload)
-        except WebhookError as error:
-            issues.append(
-                ValidationIssue.of(
-                    WEBHOOK_MAPPING_REFUSED,
-                    location=f"triggers.webhooks[{index}].params_from_payload",
-                    detail=str(error).strip(),
-                )
-            )
     return issues
 
 
@@ -1058,7 +1043,6 @@ class DocumentSummary(BaseModel):
     steps: list[str] = Field(default_factory=list[str])
     blocks: list[str] = Field(default_factory=list[str])
     schedules: list[str] = Field(default_factory=list[str])
-    webhooks: list[str] = Field(default_factory=list[str])
     watches: list[str] = Field(default_factory=list[str])
     digest: str
 
@@ -1081,7 +1065,6 @@ def summarize(definition: Document) -> DocumentSummary:
         steps=steps,
         blocks=blocks,
         schedules=[spec.code for spec in definition.triggers.schedules],
-        webhooks=[spec.code for spec in definition.triggers.webhooks],
         watches=[spec.code for spec in definition.triggers.watches],
         digest=digest_of(definition),
     )

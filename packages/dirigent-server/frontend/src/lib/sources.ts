@@ -11,7 +11,7 @@
 import { apiJson, type JsonMap, type Page } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
-import type { OutcomeTone, WebhookTokenOut } from '@/lib/triggers'
+import type { OutcomeTone } from '@/lib/triggers'
 
 /** Whether a source takes inputs now. `SourceState`. */
 export type SourceState = 'starting' | 'listening' | 'failing' | 'backlogged' | 'draining' | 'paused'
@@ -37,6 +37,8 @@ export interface SourceOut {
     url_path: string | null
     auth: string | null
     token_prefix: string | null
+    /** For an `hmac` source, the header a caller's signature of the body arrives in. */
+    signature_header: string | null
     in_flight: number
     max_in_flight: number | null
     accepted: number
@@ -76,6 +78,8 @@ export interface SourceTokenOut {
     source_id: string
     pipeline: string
     code: string
+    auth: string
+    header: string | null
     token: string
     prefix: string
     url_path: string
@@ -115,17 +119,6 @@ export function setSourcePaused(pipeline: string, code: string, paused: boolean)
 /** Mint a new token for a source, forgetting the old one at once. */
 export function rotateSourceToken(pipeline: string, code: string): Promise<SourceTokenOut> {
     return apiJson<SourceTokenOut>(`${sourcePath(pipeline, code)}/$rotate-token`, { method: 'POST' })
-}
-
-/** The token as the dialog that shows a token once reads it. */
-export function shownToken(token: SourceTokenOut): WebhookTokenOut {
-    return {
-        webhook_id: token.source_id,
-        code: token.code,
-        token: token.token,
-        prefix: token.prefix,
-        url_path: token.url_path,
-    }
 }
 
 function sourcePath(pipeline: string, code: string): string {
@@ -181,11 +174,20 @@ export function inputLine(input: Pick<SourceInputOut, 'method' | 'path' | 'label
 }
 
 /** How a caller authenticates, in the words the panel uses, or null for a kind with no caller. */
-export function authLine(source: Pick<SourceOut, 'auth' | 'token_prefix'>): string | null {
+export function authLine(
+    source: Pick<SourceOut, 'auth' | 'token_prefix' | 'signature_header'>,
+): string | null {
     if (source.auth === 'public') return LABELS.triggers.source.public
     if (source.auth === 'token' && source.token_prefix !== null)
         return LABELS.triggers.source.token(source.token_prefix)
+    if (source.auth === 'hmac' && source.signature_header !== null)
+        return LABELS.triggers.source.signed(source.signature_header, source.token_prefix ?? '')
     return null
+}
+
+/** Whether a source's callers present a credential the instance minted, which can be rotated. */
+export function rotatable(source: Pick<SourceOut, 'auth'>): boolean {
+    return source.auth === 'token' || source.auth === 'hmac'
 }
 
 /** What one input amounted to: the word, the tone, and the run it started. */

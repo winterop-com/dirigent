@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 
 from dirigent_client.enums import BodyKind, InputOutcome, SourceState
 from dirigent_client.schemas.common import WireModel
@@ -86,7 +86,10 @@ class SourceOut(WireModel):
     """How a caller of a received source authenticates: ``token`` or ``public``."""
 
     token_prefix: str | None = None
-    """The leading characters of the token, so a caller's copy can be told apart from another."""
+    """The leading characters of the token or the signing secret, so a caller's copy can be told apart."""
+
+    signature_header: str | None = None
+    """For an ``hmac`` source, the header a caller's signature of the body arrives in."""
 
     in_flight: int = 0
     """How many runs it started are unsettled."""
@@ -116,15 +119,29 @@ class SourceOut(WireModel):
 
 
 class SourceTokenOut(WireModel):
-    """A token freshly minted for a source, returned once and never readable again."""
+    """A credential freshly minted for a source, returned once and never readable again."""
 
     source_id: UUID
     pipeline: str
     code: str
+    auth: str = "token"
+    """``token`` for a bearer token a caller presents, ``hmac`` for a secret a caller signs the body with."""
+
+    header: str | None = None
+    """For ``hmac``, the header the signature arrives in."""
+
     token: str
+    """The token, or the signing secret."""
+
     prefix: str
     url_path: str
     """Where the source is called, so a caller can be configured without assembling the path by hand."""
+
+
+class SetSecretRequest(WireModel):
+    """The signing secret a sender issued, to replace the one the instance minted."""
+
+    secret: SecretStr
 
 
 class SourceChanges(WireModel):

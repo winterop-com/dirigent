@@ -234,8 +234,6 @@ SCHEDULE_REFUSED = DOCUMENT.define("schedule_refused", "{detail}")
 
 SCHEDULE_PARAMS_REFUSED = DOCUMENT.define("schedule_params_refused", "{detail}")
 
-WEBHOOK_MAPPING_REFUSED = DOCUMENT.define("webhook_mapping_refused", "{detail}")
-
 WATCH_PARAMS_REFUSED = DOCUMENT.define("watch_params_refused", "{detail}")
 
 WATCH_UNKNOWN_STEP = DOCUMENT.define(
@@ -514,75 +512,6 @@ WATCH_PIPELINE_REAPPLIED = WATCH.define("pipeline_reapplied", "a new version of 
 WATCH_PIPELINE_DEACTIVATED = WATCH.define("pipeline_deactivated", "its pipeline was deactivated")
 
 WATCH_PIPELINE_DELETED = WATCH.define("pipeline_deleted", "its pipeline was deleted")
-
-WEBHOOK = Catalogue("webhook")
-
-SIGNATURE_REQUIRED = WEBHOOK.define("signature_required", "this webhook requires a {header} header")
-
-SIGNATURE_MISMATCH = WEBHOOK.define("signature_mismatch", "the signature does not match the body")
-
-PATH_ADDRESSES_NOTHING = WEBHOOK.define("path_addresses_nothing", "the mapping path {path} addresses nothing")
-
-PAYLOAD_MISSING = WEBHOOK.define("payload_missing", "the payload has no {walked}.{part} ({available})")
-
-MAPPING_REFUSED = WEBHOOK.define("mapping_refused", "{detail}")
-
-EMPTY_SIGNING_SECRET = WEBHOOK.define("empty_signing_secret", "an empty webhook signing secret is not a secret")
-
-NO_SECRET_KEY = WEBHOOK.define(
-    "no_secret_key",
-    "a webhook signing secret cannot be stored without the instance's secret key",
-)
-
-DUPLICATE_WEBHOOK = WEBHOOK.define("duplicate", "pipeline {pipeline} already has a webhook coded {code}")
-
-UNKNOWN_WEBHOOK = WEBHOOK.define("unknown", "pipeline {pipeline} has no webhook coded {code}")
-
-BODY_TOO_LARGE = WEBHOOK.define(
-    "body_too_large",
-    "the body is at least {size} bytes, and this instance reads at most {maximum}",
-)
-
-BODY_NOT_JSON = WEBHOOK.define("body_not_json", "the body is not JSON: {detail}")
-
-BODY_NOT_OBJECT = WEBHOOK.define("body_not_object", "a webhook payload is a JSON object, not {kind}")
-
-WEBHOOK_DISABLED = WEBHOOK.define("disabled", "this webhook is disabled")
-
-UNKNOWN_TOKEN = WEBHOOK.define("unknown_token", "no webhook accepts this token")
-
-WEBHOOK_PIPELINE_GONE = WEBHOOK.define("pipeline_gone", "the pipeline this webhook belongs to no longer exists")
-
-WEBHOOK_PIPELINE_INACTIVE = WEBHOOK.define("pipeline_inactive", "pipeline {code} is deactivated")
-
-WEBHOOK_PIPELINE_NO_VERSIONS = WEBHOOK.define("pipeline_no_versions", "pipeline {code} has no versions yet")
-
-WEBHOOK_PIPELINE_UNREADABLE = WEBHOOK.define("pipeline_unreadable", "pipeline {code} has no readable current version")
-
-WEBHOOK_PARAMS_REFUSED = WEBHOOK.define(
-    "params_refused",
-    "the mapped payload does not satisfy the pipeline's parameters: {detail}",
-)
-
-WEBHOOK_RUN_REFUSED = WEBHOOK.define("run_refused", "{detail}")
-
-PATH_NOT_ROOTED = WEBHOOK.define("path_not_rooted", "{path} is not a payload path: it does not start with '$'")
-
-PATH_EMPTY = WEBHOOK.define("path_empty", "{path} is not a payload path: it addresses nothing")
-
-PATH_BAD_ROOT = WEBHOOK.define(
-    "path_bad_root",
-    "{path} is not a payload path: the root is followed by {found} rather than '.'",
-)
-
-PATH_EMPTY_SEGMENT = WEBHOOK.define("path_empty_segment", "{path} is not a payload path: an empty segment")
-
-NAME_UNDECLARED = WEBHOOK.define("name_undeclared", "{name} is not a parameter this pipeline declares ({declared})")
-
-REQUIRED_UNMAPPED = WEBHOOK.define(
-    "required_unmapped",
-    "the required parameter {name} is not mapped, so no delivery could supply it",
-)
 
 ALERT = Catalogue("alert")
 
@@ -1054,6 +983,18 @@ ROUTE_RACED = SOURCE.define(
     "route_raced",
     "{method} {template} was claimed by another pipeline while this one was applied; apply again to see which",
 )
+
+SOURCE_SIGNATURE_REQUIRED = SOURCE.define(
+    "signature_required", "this endpoint takes a signature of the body in a {header} header"
+)
+
+SOURCE_SIGNATURE_MISMATCH = SOURCE.define("signature_mismatch", "the signature does not match the body")
+
+SOURCE_NOT_SIGNED = SOURCE.define(
+    "not_signed", "source {code} of pipeline {pipeline} is {auth}, so it has no signing secret to set"
+)
+
+SOURCE_EMPTY_SECRET = SOURCE.define("empty_secret", "an empty signing secret is not a secret")
 
 SOURCE_TAKES_NO_TOKEN = SOURCE.define(
     "takes_no_token", "source {code} of pipeline {pipeline} is {auth}, so it has no token to rotate"

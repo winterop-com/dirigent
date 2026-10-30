@@ -57,7 +57,6 @@ from dirigent_core.models import (
     Schedule,
     StepAttempt,
     Watch,
-    WebhookTrigger,
 )
 from dirigent_core.registry import live_worker_tags
 from dirigent_core.schemas import schema_codes
@@ -314,7 +313,9 @@ async def apply_document(
             triggers = await materialize_triggers(
                 session, services, pipeline, definition, pause_created=pause_schedules
             )
-            sources = await reconcile_sources(session, services.settings, services.sources, pipeline, definition)
+            sources = await reconcile_sources(
+                session, services.settings, services.sources, services.secrets, pipeline, definition
+            )
         return ApplyResult(
             plan=plan,
             pipeline_id=pipeline.id if pipeline else None,
@@ -326,7 +327,9 @@ async def apply_document(
     version = await save_pipeline(session, definition, provenance=provenance)
     pipeline = await require_pipeline(session, definition.code)
     triggers = await materialize_triggers(session, services, pipeline, definition, pause_created=pause_schedules)
-    sources = await reconcile_sources(session, services.settings, services.sources, pipeline, definition)
+    sources = await reconcile_sources(
+        session, services.settings, services.sources, services.secrets, pipeline, definition
+    )
     await follow_version(session, services, pipeline.id)
     _logger.info(
         "pipeline applied",
@@ -422,7 +425,7 @@ async def delete_pipeline(session: AsyncSession, services: EngineServices, code:
     Refuses while runs are in flight, because deleting those would strand work a worker still
     holds a lease on: finish or cancel them first. Settled history goes with the pipeline --
     its runs, their items, attempts, logs and artifact references -- and the row itself takes
-    its versions, schedules, webhooks, watches and alert rules through their cascades. The run
+    its versions, schedules, sources, watches and alert rules through their cascades. The run
     each watch has waiting is cancelled before the in-flight check.
     """
     pipeline = await require_pipeline(session, code)
@@ -452,7 +455,6 @@ class PipelineCounts(NamedTuple):
 
     active_runs: int = 0
     schedules: int = 0
-    webhooks: int = 0
     watches: int = 0
 
 
@@ -460,7 +462,7 @@ NO_COUNTS = PipelineCounts()
 
 
 async def listing_counts(session: AsyncSession, pipeline_ids: Sequence[UUID]) -> dict[UUID, PipelineCounts]:
-    """Count the runs in flight, the schedules, the webhooks and the watches of a page of pipelines.
+    """Count the runs in flight, the schedules and the watches of a page of pipelines.
 
     One statement for the whole page: four correlated counts per row, each of them a lookup
     on the ``pipeline_id`` index the table already carries.
@@ -471,15 +473,14 @@ async def listing_counts(session: AsyncSession, pipeline_ids: Sequence[UUID]) ->
         Pipeline.id,
         _count_of(Run, Run.pipeline_id, Run.status.in_(IN_FLIGHT)).label("active_runs"),
         _count_of(Schedule, Schedule.pipeline_id).label("schedules"),
-        _count_of(WebhookTrigger, WebhookTrigger.pipeline_id).label("webhooks"),
         _count_of(Watch, Watch.pipeline_id).label("watches"),
     ).where(Pipeline.id.in_(pipeline_ids))
     rows = await session.execute(counted)
-    return {row.id: PipelineCounts(row.active_runs, row.schedules, row.webhooks, row.watches) for row in rows.all()}
+    return {row.id: PipelineCounts(row.active_runs, row.schedules, row.watches) for row in rows.all()}
 
 
 def _count_of(
-    entity: type[Run | Schedule | WebhookTrigger | Watch],
+    entity: type[Run | Schedule | Watch],
     owner: InstrumentedAttribute[UUID],
     *narrow: sa.ColumnElement[bool],
 ) -> sa.ScalarSelect[int]:

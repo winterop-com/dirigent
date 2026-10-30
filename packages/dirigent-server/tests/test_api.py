@@ -967,7 +967,7 @@ def test_a_pipeline_that_has_never_run_carries_no_last_run(client: TestClient) -
     apply_document(client, DOCUMENT)
     row = client.get(f"{PREFIX}/pipelines").json()["items"][0]
     assert row["last_run"] is None
-    assert (row["schedules"], row["webhooks"], row["active_runs"]) == (0, 0, 0)
+    assert (row["schedules"], row["watches"], row["active_runs"]) == (0, 0, 0)
 
 
 def test_a_pipeline_listing_counts_what_fires_it_and_what_is_in_flight(client: TestClient) -> None:
@@ -975,12 +975,10 @@ def test_a_pipeline_listing_counts_what_fires_it_and_what_is_in_flight(client: T
     triggers = f"{PREFIX}/pipelines/api-demo/triggers"
     assert client.post(f"{triggers}/schedules", json={"code": "nightly", "cron": "0 3 * * *"}).status_code == 201
     assert client.post(f"{triggers}/schedules", json={"code": "hourly", "interval": "1h"}).status_code == 201
-    assert client.post(f"{triggers}/webhooks", json={"code": "inbound"}).status_code == 201
     client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}})
 
     row = client.get(f"{PREFIX}/pipelines").json()["items"][0]
     assert row["schedules"] == 2
-    assert row["webhooks"] == 1
     assert row["active_runs"] == 1
 
 
@@ -1092,14 +1090,14 @@ def test_a_failed_attempt_carries_its_code_and_its_params_onto_the_wire(client: 
 def test_one_pipelines_runs_and_triggers_are_never_counted_against_another(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     apply_document(client, DOCUMENT.replace("code: api-demo", "code: api-quiet"))
-    client.post(f"{PREFIX}/pipelines/api-demo/triggers/webhooks", json={"code": "inbound"})
+    client.post(f"{PREFIX}/pipelines/api-demo/triggers/schedules", json={"code": "nightly", "cron": "0 3 * * *"})
     client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}})
 
     rows = {row["code"]: row for row in client.get(f"{PREFIX}/pipelines").json()["items"]}
-    assert rows["api-demo"]["webhooks"] == 1
+    assert rows["api-demo"]["schedules"] == 1
     assert rows["api-demo"]["active_runs"] == 1
     assert rows["api-demo"]["last_run"] is not None
-    assert rows["api-quiet"]["webhooks"] == 0
+    assert rows["api-quiet"]["schedules"] == 0
     assert rows["api-quiet"]["active_runs"] == 0
     assert rows["api-quiet"]["last_run"] is None
 

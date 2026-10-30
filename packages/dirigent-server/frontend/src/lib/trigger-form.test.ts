@@ -2,12 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
     browserZone,
-    generatedSecret,
     given,
-    mappedPaths,
     readValues,
     unreadySchedule,
-    unreadyWebhook,
     writeValues,
     zoneOffset,
     zonesOffered,
@@ -43,25 +40,6 @@ describe('the pinned parameters, read as a form and as the JSON that form would 
     })
 })
 
-describe('a webhook payload mapping, one row per parameter', () => {
-    it('sends a path for every row somebody wrote one in', () => {
-        expect(mappedPaths({ day: '$.published.date', environment: '$.target.environment' })).toEqual({
-            day: '$.published.date',
-            environment: '$.target.environment',
-        })
-    })
-
-    it('leaves out a parameter the payload does not carry', () => {
-        expect(mappedPaths({ day: '$.published.date', environment: '', extra: '   ' })).toEqual({
-            day: '$.published.date',
-        })
-    })
-
-    it('sends the path rather than the whitespace around it', () => {
-        expect(mappedPaths({ day: '  $.published.date  ' })).toEqual({ day: '$.published.date' })
-    })
-})
-
 describe('the zones a schedule is declared in', () => {
     it('offers what this runtime knows, with the browser own among them', () => {
         const zones = zonesOffered()
@@ -78,26 +56,12 @@ describe('the zones a schedule is declared in', () => {
     })
 })
 
-describe('a generated signing secret', () => {
-    it('is 32 bytes written as hex, and a different one every time', () => {
-        const secret = generatedSecret()
-        expect(secret).toMatch(/^[0-9a-f]{64}$/)
-        expect(secret).not.toBe(generatedSecret())
-    })
-})
-
 describe('why Create is shut, which is what the button says of itself', () => {
     it('names the pipeline, then the code, then the clock', () => {
         expect(unreadySchedule('', '', '')).toBe('Choose a pipeline.')
         expect(unreadySchedule('nightly-etl', '', '')).toBe('Enter a code.')
         expect(unreadySchedule('nightly-etl', 'nightly', '  ')).toBe('Nothing says when this fires.')
         expect(unreadySchedule('nightly-etl', 'nightly', '0 5 * * *')).toBeUndefined()
-    })
-
-    it('asks a webhook for its pipeline and its code and nothing else', () => {
-        expect(unreadyWebhook('', 'hook')).toBe('Choose a pipeline.')
-        expect(unreadyWebhook('webhook-trigger', '  ')).toBe('Enter a code.')
-        expect(unreadyWebhook('webhook-trigger', 'hook')).toBeUndefined()
     })
 })
 

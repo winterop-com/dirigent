@@ -126,7 +126,6 @@ app.add_typer(commands.examples_app, rich_help_panel=DEFINE_PANEL)
 app.add_typer(commands.schema_app, rich_help_panel=DEFINE_PANEL)
 app.add_typer(commands.connection_app, rich_help_panel=CONNECT_PANEL)
 app.add_typer(triggers.schedule_app, rich_help_panel=TRIGGER_PANEL)
-app.add_typer(triggers.webhook_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.watch_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(source_commands.source_app, rich_help_panel=TRIGGER_PANEL)
 app.add_typer(triggers.trigger_document_app, rich_help_panel=TRIGGER_PANEL)
@@ -627,7 +626,6 @@ def prune_command(
     ctx: typer.Context,
     runs: Annotated[str | None, typer.Option(help="Keep settled runs younger than this, such as 30d.")] = None,
     logs: Annotated[str | None, typer.Option(help="Keep log entries younger than this.")] = None,
-    deliveries: Annotated[str | None, typer.Option(help="Keep webhook deliveries younger than this.")] = None,
     inputs: Annotated[str | None, typer.Option(help="Keep the record of inputs to a source younger than this.")] = None,
     firings: Annotated[str | None, typer.Option(help="Keep schedule firings younger than this.")] = None,
     notifications: Annotated[str | None, typer.Option(help="Keep sent alerts younger than this.")] = None,
@@ -647,7 +645,7 @@ def prune_command(
     settings = get_settings()
     state = state_of(ctx)
     try:
-        policy = _prune_policy(settings, runs, logs, deliveries, inputs, firings, notifications, scratch=scratch)
+        policy = _prune_policy(settings, runs, logs, inputs, firings, notifications, scratch=scratch)
     except ValueError as error:
         refuse(INVALID_AGE, status=2, title="Invalid age", detail=str(error))
         raise typer.Exit(code=2) from error
@@ -658,7 +656,6 @@ def _prune_policy(
     settings: Settings,
     runs: str | None,
     logs: str | None,
-    deliveries: str | None,
     inputs: str | None,
     firings: str | None,
     notifications: str | None,
@@ -675,7 +672,6 @@ def _prune_policy(
     return retention.Policy(
         runs=age(runs, settings.retention_runs),
         logs=age(logs, settings.retention_logs),
-        deliveries=age(deliveries, settings.retention_deliveries),
         inputs=age(inputs, settings.retention_inputs),
         firings=age(firings, settings.retention_firings),
         notifications=age(notifications, settings.retention_notifications),

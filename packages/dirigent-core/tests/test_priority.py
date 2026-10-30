@@ -17,13 +17,11 @@ from dirigent_core.engine.definition import (
     ScheduleSpec,
     StepDefinition,
     TriggerSpecs,
-    WebhookSpec,
 )
 from dirigent_core.engine.runs import Attribution, EngineRuns, create_run, save_pipeline
-from dirigent_core.models import Pipeline, Run, Schedule, StepAttempt, WebhookTrigger, utcnow
+from dirigent_core.models import Pipeline, Run, Schedule, StepAttempt, utcnow
 from dirigent_core.triggers.materialize import materialize_triggers
 from dirigent_core.triggers.schedules import ScheduleRequest, create_schedule
-from dirigent_core.triggers.webhooks import WebhookRequest, create_webhook
 
 
 def fanned(code: str, count: int, *, priority: RunPriority = RunPriority.NORMAL) -> PipelineDefinition:
@@ -173,31 +171,6 @@ async def test_a_schedule_overrides_the_documents_priority_for_what_it_fires(
     assert ad_hoc is not None and ad_hoc.priority is RunPriority.LOW
 
 
-async def test_a_webhook_overrides_the_documents_priority_for_what_it_triggers(
-    sessions: async_sessionmaker[AsyncSession], services: EngineServices
-) -> None:
-    """A webhook carries its own priority onto every delivery it accepts."""
-    async with session_scope(sessions) as session:
-        version = await save_pipeline(session, fanned("hooked", 1, priority=RunPriority.LOW))
-        minted = await create_webhook(
-            session,
-            await pipeline_of(session, version.pipeline_id),
-            WebhookRequest(code="push", priority=RunPriority.HIGH),
-        )
-        webhook = await session.get(WebhookTrigger, minted.webhook_id)
-        assert webhook is not None
-        run = await create_run(
-            session,
-            services,
-            version,
-            attribution=Attribution(kind=TriggerKind.WEBHOOK, id=webhook.id, label="webhook push"),
-            priority=webhook.priority,
-        )
-
-    assert run is not None
-    assert run.priority is RunPriority.HIGH
-
-
 async def test_a_declared_priority_is_materialized_and_redeclared(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
@@ -208,7 +181,6 @@ async def test_a_declared_priority_is_materialized_and_redeclared(
         steps={"only": StepDefinition(block="test.echo")},
         triggers=TriggerSpecs(
             schedules=[ScheduleSpec(code="nightly", cron="0 2 * * *", priority=RunPriority.NORMAL)],
-            webhooks=[WebhookSpec(code="push", priority=RunPriority.HIGH)],
         ),
     )
     async with session_scope(sessions) as session:
@@ -217,24 +189,20 @@ async def test_a_declared_priority_is_materialized_and_redeclared(
 
     async with sessions() as session:
         assert (await session.execute(sa.select(Schedule))).scalars().one().priority is RunPriority.NORMAL
-        assert (await session.execute(sa.select(WebhookTrigger))).scalars().one().priority is RunPriority.HIGH
 
     lowered = declared.model_copy(
         update={
             "triggers": TriggerSpecs(
                 schedules=[ScheduleSpec(code="nightly", cron="0 2 * * *", priority=RunPriority.LOW)],
-                webhooks=[WebhookSpec(code="push")],
             )
         }
     )
     async with session_scope(sessions) as session:
         result = await materialize_triggers(session, services, await pipeline_of(session, version.pipeline_id), lowered)
         assert result.schedules_updated == ["nightly"]
-        assert result.webhooks_updated == ["push"]
 
     async with sessions() as session:
         assert (await session.execute(sa.select(Schedule))).scalars().one().priority is RunPriority.LOW
-        assert (await session.execute(sa.select(WebhookTrigger))).scalars().one().priority is None
 
 
 async def test_a_child_run_inherits_the_priority_of_the_run_that_started_it(

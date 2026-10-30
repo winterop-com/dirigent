@@ -15,7 +15,7 @@
 # SecretStr, so it is encrypted at rest and redacted in every API response.
 #
 # hmac_secret is the shared secret webhook.post signs an outbound body with, and the one a
-# receiving instance declares its inbound webhook with. It is a SecretStr too.
+# receiving instance's signed endpoint source verifies it with. It is a SecretStr too.
 
 connections:
   playground:

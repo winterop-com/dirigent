@@ -421,10 +421,6 @@ def test_an_unauthenticated_call_is_refused_by_the_running_server(project: Path,
 
 SCHEDULED = Path(__file__).resolve().parents[3] / "examples" / "triggers" / "managed-and-manual.yaml"
 
-# What an upstream system POSTs, and what the example's params_from_payload maps it onto.
-UPSTREAM = {"published": {"date": "2026-03-14"}, "target": {"environment": "production"}}
-MAPPED = {"day": "2026-03-14", "environment": "production"}
-
 TERMINAL = frozenset({"succeeded", "failed", "completed_with_errors", "cancelled"})
 POLL_INTERVAL = 0.25
 
@@ -449,19 +445,6 @@ def instant(text: str) -> datetime:
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
-def minted_token(output: str) -> str:
-    """Pick the one-time token out of what ``dg webhook rotate-token`` printed.
-
-    A document-declared webhook's token is minted server-side and never shown, so rotating
-    is the only way to come to hold one.
-    """
-    for line in output.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("Token "):
-            return stripped.removeprefix("Token ").strip()
-    raise AssertionError(f"dg webhook rotate-token printed no token:\n{output}")
-
-
 def settled(run_id: str, *, project: Path, env: dict[str, str]) -> dict[str, Any]:
     """Poll one run until the worker is done with it."""
     deadline = time.monotonic() + RUN_TIMEOUT
@@ -476,10 +459,8 @@ def settled(run_id: str, *, project: Path, env: dict[str, str]) -> dict[str, Any
     raise AssertionError(f"run {run_id} never reached a terminal status within {RUN_TIMEOUT}s (last saw {seen})")
 
 
-def test_a_document_declares_its_triggers_and_the_webhook_starts_a_real_run(
-    project: Path, dev: tuple[str, str]
-) -> None:
-    """Applying examples/triggers/managed-and-manual.yaml materialises its clocks and its webhook."""
+def test_a_document_declares_its_clocks_and_its_pipeline_runs_for_real(project: Path, dev: tuple[str, str]) -> None:
+    """Applying examples/triggers/managed-and-manual.yaml materialises its clocks, and a run of it settles."""
     url, token = dev
     env = environment(project, url=url, token=token)
 
@@ -501,75 +482,25 @@ def test_a_document_declares_its_triggers_and_the_webhook_starts_a_real_run(
         assert row["next_fire_at"] is not None, f"{name} was declared without a computed first firing"
         assert instant(row["next_fire_at"]) > now, f"{name} next fires at {row['next_fire_at']}, which is not ahead"
 
-    hooks: list[Any] = rows_of(run(_webhooks(), cwd=project, env=env))
-    assert [hook["code"] for hook in hooks] == ["from-upstream"]
-    hook: dict[str, Any] = hooks[0]
-    assert hook["params_from_payload"] == {"day": "$.published.date", "environment": "$.target.environment"}
-    assert hook["managed"] is True
-    assert hook["active"] is True
-    assert hook["signed"] is False
-    assert hook["token_prefix"], "a listing shows enough of the token to tell two webhooks apart"
-    assert "token" not in hook, "a listing must never carry the token itself, only its prefix"
-
-    rotated = run(["webhook", "rotate-token", "managed-and-manual", "from-upstream"], cwd=project, env=env)
-    assert rotated.returncode == 0, rotated.stdout + rotated.stderr
-    secret = minted_token(rotated.stdout)
-    assert secret.startswith(str(rows_of(run(_webhooks(), cwd=project, env=env))[0]["token_prefix"]))
-    assert secret not in run(_webhooks(), cwd=project, env=env).stdout, "the token is readable exactly once"
-
-    accepted = httpx2.post(f"{url}/hooks/{secret}", json=UPSTREAM, timeout=30.0)
-    assert accepted.status_code == 201, accepted.text
-    body: dict[str, Any] = accepted.json()
-    assert body["outcome"] == "accepted"
-    assert body["run_id"], "an accepted delivery answers with the run it started"
-    run_id = str(body["run_id"])
-
+    started = run(
+        ["run", "managed-and-manual", "-p", "day=2026-03-14", "-p", "environment=production", "--json"],
+        cwd=project,
+        env=env,
+    )
+    assert started.returncode == 0, started.stdout + started.stderr
+    run_id = next(str(json.loads(line)["run_id"]) for line in started.stdout.splitlines() if '"run_id"' in line)
     finished = settled(run_id, project=project, env=env)
     assert finished["status"] == "succeeded", finished["error"]
-    assert finished["params"] == MAPPED, "the run must carry what the mapping produced, and nothing else"
-    assert finished["triggered_by_kind"] == "webhook"
-    assert finished["triggered_by_label"] == "webhook from-upstream"
+    assert finished["params"] == {"day": "2026-03-14", "environment": "production"}
 
     detail: dict[str, Any] = payload_of(run(["runs", "show", run_id, "--json"], cwd=project, env=env))
     outcomes = {node["code"]: node["outcome"] for node in detail["dag"]["nodes"]}
     assert outcomes == {"load": "succeeded", "verify": "succeeded"}
 
-    history: list[Any] = rows_of(run(_deliveries(), cwd=project, env=env))
-    assert [entry["outcome"] for entry in history] == ["accepted"]
-    assert history[0]["run_id"] == run_id
-    assert history[0]["mapped_params"] == MAPPED
-
-    refused = httpx2.post(f"{url}/hooks/{secret}", json={"nothing": "useful"}, timeout=30.0)
-    assert refused.status_code == 400, refused.text
-    refusal: dict[str, Any] = refused.json()
-    assert refusal["outcome"] == "rejected"
-    assert refusal["run_id"] is None
-    assert "published" in str(refusal["detail"]), "the caller is told which path was missing"
-
-    both: list[Any] = rows_of(run(_deliveries(), cwd=project, env=env))
-    assert [entry["outcome"] for entry in both] == ["rejected", "accepted"], "a refusal is evidence, so it is kept"
-    assert both[0]["run_id"] is None
-    assert "published" in str(both[0]["reason"])
-
-    started: list[Any] = rows_of(
-        run(["runs", "list", "--pipeline", "managed-and-manual", "--json"], cwd=project, env=env)
-    )
-    assert [entry["id"] for entry in started] == [run_id], "the refused delivery must have started nothing"
-
 
 def _schedules() -> list[str]:
     """The command that lists the example's schedules verbatim."""
     return ["schedule", "list", "managed-and-manual", "--json"]
-
-
-def _webhooks() -> list[str]:
-    """The command that lists the example's webhooks verbatim."""
-    return ["webhook", "list", "managed-and-manual", "--json"]
-
-
-def _deliveries() -> list[str]:
-    """The command that reads the webhook's delivery history verbatim."""
-    return ["webhook", "deliveries", "managed-and-manual", "from-upstream", "--json"]
 
 
 def test_dg_dev_announces_itself_as_records_and_not_a_schema_history(tmp_path: Path) -> None:

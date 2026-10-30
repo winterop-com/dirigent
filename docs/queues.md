@@ -8,9 +8,9 @@ sensors and two operators:
 - [`kafka.produce`](blocks.md#kafkaproduce) publishes records to a Kafka topic.
 - [`rabbitmq.publish`](blocks.md#rabbitmqpublish) publishes one message to an exchange.
 
-A queue and a webhook are the same intent arriving by different transport, and a run should not
-care which. A webhook trigger is somebody pushing work at this instance; a queue sensor is this
-instance reaching out for it. What comes out is the same thing either way -- a payload, in a
+A queue and an endpoint are the same intent arriving by different transport, and a run should
+not care which. An endpoint source is somebody pushing work at this instance; a queue sensor is
+this instance reaching out for it. What comes out is the same thing either way -- a payload, in a
 step's output, that the rest of the DAG reads with `${steps.<name>.output...}` -- so a pipeline
 written against one reads almost exactly like a pipeline written against the other.
 

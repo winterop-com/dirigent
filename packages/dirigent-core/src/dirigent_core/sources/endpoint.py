@@ -46,6 +46,14 @@ FORM: Final = "application/x-www-form-urlencoded"
 #: Headers an input never carries, because each one is a credential the caller presented.
 CREDENTIAL_HEADERS: Final = frozenset({"authorization", "cookie", "proxy-authorization", "x-dirigent-signature"})
 
+
+def _credentials(config: "EndpointConfig") -> frozenset[str]:
+    """Name every header a caller of this source presents a credential in, its own signature header included."""
+    if config.auth.kind == "hmac":
+        return CREDENTIAL_HEADERS | {config.auth.header.lower()}
+    return CREDENTIAL_HEADERS
+
+
 #: What a text body is decoded with when its content type names no charset.
 DEFAULT_CHARSET: Final = "utf-8"
 
@@ -184,7 +192,7 @@ class EndpointSource(ReceivedSource[EndpointConfig, EndpointInput]):
             route=request.route,
             path_params=dict(request.path_params),
             query=gather_values(request.query),
-            headers={name: value for name, value in request.headers.items() if name not in CREDENTIAL_HEADERS},
+            headers={name: value for name, value in request.headers.items() if name not in _credentials(config)},
             content_type=request.content_type,
             body_kind=kind,
             body=body,

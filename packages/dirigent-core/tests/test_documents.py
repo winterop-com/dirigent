@@ -75,11 +75,6 @@ triggers:
       cron: "0 5 * * *"
       timezone: Europe/Oslo
       params: { day: "2026-01-01" }
-  webhooks:
-    - code: upstream-publish
-      name: Upstream publish
-      description: Called by the upstream system when the extract is published.
-      params_from_payload: { day: "$.published.date" }
 requires:
   blocks: [test.echo]
   connections: []
@@ -206,7 +201,6 @@ def test_triggers_and_requires_travel_with_the_document() -> None:
     definition = load_text(FULL)
     assert [schedule.code for schedule in definition.triggers.schedules] == ["nightly"]
     assert definition.triggers.schedules[0].timezone == "Europe/Oslo"
-    assert [webhook.code for webhook in definition.triggers.webhooks] == ["upstream-publish"]
     assert definition.requires.blocks == ["test.echo"]
 
 
@@ -910,36 +904,6 @@ def test_a_schedule_pinning_a_parameter_the_schema_refuses_is_reported_by_the_pl
     assert validate_against_catalog(load_text(header + "      params: {day: '2026-01-01'}\n"), host.catalog()) == []
 
 
-def test_a_webhook_mapping_no_delivery_could_satisfy_is_reported_by_the_plan(host: PluginHost) -> None:
-    """A mapping is only checkable at declaration; the first delivery is far too late to learn."""
-    header = (
-        "format: dirigent/v1\ncode: badmap\n"
-        "params: {type: object, properties: {day: {type: string}}, required: [day]}\n"
-        "steps:\n  a: { block: test.echo }\n"
-        "triggers:\n  webhooks:\n    - code: inbound\n"
-    )
-    unparseable = validate_against_catalog(
-        load_text(header + "      params_from_payload: {day: '$.run..date'}\n"), host.catalog()
-    )
-    assert [issue.location for issue in unparseable] == ["triggers.webhooks[0].params_from_payload"]
-    assert unparseable[0].message == "'$.run..date' is not a payload path: an empty segment"
-
-    undeclared = validate_against_catalog(
-        load_text(header + "      params_from_payload: {day: '$.run.date', extra: '$.run.extra'}\n"), host.catalog()
-    )
-    assert [issue.location for issue in undeclared] == ["triggers.webhooks[0].params_from_payload"]
-    assert undeclared[0].message == "'extra' is not a parameter this pipeline declares (day)"
-
-    unmapped = validate_against_catalog(load_text(header), host.catalog())
-    assert [issue.location for issue in unmapped] == ["triggers.webhooks[0].params_from_payload"]
-    assert "the required parameter 'day' is not mapped" in unmapped[0].message
-
-    assert (
-        validate_against_catalog(load_text(header + "      params_from_payload: {day: '$.run.date'}\n"), host.catalog())
-        == []
-    )
-
-
 def test_a_parameter_schema_that_is_not_one_is_reported_once_rather_than_once_per_trigger(
     host: PluginHost,
 ) -> None:
@@ -947,7 +911,6 @@ def test_a_parameter_schema_that_is_not_one_is_reported_once_rather_than_once_pe
         "format: dirigent/v1\ncode: mistyped\nparams: {type: objcet}\nsteps:\n  a: { block: test.echo }\n"
         "triggers:\n  schedules:\n    - code: nightly\n      cron: '0 5 * * *'\n"
         "    - code: hourly\n      interval: 1h\n"
-        "  webhooks:\n    - code: inbound\n      params_from_payload: {day: '$.run.date'}\n"
     )
     assert [issue.location for issue in validate_against_catalog(definition, host.catalog())] == ["params"]
 

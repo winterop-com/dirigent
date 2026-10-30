@@ -21,7 +21,6 @@ from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBea
 
 from dirigent_core.auth import Principal, resolve_token
 from dirigent_core.config import Settings
-from dirigent_core.logging import redact_path
 from dirigent_server.dependencies import SessionDep
 from dirigent_server.errors import Refusal, answer, render
 from dirigent_server.messages import (
@@ -170,7 +169,7 @@ def install_cross_site_guard(app: FastAPI, settings: Settings) -> None:
                     status.HTTP_403_FORBIDDEN,
                     CROSS_SITE,
                     code=CROSS_SITE_MESSAGE.code,
-                    instance=redact_path(request.url.path),
+                    instance=request.url.path,
                 )
             )
         return await call_next(request)

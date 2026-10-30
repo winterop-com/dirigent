@@ -232,11 +232,6 @@ ONE_CLOCK = CLI.define("one_clock", "a schedule takes exactly one of --cron, --i
 
 AT_TAKES_AN_INSTANT = CLI.define("at_takes_an_instant", "--at takes an ISO instant, and {value} is not one")
 
-MAP_TAKES_A_PATH = CLI.define(
-    "map_takes_a_path",
-    "--map takes param=$.path.into.payload, and {entry} has no '='",
-)
-
 NOT_AN_ALERT_EVENT = CLI.define("not_an_alert_event", "{event} is not an alert event ({allowed})")
 
 NOT_AN_IMPORTANCE = CLI.define("not_an_importance", "--importance {value} is not an importance ({allowed})")

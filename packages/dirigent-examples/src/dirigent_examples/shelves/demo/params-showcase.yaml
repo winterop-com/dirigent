@@ -1,7 +1,7 @@
 # The parameter schema is plain JSON Schema, and it is load-bearing in three places.
 #
 # It validates every run's parameters, whoever started it: the CLI, the API, a schedule's
-# overrides, or a webhook's mapped payload. It is what the UI renders the run dialog from,
+# overrides, or a parent pipeline's pipeline.run. It is what the UI renders the run dialog from,
 # so an enum becomes a select and a date format becomes a date picker without any UI code
 # knowing this pipeline exists. And apply checks every ${params.x} in the document against
 # it, so a typo is caught when the document is applied rather than when it fires at 05:00.

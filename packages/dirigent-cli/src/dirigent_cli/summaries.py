@@ -256,13 +256,22 @@ def _source_token(record: Record) -> RenderableType | None:
     token = record.get("token")
     if not token:
         return None
+    auth = str(record.get("auth") or "token")
+    header = record.get("header")
     return Group(
         "",
         f"  [bold]{escape(str(record.get('url') or ''))}[/]",
-        f"  [bold]Authorization: Bearer {escape(str(token))}[/]",
+        f"  [bold]{credential_line(auth, str(header) if header else None, escape(str(token)))}[/]",
         "",
-        "[yellow]This is the only time the token is shown.[/] The instance stores only its hash.",
+        "[yellow]This is the only time it is shown.[/]",
     )
+
+
+def credential_line(auth: str, header: str | None, secret: str) -> str:
+    """Say how a caller presents a source's credential: a bearer token, or a signature keyed with a secret."""
+    if auth == "hmac":
+        return f"{header}: sha256=<HMAC-SHA256 of the body, hex>, keyed with {secret}"
+    return f"Authorization: Bearer {secret}"
 
 
 def _files(record: Record) -> list[RenderableType]:

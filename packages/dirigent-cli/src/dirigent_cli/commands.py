@@ -140,6 +140,7 @@ from dirigent_cli.sources import (
     read_path,
 )
 from dirigent_cli.stream import Sink, track_steps, use_scratch_prefix
+from dirigent_cli.summaries import credential_line
 from dirigent_cli.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_client import (
     CLEAR,
@@ -315,15 +316,15 @@ def _print_plan(result: ApplyResult, origin: str) -> bool:
 
 
 def _print_source_tokens(result: ApplyResult, *, base_url: str) -> None:
-    """Print each token an apply minted for a source, once, with where it is presented.
+    """Print each token or signing secret an apply minted for a source, once, with how it is presented.
 
-    The instance stores only a token's hash; there is no second chance to read it.
+    There is no second chance to read either.
     """
     for minted in result.sources.tokens:
         console.print(f"\n  source [bold]{minted.code}[/]  {base_url.rstrip('/')}{minted.url_path}")
-        console.print(f"  Authorization: Bearer [bold]{minted.token}[/]")
+        console.print(f"  {credential_line(minted.auth, minted.header, minted.token)}")
     if result.sources.tokens:
-        console.print("\n[yellow]Each token is shown once.[/] The instance stores only its hash.\n")
+        console.print("\n[yellow]Each token and signing secret is shown once.[/]\n")
 
 
 def _print_graph(steps: Sequence[GraphStep], title: str = "steps") -> None:

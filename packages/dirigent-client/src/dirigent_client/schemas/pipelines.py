@@ -76,9 +76,6 @@ class PipelineOut(WireModel):
     schedules: int = 0
     """How many clocks fire this pipeline."""
 
-    webhooks: int = 0
-    """How many inbound endpoints fire this pipeline."""
-
     watches: int = 0
     """How many watches keep a run of this pipeline waiting on a sensor."""
 
@@ -336,9 +333,6 @@ class Materialized(WireModel):
     schedules_created: list[str] = Field(default_factory=list[str])
     schedules_updated: list[str] = Field(default_factory=list[str])
     schedules_removed: list[str] = Field(default_factory=list[str])
-    webhooks_created: list[str] = Field(default_factory=list[str])
-    webhooks_updated: list[str] = Field(default_factory=list[str])
-    webhooks_removed: list[str] = Field(default_factory=list[str])
     watches_created: list[str] = Field(default_factory=list[str])
     watches_updated: list[str] = Field(default_factory=list[str])
     watches_removed: list[str] = Field(default_factory=list[str])
@@ -350,9 +344,6 @@ class Materialized(WireModel):
             self.schedules_created
             or self.schedules_updated
             or self.schedules_removed
-            or self.webhooks_created
-            or self.webhooks_updated
-            or self.webhooks_removed
             or self.watches_created
             or self.watches_updated
             or self.watches_removed
@@ -395,7 +386,7 @@ class ApplyResult(WireModel):
     version: int | None = None
     dry_run: bool = False
     triggers: Materialized = Field(default_factory=Materialized)
-    """Which schedules, webhooks and watches the document's ``triggers:`` section created, changed, or retired."""
+    """Which schedules and watches the document's ``triggers:`` section created, changed, or retired."""
 
     sources: SourceChanges = Field(default_factory=SourceChanges)
     """Which source rows the apply created, changed, or retired, and the tokens it minted."""

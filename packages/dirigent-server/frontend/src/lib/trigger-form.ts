@@ -1,10 +1,9 @@
 /**
- * What the two new-trigger dialogs decide, as functions a Node test can run.
+ * What the new-schedule dialog decides, as functions a Node test can run.
  *
  * A DIALOG RENDERS AND THIS DECIDES. Which zones are offered and what each one's offset is,
- * whether a box of JSON is the parameters, which mapped paths are worth sending, and why
- * Create is shut are all questions with one answer, so they are answered here rather than
- * inside a component nothing can call.
+ * whether a box of JSON is the parameters, and why Create is shut are all questions with one
+ * answer, so they are answered here rather than inside a component nothing can call.
  *
  * THE FORM AND THE JSON ARE ONE VALUE. Pinned parameters are edited either as the pipeline's
  * own form or as the object that form would send, and the two are the same map read two ways:
@@ -55,22 +54,6 @@ export function readValues(text: string): ReadValues {
 }
 
 /**
- * The mapping a webhook is declared with, from the path typed against each parameter.
- *
- * A ROW LEFT EMPTY IS A PARAMETER THE PAYLOAD DOES NOT CARRY, so it is left out of the
- * declaration rather than sent as a path that reads nothing: the run takes the pipeline's own
- * default for it, and an apply refuses a mapping naming a path it cannot walk.
- */
-export function mappedPaths(paths: Readonly<Record<string, string>>): Record<string, string> {
-    const mapping: Record<string, string> = {}
-    for (const [name, path] of Object.entries(paths)) {
-        const written = path.trim()
-        if (written !== '') mapping[name] = written
-    }
-    return mapping
-}
-
-/**
  * Every IANA zone this browser knows, which is what the timezone picker offers.
  *
  * `UTC` is always on the list: it is what a new schedule starts in when the browser's own zone
@@ -102,27 +85,11 @@ export function zoneOffset(zone: string, at: Date = new Date()): string {
     return offset === 'UTC' ? LABELS.measure.utc_offset : offset
 }
 
-/** How many bytes a generated signing secret is, which is what an HMAC key wants. */
-const SECRET_BYTES = 32
-
-/** A signing secret nobody has to think of: 32 bytes of randomness, written as hex. */
-export function generatedSecret(): string {
-    const bytes = crypto.getRandomValues(new Uint8Array(SECRET_BYTES))
-    return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
 /** Why Create is shut on a schedule, which is what the button carries as its title. */
 export function unreadySchedule(pipeline: string, code: string, expression: string): string | undefined {
     if (pipeline === '') return LABELS.triggers.schedule.dialog.no_pipeline
     if (code.trim() === '') return LABELS.triggers.schedule.dialog.no_code
     if (expression.trim() === '') return LABELS.triggers.schedule.dialog.no_clock
-    return undefined
-}
-
-/** Why Create is shut on a webhook, which is what the button carries as its title. */
-export function unreadyWebhook(pipeline: string, code: string): string | undefined {
-    if (pipeline === '') return LABELS.triggers.webhook.dialog.no_pipeline
-    if (code.trim() === '') return LABELS.triggers.webhook.dialog.no_code
     return undefined
 }
 

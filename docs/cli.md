@@ -48,11 +48,23 @@ dg run --local examples/sources/greet-by-hand.yaml --input '{path_params: {name:
 
 On a server, an endpoint source is also called the way its callers call it. `dg source call`
 reads the source's route, fills the template from `-p`, and presents the token given by
-`--source-token` or `DIRIGENT_SOURCE_TOKEN`, never the CLI's own credential:
+`--source-token` or `DIRIGENT_SOURCE_TOKEN`, never the CLI's own credential. A source declaring
+`auth: {kind: hmac}` takes a signature instead: `--signing-secret`, or `DIRIGENT_SOURCE_SECRET`,
+signs the exact bytes it sends and puts `sha256=<hex>` in the header the source names.
 
 ```bash
 dg source call greet ask -p name=Bergen --body '{"mood": "cheerful"}' --source-token "$TOKEN"
+dg source call signed-nested-payload published --body @payload.json --signing-secret "$SECRET"
 dg source inputs greet ask      # what arrived, and the run or the refusal each became
+```
+
+The apply mints a signed source's secret and shows it once, and `dg source rotate-token`
+replaces it the way it replaces a token. When the sender issues the secret instead -- a
+provider that signs its own deliveries -- `dg source set-secret` gives it to the source, from
+`--secret`, `DIRIGENT_SOURCE_SECRET`, or a hidden prompt:
+
+```bash
+dg source set-secret signed-nested-payload published --secret "$PROVIDER_SECRET"
 ```
 
 ## Talking to a server
@@ -885,14 +897,12 @@ verb and whose fields are the identity of what changed:
 | `pipeline.schema` | `dg pipeline schema` | the number of `blocks` composed in, and the `schema` itself, or the `path` that `-f` wrote it to |
 | `pipeline.created` | `dg pipeline new` | `code`, the `starter` it copied, the `path` it wrote, the copy's own `requires`, and the `preflight` list to work through |
 | `schedule.created` / `.paused` / `.resumed` / `.deleted` | `dg schedule …` | `code`, `pipeline`, and a live one's `clock`, `timezone`, `next_fire_at` |
-| `webhook.created` | `dg webhook create` | `code`, `pipeline`, the `url` to POST to, and the `token` itself, once |
-| `webhook.token_rotated` | `dg webhook rotate-token` | `code`, `pipeline`, `url`, and the new `token`, once |
-| `webhook.deleted` | `dg webhook delete` | `code`, `pipeline` |
 | `watch` | `dg watch list`, `dg watch show` | One per watch, under `fields`: `code`, `step`, `paused`, the `cursor` it holds, the `waiting_run_id`, and its health -- `failures`, `last_error`, `rearm_at` |
 | `source` | `dg source list`, `dg source show` | One per source, under `fields`: `pipeline`, `code`, `kind`, `state`, the `route` and `methods` it answers, its `url_path`, `auth`, `token_prefix`, `in_flight` against `max_in_flight`, and the `accepted` and `refused` counts |
 | `source.input` | `dg source inputs` | One per input, newest first, under `fields`: `outcome`, the HTTP `status` it was answered with, the `run_id` or the refusal's `code` and `reason`, `method`, `path`, `body_bytes`, `duration_ms`, `caller` |
 | `source.paused` / `.resumed` | `dg source pause`, `dg source resume` | `code`, `pipeline`, and the `state` it is in now |
-| `source.token_rotated` | `dg source rotate-token` | `code`, `pipeline`, the `url` to call, and the new `token`, once |
+| `source.token_rotated` | `dg source rotate-token` | `code`, `pipeline`, the `url` to call, its `auth` and, for a signed source, the signature `header`, and the new `token` or signing secret, once |
+| `source.secret_set` | `dg source set-secret` | `code`, `pipeline`, and the `prefix` of the secret it now holds |
 | `source.called` | `dg source call` | `code`, `pipeline`, `method`, `url`, and the `status` and `body` it was answered with |
 | `watch.paused` / `.resumed` | `dg watch pause`, `dg watch resume` | `code`, `pipeline`, the `cursor` it keeps, and a resumed one's new `waiting_run_id` |
 | `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
@@ -906,7 +916,7 @@ verb and whose fields are the identity of what changed:
 | `schema.created` | `dg schema create` | `code`, `name` |
 | `schema.updated` | `dg schema update` | `code`, `name` as it now stands, `changed[]` naming which of `name`, `description` and `body` the request said anything about, and `used_by[]`, the stored pipelines that validate against the shape from their next attempt |
 | `schema.deleted` | `dg schema delete` | `code` |
-| `trigger_document.deleted` | `dg trigger-document delete` | `code`, and that its `schedules`, `webhooks` and `watches` went with it |
+| `trigger_document.deleted` | `dg trigger-document delete` | `code`, and that its `schedules` and `watches` went with it |
 | `token.revoked` | `dg admin token revoke` | `code`, and `username` when `--user` named one |
 | `token.issued` | `dg auth login`, `dg admin token create` | `username`, the token's `name`, and the `token` itself, once; a login adds the `url`, a mint the `prefix` |
 | `pipeline.exported` | `dg export` | `code`, the `version` asked for, the `document` it exported, and the `path` when `-f` wrote it |
@@ -1102,14 +1112,13 @@ dg schedule create PIPELINE CODE --cron "0 5 * * *" [--tz UTC] [-p k=v] [-P FILE
                                 [--name TEXT] [--description TEXT] [--priority low|normal|high]
 dg schedule create PIPELINE CODE --interval 1h | --at 2026-01-01T05:00:00Z
 dg schedule list | pause | resume | firings | delete PIPELINE CODE
-dg webhook create PIPELINE CODE [--map param='$.path'] [--hmac-secret S] [--rate-limit 60]
-                                [--name TEXT] [--description TEXT] [--priority low|normal|high]
-dg webhook list | rotate-token | deliveries | delete PIPELINE CODE
 dg watch list PIPELINE | show | pause | resume PIPELINE CODE
 dg source list [PIPELINE]
 dg source show | pause | resume | rotate-token | inputs PIPELINE SOURCE
+dg source set-secret PIPELINE SOURCE [--secret S]
 dg source call PIPELINE SOURCE [--body JSON|@FILE | --text BODY|@FILE | --form k=v]
                                [-X METHOD] [-p name=value] [-q name=value] [--source-token T]
+                               [--signing-secret S]
 dg trigger-document list | show CODE | delete CODE
 dg alerts rules list | pause | resume | delete CODE
 dg alerts rules create CODE --event run_failed
@@ -1131,7 +1140,7 @@ dg docker reap [--dry-run]              # compose stacks left up by runs that ha
 # Administration
 dg --version | dg config show
 dg secret-key                           # a DIRIGENT_SECRET_KEY, on one plain line
-dg prune [--runs 30d] [--logs 7d] [--deliveries 30d] [--firings 30d] [--notifications 30d]
+dg prune [--runs 30d] [--logs 7d] [--inputs 30d] [--firings 30d] [--notifications 30d]
          [--no-scratch] [--dry-run]     # an age given here beats the configured one
 dg db upgrade [REVISION] | current | history
 dg storage ensure                       # the bucket the artifact root addresses
@@ -1169,8 +1178,7 @@ until there is nothing left, and writes one record per row, so nothing downstrea
 ever sees a page boundary. `dg runs list --limit` bounds the total rather than one page.
 
 Defaults worth knowing: `dg runs list --limit` is 50, which is the server's own default for
-that endpoint rather than a second number the CLI invented; `--tz` is `UTC`; a webhook's
-`--rate-limit` is 60 deliveries a minute; an alert rule's `--throttle` is `0s`, meaning no
+that endpoint rather than a second number the CLI invented; `--tz` is `UTC`; an alert rule's `--throttle` is `0s`, meaning no
 throttling. `--host` and `--port` default to whatever the instance's
 settings say, which is `127.0.0.1:3333` out of the box.
 
@@ -1284,7 +1292,7 @@ inactive, so apply the pipeline first -- a whole-project `dg apply` does that fo
 ```bash
 dg apply clocks.yaml                        # says which pipeline it schedules
 dg trigger-document list                    # every clock file, and what each one fires
-dg trigger-document show fleet-clocks       # the schedules, webhooks and watches it owns
+dg trigger-document show fleet-clocks       # the schedules and watches it owns
 dg trigger-document delete fleet-clocks     # the document and its rows; the pipeline stays
 ```
 
@@ -1307,15 +1315,15 @@ declares clocks for a pipeline and has nothing to run itself.
 ## Priority, when one run cannot wait
 
 Every run carries a priority -- `low`, `normal` or `high` -- and the claim takes a higher one
-first. A document declares its own, a schedule or a webhook may override it for what it
-triggers, and `--priority` overrides it once more for one ad hoc run:
+first. A document declares its own, a schedule may override it for what it
+fires, and `--priority` overrides it once more for one ad hoc run:
 
 ```bash
 dg run bulk-load --priority high      # the same nightly pipeline, during an incident
 ```
 
-`--priority` is a flag on `dg run`, `dg schedule create` and `dg webhook create`. A schedule's
-and a webhook's own priority is also a `priority:` in the document that declares it, or the
+`--priority` is a flag on `dg run` and `dg schedule create`. A schedule's own priority is
+also a `priority:` in the document that declares it, or the
 `priority` field of the API's create body; one created without any of them fires at the
 pipeline's own.
 
@@ -1372,21 +1380,11 @@ these firings never happened. One request will not create more than 200 runs; pa
 refuses and names the count it computed, which is what catches a mistyped year before it
 becomes a thousand runs.
 
-A webhook's token is minted by the instance and printed **once**, with the URL already
-assembled, because only its hash is kept:
-
-```bash
-dg webhook create daily-load from-upstream --map day='$.published.date'
-#   POST  http://localhost:3333/hooks/pl-ptb4fADzSVliZ_gm4k7z2oSnRR9qu-Rc8-XKZrNw
-#   Token pl-ptb4fADzSVliZ_gm4k7z2oSnRR9qu-Rc8-XKZrNw
-
-curl -X POST "$DG_URL/hooks/$TOKEN" -d '{"published": {"date": "2026-01-01"}}'
-dg webhook deliveries daily-load from-upstream
-```
-
-`dg webhook rotate-token` replaces a token nobody wrote down, and invalidates the old one
-immediately. `dg webhook deliveries` shows refusals as well as acceptances, which is the half
-that answers "the upstream system says it has been calling us all night".
+An endpoint source's token, or a signed one's secret, is minted by the instance at apply and
+printed **once**, with the URL already assembled, because only its hash or its sealed secret
+is kept. `dg source rotate-token` replaces one nobody wrote down, and invalidates the old one
+immediately. `dg source inputs` shows refusals as well as acceptances, which is the half that
+answers "the upstream system says it has been calling us all night".
 
 ## Alerting, from the command line
 

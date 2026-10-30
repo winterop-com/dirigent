@@ -1,7 +1,9 @@
 """A pipeline's sources: what each listens to, its state, what has arrived, and its token."""
 
+from pydantic import SecretStr
+
 from dirigent_client.resources.base import Resource, query
-from dirigent_client.schemas import Page, SourceInputOut, SourceOut, SourceTokenOut
+from dirigent_client.schemas import Page, SetSecretRequest, SourceInputOut, SourceOut, SourceTokenOut
 
 
 class Sources(Resource):
@@ -27,8 +29,18 @@ class Sources(Resource):
         return await self._one(SourceOut, "POST", f"/pipelines/{pipeline}/sources/{code}/$resume")
 
     async def rotate_token(self, pipeline: str, code: str) -> SourceTokenOut:
-        """Mint a new token and forget the old one immediately; every caller has to be given it."""
+        """Mint a new token or signing secret and forget the old one immediately; every caller has to be given it."""
         return await self._one(SourceTokenOut, "POST", f"/pipelines/{pipeline}/sources/{code}/$rotate-token")
+
+    async def set_secret(self, pipeline: str, code: str, secret: str) -> SourceOut:
+        """Replace a signed source's signing secret with one its sender issued."""
+        body = SetSecretRequest(secret=SecretStr(secret))
+        return await self._one(
+            SourceOut,
+            "POST",
+            f"/pipelines/{pipeline}/sources/{code}/$set-secret",
+            json={"secret": body.secret.get_secret_value()},
+        )
 
     async def inputs(
         self, pipeline: str, code: str, *, after: str | None = None, limit: int | None = None

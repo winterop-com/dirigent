@@ -21,9 +21,9 @@
 #
 # The signature is HMAC-SHA256 over the raw body, hex, in X-Dirigent-Signature. A receiver
 # verifies by computing the same HMAC over the body exactly as it arrived -- before parsing,
-# never after re-serialising -- and comparing in constant time. Dirigent's own inbound
-# webhook trigger does precisely that, so an instance can hand work to another instance with
-# nothing shared but the secret.
+# never after re-serialising -- and comparing in constant time. Dirigent's own endpoint
+# source with `auth: {kind: hmac}` does precisely that, so an instance can hand work to
+# another instance's /endpoints route with nothing shared but the secret.
 #
 # sign_with names a connection, not a secret. The secret is that connection's hmac_secret, a
 # SecretStr sealed at rest and redacted in every response, and a connection without one

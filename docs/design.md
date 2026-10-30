@@ -341,7 +341,7 @@ dirigent/
                            #   execute, sql, queues, jq, parquet, duckdb
     dirigent-blocks/       # the umbrella over the families, and the outbound alert channels
     dirigent-examples/     # the example corpus: shelves of runnable documents, and starters
-    dirigent-server/       # FastAPI app, auth, SSE, webhook endpoints
+    dirigent-server/       # FastAPI app, auth, SSE, endpoint sources
       frontend/            # the web UI, built into the server wheel
     dirigent-cli/          # `dirigent` / `dg`
     dirigent-storage-s3/   # the s3:// storage backend package
@@ -406,10 +406,10 @@ renames on close -- so a reader never sees a half-written object.
 ## 4. Architecture
 
 Three process roles from one codebase and one image: the **API server** (REST, UI, SSE,
-webhook intake), the **scheduler** (leader-elected by a Postgres advisory lock), and
+endpoint sources), the **scheduler** (leader-elected by a Postgres advisory lock), and
 **N workers**. All coordination is PostgreSQL; all integration traffic is outbound through
-plugin blocks. Inbound is only the API surface itself, including webhook intake, which does
-nothing but validate, map, and enqueue.
+plugin blocks. Inbound is only the API surface itself, including the endpoint sources, which do
+nothing but check, record, and enqueue.
 
 Deployment shapes, all correct because leadership is an advisory lock and all coordination is
 the database:
@@ -501,7 +501,7 @@ Three clusters, with the boundary visible in the schema layout itself. All times
 | `Pipeline` | definition | A code plus immutable versions. Edits insert a new version; runs pin the version they started from, which is what makes run snapshots free. |
 | `Step` | definition | Lives inside the pipeline document, not in a table: block reference, config, `depends_on` edges plus trigger rule, retry policy, timeout, optional fan-out expression. Only attempts get rows. |
 | `Schema` | definition | A named JSON Schema the instance holds, addressable by code and referenced by one. Its identity is read off the schema's own keywords -- `$id` is the code, `title` the name -- so what is stored is a portable schema and not a wrapper around one. |
-| `Trigger` | triggers | Ad hoc is implicit; persisted triggers are schedules (cron / interval / one-time, own timezone, own parameters, precomputed `next_fire_at`) and webhooks (token hash, optional HMAC secret, payload-to-parameter mapping). A `TriggerDocument` row is the third owner a schedule or webhook may have, beside a hand and a pipeline's own document. |
+| `Trigger` | triggers | Ad hoc is implicit; persisted triggers are schedules (cron / interval / one-time, own timezone, own parameters, precomputed `next_fire_at`) and watches (a root sensor step kept waiting, with the cursor it left off at). A `TriggerDocument` row is the third owner a schedule or watch may have, beside a hand and a pipeline's own document. |
 | `Run` | execution | Pinned pipeline version, resolved parameters, the body of every JSON Schema the document names, `triggered_by` as a real reference, a `priority` pinned at creation, and an optional half-open `[window_start, window_end)` naming the logical interval the run covers. Terminal states include `completed_with_errors`. |
 | `RunItem` | execution | First-class fan-out: one row per mapped item with its own status and failing-step pointer, so a run over N inputs reads as a grid. |
 | `StepAttempt` | execution | One row per attempt: number, kind (automatic / manual), input, output reference, error, remote handle, lease, `available_at`, `next_poll_at`, timings. |
@@ -538,7 +538,7 @@ with `next_fire_at <= now()` (with `FOR UPDATE SKIP LOCKED`) and, per schedule i
 transaction, checks the pipeline's concurrency policy, inserts the run and its step-attempt
 rows, and writes the next `next_fire_at` computed in the schedule's own timezone. Because
 firing and advancing commit together, a crash can neither double-fire nor skip. Ad hoc runs
-and webhooks perform the same insert through the API.
+and source inputs perform the same insert through the API.
 
 **Workers are one claim query.** Each worker loops around a single query that pulls the next
 due unit of work (a `queued` attempt whose dependencies are satisfied and whose
@@ -685,14 +685,12 @@ reduces to writing one honest error classifier per block. Everything else is con
 - **Schedules.** Several per pipeline by design: cron, interval, or one-time, each with its
   own timezone, parameter overrides, and connection pins. The same pipeline hitting staging
   nightly and production weekly is two schedules, not two pipelines.
-- **Inbound webhooks.** `POST /hooks/{token}` with a per-trigger token, optional HMAC
-  verification, rate limiting, and a declarative payload-to-parameter mapping validated
-  against the pipeline's schema. The endpoint validates, maps, enqueues, and returns the run
-  id; nothing else executes in the request path.
 - **Sources.** A pipeline's first node may be a `source` instead of a block: where an input
   enters, each input one run entered at the source with the input as its output. An
-  `endpoint` source is called at its route under `/endpoints`, authenticated by its own token
-  unless it writes itself public, and its caller is answered 202 with the run. A source
+  `endpoint` source is called at its route under `/endpoints`, authenticated by its own token,
+  or by an HMAC-SHA256 signature of its body with `auth: {kind: hmac}`, unless it writes
+  itself public, and its caller is answered 202 with the run or held for a reply. Nothing else
+  executes in the request path. A source
   carries no schedule or watch beside it, since what they started would enter no source.
 - **Watches.** A root sensor step made a continuous source: one run always waiting on it,
   and the next armed in the transaction that settles its success, from the cursor the success
@@ -756,7 +754,7 @@ zone, the window is **wall-clock rather than a fixed number of hours**. A nightl
 `Europe/Oslo` covers 23 hours across the spring-forward morning and 25 across the fall-back
 one, which is the honest answer: those are the days that actually happened.
 
-A webhook-triggered or pipeline-triggered run carries no window. An ad hoc run carries one
+A source-entered or pipeline-triggered run carries no window. An ad hoc run carries one
 only if it was asked for -- `RunRequest` takes `window_start` and `window_end`, both or
 neither -- and a run with no window **refuses** `${run.window.start}` the way it refuses any
 unknown reference. Resolving it to an empty string would silently widen whatever the step was
@@ -787,41 +785,33 @@ An interval schedule has no absolute grid -- its arithmetic is purely relative -
 backfill of one is anchored on the `from` it was given. A one-time schedule has no cadence to
 enumerate at all, and a backfill of one is refused.
 
-### Webhook security model
+### Endpoint security model
 
-`POST /hooks/{token}` is the only unauthenticated write surface the product exposes, so its
-rules are worth stating exactly:
+The routes under `/endpoints` are the only unauthenticated write surface the product exposes,
+so their rules are worth stating exactly:
 
-- **The token is the credential.** It is minted server-side with full entropy, stored only as
-  a SHA-256 with a short prefix beside it, compared in constant time, and shown exactly once
-  -- when it is created or rotated. It never appears in a document, in an export, or in a
-  listing; there is nowhere in `dirigent/v1` to write one.
-- **An unknown token and a disabled webhook answer identically**, so the endpoint is not an
-  oracle for probing which tokens exist.
-- **HMAC is optional and additive.** A webhook carrying a secret requires
-  `X-Dirigent-Signature`, an HMAC-SHA256 over the **raw body** -- the bytes as they arrived,
-  not a re-serialization of the parsed JSON, because those are not the same string. The
-  `sha256=` prefix several popular senders write is accepted.
-- **Rate limiting is a per-token bucket, checked before the body is read**, so a caller in a
-  loop costs a dictionary lookup rather than a megabyte of parsing and a database round trip.
-  The bucket is in memory and therefore per process: behind N API replicas the effective
-  limit is the configured rate times N. That is documented rather than fixed, because the
-  alternative -- a row updated on every delivery -- turns a cheap refusal into a database
-  write, which is precisely what a caller hammering the endpoint would be trying to cause.
-- **The mapping is strict and small.** `params_from_payload` is JSONPath-lite: a leading
-  `$.`, dotted keys, and a numeric segment for a list element. No filters, wildcards, or
-  slices, for the same reason the reference language has no expressions -- a mapping a
-  reviewer cannot evaluate in their head is a mapping nobody can audit. It reads the JSON
-  body and nothing else: not headers, not the query string.
-- **The mapping is checked when it is declared, and the values it produces when they
-  arrive.** Declaring one refuses a path that does not parse, a name the pipeline's parameter
-  schema does not declare, and a required parameter without a default that nothing maps -- so
-  a webhook that could never fire successfully is caught by the apply rather than by the first
-  delivery.
-- **What it produces is validated against the pipeline's own parameter schema**, like any
-  other run's parameters, so a webhook cannot smuggle configuration past the schema.
-- **Every delivery is recorded, refusals included**, with what arrived, what it mapped to,
-  and the run or the reason. A refusal is therefore a *returned value* inside the endpoint
+- **The token is the credential**, unless the source says `auth: {kind: public}`. It is
+  minted server-side with full entropy at apply, stored only as a SHA-256 with a short prefix
+  beside it, compared in constant time, and shown exactly once -- when it is minted or
+  rotated. It never appears in a document, in an export, or in a listing; there is nowhere in
+  `dirigent/v1` to write one.
+- **Or the signature is**, with `auth: {kind: hmac}`: an HMAC-SHA256 over the **raw body** --
+  the bytes as they arrived, not a re-serialization of the parsed JSON, because those are not
+  the same string -- in `X-Dirigent-Signature` or the header the source names. The
+  `sha256=` prefix several popular senders write is accepted. The secret is minted at apply or
+  set from the sender's own, sealed with the instance key, and shown once.
+- **Rate limiting is a bucket per path, checked before anything is looked up**, so a caller in
+  a loop costs a dictionary lookup rather than a megabyte of parsing and a database round
+  trip. The bucket is in memory and therefore per process: behind N API replicas the
+  effective limit is the configured rate times N. That is documented rather than fixed,
+  because the alternative -- a row updated on every call -- turns a cheap refusal into a
+  database write, which is precisely what a caller hammering the endpoint would be trying to
+  cause.
+- **The body never becomes parameters.** It is the source's output, and a step reads from it
+  what it names with `${steps.<source>.output.body}`, so a caller cannot smuggle configuration
+  past the pipeline's own parameter schema.
+- **Every input past the source's own rate is recorded, refusals included**, with what arrived
+  and the run or the reason. A refusal is therefore a *returned value* inside the intake
   rather than a raised exception: the row explaining why a call was refused is written in the
   same transaction, and an exception escaping would roll back exactly the evidence someone
   debugging their sender needs.
@@ -830,8 +820,8 @@ rules are worth stating exactly:
 
 A document's `triggers:` section is the declaration, and only the declaration. Applying one
 matches by code within the pipeline and creates, redeclares, or retires accordingly.
-Operational state is never touched: whether a schedule is paused, when it last fired, what a
-webhook's token is, and what has been delivered are facts about *this instance*.
+Operational state is never touched: whether a schedule is paused, when it last fired, and the
+cursor a watch holds are facts about *this instance*.
 
 Ownership is explicit rather than inferred, through a `managed` flag. A row a document
 declared is managed, and an apply may retire it when the document stops declaring it. A
@@ -842,7 +832,7 @@ edit is the kind of surprise that makes people stop using the document format.
 Two consequences worth knowing. An **unchanged** document still reconciles its triggers, so a
 schedule deleted by hand comes back on the next apply; the digest covers the definition, not
 the instance, and "apply the repository on every merge" is meant to be a convergence loop.
-And an existing webhook **keeps its token** through an apply, because rotating a credential as
+And an existing source **keeps its token or signing secret** through an apply, because rotating a credential as
 a side effect of an unrelated edit would make every edit a breaking change for whoever is
 already calling.
 
@@ -871,7 +861,7 @@ description: ...             # optional, markdown
 pipeline: nightly-export
 triggers:
   schedules: [...]           # exactly the ScheduleSpec a pipeline document declares
-  webhooks: [...]            # exactly the WebhookSpec
+  watches: [...]             # exactly the WatchSpec
 ```
 
 It is applied through the same `$apply`, plans the same four ways by digest, and reconciles
@@ -1174,10 +1164,6 @@ GET/POST      /api/v1/pipelines/{code}/triggers/schedules          # + /{schedul
 POST          /api/v1/pipelines/{code}/triggers/schedules/{s}/$pause   # + /$resume
 GET           /api/v1/pipelines/{code}/triggers/schedules/{s}/firings
 POST          /api/v1/schedules/$preview                          # what a clock nobody declared would fire
-GET/POST      /api/v1/pipelines/{code}/triggers/webhooks           # + /{webhook}, DELETE
-POST          /api/v1/pipelines/{code}/triggers/webhooks/{w}/$rotate-token
-POST          /api/v1/pipelines/{code}/triggers/webhooks/{w}/$disable   # + /$enable
-GET           /api/v1/pipelines/{code}/triggers/webhooks/{w}/deliveries
 GET           /api/v1/trigger-documents                            # + /{code}, DELETE
 GET/POST      /api/v1/alert-rules                                  # + /{code}, PATCH, DELETE
 POST          /api/v1/alert-rules/$test                            # one message, real queue
@@ -1185,20 +1171,17 @@ GET           /api/v1/notifications                                # the alert q
 POST          /api/v1/notifications/{id}/$retry                    # put one back on the queue, due now
 GET           /api/v1/sources                                      # every pipeline's sources
 GET           /api/v1/pipelines/{code}/sources                     # + /{source}
-POST          /api/v1/pipelines/{code}/sources/{s}/$pause          # + /$resume, /$rotate-token
+POST          /api/v1/pipelines/{code}/sources/{s}/$pause          # + /$resume, /$rotate-token, /$set-secret
 GET           /api/v1/pipelines/{code}/sources/{s}/inputs
-POST          /hooks/{token}                                       # outside /api/v1 auth
 ANY           /endpoints/{route}                                   # a source's route, outside /api/v1 auth
 ```
 
-`/hooks/{token}` is mounted at the application root rather than under the versioned API, and
-that is a deliberate structural choice rather than a routing convenience. Authentication under
-`/api/v1` is a property of the mount: every route there requires a principal. A webhook has no
-principal to present -- its token *is* its credential, and it authenticates as the trigger
-rather than as a person. Two authentication models on one mount is how one of them eventually
-ends up wrong, so this one gets its own mount and its own rules. The routes an endpoint
-source declares are mounted under `/endpoints` for the same reason: a call there
-authenticates as the source.
+`/endpoints` is mounted beside the versioned API rather than under it, and that is a
+deliberate structural choice rather than a routing convenience. Authentication under `/api/v1`
+is a property of the mount: every route there requires a principal. An endpoint source's caller
+has no principal to present -- its token or its signature *is* its credential, and it
+authenticates as the source rather than as a person. Two authentication models on one mount is
+how one of them eventually ends up wrong, so this one gets its own mount and its own rules.
 
 
 Resource paths plus `$verb` for non-CRUD operations; OpenAPI generated by FastAPI, with an
@@ -1213,9 +1196,9 @@ page's `next` said and nothing else: it is opaque, a caller never constructs one
 does not parse is a 422 rather than a 500. Selection is keyset, not offset -- the listing reads
 `limit + 1` rows past the cursor in its own order and `next` is the sort key of the last row it
 returns -- so a row inserted between two pages is neither skipped nor served twice. The order,
-and therefore the cursor, is per listing: `/runs`, the firings, the deliveries and the
+and therefore the cursor, is per listing: `/runs`, the firings, a source's inputs and the
 notifications go newest first by id; `/pipelines`, `/connections`, the schedules and the
-webhooks go by code, `/workers` and `/users` by their own name and username; `/alert-rules`
+watches go by code, `/workers` and `/users` by their own name and username; `/alert-rules`
 and `/tokens` by id; a pipeline's versions newest version first; `$logs` by log id, in write
 order. Two answers are not pages at all, because what bounds them is not the database: the
 block catalog is bounded by the installed code, and a `$validate` response by the document it
@@ -1240,7 +1223,7 @@ definition and the run's attempts by the same function the engine's readiness wa
 picture and the engine can never disagree.
 
 **A listing row carries what a listing draws.** `/pipelines` answers each row with how many
-schedules and how many webhooks fire it, how many of its runs are still in flight, and how its
+schedules and how many watches fire it, how many of its runs are still in flight, and how its
 newest run went -- that run's id, the state it is in, when it started and finished, and the step
 its first failed attempt was of when it did not end well. All of it is computed by the read that
 returns the page: three correlated counts inside the statement that reads the rows, one windowed
@@ -1317,7 +1300,7 @@ concurrency: skip                      # allow | skip | queue | replace
 priority: normal                       # low | normal | high; a trigger or a run may override it
 importance: critical                   # routine | normal | critical; how much it matters, not when
 
-params:                                # JSON Schema; drives the run form and webhook mapping
+params:                                # JSON Schema; drives the run form and run validation
   type: object
   required: [day]
   properties:
@@ -1363,9 +1346,6 @@ triggers:                              # optional, and travels with the document
       name: Nightly, Oslo time         # optional here too, and so is description
       cron: "0 5 * * *"
       timezone: Europe/Oslo
-  webhooks:
-    - code: upstream-publish
-      params_from_payload: { day: "$.published.date" }
 
 requires:                              # the preflight a shared document declares
   blocks: [http.request, storage.exists]
@@ -1457,7 +1437,7 @@ third-party plugin read one definition:
 
 - `EntityName` is DNS-label kebab-case (`^[a-z](-?[a-z0-9])*$`, at most 63 characters) and
   governs the `code` of every addressable thing an instance holds: pipelines, connections,
-  schedules, webhooks, alert rules, workers, profile keys. Dots are excluded because they are
+  schedules, watches, sources, alert rules, workers, profile keys. Dots are excluded because they are
   reserved for block ids, so a code and a block id are never confusable; underscores and
   spaces are excluded because a code travels through URLs. Prose belongs in `name` and
   `description`, never in the code.
@@ -1470,10 +1450,10 @@ blueprint sketched. The two accept precisely the same strings, but the pattern i
 in JSON Schema and compiled by pydantic-core's Rust engine, which supports no look-around.)*
 
 **Identity: codes travel, ids never do.** Every addressable thing -- a pipeline, a connection,
-a schedule, a webhook, an alert rule -- carries the same four fields, and each has exactly one
+a schedule, a source, an alert rule -- carries the same four fields, and each has exactly one
 job:
 
-- **`id`** is a UUIDv7 the instance mints. It is what foreign keys and webhook token binding
+- **`id`** is a UUIDv7 the instance mints. It is what foreign keys and a source's token binding
   point at, and it is never exported and never typed by a person.
 - **`code`** is the addressable key: an `EntityName`, unique per instance, and the only
   identity a document carries. It is what appears in a REST path, what a
@@ -1498,7 +1478,7 @@ keeps neither.
 
 **Deleting deletes.** Deleting a pipeline deletes its run history with it -- every run ever
 attributed to it, and their items, attempts, log entries and artifact references, along with
-the versions, schedules, webhooks and alert rules the definition owns -- in one transaction,
+the versions, schedules, watches, sources and alert rules the definition owns -- in one transaction,
 and the code is free again. There is no force flag and nothing is left behind to point at. The
 one refusal is about liveness, not history: runs still queued or running refuse the delete with
 a 409, because deleting them would strand work a worker holds a lease on. Finish or cancel
@@ -1609,8 +1589,8 @@ dg format [FILE]                        # render a kept or piped NDJSON stream f
 # triggers and alerting
 dg schedule create PIPELINE NAME --cron EXPR | --interval DUR | --at WHEN [--tz ZONE] [-p k=v] [-P FILE]
 dg schedule list | pause | resume | firings | delete PIPELINE NAME
-dg webhook create PIPELINE NAME [--map param='$.path'] [--hmac-secret S] [--rate-limit N]
-dg webhook list | rotate-token | deliveries | delete PIPELINE NAME
+dg watch list | show | pause | resume PIPELINE NAME
+dg source list | show | pause | resume | rotate-token | set-secret | inputs | call PIPELINE SOURCE
 dg trigger-document list | show | delete CODE         # clocks declared for a pipeline defined elsewhere
 dg alerts rules list | create NAME --event E [--connection C] [--pipeline P] [--importance I]
                                    [--throttle DUR] | delete NAME
@@ -1633,9 +1613,10 @@ fires. And `dg alerts test` names **one target**, the way a rule does: `--connec
 nothing at all for the process log. The sender follows from that connection's kind in both
 places, so there is no second name to keep in agreement with the first.
 
-A minted webhook token is printed once, with the URL already assembled, and never again: the
-instance keeps only its hash. `dg webhook rotate-token` is how a token nobody wrote down is
-replaced, and it invalidates the old one immediately.
+A source's minted token or signing secret is printed once, in the apply's result, with the URL
+already assembled, and never again: the instance keeps only the token's hash, and the secret
+sealed. `dg source rotate-token` is how one nobody wrote down is replaced, and it invalidates
+the old one immediately; `dg source set-secret` takes a secret the sender issued instead.
 
 **Three disjoint configuration planes**, and keeping them apart is the point:
 
@@ -1756,13 +1737,11 @@ clean record stream whatever the verbosity.
 - **Secrets encrypted at rest** with envelope encryption and a key from the environment,
   secret fields marked in connection schemas, redacted in every API response by default,
   never in logs or pipeline definitions.
-- **Webhook intake hardened**: unguessable per-trigger tokens minted server-side and stored
-  only as a hash, optional HMAC verification over the raw body, per-token rate limiting
-  checked before the body is read, and a strict payload mapping whose result is validated
-  against the pipeline's parameter schema. An unknown token and a disabled webhook answer
-  identically, so the endpoint cannot be probed for which tokens once addressed something.
-  Section 8 has the whole model.
-- **Attribution is a foreign key**: every run points at the user, token, schedule, webhook,
+- **Endpoint intake hardened**: unguessable per-source tokens minted server-side and stored
+  only as a hash, or HMAC-SHA256 verification over the raw body with a sealed secret, rate
+  limiting checked before anything is looked up, and a body that reaches steps as the
+  source's output rather than as parameters. Section 8 has the whole model.
+- **Attribution is a foreign key**: every run points at the user, token, schedule, watch, source,
   backfill, or parent run that started it.
 - **Outbound discipline**: timeouts on every call, TLS verification per connection, transport
   retries only for idempotent requests, error classification owned by blocks.
@@ -1811,9 +1790,8 @@ The survey of prior art collapses to a short list of scars this design answers:
   three-step document, `dg apply` to a running `dg dev`, `dg run --watch`, `dg runs show` and
   `logs`, all as subprocesses against a real port.)*
 - **M2 - Triggers, alerting, storage backends.** The scheduler loop with its advisory lock
-  and misfire policy, webhook intake with payload mapping, alert rules delivered through a
-  retried notification queue with `log` and `webhook` notifiers, `dirigent-storage-s3`, and
-  `docker.run` as the first built-in asynchronous operator. Trigger declarations travel in a
+  and misfire policy, alert rules delivered through a retried notification queue with `log`
+  and `webhook` notifiers, `dirigent-storage-s3`, and `docker.run` as the first built-in asynchronous operator. Trigger declarations travel in a
   document's `triggers:` section and are materialised on apply, while operational state stays
   in the instance. *(Complete. The proof is a test at each level: the misfire policy and the
   advisory lock against a real PostgreSQL, the whole loop end to end through `dg` against a
@@ -1857,7 +1835,7 @@ about the system, and they are the hardest thing to change later.
 | Operator | A block that does work; may finish synchronously or return a `RemoteHandle`. | Operator | A task function |
 | Sensor | A block that waits for the world, in-DAG, via durable pokes. | Sensor (ours always deferrable) | **Collision:** Dagster "sensor" starts runs, which is our Trigger |
 | Connection | Named, encrypted credential and settings record of a contributed kind. | Connection | Block |
-| Trigger | What starts runs: ad hoc, Schedule, or Webhook. | Schedule/timetable | Deployment schedules |
+| Trigger | What starts runs: ad hoc, Schedule, or Watch; a source starts one where an input arrives. | Schedule/timetable | Deployment schedules |
 | Trigger rule | Edge condition for step readiness. | `trigger_rule` (same values, deliberately) | Control flow in code |
 | Concurrency policy | Per pipeline: `allow` / `skip` / `queue` / `replace`. | `max_active_runs` | Concurrency limits |
 | ArtifactRef | A step output passed by URI through pluggable storage. | XCom (small values only) | Results and artifacts |
@@ -1878,7 +1856,7 @@ Engine and plugin terms:
 | Catalog | The server's merged view of every plugin contribution, served at `/api/v1/blocks` and consumed by the UI to render forms. |
 | Contribution | What one plugin adds across the seven surfaces, returned by its `contribute()` hook under the `dirigent.plugins.v1` entry-point group. |
 | Scratch space | Run-scoped URI prefix on the default storage backend for intermediate artifacts. Swept with the run it belongs to, once `retention_runs` is set. |
-| `triggered_by` | A kind plus a foreign key on every run, naming what started it: `adhoc`, `user`, `api_token`, `schedule`, `webhook`, `backfill`, or `pipeline` -- the last pointing at the run whose step started this one. Attribution as data, not free text. |
+| `triggered_by` | A kind plus a foreign key on every run, naming what started it: `adhoc`, `user`, `api_token`, `schedule`, `backfill`, `watch`, `source`, or `pipeline` -- the last pointing at the run whose step started this one. Attribution as data, not free text. |
 
 Naming stance in one line: where an existing term is dominant and means the same thing, reuse
 it exactly; where the dominant terms conflict or mislead, pick the boring word and document

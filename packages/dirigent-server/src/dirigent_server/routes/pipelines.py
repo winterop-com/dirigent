@@ -65,7 +65,6 @@ def render(row: Pipeline, counts: PipelineCounts = NO_COUNTS, last: LastRun | No
         update={
             "active_runs": counts.active_runs,
             "schedules": counts.schedules,
-            "webhooks": counts.webhooks,
             "watches": counts.watches,
             "last_run": last,
         }
@@ -274,7 +273,7 @@ async def delete(code: str, session: SessionDep, services: ServicesDep, principa
 
     Admin, unlike every other pipeline verb, and it takes the history with it: the runs,
     their items, attempts, logs and artifact references, plus the versions, schedules,
-    webhooks and watches the definition owns. The run a watch has waiting is cancelled; any
+    sources and watches the definition owns. The run a watch has waiting is cancelled; any
     other run still in flight refuses the delete with a 409 --
     finish or cancel them first. Deactivating is the reversible verb an operator has.
     """

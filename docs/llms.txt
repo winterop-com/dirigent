@@ -38,7 +38,7 @@ A coding agent working in a project starts from the `AGENTS.md` that `dg init` w
 - [Operations](https://winterop-com.github.io/dirigent/operations/): scaling, the web UI, retention, alerting, backups and what to watch
 - [Reports](https://winterop-com.github.io/dirigent/reports/): a markdown document each run renders of itself
 - [Settings](https://winterop-com.github.io/dirigent/settings/): every setting, generated from the settings model
-- [Security](https://winterop-com.github.io/dirigent/security/): authentication, roles, tokens, webhooks, endpoint sources, and what runs code
+- [Security](https://winterop-com.github.io/dirigent/security/): authentication, roles, tokens, endpoint sources and their signatures, and what runs code
 - [Telemetry](https://winterop-com.github.io/dirigent/telemetry/): the OpenTelemetry traces, metrics and logs emitted
 
 ## Optional

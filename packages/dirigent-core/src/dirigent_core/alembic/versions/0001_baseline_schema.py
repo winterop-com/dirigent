@@ -439,66 +439,6 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f("ix_schedules_trigger_document_id"), ["trigger_document_id"], unique=False)
 
     op.create_table(
-        "webhook_triggers",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("pipeline_id", sa.Uuid(), nullable=False),
-        sa.Column("code", sa.String(length=200), nullable=False),
-        sa.Column("name", sa.String(length=200), nullable=True),
-        sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("token_hash", sa.String(length=128), nullable=False),
-        sa.Column("token_prefix", sa.String(length=16), server_default="", nullable=False),
-        sa.Column("hmac_secret", sa.LargeBinary(), nullable=True),
-        sa.Column("hmac_secret_key_id", sa.String(length=100), nullable=True),
-        sa.Column(
-            "params_from_payload",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
-            nullable=False,
-        ),
-        sa.Column(
-            "priority",
-            sa.Enum("low", "normal", "high", name="run_priority", native_enum=False, length=32),
-            nullable=True,
-        ),
-        sa.Column("managed", sa.Boolean(), server_default=sa.false(), nullable=False),
-        sa.Column("trigger_document_id", sa.Uuid(), nullable=True),
-        sa.Column("active", sa.Boolean(), server_default=sa.true(), nullable=False),
-        sa.Column("rate_limit_per_minute", sa.Integer(), server_default=sa.text("60"), nullable=False),
-        sa.Column("last_delivery_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
-        sa.Column(
-            "created_at",
-            dirigent_core.types.UtcDateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            dirigent_core.types.UtcDateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
-            ["pipeline_id"],
-            ["pipelines.id"],
-            name=op.f("fk_webhook_triggers_pipeline_id_pipelines"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["trigger_document_id"],
-            ["trigger_documents.id"],
-            name=op.f("fk_webhook_triggers_trigger_document_id_trigger_documents"),
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_webhook_triggers")),
-        sa.UniqueConstraint("pipeline_id", "code", name=op.f("uq_webhook_triggers_pipeline_id_code")),
-        sa.UniqueConstraint("token_hash", name=op.f("uq_webhook_triggers_token_hash")),
-    )
-    with op.batch_alter_table("webhook_triggers", schema=None) as batch_op:
-        batch_op.create_index(batch_op.f("ix_webhook_triggers_pipeline_id"), ["pipeline_id"], unique=False)
-        batch_op.create_index(
-            batch_op.f("ix_webhook_triggers_trigger_document_id"), ["trigger_document_id"], unique=False
-        )
-
-    op.create_table(
         "watches",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("pipeline_id", sa.Uuid(), nullable=False),
@@ -556,6 +496,8 @@ def upgrade() -> None:
         sa.Column("config", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False),
         sa.Column("token_hash", sa.String(length=128), nullable=True),
         sa.Column("token_prefix", sa.String(length=16), nullable=True),
+        sa.Column("signing_secret", sa.LargeBinary(), nullable=True),
+        sa.Column("signing_key_id", sa.String(length=64), nullable=True),
         sa.Column("paused", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("accepted", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("refused", sa.Integer(), server_default=sa.text("0"), nullable=False),
@@ -651,7 +593,6 @@ def upgrade() -> None:
             sa.Enum(
                 "adhoc",
                 "schedule",
-                "webhook",
                 "api_token",
                 "user",
                 "pipeline",
@@ -876,43 +817,6 @@ def upgrade() -> None:
     with op.batch_alter_table("schedule_firings", schema=None) as batch_op:
         batch_op.create_index("ix_schedule_firings_created_at", ["created_at"], unique=False)
         batch_op.create_index("ix_schedule_firings_schedule_id_id", ["schedule_id", "id"], unique=False)
-
-    op.create_table(
-        "webhook_deliveries",
-        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
-        sa.Column("webhook_id", sa.Uuid(), nullable=False),
-        sa.Column("run_id", sa.Uuid(), nullable=True),
-        sa.Column(
-            "created_at",
-            dirigent_core.types.UtcDateTime(timezone=True),
-            server_default=sa.func.now(),
-            nullable=False,
-        ),
-        sa.Column(
-            "outcome",
-            sa.Enum("accepted", "skipped", "rejected", name="webhook_outcome", native_enum=False, length=32),
-            nullable=False,
-        ),
-        sa.Column("reason", sa.Text(), nullable=True),
-        sa.Column("payload", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True),
-        sa.Column(
-            "mapped_params", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True
-        ),
-        sa.Column("source", sa.String(length=64), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["run_id"], ["runs.id"], name=op.f("fk_webhook_deliveries_run_id_runs"), ondelete="SET NULL"
-        ),
-        sa.ForeignKeyConstraint(
-            ["webhook_id"],
-            ["webhook_triggers.id"],
-            name=op.f("fk_webhook_deliveries_webhook_id_webhook_triggers"),
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_webhook_deliveries")),
-    )
-    with op.batch_alter_table("webhook_deliveries", schema=None) as batch_op:
-        batch_op.create_index("ix_webhook_deliveries_created_at", ["created_at"], unique=False)
-        batch_op.create_index("ix_webhook_deliveries_webhook_id_id", ["webhook_id", "id"], unique=False)
 
     op.create_table(
         "source_inputs",
@@ -1143,11 +1047,6 @@ def downgrade() -> None:
         batch_op.drop_index("ix_step_attempts_lease_expires_at")
 
     op.drop_table("step_attempts")
-    with op.batch_alter_table("webhook_deliveries", schema=None) as batch_op:
-        batch_op.drop_index("ix_webhook_deliveries_webhook_id_id")
-        batch_op.drop_index("ix_webhook_deliveries_created_at")
-
-    op.drop_table("webhook_deliveries")
     with op.batch_alter_table("source_inputs", schema=None) as batch_op:
         batch_op.drop_index("ix_source_inputs_source_id_id")
         batch_op.drop_index("ix_source_inputs_created_at")
@@ -1190,11 +1089,6 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f("ix_sources_pipeline_id"))
 
     op.drop_table("sources")
-    with op.batch_alter_table("webhook_triggers", schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f("ix_webhook_triggers_trigger_document_id"))
-        batch_op.drop_index(batch_op.f("ix_webhook_triggers_pipeline_id"))
-
-    op.drop_table("webhook_triggers")
     with op.batch_alter_table("schedules", schema=None) as batch_op:
         batch_op.drop_index(batch_op.f("ix_schedules_trigger_document_id"))
         batch_op.drop_index(batch_op.f("ix_schedules_pipeline_id"))

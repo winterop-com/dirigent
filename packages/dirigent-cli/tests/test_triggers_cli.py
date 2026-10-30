@@ -1,7 +1,6 @@
-"""``dg schedule``, ``dg webhook``, ``dg source`` and ``dg alerts``, driven against a real server."""
+"""``dg schedule``, ``dg watch``, ``dg source`` and ``dg alerts``, driven against a real server."""
 
 import os
-import re
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -51,8 +50,6 @@ triggers:
       cron: "{NIGHTLY}"
 """
 )
-
-HOOK_URL = re.compile(r"http://127\.0\.0\.1:\d+/hooks/\S+")
 
 # Wide enough that rich never folds a token or a table cell.
 CONSOLE_WIDTH = "200"
@@ -187,17 +184,6 @@ def apply_document(tmp_path: Path, text: str = DOCUMENT) -> None:
             f"instance answering the first list: {first_instance!r}\n"
             f"instance answering the second: {second_instance!r}\n"
         )
-
-
-def minted_url(output: str) -> str:
-    """Read the one URL ``dg webhook create`` printed, token and all.
-
-    Read plain: a URL with an escape sequence inside it is not a URL anything can POST to.
-    """
-    text = plain(output)
-    found = HOOK_URL.findall(text)
-    assert len(found) == 1, f"the token is printed once and only once:\n{text}"
-    return str(found[0])
 
 
 def rows_of(*argv: str) -> list[dict[str, Any]]:
@@ -388,108 +374,6 @@ def test_json_output_is_the_servers_response_and_not_the_table(tmp_path: Path, s
     assert len(rows) == 1
     assert {"id", "kind", "managed", "created_at", "next_fire_at"} <= set(rows[0])
     assert rows[0]["interval"] == "1h30m", "the server's own humane duration, not a rendering of it"
-
-
-def test_a_webhook_prints_its_token_and_the_url_to_post_to_once(tmp_path: Path, server: str) -> None:
-    apply_document(tmp_path)
-    result = invoke("webhook", "create", "cli-demo", "from-github", "--map", "greeting=$.message.text")
-    assert result.exit_code == 0, result.output
-    token = minted_url(result.output).rsplit("/", 1)[1]
-    assert plain(result.output).count(token) == 2, "once in the URL to POST to, and once on its own"
-    assert "This token is shown once." in plain(result.output)
-    assert "POST" in result.output
-
-    row = rows_of("webhook", "list", "cli-demo")[0]
-    assert row["params_from_payload"] == {"greeting": "$.message.text"}
-    assert row["token_prefix"] == token[:8]
-    assert "token" not in row
-
-
-def test_a_webhook_carries_the_priority_it_was_given(tmp_path: Path, server: str) -> None:
-    apply_document(tmp_path)
-    created = invoke("webhook", "create", "cli-demo", "from-github", "--priority", "low")
-    assert created.exit_code == 0, created.output
-    assert rows_of("webhook", "list", "cli-demo")[0]["priority"] == "low"
-
-
-def test_a_minted_webhook_token_survives_the_json_output(tmp_path: Path, server: str) -> None:
-    """The token is shown once, so the spelling a script asked for must not drop it."""
-    apply_document(tmp_path)
-    result = invoke("--json", "webhook", "create", "cli-demo", "from-github")
-    assert result.exit_code == 0, result.output
-    minted = only(result.stdout, "webhook.created")
-    assert minted["token"], "a script that minted a webhook can read its token"
-    assert minted["url"], "and where to POST it"
-
-    row = rows_of("webhook", "list", "cli-demo")[0]
-    assert row["token_prefix"] == minted["token"][:8], "it is the token the instance stored"
-
-
-def test_a_rotated_webhook_token_survives_the_json_output(tmp_path: Path, server: str) -> None:
-    apply_document(tmp_path)
-    invoke("webhook", "create", "cli-demo", "from-github")
-    result = invoke("--json", "webhook", "rotate-token", "cli-demo", "from-github")
-    assert result.exit_code == 0, result.output
-    rotated = only(result.stdout, "webhook.token_rotated")
-    assert rotated["token"]
-    assert rows_of("webhook", "list", "cli-demo")[0]["token_prefix"] == rotated["token"][:8]
-
-
-def test_a_mapping_without_an_equals_sign_is_refused(tmp_path: Path, server: str) -> None:
-    apply_document(tmp_path)
-    result = invoke("webhook", "create", "cli-demo", "from-github", "--map", "greeting")
-    assert result.exit_code == 1
-    assert "--map takes param=$.path.into.payload" in plain(result.output)
-    assert rows_of("webhook", "list", "cli-demo") == []
-
-
-def test_a_listing_shows_a_prefix_rather_than_the_token(tmp_path: Path, server: str) -> None:
-    apply_document(tmp_path)
-    created = invoke("webhook", "create", "cli-demo", "from-github")
-    token = minted_url(created.output).rsplit("/", 1)[1]
-    listed = invoke("webhook", "list", "cli-demo")
-    assert listed.exit_code == 0
-    assert "from-github" in listed.output
-    assert f"{token[:8]}..." in plain(listed.output)
-    assert token not in plain(listed.output), "the instance keeps only the hash; a listing shows the prefix"
-
-
-def test_rotating_a_token_prints_a_different_one(tmp_path: Path, server: str) -> None:
-    apply_document(tmp_path)
-    created = invoke("webhook", "create", "cli-demo", "from-github")
-    first = minted_url(created.output)
-    rotated = invoke("webhook", "rotate-token", "cli-demo", "from-github")
-    assert rotated.exit_code == 0
-    assert "rotated" in rotated.output
-    second = minted_url(rotated.output)
-    assert second != first
-    assert rows_of("webhook", "list", "cli-demo")[0]["token_prefix"] == second.rsplit("/", 1)[1][:8]
-
-
-def test_deliveries_show_what_arrived_at_a_webhook(tmp_path: Path, server: str) -> None:
-    import httpx2
-
-    apply_document(tmp_path)
-    created = invoke("webhook", "create", "cli-demo", "from-github", "--map", "greeting=$.message.text")
-    url = minted_url(created.output)
-    delivered = httpx2.post(url, json={"message": {"text": "hello"}}, timeout=30.0)
-    assert delivered.status_code == 201, delivered.text
-
-    listed = invoke("webhook", "deliveries", "cli-demo", "from-github")
-    assert listed.exit_code == 0
-    assert "accepted" in plain(listed.output)
-    rows = rows_of("webhook", "deliveries", "cli-demo", "from-github")
-    assert [row["outcome"] for row in rows] == ["accepted"]
-    assert rows[0]["mapped_params"] == {"greeting": "hello"}
-
-
-def test_a_webhook_is_deleted(tmp_path: Path, server: str) -> None:
-    apply_document(tmp_path)
-    assert invoke("webhook", "create", "cli-demo", "from-github").exit_code == 0
-    deleted = only(machine("webhook", "delete", "cli-demo", "from-github").stdout, "webhook.deleted")
-    assert (deleted["code"], deleted["pipeline"]) == ("from-github", "cli-demo")
-    assert rows_of("webhook", "list", "cli-demo") == []
-    assert invoke("webhook", "delete", "cli-demo", "from-github").exit_code == 1
 
 
 def test_an_alert_rule_is_created_listed_and_deleted(tmp_path: Path, server: str) -> None:
@@ -861,7 +745,7 @@ def test_an_apply_that_creates_a_source_hands_over_its_token_once(tmp_path: Path
     text = plain(result.output)
     assert "/endpoints/cli-echo/{who}" in text
     assert "Authorization: Bearer" in text
-    assert "Each token is shown once." in text
+    assert "Each token and signing secret is shown once." in text
     again = machine("apply", str(path))
     assert only(again.stdout, "apply")["fields"]["sources"]["tokens"] == [], "a reapply mints nothing"
 
@@ -932,4 +816,19 @@ def test_a_source_is_listed_paused_resumed_and_given_a_new_token(tmp_path: Path,
     assert minted["token"] != old
     assert minted["url"].endswith("/endpoints/cli-echo/{who}")
     rendered = invoke("source", "rotate-token", "cli-echo", "ask")
-    assert "This is the only time the token is shown." in plain(rendered.output)
+    assert "This is the only time it is shown." in plain(rendered.output)
+
+
+def test_a_signed_source_is_called_with_a_body_signed_by_its_secret(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "signed.yaml"
+    path.write_text(ENDPOINT_DOCUMENT.replace("methods: [POST]", "methods: [POST]\n      auth: {kind: hmac}"))
+    applied = machine("apply", str(path))
+    assert applied.exit_code == 0, applied.output
+    [minted] = only(applied.stdout, "apply")["fields"]["sources"]["tokens"]
+    assert minted["auth"] == "hmac"
+    args = ["source", "call", "cli-echo", "ask", "-p", "who=ada", "--body", '{"said": "hi"}']
+    unsigned = machine(*args)
+    assert only(unsigned.stdout, "source.called")["status"] == 401
+    called = machine(*args, "--signing-secret", minted["token"])
+    assert called.exit_code == 0, called.output
+    assert only(called.stdout, "source.called")["status"] == 200
