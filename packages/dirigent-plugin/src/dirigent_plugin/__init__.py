@@ -44,10 +44,10 @@ from dirigent_plugin.blocks import (
     StorageBackend,
     classify_default,
     mark_refusal,
+    published_config_schema,
     reference_fields,
     shell_string_fields,
-    sql_fields_of,
-    sql_string_fields,
+    sql_values_of,
 )
 from dirigent_plugin.contribution import Contribution, merge_contributions
 from dirigent_plugin.markers import (
@@ -148,6 +148,6 @@ __all__ = [
     "merge_contributions",
     "reference_fields",
     "shell_string_fields",
-    "sql_fields_of",
-    "sql_string_fields",
+    "published_config_schema",
+    "sql_values_of",
 ]

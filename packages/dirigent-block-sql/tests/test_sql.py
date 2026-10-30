@@ -23,7 +23,7 @@ from dirigent_block_sql.sql import (
     spelled_row,
 )
 from dirigent_common import SQL_MEDIA_TYPE, JsonMap
-from dirigent_plugin import BlockFailure, ErrorClass, sql_string_fields
+from dirigent_plugin import BlockFailure, ErrorClass, published_config_schema, sql_values_of
 from dirigent_testing import FakeContext
 
 #: The database every test in this module builds, relative the way a document writes it.
@@ -153,8 +153,11 @@ def test_a_query_publishes_its_statement_as_sql() -> None:
 
 
 def test_both_blocks_name_the_fields_a_reference_is_refused_in() -> None:
-    assert sql_string_fields(SqlQueryConfig) == {"sql"}
-    assert sql_string_fields(SqlExecuteConfig) == {"statements"}
+    query = {"connection": "db", "sql": "SELECT 1", "params": {"a": 1}}
+    execute = {"connection": "db", "statements": ["SELECT 1", "SELECT 2"]}
+
+    assert set(sql_values_of(query, published_config_schema(SqlQueryConfig))) == {"sql"}
+    assert set(sql_values_of(execute, published_config_schema(SqlExecuteConfig))) == {"statements.0", "statements.1"}
 
 
 def test_an_empty_statement_in_a_list_is_refused() -> None:

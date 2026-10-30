@@ -89,7 +89,7 @@ from dirigent_core.messages import (
     WRONG_DOCUMENT_KIND,
     WRONG_FORMAT,
 )
-from dirigent_plugin import reference_fields, sql_fields_of
+from dirigent_plugin import reference_fields, sql_values_of
 
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
@@ -655,13 +655,14 @@ def _step_block_issues(
 
 
 def _sql_reference_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
-    """Refuse a reference in a field the block publishes as SQL, which only ``params`` may carry."""
+    """Refuse a reference anywhere the block publishes SQL, which only ``params`` may carry."""
+    held = sql_values_of(config, schema)
     return [
         ValidationIssue.of(
             STEP_REFERENCE_IN_SQL, location=f"steps.{step}.config.{field}", reference=reference, field=field
         )
-        for field in sorted(sql_fields_of(schema))
-        for reference in references_in(config.get(field))
+        for field in sorted(held)
+        for reference in references_in(held[field])
     ]
 
 
