@@ -1,6 +1,6 @@
-import { MoreHorizontal, type LucideIcon } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 
+import { SplitButton, type SplitItem } from '@/components/ds/SplitButton'
 import { Refusable } from '@/components/Refusable'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { nextForm, TABLE, type Form } from '@/lib/card-form'
+import { ICONS, type Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
@@ -20,7 +21,7 @@ export const MORE_ACTIONS_LABEL = LABELS.shell.more_actions
 export interface ToolbarAction {
     id: string
     label: string
-    icon?: LucideIcon
+    icon?: Icon
     onClick: () => void
     disabled?: boolean
     /** Why the control is shut, which is what it says on hover and what `Refusable` carries. */
@@ -30,6 +31,10 @@ export interface ToolbarAction {
     ariaLabel?: string
     /** An action that takes something away, which says so under the pointer. */
     destructive?: boolean
+    /** Other ways to do the same thing, which make the button a `SplitButton`. */
+    more?: readonly SplitItem[]
+    /** What the split's chevron is called. */
+    moreLabel?: string
 }
 
 /**
@@ -95,7 +100,7 @@ export function ToolbarActions({
                     <DropdownMenuTrigger
                         render={<Button variant="ghost" size="icon-sm" aria-label={MORE_ACTIONS_LABEL} />}
                     >
-                        <MoreHorizontal className="size-4" aria-hidden />
+                        <ICONS.more className="size-4" aria-hidden />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                         {rest.map((action) => (
@@ -140,8 +145,22 @@ export function ToolbarActions({
  * either way, and the click is swallowed here instead.
  */
 function ActionButton({ action }: { action: ToolbarAction }) {
-    const Icon = action.icon
+    const Glyph = action.icon
     const shut = action.disabled === true
+    if (action.more !== undefined && action.more.length > 0) {
+        return (
+            <SplitButton
+                label={action.label}
+                ariaLabel={action.ariaLabel}
+                icon={Glyph}
+                variant={action.variant ?? 'outline'}
+                why={shut ? (action.why ?? '') : undefined}
+                more={action.more}
+                moreLabel={action.moreLabel ?? MORE_ACTIONS_LABEL}
+                onClick={action.onClick}
+            />
+        )
+    }
     return (
         <Refusable why={action.why}>
             <Button
@@ -156,7 +175,7 @@ function ActionButton({ action }: { action: ToolbarAction }) {
                 )}
                 onClick={shut ? undefined : action.onClick}
             >
-                {Icon !== undefined && <Icon aria-hidden />}
+                {Glyph !== undefined && <Glyph aria-hidden />}
                 {action.label}
             </Button>
         </Refusable>

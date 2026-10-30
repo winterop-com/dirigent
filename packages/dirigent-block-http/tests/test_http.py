@@ -1,6 +1,6 @@
 """Tests for the generic HTTP blocks, against httpx2's own mock transport."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from datetime import timedelta
 from typing import Any
 
@@ -18,6 +18,7 @@ from dirigent_block_http.http import (
     HttpRequestOutput,
     status_class,
 )
+from dirigent_block_http.webhooks import WebhookPostConfig, WebhookPostOperator
 from dirigent_plugin import BlockFailure, ErrorClass, NotYet
 from dirigent_testing import FakeContext
 
@@ -34,6 +35,15 @@ class Responder:
         """Answer one request."""
         self.requests.append(request)
         return self.responses[min(len(self.requests) - 1, len(self.responses) - 1)]
+
+
+def always(client: httpx2.AsyncClient) -> Callable[[str], httpx2.AsyncClient]:
+    """Stand in for ``ctx.http``, answering every connection with one client."""
+
+    def http(_ref: str) -> httpx2.AsyncClient:
+        return client
+
+    return http
 
 
 def json_response(status: int, payload: Any) -> httpx2.Response:
@@ -157,6 +167,115 @@ async def test_a_redirect_to_another_host_does_not_carry_the_credentials(ctx: Fa
     assert first.headers["authorization"] == "Basic c2VjcmV0"
     assert "authorization" not in second.headers, "the credential stayed with the host it was for"
     assert str(second.url) == "http://elsewhere.test/moved"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"url": "http://elsewhere.test/collect"},
+        {"path": "http://elsewhere.test/collect"},
+        {"path": "https://service.test/collect"},
+        {"path": "http://service.test:8080/collect"},
+    ],
+    ids=["url", "path", "scheme", "port"],
+)
+async def test_a_connection_is_not_sent_off_its_own_origin(ctx: FakeContext, target: dict[str, str]) -> None:
+    """A reference that resolves to another origin is refused before the credential leaves."""
+    ctx.handler = handler = Responder(json_response(200, {}))
+    config = HttpRequestConfig.model_validate({"connection": "api", **target})
+    with pytest.raises(BlockFailure) as raised:
+        await HttpRequestOperator().execute(config, ctx.as_context())
+    assert raised.value.code == "http.off_origin"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert handler.requests == [], "nothing was sent"
+
+
+async def test_a_sensor_is_not_sent_off_its_connections_origin(ctx: FakeContext) -> None:
+    ctx.handler = handler = Responder(httpx2.Response(200))
+    config = HttpReadyConfig(connection="api", path="http://elsewhere.test/health")
+    with pytest.raises(BlockFailure) as raised:
+        await HttpReadySensor().poke(config, ctx.as_context())
+    assert raised.value.code == "http.off_origin"
+    assert handler.requests == []
+
+
+async def test_a_webhook_is_not_sent_off_its_connections_origin(ctx: FakeContext) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    config = WebhookPostConfig(connection="api", url="http://elsewhere.test/hook", body={"id": 1})
+    with pytest.raises(BlockFailure) as raised:
+        await WebhookPostOperator().execute(config, ctx.as_context())
+    assert raised.value.code == "http.off_origin"
+    assert handler.requests == []
+
+
+async def test_a_connection_without_a_base_url_sends_its_credential_nowhere(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    bare = httpx2.AsyncClient(headers={"Authorization": "Bearer secret"}, transport=httpx2.MockTransport(handler))
+    monkeypatch.setattr(ctx, "http", always(bare))
+    config = HttpRequestConfig(connection="api", url="http://elsewhere.test/collect")
+    with pytest.raises(BlockFailure) as raised:
+        await HttpRequestOperator().execute(config, ctx.as_context())
+    assert raised.value.code == "http.off_origin"
+    assert handler.requests == []
+
+
+@pytest.mark.parametrize("auth", ["bearer", "basic"])
+async def test_a_redirect_off_the_origin_drops_the_connections_own_credential(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch, auth: str
+) -> None:
+    ctx.handler = handler = Responder(
+        httpx2.Response(302, headers={"location": "http://elsewhere.test/moved"}),
+        json_response(200, {}),
+    )
+    client = httpx2.AsyncClient(
+        base_url="http://service.test",
+        headers={"Authorization": "Bearer secret"} if auth == "bearer" else None,
+        auth=httpx2.BasicAuth("user", "secret") if auth == "basic" else None,
+        transport=httpx2.MockTransport(handler),
+    )
+    monkeypatch.setattr(ctx, "http", always(client))
+    config = HttpRequestConfig(connection="api", path="/start", follow_redirects=True)
+    await HttpRequestOperator().execute(config, ctx.as_context())
+    first, second = handler.requests
+    assert "authorization" in first.headers
+    assert "authorization" not in second.headers
+    assert str(second.url) == "http://elsewhere.test/moved"
+
+
+async def test_an_absolute_url_on_the_connections_own_origin_is_sent(ctx: FakeContext) -> None:
+    """A service's own absolute next-page link stays on the service, so it is followed."""
+    ctx.handler = handler = Responder(json_response(200, {}))
+    config = HttpRequestConfig(connection="api", path="http://service.test/v1/rows?page=2")
+    await HttpRequestOperator().execute(config, ctx.as_context())
+    assert str(handler.requests[0].url) == "http://service.test/v1/rows?page=2"
+
+
+async def test_a_default_port_written_out_is_the_same_origin(ctx: FakeContext) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    config = HttpRequestConfig(connection="api", path="http://service.test:80/v1/rows")
+    await HttpRequestOperator().execute(config, ctx.as_context())
+    assert len(handler.requests) == 1
+
+
+@pytest.mark.parametrize(
+    ("target", "field"),
+    [({"url": "https://elsewhere.test/x"}, "url"), ({"path": "https://elsewhere.test/x"}, "path")],
+)
+def test_a_literal_absolute_url_beside_a_connection_is_refused_at_apply(target: dict[str, str], field: str) -> None:
+    for block, model in (
+        (HttpRequestOperator(), HttpRequestConfig),
+        (HttpReadySensor(), HttpReadyConfig),
+        (WebhookPostOperator(), WebhookPostConfig),
+    ):
+        issues = block.check_config(model.model_validate({"connection": "api", **target}))
+        assert [(issue.code, issue.params["field"]) for issue in issues] == [("http.url_beside_connection", field)]
+
+
+def test_a_path_on_a_connection_or_a_url_without_one_passes_apply() -> None:
+    assert HttpRequestOperator().check_config(HttpRequestConfig(connection="api", path="/v1/rows")) == []
+    assert HttpRequestOperator().check_config(HttpRequestConfig(url="https://elsewhere.test/x")) == []
 
 
 async def test_query_and_headers_reach_the_service(ctx: FakeContext) -> None:

@@ -105,7 +105,9 @@ def source_set_secret(
     given = secret or typer.prompt("signing secret", hide_input=True)
     with client_for(state_of(ctx)) as dg:
         row = dg.call(dg.sources.set_secret(pipeline, code, given))
-    emit_fact("source.secret_set", message="secret set", code=code, pipeline=pipeline, prefix=row.token_prefix)
+    emit_fact(
+        "source.secret_set", message="secret set", code=code, pipeline=pipeline, fingerprint=row.secret_fingerprint
+    )
 
 
 @source_app.command("inputs")

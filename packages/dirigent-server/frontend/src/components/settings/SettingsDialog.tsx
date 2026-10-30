@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 import { Refusal } from '@/components/Refusal'
-import { SEARCH_PLACEHOLDER } from '@/components/SearchField'
+import { SEARCH_PLACEHOLDER } from '@/components/ds/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { Dot, TONE } from '@/components/ServerStatusButton'
 import { MODE_LABELS, MODES, type Mode } from '@/components/ThemeToggle'

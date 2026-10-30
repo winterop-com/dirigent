@@ -463,10 +463,13 @@ class Source(Entity):
     """The hash of the bearer token a caller presents, or null for a source that takes none."""
 
     token_prefix: Mapped[str | None] = mapped_column(sa.String(16))
-    """The leading characters of the token or the signing secret, shown in listings."""
+    """The leading characters of the token, shown in listings."""
 
     signing_secret: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
     """The secret an ``hmac`` source's callers sign with, sealed with the instance key."""
+
+    secret_fingerprint: Mapped[str | None] = mapped_column(sa.String(16))
+    """The head of the SHA-256 of the signing secret, shown in listings; none of the secret is stored in clear."""
 
     signing_key_id: Mapped[str | None] = mapped_column(sa.String(64))
     """Which instance key sealed the signing secret."""
