@@ -365,7 +365,7 @@ class Settings(BaseSettings):
     """How long an endpoint waits for a whole body before it answers 408; no database connection is held meanwhile."""
 
     source_intake_rate_per_minute: int = Field(default=600, ge=1)
-    """How fast calls to one method and path are taken, before any source is looked up.
+    """How fast one address's calls to one method and route are taken, before any source is read.
 
     A source's own ``rate`` applies on top of this."""
 

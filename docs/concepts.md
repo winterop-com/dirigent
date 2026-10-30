@@ -188,10 +188,10 @@ apply mints the signing secret and shows it once, `dg source rotate-token` repla
 `dg source set-secret` sets one the sender issued; a `webhook.post` step with `sign_with`
 produces exactly that signature. A route is answered by one source on the whole instance, and
 an apply claiming one another pipeline answers is refused. A call is checked in one order,
-each check answering for itself: the instance's rate for the path (429), the route (404, 405),
-the token (401), or for a signed source the body in time (408) and under `max_body` (413) and
-the signature (401), the source's own `rate` (429), the source and its pipeline taking input
-(503), the content type (415), the body in time (408) and under `max_body` (413), the body
+each check answering for itself: the instance's rate for the address and route (429), the route
+(404, 405), the token (401), or for a signed source the body in time (408) and under `max_body`
+(413) and the signature (401), the source's own `rate` (429), the source and its pipeline taking
+input (503), the content type (415), the body in time (408) and under `max_body` (413), the body
 parsing (400), the runs in flight
 (503), and, when a reply can answer, a free seat among the callers this server holds (503);
 then the run is created. Every input from the source's own rate onwards is recorded, refusals
