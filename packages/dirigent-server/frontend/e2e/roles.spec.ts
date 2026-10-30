@@ -105,9 +105,11 @@ test('a check the server refuses says so, and the row keeps what it had', async 
 
     await page.goto('/connections')
     const row = rowOf(page, CONNECTION)
-    await row.getByRole('button', { name: 'Check' }).click()
+    await row.click()
+    await page.getByRole('dialog').getByRole('button', { name: LABELS.action.check }).click()
 
     await expect(page.getByText('not permitted for your role')).toBeVisible()
+    await page.keyboard.press('Escape')
     await expect(row).toContainText(LABELS.state.health.unchecked)
 })
 

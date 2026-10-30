@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { Chip } from '@/components/ds/Chip'
 import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
@@ -62,6 +62,9 @@ function IconShelf({ group }: { group: IconGroup }) {
     )
 }
 
+/** The gestures that say the reader has moved on from the entry they pressed. */
+const RELEASES = ['wheel', 'touchmove', 'keydown'] as const
+
 /** How far under the top of the scroller a section lands when its index entry is pressed. */
 const SECTION_GAP = 16
 
@@ -91,9 +94,13 @@ function Section({ id, children }: { id: GallerySection; children: ReactNode }) 
  */
 function useReadingSection(): [GallerySection, (section: GallerySection) => void] {
     const [reading, setReading] = useState<GallerySection>('titles')
+    // A section at the foot of the page cannot reach the line, so a pressed entry holds until the
+    // reader scrolls for themselves.
+    const pressed = useRef(false)
     useEffect(() => {
         const observer = new IntersectionObserver(
             (entries) => {
+                if (pressed.current) return
                 for (const entry of entries) {
                     if (!entry.isIntersecting) continue
                     const id = entry.target.getAttribute('data-gallery') as GallerySection | null
@@ -103,11 +110,20 @@ function useReadingSection(): [GallerySection, (section: GallerySection) => void
             { rootMargin: '-8% 0px -88% 0px' },
         )
         for (const section of document.querySelectorAll('[data-gallery]')) observer.observe(section)
+        const release = () => {
+            pressed.current = false
+        }
+        for (const gesture of RELEASES) window.addEventListener(gesture, release, { passive: true })
         return () => {
             observer.disconnect()
+            for (const gesture of RELEASES) window.removeEventListener(gesture, release)
         }
     }, [])
-    return [reading, setReading]
+    const choose = useCallback((section: GallerySection) => {
+        pressed.current = true
+        setReading(section)
+    }, [])
+    return [reading, choose]
 }
 
 /** Bring one section to the top of the column the screen scrolls in, and nothing else. */
@@ -593,7 +609,7 @@ export function DesignSystem() {
 
                     <Section id="switches">
                         <div className="p-4">
-                            <div className="w-96 min-w-0 divide-y divide-border">
+                            <div className="w-full max-w-96 divide-y divide-border">
                                 <SwitchField
                                     id="ds-follow"
                                     label={SAMPLE.switch_label}

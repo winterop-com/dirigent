@@ -204,7 +204,7 @@ export function Rail() {
                         else return
                         event.preventDefault()
                     }}
-                    className="resize-handle z-10 hidden w-1.5 shrink-0 cursor-col-resize touch-none md:block"
+                    className="resize-handle z-10 -mr-1.5 hidden w-1.5 shrink-0 cursor-col-resize touch-none md:block"
                 />
             }
         </>
@@ -223,7 +223,7 @@ export function SectionLabel({ section }: { section: NavSection }) {
             className={({ isActive }) =>
                 cn(
                     look,
-                    'rounded-md underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+                    'control-link block rounded-md underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
                     isActive && 'text-foreground',
                 )
             }

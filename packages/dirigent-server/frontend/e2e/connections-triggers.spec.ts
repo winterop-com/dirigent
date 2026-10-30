@@ -186,6 +186,7 @@ test('a connection edits in the same dialog, and cancelling goes back to the rea
     await dialog.getByRole('button', { name: LABELS.action.save.verb, exact: true }).click()
     await expect(dialog.getByRole('button', { name: LABELS.action.edit, exact: true })).toBeVisible()
     await expect(dialog).toContainText(title)
+    await page.keyboard.press('Escape')
     await expect(rowOf(page, CONNECTION)).toContainText(title)
 })
 

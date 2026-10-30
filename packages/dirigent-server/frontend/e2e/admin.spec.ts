@@ -56,7 +56,9 @@ function rowOf(page: Page, username: string) {
     return page
         .getByRole('row')
         .or(page.getByRole('listitem'))
-        .filter({ has: page.getByRole('button', { name: username, exact: true }) })
+        .filter({
+            has: page.getByRole('button', { name: LABELS.users.new_token_for(username), exact: true }),
+        })
 }
 
 /**
@@ -66,7 +68,8 @@ function rowOf(page: Page, username: string) {
  * test that opens one is asserting about a `listitem` from that moment on.
  */
 function tokenRowOf(page: Page, name: string) {
-    return page.getByRole('row').or(page.getByRole('listitem')).filter({ hasText: name })
+    const tokens = page.locator('[data-account-tokens]')
+    return tokens.getByRole('row').or(tokens.getByRole('listitem')).filter({ hasText: name })
 }
 
 /** Make an account through the dialog, which is the door this screen offers. */
@@ -307,7 +310,7 @@ test('an email is carried into the panel, changed there, and is unique across ac
     await expect(rowOf(page, username)).toBeVisible()
 
     // The panel's Email box is where the account's address is, so the input carries it.
-    await page.getByRole('button', { name: username, exact: true }).click()
+    await rowOf(page, username).click()
     const panel = page.getByRole('tabpanel')
     await expect(panel.getByLabel(LABELS.word.email)).toHaveValue(email)
 
@@ -317,7 +320,7 @@ test('an email is carried into the panel, changed there, and is unique across ac
     await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
     await expect(panel.getByRole('button', { name: LABELS.action.save.verb })).toBeDisabled()
     await page.reload()
-    await page.getByRole('button', { name: username, exact: true }).click()
+    await rowOf(page, username).click()
     await expect(page.getByRole('tabpanel').getByLabel(LABELS.word.email)).toHaveValue(moved)
 
     // A second account asking for that address is refused, in the server's own sentence, in
@@ -336,7 +339,7 @@ test('a password is reset from the panel, and the account signs in with the new 
     await page.goto('/admin/users')
     await createAccount(page, username)
     await expect(rowOf(page, username)).toBeVisible()
-    await page.getByRole('button', { name: username, exact: true }).click()
+    await rowOf(page, username).click()
 
     await page.getByRole('tabpanel').getByRole('button', { name: LABELS.users.reset_password }).click()
     const dialog = page.getByRole('dialog')
@@ -450,9 +453,7 @@ test('an account holding many tokens walks them in a box of its own', async ({ p
     const height = (await box.boundingBox())?.height ?? 0
     expect(height).toBeLessThanOrEqual(384)
 
-    // Scrolling to the foot of the box reads the next page.
-    await box.locator('.list-scroll').evaluate((scroller) => {
-        scroller.scrollTop = scroller.scrollHeight
-    })
+    // Reaching the foot of the box reads the next page.
+    await box.getByRole('button', { name: LABELS.shell.load_more('50') }).scrollIntoViewIfNeeded()
     await expect(box).toContainText('60 tokens')
 })
