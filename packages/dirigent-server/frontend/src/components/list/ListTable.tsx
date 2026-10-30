@@ -251,6 +251,7 @@ export function ListTable<T>({
                                                     'px-3 text-xs font-medium text-muted-foreground',
                                                     sizings[at]?.className,
                                                     column.className,
+                                                    'font-sans',
                                                 )}
                                                 style={asked(sizings[at], measured.shares)}
                                             >
@@ -360,7 +361,7 @@ function Facts<T>({ columns, row }: { columns: readonly Column<T>[]; row: T }) {
     return (
         <>
             {labelled.length > 0 && (
-                <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
+                <dl className="grid grid-cols-[7rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 text-xs">
                     {labelled.map((fact) => (
                         <Fragment key={fact.id}>
                             <dt className="text-faint">{fact.label}</dt>
