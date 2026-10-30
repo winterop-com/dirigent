@@ -57,6 +57,8 @@ kind: pipeline
 code: gdacs-disaster-updates
 name: GDACS disaster updates
 description: |
+  Fetch GDACS disaster alerts and post the ones the previous day did not have.
+
   Disaster events active inside the run's window, read from the **GDACS** event list,
   deduplicated against the previous day's list and posted onward.
 

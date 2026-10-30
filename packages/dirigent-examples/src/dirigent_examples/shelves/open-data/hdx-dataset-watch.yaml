@@ -64,8 +64,10 @@ kind: pipeline
 code: hdx-dataset-watch
 name: HDX dataset watch
 description: |
-  Poll one **HDX** (CKAN) dataset for a new `metadata_modified`, comparing against a marker
-  object in storage, and publish the resource url list when it moves.
+  Watch an HDX dataset and publish its file links when the dataset changes.
+
+  Polls one **HDX** (CKAN) dataset for a new `metadata_modified`, comparing against a marker
+  object in storage, and publishes the resource url list when it moves.
 
   There is no state block: the marker file *is* the state, and a sensor looking for it is how
   a run asks whether there was a previous one.

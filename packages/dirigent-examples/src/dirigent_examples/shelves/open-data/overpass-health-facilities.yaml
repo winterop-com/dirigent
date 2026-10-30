@@ -43,6 +43,8 @@ kind: pipeline
 code: overpass-health-facilities
 name: Health facilities from OpenStreetMap
 description: |
+  List hospitals and clinics in an area from OpenStreetMap, as csv and parquet.
+
   Hospitals and clinics inside a bounding box, read from the **Overpass API**, flattened into
   rows and written twice: csv for a person and parquet for the next pipeline.
 

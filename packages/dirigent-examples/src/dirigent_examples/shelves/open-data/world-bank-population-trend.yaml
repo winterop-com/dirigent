@@ -40,6 +40,8 @@ kind: pipeline
 code: world-bank-population-trend
 name: World Bank population trend
 description: |
+  Work out a country's yearly population growth and save it as a csv file.
+
   One country's population series from the **World Bank indicator API**, with year-on-year
   growth computed in jq, checked against a carried schema and written as csv.
 

@@ -56,7 +56,10 @@ format: dirigent/v1
 kind: pipeline
 code: rabbitmq-consume-ack-on-success
 name: Consume a RabbitMQ queue, acknowledging only on success
-description: Wait for messages on a RabbitMQ queue and reshape the batch, handing a short batch back to the queue.
+description: |
+  Wait for messages on a RabbitMQ queue, then reshape the batch.
+
+  A batch too short to act on is handed back to the queue.
 
 tags: [queues, rabbitmq, sensor, transform, starter]
 

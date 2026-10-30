@@ -38,6 +38,8 @@ kind: pipeline
 code: nominatim-geocode-facilities
 name: Geocode facilities with Nominatim
 description: |
+  Look up the coordinates of a few facility names, one request per second.
+
   A handful of facility names geocoded through **Nominatim**, one request per second, joined
   into one table of coordinates.
 

@@ -50,7 +50,10 @@ format: dirigent/v1
 kind: pipeline
 code: kafka-consume-then-transform
 name: Consume a Kafka topic, then transform the batch
-description: Wait for messages on a Kafka topic and reshape the batch the sensor handed on.
+description: |
+  Wait for messages on a Kafka topic, then reshape the batch.
+
+  The sensor hands the batch on to the step that reshapes it.
 
 tags: [queues, kafka, sensor, transform, starter]
 

@@ -49,6 +49,8 @@ kind: pipeline
 code: kobo-submissions-to-csv
 name: Kobo submissions to csv
 description: |
+  Fetch the submissions for a KoboToolbox form and save them as a csv file.
+
   Submissions for one **KoboToolbox** form, flattened to named columns and written as csv.
 
   The only document on this shelf that needs a credential: Kobo has no anonymous read, and the
