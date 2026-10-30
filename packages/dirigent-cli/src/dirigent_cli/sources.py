@@ -8,6 +8,7 @@ import httpx2
 import yaml
 from pydantic import BaseModel, ConfigDict
 
+from dirigent_cli.project import DOCUMENT_SUFFIXES
 from dirigent_client import DEFAULT_CONNECT_TIMEOUT
 from dirigent_client.enums import ProvenanceSource
 
@@ -69,6 +70,37 @@ def fetch(url: str) -> str:
 def read_path(path: Path) -> Document:
     """Read a document from a path already known to be one, keeping its provenance."""
     return Document(text=path.read_text(), source=ProvenanceSource.FILE, ref=str(path))
+
+
+def read_directory(directory: Path) -> tuple[list[Document], int]:
+    """Read every document under a directory, at any depth, and count the files that are not one.
+
+    A YAML or JSON file is a document when it declares a ``dirigent/`` format, or when it does
+    not parse at all, so a broken document is reported rather than passed over.
+    """
+    documents: list[Document] = []
+    skipped = 0
+    for path in sorted(directory.rglob("*")):
+        if not path.is_file() or path.suffix not in DOCUMENT_SUFFIXES:
+            continue
+        document = read_path(path)
+        if _declares_a_format(document.text):
+            documents.append(document)
+        else:
+            skipped += 1
+    return documents, skipped
+
+
+def _declares_a_format(text: str) -> bool:
+    """Whether a file names a dirigent format at its top, or cannot be read well enough to say."""
+    try:
+        parsed: object = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return True
+    if not isinstance(parsed, dict):
+        return False
+    declared = cast("dict[str, Any]", parsed).get("format")
+    return isinstance(declared, str) and declared.startswith("dirigent/")
 
 
 def parse_document(document: Document) -> dict[str, Any]:

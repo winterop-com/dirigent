@@ -888,7 +888,7 @@ verb and whose fields are the identity of what changed:
 | `storage.ensured` | `dg storage ensure` | the artifact `root`, the `bucket` it addresses, whether this call `created` it, and the `endpoint` it was made at |
 | `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` |
 | `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
-| `validated` | `dg validate` | The closing count: `documents`, `invalid` |
+| `validated` | `dg validate` | The closing count: `documents`, `invalid`, and the files in a directory `skipped` as not documents |
 | `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once |
 | `prune` | `dg apply --prune` | The reconcile: under `fields`, the pipelines `pruned`, the `trigger_documents_removed` that went with them, and `dry_run` |
 | `prune` | `dg prune` | The retention sweep, in flat fields rather than under `fields`: `total`, `dry_run`, and a count per family; a sweep that ran adds the `artifacts` it deleted from storage |
@@ -1084,7 +1084,7 @@ dg format [console|compact] [-f FILE]   # render an NDJSON stream; reads stdin b
 dg init [DIR] [--template local|compose|documents] [--service S]... [--pack P]... [--pipeline STARTER]...
 dg init ... [--workflow] [--admin NAME] [--password ...]
 dg apply [file|url|-] [--dry-run] [--as CODE] [--paused] [--prune]
-dg validate [file|url] [--server] [--explain]
+dg validate [file|dir|url] [--server] [--explain]   # a directory: every document under it, at any depth
 dg export CODE [-f FILE] [--version N]
 dg pipeline list [--tag climate] [--tag http]   # repeat --tag to narrow: every tag named must be worn
 dg pipeline show CODE | versions CODE

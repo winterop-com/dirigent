@@ -136,6 +136,7 @@ from dirigent_cli.sources import (
     SourceError,
     looks_like_a_document,
     parse_document,
+    read_directory,
     read_document,
     read_path,
 )
@@ -494,7 +495,9 @@ def export_command(
 
 def validate_command(
     ctx: typer.Context,
-    reference: Annotated[str | None, typer.Argument(help="A file, a URL, or - for standard input.")] = None,
+    reference: Annotated[
+        str | None, typer.Argument(help="A file, a directory of documents, a URL, or - for standard input.")
+    ] = None,
     server: Annotated[
         bool, typer.Option("--server", help="Also check it against a server's catalog and requirements.")
     ] = False,
@@ -511,12 +514,21 @@ def validate_command(
     pipelines it holds, the pipeline a triggers document names, and the parameters its
     schedules pin.
 
+    A directory is read at every depth, and each YAML or JSON file in it that declares a
+    `dirigent/` format is checked; the others are counted as skipped.
+
     `--explain` adds the shape of the work ahead for every pipeline document that is valid:
     the fan-out widths, the retry budgets and the waits. With `--server` too, a sensor that
     declares neither cadence nor deadline takes the block's own.
     """
     state = state_of(ctx)
-    documents = _documents_to_apply(reference, None)
+    skipped = 0
+    if reference is not None and Path(reference).is_dir():
+        documents, skipped = read_directory(Path(reference))
+        if not documents:
+            fail(PROJECT_IS_EMPTY, directory=reference)
+    else:
+        documents = _documents_to_apply(reference, None)
     failures = 0
     parsed: list[tuple[PipelineDefinition | TriggersDefinition, str]] = []
     for document in documents:
@@ -601,6 +613,7 @@ def validate_command(
         message="invalid" if failures else "valid",
         documents=len(documents),
         invalid=failures,
+        skipped=skipped,
     )
     if failures:
         raise typer.Exit(code=1)
