@@ -543,7 +543,7 @@ def test_dg_dev_announces_itself_as_records_and_not_a_schema_history(tmp_path: P
     started = next(r for r in emitted if r.get("kind") == "process" and r.get("message") == "starting")
     assert started["api"] == f"http://127.0.0.1:{port}", "the URL it names is the one it bound"
     assert started["state"] == str((tmp_path / ".dirigent" / "state").resolve()), "and the state it is using"
-    assert started["admin"] == "dev"
+    assert started["admin"] == "admin"
     assert started["token"], "the token is minted once and carried on the record"
     assert started["migrated"], "one field for a schema that was created, not six lines"
     assert started["at"], "a record carries the moment it happened"

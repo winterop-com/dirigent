@@ -328,6 +328,7 @@ def local_settings(root: Path, *, inherited: Settings | None = None) -> Settings
         artifact_root=f"file://{root / 'artifacts'}",
         work_root=str(root / "work"),
         secret_key=SecretStr(generate_key()),
+        secret_key_file=None,
         enabled_unsafe_blocks=list(base.enabled_unsafe_blocks),
         storage_connections=dict(base.storage_connections),
         inline_artifact_max=base.inline_artifact_max,

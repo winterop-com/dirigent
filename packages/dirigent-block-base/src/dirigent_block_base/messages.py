@@ -16,6 +16,11 @@ WAITER_CANCELLED = BASE.define("waiter_cancelled", "the run waiting on it was ca
 
 VALUE_REFUSED = BASE.define("value_refused", "at {location}: {detail}")
 
+SCHEMA_REFERENCE_UNRESOLVED = BASE.define(
+    "schema_reference_unresolved",
+    "the schema's $ref {ref} is not in the schema itself, and a schema's references are never fetched",
+)
+
 
 # What a config refuses at validation. Pydantic owns the code a validator's refusal reaches
 # the wire under, so these are rendered into the ``ValueError`` it wraps.

@@ -171,6 +171,10 @@ services:
       # A bind mount is resolved on the daemon's filesystem, not the worker's, so a path
       # docker.run hands over must mean the same directory here as it does in the worker.
       - work:/var/lib/dirigent/work
+    # A pipeline's container reaches whatever the daemon reaches, so the daemon shares a
+    # network with the worker alone: not with the database, and not with the artifact bucket.
+    networks:
+      - docker
     healthcheck:
       test: ["CMD-SHELL", "docker -H unix:///var/run/docker.sock version >/dev/null 2>&1"]
       interval: 5s
@@ -198,6 +202,9 @@ services:
       - docker-certs:/certs/client:ro
       # The same volume the daemon mounts, at the same path.
       - work:/var/lib/dirigent/work
+    networks:
+      - default
+      - docker
     depends_on:
       postgres:
         condition: service_healthy
@@ -222,3 +229,6 @@ volumes:
   work:
   docker-certs:
   docker-data:
+
+networks:
+  docker:

@@ -20,6 +20,11 @@ CROSS_SITE = SERVER.define(
     "origins; automation authenticating with a bearer token is unaffected",
 )
 
+UNAUTHENTICATED_BODY_TOO_LARGE = SERVER.define(
+    "unauthenticated_body_too_large",
+    "the body is larger than the {limit} bytes this route reads from a caller it has not authenticated",
+)
+
 BAD_CREDENTIALS = SERVER.define("bad_credentials", "invalid username or password")
 
 TOO_MANY_LOGINS = SERVER.define(
@@ -106,8 +111,13 @@ PLAYGROUND_BAD_KNOB = SERVER.define("playground_bad_knob", "{detail}")
 
 PLAYGROUND_HEADER_REFUSED = SERVER.define(
     "playground_header_refused",
-    "the playground will not set {header} on itself: it sets no header that plants a cookie, "
-    "opens this origin to another site, or weakens what a browser enforces here",
+    "the playground will not set {header} on itself as asked: it sets no header that plants a "
+    "cookie, asks for a password, navigates a browser off this instance, opens this origin to "
+    "another site, or weakens what a browser enforces here, and no content type a browser runs",
+)
+
+PLAYGROUND_BODY_TOO_LARGE = SERVER.define(
+    "playground_body_too_large", "the body is larger than the {limit} bytes the playground reads"
 )
 
 PLAYGROUND_OFF_INSTANCE = SERVER.define(

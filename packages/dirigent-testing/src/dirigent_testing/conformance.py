@@ -21,7 +21,7 @@ from jsonschema import ValidationError as SchemaValidationError
 from jsonschema.validators import extend as extend_validator  # pyright: ignore[reportUnknownVariableType]
 from pydantic import BaseModel, JsonValue
 
-from dirigent_common import BlockModel, HumaneJsonSchema, JsonMap
+from dirigent_common import LOCAL_REFERENCES, BlockModel, HumaneJsonSchema, JsonMap
 from dirigent_plugin import AnyOperator, AnySensor, Contribution, mark_refusal
 
 #: A ``${...}`` reference, matched the way the engine matches one.
@@ -175,7 +175,7 @@ def _check_step(
 def _config_issues(label: Path, name: str, config: JsonMap, schema: JsonMap) -> list[str]:
     """List the ways a step's config violates its block's schema, deferring every reference."""
     deferred = _defer_references(config)
-    raised: Any = _ConfigValidator(schema).iter_errors(deferred)  # pyright: ignore[reportUnknownMemberType]
+    raised: Any = _ConfigValidator(schema, registry=LOCAL_REFERENCES).iter_errors(deferred)  # pyright: ignore[reportUnknownMemberType]
     found = cast("list[SchemaValidationError]", list(raised))
     issues: list[str] = []
     for error in sorted(found, key=lambda item: [str(part) for part in item.absolute_path]):

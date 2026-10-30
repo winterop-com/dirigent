@@ -13,8 +13,9 @@ version: every package requires its dirigent dependencies at `==<version>`, so a
 set can never mix two releases. The notes land here first, at the top; the bump merges; the
 merge commit is tagged `vX.Y.Z` and published as a GitHub release with the same notes. The
 tag is what publishes: `.github/workflows/release.yaml` builds every package and uploads it
-to PyPI through trusted publishing, then builds the image from that commit and pushes it as
-`<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
+to PyPI through trusted publishing and, once the `ghcr` environment allows it, builds the image
+from that commit and pushes it as `<version>` and `latest`. The two sibling repositories then
+relock against the tag and bump.
 
 ## Unreleased
 

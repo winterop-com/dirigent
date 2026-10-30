@@ -1073,7 +1073,9 @@ const refused = {
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
     },
     secret: {
+        key_file_unreadable: 'The secret key file {path} cannot be read as a key: {detail}',
         key_malformed: 'DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken.',
+        key_twice: 'Both secret_key and secret_key_file are set. Name the envelope key one way.',
     },
     server: {
         bad_credentials: 'Invalid username or password.',
@@ -1097,8 +1099,9 @@ const refused = {
         no_trigger_document: 'No triggers document coded {code}.',
         no_user: 'No user named {username}.',
         no_user_token: 'No live token named {name} for {username}.',
+        playground_body_too_large: 'The body is larger than the {limit} bytes the playground reads.',
         playground_header_refused:
-            'The playground will not set {header} on itself. It sets no header that plants a cookie, opens this origin to another site, or weakens what a browser enforces here.',
+            'The playground will not set {header} on itself as asked. It sets no header that plants a cookie, asks for a password, navigates a browser off this instance, opens this origin to another site, or weakens what a browser enforces here, and no content type a browser runs.',
         playground_off_instance:
             '{to} is not a path on this instance. The playground redirects only to paths on this instance.',
         playground_unauthenticated:
@@ -1111,6 +1114,8 @@ const refused = {
         too_many_logins: 'Too many login attempts. This instance accepts {per_minute} a minute.',
         too_many_tails: 'You already have {maximum} streams open on this server.',
         unauthenticated: 'Authentication required. Present a bearer token or log in.',
+        unauthenticated_body_too_large:
+            'The body is larger than the {limit} bytes this route reads from a caller it has not authenticated.',
         unknown_connection_kind: 'No connection kind {kind} is installed. Known: {known}.',
     },
     source: {
@@ -1144,7 +1149,7 @@ const refused = {
             '{reference} reads a failure, which is written as steps.<name>.error.code, .message, or .params.',
         replace_on_held:
             'Pipeline {code} has a {hosting} source, and concurrency: {policy} would drop an input the source has already taken. Use allow or queue.',
-        reply_bad_header: 'A reply does not set {header}, which the server writes itself.',
+        reply_bad_header: 'A reply does not set {header}, which the server writes or enforces itself.',
         reply_bad_status:
             "A reply's status is a whole number from 200 to 599 or a reference to one, not {status}.",
         reply_body_twice: 'A reply takes body or body_from, not both.',
@@ -2856,6 +2861,7 @@ const users = {
     tokens_hint: 'A session is never listed here.',
     tokens_empty: 'No tokens.',
     last_used_column: 'Last used',
+    expires_column: 'Expires',
     /** The accessible name of a row's revoke button, which the row itself does not repeat. */
     revoke_row: (token: string) => `Revoke ${token}`,
 

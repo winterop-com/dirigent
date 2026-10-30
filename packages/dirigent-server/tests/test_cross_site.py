@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from dirigent_core.config import Settings
 from dirigent_server import create_app
-from dirigent_server.routes.auth import LOGIN_BUCKETS
+from dirigent_server.routes.auth import ADDRESS_BUCKETS, LOGIN_BUCKETS
 from dirigent_server.security import SESSION_COOKIE
 from tests_support import PASSWORD, USERNAME
 
@@ -26,8 +26,10 @@ ELSEWHERE = "https://an-attacker.example"
 def _empty_buckets() -> Iterator[None]:  # pyright: ignore[reportUnusedFunction]
     """Empty the process-wide login limiter, which outlives a request and so a test."""
     LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
     yield
     LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
 
 
 @pytest.fixture

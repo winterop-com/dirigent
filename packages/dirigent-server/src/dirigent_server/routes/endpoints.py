@@ -7,7 +7,7 @@ that writes out ``public``.
 
 import time
 from datetime import timedelta
-from typing import cast
+from typing import Final, cast
 
 from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -54,6 +54,14 @@ RESPONSES: dict[int | str, dict[str, object]] = {
         )
     },
     504: {"description": "No reply answered within the caller's timeout; the run carries on."},
+}
+
+
+#: Set on every reply, whatever it rendered: a reply shares the UI's origin, so a browser that
+#: lands on one, HTML included, runs nothing from it and keeps no origin for it.
+CONTAINED: Final = {
+    "content-security-policy": "sandbox; default-src 'none'; frame-ancestors 'none'",
+    "x-content-type-options": "nosniff",
 }
 
 
@@ -189,6 +197,7 @@ async def _replied(session: AsyncSession, services: EngineServices, replied: Rep
         if isinstance(given, dict)
         else {}
     )
+    headers.update(CONTAINED)
     content_type = str(rendered.get("content_type") or "application/json")
     uri = rendered.get("body_from")
     if isinstance(uri, str) and code not in BODYLESS:

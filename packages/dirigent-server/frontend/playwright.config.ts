@@ -70,6 +70,7 @@ export default defineConfig({
             // anyone can reach -- and this suite is one machine signing in as its own admin,
             // so the limit here is only counting the suite against itself.
             DIRIGENT_LOGIN_RATE_PER_MINUTE: '600',
+            DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE: '600',
         },
         // `/health` rather than `/`: it is the one path that proves the app is up without
         // depending on whether a bundle was built, so a missing bundle fails a spec with a

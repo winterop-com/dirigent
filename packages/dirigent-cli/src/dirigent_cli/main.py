@@ -52,7 +52,14 @@ from dirigent_cli.output import configure, detail_mode, emit_fact, emit_problem,
 from dirigent_client.enums import UserRole
 from dirigent_common import Issue, raised_detail, validation_issues
 from dirigent_core import migrations
-from dirigent_core.config import STATE_DIR, Settings, get_settings, redacted_url, reset_settings_cache
+from dirigent_core.config import (
+    STATE_DIR,
+    Settings,
+    drop_secret_key_variable,
+    get_settings,
+    redacted_url,
+    reset_settings_cache,
+)
 from dirigent_core.logging import configure_logging, silence_stdout
 from dirigent_core.messages import SCHEMA_STALE
 from dirigent_core.protocol import FORMATS, Format, Record, make
@@ -227,8 +234,8 @@ def resolve_output(named: str | None, *, json_output: bool) -> Format:
     return cast("Format", resolved)
 
 
-DEV_ADMIN = "dev"
-DEV_PASSWORD = "dirigent-dev"  # noqa: S105
+DEV_ADMIN = "admin"
+DEV_PASSWORD = "admin"  # noqa: S105
 DEV_TOKEN_NAME = "dev"
 
 #: The credential `dg dev --seed` authenticates its own applies with, and how long it lasts.
@@ -952,6 +959,7 @@ def dev(
         reset_settings_cache()
     state = ctx.find_object(CliState)
     settings = get_settings()
+    drop_secret_key_variable()
     # A developer convenience starts its own logging at WARNING and -v is what asks for more,
     # while a named DIRIGENT_LOG_LEVEL still wins.
     _process_logging(
@@ -1128,7 +1136,7 @@ async def dev_admin(settings: Settings) -> tuple[str | None, str | None]:
     there rather than one that is not, and mints nothing, because that account's token was
     handed over when it was created.
     """
-    from dirigent_core.auth import create_user, find_user, issue_token, list_tokens, list_users
+    from dirigent_core.auth import create_fixture_admin, find_user, issue_token, list_tokens, list_users
     from dirigent_core.database import create_engine, create_session_factory, session_scope
 
     engine = create_engine(settings)
@@ -1138,7 +1146,7 @@ async def dev_admin(settings: Settings) -> tuple[str | None, str | None]:
             existing = await list_users(session)
             if existing:
                 return (existing[0].username, None)
-            await create_user(session, DEV_ADMIN, DEV_PASSWORD, role=UserRole.ADMIN, name="Development admin")
+            await create_fixture_admin(session, DEV_ADMIN, DEV_PASSWORD, name="Development admin")
             user = await find_user(session, DEV_ADMIN)
             if user is None:  # pragma: no cover - it was just created
                 return (None, None)
@@ -1303,6 +1311,7 @@ def worker(
     import asyncio
 
     settings = get_settings()
+    drop_secret_key_variable()
     _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
     configure_telemetry(settings)
     if settings.is_sqlite:

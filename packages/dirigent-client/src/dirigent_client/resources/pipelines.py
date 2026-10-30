@@ -199,14 +199,14 @@ def read_document(document: DocumentSource) -> tuple[JsonMap, ProvenanceSource, 
     if isinstance(document, dict):
         return dict(document), ProvenanceSource.API, None
     if isinstance(document, Path):
-        return _parse(document.read_text()), ProvenanceSource.FILE, str(document)
+        return parse_document(document.read_text()), ProvenanceSource.FILE, str(document)
     path = Path(document)
     if len(document) < 4096 and "\n" not in document and path.is_file():
-        return _parse(path.read_text()), ProvenanceSource.FILE, document
-    return _parse(document), ProvenanceSource.API, None
+        return parse_document(path.read_text()), ProvenanceSource.FILE, document
+    return parse_document(document), ProvenanceSource.API, None
 
 
-def _parse(text: str) -> JsonMap:
+def parse_document(text: str) -> JsonMap:
     """Read a document's text as YAML, which accepts its JSON form verbatim."""
     try:
         loaded: object = yaml.safe_load(text)

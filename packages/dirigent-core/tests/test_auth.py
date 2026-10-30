@@ -22,6 +22,7 @@ from dirigent_core.auth import (
     change_password,
     count_active_admins,
     count_users,
+    create_fixture_admin,
     create_user,
     deactivate_user,
     find_user,
@@ -300,6 +301,17 @@ async def test_logging_out_revokes_exactly_that_session(
     async with session_scope(sessions) as session:
         assert await resolve_token(session, one.secret.get_secret_value()) is None
         assert await resolve_token(session, two.secret.get_secret_value()) is not None
+
+
+async def test_only_the_fixture_admin_may_have_a_short_password(sessions: async_sessionmaker[AsyncSession]) -> None:
+    async with session_scope(sessions) as session:
+        await create_fixture_admin(session, "admin", "admin", name="Development admin")
+        with pytest.raises(WeakPassword):
+            await create_user(session, "other", "admin", role=UserRole.ADMIN)
+    async with session_scope(sessions) as session:
+        signed_in = await authenticate(session, "admin", "admin")
+        assert signed_in is not None
+        assert signed_in.role is UserRole.ADMIN
 
 
 async def test_the_bootstrap_admin_is_created_once_and_never_again(

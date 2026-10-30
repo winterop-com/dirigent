@@ -80,6 +80,12 @@ to.
 
 The header wins over the cookie when both are present.
 
+**The session cookie is `Secure`** whenever the login arrived over HTTPS, and always when
+`DIRIGENT_ENVIRONMENT` is not `local`, so only a login over plain HTTP on a `local` instance gets
+a cookie a browser would also send over plain HTTP. A proxy that terminates TLS is believed
+through uvicorn's own trust setting: `X-Forwarded-Proto` counts only from an address in
+`FORWARDED_ALLOW_IPS`, which defaults to `127.0.0.1`.
+
 **Passwords** are Argon2id hashes, at the `argon2-cffi` library defaults, with a minimum
 length of eight characters enforced before anything is hashed. A login against an account
 that does not exist still verifies against a real Argon2id hash of a value nothing can
@@ -91,11 +97,19 @@ can tell two tokens apart without holding either. A plain SHA-256 is the right h
 password hash would be wrong: the token has full entropy, so there is nothing to brute-force,
 and the lookup happens on every single request.
 
-**The login route is rate limited** on the client address *and* on the username, at
-`DIRIGENT_LOGIN_RATE_PER_MINUTE` (default 10) each. Those are two different attacks -- a flood
-from one place, and credential stuffing spread across many -- and Argon2id at 64 MiB is
-expensive by design, so an unauthenticated caller who could invoke it freely could turn a few
-hundred requests a second into the memory and CPU of the whole instance.
+**The login route is rate limited** twice: one username from one address at
+`DIRIGENT_LOGIN_RATE_PER_MINUTE` (default 10), and one address across every username at
+`DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE` (default 60). The first slows guessing at one account
+and is counted per address, so a stranger failing logins against a named account spends their
+own count and not its owner's. The second bounds what one machine can spend, because Argon2id
+at 64 MiB is expensive by design, and an unauthenticated caller who could invoke it freely could
+turn a few hundred requests a second into the memory and CPU of the whole instance. No count
+spans addresses, so guessing spread across many addresses is limited only per address: a strong
+password is what stops that.
+
+Both counts read the address the server sees. Behind a reverse proxy that is the proxy's own
+unless uvicorn trusts it, so set `FORWARDED_ALLOW_IPS` to the proxy's address: otherwise every
+caller shares one address, and a stranger can again lock a named account out.
 
 **First run.** Nothing can authenticate before an account exists, so account creation has a
 local path that does not go through the API: `dg admin user create` runs against the
@@ -150,6 +164,12 @@ change. The new password goes through the same minimum length, and a short one i
 session of that account is revoked, including the one it may be sitting in. API tokens are
 untouched, for the same reason they survive a self-service change.
 
+**A body is bounded before anyone has proved who they are.** A route parses its body before
+it authenticates, so `/api/v1` holds at most 1 MiB from a caller and checks its credential before
+reading past that. A caller with no credential, or one that does not resolve, is answered 413
+(`server.unauthenticated_body_too_large`). A login is held to 16 KiB whatever it presents. A
+rate-limit key longer than 128 characters is held as its hash.
+
 ### What is unauthenticated
 
 Five things, and they are exempt by not being mounted behind the authenticated router rather
@@ -161,6 +181,12 @@ than by an exception list each endpoint remembers:
   deployment does not want the API surface published, do not expose them past your proxy.
 - Every route under `/endpoints`, which a pipeline's endpoint sources declare, each with its own
   token or signing secret unless it writes itself public. See [endpoint hardening](#endpoint-hardening).
+- The [playground](playground.md) under `/api/v1/playground`, which opens no session and reads no
+  instance data. It shares the UI's origin, so what a caller can make it answer is contained:
+  every answer carries `nosniff` and a sandboxing CSP, it answers under no content type a browser
+  runs, it sets no header that would make the origin act for the caller, it redirects only on
+  its own origin, and it reads at most 1 MiB of a body. `DIRIGENT_PLAYGROUND_ENABLED=false`
+  unmounts it.
 
 Every other route under `/api/v1` requires a principal, as a property of the router mount.
 
@@ -300,8 +326,8 @@ only the caller's own tokens. `/api/v1/users/{username}/tokens` is the admin's p
 account: list, mint, and revoke a token that belongs to someone else. Both are admin-only, the
 first because listing every credential an instance holds is itself authority.
 
-**Minting.** `dg admin token create NAME`, or `POST /api/v1/tokens`; `dg admin token create
-NAME --user U` and `POST /api/v1/users/{username}/tokens` mint for another account. The secret
+**Minting.** `dg admin token create NAME [--expires 90d]`, or `POST /api/v1/tokens` with
+`expires_in`; `dg admin token create NAME --user U` and `POST /api/v1/users/{username}/tokens` mint for another account. The secret
 is generated server-side and returned exactly once, in the response to the mint. It is never
 recoverable afterwards -- the instance holds only the SHA-256 and the eight-character prefix.
 
@@ -311,7 +337,7 @@ user exists and is active, and `expires_at` has not passed. Any of those failing
 answer -- no principal.
 
 **Listing.** `dg admin token list` shows the account, the name, the prefix, the creation time,
-`last_used_at`, and whether it is revoked. Sessions are excluded from the listing, because a
+`last_used_at`, `expires_at`, and whether it is revoked. Sessions are excluded from the listing, because a
 browser session is not something an operator manages by name.
 
 **Revocation.** `dg admin token revoke NAME` for the caller's own, `--user U` for another
@@ -321,8 +347,10 @@ next request. Revocation matches by **name**, and a name is unique only within a
 revoking a name revokes that account's live tokens holding it and reaches no one else's.
 Logging out revokes the session the cookie carries by the same mechanism.
 
-**Expiry.** A token may be minted with a lifetime, in which case it stops resolving at that
-instant. There is no default lifetime for an API token; a session gets 14 days.
+**Expiry.** A token may be minted with a lifetime, `--expires 90d` or `expires_in` over HTTP, in
+which case it stops resolving at that instant. There is no default lifetime for an API token,
+so one minted without it lives until it is revoked; a session gets 14 days. A lifetime is above
+zero and under 100 years.
 
 **Rotation.** There is no built-in rotation command and no overlap window. Rotating means:
 mint the new token, deploy it wherever the old one is used, then revoke the old one --
@@ -386,6 +414,18 @@ updated on every call turns a cheap refusal into a database write.
 taking a token, the content type is checked against what the source `accepts` before a byte of
 the body is read; a signed source reads its capped body first, because the signature covers it.
 
+**A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
+UI's origin, so it answers with `X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: sandbox; default-src 'none'; frame-ancestors 'none'` whatever it
+rendered. A `text/html` reply is displayed but runs no script, and has no access to the
+instance's cookies or storage. A reply may not set `set-cookie`, `www-authenticate`, `refresh`,
+`clear-site-data`, `content-security-policy`, `x-content-type-options`, `x-frame-options`,
+`strict-transport-security`, `cross-origin-*`, or what a proxy acts on (`x-accel-*`,
+`x-sendfile`), among others. That is refused at apply (`source.reply_bad_header`) and again when
+the reply renders, where a value a reference resolved to that holds a line break is refused too
+(`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
+pipeline's to set, so a reply can redirect, name a download or answer a browser caller.
+
 **A route is one source's.** Two sources answering one method at one template are refused at
 apply, across pipelines, and a unique constraint holds it when two applies race.
 
@@ -414,6 +454,17 @@ never turns the gate off, and it does not affect a server.
 `docker.run` deserves its own sentence. Its containers default to `network: none`, because an
 image a stored pipeline named should not reach the worker's network unless the step says so.
 Allowlisting `docker.run` is a decision about the host, not about a pipeline.
+
+The privileged dind sidecar in `infra/compose.yaml` does not change that. Allowlisting a `docker.*`
+block grants root-equivalent control of that daemon and everything mounted in it, including every
+run's working files on that worker, and a privileged container inside a privileged sidecar is one
+step from the host's kernel. `docker.compose.up` passes on whatever a document's services ask for.
+The stack keeps the daemon on a network it shares with the worker alone, so the database and the
+artifact bucket have no name a container can resolve. That narrows what is easy to reach and is
+not a firewall: whether their addresses route is up to the host's Docker firewall, and it does
+not contain a pipeline that has taken over the sidecar. **Run these blocks on a dedicated worker host, tagged
+`--tag docker`**, with `requires.workers: [docker]` on the pipelines that use them. See
+[what allowlisting these blocks grants](docker.md#what-allowlisting-these-blocks-grants).
 
 A `docker` connection carries the two docker credentials there are, and both are sealed: the
 client TLS key that reaches a remote daemon, and the registry password a `docker.build` pushes
@@ -463,6 +514,40 @@ expires, when the engine's step timeout cancels the attempt, and on any other wa
 block. A command is usually `sh -c`, so killing only the process that was started would
 leave the children doing the work still running.
 
+### What an allowlisted command can still reach
+
+The denial above and the built environment stop a step from being *handed* a secret. They are
+not a boundary against a command that goes looking, and allowlisting `shell.run` means allowing
+that. A command runs as the worker's user, so it can do what that user can do.
+
+What holds, and what it covers:
+
+- **Every block's child process starts from an explicit environment.** `shell.run`,
+  `docker.compose.*`, `docker.build` and `git.checkout` build one from `PATH`, `LANG`, `LC_ALL`,
+  `TZ` and what the step names, and a `docker.run` container gets only what its step names. A
+  secret is not in what they inherit.
+- **`dg worker` and `dg dev` take `DIRIGENT_SECRET_KEY` out of `os.environ` at start-up.** That
+  covers what `os.environ` reaches: a subprocess a plugin starts without naming an environment,
+  and a library reading a variable.
+
+What does not hold:
+
+- **On Linux the variable is still in `/proc/<pid>/environ`.** That file is the environment the
+  process was started with, kept by the kernel, and removing a variable from `os.environ` does not
+  change it. Any process of the same user can read it, which includes a command the worker
+  started: `cat /proc/$PPID/environ` prints the key. The same file holds every other variable the
+  worker was started with, including `DIRIGENT_DATABASE_URL` and its password.
+- **A key file only moves the problem.** `DIRIGENT_SECRET_KEY_FILE` keeps the key out of
+  `/proc/<pid>/environ` altogether, so prefer it, and it is what makes a leaked environment dump
+  harmless. But a command running as the worker's user can open the same file the worker did,
+  unless the deployment removes it or takes it away from that user after start-up.
+
+**So treat a worker that may run `shell.run` as holding the instance's key.** Where that matters,
+run those steps on a dedicated worker with its own `--tag`, on a host that holds nothing else, and
+declare `requires.workers` on the pipelines that use them. An instance with no key configured
+still starts, so a worker whose steps open no connection can be started without one; a stack
+whose artifact root resolves through a sealed connection cannot, because every worker opens it.
+
 ### A reference in a shell string
 
 `shell.run` and `docker.run` take a command as a shell string, and a `${...}` in one never
@@ -504,12 +589,14 @@ for its connection. It does not happen when a connection is listed, shown, or ap
 
 ### Where the key comes from
 
-`DIRIGENT_SECRET_KEY`, and nothing else. Per twelve-factor, it is configuration in the
-environment: an environment variable, a line in the `.env` of the directory the process runs
-in, or a value in the `dirigent.yaml` it reads at boot, in that order of precedence.
+`DIRIGENT_SECRET_KEY` or `DIRIGENT_SECRET_KEY_FILE`, and nothing else; naming both is refused at
+start-up. Per twelve-factor, the key is configuration in the environment: an environment
+variable, a line in the `.env` of the directory the process runs in, or a value in the
+`dirigent.yaml` it reads at boot, in that order of precedence. `DIRIGENT_SECRET_KEY_FILE` names a
+file holding it instead, such as a mounted secret under `/run/secrets`, read once at start-up.
 **Dirigent assumes no secret manager.** There is no KMS integration, no Vault client, no
-key-fetch hook. If your platform provides secrets, its job is to put this variable in the
-process environment before dirigent starts; dirigent does not reach out for it.
+key-fetch hook. If your platform provides secrets, its job is to put this variable or that file
+in place before dirigent starts; dirigent does not reach out for it.
 
 `dg init --template local` writes a generated key into the project's `.env`, which that
 project's `.gitignore` keeps out of the repository and whose mode is owner-only, so a local

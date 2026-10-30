@@ -351,6 +351,17 @@ async def test_changing_a_schedules_clock_in_the_document_redeclares_it(
     assert before + timedelta(minutes=30) <= after.next_fire_at <= utcnow() + timedelta(minutes=30)
 
 
+def test_a_long_key_is_held_as_a_short_one_and_still_limits() -> None:
+    bucket = TokenBucket()
+    key = "user:" + "x" * 100_000
+    assert bucket.allow(key, per_minute=1, now=0.0) is True
+    assert bucket.allow(key, per_minute=1, now=0.0) is False
+    assert bucket.allow(key + "y", per_minute=1, now=0.0) is True, "a different long key is its own bucket"
+    assert max(len(held) for held in bucket.buckets) < 128
+    bucket.forget(key)
+    assert bucket.allow(key, per_minute=1, now=0.0) is True
+
+
 def test_a_bucket_evicts_rather_than_growing_for_every_key_a_stranger_invents() -> None:
     """Every user of this limiter keys on something the caller chooses."""
     bucket = TokenBucket(max_keys=8)

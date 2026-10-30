@@ -180,13 +180,14 @@ async def create_account_token(
 ) -> IssuedTokenOut:
     """Mint a bearer token for another account and return its secret exactly once."""
     row = await find(session, username)
-    issued = await issue_token(session, row, name=payload.name)
+    issued = await issue_token(session, row, name=payload.name, lifetime=payload.expires_in)
     return IssuedTokenOut(
         id=issued.id,
         name=issued.name,
         username=issued.username,
         prefix=issued.prefix,
         token=issued.secret.get_secret_value(),
+        expires_at=issued.expires_at,
     )
 
 

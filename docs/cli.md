@@ -72,7 +72,7 @@ dg source set-secret signed-nested-payload published --secret "$PROVIDER_SECRET"
 ```bash
 dg dev                                  # a local instance: API, worker, one SQLite file
 # its state is .dirigent/state, kept between starts; --wipe-state starts from nothing
-# on an empty state its admin is dev / dirigent-dev, a fixture; the starting record carries
+# on an empty state its admin is admin / admin, a fixture; the starting record carries
 # the token, minted once, so copy it out of that line
 export DG_URL=http://127.0.0.1:3333 DG_TOKEN=...
 
@@ -657,6 +657,11 @@ the flag, then the setting, then the terminal.
     a field is stable, a column is not. `dg run --json | jq` is the supported way to read a
     run by machine, and `dg format` is how the same records are made readable again.
 
+A value shown here has its control characters removed, tab and newline aside, because a name
+or a log line can carry an escape sequence from a webhook payload, and a terminal would act on
+it. Records are left exactly as the server sent them, so a value read with `jq -r` and printed
+at a terminal is yours to clean.
+
 ```text
 AT  [LEVEL]  MESSAGE  [KIND SOURCE]  key=value key=value ...
 ```
@@ -953,7 +958,7 @@ verb and whose fields are the identity of what changed:
 | `schema.deleted` | `dg schema delete` | `code` |
 | `trigger_document.deleted` | `dg trigger-document delete` | `code`, and that its `schedules` went with it |
 | `token.revoked` | `dg admin token revoke` | `code`, and `username` when `--user` named one |
-| `token.issued` | `dg auth login`, `dg admin token create` | `username`, the token's `name`, and the `token` itself, once; a login adds the `url`, a mint the `prefix` |
+| `token.issued` | `dg auth login`, `dg admin token create` | `username`, the token's `name`, and the `token` itself, once; a login adds the `url`, a mint the `prefix` and its `expires_at` |
 | `pipeline.exported` | `dg export` | `code`, the `version` asked for, the `document` it exported, and the `path` when `-f` wrote it |
 | `example.written` | `dg examples show -f` | `code`, and the `path` the document was written to |
 | `example.source` | `dg examples show` | The example itself: `code`, `name`, `description`, `tags`, `shelf`, `plugin`, `starter`, `requires`, and the `source` verbatim |
@@ -1189,7 +1194,7 @@ dg system health database | worker | scheduler | server [--liveness]
 dg admin user create NAME --role admin|operator|viewer [--password P] [--email E]
 dg admin user list | activate NAME | deactivate NAME
 dg admin user password NAME [--password P]
-dg admin token create NAME [--user U] | list | revoke NAME [--user U]
+dg admin token create NAME [--user U] [--expires 90d] | list | revoke NAME [--user U]
 ```
 
 `dg auth login` mints an API token and is the one place it is readable, so it writes a

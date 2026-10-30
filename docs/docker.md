@@ -64,7 +64,35 @@ a step at another daemon.
 
 The sidecar runs `privileged: true`, which docker-in-docker requires -- it has no unprivileged
 mode that starts containers. It keeps `/var/lib/docker` on a named volume, so an image pulled
-once survives a restart.
+once survives a restart. It shares a compose network, `docker`, with the worker alone, so the
+names `postgres` and `s3` do not resolve for a pipeline's container. It still reaches the
+internet, and whether it can reach the database **by address** is up to the host's Docker
+firewall, not this file: Docker Desktop 29.9.2 routed that connection when it was tried. Change
+the stack's default database and bucket credentials either way.
+
+### What allowlisting these blocks grants
+
+**The sidecar is not a security boundary.** Allowlisting any `docker.*` block gives whoever can
+apply a pipeline root-equivalent control of the sidecar and everything mounted in it. Treat it as
+a decision about the host:
+
+- `docker.compose.up` runs the compose file a document supplies, with no filtering of what its
+  services ask for, so a service can be `privileged` or mount any path on the sidecar's
+  filesystem.
+- Every path mounted in the sidecar is reachable that way. That is the `work` volume, holding
+  every run's working files on this worker, including credentials a step has written there
+  while it runs, and `/certs/client`, the key that opens the daemon itself.
+- The sidecar is itself `privileged`, so a privileged container inside it is one step from the
+  kernel it shares with the host. Assume a pipeline that can run one can reach the host.
+
+The separate network narrows what is easy to reach. It is not a firewall, and it does not contain
+a container that has taken over the sidecar.
+
+**Run the docker blocks on a dedicated worker host.** Give that worker `--tag docker`, or
+`DIRIGENT_WORKER_TAGS=docker`, declare [`requires.workers: [docker]`](#one-daemon-per-pipeline) on
+the pipelines that use them, and put nothing on that host you would not hand to whoever can apply
+a pipeline. See [local execution](security.md#local-execution-and-the-unsafe-block-allowlist) for
+the rest of what that allowlist means.
 
 **One constraint the sidecar imposes:** a bind mount is resolved on the **daemon's** filesystem,
 not the worker's. `docker.run` mounts `inputs` and `outputs` from the run's work directory, and

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import threading
+import time
 import uuid
 from collections.abc import Awaitable, Callable, Iterator
 from datetime import UTC, datetime, timedelta
@@ -43,7 +44,7 @@ from dirigent_core.plugins import PluginHost, load_plugin_host
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import FileStorageBackend
 from dirigent_plugin import Contribution
-from dirigent_server.routes.auth import LOGIN_BUCKETS
+from dirigent_server.routes.auth import ADDRESS_BUCKETS, LOGIN_BUCKETS
 from tests_support import DOCUMENT, apply_document
 
 PREFIX = "/api/v1"
@@ -92,6 +93,29 @@ def test_a_wrong_password_is_refused_without_saying_which_half_was_wrong(anonymo
     response = anonymous.post(f"{PREFIX}/auth/login", json={"username": "tester", "password": "wrong"})
     assert response.status_code == 401
     assert response.json()["detail"] == "invalid username or password"
+
+
+def test_a_token_minted_with_a_lifetime_stops_authenticating_when_it_ends(client: TestClient) -> None:
+    lasting = client.post(f"{PREFIX}/tokens", json={"name": "quarterly", "expires_in": "90d"})
+    assert lasting.status_code == 201, lasting.text
+    expires_at = datetime.fromisoformat(lasting.json()["expires_at"])
+    assert timedelta(days=89) < expires_at - datetime.now(UTC) <= timedelta(days=90)
+    listed = {token["name"]: token for token in client.get(f"{PREFIX}/tokens").json()["items"]}
+    assert listed["quarterly"]["expires_at"] == lasting.json()["expires_at"]
+    assert listed["tests"]["expires_at"] is None, "a token minted without one lives until it is revoked"
+
+    fleeting = client.post(f"{PREFIX}/tokens", json={"name": "fleeting", "expires_in": "1ms"}).json()
+    time.sleep(0.01)
+    refused = client.get(f"{PREFIX}/auth/me", headers={"Authorization": f"Bearer {fleeting['token']}"})
+    assert refused.status_code == 401, refused.text
+    held = client.get(f"{PREFIX}/auth/me", headers={"Authorization": f"Bearer {lasting.json()['token']}"})
+    assert held.status_code == 200, held.text
+
+
+@pytest.mark.parametrize("lifetime", ["0s", "-1d", "40000d", "soon"])
+def test_a_token_lifetime_out_of_range_is_refused(client: TestClient, lifetime: str) -> None:
+    refused = client.post(f"{PREFIX}/tokens", json={"name": "bad", "expires_in": lifetime})
+    assert refused.status_code == 422, refused.text
 
 
 def test_whoami_says_which_credential_was_used(client: TestClient) -> None:
@@ -2784,6 +2808,42 @@ def test_login_is_rate_limited_before_it_hashes_anything(anonymous: TestClient) 
     assert 401 in codes
     assert codes[-1] == 429
     LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+
+
+def test_a_caller_elsewhere_cannot_lock_an_account_out_of_login(settings: Settings, admin_token: str) -> None:
+    """Exhausting a named account's count from one address leaves it whole from any other."""
+    from dirigent_server import create_app
+
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+    app = create_app(settings)
+    login = {"username": "tester", "password": "wrong-password"}
+    with TestClient(app, client=("203.0.113.1", 50000)) as stranger:
+        answered = [stranger.post(f"{PREFIX}/auth/login", json=login).status_code for _ in range(20)]
+    assert answered[-1] == 429, "one account from one address has its limit"
+    with TestClient(app, client=("203.0.113.2", 50000)) as owner:
+        assert owner.post(f"{PREFIX}/auth/login", json=login).status_code == 401, "the owner elsewhere is still heard"
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+
+
+def test_one_address_is_capped_across_every_username(settings: Settings, admin_token: str) -> None:
+    """Spreading attempts over junk usernames does not get a machine past its own cap."""
+    from dirigent_server import create_app
+
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+    tuned = settings.model_copy(update={"login_address_rate_per_minute": 3})
+    login = {"password": "wrong-password"}
+    with TestClient(create_app(tuned), client=("203.0.113.3", 50000)) as caller:
+        answered = [
+            caller.post(f"{PREFIX}/auth/login", json={**login, "username": f"junk-{index}"}).status_code
+            for index in range(4)
+        ]
+    assert answered == [401, 401, 401, 429]
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
 
 
 OPERATOR_ALLOWED = [
@@ -2853,6 +2913,61 @@ def test_the_openapi_document_declares_how_a_credential_is_presented(client: Tes
     listed = document["paths"][f"{PREFIX}/pipelines"]["get"]["security"]
     assert {"bearerAuth": []} in listed
     assert "security" not in document["paths"][f"{PREFIX}/auth/login"]["post"]
+
+
+def _session_cookie(answered: httpx2.Response) -> str:
+    """Read the Set-Cookie header a login answered with, lowercased."""
+    assert answered.status_code == 200, answered.text
+    return answered.headers["set-cookie"].lower()
+
+
+def test_the_session_cookie_is_secure_when_the_login_arrived_over_https(settings: Settings, admin_token: str) -> None:
+    """The scheme decides on a local instance: plain HTTP keeps working, and TLS is never downgraded."""
+    from dirigent_server import create_app
+    from tests_support import PASSWORD, USERNAME
+
+    LOGIN_BUCKETS.buckets.clear()
+    login = {"username": USERNAME, "password": PASSWORD}
+    assert settings.environment == "local"
+    app = create_app(settings)
+    with TestClient(app) as plain:
+        assert "; secure" not in _session_cookie(plain.post(f"{PREFIX}/auth/login", json=login))
+    with TestClient(app, base_url="https://testserver") as tls:
+        assert "; secure" in _session_cookie(tls.post(f"{PREFIX}/auth/login", json=login))
+    LOGIN_BUCKETS.buckets.clear()
+
+
+def test_a_forwarded_scheme_counts_only_from_a_trusted_proxy(settings: Settings, admin_token: str) -> None:
+    """Behind uvicorn's proxy middleware, the header is believed from the address it trusts."""
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    from dirigent_server import create_app
+    from tests_support import PASSWORD, USERNAME
+
+    LOGIN_BUCKETS.buckets.clear()
+    login = {"username": USERNAME, "password": PASSWORD}
+    forwarded = {"X-Forwarded-Proto": "https"}
+    app: Any = create_app(settings)
+    proxied: Any = ProxyHeadersMiddleware(app, trusted_hosts="198.51.100.1")
+    with TestClient(proxied, client=("198.51.100.1", 50000)) as trusted:
+        assert "; secure" in _session_cookie(trusted.post(f"{PREFIX}/auth/login", json=login, headers=forwarded))
+    with TestClient(proxied, client=("198.51.100.2", 50000)) as stranger:
+        assert "; secure" not in _session_cookie(stranger.post(f"{PREFIX}/auth/login", json=login, headers=forwarded))
+    LOGIN_BUCKETS.buckets.clear()
+
+
+def test_a_deployed_instance_marks_the_session_cookie_secure_over_plain_http(
+    settings: Settings, admin_token: str
+) -> None:
+    from dirigent_server import create_app
+    from tests_support import PASSWORD, USERNAME
+
+    LOGIN_BUCKETS.buckets.clear()
+    deployed = settings.model_copy(update={"environment": "prod"})
+    with TestClient(create_app(deployed)) as plain:
+        answered = plain.post(f"{PREFIX}/auth/login", json={"username": USERNAME, "password": PASSWORD})
+    assert "; secure" in _session_cookie(answered)
+    LOGIN_BUCKETS.buckets.clear()
 
 
 def test_logging_out_clears_the_cookie_it_set(anonymous: TestClient) -> None:

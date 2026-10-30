@@ -511,9 +511,11 @@ The stack ships the worker a daemon of its own. `infra/compose.yaml` starts a `d
 sidecar serving `tcp://docker:2376` with TLS, and the worker alone carries `DOCKER_HOST`,
 `DOCKER_TLS_VERIFY=1` and `DOCKER_CERT_PATH=/certs/client` pointing at it. A pipeline's
 containers are the sidecar's; **no host socket is mounted anywhere**. The sidecar is
-`privileged`, which docker-in-docker requires, and it mounts the same `artifacts` volume at
-`/var/lib/dirigent/artifacts` as the worker, because a bind mount `docker.run` asks for is
-resolved on the daemon's filesystem rather than the worker's.
+`privileged`, which docker-in-docker requires, and it mounts the same `work` volume at
+`/var/lib/dirigent/work` as the worker, because a bind mount `docker.run` asks for is resolved on
+the daemon's filesystem rather than the worker's. It shares a network with the worker alone, so
+the database and the artifact bucket have no name a pipeline's container can resolve. Allowlisting
+these blocks is [still a decision about the host](docker.md#what-allowlisting-these-blocks-grants).
 
 That worker carries `DIRIGENT_WORKER_TAGS: docker`, so a document declaring
 `requires.workers: [docker]` routes to it and to nothing else in the stack.
@@ -705,7 +707,8 @@ the stack is complete out of the box; see
 | --- | --- | --- |
 | `DIRIGENT_SOURCE_MAX_BODY` | `1mb` | The largest body any endpoint source reads, whatever its own `max_body` says. Reading stops one byte past it rather than buffering an unbounded body in order to measure it. |
 | `DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE` | `600` | How fast calls to one method and path are taken, checked before any source is looked up. A source's own `rate` applies on top. Per process, so behind N replicas the effective limit is N times this. |
-| `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | Login attempts allowed per minute, per address *and* per username. Argon2id is deliberately expensive and login is unauthenticated, so without a limit anyone on the network can turn a few hundred requests a second into the whole instance's CPU. |
+| `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | Login attempts allowed per minute for one username from one address, so a caller elsewhere cannot lock an account out. |
+| `DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE` | `60` | Login attempts allowed per minute from one address, across every username. Argon2id is deliberately expensive and login is unauthenticated, so without a limit anyone on the network can turn a few hundred requests a second into the whole instance's CPU. Behind a proxy, set `FORWARDED_ALLOW_IPS` to its address, or every caller counts as the proxy. |
 
 ## Database and migrations
 

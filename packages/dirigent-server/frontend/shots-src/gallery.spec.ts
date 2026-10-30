@@ -7,8 +7,8 @@ import { test, type Page } from '@playwright/test'
 /** Where the gallery lands. Wiped per run; gitignored. */
 const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'shots')
 
-const DEV_USERNAME = 'dev'
-const DEV_PASSWORD = 'dirigent-dev'
+const DEV_USERNAME = 'admin'
+const DEV_PASSWORD = 'admin'
 
 async function shot(page: Page, mode: string, name: string): Promise<void> {
     // The corner identity fills over its reads after every full load; a picture of the asking

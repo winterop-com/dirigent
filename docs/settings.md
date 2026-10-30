@@ -39,6 +39,7 @@ environment, and the server inside one never opens the file.
 | `inline_artifact_max` | `DIRIGENT_INLINE_ARTIFACT_MAX` | `16384` | Outputs at or below this serialized size are stored inline instead of as a file. |
 | `inline_capture` | `DIRIGENT_INLINE_CAPTURE` | `8192` | How much of a captured stream a block may inline in its output. |
 | `secret_key` | `DIRIGENT_SECRET_KEY` | `null` | Envelope key for connection secrets; required before any secret is stored. |
+| `secret_key_file` | `DIRIGENT_SECRET_KEY_FILE` | `null` | A file holding the envelope key, in place of `secret_key`; setting both is refused. |
 | `worker_concurrency` | `DIRIGENT_WORKER_CONCURRENCY` | `8` | How many step attempts one worker process executes at once. |
 | `worker_tags` | `DIRIGENT_WORKER_TAGS` | `[]` | Capability tags a worker advertises to the claim query. |
 | `worker_name` | `DIRIGENT_WORKER_NAME` | `null` | Registry name of this worker; defaults to hostname plus process id. |
@@ -88,7 +89,8 @@ environment, and the server inside one never opens the file.
 | `source_hold_wait` | `DIRIGENT_SOURCE_HOLD_WAIT` | `"1s"` | How long a held source's consumer waits for a message before the worker checks on it. |
 | `source_backoff` | `DIRIGENT_SOURCE_BACKOFF` | `"30s"` | How long a polled source waits after a failed poll; later failures double it. |
 | `source_backoff_max` | `DIRIGENT_SOURCE_BACKOFF_MAX` | `"30m"` | The longest a polled source backs off, however many polls in a row have failed. |
-| `login_rate_per_minute` | `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | How many login attempts one address, and one username, get a minute. |
+| `login_rate_per_minute` | `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | How many login attempts one username gets a minute from one address. |
+| `login_address_rate_per_minute` | `DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE` | `60` | How many login attempts one address gets a minute, across every username. |
 | `alert_base_url` | `DIRIGENT_ALERT_BASE_URL` | `null` | The externally reachable base URL, so an alert can link back to the run it is about. |
 | `report_max_size` | `DIRIGENT_REPORT_MAX_SIZE` | `1048576` | A run's report document larger than this is dropped with a warning in the run's log. |
 | `report_render_timeout` | `DIRIGENT_REPORT_RENDER_TIMEOUT` | `"5s"` | How long a report template may take to render before it is dropped with a warning. |

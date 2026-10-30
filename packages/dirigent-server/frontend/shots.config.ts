@@ -41,6 +41,7 @@ export default defineConfig({
         env: {
             ...process.env,
             DIRIGENT_LOGIN_RATE_PER_MINUTE: '600',
+            DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE: '600',
         },
         url: `${SHOTS_BASE_URL}/health`,
         reuseExistingServer: false,

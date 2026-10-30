@@ -70,6 +70,16 @@ SECRET_KEY_MALFORMED = SECRET.define(
 
 EMPTY_SECRET = SECRET.define("empty", "{fields} cannot be stored empty: a required secret needs a value")
 
+SECRET_KEY_TWICE = SECRET.define(
+    "key_twice",
+    "secret_key and secret_key_file are both set: name the envelope key one way, so which one seals is not a guess",
+)
+
+SECRET_KEY_FILE_UNREADABLE = SECRET.define(
+    "key_file_unreadable",
+    "the secret key file {path} cannot be read as a key: {detail}",
+)
+
 SECRET_KEY_MISMATCH = SECRET.define(
     "key_mismatch",
     "the configured DIRIGENT_SECRET_KEY cannot open this envelope{sealed_by}: "
@@ -779,7 +789,9 @@ REPLY_BAD_STATUS = SOURCE.define(
     "reply_bad_status", "a reply's status is a whole number from 200 to 599 or a reference to one, not {status}"
 )
 
-REPLY_BAD_HEADER = SOURCE.define("reply_bad_header", "a reply does not set {header}, which the server writes itself")
+REPLY_BAD_HEADER = SOURCE.define(
+    "reply_bad_header", "a reply does not set {header}, which the server writes or enforces itself"
+)
 
 UNKNOWN_KIND = SOURCE.define("unknown_kind", "no source kind {kind} is available on this instance ({known})")
 

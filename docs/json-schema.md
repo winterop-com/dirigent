@@ -261,6 +261,12 @@ the same three parts wherever it appears, so it is written once:
 the named subschema. A `$ref` may point anywhere in the document, and a `$def` may `$ref` another,
 so a shape composes out of named parts.
 
+It may not point out of the document. A `$ref` to a URL is never fetched, because a schema is
+validated on the server and the workers and a fetch would be a request from their network to an
+address the document chose. One to a JSON Schema draft's own metaschema resolves, because those
+ship with the validator. Anything else fails where it is used: a pipeline's `params` refuses the
+run, and `validate.schema` fails the step as `rejected`.
+
 ## format: the string that is really a date, or a site id
 
 `format` annotates a string with the *kind* of string it is -- a date, a UUID, an email. In JSON
