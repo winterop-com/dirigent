@@ -1,5 +1,7 @@
 """Tests for envelope encryption of connection secrets."""
 
+import hashlib
+
 import pytest
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, SecretStr
@@ -180,3 +182,13 @@ def test_the_key_id_is_stable_and_never_the_key() -> None:
     assert len(key_id) == 12
     assert key_id not in material
     assert SecretBox(None).key_id is None
+
+
+def test_a_keyed_digest_needs_the_key_and_is_stable_under_it() -> None:
+    box = SecretBox(generate_key())
+    assert box.keyed_digest("a secret") == box.keyed_digest("a secret")
+    assert box.keyed_digest("a secret") != box.keyed_digest("another secret")
+    assert box.keyed_digest("a secret") != SecretBox(generate_key()).keyed_digest("a secret")
+    assert box.keyed_digest("a secret") != hashlib.sha256(b"a secret").hexdigest()
+    with pytest.raises(SecretKeyMissing):
+        SecretBox(None).keyed_digest("a secret")
