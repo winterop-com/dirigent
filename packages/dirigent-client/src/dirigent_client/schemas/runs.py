@@ -1,6 +1,6 @@
-"""Runs: the listing row, the detail with its DAG view model, log pages, and the report."""
+"""Runs: the listing row, the detail with its DAG view model, log pages, the report, and the stats."""
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import Field
@@ -265,3 +265,69 @@ class RunReport(WireModel):
     """The dotted code of the refusal this run ended with."""
     error_params: JsonMap | None = None
     """The specifics that refusal rendered, for a re-render in another language."""
+
+
+class StatsWindow(WireModel):
+    """The interval a stats read covers, half-open: the runs that settled in ``[start, end)``."""
+
+    start: datetime
+    end: datetime
+
+
+class DayCounts(WireModel):
+    """How many runs settled on one UTC day, by the status they settled in."""
+
+    day: date
+    total: int = 0
+    succeeded: int = 0
+    failed: int = 0
+    completed_with_errors: int = 0
+    cancelled: int = 0
+
+
+class PipelineDurations(WireModel):
+    """How long one pipeline's settled runs took, from start to finish."""
+
+    pipeline: str
+    runs: int
+    """How many runs the percentiles are measured over."""
+
+    p50_ms: int
+    p95_ms: int
+    max_ms: int
+
+
+class ErrorCount(WireModel):
+    """One error the window's failed attempts said, and how often they said it."""
+
+    code: str | None = None
+    """The dotted code the attempts failed with; null when they carried none and the message groups them."""
+
+    message: str | None = None
+    """What one of those attempts said."""
+
+    count: int
+    last_at: datetime | None = None
+    pipeline: str | None = None
+    """The pipeline every one of those attempts was of; null when they span several."""
+
+
+class StepFailures(WireModel):
+    """One step whose attempts failed in the window, and how often."""
+
+    pipeline: str
+    step: str
+    failures: int
+    last_at: datetime | None = None
+
+
+class RunStats(WireModel):
+    """How the runs that settled in a window went: per day, per pipeline, and where they failed."""
+
+    window: StatsWindow
+    trend: list[DayCounts] = Field(default_factory=list[DayCounts])
+    """One row per UTC day of the window, oldest first, a day with no runs included."""
+
+    durations: list[PipelineDurations] = Field(default_factory=list[PipelineDurations])
+    top_errors: list[ErrorCount] = Field(default_factory=list[ErrorCount])
+    failing_steps: list[StepFailures] = Field(default_factory=list[StepFailures])

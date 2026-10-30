@@ -2056,6 +2056,36 @@ def runs_list(
     )
 
 
+@runs_app.command("stats")
+def runs_stats(
+    ctx: typer.Context,
+    since: Annotated[str | None, typer.Option(help="How far back to look, such as 24h; 7d when omitted.")] = None,
+    pipeline: Annotated[str | None, typer.Option(help="Only runs of this pipeline.")] = None,
+    tag: Annotated[
+        list[str] | None,
+        typer.Option("--tag", help="Only runs whose pipeline wears this tag; repeat it to name more."),
+    ] = None,
+) -> None:
+    """Summarise the runs that settled within a window: per day, how long, and what failed most."""
+    with client_for(state_of(ctx)) as dg:
+        measured = dg.call(dg.runs.stats(since=since, pipeline=pipeline, tags=tag or []))
+    settled = sum(day.total for day in measured.trend)
+    failed = sum(day.failed for day in measured.trend)
+    emit_fact(
+        "runs.stats",
+        message=f"{settled} settled, {failed} failed",
+        window_start=measured.window.start.isoformat(),
+        window_end=measured.window.end.isoformat(),
+        settled=settled,
+        failed=failed,
+        trend=[day.model_dump(mode="json") for day in measured.trend],
+        durations=[row.model_dump(mode="json") for row in measured.durations],
+        top_errors=[row.model_dump(mode="json") for row in measured.top_errors],
+        failing_steps=[row.model_dump(mode="json") for row in measured.failing_steps],
+        **({"pipeline": pipeline} if pipeline is not None else {}),
+    )
+
+
 @runs_app.command("show")
 def runs_show(
     ctx: typer.Context,

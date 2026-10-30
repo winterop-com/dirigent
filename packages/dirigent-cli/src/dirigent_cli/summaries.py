@@ -20,6 +20,7 @@ from rich.markup import escape
 from dirigent_cli import schemas
 from dirigent_cli.graph import GraphStep, render_graph
 from dirigent_cli.output import (
+    STATUS_STYLES,
     Detail,
     build_fields,
     build_table,
@@ -27,6 +28,7 @@ from dirigent_cli.output import (
     elapsed,
     flagged,
     labelled,
+    moment,
     muted,
     prioritised,
     render_output,
@@ -54,6 +56,10 @@ BULKY: Final = frozenset(
         "preflight",
         "requires",
         "used_by",
+        "trend",
+        "durations",
+        "top_errors",
+        "failing_steps",
     }
 )
 
@@ -562,11 +568,106 @@ def _share(part: object, whole: object) -> str:
     return f"{round(100 * part / whole)}%"
 
 
+def _stats(record: Record) -> RenderableType | None:
+    """Render run stats: the runs per day, how long each pipeline took, and what failed most."""
+    trend = _mappings(record, "trend")
+    if not trend:
+        return None
+    parts: list[RenderableType] = [
+        build_table(
+            "settled per day",
+            ["day", "total", "succeeded", "with errors", "failed", "cancelled"],
+            [
+                [
+                    str(day.get("day")),
+                    str(day.get("total", 0)),
+                    _count(day.get("succeeded"), "succeeded"),
+                    _count(day.get("completed_with_errors"), "completed_with_errors"),
+                    _count(day.get("failed"), "failed"),
+                    _count(day.get("cancelled"), "cancelled"),
+                ]
+                for day in trend
+            ],
+        )
+    ]
+    durations = _mappings(record, "durations")
+    if durations:
+        parts.extend(
+            (
+                "",
+                build_table(
+                    "durations",
+                    ["pipeline", "runs", "p50", "p95", "max"],
+                    [
+                        [
+                            str(row.get("pipeline")),
+                            str(row.get("runs")),
+                            elapsed(row.get("p50_ms")),
+                            elapsed(row.get("p95_ms")),
+                            elapsed(row.get("max_ms")),
+                        ]
+                        for row in durations
+                    ],
+                ),
+            )
+        )
+    errors = _mappings(record, "top_errors")
+    if errors:
+        parts.extend(
+            (
+                "",
+                build_table(
+                    "top errors",
+                    ["count", "code", "message", "pipeline", "last"],
+                    [
+                        [
+                            str(row.get("count")),
+                            str(row.get("code") or "-"),
+                            escape(str(row.get("message") or "-")),
+                            str(row.get("pipeline") or "-"),
+                            moment(row.get("last_at")),
+                        ]
+                        for row in errors
+                    ],
+                ),
+            )
+        )
+    steps = _mappings(record, "failing_steps")
+    if steps:
+        parts.extend(
+            (
+                "",
+                build_table(
+                    "failing steps",
+                    ["failures", "pipeline", "step", "last"],
+                    [
+                        [
+                            str(row.get("failures")),
+                            str(row.get("pipeline")),
+                            str(row.get("step")),
+                            moment(row.get("last_at")),
+                        ]
+                        for row in steps
+                    ],
+                ),
+            )
+        )
+    return Group(*parts)
+
+
+def _count(value: object, status: str) -> str:
+    """Render one status's count, coloured as that status when there is any of it."""
+    if not value:
+        return muted("0")
+    return f"[{STATUS_STYLES[status]}]{value}[/]"
+
+
 #: What each record kind renders beneath its line. A kind that is not here renders as its
 #: line alone, which is what makes a record from a newer dirigent readable rather than fatal.
 RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "run": _run,
     "run.profile": _profile,
+    "runs.stats": _stats,
     "backfill": _backfill,
     "config": _config,
     "db.history": _db_history,

@@ -447,6 +447,30 @@ def test_a_run_profile_renders_the_chain_and_the_split_along_it() -> None:
     assert "70%" in text, "the share of the run is what says which part is worth attention"
 
 
+def test_run_stats_render_the_days_the_durations_and_what_failed_most() -> None:
+    """Every table is drawn from the record, and the line keeps none of what is drawn beneath it."""
+    stats = make(
+        "runs.stats",
+        at=AT,
+        message="3 settled, 1 failed",
+        window_start="2026-01-01T00:00:00+00:00",
+        window_end="2026-01-02T00:00:00+00:00",
+        settled=3,
+        failed=1,
+        trend=[{"day": "2026-01-01", "total": 3, "succeeded": 2, "failed": 1}],
+        durations=[{"pipeline": "demo", "runs": 3, "p50_ms": 2000, "p95_ms": 9000, "max_ms": 9000}],
+        top_errors=[{"code": "shell.exit", "message": "exit 1 [sic]", "count": 1, "pipeline": "demo"}],
+        failing_steps=[{"pipeline": "demo", "step": "load", "failures": 1}],
+    )
+    text = printed(Console().render(stats))
+    assert "settled per day" in text and "2026-01-01" in text
+    assert "9.0s" in text, "the p95 is drawn as a duration"
+    assert "shell.exit" in text and "exit 1 [sic]" in text, "a message is printed as it was said, not as markup"
+    assert "failing steps" in text and "load" in text
+    assert "trend" not in summaries.line(stats)
+    assert summaries.beneath(make("runs.stats", at=AT, message="0 settled, 0 failed", trend=[])) is None
+
+
 def test_a_process_that_minted_a_token_hands_it_over_beneath_its_line() -> None:
     """Dg dev's starting record carries the fixture token once; the rendering must not drop it."""
     drawn = printed(

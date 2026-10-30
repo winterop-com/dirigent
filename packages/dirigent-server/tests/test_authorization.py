@@ -54,6 +54,7 @@ OPERATOR_ONLY = [
 VIEWER_ALLOWED = [
     "/pipelines",
     "/runs",
+    "/runs/$stats",
     "/connections",
     "/schemas",
     "/alert-rules",

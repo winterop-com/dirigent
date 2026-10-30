@@ -949,6 +949,13 @@ async def test_the_tag_filter_narrows_by_containment_on_postgresql(
     await assert_the_tag_filter_narrows_by_containment(pg_sessions, pg_services)
 
 
+async def test_the_run_stats_fold_the_same_way_on_postgresql(pg_sessions: Any) -> None:
+    """The UTC-day half of the fork, asserted by the body the SQLite lane runs over ``date()``."""
+    from test_stats import assert_the_stats_fold
+
+    await assert_the_stats_fold(pg_sessions)
+
+
 async def _remigrated(pg_settings: Settings) -> None:
     """Empty the container's database and build the schema from the migrations alone."""
     engine = create_engine(pg_settings)
