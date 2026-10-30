@@ -4,6 +4,7 @@ import { paletteOpen } from '@/lib/palette'
 import { toggleRail } from '@/lib/panels'
 import {
     applePlatform,
+    focusesSearch,
     opensPalette,
     opensShortcuts,
     togglesRail,
@@ -11,6 +12,17 @@ import {
     type FocusedField,
 } from '@/lib/shortcuts'
 import { toggleTerminal } from '@/lib/terminal'
+
+/** Whatever has focus in this document, described for `lib/shortcuts`. */
+export function focusedField(): FocusedField | null {
+    const element = document.activeElement
+    if (!(element instanceof HTMLElement)) return null
+    return {
+        tagName: element.tagName,
+        isContentEditable: element.isContentEditable,
+        inEditor: element.closest('.monaco-editor') !== null,
+    }
+}
 
 /**
  * The one place a real `KeyboardEvent` is read.
@@ -22,12 +34,6 @@ import { toggleTerminal } from '@/lib/terminal'
 export function useAppShortcuts(onShortcuts: () => void): void {
     useEffect(() => {
         const apple = applePlatform(navigator.userAgent)
-
-        function focused(): FocusedField | null {
-            const element = document.activeElement
-            if (!(element instanceof HTMLElement)) return null
-            return { tagName: element.tagName, isContentEditable: element.isContentEditable }
-        }
 
         function onKeyDown(event: KeyboardEvent): void {
             const press = {
@@ -41,19 +47,29 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 paletteOpen.update((open) => !open)
                 return
             }
-            if (togglesRail(press, focused(), apple)) {
+            if (togglesRail(press, focusedField(), apple)) {
                 event.preventDefault()
                 toggleRail()
                 return
             }
-            if (togglesTerminal(press, focused())) {
+            if (togglesTerminal(press, focusedField())) {
                 event.preventDefault()
                 toggleTerminal()
                 return
             }
-            if (opensShortcuts(press, focused())) {
+            if (opensShortcuts(press, focusedField())) {
                 event.preventDefault()
                 onShortcuts()
+                return
+            }
+            if (focusesSearch(press, focusedField())) {
+                // A dialog's own box, where one is open: the page behind it is not what is in front.
+                const scope = document.querySelector('[role="dialog"]') ?? document
+                const box = scope.querySelector<HTMLInputElement>('[data-search-shortcut]:not(:disabled)')
+                if (box === null) return
+                event.preventDefault()
+                box.focus()
+                box.select()
             }
         }
 

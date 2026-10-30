@@ -131,6 +131,21 @@ async def test_a_reading_tool_cannot_be_steered_to_another_route_by_its_argument
     assert (await call(server, "get_pipeline", code="mcp-demo"))["active"] is True
 
 
+@pytest.mark.parametrize("tool", ["plan_document", "apply_document"])
+@pytest.mark.parametrize("contents", ["[default]\nkey = DUMMYKEY\n", '{"format": "dirigent/v1", "DUMMYKEY": 1}'])
+async def test_a_document_argument_naming_a_local_file_is_text_and_the_file_is_never_read(
+    server: MCPServer, tmp_path: Path, tool: str, contents: str
+) -> None:
+    path = tmp_path / "secret.conf"
+    path.write_text(contents)
+
+    with pytest.raises(ToolError, match="a document is a mapping, not str") as raised:
+        await server.call_tool(tool, {"document": str(path)})
+
+    assert "DUMMYKEY" not in str(raised.value)
+    assert (await call(server, "list_pipelines"))["items"] == []
+
+
 async def test_a_settled_run_is_rerun_and_one_in_flight_is_refused(server: MCPServer) -> None:
     tools = {tool.name: tool for tool in await server.list_tools()}
     assert tools["rerun_run"].annotations is not None and not tools["rerun_run"].annotations.read_only_hint

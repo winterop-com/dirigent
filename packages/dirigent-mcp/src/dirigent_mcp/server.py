@@ -18,6 +18,7 @@ from mcp.types import ToolAnnotations
 from pydantic import TypeAdapter
 
 from dirigent_client import BlockKind, Dirigent, DirigentError, RunStatus
+from dirigent_client.resources.pipelines import parse_document
 from dirigent_common import JsonMap
 
 #: Where the server finds its instance and its token, the names `dg` reads them from.
@@ -118,12 +119,12 @@ def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MC
 
         Answers what applying it would do, or every issue that refuses it.
         """
-        return await call(lambda dg: dg.pipelines.apply(document, dry_run=True))
+        return await call(lambda dg: dg.pipelines.apply(parse_document(document), dry_run=True))
 
     @tool(WRITES)
     async def apply_document(document: str, pause_schedules: bool = False) -> Any:
         """Store a YAML pipeline or triggers document as a new version; an unchanged one is left as it is."""
-        return await call(lambda dg: dg.pipelines.apply(document, pause_schedules=pause_schedules))
+        return await call(lambda dg: dg.pipelines.apply(parse_document(document), pause_schedules=pause_schedules))
 
     @tool(WRITES)
     async def run_pipeline(
