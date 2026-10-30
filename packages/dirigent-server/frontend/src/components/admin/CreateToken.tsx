@@ -82,7 +82,7 @@ export function CreateToken({
 
     return (
         <Dialog open={open} onOpenChange={close}>
-            <DialogContent className="sm:max-w-lg" showCloseButton={false}>
+            <DialogContent className="sm:max-w-lg" showCloseButton={issued !== null}>
                 <DialogHeader>
                     <DialogTitle>{LABELS.users.new_token}</DialogTitle>
                     <DialogDescription>
@@ -141,16 +141,14 @@ export function CreateToken({
 
                 {problem !== null && <Refusal problem={problem} />}
 
-                <DialogFooter>
-                    <DialogClose render={<Button variant={issued === null ? 'ghost' : 'default'} />}>
-                        {issued === null ? LABELS.action.cancel : LABELS.action.done}
-                    </DialogClose>
-                    {issued === null && (
+                {issued === null && (
+                    <DialogFooter>
+                        <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
                         <Button disabled={busy || name.trim() === ''} onClick={send}>
                             {LABELS.action.create.verb}
                         </Button>
-                    )}
-                </DialogFooter>
+                    </DialogFooter>
+                )}
             </DialogContent>
         </Dialog>
     )

@@ -382,7 +382,7 @@ test('a token is made on its account, listed under it, and revoked after a quest
 
     // The secret is shown once, beside the account it authenticates as.
     await expect(dialog).toContainText(username)
-    await dialog.getByRole('button', { name: LABELS.action.done }).click()
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
 
     // It stands under its account, its row says how many, and there is no Prefix anywhere.
     await expect(tokenRowOf(page, token)).toBeVisible()

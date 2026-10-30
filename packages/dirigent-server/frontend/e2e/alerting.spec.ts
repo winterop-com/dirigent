@@ -443,6 +443,6 @@ async function sendTest(page: Page, subject: string): Promise<void> {
     await expect(dialog.getByTestId('test-delivery').locator('.status-chip')).toContainText('sent', {
         timeout: 30_000,
     })
-    await dialog.getByRole('button', { name: LABELS.action.close }).click()
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 }

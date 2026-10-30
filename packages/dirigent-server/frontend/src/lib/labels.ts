@@ -55,10 +55,6 @@ export type Catalogue = { readonly [name: string]: Label | Catalogue }
 const action = {
     /** Leave a dialog that would have written something, writing nothing. */
     cancel: 'Cancel',
-    /** Leave a dialog that has already done what it was opened for. */
-    close: 'Close',
-    /** Leave a dialog whose work is finished and whose answer has been read. */
-    done: 'Done',
     /** Write the new thing the dialog was opened to make. */
     create: {
         verb: 'Create',
