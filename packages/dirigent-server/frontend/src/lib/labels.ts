@@ -438,7 +438,6 @@ const word = {
     /** When an account was last let in. */
     last_signed_in: {
         label: 'Last signed in',
-        term: 'last signed in',
     },
     /** When something is next due. */
     next: 'Next',
@@ -2876,22 +2875,26 @@ const users = {
     new_account: 'New account',
     accounts_empty: 'No accounts.',
 
-    /** The panel's line of dates, where the account has never signed in. */
-    never_signed_in: 'never signed in',
-    /** Under the name field: that the name carries no identity and the username does. */
-    name_hint: (username: string) =>
-        `Display only. Every reference to this account is by the username it signs in as, ${username}.`,
-    /** The placeholder on a field that may be left blank. */
-    optional: 'Optional',
-    email_hint: 'Unique across accounts.',
-    /** What each role may do, in the one line the radio row says under its name. */
+    /** What each role may do, in the one line its option says under its name. */
     role_hint: {
         admin: 'Everything, including accounts, tokens and connections.',
         operator: 'Define, run and observe pipelines.',
         viewer: 'Read what this instance holds, and change nothing.',
     },
-    /** The panel's button, and the title of the dialog it opens. */
+    /** The account dialog's button. */
     reset_password: 'Reset password',
+    /** The question before a reset, around the username. */
+    reset_ask: { before: 'Reset the password of ', after: '?' },
+    /** What shuts the question while it has no password to set. */
+    reset_needs_password: 'Type the new password first.',
+    /** What a reset takes beyond the password, which is the line that changes the answer. */
+    reset_password_note: 'It signs the account out of every session. Its tokens keep working.',
+    /** What a reset that went through says. */
+    password_was_reset: (username: string) => `The password of ${username} was reset.`,
+    /** What shuts Save while the form still says what the account says. */
+    nothing_to_save: 'Nothing has changed.',
+    /** The tooltip on an account row's heading: a press there opens it, and the chevron does not. */
+    open_account: (username: string) => `Open ${username}`,
     /** The button on an account's row, and the title of the dialog it opens. */
     new_token: 'New token',
     /** That button's accessible name, which names the account the row does not repeat. */
@@ -2922,8 +2925,6 @@ const users = {
     /** Where the name is shared: the API revokes by name, so they go together. */
     revoke_shared: (many: string) => `Revokes all ${many} live tokens with this name.`,
 
-    /** Under the new-account dialog's title. */
-    new_account_hint: 'The password is what it signs in with the first time.',
     /** Refused in the browser, so a password the server was always going to refuse never leaves it. */
     password_too_short: (minimum: string) => `A password must be at least ${minimum} characters.`,
 
@@ -2937,9 +2938,6 @@ const users = {
     token_once: 'This is the only time this token will be shown.',
     copy_token: 'Copy the token',
 
-    /** Under the reset-password dialog's title: what setting a password does to what is open. */
-    reset_password_hint: (username: string) =>
-        `Resetting signs ${username} out of every session. Its tokens keep working.`,
     new_password: 'New password',
 } as const
 

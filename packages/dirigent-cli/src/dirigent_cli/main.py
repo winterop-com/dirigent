@@ -1189,7 +1189,7 @@ async def dev_admin(settings: Settings, *, exposed_on: str | None = None) -> tup
                     refuse_the_fixture_on(exposed_on)
             if existing:
                 return (existing[0].username, None)
-            await create_fixture_admin(session, DEV_ADMIN, DEV_PASSWORD, name="Development admin")
+            await create_fixture_admin(session, DEV_ADMIN, DEV_PASSWORD)
             user = await find_user(session, DEV_ADMIN)
             if user is None:  # pragma: no cover - it was just created
                 return (None, None)

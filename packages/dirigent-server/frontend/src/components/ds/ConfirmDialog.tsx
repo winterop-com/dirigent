@@ -24,6 +24,7 @@ export function ConfirmDialog({
     busyVerb,
     problem = null,
     onConfirm,
+    children,
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -40,8 +41,10 @@ export function ConfirmDialog({
     busyVerb?: string
     problem?: Problem | null
     onConfirm: () => void
+    /** The one field a verb cannot go without, where it has one. */
+    children?: ReactNode
 }) {
-    const hasBody = note !== undefined || problem !== null
+    const hasBody = note !== undefined || problem !== null || children !== undefined
     return (
         <DialogShell
             open={open}
@@ -59,6 +62,7 @@ export function ConfirmDialog({
             {hasBody ? (
                 <>
                     {note !== undefined && <p className="text-sm text-muted-foreground">{note}</p>}
+                    {children}
                     {problem !== null && (
                         <p className="text-sm text-critical-ink" role="alert">
                             {refusalLine(problem)}
