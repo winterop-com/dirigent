@@ -205,7 +205,7 @@ class DockerConnectionKind(ConnectionKind):
             return HealthReport(healthy=False, detail="docker is not on this host's PATH")
         with tempfile.TemporaryDirectory(prefix="dirigent-docker-check-") as home:
             root = Path(home)
-            with sealed(settings, root, isolate_config=settings.authenticates) as material:
+            with sealed(settings, isolate_config=settings.authenticates) as material:
                 environ = daemon_environment(subprocess.environment([], {}, root), material)
                 verified: list[str] = []
                 for verify in (_verify_daemon, _verify_registry):
@@ -307,7 +307,7 @@ class Sealed(NamedTuple):
 
 
 @contextlib.contextmanager
-def sealed(settings: DockerConnectionConfig | None, parent: Path, *, isolate_config: bool = False) -> Generator[Sealed]:
+def sealed(settings: DockerConnectionConfig | None, *, isolate_config: bool = False) -> Generator[Sealed]:
     """Materialise a connection's daemon and registry material, and take it away again.
 
     The TLS triple becomes three 0600 files in a 0700 directory that ``DOCKER_CERT_PATH``
@@ -318,7 +318,7 @@ def sealed(settings: DockerConnectionConfig | None, parent: Path, *, isolate_con
     if settings is None:
         yield Sealed({}, [])
         return
-    with secrets.private_directory(parent, "dirigent-docker-") as directory:
+    with secrets.private_directory("dirigent-docker-") as directory:
         yield _materialise(settings, directory, isolate_config=isolate_config)
 
 
@@ -378,11 +378,6 @@ def write_cli_config(directory: Path) -> None:
         return
     directory.mkdir(mode=stat.S_IRWXU, parents=True, exist_ok=True)
     (directory / "config.json").write_text(json.dumps({"cliPluginsExtraDirs": [str(path) for path in dirs]}) + "\n")
-
-
-def private_parent(ctx: StepContext) -> Path:
-    """Where a connection's material is written: the run's own work directory."""
-    return ctx.work
 
 
 class DockerRunConfig(ShellVariables):
@@ -1244,7 +1239,7 @@ def _material(config: DockerRunConfig, ctx: StepContext) -> Generator[dict[str, 
     the length of one call, whichever way that call leaves.
     """
     settings = ctx.connection(config.connection, DockerConnectionConfig) if config.connection else None
-    with sealed(settings, private_parent(ctx)) as sealed_material:
+    with sealed(settings) as sealed_material:
         yield daemon_environment(dict(os.environ), sealed_material)
 
 
