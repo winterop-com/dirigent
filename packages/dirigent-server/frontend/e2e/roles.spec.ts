@@ -72,9 +72,13 @@ test('a viewer is offered no write control, and each shut one says why', async (
     const create = page.getByRole('button', { name: LABELS.connections.new })
     await expect(create).toBeDisabled()
     await expect(create).toHaveAttribute('title', SHUT)
-    const check = rowOf(page, CONNECTION).getByRole('button', { name: 'Check' })
+    await rowOf(page, CONNECTION).click()
+    const opened = page.getByRole('dialog')
+    const check = opened.getByRole('button', { name: LABELS.action.check })
     await expect(check).toBeDisabled()
     await expect(check).toHaveAttribute('title', SHUT)
+    await expect(opened.getByRole('button', { name: LABELS.action.edit, exact: true })).toBeDisabled()
+    await expect(opened.getByRole('button', { name: LABELS.action.delete.verb, exact: true })).toBeDisabled()
 
     // Triggers are an operator's, on the listing and in the panel both.
     await page.goto('/triggers')

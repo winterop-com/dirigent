@@ -848,3 +848,15 @@ export function inputText(field: FieldDescriptor, value: unknown): string {
     if (field.kind === 'json') return JSON.stringify(value, null, 2) ?? ''
     return String(value)
 }
+
+/**
+ * Whether a field takes both columns of a two-column form.
+ *
+ * A required line of text is the one the form is about and is read whole; a map, a JSON value and a
+ * program are as wide as what they hold.
+ */
+export function spansColumns(field: Pick<FieldDescriptor, 'kind' | 'required' | 'mediaType'>): boolean {
+    if (field.mediaType !== null) return true
+    if (field.kind === 'pairs' || field.kind === 'json') return true
+    return field.required && field.kind === 'text'
+}

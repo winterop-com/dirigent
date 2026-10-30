@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { MarkdownLine } from '@/components/Markdown'
 import { CodePane } from '@/components/pipeline/CodePane'
@@ -32,6 +32,7 @@ import {
     partition,
     referenceNote,
     sameJson,
+    spansColumns,
     switchCell,
     type FieldDescriptor,
     type Pair,
@@ -107,6 +108,7 @@ export function SchemaForm({
     stated,
     disabled,
     fold,
+    columns = false,
     references,
     deferred,
     onChange,
@@ -124,6 +126,8 @@ export function SchemaForm({
     disabled?: string
     /** Whether the optional fields nothing has answered sit behind a link. */
     fold?: boolean
+    /** Lay the fields out in two columns, for a form with a dialog's width to spend. */
+    columns?: boolean
     /** What a field that names a connection or a schema is resolved against, or nothing. */
     references?: FormReferences
     /** Whether these values are a document's, so a `${...}` in one is the run's to resolve. */
@@ -147,29 +151,30 @@ export function SchemaForm({
     }
 
     const draw = (field: FieldDescriptor) => (
-        <Field
-            key={field.name}
-            field={field}
-            value={values[field.name]}
-            problem={problems[field.name] ?? null}
-            stated={stated === undefined || stated.has(field.name)}
-            disabled={disabled}
-            references={references}
-            deferred={deferred === true}
-            onChange={(value) => {
-                onChange(field.name, value)
-            }}
-            onTouch={() => {
-                onTouch?.(field.name)
-            }}
-            onUnreadable={(message) => {
-                onUnreadable?.(field.name, message)
-            }}
-        />
+        <Placed key={field.name} wide={columns && spansColumns(field)}>
+            <Field
+                field={field}
+                value={values[field.name]}
+                problem={problems[field.name] ?? null}
+                stated={stated === undefined || stated.has(field.name)}
+                disabled={disabled}
+                references={references}
+                deferred={deferred === true}
+                onChange={(value) => {
+                    onChange(field.name, value)
+                }}
+                onTouch={() => {
+                    onTouch?.(field.name)
+                }}
+                onUnreadable={(message) => {
+                    onUnreadable?.(field.name, message)
+                }}
+            />
+        </Placed>
     )
 
     return (
-        <div className="flex flex-col gap-4">
+        <div className={columns ? 'grid gap-4 sm:grid-cols-2' : 'flex flex-col gap-4'}>
             {open.map(draw)}
             {folded.length > 0 &&
                 (expanded ? (
@@ -187,6 +192,11 @@ export function SchemaForm({
                 ))}
         </div>
     )
+}
+
+/** Where one field stands in the form's own layout. */
+function Placed({ wide, children }: { wide: boolean; children: ReactNode }) {
+    return <div className={cn('min-w-0', wide && 'sm:col-span-2')}>{children}</div>
 }
 
 /** One labelled control, its help, and whatever is wrong with it. */

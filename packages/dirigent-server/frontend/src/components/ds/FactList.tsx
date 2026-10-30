@@ -48,12 +48,15 @@ export function Fact({
     term,
     children,
     mono = false,
+    termMono = false,
     truncate = false,
     title,
 }: {
     term: string
     children: ReactNode
     mono?: boolean
+    /** The term is a key a document carries rather than a word. */
+    termMono?: boolean
     truncate?: boolean
     title?: string
 }) {
@@ -71,7 +74,7 @@ export function Fact({
     }
     return (
         <>
-            <dt className="text-muted-foreground">{term}</dt>
+            <dt className={cn('text-muted-foreground', termMono && 'font-mono text-xs')}>{term}</dt>
             <dd className={value} title={title}>
                 {children}
             </dd>

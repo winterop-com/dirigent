@@ -112,7 +112,7 @@ export function readConnections(after: string | null = null): Promise<Page<Conne
     return apiJson<Page<ConnectionOut>>(`/connections?${query.toString()}`)
 }
 
-/** Where one connection is read: the listing with that credential's form open beside it. */
+/** Where one connection is read: the listing with that credential's dialog open over it. */
 export function connectionPath(code: string): string {
     return `/connections/${encodeURIComponent(code)}`
 }
@@ -169,6 +169,11 @@ export function updateConnection(code: string, body: ConnectionUpdate): Promise<
     return apiSend<ConnectionOut>(`/connections/${encodeURIComponent(code)}`, 'PATCH', body)
 }
 
+/** Delete a connection. Refused while something still delivers or connects through it. */
+export function deleteConnection(code: string): Promise<void> {
+    return apiJson<void>(`/connections/${encodeURIComponent(code)}`, { method: 'DELETE' })
+}
+
 /** The connection kinds this instance has installed, which is what a new connection may be. */
 export async function readConnectionKinds(): Promise<SurfaceEntry[]> {
     const catalog = await apiJson<Catalog>('/blocks')
@@ -209,6 +214,39 @@ export function settingsSummary(row: Pick<ConnectionOut, 'config' | 'secret_fiel
     const rest = settings.length - shown.length
     const parts = [...shown, ...held, ...(rest > 0 ? [LABELS.connections.more_settings(String(rest))] : [])]
     return parts.length === 0 ? LABELS.connections.no_settings : parts.join(' · ')
+}
+
+/** One setting as a connection's dialog reads it, which for a secret is only whether it is set. */
+export interface SettingFact {
+    name: string
+    /** The value as text, dots for a secret that is set, or null for a secret that is not. */
+    value: string | null
+    secret: boolean
+}
+
+/**
+ * What a connection's dialog says about its settings: the kind's own order, then its secrets.
+ *
+ * A SECRET'S VALUE IS NEVER READ, only whether one is stored. A setting holding nothing says
+ * nothing, because a kind may publish twenty and a credential sets three; a secret holding nothing
+ * is still said, because whether it holds a credential is what somebody opened it to learn.
+ */
+export function settingFacts(
+    row: Pick<ConnectionOut, 'config' | 'secret_fields'>,
+    schema: JsonMap | null,
+): SettingFact[] {
+    const secret = new Set(row.secret_fields)
+    const known = settingFields(schema, row.secret_fields).map((field) => field.name)
+    const rest = Object.keys(row.config).filter((name) => !secret.has(name) && !known.includes(name))
+    const settings = [...known, ...rest].flatMap((name): SettingFact[] => {
+        const value = row.config[name]
+        if (value === null || value === undefined) return []
+        return [{ name, value: typeof value === 'string' ? value : JSON.stringify(value), secret: false }]
+    })
+    const secrets = row.secret_fields.map(
+        (name): SettingFact => ({ name, value: isSet(row.config[name]) ? DOTS : null, secret: true }),
+    )
+    return [...settings, ...secrets]
 }
 
 /** Whether a field holds anything at all, which for a secret is the whole of what a read says. */

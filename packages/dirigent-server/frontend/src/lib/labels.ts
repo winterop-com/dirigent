@@ -415,7 +415,6 @@ const word = {
     /** How this instance is deployed. */
     environment: {
         label: 'Environment',
-        term: 'environment',
     },
     /** Where this instance keeps its records. */
     database: 'Database',
@@ -425,6 +424,10 @@ const word = {
     created: {
         label: 'Created',
         term: 'created',
+    },
+    /** When the thing was last changed. */
+    updated: {
+        label: 'Updated',
     },
     /** When a run was taken up. */
     started: {
@@ -2512,8 +2515,19 @@ const connections = {
     /** The palette's row for reading the listing again. */
     reload: 'Read the connections listing again',
     empty: 'No connections.',
-    /** The row's button, which asks the external system again. */
-    check_row: (code: string) => `Check ${code}`,
+    /** A connection's dialog while it is being edited: the word in front of its title. */
+    edit_lead: 'Edit',
+    /** Beside Save: what writing the settings does. */
+    save_checks: 'Saving checks the connection.',
+    /** The heading over the password boxes. */
+    secrets_heading: 'Secrets',
+    /** A secret in the dialog's facts that holds nothing. */
+    secret_not_set: 'not set',
+    /** A connection's Health fact, after the dot: how long ago it was asked. */
+    checked: (when: string) => `checked ${when}`,
+    /** The question before a delete. */
+    delete_title: 'Delete this connection?',
+    delete_consequence: 'Anything naming it can no longer connect. This cannot be undone.',
 
     /** The one clause every screen states a set of connections' health in. */
     note: {
@@ -2531,8 +2545,6 @@ const connections = {
     /** The settings the summary line had no room for. */
     more_settings: (many: string) => `+${many} more`,
 
-    /** What follows the created instant when the record has been edited since. */
-    also_updated: ' · updated ',
     /** Under the name box: what a name is not, and what a reference uses instead. */
     name_hint: (code: string) => `Display only. Every reference to this credential is by its code, ${code}.`,
     description_placeholder: 'What this credential is for. Markdown is rendered.',

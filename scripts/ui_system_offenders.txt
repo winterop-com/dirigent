@@ -12,7 +12,6 @@ icon-button	packages/dirigent-server/frontend/src/components/pipeline/SchemaForm
 icon-button	packages/dirigent-server/frontend/src/components/pipeline/StepTab.tsx	1
 icon-button	packages/dirigent-server/frontend/src/components/run/Panel.tsx	1
 icon-button	packages/dirigent-server/frontend/src/components/run/RunTerminal.tsx	3
-icon-button	packages/dirigent-server/frontend/src/pages/Connections.tsx	1
 icon-button	packages/dirigent-server/frontend/src/pages/RunDetail.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/ApiChip.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/AppShell.tsx	1

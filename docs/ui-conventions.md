@@ -398,7 +398,7 @@ cell is a glance: `oneLine` closes up the whitespace and the row truncates the w
 than rendering a heading cut in half.
 
 **The chosen row's code is in the address.** Schemas and Connections put the code of the row
-somebody opened into the URL and read it back from there, the way Pipelines does, so a schema or a
+somebody opened, in a panel or in a dialog, into the URL and read it back from there, the way Pipelines does, so a schema or a
 credential is a link that can be sent rather than a selection somebody else has to find.
 
 A step is the one exception to the shape, and it is the same rule underneath. Its map key is
@@ -465,13 +465,14 @@ has yet to reach, and saying "fired" of it would be a second untruth in place of
 Every screen that draws a listing draws it with one component. `components/list/ListTable` is
 the heading row, the striping, the row that reaches for the next page and the line along the
 foot; a screen decides its columns and what each cell says, and nothing else. Where a row opens
-something beside the table -- a connection's form, a trigger's history -- the screen passes
+something -- a trigger's history beside the table, a connection's dialog over it -- the screen passes
 `onSelect`, and the row answers Enter and Space as well as a click, because a row only a pointer
 can open is a row some people cannot. **The column header is sticky**: rows scroll beneath it
 inside the listing's own scroll container, and the header keeps the card's ground so no row ever
 shows through it.
 
-**A row that fills the panel is a disclosure, so pressing it again takes it back.** What a press
+**A row on most listings fills the panel, and that is a disclosure, so pressing it again takes it
+back.** What a press
 opened a press closes: the row loses its tint, the screen stops filling the panel, and an
 unfilled panel is not drawn -- so the thing opened from the listing can be shut from the listing,
 rather than only from the panel's own control. A row whose selection is the URL navigates back to
@@ -481,7 +482,8 @@ its own selection back means: `onClose`. **Pressing the open row while the panel
 again** rather than clearing a tint nothing is showing, because a control that does nothing is
 the fault this rule exists to fix. **A row that navigates is not a selection** and does not
 toggle: the runs listing and the admin overview go to a screen, and a press there has already
-left.
+left. **Connections is the one listing whose row opens a dialog instead, and it is being tried
+there**: see below. No other listing has moved, and none should until that trial has been read.
 
 **Every listing is a keyset walk**, answering rows and an opaque cursor and no total, so there
 are no page numbers and what the foot can honestly say is how many rows have been read and
@@ -498,13 +500,13 @@ heading over the table is the kind, and no id, because a row's key is not someth
 reads. A row whose height depended on how many chips it wore would make a listing of twenty rows
 a listing of twenty heights.
 
-**A connection row is one line, 44px, and four cells.** The lead cell is `headingOf`'s pair drawn
+**A connection row is one line, 44px, and three cells.** The lead cell is `headingOf`'s pair drawn
 across rather than stacked -- the title, the kind chip, and the code in mono where the title is
 not already the code -- and nothing stands under it. What a credential is pointed at is read on
-the connection's own page, beside the boxes that change it: a settings line per row is a column
+the connection's own dialog: a settings line per row is a column
 of `url=` and `timeout=` to scan past before the health cell is reached, and it pushes the cells
 that matter off the side of the table. There is no description column either, for the same
-reason and because a description is the panel's. **A healthy connection is a bare dot, and failed or
+reason and because a description is the dialog's. **A healthy connection is a bare dot, and failed or
 unknown gets the word**, which is the top bar's rule: words only when something is wrong. The dot
 is 8px; the words are `healthOf`'s -- `failed`, `never checked`{ .label }, `not verified`{ .label }, and `healthy` as
 the bare dot's tooltip -- in the channel strip's three colours: green where the last check
@@ -512,11 +514,25 @@ passed, red where it failed, a hollow ring where nothing was proved. One vocabul
 `lib/connections` and drawn by `HealthSaid` on every screen that draws a credential's health: this
 listing, a pipeline's requirements, the reference row under a field. **The check's own sentence is
 not on the row**: it is the tooltip on the health cell, on hover and on keyboard focus alike, and
-it is on the connection's page in full, where there is room for the whole of it. Checked
+it is in the connection's dialog in full, where there is room for the whole of it. Checked
 is how long ago, and nothing at all where nothing has ever asked -- so a row nothing has checked
-has no Checked line on its card either. The row ends in the control that asks: a 36px icon button
-wearing `RefreshCw`, labelled `Check <code>`, which checks that row and leaves the listing where
-it is.
+has no Checked line on its card either. Asking again is the dialog's `Check now`{ .label }, not a button on
+every row.
+
+**Connections opens in a dialog, shown first and edited second, and this is a trial.** Pressing a
+row opens one dialog over the listing, at `/connections/<code>`, and there is no panel on this
+screen. It reads first: the title, the kind and the code; the description; then the health with
+the check's own sentence, every setting that holds a value under its own key, every secret as dots
+or `not set`{ .label }, and when it was made and changed. Its footer is `Delete`, and `Check now`{ .label } and `Edit`
+at the other end, with the corner's close as the way out. `Edit` is the same dialog in its edit
+state, at the same width, so nothing moves under the hand: the schema-driven form in two columns,
+a required text field, a map, a JSON value and a program taking both, a footer of `Cancel` and
+`Save`, and no corner close. Cancel, Escape and a press outside all go back to the reading rather
+than closing, and a press outside does nothing at all while a form is open, because a typed
+credential is not something to lose to a stray click. A save checks the connection, because the
+health on screen was about the settings that were just replaced. `Delete` raises `ConfirmDialog`
+over the dialog, and a refusal -- something still uses this credential -- stays in that confirm.
+`GET /connections` carries nothing about what uses a credential, so the dialog has no Used by line.
 
 `hooks/use-read` is the one-page sibling of `use-paged`, for a read that is a document rather than
 a listing -- what this instance has installed, how the last day of runs came out. Same rule: the
@@ -1235,7 +1251,7 @@ wire answers with. Adding a kind is adding one entry there and nothing else: no 
 table of its own, and no screen works a mark out from a code itself.
 
 **The mark is drawn beside the code wherever a kind says what a thing is.** The channel strip's
-chips, a rule's target, the connections listing's row, the connection's own panel header, the New
+chips, a rule's target, the connections listing's row, the connection's own dialog, the New
 connection dialog's kind rows, the pipeline editor's reference row under a field naming a
 connection, and the health rows on the home screen: a reader who learned the envelope on the
 strip reads it on all seven. A screen that says what a thing is and draws no mark is the fault
@@ -1245,7 +1261,7 @@ kinds and draws none: its rows are the registries themselves, where the kind is 
 than what the row is, and it lists schemes and notifiers in the same shape beside them.
 
 **The mark does not take the kind's word off a chip.** Where the kind is carried as a `kind-chip`
--- the connections listing's row, the connection's panel header -- the chip keeps its word and
+-- the connections listing's row, the connection's dialog -- the chip keeps its word and
 its family hue: a chip is the value somebody reads to know what to narrow a listing by or type
 into a document, and a mark cannot be typed. Where there is no chip the mark stands with the code
 alone and the kind is not spelled twice: a channel chip and a rule's target are the mark and the
@@ -1461,7 +1477,10 @@ its foot. A dialog raised over a dialog puts a scrim over the thing it is about,
 offered the verb is already the sentence saying what the form is for. The button that opened it
 is replaced by the section while it stands, so there are never two controls that shut it, and the
 refusal is `Refusal` inside the section, where the fields it is about are. **One row at a time**:
-two open forms in one list are two half-typed things with one confirm behind them.
+two open forms in one list are two half-typed things with one confirm behind them. **The exception
+is the connection dialog**, which is one dialog being tried and not a second one: its Edit is the
+same surface, and the only thing ever raised over it is the `ConfirmDialog` every verb that takes
+something away goes through.
 
 **What the row already says, the form does not ask.** The row is the summary, so a box repeating
 a value drawn a line above it draws that value twice and offers to change something the row's own
@@ -1496,7 +1515,9 @@ itself in one line, the way every other action that completed without incident d
 its confirm, and nothing else in its footer. A dialog that only tells carries no footer at all: it
 is dismissed by the corner's close and by Escape, so no footer ever says `Close`, `Done` or
 `Dismiss`. `DialogShell` is that rule written once -- `confirm` given, the footer and no corner
-close; `confirm` absent, the corner close and no footer.
+close; `confirm` absent, the corner close and no footer. **A dialog that reads one thing is the third
+case**, and it is a connection's: the corner close, and a footer of `verbs` on that thing rather
+than a confirm, so nothing in it says Cancel because nothing has been started.
 
 **One dismissal, one control.** A dialog whose footer carries the way out does not also draw the
 corner's own -- `showCloseButton={false}` -- because two ways out of one dialog are two answers to
@@ -1968,16 +1989,16 @@ first, then on the page that asked.
 
 | Component | When |
 | --- | --- |
-| `EntityHeading` | Any addressable thing headed by its name and code. `row-stacked` for a listing's lead cell, `row-inline` where a row has one line, `panel` for a panel's head. The name, else the code; the code always on screen in mono and never twice (`headingOf`); chips beside the title; an optional one-line description. One title weight in all three |
+| `EntityHeading` | Any addressable thing headed by its name and code. `row-stacked` for a listing's lead cell, `row-inline` where a row has one line, `panel` for a panel's head, `dialog` inside a dialog's title. The name, else the code; the code always on screen in mono and never twice (`headingOf`); chips beside the title; an optional one-line description. One title weight in all three |
 | `Chip` | A word on a chip: `neutral`, `mono` for a key, `dashed` for an absence, `good`, `critical`, `edit`. `onSelect` makes it a button, `onRemove` adds an X with its own focus ring. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` and `StatusChip` stay, on the same 20px and the same radius |
 | `ToneDot` | Every state drawn as a dot, from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `tip` adds a sentence to the tooltip, and `focusable` puts the dot in the tab order where nothing around it is a control. `StatusChip` takes a `label` where a screen names the state in its own terms |
 | `IconButton` | Any button that is an icon and nothing else. Its type requires `label`; the tooltip is the label, a longer `tooltip`, or `why` when it is shut. Sizes `sm` and `md`. Shut with `why`, never with `disabled`, so it stays reachable |
 | `SearchField` | Every box that narrows a screen. A leading search glyph, a clear button once there is text, Escape to clear, and the `/` key cap: `/` moves the caret into the first box marked for it, never while another field or the editor has focus |
 | `SectionHeading` | A heading inside a screen. `section` is sentence case at `text-sm font-semibold`; `group` is the one faint uppercase label over a run of rows. An optional `aside` and `link` |
-| `FactList`, `Fact` | Facts about one thing. `grid` is a term column beside a value column, a panel's; `row` is small facts wrapping on one line, a heading's strip |
+| `FactList`, `Fact` | Facts about one thing. `grid` is a term column beside a value column, a panel's and a dialog's, whose term is a key in mono where `termMono` says so; `row` is small facts wrapping on one line, a heading's strip |
 | `FormField`, `SwitchField` | Every field: a prose label or a mono key, the required word in body ink, a hint, the default, help in one ink, an error, one 6px gap. `SwitchField` is a boolean setting as a row, the whole row its label |
 | `Notice`, `Well` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a neutral inset box at 8px for a block that belongs together. A refusal off the wire is still `Refusal` |
-| `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm |
+| `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm, or of `verbs` on a dialog that reads one thing |
 | `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. It names the thing in mono, says what is lost, and confirms in the critical fill. No such verb is immediate |
 | `SecretReveal` | A secret the server answers with once: the value in mono, a copy button that says it copied and resets, and the line saying it is shown once |
 | `PageHeader`, `SplitButton` | A screen's heading. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `trail` for a detail screen. No subtitle |

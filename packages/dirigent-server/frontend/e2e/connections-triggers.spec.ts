@@ -103,14 +103,29 @@ test('a connection row is its code, its kind and its health, and nothing else', 
     // It has never been checked until something checks it.
     await expect(row).toContainText(LABELS.state.health.unchecked)
 
-    // And the page behind the row is where all of that is.
+    // And the dialog behind the row is where all of that is, with the address naming it.
     await row.click()
-    const panel = page.getByRole('tabpanel')
-    await expect(panel).toContainText('This very instance, so a check is a real request.')
-    await expect(panel.getByLabel('base_url')).toHaveValue(baseURL ?? '')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toContainText('This very instance, so a check is a real request.')
+    await expect(dialog).toContainText(baseURL ?? '')
+    await expect(page).toHaveURL(new RegExp(`/connections/${CONNECTION}$`))
 
-    // The panel heads the credential the way the row does, mark and all.
-    await expect(panel.locator('[data-slot="mark"]')).toHaveCount(1)
+    // It heads the credential the way the row does, mark and all, and no panel opened.
+    await expect(dialog.locator('[data-slot="mark"]')).toHaveCount(1)
+    await expect(page.getByRole('tabpanel')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: LABELS.shell.toggle_panel })).toHaveCount(0)
+
+    // Closing it takes the address back to the listing.
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+    await expect(page).toHaveURL(/\/connections$/)
+})
+
+test('an address naming a connection opens its dialog', async ({ page, baseURL }) => {
+    await signIn(page)
+    await seedConnection(page.request, baseURL ?? '')
+    await page.goto(`/connections/${CONNECTION}`)
+    await expect(page.getByRole('dialog')).toContainText(CONNECTION)
 })
 
 test('checking a connection moves its own row, and the sentence is on the tooltip', async ({
@@ -122,21 +137,77 @@ test('checking a connection moves its own row, and the sentence is on the toolti
 
     await page.goto('/connections')
     const row = rowOf(page, CONNECTION)
-    await row.getByRole('button', { name: `Check ${CONNECTION}` }).click()
-
-    await expect(row).toContainText('healthy')
-    await expect(row).not.toContainText(LABELS.state.health.unchecked)
-
-    // What the check said is not on the row: reaching the health cell is what says it. The
-    // tooltip primitive describes its trigger rather than carrying a role, so it is found by
-    // the slot it is drawn in.
-    await expect(row).not.toContainText('HTTP 200')
-    await row.getByText('healthy').hover()
-    await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('HTTP 200')
-
-    // And it is on the connection's own page in full, where there is room for it.
     await row.click()
-    await expect(page.getByRole('tabpanel')).toContainText('HTTP 200')
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: LABELS.action.check }).click()
+
+    // The dialog says the check's sentence in full, where there is room for it.
+    await expect(dialog).toContainText('HTTP 200')
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+
+    // A healthy row is a bare dot: no word, and no sentence.
+    await expect(row).not.toContainText(LABELS.state.health.unchecked)
+    await expect(row).not.toContainText(LABELS.state.health.healthy)
+    await expect(row).not.toContainText('HTTP 200')
+
+    // Reaching the dot is what says both. The tooltip primitive describes its trigger rather
+    // than carrying a role, so it is found by the slot it is drawn in.
+    await row.getByRole('img', { name: LABELS.state.health.healthy }).hover()
+    const tip = page.locator('[data-slot="tooltip-content"]')
+    await expect(tip).toContainText(LABELS.state.health.healthy)
+    await expect(tip).toContainText('HTTP 200')
+})
+
+test('a connection edits in the same dialog, and cancelling goes back to the reading', async ({
+    page,
+    baseURL,
+}) => {
+    await signIn(page)
+    await seedConnection(page.request, baseURL ?? '')
+
+    await page.goto(`/connections/${CONNECTION}`)
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: LABELS.action.edit, exact: true }).click()
+    const name = dialog.getByLabel(LABELS.word.name.label, { exact: true })
+    await expect(name).toBeVisible()
+
+    // Cancel is the way back to the reading, and what was typed goes with it.
+    await name.fill('Typed, then thought better of')
+    await dialog.getByRole('button', { name: LABELS.action.cancel, exact: true }).click()
+    await expect(dialog.getByRole('button', { name: LABELS.action.edit, exact: true })).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`/connections/${CONNECTION}$`))
+    await expect(dialog).not.toContainText('Typed, then thought better of')
+
+    // A save writes it, and the dialog reads it back.
+    const title = `Saved ${String(Date.now())}`
+    await dialog.getByRole('button', { name: LABELS.action.edit, exact: true }).click()
+    await name.fill(title)
+    await dialog.getByRole('button', { name: LABELS.action.save.verb, exact: true }).click()
+    await expect(dialog.getByRole('button', { name: LABELS.action.edit, exact: true })).toBeVisible()
+    await expect(dialog).toContainText(title)
+    await expect(rowOf(page, CONNECTION)).toContainText(title)
+})
+
+test('deleting a connection asks first, and a refusal stays in the question', async ({ page, baseURL }) => {
+    await signIn(page)
+    await seedConnection(page.request, baseURL ?? '')
+
+    await page.goto(`/connections/${CONNECTION}`)
+    await page.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
+    const asking = page.getByRole('dialog', { name: LABELS.connections.delete_title })
+    await expect(asking).toContainText(CONNECTION)
+
+    // Cancel leaves it where it was.
+    await asking.getByRole('button', { name: LABELS.action.cancel, exact: true }).click()
+    await expect(asking).toHaveCount(0)
+    await expect(page.getByRole('dialog')).toContainText(CONNECTION)
+
+    await page.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
+    await asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(page).toHaveURL(/\/connections$/)
+    await expect(rowOf(page, CONNECTION)).toHaveCount(0)
 })
 
 test('the connections listing fits 1024 without scrolling sideways', async ({ page, baseURL }) => {
@@ -158,28 +229,6 @@ test('the connections listing fits 1024 without scrolling sideways', async ({ pa
     expect(sideways).toBeLessThanOrEqual(0)
 })
 
-test('the listing beside an open panel draws cards rather than scrolling', async ({ page, baseURL }) => {
-    await signIn(page)
-    await seedConnection(page.request, baseURL ?? '')
-
-    await page.setViewportSize({ width: 1024, height: 768 })
-    await page.goto('/connections')
-    await rowOf(page, CONNECTION).click()
-    await expect(page.getByRole('tabpanel')).toBeVisible()
-
-    // The panel takes half of what the listing had, and the listing answers for its own box:
-    // the same rows drawn as cards rather than a table scrolled sideways inside its card.
-    await expect(page.getByRole('listitem').filter({ hasText: CONNECTION })).toBeVisible()
-    await expect
-        .poll(async () => page.locator('.list-scroll').evaluate((box) => box.scrollWidth - box.clientWidth))
-        .toBe(0)
-
-    const sideways = await page.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    )
-    expect(sideways).toBeLessThanOrEqual(0)
-})
-
 test('a connection opens a form whose secret box is empty and whose kind is fixed', async ({
     page,
     baseURL,
@@ -189,14 +238,19 @@ test('a connection opens a form whose secret box is empty and whose kind is fixe
 
     await page.goto('/connections')
     await rowOf(page, CONNECTION).click()
+    const dialog = page.getByRole('dialog')
 
-    // The panel holds the connection's own settings, and the password box starts empty --
+    // The reading says a secret is set, and never what it is.
+    await expect(dialog).toContainText(DOTS)
+    await expect(dialog).not.toContainText('a credential nothing may ever show')
+    await dialog.getByRole('button', { name: LABELS.action.edit, exact: true }).click()
+
+    // The form holds the connection's own settings, and the password box starts empty --
     // there is nothing to put in it, because no read anywhere returns a credential.
-    const panel = page.getByRole('tabpanel')
-    const secret = panel.getByLabel('basic_password')
+    const secret = dialog.getByLabel('basic_password')
     await expect(secret).toHaveValue('')
     await expect(secret).toHaveAttribute('type', 'password')
-    await expect(panel.getByLabel('base_url')).toHaveValue(baseURL ?? '')
+    await expect(dialog.getByLabel('base_url')).toHaveValue(baseURL ?? '')
 })
 
 test('a connection is minted through the form its own kind publishes', async ({ page, baseURL }) => {
@@ -218,7 +272,7 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     await dialog.getByLabel('base_url').fill(baseURL ?? '')
     await dialog.getByLabel('basic_password').fill(MINTED)
 
-    // A secret is written and never read, here as much as in the panel.
+    // A secret is written and never read, here as much as in the connection's own dialog.
     await expect(dialog.getByLabel('basic_password')).toHaveAttribute('type', 'password')
 
     await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
@@ -229,13 +283,14 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     await expect(row).toContainText('http')
     await expect(page.locator('body')).not.toContainText(MINTED)
 
-    // And the panel says the same: a stored credential, and an empty box to replace it with.
+    // And its own dialog says the same: a stored credential, and an empty box to replace it with.
     await row.click()
-    const panel = page.getByRole('tabpanel')
-    const secret = panel.getByLabel('basic_password')
+    const opened = page.getByRole('dialog')
+    await opened.getByRole('button', { name: LABELS.action.edit, exact: true }).click()
+    const secret = opened.getByLabel('basic_password')
     await expect(secret).toHaveValue('')
     await expect(secret).toHaveAttribute('placeholder', /stored/)
-    await expect(panel.getByLabel('base_url')).toHaveValue(baseURL ?? '')
+    await expect(opened.getByLabel('base_url')).toHaveValue(baseURL ?? '')
 })
 
 test('a schedule shows its clock and its zone', async ({ page }) => {
