@@ -49,15 +49,15 @@
     /* What a finger lands on is this tall below the breakpoint. */
     --spacing-finger: 42px;
 
-    /* The radius ladder, stated rather than derived: 4 for a chip, 6 for a control and a
-       card, 8 for a panel. */
-    --radius-sm: 4px;
-    --radius-md: 6px;
-    --radius-lg: 6px;
-    --radius-xl: 6px;
-    --radius-2xl: 6px;
-    --radius-3xl: 8px;
-    --radius-4xl: 8px;
+    /* The radius ladder, stated rather than derived: 2 for a chip, 3 for a control, 4 for a
+       card and a panel. */
+    --radius-sm: 2px;
+    --radius-md: 3px;
+    --radius-lg: 4px;
+    --radius-xl: 4px;
+    --radius-2xl: 4px;
+    --radius-3xl: 4px;
+    --radius-4xl: 4px;
 
     --color-background: var(--background);
     --color-foreground: var(--foreground);
@@ -1578,4 +1578,18 @@ html.dark[data-theme='contrast'],
         min-height: var(--spacing-finger);
         min-inline-size: var(--spacing-finger);
     }
+}
+
+/* The rail's current entry: a slim bar in the gutter beside the entry, apart from its tight
+   highlight, rather than a border fused into a full-width pill. */
+.rail-entry[aria-current='page']::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: -0.5rem;
+    width: 3px;
+    height: 1.125rem;
+    transform: translateY(-50%);
+    border-radius: 2px;
+    background-color: var(--sidebar-primary);
 }
