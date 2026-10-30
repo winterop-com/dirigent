@@ -391,7 +391,7 @@ async def count_runs(session: AsyncSession, pipeline_id: UUID, *narrow: sa.Colum
 
 
 #: The run statuses that mean work is still in flight for a pipeline.
-IN_FLIGHT = (RunStatus.QUEUED, RunStatus.RUNNING)
+IN_FLIGHT = (RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.PAUSED)
 
 #: The tables a run's history lives in, deepest first: the order a delete has to walk them in.
 RUN_FAMILY: Final[tuple[type[ArtifactRef | LogEntry | Notification | RunItem | StepAttempt], ...]] = (

@@ -86,7 +86,13 @@ async def seed(sessions: async_sessionmaker[AsyncSession]) -> None:
             status=RunStatus.RUNNING,
             started_at=END - timedelta(minutes=5),
         )
-        session.add_all([*alphas, first, second, never, partial, before, running])
+        paused = Run(
+            pipeline_id=beta.pipeline_id,
+            pipeline_version_id=beta.id,
+            status=RunStatus.PAUSED,
+            started_at=END - timedelta(hours=1),
+        )
+        session.add_all([*alphas, first, second, never, partial, before, running, paused])
         await session.flush()
         session.add_all(
             [
@@ -103,6 +109,7 @@ async def seed(sessions: async_sessionmaker[AsyncSession]) -> None:
                     at=datetime(2026, 3, 1, tzinfo=UTC),
                 ),
                 _failed(running.id, "pull", code="still.going", error="in flight", at=END - timedelta(minutes=1)),
+                _failed(paused.id, "load", code="http.status", error="HTTP 500", at=END - timedelta(minutes=30)),
             ]
         )
 
@@ -126,7 +133,9 @@ async def assert_the_stats_fold(sessions: async_sessionmaker[AsyncSession]) -> N
     assert (by_day[date(2026, 3, 8)].total, by_day[date(2026, 3, 8)].failed) == (3, 2)
     assert by_day[date(2026, 3, 8)].cancelled == 1
     assert by_day[date(2026, 3, 7)].completed_with_errors == 1
-    assert sum(day.total for day in stats.trend) == 14, "neither the run before the window nor the one in flight"
+    assert sum(day.total for day in stats.trend) == 14, (
+        "neither the run before the window nor the ones running or paused"
+    )
 
     durations = {row.pipeline: row for row in stats.durations}
     assert durations["alpha"].model_dump() == {

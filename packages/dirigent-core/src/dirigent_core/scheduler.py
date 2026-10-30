@@ -23,7 +23,7 @@ from dirigent_client.enums import AttemptStatus, FiringOutcome, RunStatus, Trigg
 from dirigent_core import retention, telemetry
 from dirigent_core.database import create_lock_engine, create_session_factory, session_scope
 from dirigent_core.engine.definition import ConcurrencyPolicy, load_definition
-from dirigent_core.engine.runs import Attribution, RunCreationError, create_run
+from dirigent_core.engine.runs import ACTIVE_RUN_STATUSES, Attribution, RunCreationError, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import Pipeline, PipelineVersion, Run, Schedule, ScheduleFiring, StepAttempt, utcnow
@@ -182,6 +182,9 @@ async def _create(
     except (RunCreationError, ValueError) as error:
         return FiringOutcome.FAILED, None, str(error)
     if run is None:
+        paused = await _paused_run(session, schedule.pipeline_id)
+        if paused is not None:
+            return FiringOutcome.SKIPPED, None, f"run {paused} of this pipeline is paused, and holds its slot"
         return FiringOutcome.SKIPPED, None, "a run of this pipeline is already in flight"
     if replacing:
         return FiringOutcome.REPLACED, run, "the run in flight was cancelled and replaced"
@@ -204,12 +207,20 @@ async def _current_version(session: AsyncSession, schedule: Schedule) -> Pipelin
     return found.scalar_one_or_none()
 
 
+async def _paused_run(session: AsyncSession, pipeline_id: UUID) -> UUID | None:
+    """The paused run that holds a pipeline's concurrency slot, if one does."""
+    found = await session.execute(
+        sa.select(Run.id).where(Run.pipeline_id == pipeline_id, Run.status == RunStatus.PAUSED).limit(1)
+    )
+    return found.scalar_one_or_none()
+
+
 async def _has_active(session: AsyncSession, pipeline_id: UUID) -> bool:
     """Report whether a pipeline already has a run occupying its concurrency slot."""
     found = await session.execute(
         sa.select(sa.func.count())
         .select_from(Run)
-        .where(Run.pipeline_id == pipeline_id, Run.status.in_((RunStatus.QUEUED, RunStatus.RUNNING)))
+        .where(Run.pipeline_id == pipeline_id, Run.status.in_(ACTIVE_RUN_STATUSES))
     )
     return int(found.scalar_one()) > 0
 

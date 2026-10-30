@@ -2,7 +2,7 @@
 
 Every statement is anchored on the runs whose ``finished_at`` falls in the window, which is
 the ``ix_runs_finished_at`` range scan, and reaches attempts through ``run_id`` alone. A run
-still in flight has no ``finished_at`` and is in none of it.
+queued, running or paused has not settled and is in none of it.
 """
 
 import math

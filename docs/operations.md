@@ -1095,7 +1095,8 @@ policy is off until you set one, so see [retention](#retention).
 ## How the runs have been going
 
 `dg runs stats` answers for a window rather than for one run. It reads the runs that settled in
-the window, seven days when `--since` names none, and says four things about them:
+the window, seven days when `--since` names none; a run still queued, running or paused has not
+settled and is in none of it. It says four things about the ones that did:
 
 - **The trend**: one row per UTC day, every day of the window present, with how many runs
   settled that day and how many of them succeeded, failed, completed with errors, or were

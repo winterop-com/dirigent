@@ -222,6 +222,8 @@ class Run(Entity):
     error_params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     started_at: Mapped[datetime | None] = mapped_column(Timestamp)
     finished_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    paused_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    """When an operator paused the run, which a resume moves its open deadlines on by."""
 
     window_start: Mapped[datetime | None] = mapped_column(Timestamp)
     """The logical data interval this run covers, half-open: ``[window_start, window_end)``.
