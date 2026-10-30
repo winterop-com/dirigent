@@ -1,10 +1,11 @@
 # Every CSV that lands under a prefix becomes one run, found by a worker that looks every minute.
 #
 # A STORAGE SOURCE IS POLLED, NOT CALLED. Nobody sends `arrived` anything: a worker lists the
-# location on the source's cadence and hands over each object newer than the last one it handed
-# over, oldest first, as `${steps.arrived.output.uri}`. The cursor lives on the source's row, so
-# a restarted worker carries on where the last one stopped, and an object is never handed over
-# twice.
+# location on the source's cadence and hands over each object it has not handed over before,
+# oldest first, as `${steps.arrived.output.uri}`. The cursor remembers every object by name and
+# modification time, so a file copied in with `rsync -a` or `cp -p`, still dated last week, is
+# found all the same, and a file rewritten in place is handed over again. The cursor lives on the
+# source's row, so a restarted worker carries on where the last one stopped.
 #
 # MAX_IN_FLIGHT KEEPS A BACKLOG FROM BECOMING A FLOOD. Drop a thousand files at once and the
 # worker hands over two at a time, waiting for a run to settle before it takes the next.
