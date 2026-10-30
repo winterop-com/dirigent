@@ -558,7 +558,7 @@ dg runs rerun RUN_ID --watch         # and follow it, as dg run --watch does
 ```
 
 The new run is attributed to the original: its `triggered_by_kind` is `rerun` and its
-`triggered_by_id` the original's id. A run still queued or running is refused with
+`triggered_by_id` the original's id. A run still queued, running or paused is refused with
 `run.rerun_in_flight`, a deactivated pipeline as `dg run` refuses one, and the pipeline's
 `concurrency` decides the new run exactly as it decides any other, so `skip` answers that it
 was skipped. The command needs an operator, as `dg runs cancel` does; the same call is
@@ -930,6 +930,8 @@ verb and whose fields are the identity of what changed:
 | `connection.checked` | `dg connection check` | `code`, `healthy` -- `true`, `false`, or `null` where the check ran and could not verify -- `detail`, `version` |
 | `connection.deleted` | `dg connection delete` | `code` |
 | `run.cancelled` | `dg runs cancel` | `run_id`, `status` |
+| `run.paused` | `dg runs pause` | `run_id`, `status` |
+| `run.resumed` | `dg runs resume` | `run_id`, `status` |
 | `run.retried` | `dg runs retry` | `run_id`, `step`, `item`, and the `attempt` it minted |
 | `schema.created` | `dg schema create` | `code`, `name` |
 | `schema.updated` | `dg schema update` | `code`, `name` as it now stands, `changed[]` naming which of `name`, `description` and `body` the request said anything about, and `used_by[]`, the stored pipelines that validate against the shape from their next attempt |
@@ -1094,7 +1096,7 @@ dg run --local file|url [--connections FILE] [--schema FILE] [--enable-unsafe BL
 dg run --local ... [--root DIR]                              # hold the instance in DIR and keep it, so a later run reads it
 dg backfill PIPELINE --schedule CODE --from A --to B [--dry-run]
 dg runs list [--pipeline CODE] [--status failed] [--since 24h] [--tag nightly] [--limit 50]
-dg runs show | cancel | report | profile RUN_ID
+dg runs show | cancel | pause | resume | report | profile RUN_ID
 dg runs report RUN_ID [--markdown]      # the document the run rendered, when it declares `report:`
 dg runs logs RUN_ID [--follow] [--step NAME]
 dg runs retry RUN_ID --step NAME [--failed-items]

@@ -1730,6 +1730,23 @@ def test_a_cancel_the_database_aborted_to_break_a_deadlock_is_run_again(
     assert len(calls) == 2
 
 
+def test_a_run_is_paused_resumed_and_refused_twice(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    run_id = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"]
+
+    paused = client.post(f"{PREFIX}/runs/{run_id}/$pause")
+    assert paused.status_code == 200, paused.text
+    assert paused.json()["status"] == "paused"
+    again = client.post(f"{PREFIX}/runs/{run_id}/$pause")
+    assert (again.status_code, again.json()["code"]) == (409, "run.not_pausable")
+
+    resumed = client.post(f"{PREFIX}/runs/{run_id}/$resume")
+    assert resumed.status_code == 200, resumed.text
+    assert resumed.json()["status"] in ("queued", "running")
+    refused = client.post(f"{PREFIX}/runs/{run_id}/$resume")
+    assert (refused.status_code, refused.json()["code"]) == (409, "run.not_paused")
+
+
 def test_an_unknown_run_is_a_404(client: TestClient) -> None:
     missing = "00000000-0000-7000-8000-000000000000"
     assert client.get(f"{PREFIX}/runs/{missing}").status_code == 404

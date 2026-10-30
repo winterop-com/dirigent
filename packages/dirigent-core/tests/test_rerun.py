@@ -13,7 +13,7 @@ from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.definition import ConcurrencyPolicy, PipelineDefinition, StepDefinition
 from dirigent_core.engine.executor import Engine
-from dirigent_core.engine.runs import RunCreationError, create_run, rerun, save_pipeline
+from dirigent_core.engine.runs import RunCreationError, create_run, pause_run, rerun, save_pipeline
 from dirigent_core.messages import RERUN_IN_FLIGHT, RUN_PIPELINE_INACTIVE
 from dirigent_core.models import Pipeline, Run, StepAttempt
 from dirigent_core.sources.entries import hand_entry
@@ -87,7 +87,7 @@ async def test_a_rerun_takes_the_parameters_and_the_pinned_version_and_names_its
     assert await said(sessions, current.id) == "hei v2", "the current version, with the same parameters"
 
 
-async def test_a_run_still_in_flight_is_not_rerun(sessions: Any, services: EngineServices) -> None:
+async def test_a_run_queued_or_paused_is_not_rerun(sessions: Any, services: EngineServices) -> None:
     async with session_scope(sessions) as session:
         version = await save_pipeline(session, greeting("v1"))
         run = await create_run(session, services, version)
@@ -97,6 +97,15 @@ async def test_a_run_still_in_flight_is_not_rerun(sessions: Any, services: Engin
         await rerun_of(sessions, services, run.id)
     assert raised.value.code == RERUN_IN_FLIGHT.code
     assert raised.value.status == 409
+
+    async with session_scope(sessions) as session:
+        held = await session.get(Run, run.id)
+        assert held is not None
+        await pause_run(session, held)
+    with pytest.raises(RunCreationError) as paused:
+        await rerun_of(sessions, services, run.id)
+    assert paused.value.code == RERUN_IN_FLIGHT.code, "a paused run has not settled"
+    assert paused.value.params["status"] == "paused"
 
 
 async def test_a_deactivated_pipeline_is_not_rerun(engine: Engine, sessions: Any, services: EngineServices) -> None:

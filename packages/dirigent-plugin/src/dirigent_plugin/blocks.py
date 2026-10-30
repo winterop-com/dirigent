@@ -526,6 +526,9 @@ class RunState(StrEnum):
 
     QUEUED = "queued"
     RUNNING = "running"
+    PAUSED = "paused"
+    """Held by an operator; it goes on once resumed."""
+
     SUCCEEDED = "succeeded"
     COMPLETED_WITH_ERRORS = "completed_with_errors"
     FAILED = "failed"

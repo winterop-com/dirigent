@@ -477,6 +477,12 @@ const state = {
             tile: 'Running',
             sentence: 'Being worked on now.',
         },
+        /** Held by an operator; nothing more starts until it is resumed. */
+        paused: {
+            chip: 'paused',
+            tile: 'Paused',
+            sentence: 'Held by an operator. Nothing more starts until it is resumed.',
+        },
         /** Every step succeeded. */
         succeeded: {
             chip: 'succeeded',
@@ -1010,6 +1016,8 @@ const refused = {
         given_no_entry:
             'Pipeline {code} starts at its sources ({sources}), so a run of it enters through one of them.',
         not_entered: 'The input arrived at {entered}, so {step} was not entered.',
+        not_paused: 'This run is {status}, and only a paused run resumes.',
+        not_pausable: 'This run is {status}, and only a queued or running run pauses.',
         not_retryable: 'Step {step} is {status}, and only a settled failure can be retried.',
         reply_body_from: 'Reply {step} streams its body from {value}, and body_from names a storage URI.',
         reply_not_retryable:

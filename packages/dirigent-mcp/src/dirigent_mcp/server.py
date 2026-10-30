@@ -194,6 +194,16 @@ def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MC
         return await call(lambda dg: dg.runs.rerun(run_id, current=current))
 
     @tool(WRITES)
+    async def pause_run(run_id: str) -> Any:
+        """Pause a queued or running run: nothing more of it starts, and its deadlines stand still."""
+        return await call(lambda dg: dg.runs.pause(run_id))
+
+    @tool(WRITES)
+    async def resume_run(run_id: str) -> Any:
+        """Resume a paused run, its open deadlines moved on by as long as it was paused."""
+        return await call(lambda dg: dg.runs.resume(run_id))
+
+    @tool(WRITES)
     async def retry_attempt(attempt_id: str) -> Any:
         """Retry one failed, skipped or cancelled attempt of a run, which reopens the run."""
         return await call(lambda dg: dg.runs.retry(attempt_id))

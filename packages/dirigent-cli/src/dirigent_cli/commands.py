@@ -2162,6 +2162,22 @@ def runs_cancel(ctx: typer.Context, run_id: Annotated[UUID, typer.Argument()]) -
     emit_fact("run.cancelled", message="cancelled", run_id=str(run_id), status=row.status.value)
 
 
+@runs_app.command("pause")
+def runs_pause(ctx: typer.Context, run_id: Annotated[UUID, typer.Argument()]) -> None:
+    """Pause a queued or running run: nothing more of it starts, and its deadlines stand still."""
+    with client_for(state_of(ctx)) as dg:
+        row = dg.call(dg.runs.pause(run_id))
+    emit_fact("run.paused", message="paused", run_id=str(run_id), status=row.status.value)
+
+
+@runs_app.command("resume")
+def runs_resume(ctx: typer.Context, run_id: Annotated[UUID, typer.Argument()]) -> None:
+    """Resume a paused run, its open deadlines moved on by as long as it was paused."""
+    with client_for(state_of(ctx)) as dg:
+        row = dg.call(dg.runs.resume(run_id))
+    emit_fact("run.resumed", message="resumed", run_id=str(run_id), status=row.status.value)
+
+
 RETRYABLE = (AttemptStatus.FAILED, AttemptStatus.SKIPPED, AttemptStatus.CANCELLED)
 
 #: Attempt states nothing moves an attempt out of, which is what "step_finished" means.

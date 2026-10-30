@@ -10,6 +10,10 @@ a value and returns values, opens no file and no socket, and so runs with no all
 on any worker. The whole language fits in an afternoon; the working set below fits in this
 page.
 
+New to jq, or stuck on a program? [playground-jq](https://mortenoh.github.io/playground-jq/)
+runs jq in the browser with nothing to install: paste a step's input, try the program, and keep
+the one that works. It also teaches the whole language, from the 101 tutorial to the 301.
+
 ## How a program runs here
 
 The engines run [jq 1.8](https://jqlang.org/manual/v1.8/) and keep its semantics, with the

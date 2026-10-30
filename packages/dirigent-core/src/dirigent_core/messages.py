@@ -679,6 +679,10 @@ BACKWARDS_WINDOW = RUN.define(
 
 CANCELLED = RUN.define("cancelled", "this run was cancelled")
 
+NOT_PAUSABLE = RUN.define("not_pausable", "run {run} is {status}, and only a queued or running run pauses")
+
+NOT_PAUSED = RUN.define("not_paused", "run {run} is {status}, and only a paused run resumes")
+
 CANCELLED_BY = RUN.define("cancelled_by", "cancelled by {principal}")
 
 REPLACED_BY_NEWER_RUN = RUN.define("replaced_by_newer_run", "replaced by a newer run")

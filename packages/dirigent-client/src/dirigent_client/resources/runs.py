@@ -136,6 +136,14 @@ class Runs(Resource):
         body = RerunRequest(version="current" if current else "pinned")
         return await self._one(RunAccepted, "POST", f"/runs/{run_id}/$rerun", json=request_body(body))
 
+    async def pause(self, run_id: UUID | str) -> RunOut:
+        """Hold a queued or running run: nothing more of it starts, and its deadlines stand still."""
+        return await self._one(RunOut, "POST", f"/runs/{run_id}/$pause")
+
+    async def resume(self, run_id: UUID | str) -> RunOut:
+        """Let a paused run go on, its open deadlines moved on by as long as it was paused."""
+        return await self._one(RunOut, "POST", f"/runs/{run_id}/$resume")
+
     async def retry(self, attempt_id: UUID | str, *, idempotency_key: str | None = None) -> AttemptOut:
         """Create one manual attempt of a failed step, reading its upstream stored outputs."""
         key = idempotency_key or str(uuid.uuid4())

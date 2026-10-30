@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Final, Literal, cast
 from uuid import UUID
 
@@ -22,7 +22,7 @@ from dirigent_client.enums import (
     TriggerKind,
 )
 from dirigent_common import JsonMap, Message
-from dirigent_core import telemetry
+from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
 from dirigent_core.database import session_scope
 from dirigent_core.engine.context import (
@@ -62,6 +62,8 @@ from dirigent_core.messages import (
     GIVEN_NO_ENTRY,
     NO_ATTEMPT_TO_RETRY,
     NOT_ENTERED,
+    NOT_PAUSABLE,
+    NOT_PAUSED,
     NOT_RETRYABLE,
     PARENT_GONE,
     REPLACED_BY_NEWER_RUN,
@@ -86,13 +88,19 @@ from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, Sta
 
 IDEMPOTENCY_KEY = "_idempotency_key"
 
-ACTIVE_RUN_STATUSES = (RunStatus.QUEUED, RunStatus.RUNNING)
+ACTIVE_RUN_STATUSES = (RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.PAUSED)
 
 _logger = get_logger("engine")
 
 
 class RunCreationError(DomainError):
     """A run could not be created."""
+
+    status = 409
+
+
+class RunStateError(DomainError):
+    """A run is not in a state the action applies to."""
 
     status = 409
 
@@ -586,6 +594,53 @@ async def cancel_run(
     # here, cancelling the active run of a `queue` pipeline wedges the queue forever.
     await promote_queued_run(session, services, run.pipeline_id)
     _logger.info("run cancelled", run_id=str(run.id), reason=reason.code, attempts=len(attempts))
+    return run
+
+
+async def pause_run(session: AsyncSession, run: Run, *, now: datetime | None = None) -> Run:
+    """Hold a queued or running run: nothing more of it is claimed, and its deadlines stand still.
+
+    An attempt already running finishes and its outcome settles as usual, so a run whose last
+    work finishes while paused settles with it.
+    """
+    moment = now or utcnow()
+    await lock_run(session, run.id)
+    await session.refresh(run)
+    if run.status not in (RunStatus.QUEUED, RunStatus.RUNNING):
+        raise RunStateError(NOT_PAUSABLE, run=str(run.id), status=run.status.value)
+    run.status = RunStatus.PAUSED
+    run.paused_at = moment
+    await session.flush()
+    _logger.info("run paused", run_id=str(run.id))
+    return run
+
+
+async def resume_run(session: AsyncSession, run: Run, *, now: datetime | None = None) -> Run:
+    """Let a paused run go on, its open deadlines moved on by as long as it was paused."""
+    moment = now or utcnow()
+    await lock_run(session, run.id)
+    await session.refresh(run)
+    if run.status is not RunStatus.PAUSED:
+        raise RunStateError(NOT_PAUSED, run=str(run.id), status=run.status.value)
+    held = moment - run.paused_at if run.paused_at is not None else timedelta(0)
+    if held > timedelta(0):
+        open_attempts = await session.execute(
+            sa.select(StepAttempt).where(
+                StepAttempt.run_id == run.id,
+                StepAttempt.deadline_at.is_not(None),
+                StepAttempt.status.in_(
+                    (AttemptStatus.PENDING, AttemptStatus.QUEUED, AttemptStatus.RUNNING, AttemptStatus.WAITING)
+                ),
+            )
+        )
+        for attempt in open_attempts.scalars():
+            if attempt.deadline_at is not None:
+                attempt.deadline_at = attempt.deadline_at + held
+    run.status = RunStatus.RUNNING if run.started_at is not None else RunStatus.QUEUED
+    run.paused_at = None
+    await session.flush()
+    await wakeups.publish(session, wakeups.WORK)
+    _logger.info("run resumed", run_id=str(run.id), held_ms=round(held.total_seconds() * 1000))
     return run
 
 
