@@ -9,6 +9,7 @@ from typing import NamedTuple
 import pytest
 from pydantic import SecretStr, ValidationError
 
+from dirigent_block_execute import git as git_block
 from dirigent_block_execute.capture import REDACTED, scrub
 from dirigent_block_execute.git import (
     GitCheckoutConfig,
@@ -113,15 +114,17 @@ exec git-upload-pack "$1"
 """
 
 
-def slow_remote(ctx: FakeContext, remote: Remote, word: str, delay: str = "2") -> str:
-    """The same bare repository behind that helper, as an ``ext::`` URL git will accept.
+def allow_protocol(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, protocol: str) -> None:
+    """Give git a global config that allows a transport refused by default, which no step can do."""
+    config = tmp_path / "test-global-gitconfig"
+    config.write_text(f'[protocol "{protocol}"]\n\tallow = always\n')
+    monkeypatch.setattr(git_block, "GLOBAL_CONFIG", str(config))
 
-    The ``ext`` transport is refused by default, and HOME is the run's work directory, so the
-    allowance goes in the config git reads there.
-    """
+
+def slow_remote(ctx: FakeContext, remote: Remote, word: str, delay: str = "2") -> str:
+    """The same bare repository behind that helper, as an ``ext::`` URL, once ``ext`` is allowed."""
     root = work_root(ctx)
     root.mkdir(parents=True, exist_ok=True)
-    (root / ".gitconfig").write_text('[protocol "ext"]\n\tallow = always\n')
     helper = root / "slow-upload-pack.sh"
     helper.write_text(SLOW_HELPER)
     helper.chmod(0o755)
@@ -306,12 +309,12 @@ async def test_a_shallow_checkout_carries_one_commit_and_a_full_one_carries_them
     assert run(work_root(local_ctx) / "full", "rev-list", "--count", "HEAD") == "2"
 
 
-async def test_submodules_are_checked_out_when_asked(local_ctx: FakeContext, tmp_path: Path, remote: Remote) -> None:
-    # A submodule over a file:// URL is refused by default since git 2.38, and HOME is the
-    # run's work directory, so the allowance goes in the config git reads there.
+async def test_submodules_are_checked_out_when_asked(
+    local_ctx: FakeContext, tmp_path: Path, remote: Remote, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A submodule over a file:// URL is refused by default since git 2.38.
+    allow_protocol(monkeypatch, tmp_path, "file")
     root = work_root(local_ctx)
-    root.mkdir(parents=True, exist_ok=True)
-    (root / ".gitconfig").write_text('[protocol "file"]\n\tallow = always\n')
     parent = tmp_path / "parent.git"
     parent.mkdir()
     run(parent, "init", "--bare", "--initial-branch", "main", "--quiet")
@@ -331,6 +334,50 @@ async def test_submodules_are_checked_out_when_asked(local_ctx: FakeContext, tmp
 
 
 # -- idempotence -----------------------------------------------------------------
+
+
+def planted_hook(where: Path, marker: Path) -> Path:
+    """A hooks directory whose post-checkout hook leaves a marker if git ever runs it."""
+    hooks = where / "planted-hooks"
+    hooks.mkdir(parents=True)
+    hook = hooks / "post-checkout"
+    hook.write_text(f'#!/bin/sh\ntouch "{marker}"\n')
+    hook.chmod(0o755)
+    return hooks
+
+
+@pytest.mark.parametrize("config", [".gitconfig", ".config/git/config"])
+async def test_a_config_planted_in_the_work_directory_is_not_read(
+    local_ctx: FakeContext, public: GitConnectionConfig, tmp_path: Path, config: str
+) -> None:
+    """A config an earlier step wrote into the work directory cannot name a hook for git to run."""
+    marker = tmp_path / "ran"
+    root = work_root(local_ctx)
+    hooks = planted_hook(root, marker)
+    planted = root / config
+    planted.parent.mkdir(parents=True, exist_ok=True)
+    planted.write_text(f"[core]\n\thooksPath = {hooks}\n")
+    install(local_ctx, public)
+
+    await checkout(local_ctx)
+
+    assert not marker.exists()
+
+
+async def test_a_config_planted_in_the_target_is_not_read_when_the_remote_is_listed(
+    local_ctx: FakeContext, public: GitConnectionConfig, remote: Remote, tmp_path: Path
+) -> None:
+    """A checkout left standing is only looked at; reaching the remote happens from outside it."""
+    marker = tmp_path / "ran"
+    install(local_ctx, public)
+    await checkout(local_ctx, target="source")
+    planted = work_root(local_ctx) / "source" / ".git" / "config"
+    with planted.open("a") as sink:
+        sink.write(f'[protocol "ext"]\n\tallow = always\n[url "ext::touch {marker} %S"]\n\tinsteadOf = {remote.url}\n')
+
+    await checkout(local_ctx, target="source")
+
+    assert not marker.exists()
 
 
 async def test_a_second_run_onto_the_same_commit_leaves_the_checkout_alone(
@@ -529,7 +576,8 @@ def test_known_hosts_pin_the_host_key_when_the_connection_carries_them(tmp_path:
 def test_a_connection_with_no_credential_writes_nothing_to_read(tmp_path: Path) -> None:
     with credentials(GitConnectionConfig(url="https://host/o/r.git"), tmp_path) as sealed:
         directory = next(iter(tmp_path.glob("dirigent-git-*")))
-        assert list(directory.iterdir()) == []
+        assert list(directory.iterdir()) == [sealed.home]
+        assert list(sealed.home.iterdir()) == []
         assert sealed.secrets == []
         assert "GIT_ASKPASS" not in sealed.environ
 
@@ -562,8 +610,11 @@ async def test_the_private_directory_is_gone_after_a_failure(local_ctx: FakeCont
 # -- what the run log and the artifacts get ---------------------------------------
 
 
-async def test_a_line_reaches_the_log_while_the_clone_is_still_running(local_ctx: FakeContext, remote: Remote) -> None:
+async def test_a_line_reaches_the_log_while_the_clone_is_still_running(
+    local_ctx: FakeContext, remote: Remote, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A remote that speaks and then waits has its line logged during the wait, not after it."""
+    allow_protocol(monkeypatch, tmp_path, "ext")
     install(local_ctx, GitConnectionConfig(url=slow_remote(local_ctx, remote, "hello")))
     call = asyncio.create_task(checkout(local_ctx))
 
@@ -579,9 +630,10 @@ async def test_a_line_reaches_the_log_while_the_clone_is_still_running(local_ctx
 
 
 async def test_a_secret_the_remote_prints_back_is_redacted_in_the_live_line(
-    local_ctx: FakeContext, remote: Remote
+    local_ctx: FakeContext, remote: Remote, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A remote that reads the credential out and echoes it reaches the log with it replaced."""
+    allow_protocol(monkeypatch, tmp_path, "ext")
     url = slow_remote(local_ctx, remote, "hello", delay="0")
     install(
         local_ctx,
