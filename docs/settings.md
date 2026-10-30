@@ -17,36 +17,37 @@ regular file this user owns that neither group nor others may write. A compose s
 is a different thing with the same name: compose reads it to fill in `${...}` and passes what it
 resolves to the containers as environment, and the server inside one never opens the file.
 
-`enabled_unsafe_blocks` is the exception to the layers. A `.env` and a `dirigent.yaml` or
-`.dirigent/dirigent.yaml` in the working directory travel with a checkout, so they cannot set
-it. It comes from the environment variable, from the file `DIRIGENT_CONFIG_FILE` names, or from
-`~/.config/dirigent/dirigent.yaml`, and `dg run --local --enable-unsafe` adds to it for one
-command.
+A setting marked **Host only** below is the exception to the layers. A `.env` and a
+`dirigent.yaml` or `.dirigent/dirigent.yaml` in the working directory travel with a checkout, so
+they cannot set it. It comes from the environment variable, from the file `DIRIGENT_CONFIG_FILE`
+names, or from `~/.config/dirigent/dirigent.yaml`. `dg config show` names any that the working
+directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn about them. For
+`enabled_unsafe_blocks`, `dg run --local --enable-unsafe` also adds to it for one command.
 
 | Setting | Environment | Default | What it does |
 | --- | --- | --- | --- |
 | `environment` | `DIRIGENT_ENVIRONMENT` | `"local"` | Which deployment this instance believes it is, reported on telemetry. |
-| `database_url` | `DIRIGENT_DATABASE_URL` | `"sqlite+aiosqlite:///./.dirigent/state/dirigent.db"` | Where the instance's own state lives, as a SQLAlchemy async URL. |
+| `database_url` | `DIRIGENT_DATABASE_URL` | `"sqlite+aiosqlite:///./.dirigent/state/dirigent.db"` | Where the instance's own state lives, as a SQLAlchemy async URL. **Host only.** |
 | `database_echo` | `DIRIGENT_DATABASE_ECHO` | `false` | Echo every SQL statement to the process log. Debugging only; it is very loud. |
 | `database_pool_size` | `DIRIGENT_DATABASE_POOL_SIZE` | `12` | How many database connections one process keeps open. Ignored by SQLite. |
 | `database_max_overflow` | `DIRIGENT_DATABASE_MAX_OVERFLOW` | `4` | Connections the pool may open beyond `database_pool_size` under a burst. |
 | `database_pool_timeout` | `DIRIGENT_DATABASE_POOL_TIMEOUT` | `"30s"` | How long a checkout waits for a free connection before failing loudly. |
 | `database_pool_recycle` | `DIRIGENT_DATABASE_POOL_RECYCLE` | `"30m"` | Recycle a pooled connection older than this; unset disables recycling. |
-| `host` | `DIRIGENT_HOST` | `"127.0.0.1"` | The address the API server binds. A container needs `0.0.0.0` to be reachable. |
+| `host` | `DIRIGENT_HOST` | `"127.0.0.1"` | The address the API server binds. A container needs `0.0.0.0` to be reachable. **Host only.** |
 | `port` | `DIRIGENT_PORT` | `3333` | The port the API server binds. |
 | `api_prefix` | `DIRIGENT_API_PREFIX` | `"/api/v1"` | Where the versioned REST API is mounted. `/hooks/{token}` is not under it. |
 | `ui_enabled` | `DIRIGENT_UI_ENABLED` | `true` | Whether the server serves the bundled web UI beside the API. |
 | `playground_enabled` | `DIRIGENT_PLAYGROUND_ENABLED` | `true` | Whether the instance serves the playground beside the API. |
-| `ui_dir` | `DIRIGENT_UI_DIR` | `null` | A built web UI bundle to serve, instead of the one installed with the server. |
+| `ui_dir` | `DIRIGENT_UI_DIR` | `null` | A built web UI bundle to serve, instead of the one installed with the server. **Host only.** |
 | `log_level` | `DIRIGENT_LOG_LEVEL` | `"INFO"` | How loud the process log is. This is the process log; a run's own telemetry is the `log_entries` table, and a CLI `-v` or `--debug` flag wins over this. |
 | `log_format` | `DIRIGENT_LOG_FORMAT` | `null` | How a command spells its output and its logs: `console` renders, `json` writes records. |
-| `artifact_root` | `DIRIGENT_ARTIFACT_ROOT` | `"file://./.dirigent/state/artifacts"` | Default storage backend URI prefix for run scratch space and artifacts. |
-| `work_root` | `DIRIGENT_WORK_ROOT` | `"./.dirigent/state/work"` | Directory on this worker's own filesystem where a run's local working files go. |
-| `storage_connections` | `DIRIGENT_STORAGE_CONNECTIONS` | `{}` | Which connection configures each storage scheme, as `scheme -> connection code`. |
+| `artifact_root` | `DIRIGENT_ARTIFACT_ROOT` | `"file://./.dirigent/state/artifacts"` | Default storage backend URI prefix for run scratch space and artifacts. **Host only.** |
+| `work_root` | `DIRIGENT_WORK_ROOT` | `"./.dirigent/state/work"` | Directory on this worker's own filesystem where a run's local working files go. **Host only.** |
+| `storage_connections` | `DIRIGENT_STORAGE_CONNECTIONS` | `{}` | Which connection configures each storage scheme, as `scheme -> connection code`. **Host only.** |
 | `inline_artifact_max` | `DIRIGENT_INLINE_ARTIFACT_MAX` | `16384` | Outputs at or below this serialized size are stored inline instead of as a file. |
 | `inline_capture` | `DIRIGENT_INLINE_CAPTURE` | `8192` | How much of a captured stream a block may inline in its output. |
 | `secret_key` | `DIRIGENT_SECRET_KEY` | `null` | Envelope key for connection secrets; required before any secret is stored. |
-| `secret_key_file` | `DIRIGENT_SECRET_KEY_FILE` | `null` | A file holding the envelope key, in place of `secret_key`; setting both is refused. |
+| `secret_key_file` | `DIRIGENT_SECRET_KEY_FILE` | `null` | A file holding the envelope key, in place of `secret_key`; setting both is refused. **Host only.** |
 | `worker_concurrency` | `DIRIGENT_WORKER_CONCURRENCY` | `8` | How many step attempts one worker process executes at once. |
 | `worker_tags` | `DIRIGENT_WORKER_TAGS` | `[]` | Capability tags a worker advertises to the claim query. |
 | `worker_name` | `DIRIGENT_WORKER_NAME` | `null` | Registry name of this worker; defaults to hostname plus process id. |
@@ -63,23 +64,23 @@ command.
 | `stale_worker` | `DIRIGENT_STALE_WORKER` | `"15m"` | A worker whose last heartbeat is older than this has its registry row reaped by the sweeper. |
 | `docker_reap_interval` | `DIRIGENT_DOCKER_REAP_INTERVAL` | `"5m"` | How often a docker-capable worker looks for compose stacks whose run has ended. |
 | `docker_reap_grace` | `DIRIGENT_DOCKER_REAP_GRACE` | `"10m"` | How old a compose project must be before the reaper will consider it at all. |
-| `retention_runs` | `DIRIGENT_RETENTION_RUNS` | `null` | How long a settled run is kept, with its items, attempts, artifacts and alerts. |
-| `retention_logs` | `DIRIGENT_RETENTION_LOGS` | `null` | How long a log entry is kept, for runs too young to be pruned themselves. |
-| `retention_inputs` | `DIRIGENT_RETENTION_INPUTS` | `null` | How long the record of an input that reached a source is kept. |
-| `retention_firings` | `DIRIGENT_RETENTION_FIRINGS` | `null` | How long a schedule firing is kept. |
-| `retention_notifications` | `DIRIGENT_RETENTION_NOTIFICATIONS` | `null` | How long an alert that was sent is kept, for runs too young to be pruned themselves. |
+| `retention_runs` | `DIRIGENT_RETENTION_RUNS` | `null` | How long a settled run is kept, with its items, attempts, artifacts and alerts. **Host only.** |
+| `retention_logs` | `DIRIGENT_RETENTION_LOGS` | `null` | How long a log entry is kept, for runs too young to be pruned themselves. **Host only.** |
+| `retention_inputs` | `DIRIGENT_RETENTION_INPUTS` | `null` | How long the record of an input that reached a source is kept. **Host only.** |
+| `retention_firings` | `DIRIGENT_RETENTION_FIRINGS` | `null` | How long a schedule firing is kept. **Host only.** |
+| `retention_notifications` | `DIRIGENT_RETENTION_NOTIFICATIONS` | `null` | How long an alert that was sent is kept, for runs too young to be pruned themselves. **Host only.** |
 | `retention_scratch` | `DIRIGENT_RETENTION_SCRATCH` | `true` | Whether pruning a run also deletes its artifacts from storage. |
 | `retention_interval` | `DIRIGENT_RETENTION_INTERVAL` | `"1h"` | How often the scheduler sweeps whatever the retention ages have outlived. |
 | `retention_batch` | `DIRIGENT_RETENTION_BATCH` | `500` | How many rows of one family a single sweep deletes before committing. |
 | `lost_job_max_gone` | `DIRIGENT_LOST_JOB_MAX_GONE` | `3` | Consecutive GONE probes before the lost-job policy fails a waiting attempt. |
-| `enabled_unsafe_blocks` | `DIRIGENT_ENABLED_UNSAFE_BLOCKS` | `[]` | Block ids permitted to execute code on a worker; empty means none. A `.env` or YAML file in the working directory cannot set this. |
+| `enabled_unsafe_blocks` | `DIRIGENT_ENABLED_UNSAFE_BLOCKS` | `[]` | Block ids permitted to execute code on a worker; empty means none. **Host only.** |
 | `scheduler_enabled` | `DIRIGENT_SCHEDULER_ENABLED` | `true` | Whether `dg server` embeds the scheduler rather than leaving it to its own process. |
 | `scheduler_tick` | `DIRIGENT_SCHEDULER_TICK` | `"5s"` | How often the leader asks the database which schedules are due. |
 | `scheduler_misfire_grace` | `DIRIGENT_SCHEDULER_MISFIRE_GRACE` | `"5m"` | How late a firing may be before it counts as a misfire: fire once, advance, no catchup storm. |
-| `scheduler_lock_key` | `DIRIGENT_SCHEDULER_LOCK_KEY` | `1684632167` | The advisory-lock key leadership is taken on; only PostgreSQL has one to take. |
-| `apply_dir` | `DIRIGENT_APPLY_DIR` | `null` | A directory of pipeline documents the server applies at boot; unset applies nothing. |
-| `apply_prune` | `DIRIGENT_APPLY_PRUNE` | `false` | Whether the boot apply also deactivates directory-provenance pipelines absent from it. |
-| `apply_lock_key` | `DIRIGENT_APPLY_LOCK_KEY` | `1684632161` | The advisory-lock key the boot apply is serialised on, distinct from the scheduler's. |
+| `scheduler_lock_key` | `DIRIGENT_SCHEDULER_LOCK_KEY` | `1684632167` | The advisory-lock key leadership is taken on; only PostgreSQL has one to take. **Host only.** |
+| `apply_dir` | `DIRIGENT_APPLY_DIR` | `null` | A directory of pipeline documents the server applies at boot; unset applies nothing. **Host only.** |
+| `apply_prune` | `DIRIGENT_APPLY_PRUNE` | `false` | Whether the boot apply also deactivates directory-provenance pipelines absent from it. **Host only.** |
+| `apply_lock_key` | `DIRIGENT_APPLY_LOCK_KEY` | `1684632161` | The advisory-lock key the boot apply is serialised on, distinct from the scheduler's. **Host only.** |
 | `notification_max_attempts` | `DIRIGENT_NOTIFICATION_MAX_ATTEMPTS` | `5` | How many times a notification delivery is retried before it is recorded as failed. |
 | `notification_backoff` | `DIRIGENT_NOTIFICATION_BACKOFF` | `"30s"` | The delay after a notification's first failed delivery; later ones double from it. |
 | `notification_lease` | `DIRIGENT_NOTIFICATION_LEASE` | `"1m"` | How long a claimed notification's lease is valid before another worker may take it. |
@@ -101,6 +102,6 @@ command.
 | `source_backoff_max` | `DIRIGENT_SOURCE_BACKOFF_MAX` | `"30m"` | The longest a polled source backs off, however many polls in a row have failed. |
 | `login_rate_per_minute` | `DIRIGENT_LOGIN_RATE_PER_MINUTE` | `10` | How many login attempts one username gets a minute from one address. |
 | `login_address_rate_per_minute` | `DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE` | `60` | How many login attempts one address gets a minute, across every username. |
-| `alert_base_url` | `DIRIGENT_ALERT_BASE_URL` | `null` | The externally reachable base URL, so an alert can link back to the run it is about. |
+| `alert_base_url` | `DIRIGENT_ALERT_BASE_URL` | `null` | The externally reachable base URL, so an alert can link back to the run it is about. **Host only.** |
 | `report_max_size` | `DIRIGENT_REPORT_MAX_SIZE` | `1048576` | A run's report document larger than this is dropped with a warning in the run's log. |
 | `report_render_timeout` | `DIRIGENT_REPORT_RENDER_TIMEOUT` | `"5s"` | How long a report template may take to render before it is dropped with a warning. |

@@ -251,9 +251,9 @@ async def create_user(
     return user
 
 
-async def create_fixture_admin(session: AsyncSession, username: str, password: str, *, name: str) -> User:
+async def create_fixture_admin(session: AsyncSession, username: str, password: str) -> User:
     """Create the admin of a throwaway instance, whose fixed password need not meet the length rule."""
-    user = User(username=username, name=name, password_hash=_hasher.hash(password), role=UserRole.ADMIN)
+    user = User(username=username, password_hash=_hasher.hash(password), role=UserRole.ADMIN)
     session.add(user)
     await session.flush()
     _logger.info("fixture admin created", username=username)

@@ -304,6 +304,21 @@ def test_the_effective_configuration_is_drawn_as_a_setting_per_row() -> None:
     assert "secret_key" in drawn and "***" in drawn
 
 
+def test_the_effective_configuration_names_what_the_working_directory_could_not_set() -> None:
+    drawn = printed(
+        Console().render(
+            make(
+                "config",
+                at=AT,
+                message="effective configuration",
+                settings={"host": "127.0.0.1"},
+                ignored=["database_url", "host"],
+            )
+        )
+    )
+    assert "database_url, host" in drawn
+
+
 def test_the_migration_history_is_drawn_as_alembic_wrote_it() -> None:
     drawn = printed(Console().render(make("db.history", at=AT, message="migration history", history="0001_baseline")))
     assert "0001_baseline" in drawn

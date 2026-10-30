@@ -289,6 +289,22 @@ test('the API chip stands with the verbs, and the create is the primary', async 
     await expect(create).toHaveClass(/bg-primary/)
 })
 
+test('a column heading is a label, whatever face its cells are in', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/blocks')
+    const heading = page.getByRole('columnheader', { name: LABELS.word.plugin.label }).first()
+    await expect(heading).toBeVisible()
+    await expect(heading).toHaveCSS('font-family', /Plex Sans/)
+})
+
+test('a small button is on the type scale', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/pipelines')
+    const small = page.locator('[data-slot="button"].text-\\[0\\.8rem\\]').first()
+    await expect(small).toBeVisible()
+    await expect(small).toHaveCSS('font-size', '12px')
+})
+
 test('a new connection has one way out, and it says Cancel', async ({ page }) => {
     await signIn(page)
     await page.goto('/connections')

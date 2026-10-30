@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from dirigent_core.config import Settings
+from dirigent_core.config import HOST_ONLY_SETTINGS, Settings
 from dirigent_core.configdocs import (
     PAGE_PATH,
     SCAFFOLDED,
@@ -47,6 +47,16 @@ def test_the_example_file_is_read_and_never_loaded() -> None:
     for name in Settings.model_fields:
         assert f"# {name}: " in document, f"{name} is missing from the example file"
         assert environment_name(name) in document
+
+
+def test_a_host_only_setting_is_marked_on_the_page_and_in_the_example_file() -> None:
+    document = example_document()
+    page = render()
+    for name in HOST_ONLY_SETTINGS:
+        assert f"# Host only.\n# {environment_name(name)}\n" in document
+        row = next(line for line in page.splitlines() if line.startswith(f"| `{name}` |"))
+        assert "**Host only.**" in row
+    assert "**Host only.**" not in next(line for line in page.splitlines() if line.startswith("| `port` |"))
 
 
 def test_the_example_file_carries_the_default_a_setting_actually_has() -> None:

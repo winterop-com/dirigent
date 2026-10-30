@@ -14,7 +14,6 @@
 
 import { apiJson, apiSend, type Page } from '@/lib/api'
 import type { UserRole } from '@/lib/auth'
-import { headingOf, type Heading } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 
@@ -211,15 +210,4 @@ export function createTokenFor(username: string, name: string): Promise<IssuedTo
 export function revokeToken(username: string, name: string): Promise<void> {
     const path = `/users/${encodeURIComponent(username)}/tokens/${encodeURIComponent(name)}`
     return apiJson<void>(path, { method: 'DELETE' })
-}
-
-/**
- * How an account is headed on screen.
- *
- * THE USERNAME IS THE ACCOUNT'S CODE. It is what a session signs in as, what a PATCH addresses,
- * and what appears in a path -- so it plays the part `code` plays for everything else this API
- * answers, and the same `lib/identity` decides the title over it.
- */
-export function accountHeading(user: Pick<UserOut, 'username' | 'name'>): Heading {
-    return headingOf({ code: user.username, name: user.name })
 }

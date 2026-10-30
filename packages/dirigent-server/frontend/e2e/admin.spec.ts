@@ -92,33 +92,42 @@ test('an account is made, and then turned off', async ({ page }) => {
     // A column saying `active` of every row is no column: only what is not active says so.
     await expect(rowOf(page, username)).not.toContainText(LABELS.state.armed.deactivated)
 
-    // The row's actions are in the panel, which selecting it opens.
-    await rowOf(page, username).click()
-    const panel = page.getByRole('tabpanel')
+    // A role is a word in the row rather than a chip beside the code.
+    await expect(rowOf(page, username).getByText('viewer', { exact: true })).not.toHaveClass(/chip/)
 
-    // The panel heads the account the way every panel in this app heads a thing: with no name
+    // The chevron opens the tokens and nothing else; the rest of the row opens the dialog.
+    await page.getByRole('button', { name: LABELS.users.show_tokens(username) }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await expect(rowOf(page, username).getByTitle(LABELS.users.open_account(username))).toBeVisible()
+    await rowOf(page, username).click()
+    const panel = page.getByRole('dialog')
+
+    // The dialog heads the account the way every dialog in this app heads a thing: with no name
     // on it the title is what it signs in as, and it wears the mono face itself.
     await expect(panel.getByText(username, { exact: true })).toBeVisible()
     await expect(panel).toContainText('viewer')
 
     // When it was made and whether it has ever been used are read here, not counted.
     await expect(panel).toContainText(LABELS.word.created.label)
-    await expect(panel).toContainText(LABELS.users.never_signed_in)
+    await expect(panel).toContainText(LABELS.word.last_signed_in.label)
+    await expect(panel).toContainText(LABELS.word.never)
 
     // It asks first, and nothing has happened until it is answered.
     await panel.getByRole('button', { name: LABELS.action.deactivate }).click()
     const asking = page.getByRole('dialog', { name: `Deactivate ${username}?` })
     await asking.getByRole('button', { name: LABELS.action.cancel }).click()
     await expect(asking).toHaveCount(0)
-    await expect(rowOf(page, username)).not.toContainText('deactivated')
+    await expect(panel).not.toContainText('deactivated')
 
     await panel.getByRole('button', { name: LABELS.action.deactivate }).click()
     await asking.getByRole('button', { name: LABELS.action.deactivate, exact: true }).click()
     await expect(asking).toHaveCount(0)
-    await expect(rowOf(page, username)).toContainText('deactivated')
 
-    // And the panel says so of itself, rather than leaving the button label to imply it.
+    // And the dialog says so of itself, rather than leaving the button label to imply it.
     await expect(panel).toContainText('deactivated')
+    await page.keyboard.press('Escape')
+    await expect(panel).toHaveCount(0)
+    await expect(rowOf(page, username)).toContainText('deactivated')
 })
 
 test('the last admin cannot deactivate itself, and is told so where it asked', async ({ page }) => {
@@ -134,6 +143,7 @@ test('the last admin cannot deactivate itself, and is told so where it asked', a
     // than a toast that outlives the screen, and the question stays open on it.
     await expect(asking.getByText('the only active admin')).toBeVisible()
     await asking.getByRole('button', { name: LABELS.action.cancel }).click()
+    await page.keyboard.press('Escape')
 
     // And nothing changed: the account is still active and still an admin.
     await expect(rowOf(page, DEV_USERNAME)).not.toContainText(LABELS.state.armed.deactivated)
@@ -254,7 +264,9 @@ test('the password form expands under its row and states the refusal there', asy
     await expect(dialog.getByRole('button', { name: LABELS.action.change, exact: true })).toBeVisible()
 })
 
-test('an email is carried into the panel, changed there, and is unique across accounts', async ({ page }) => {
+test('an email is carried into the dialog, changed there, and is unique across accounts', async ({
+    page,
+}) => {
     await signIn(page)
     const username = someone()
     const email = `${username}@example.test`
@@ -263,19 +275,24 @@ test('an email is carried into the panel, changed there, and is unique across ac
     await createAccount(page, username, email)
     await expect(rowOf(page, username)).toBeVisible()
 
-    // The panel's Email box is where the account's address is, so the input carries it.
+    // The dialog reads the address, and its Edit is where it is changed.
     await rowOf(page, username).click()
-    const panel = page.getByRole('tabpanel')
-    await expect(panel.getByLabel(LABELS.word.email)).toHaveValue(email)
+    const reading = page.getByRole('dialog')
+    await expect(reading).toContainText(email)
+    await reading.getByRole('button', { name: LABELS.action.edit, exact: true }).click()
+    await expect(reading.getByLabel(LABELS.word.email)).toHaveValue(email)
 
-    // Saving a changed one writes it, and reading the panel again answers the new address.
+    // Saving a changed one writes it, and the same dialog goes back to reading the new address.
     const moved = `${username}-moved@example.test`
-    await panel.getByLabel(LABELS.word.email).fill(moved)
-    await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
-    await expect(panel.getByRole('button', { name: LABELS.action.save.verb })).toBeDisabled()
+    await reading.getByLabel(LABELS.word.email).fill(moved)
+    await reading.getByRole('button', { name: LABELS.action.save.verb }).click()
+    await expect(reading.getByRole('button', { name: LABELS.action.edit, exact: true })).toBeVisible()
+    await expect(reading).toContainText(moved)
+    await page.keyboard.press('Escape')
     await page.reload()
     await rowOf(page, username).click()
-    await expect(page.getByRole('tabpanel').getByLabel(LABELS.word.email)).toHaveValue(moved)
+    await expect(page.getByRole('dialog')).toContainText(moved)
+    await page.keyboard.press('Escape')
 
     // A second account asking for that address is refused, in the server's own sentence, in
     // the dialog that asked for it.
@@ -286,7 +303,7 @@ test('an email is carried into the panel, changed there, and is unique across ac
     await dialog.getByRole('button', { name: 'Cancel' }).click()
 })
 
-test('a password is reset from the panel, and the account signs in with the new one', async ({ page }) => {
+test('a password is reset from the dialog, and the account signs in with the new one', async ({ page }) => {
     await signIn(page)
     const username = someone()
 
@@ -295,8 +312,8 @@ test('a password is reset from the panel, and the account signs in with the new 
     await expect(rowOf(page, username)).toBeVisible()
     await rowOf(page, username).click()
 
-    await page.getByRole('tabpanel').getByRole('button', { name: LABELS.users.reset_password }).click()
-    const dialog = page.getByRole('dialog')
+    await page.getByRole('dialog').getByRole('button', { name: LABELS.users.reset_password }).click()
+    const dialog = page.getByRole('dialog', { name: `Reset the password of ${username}?` })
 
     // A password too short is refused where it was typed, and the dialog stays where it is.
     await dialog.getByLabel('New password').fill('short')

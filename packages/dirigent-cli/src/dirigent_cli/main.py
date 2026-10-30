@@ -60,11 +60,12 @@ from dirigent_core.config import (
     Settings,
     drop_secret_key_variable,
     get_settings,
+    ignored_project_settings,
     keep_same_user_out,
     redacted_url,
     reset_settings_cache,
 )
-from dirigent_core.logging import configure_logging, silence_stdout
+from dirigent_core.logging import configure_logging, get_logger, silence_stdout
 from dirigent_core.messages import SCHEMA_STALE
 from dirigent_core.protocol import FORMATS, Format, Record, make
 from dirigent_core.telemetry import configure_telemetry
@@ -323,13 +324,15 @@ def secret_key_command() -> None:
 def config_show() -> None:
     """Show the effective configuration, with secrets redacted."""
     settings = get_settings()
+    shown = {
+        name: ("***" if name == "secret_key" and value is not None else str(value))
+        for name, value in settings.model_dump().items()
+    }
     emit_fact(
         "config",
         message="effective configuration",
-        settings={
-            name: ("***" if name == "secret_key" and value is not None else str(value))
-            for name, value in settings.model_dump().items()
-        },
+        settings=shown | {"database_url": redacted_url(settings)},
+        ignored=ignored_project_settings(),
     )
 
 
@@ -763,6 +766,7 @@ def server(
     settings = get_settings()
     keep_same_user_out()
     _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
+    warn_of_ignored_settings()
     if settings.is_sqlite and settings.scheduler_enabled:
         refuse(
             SERVER_NEEDS_A_LEADER,
@@ -979,6 +983,7 @@ def dev(
         state.level if state is not None else "WARNING",
         cap_foreign=state is None or not state.debug_all,
     )
+    warn_of_ignored_settings()
     if not settings.is_sqlite:
         refuse(
             DEV_IS_SQLITE_ONLY,
@@ -1144,6 +1149,17 @@ def _process_logging(level: str, *, cap_foreign: bool, stream: TextIO | None = N
     )
 
 
+def warn_of_ignored_settings() -> None:
+    """Say which settings this directory's files tried to set that only the host may."""
+    ignored = ignored_project_settings()
+    if ignored:
+        get_logger("cli").warning(
+            "settings ignored: a working directory's files cannot set them; use the environment "
+            "or the file DIRIGENT_CONFIG_FILE names",
+            settings=ignored,
+        )
+
+
 def refuse_the_fixture_on(address: str) -> NoReturn:
     """Refuse to serve the fixed development login on an address other machines can reach."""
     refuse(
@@ -1189,7 +1205,7 @@ async def dev_admin(settings: Settings, *, exposed_on: str | None = None) -> tup
                     refuse_the_fixture_on(exposed_on)
             if existing:
                 return (existing[0].username, None)
-            await create_fixture_admin(session, DEV_ADMIN, DEV_PASSWORD, name="Development admin")
+            await create_fixture_admin(session, DEV_ADMIN, DEV_PASSWORD)
             user = await find_user(session, DEV_ADMIN)
             if user is None:  # pragma: no cover - it was just created
                 return (None, None)
@@ -1357,6 +1373,7 @@ def worker(
     drop_secret_key_variable()
     keep_same_user_out()
     _process_logging(_level(ctx, settings), cap_foreign=_cap_foreign(ctx))
+    warn_of_ignored_settings()
     configure_telemetry(settings)
     if settings.is_sqlite:
         refuse(
