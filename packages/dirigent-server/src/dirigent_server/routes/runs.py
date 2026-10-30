@@ -1,4 +1,4 @@
-"""Runs: the list, the detail with its DAG view model, cancellation, retry, logs, events, and a report."""
+"""Runs: the list, the stats, the detail with its DAG view model, cancellation, retry, logs, events, and a report."""
 
 import asyncio
 import time
@@ -27,8 +27,10 @@ from dirigent_client.schemas import (
     RunDetail,
     RunOut,
     RunReport,
+    RunStats,
     StepReport,
 )
+from dirigent_common import format_duration
 from dirigent_common.durations import DurationError, parse_duration
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json, open_artifact
@@ -50,6 +52,7 @@ from dirigent_core.models import (
 from dirigent_core.pipelines import UNWELL, FailedStep, carries_tag, failing_steps
 from dirigent_core.registry import unmet_worker_tags
 from dirigent_core.reporting import duration_ms, items_in_order, run_facts
+from dirigent_core.stats import MAX_WINDOW, run_stats
 from dirigent_server.dependencies import ServicesDep, SessionDep, get_sessions
 from dirigent_server.errors import Refusal
 from dirigent_server.messages import (
@@ -61,6 +64,7 @@ from dirigent_server.messages import (
     NO_RUN,
     NOT_A_DURATION,
     RUN_DEFINITION_GONE,
+    STATS_WINDOW_TOO_LONG,
     TOO_MANY_TAILS,
 )
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip, int_cursor, uuid_cursor
@@ -240,6 +244,32 @@ def _window(since: str) -> timedelta:
     if not isinstance(parsed, timedelta):  # pragma: no cover - parse_duration returns one or raises
         raise Refusal(NOT_A_DURATION, status=status.HTTP_422_UNPROCESSABLE_CONTENT, since=repr(since))
     return parsed
+
+
+@router.get("/runs/$stats", operation_id="getRunStats", summary="Summarise how runs went", response_model=RunStats)
+async def stats(
+    session: SessionDep,
+    principal: PrincipalDep,
+    since: Annotated[str, Query(description="How far back to look, e.g. 7d; runs that settled within it.")] = "7d",
+    pipeline: Annotated[str | None, Query(description="Only runs of this pipeline.")] = None,
+    tag: Annotated[
+        list[str] | None, Query(description="Only runs whose pipeline wears this tag; repeat it to name more.")
+    ] = None,
+) -> RunStats:
+    """Summarise the runs that settled within a window: per day, per pipeline, and where they failed.
+
+    The window is at most 366 days, and ``tag`` narrows as it does on the listing. The
+    duration percentiles are measured over the window's most recent ten thousand settled runs.
+    """
+    window = _window(since)
+    if window > MAX_WINDOW:
+        raise Refusal(
+            STATS_WINDOW_TOO_LONG,
+            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            maximum=format_duration(MAX_WINDOW),
+            since=since,
+        )
+    return await run_stats(session, end=utcnow(), since=window, pipeline=pipeline, tags=tag or ())
 
 
 @router.get("/runs/{run_id}", operation_id="getRun", summary="Read a run", response_model=RunDetail)
