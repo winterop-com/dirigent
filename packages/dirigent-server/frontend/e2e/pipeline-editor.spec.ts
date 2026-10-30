@@ -17,6 +17,7 @@ import {
     everyNodeIsInView,
     graphZoom,
     nodeAt,
+    removeConnection,
     removeSchema,
     repositoryRoot,
     signIn,
@@ -430,8 +431,9 @@ test('validating an intact document reports no issues', async ({ page }) => {
     // and, either way, the instance refuses nothing about it.
     await expect(dialog.getByText(/Apply writes nothing/)).toBeVisible()
     await expect(dialog.getByText(LABELS.editor.plan.refuse(DOCUMENT_PIPELINE))).toHaveCount(0)
-    // Validate asks nothing, so the one control dismisses it and says so.
-    await expect(dialog.getByRole('button', { name: LABELS.action.close })).toBeVisible()
+    // Validate asks nothing, so it has no footer and the corner's close is the way out.
+    await expect(dialog.getByRole('button', { name: LABELS.action.cancel })).toHaveCount(0)
+    await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeVisible()
     await expect(dialog.getByRole('button', { name: LABELS.action.apply, exact: true })).toHaveCount(0)
 })
 
@@ -1252,7 +1254,7 @@ async function seedNamed(request: APIRequestContext, baseURL: string): Promise<v
         },
     })
     expect(stored.ok(), await stored.text()).toBe(true)
-    await request.delete(`${prefix}/connections/${REFERENCE_CONNECTION}`)
+    await removeConnection(request, REFERENCE_CONNECTION)
     const minted = await request.post(`${prefix}/connections`, {
         data: {
             code: REFERENCE_CONNECTION,
@@ -1405,8 +1407,8 @@ test('a carried connection is minted in its own row, and the document is never l
     await signIn(page)
     const prefix = await apiPrefix(page.request)
     // Whatever an earlier run left behind: this spec is about a code the instance has not got.
-    await page.request.delete(`${prefix}/connections/${CARRIED_CONNECTION}`)
     await page.request.delete(`${prefix}/pipelines/${CARRYING_CONNECTION_PIPELINE}`)
+    await removeConnection(page.request, CARRIED_CONNECTION)
 
     await page.goto('/pipelines')
     await page.getByRole('button', { name: LABELS.pipelines.new }).click()

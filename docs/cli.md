@@ -373,8 +373,8 @@ the project's `.env`, and no process to reach it from anywhere else. A real serv
 compose stack.
 
 `--template compose` writes that stack instead: the same documents plus `compose.yaml`, a
-`Dockerfile`, a `.env` holding a generated `DIRIGENT_SECRET_KEY` and the password it was
-given, and a root `.gitignore` keeping that `.env` out of the repository. It initialises nothing
+`Dockerfile`, a `.env` holding a generated `DIRIGENT_SECRET_KEY`, database password and bucket
+secret, and the password it was given, and a root `.gitignore` keeping that `.env` out of the repository. It initialises nothing
 locally -- no state directory, no migration, no token -- because the instance is the
 containers, and the first admin is `admin` with the password from the `.env`.
 

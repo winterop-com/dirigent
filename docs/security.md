@@ -720,10 +720,10 @@ Given what the code supports, rotating a key means re-entering the credentials:
 2. Stop the writers, or accept a window in which runs needing a credential fail.
 3. Set the new `DIRIGENT_SECRET_KEY` on every process.
 4. Re-enter each connection's secret fields, which seals them with the new key. The CLI has no
-   update command, so this is `dg connection delete CODE` followed by `dg connection create
-   KIND CODE --set field=value` -- documents reference a connection by code, so recreating it
-   under the same code is invisible to them. `PATCH /api/v1/connections/{code}` does it in
-   place if you would rather script it against the API.
+   update command, so this is `PATCH /api/v1/connections/{code}`, in place. A connection nothing
+   uses can be deleted with `dg connection delete CODE` and made again with `dg connection create
+   KIND CODE --set field=value` instead; one that a pipeline, an alert rule or a storage scheme
+   names is refused the delete.
 5. Run `dg connection check CODE` for each, which is the one command that actually opens an
    envelope and uses what is inside it.
 

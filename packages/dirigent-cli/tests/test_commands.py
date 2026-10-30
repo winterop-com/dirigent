@@ -890,19 +890,27 @@ def test_validating_every_pipeline_takes_no_name(tmp_path: Path, server: str) ->
     assert "name a pipeline" in plain(invoke("pipeline", "validate").output)
 
 
-def test_a_stored_pipeline_that_names_a_deleted_connection_is_reported(tmp_path: Path, server: str) -> None:
-    """This is the drift it exists for: it applied cleanly, and now it could not run."""
-    document = DOCUMENT.replace(
+def test_a_past_version_naming_a_deleted_connection_is_reported(tmp_path: Path, server: str) -> None:
+    """A connection only a past version names may go, and that version can no longer run."""
+    naming = DOCUMENT.replace(
         "  greet:\n    block: shell.run",
         "  greet:\n    block: http.request\n    config: {connection: gone, path: /}\n  unused:\n    block: shell.run",
     )
     path = tmp_path / "drifted.yaml"
-    path.write_text(document)
+    path.write_text(naming)
     invoke("connection", "create", "http", "gone", "--set", "base_url=https://example.org")
     assert invoke("apply", str(path)).exit_code == 0, "it applies while the connection exists"
 
+    refused = invoke("connection", "delete", "gone")
+    assert refused.exit_code == 1, refused.output
+    assert "pipeline cli-demo" in plain(refused.output), "the refusal says what names it"
+    shown = machine("connection", "show", "gone")
+    assert only(shown.stdout, "connection")["fields"]["used_by"]["pipelines"][0]["pipeline"] == "cli-demo"
+
+    path.write_text(DOCUMENT)
+    assert invoke("apply", str(path)).exit_code == 0
     assert invoke("connection", "delete", "gone").exit_code == 0
-    checked = invoke("pipeline", "validate", "cli-demo")
+    checked = invoke("pipeline", "validate", "cli-demo", "--version", "1")
     assert checked.exit_code == 1, checked.output
     printed = plain(checked.output)
     assert "invalid" in printed

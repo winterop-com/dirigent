@@ -112,7 +112,7 @@ def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MC
 
     @tool(READS)
     async def validate_pipeline(code: str) -> Any:
-        """Report what a stored pipeline would fail on if it ran now, such as a connection gone missing."""
+        """Report what a stored pipeline would fail on if it ran now, such as a block gone missing."""
 
         async def checked(dg: Dirigent) -> Any:
             return {"issues": await dg.pipelines.validate(code)}

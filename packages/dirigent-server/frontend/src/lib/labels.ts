@@ -55,10 +55,6 @@ export type Catalogue = { readonly [name: string]: Label | Catalogue }
 const action = {
     /** Leave a dialog that would have written something, writing nothing. */
     cancel: 'Cancel',
-    /** Leave a dialog that has already done what it was opened for. */
-    close: 'Close',
-    /** Leave a dialog whose work is finished and whose answer has been read. */
-    done: 'Done',
     /** Write the new thing the dialog was opened to make. */
     create: {
         verb: 'Create',
@@ -1116,6 +1112,8 @@ const refused = {
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',
         body_timed_out: 'The whole body did not arrive within {timeout}.',
         connection_exists: 'A connection coded {code} exists.',
+        connection_in_use:
+            'Connection {code} cannot be removed while {users} name it. They must stop naming it first.',
         connection_referenced: 'Still in use. Delete what uses it first.',
         /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */
         forbidden: 'Not permitted for your role.',
@@ -2490,6 +2488,13 @@ const connections = {
     /** What stops a delete, and what the shut confirm says on hover. */
     used_by: (names: string) => `Used by ${names}.`,
     in_use: 'Still in use, so it cannot be deleted.',
+    /** The fact in the reading that lists what names it, one word per family. */
+    used_by_term: 'Used by',
+    users: {
+        pipeline: { one: 'pipeline', many: 'pipelines' },
+        alert_rule: { one: 'alert rule', many: 'alert rules' },
+        storage_scheme: { one: 'storage scheme', many: 'storage schemes' },
+    },
 
     /** The one clause every screen states a set of connections' health in. */
     note: {
@@ -2893,6 +2898,8 @@ const users = {
     revoke_row: (token: string) => `Revoke ${token}`,
     /** The question before a revoke, around the name. */
     revoke_ask: { before: 'Revoke ', after: '?' },
+    /** The question before a deactivate, around the username. */
+    deactivate_ask: { before: 'Deactivate ', after: '?' },
     /** Where the name is shared: the API revokes by name, so they go together. */
     revoke_shared: (many: string) => `Revokes all ${many} live tokens with this name.`,
 

@@ -537,11 +537,14 @@ a required text field, a map, a JSON value and a program taking both, a footer o
 than closing, and a press outside does nothing at all while a form is open, because a typed
 credential is not something to lose to a stray click. A save checks the connection, because the
 health on screen was about the settings that were just replaced. `Delete` raises `ConfirmDialog`
-over the dialog. **What is known to use the credential shuts it**: the alert rules naming that code
-are read as it opens, and the question says `Used by <rules>.` with Delete shut and saying why. A
-refusal for anything that read cannot see stays in the question as one line.
-`GET /connections` carries nothing about what uses a credential, and a pipeline naming one is not
-on any listing, so the dialog has no Used by fact and the question names rules alone.
+over the dialog. **What uses the credential shuts it**: `GET /connections/{code}` answers `used_by`
+-- the pipelines whose current version names the code with the steps and sources that do, the alert
+rules delivering through it, the storage schemes configured from it -- and where any of that is true
+the reading draws it as a `Used by` fact, each one linked where it has a screen. The same read is
+made again as the question opens, and the question says `Used by <what>.` with Delete shut and saying
+why. The server checks again at the delete and holds what it finds, so a refusal for what that read
+did not see stays in the question as one line. `GET /connections` carries nothing about what uses a
+credential, because a listing would have to walk every document for every row.
 
 `hooks/use-read` is the one-page sibling of `use-paged`, for a read that is a document rather than
 a listing -- what this instance has installed, how the last day of runs came out. Same rule: the
@@ -1540,7 +1543,10 @@ is dismissed by the corner's close and by Escape, so no footer ever says `Close`
 `Dismiss`. `DialogShell` is that rule written once -- `confirm` given, the footer and no corner
 close; `confirm` absent, the corner close and no footer. **A dialog that reads one thing is the third
 case**, and it is a connection's: the corner close, and a footer of `verbs` on that thing rather
-than a confirm, so nothing in it says Cancel because nothing has been started.
+than a confirm, so nothing in it says Cancel because nothing has been started. **A dialog that asks
+and then tells changes case when it has answered**: a token made, whose secret it now shows, and a
+test message sent, whose delivery it now reads, take the corner close from that moment, because
+nothing is left that a Cancel could take back.
 
 **One dismissal, one control.** A dialog whose footer carries the way out does not also draw the
 corner's own -- `showCloseButton={false}` -- because two ways out of one dialog are two answers to

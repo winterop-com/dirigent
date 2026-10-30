@@ -11,7 +11,7 @@ x-dirigent: &dirigent
   image: dirigent:local
   restart: unless-stopped
   environment: &dirigent-env
-    DIRIGENT_DATABASE_URL: ${DIRIGENT_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-dirigent}:${POSTGRES_PASSWORD:-dirigent}@postgres:5432/${POSTGRES_DB:-dirigent}}
+    DIRIGENT_DATABASE_URL: ${DIRIGENT_DATABASE_URL:-postgresql+asyncpg://${POSTGRES_USER:-dirigent}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dirigent}}
     DIRIGENT_CONFIG_FILE: /etc/dirigent/dirigent.yaml
     DIRIGENT_SECRET_KEY: ${DIRIGENT_SECRET_KEY:?set DIRIGENT_SECRET_KEY in .env; see .env.example}
     DIRIGENT_ENVIRONMENT: ${DIRIGENT_ENVIRONMENT:-prod}
@@ -53,7 +53,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dirigent}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dirigent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env; see .env.example}
       POSTGRES_DB: ${POSTGRES_DB:-dirigent}
     volumes:
       - postgres:/var/lib/postgresql/data
@@ -100,7 +100,7 @@ services:
       S3_CONNECTION: ${S3_CONNECTION:-artifacts}
       S3_BUCKET: ${S3_BUCKET:-dirigent}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env; see .env.example}
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,7 +114,7 @@ services:
     restart: unless-stopped
     environment:
       RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
-      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:-dirigent}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env; see .env.example}
     volumes:
       - s3:/data
     ports:
