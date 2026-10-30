@@ -488,7 +488,7 @@ const state = {
         completed_with_errors: {
             chip: 'completed with errors',
             tile: 'With errors',
-            sentence: 'finished with errors',
+            sentence: 'completed with errors',
         },
         /** Settled with a step that stopped it. */
         failed: {
@@ -1332,7 +1332,7 @@ const dashboard = {
     nothing_in_flight: 'Nothing is in flight.',
     /** The runs that want somebody, on both screens. */
     troubled_runs: 'Runs in trouble',
-    nothing_troubled: 'Nothing has failed or finished with errors.',
+    nothing_troubled: 'Nothing has failed or completed with errors.',
     /** The firings still ahead. */
     next_firings: 'Next firings',
     no_fire_due: 'No firing is due.',
@@ -1527,8 +1527,6 @@ const editor = {
         tab: (step: string) => `Step · ${step}`,
         /** The panel with no step chosen. */
         none_chosen: 'No step chosen.',
-        /** Under the name box: a name is a display string and the key is what is referenced. */
-        name_note: (step: string) => `Display only. Every reference to this step is by its key, ${step}.`,
         /** Above the list of what one field's own schema refuses. */
         refused_at_apply: 'Applying will be refused because of this step.',
         add_prerequisite: 'Add a prerequisite',
@@ -2530,8 +2528,6 @@ const connections = {
     /** The settings the summary line had no room for. */
     more_settings: (many: string) => `+${many} more`,
 
-    /** Under the name box: what a name is not, and what a reference uses instead. */
-    name_hint: (code: string) => `Display only. Every reference to this credential is by its code, ${code}.`,
     description_placeholder: 'What this credential is for. Markdown is rendered.',
     /** The heading over the controls the kind's own schema built. */
     settings_heading: 'Settings',

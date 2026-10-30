@@ -246,7 +246,6 @@ export function StepTab({
                         onName(event.target.value)
                     }}
                 />
-                <p className="text-xs text-faint">{LABELS.editor.step.name_note(step)}</p>
             </div>
 
             {refusals.length > 0 && (
