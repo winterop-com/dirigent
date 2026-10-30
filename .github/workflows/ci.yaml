@@ -31,6 +31,9 @@ jobs:
       - name: Static gate
         run: make static
 
+      - name: Architecture model is in sync with workspace.dsl
+        run: make architecture-check-docs
+
       - name: Documentation
         run: make docs-build
 

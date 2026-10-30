@@ -3,6 +3,11 @@
 Dirigent is one `uv` workspace of nineteen packages. This page says what each is for, what may
 depend on what, and **where a new thing goes** -- so the answer is a rule rather than a guess.
 
+How the running pieces fit together -- the server, the scheduler, the workers, the database
+and the packs, and how a run moves between them -- is drawn in
+[the architecture model](architecture-model.md), a C4 model generated from
+`architecture/workspace.dsl`.
+
 ## The tree
 
 ```text

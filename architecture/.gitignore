@@ -1,0 +1,12 @@
+# Structurizr local runtime state, regenerated from workspace.dsl
+workspace.json
+.structurizr/
+
+# npm state from the diagram-export Playwright run
+node_modules/
+package-lock.json
+.package-lock.json
+
+# Rendered output, regenerated on demand and never committed
+exports/
+diagrams/
