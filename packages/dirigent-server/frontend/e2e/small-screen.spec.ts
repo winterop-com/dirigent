@@ -83,7 +83,7 @@ test('the editor reads the document and offers nothing that would write one', as
     await page.goto(`/pipelines/${PIPELINE}`)
     await expect(page.getByText(LABELS.editor.topbar.read_only)).toBeVisible()
     await expect(page.getByRole('button', { name: LABELS.action.apply })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Run', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Run…', exact: true })).toHaveCount(0)
     await expect(page.getByRole('button', { name: LABELS.action.validate })).toHaveCount(0)
     await expect(page.getByRole('button', { name: LABELS.editor.canvas.add_step })).toHaveCount(0)
     // The panel is under the screen rather than beside it, and its tabs are along the foot.

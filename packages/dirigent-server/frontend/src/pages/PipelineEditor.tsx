@@ -428,7 +428,7 @@ export function PipelineEditor() {
                 : [
                       {
                           id: 'pipeline:add-step',
-                          title: LABELS.editor.canvas.add_step,
+                          title: LABELS.action.asks(LABELS.editor.canvas.add_step),
                           group: shelf,
                           screen: true,
                           icon: Plus,
@@ -637,7 +637,7 @@ export function PipelineEditor() {
                                   },
                                   {
                                       id: 'run',
-                                      label: LABELS.action.run,
+                                      label: LABELS.action.asks(LABELS.action.run),
                                       icon: Play,
                                       disabled: runRefusal !== undefined,
                                       why: runRefusal,

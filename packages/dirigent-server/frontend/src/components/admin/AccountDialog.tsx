@@ -193,7 +193,7 @@ export function AccountDialog({
                                 }}
                             >
                                 <ICONS.token aria-hidden />
-                                {LABELS.users.reset_password}
+                                {LABELS.action.asks(LABELS.users.reset_password)}
                             </Button>
                             <Button
                                 ref={editButton}

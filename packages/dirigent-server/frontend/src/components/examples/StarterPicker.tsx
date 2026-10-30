@@ -28,7 +28,7 @@ import { sayRefusal } from '@/components/Refusal'
 import { copyStarter } from '@/lib/starters'
 import { cn } from '@/lib/utils'
 
-export const FROM_A_STARTER = LABELS.pipelines.from_starter
+export const FROM_A_STARTER = LABELS.pipelines.starters.title
 
 export const PICKER_PLACEHOLDER = LABELS.pipelines.starters.placeholder
 

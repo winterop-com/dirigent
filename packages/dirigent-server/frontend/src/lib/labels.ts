@@ -55,6 +55,8 @@ export type Catalogue = { readonly [name: string]: Label | Catalogue }
 const action = {
     /** Leave a dialog that would have written something, writing nothing. */
     cancel: 'Cancel',
+    /** A word on a control that asks for more before it acts. */
+    asks: (verb: string) => `${verb}…`,
     /** Write the new thing the dialog was opened to make. */
     create: {
         verb: 'Create',
@@ -98,7 +100,7 @@ const action = {
     /** Put a thing back to a known state. */
     reset: 'Reset',
     /** Replace one value with another. */
-    change: 'Change',
+    change: 'Change…',
     /** Make the thing this screen lists one more of. */
     new: 'New',
     /** Ask an external system whether the credential still works. */
@@ -658,7 +660,7 @@ const screen = {
     /** The documents the plugins ship. */
     examples: {
         name: 'Examples',
-        hint: 'The documents the plugins ship, and the starters',
+        hint: 'What the plugins ship, and the templates',
     },
     /** The shapes a payload is checked against. */
     schemas: {
@@ -1362,15 +1364,15 @@ const pipelines = {
     /** The split button that opens the editor on a document nothing has applied. */
     new: 'New pipeline',
     /** Behind its chevron: a document read off disk. */
-    from_file: 'From file…',
+    from_file: 'From a file…',
     /** Behind its chevron, and the title of the picker it opens: a copy of a shipped starter. */
-    from_starter: 'From a starter',
+    from_starter: 'From a template…',
     /** The chevron itself. */
     more_ways: 'More ways to start a pipeline',
     /** What the palette offers on this screen, where a rail button says it shorter. */
     palette: {
-        from_starter: 'New pipeline from a starter',
-        from_file: 'New pipeline from a file',
+        from_starter: 'New pipeline from a template…',
+        from_file: 'New pipeline from a file…',
         reload: 'Read the pipelines listing again',
     },
     /** The box over the table, which narrows the rows already read. */
@@ -1423,11 +1425,13 @@ const pipelines = {
     starters: {
         /** Under the title, saying what choosing one does. */
         description: 'Copy a shipped document into the editor, under a code of your own',
-        placeholder: 'Search the starters',
+        placeholder: 'Search the templates',
+        /** The picker's own title: by then the question is on screen. */
+        title: 'From a template',
         /** What was typed matches no starter. */
-        empty: 'No starter matches that.',
+        empty: 'No template matches that.',
         /** Nothing installed here ships one. */
-        none: 'No starters installed. Plugins contribute them.',
+        none: 'No templates installed. Plugins contribute them.',
     },
 } as const
 
@@ -1484,7 +1488,7 @@ const editor = {
         /** What the strip says below the breakpoint, where the verbs that write are not drawn. */
         read_only: 'Read only on a small screen',
         /** The palette row that opens the run dialog. The dialog itself is titled with the verb. */
-        run_pipeline: 'Run pipeline',
+        run_pipeline: 'Run pipeline…',
         /** The palette row that gives the whole arrangement back to elk. */
         relayout: 'Re-layout the graph',
         /** A run the instance accepted without starting one, and said nothing more about. */
@@ -1497,7 +1501,7 @@ const editor = {
         /** The canvas with no document behind it to draw. */
         nothing_to_draw: 'No version to draw.',
         /** The other way into a document, which is copying a shipped one. */
-        from_starter: 'From a starter',
+        from_starter: 'From a template…',
         /** The menu's own heading, the control that opens it, and the palette row that fires it. */
         add_step: 'Add step',
         /** The same menu, opened out of a step, which the new one will wait for. */
@@ -1510,7 +1514,7 @@ const editor = {
         /** The menu opened before the catalog landed, which is not a catalog with nothing in it. */
         reading_catalog: 'Reading the catalog…',
         /** A box's own menu: one more step after this one, and this one taken away. */
-        add_after: 'Add step after',
+        add_after: 'Add step after…',
         delete_step: 'Delete step',
         /** A step whose block this instance does not publish, as the chip on its box. */
         not_installed: 'not installed',
@@ -1627,14 +1631,14 @@ const editor = {
         /** The segmented control over the document's three answers. */
         choice: 'What a run of this pipeline reports',
         none: 'No report',
-        builtin: 'Built-in template',
-        own: 'Own template',
+        builtin: 'Built-in report',
+        own: 'Own report',
         writes_none: 'A run of this pipeline writes no report document.',
         builtin_says:
             "The built-in document is the run's facts, a table of its steps, and its error. It is not part of this document.",
-        own_says: "This template is rendered against the run's facts when the run settles.",
+        own_says: "This report template is rendered against the run's facts when the run settles.",
         /** The way out to the documentation of what a template is rendered against. */
-        reference: 'What a template may read',
+        reference: 'What a report template may read',
         placeholder: '# {{ pipeline.code }} {{ run.status }}',
     },
 
@@ -2057,7 +2061,7 @@ const reference = {
     jinja: {
         title: 'Jinja',
         /** The link out to what this runtime puts in front of a template. */
-        manual: 'What a template may read',
+        manual: 'What a report template may read',
         facts: {
             title: 'The facts',
             run: 'the run and what it was started with',
@@ -2674,7 +2678,7 @@ const blocks = {
 /** What the examples listing, the filters over it and the panel beside it say. */
 const examples = {
     /** The palette row that narrows the listing to what may be copied. */
-    show_starters: 'Show only the starters',
+    show_starters: 'Show only the templates',
     /** The palette row that takes every filter off. */
     clear_filters: 'Clear the filters on the examples listing',
     /** How much of the corpus the filters left, drawn only where they left less than all of it. */
@@ -2685,7 +2689,7 @@ const examples = {
     which: {
         label: 'Which documents',
         all: 'All',
-        starters: 'Starters',
+        starters: 'Templates',
     },
     any_shelf: 'Any shelf',
     any_plugin: 'Any plugin',
@@ -2700,7 +2704,7 @@ const examples = {
     empty: 'No examples.',
 
     /** The mark a document that may be copied wears, on the row and in the panel. */
-    starter_badge: 'Starter',
+    starter_badge: 'Template',
     /** Why a document that carries a section states it. */
     carries_hint:
         'An instance refuses a document that carries these, so a copy names them under requires instead.',
@@ -2771,7 +2775,7 @@ const examples = {
     source_pane: 'The document',
     source_pane_windowed: (name: string) => `${name}, in a window`,
     /** The button that copies a starter into the editor. */
-    use_as_starter: 'Use as starter',
+    use_as_starter: 'Use as template',
 } as const
 
 /** What the schemas screen says: the listing, the schema in the panel, and the dialog that writes one. */
@@ -2969,7 +2973,7 @@ const workers = {
 const alerting = {
     /** The rows the palette offers for this screen, each longer than the button that does the same. */
     palette: {
-        send_test: 'Send a test through a channel',
+        send_test: 'Send a test through a channel…',
         reload: 'Read the alert rules again',
     },
 
@@ -3009,7 +3013,7 @@ const alerting = {
         not_set_up: 'not set up',
     },
     /** The way in to minting the credential a channel with none is waiting for. */
-    set_up_channel: (notifier: string) => `Set up ${notifier}`,
+    set_up_channel: (notifier: string) => `Set up ${notifier}…`,
 
     /**
      * What each event is called wherever a rule names one. Keyed by `AlertEvent` on the wire.
@@ -3371,8 +3375,8 @@ const design = {
         connections_count: '7',
         new_pipeline: 'New pipeline',
         more_ways: 'More ways to create a pipeline',
-        from_starter: 'From a starter',
-        from_file: 'From a file',
+        from_starter: 'From a template…',
+        from_file: 'From a file…',
         link_sentence: {
             before: 'Read the ',
             link: 'run history',

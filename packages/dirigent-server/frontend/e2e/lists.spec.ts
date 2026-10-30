@@ -240,7 +240,7 @@ test('a file picked on the listing lands in the new-document editor, and applyin
     await signIn(page)
     await page.goto('/pipelines')
 
-    // From file… lives behind the split button's chevron and opens the OS picker directly.
+    // From a file… lives behind the split button's chevron and opens the OS picker directly.
     await page.getByRole('button', { name: LABELS.pipelines.more_ways }).click()
     const picking = page.waitForEvent('filechooser')
     await page.getByRole('menuitem', { name: LABELS.pipelines.from_file }).click()
