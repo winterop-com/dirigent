@@ -16,6 +16,29 @@ tag is what publishes: `.github/workflows/release.yaml` builds every package and
 to PyPI through trusted publishing, then builds the image from that commit and pushes it as
 `<version>` and `latest`. The two sibling repositories then relock against the tag and bump.
 
+## 0.27.1
+
+Released 2026-10-30. Every package in the workspace moves to 0.27.1 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
+
+- **`dirigent-mcp`: an agent operates an instance over MCP.** A new package, started by an MCP
+  client as `uvx dirigent-mcp` over stdio with `DG_URL` and `DG_TOKEN`. Its tools are calls the
+  API already answers: read the block catalog and the examples, plan and apply a document, start
+  a run (optionally waiting for it) and read its attempts and logs, cancel a run or retry an
+  attempt, and list, pause and resume sources and schedules. None of them deletes. With
+  `DG_MCP_READ_ONLY=1` it offers only the tools that read. An agent that may apply and run a
+  document runs it with every connection the instance holds, so give it a `viewer` token to
+  read and an `operator` token, never `admin`, to write; [Working with a coding
+  agent](agents.md) says more. The image carries it too.
+- **A connection a document carries may say its `name` and `description`.** Both are optional,
+  and `dg dev --seed` and `dg run --local` pass them on to the connection they create. Every
+  example schema and connection now has both, so the Schemas and Connections screens read as
+  titles rather than bare codes, and a schema carried in a document no longer blanks the labels
+  of the stored one it shares a code with.
+- **`dg validate DIR`.** A directory is read at every depth: each YAML or JSON file that declares
+  a `dirigent/` format is checked, as is one that does not parse, and the rest are counted as
+  `skipped` in the closing `validated` record.
+
 ## 0.27.0
 
 Released 2026-10-30. Every package in the workspace moves to 0.27.0 together, and so do
