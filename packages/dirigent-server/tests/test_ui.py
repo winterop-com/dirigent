@@ -138,9 +138,10 @@ def test_a_request_naming_no_media_type_at_all_is_not_a_navigation(served: TestC
 
 
 def test_an_api_refusal_on_a_write_keeps_its_problem_document(served: TestClient) -> None:
-    response = served.delete("/api/v1/tokens/never-minted", headers=NAVIGATING)
+    never = "00000000-0000-7000-8000-000000000000"
+    response = served.delete(f"/api/v1/tokens/{never}", headers=NAVIGATING)
     assert response.status_code == 404
-    assert response.json()["detail"] == "no live token named 'never-minted'"
+    assert response.json()["detail"] == f"no live token with id {never}"
 
 
 def test_a_write_to_a_client_route_is_not_answered_with_the_shell(served: TestClient) -> None:

@@ -512,23 +512,22 @@ async def list_tokens(
     ]
 
 
-async def revoke_token(session: AsyncSession, *, user_id: UUID, name: str) -> bool:
-    """Revoke one account's live tokens of a given name, reporting whether anything was revoked.
+async def revoke_token(session: AsyncSession, token_id: UUID) -> bool:
+    """Revoke one live API token by its id, reporting whether there was one to revoke.
 
-    A name is unique only within an account, so the owner is part of what is revoked.
+    A browser session shares the table and is not reached from here.
     """
     statement = sa.select(ApiToken).where(
+        ApiToken.id == token_id,
+        ApiToken.kind == TokenKind.API,
         ApiToken.revoked_at.is_(None),
-        ApiToken.user_id == user_id,
-        ApiToken.name == name,
     )
-    rows = await session.execute(statement)
-    revoked = 0
-    for token in rows.scalars():
-        token.revoked_at = utcnow()
-        revoked += 1
+    token = (await session.execute(statement)).scalar_one_or_none()
+    if token is None:
+        return False
+    token.revoked_at = utcnow()
     await session.flush()
-    return revoked > 0
+    return True
 
 
 async def revoke_session(session: AsyncSession, secret: str) -> None:

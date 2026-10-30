@@ -1543,9 +1543,9 @@ wrong account, and the row opens to show what it made.
 is what a token is known by. The prefix is drawn beside the name only when two live tokens of one
 account share that name, which is the one time the name stops telling them apart, and its tooltip
 says what it is. The expiry is a chip beside the name, only where a token has one; `Last used`{ .label } and
-`Created`{ .label } are columns. **Revoking asks first, and says something only when it takes more than one.**
-The API revokes by name, so two live tokens sharing a name go together, and that is the one line the
-question holds.
+`Created`{ .label } are columns. **Revoking asks first, and takes the one token the row is.** The API
+revokes by id, so a row's own Revoke reaches that row and no other. The question names the token the
+way the row does: its name, and its prefix beside the name where two live tokens share it.
 
 ## A control only ever claims what the situation supports
 

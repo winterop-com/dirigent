@@ -369,14 +369,8 @@ ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] =
         "POST",
         "/users/second/tokens",
     ),
-    (
-        "admin.users.revoke_token",
-        lambda dg: dg.admin.users.revoke_token("second", "ci"),
-        "DELETE",
-        "/users/second/tokens/ci",
-    ),
     ("admin.tokens.create", lambda dg: dg.admin.tokens.create("ci"), "POST", "/tokens"),
-    ("admin.tokens.revoke", lambda dg: dg.admin.tokens.revoke("ci"), "DELETE", "/tokens/ci"),
+    ("admin.tokens.revoke", lambda dg: dg.admin.tokens.revoke("abc"), "DELETE", "/tokens/abc"),
 ]
 
 

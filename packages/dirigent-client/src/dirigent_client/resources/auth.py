@@ -1,6 +1,7 @@
 """Logging in, logging out, asking who you are, and the accounts and tokens an admin manages."""
 
 from datetime import timedelta
+from uuid import UUID
 
 from pydantic import SecretStr
 
@@ -128,10 +129,6 @@ class Users(Resource):
         payload = TokenRequest(name=name, expires_in=expires_in)
         return await self._one(IssuedTokenOut, "POST", f"/users/{segment(username)}/tokens", json=request_body(payload))
 
-    async def revoke_token(self, username: str, name: str) -> None:
-        """Revoke that account's live tokens of the given name."""
-        await self._transport.request("DELETE", f"/users/{segment(username)}/tokens/{segment(name)}")
-
 
 class Tokens(Resource):
     """The bearer tokens automation authenticates with."""
@@ -145,9 +142,9 @@ class Tokens(Resource):
         payload = TokenRequest(name=name, expires_in=expires_in)
         return await self._one(IssuedTokenOut, "POST", "/tokens", json=request_body(payload))
 
-    async def revoke(self, name: str) -> None:
-        """Revoke this account's own live tokens of the given name."""
-        await self._transport.request("DELETE", f"/tokens/{segment(name)}")
+    async def revoke(self, token_id: UUID | str) -> None:
+        """Revoke the one live token with this id, whichever account holds it."""
+        await self._transport.request("DELETE", f"/tokens/{segment(str(token_id))}")
 
 
 class Admin:

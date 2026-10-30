@@ -1140,10 +1140,9 @@ const refused = {
         no_icon: 'This bundle carries no icon.',
         no_run: 'No run {run_id}.',
         no_schema: 'No schema coded {code}.',
-        no_token: 'No live token named {name}.',
+        no_token: 'No live token with id {id}.',
         no_trigger_document: 'No triggers document coded {code}.',
         no_user: 'No user named {username}.',
-        no_user_token: 'No live token named {name} for {username}.',
         playground_body_too_large: 'The body is larger than the {limit} bytes the playground reads.',
         playground_header_refused:
             'The playground will not set {header} on itself as asked. It sets no header that plants a cookie, asks for a password, navigates a browser off this instance, opens this origin to another site, or weakens what a browser enforces here, and no content type a browser runs.',
@@ -2926,8 +2925,6 @@ const users = {
     revoke_ask: { before: 'Revoke ', after: '?' },
     /** The question before a deactivate, around the username. */
     deactivate_ask: { before: 'Deactivate ', after: '?' },
-    /** Where the name is shared: the API revokes by name, so they go together. */
-    revoke_shared: (many: string) => `Revokes all ${many} live tokens with this name.`,
 
     /** Refused in the browser, so a password the server was always going to refuse never leaves it. */
     password_too_short: (minimum: string) => `A password must be at least ${minimum} characters.`,
@@ -2937,7 +2934,7 @@ const users = {
     /** The same line, where the token is minted for another account. */
     token_scope_for: (username: string) => `This token can do whatever ${username} can.`,
     token_name_placeholder: 'ci-deploy',
-    token_name_hint: 'Lower case, digits and single hyphens. It is what the token is revoked by.',
+    token_name_hint: 'Lower case, digits and single hyphens.',
     /** Beside the secret, which the server answers once and cannot answer again. */
     token_once: 'This is the only time this token will be shown.',
     copy_token: 'Copy the token',

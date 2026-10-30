@@ -12,14 +12,7 @@ import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
-import {
-    isLive,
-    readAccountTokens,
-    revokedTogether,
-    revokeToken,
-    sharedNames,
-    type TokenOut,
-} from '@/lib/users'
+import { isLive, readAccountTokens, revokeToken, sharedNames, type TokenOut } from '@/lib/users'
 
 const tokenId = (token: TokenOut) => token.id
 
@@ -61,7 +54,6 @@ export function AccountTokens({
             }),
         [now, shared],
     )
-    const together = revoking === null ? 0 : revokedTogether(state.rows, revoking.name)
 
     return (
         <div className="flex max-h-96 flex-col" data-account-tokens>
@@ -88,8 +80,7 @@ export function AccountTokens({
                     if (!next) setRevoking(null)
                 }}
                 ask={LABELS.users.revoke_ask}
-                code={revoking?.name ?? ''}
-                note={together > 1 ? LABELS.users.revoke_shared(String(together)) : undefined}
+                code={revoking === null ? '' : tokenSaid(revoking, shared, now)}
                 verb={LABELS.action.revoke}
                 busy={busy}
                 problem={refused}
@@ -97,7 +88,7 @@ export function AccountTokens({
                     if (revoking === null) return
                     setBusy(true)
                     setRefused(null)
-                    void revokeToken(revoking.username, revoking.name)
+                    void revokeToken(revoking.id)
                         .then(
                             () => {
                                 setRevoking(null)
@@ -115,6 +106,13 @@ export function AccountTokens({
             />
         </div>
     )
+}
+
+/** What the token is called, with its prefix where the name has stopped telling it from another. */
+function tokenSaid(token: TokenOut, shared: ReadonlySet<string>, now: number): string {
+    return shared.has(token.name) && isLive(token, now)
+        ? `${token.name} ${LABELS.users.token_prefix(token.prefix)}`
+        : token.name
 }
 
 /** The columns of a token row: what it is called, when it was used and made, and Revoke. */
@@ -169,7 +167,7 @@ function tokenColumns(
                         variant="ghost"
                         size="xs"
                         className="destructive-action"
-                        aria-label={LABELS.users.revoke_row(token.name)}
+                        aria-label={LABELS.users.revoke_row(tokenSaid(token, shared, now))}
                         onClick={() => {
                             revoke(token)
                         }}
