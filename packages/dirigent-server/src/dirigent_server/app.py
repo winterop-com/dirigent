@@ -18,6 +18,7 @@ from dirigent_core.scheduler import Scheduler
 from dirigent_core.sources.intake import Intake
 from dirigent_core.sources.waiter import Waiter
 from dirigent_core.telemetry import configure_telemetry, instrument_fastapi
+from dirigent_server.bodies import install_unauthenticated_body_cap
 from dirigent_server.compression import install_compression
 from dirigent_server.errors import install_error_handlers
 from dirigent_server.health import build_registry
@@ -114,6 +115,7 @@ def create_app(
     app.state.version = __version__
     app.state.services = EngineServices.build(resolved, host or load_plugin_host())
     app.state.intake = Intake()
+    install_unauthenticated_body_cap(app, resolved)
     install_cross_site_guard(app, resolved)
     install_error_handlers(app)
     mount_ui_assets(app, resolved)

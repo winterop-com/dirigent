@@ -1092,6 +1092,8 @@ const refused = {
         too_many_logins: 'Too many login attempts. This instance accepts {per_minute} a minute.',
         too_many_tails: 'You already have {maximum} streams open on this server.',
         unauthenticated: 'Authentication required. Present a bearer token or log in.',
+        unauthenticated_body_too_large:
+            'The body is larger than the {limit} bytes this route reads from a caller it has not authenticated.',
         unknown_connection_kind: 'No connection kind {kind} is installed. Known: {known}.',
     },
     source: {

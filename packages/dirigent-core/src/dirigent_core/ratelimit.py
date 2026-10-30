@@ -2,15 +2,20 @@
 
 The bucket is in-memory and therefore per-process: behind N replicas a caller gets N buckets,
 so the effective limit is the configured rate times the replica count. Keys are chosen by the
-caller, so the number of them is bounded and the least recently used one is evicted.
+caller, so the number of them is bounded and the least recently used one is evicted, and a long
+one is held as its hash, so what a caller sends does not decide how much memory a key takes.
 """
 
+import hashlib
 import time
 
 from pydantic import BaseModel, ConfigDict, Field
 
 #: How many distinct keys one bucket tracks before it starts evicting the least recent.
 DEFAULT_MAX_KEYS = 4096
+
+#: The longest key held as it was written.
+MAX_KEY_LENGTH = 128
 
 
 class TokenBucket(BaseModel):
@@ -30,10 +35,11 @@ class TokenBucket(BaseModel):
         moment = now if now is not None else time.monotonic()
         rate = per_minute / 60.0
         full = float(capacity if capacity is not None else per_minute)
-        tokens, last = self.buckets.pop(key, (full, moment))
+        held = _held_key(key)
+        tokens, last = self.buckets.pop(held, (full, moment))
         tokens = min(full, tokens + (moment - last) * rate)
         allowed = tokens >= 1.0
-        self.buckets[key] = (tokens - 1.0 if allowed else tokens, moment)
+        self.buckets[held] = (tokens - 1.0 if allowed else tokens, moment)
         self._evict()
         return allowed
 
@@ -44,4 +50,11 @@ class TokenBucket(BaseModel):
 
     def forget(self, key: str) -> None:
         """Drop a key's bucket."""
-        self.buckets.pop(key, None)
+        self.buckets.pop(_held_key(key), None)
+
+
+def _held_key(key: str) -> str:
+    """The key a bucket is stored under: itself, or its hash when it is too long."""
+    if len(key) <= MAX_KEY_LENGTH:
+        return key
+    return f"sha256:{hashlib.sha256(key.encode()).hexdigest()}"
