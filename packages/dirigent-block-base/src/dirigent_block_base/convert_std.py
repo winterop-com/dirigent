@@ -35,6 +35,8 @@ from dirigent_block_base.messages import (
     XML_ROOT_HAS_TEXT,
     XML_TEXT_AND_CHILDREN,
     XML_VALUE_IS_NOT_TEXT,
+    YAML_ALIAS_CYCLE,
+    YAML_ALIASES_EXPAND_TOO_FAR,
     YAML_KEY_NOT_A_STRING,
     YAML_NOT_A_NUMBER,
     YAML_STREAM,
@@ -57,6 +59,9 @@ UNIT: Final = {"json": "element", "ndjson": "line", "csv": "row", "yaml": "docum
 
 #: The key an element's attribute takes, prefixed so it can never collide with a child's tag.
 ATTRIBUTE_PREFIX: Final = "@"
+
+#: How many values a YAML document's aliases may add once each is written out in place.
+ALIAS_EXPANSION_LIMIT: Final = 100_000
 
 #: The key an element's text takes where the element also has attributes.
 TEXT_KEY: Final = "#text"
@@ -286,7 +291,44 @@ class _Tagged:
 
 
 class _JsonSafeLoader(yaml.SafeLoader):
-    """The safe loader, with an unknown tag built into a marker rather than refused without a path."""
+    """The safe loader, with an unknown tag built into a marker rather than refused without a path.
+
+    A document is refused before it is built when its aliases would add more than
+    ``ALIAS_EXPANSION_LIMIT`` values once written out, since a few hundred bytes of nested
+    aliases expand to billions.
+    """
+
+    def construct_document(self, node: yaml.Node) -> Any:
+        """Build the document once its written-out size is known to be bounded."""
+        _hold_expansion(node)
+        return super().construct_document(node)  # pyright: ignore[reportUnknownMemberType]
+
+
+def _hold_expansion(root: yaml.Node) -> None:
+    """Refuse a node graph whose aliases add more than the limit, or that contains itself."""
+    sizes: dict[int, int] = {}
+    open_nodes: set[int] = set()
+
+    def size(node: yaml.Node) -> int:
+        key = id(node)
+        if key in sizes:
+            return sizes[key]
+        if key in open_nodes:
+            raise TransformError(YAML_ALIAS_CYCLE.render())
+        open_nodes.add(key)
+        total = 1
+        if isinstance(node, yaml.SequenceNode):
+            total += sum(size(item) for item in cast("list[yaml.Node]", node.value))
+        elif isinstance(node, yaml.MappingNode):
+            pairs = cast("list[tuple[yaml.Node, yaml.Node]]", node.value)
+            total += sum(size(key_node) + size(value_node) for key_node, value_node in pairs)
+        open_nodes.discard(key)
+        sizes[key] = total
+        if total - len(sizes) > ALIAS_EXPANSION_LIMIT:
+            raise TransformError(YAML_ALIASES_EXPAND_TOO_FAR.render(limit=f"{ALIAS_EXPANSION_LIMIT:,}"))
+        return total
+
+    size(root)
 
 
 def _construct_tagged(loader: yaml.SafeLoader, suffix: str, node: yaml.Node) -> _Tagged:
