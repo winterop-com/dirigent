@@ -442,7 +442,8 @@ steps:
     block: test.echo
     depends_on: [tail]
     for_each: ${steps.tail.output.offsets}
-    config: {value: offset ${item}}
+    config:
+      value: offset ${item}
 """
     async with session_scope(sessions) as session:
         await apply_document(session, services, load_text(document))
