@@ -13,6 +13,7 @@ family loads that group itself, once per process.
 """
 
 import asyncio
+import sqlite3
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -22,6 +23,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Final, Protocol
 import sqlalchemy
 import sqlalchemy.exc
 from pluginkit import PluginManager
+from sqlalchemy import event
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -274,7 +276,7 @@ def _engine(url: URL) -> AsyncEngine:
     step against a different database entirely; a pool would outlive what it serves.
     """
     try:
-        return create_async_engine(url, poolclass=NullPool)
+        engine = create_async_engine(url, poolclass=NullPool)
     except (ModuleNotFoundError, sqlalchemy.exc.NoSuchModuleError) as error:
         driver = url.drivername.partition("+")[2]
         package = DRIVER_PACKAGE.get(driver, driver)
@@ -285,6 +287,30 @@ def _engine(url: URL) -> AsyncEngine:
             package=repr(package),
             shipped=", ".join(["asyncpg", "aiosqlite"]),
         ) from error
+    if url.get_backend_name() == "sqlite":
+        event.listen(engine.sync_engine, "connect", _confine_sqlite)
+    return engine
+
+
+def _confine_sqlite(dbapi_connection: Any, _record: object) -> None:
+    """Hold a sqlite connection to the one database file its URL names.
+
+    ``ATTACH`` would open any file the worker can reach, the instance's own database included,
+    and ``VACUUM INTO`` writes one; sqlite authorizes both as an attach.
+    """
+    dbapi_connection.run_async(_install_authorizer)
+
+
+async def _install_authorizer(connection: Any) -> None:
+    """Set the authorizer on the driver's own connection, in the thread that owns it."""
+    await connection.set_authorizer(_refuse_attach)
+
+
+def _refuse_attach(action: int, *_arguments: object) -> int:
+    """Deny attaching or detaching a database, and allow everything else."""
+    if action in (sqlite3.SQLITE_ATTACH, sqlite3.SQLITE_DETACH):
+        return sqlite3.SQLITE_DENY
+    return sqlite3.SQLITE_OK
 
 
 class _Session:

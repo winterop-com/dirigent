@@ -37,7 +37,8 @@ rather than leaving the gap for you to find.
 - A forged call to a signed endpoint source -- a body is admitted only under a signature made
   with the source's secret, compared in constant time.
 - Credential exfiltration through a stored pipeline: a document cannot inherit the instance's
-  own environment variables, cannot address a `file://` URI outside the artifact root, and
+  own environment variables, cannot address a `file://` URI outside the artifact root, cannot
+  open a database file its `sql` connection does not name, and
   cannot execute code on a worker at all unless the instance allowlisted the block.
 - Brute force against the login endpoint, both as a flood from one address and as credential
   stuffing spread across many.

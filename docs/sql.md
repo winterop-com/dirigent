@@ -325,6 +325,12 @@ reading the database must run on the same worker, and a connection like that can
 outside a run because outside a run there is nothing there yet. An absolute path
 (`sqlite+aiosqlite:////var/lib/data.db`) is used as written.
 
+**A SQLite session reaches the one file its URL names.** A statement cannot `ATTACH` or `DETACH`
+another database, and cannot `VACUUM INTO` a new one: sqlite's own authorizer refuses all three
+on every session, so a step on a sqlite connection never opens another file on the worker,
+the instance's own database included. A pipeline that needs two databases uses two
+connections.
+
 Another dialect is a driver away: install its async driver on the worker and write it in the
 URL. Nothing in these blocks is PostgreSQL-specific beyond the two rows above, and a dialect
 without them is refused where it would otherwise be silently weaker.
