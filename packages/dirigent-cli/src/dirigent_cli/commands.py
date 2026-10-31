@@ -56,6 +56,7 @@ from dirigent_cli.messages import (
     LOG_LEVEL_NOT_A_LEVEL,
     NAME_A_PIPELINE,
     NAME_ANOTHER_CODE,
+    NAME_THE_SERVER_YOURSELF,
     NO_DOCUMENT_AND_NO_PROJECT,
     NO_FAILURE_TO_RETRY,
     NO_FIRST_PASSWORD,
@@ -81,6 +82,7 @@ from dirigent_cli.messages import (
     SCHEMA_NOT_AN_OBJECT,
     SCHEMA_NOTHING_TO_CHANGE,
     SCHEMA_UNREADABLE,
+    SERVER_NAMED_BY_A_PROJECT,
     SET_DG_TOKEN,
     SOURCE_REFUSED,
     STARTER_TAG_NEEDED,
@@ -850,6 +852,23 @@ def _refuse_an_existing_instance(root: Path) -> None:
                 ("dg init --template documents", "scaffolds documents beside it"),
             ],
         )
+
+
+def refuse_a_server_a_project_named(state: CliState) -> None:
+    """Stop before a secret is asked for or sent, where a checkout chose its server off this host.
+
+    A server named with ``--url`` or the shell's ``DG_URL``, or one on this host, is not affected.
+    """
+    endpoint = state.endpoint(needs_token=False)
+    if endpoint.named_by_a_project:
+        refuse(
+            SERVER_NAMED_BY_A_PROJECT,
+            status=GUARD_EXIT,
+            title="Not this server",
+            problems=[Issue.of(NAME_THE_SERVER_YOURSELF, url=endpoint.url)],
+            url=endpoint.url,
+        )
+        raise typer.Exit(code=GUARD_EXIT)
 
 
 def _prompt_for_a_password(*, stack: bool = False) -> str:
@@ -2617,6 +2636,7 @@ def connection_create(
     required field it left out. A bare invocation is the interactive form and is offered
     every secret the kind declares.
     """
+    refuse_a_server_a_project_named(state_of(ctx))
     with client_for(state_of(ctx)) as dg:
         schema = _connection_schema(dg.call(dg.blocks.catalog()), kind_id)
         config = parse_params(set_value, schema=schema)
@@ -3072,6 +3092,7 @@ def user_password(
     password: Annotated[str | None, typer.Option(help="The password to set; asked for, hidden, when omitted.")] = None,
 ) -> None:
     """Set another account's password, ending every session it holds; its API tokens survive."""
+    refuse_a_server_a_project_named(state_of(ctx))
     password = password or ask("new password", hide=True)
     with client_for(state_of(ctx)) as dg:
         dg.call(dg.admin.users.reset_password(username, password))
@@ -3085,6 +3106,7 @@ def auth_password(
     new: Annotated[str | None, typer.Option(help="The password to set; asked for, hidden, when omitted.")] = None,
 ) -> None:
     """Change this account's own password, ending every other session it holds."""
+    refuse_a_server_a_project_named(state_of(ctx))
     current = current or ask("current password", hide=True)
     new = new or ask("new password", hide=True)
     with client_for(state_of(ctx)) as dg:
@@ -3103,6 +3125,7 @@ def auth_login(
     The token, not a cookie, is what goes into ``profiles.yaml`` or ``DG_TOKEN``.
     """
     state = state_of(ctx)
+    refuse_a_server_a_project_named(state)
     username = username or ask("username")
     password = password or ask("password", hide=True)
     endpoint = state.endpoint(needs_token=False)
