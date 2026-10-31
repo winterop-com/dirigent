@@ -495,6 +495,12 @@ the reply renders, where a value a reference resolved to that holds a line break
 (`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
 pipeline's to set, so a reply can redirect, name a download or answer a browser caller.
 
+**An open stream answers to its credential.** A run's log tail and event stream read the token or
+session they were opened with on every poll, in the transaction that reads what goes out. Once it
+is revoked, expired or its account deactivated, the next poll sends nothing more and ends the
+stream with `expired`, so a client reopening is refused like any new request. A quiet stream polls
+every five seconds at the slowest, which is the longest that takes.
+
 **A route is one source's.** Two sources answering one method at one template are refused at
 apply, across pipelines, and a unique constraint holds it when two applies race.
 
