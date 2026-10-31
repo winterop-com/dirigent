@@ -17,7 +17,10 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The two sibling repositories then
 relock against the tag and bump.
 
-## Unreleased
+## 0.28.0
+
+Released 2026-10-31. Every package in the workspace moves to 0.28.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
 
 **`DIRIGENT_SECRET_KEY` has to be a Fernet key.** A passphrase used to be turned into a key by one
 unsalted SHA-256, which made envelopes in a database backup open to offline guessing. It is now
