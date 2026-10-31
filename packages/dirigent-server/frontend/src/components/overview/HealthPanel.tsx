@@ -46,7 +46,7 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
         <Card className="gap-0 p-0">
             <CardContent className="flex h-full flex-col p-0">
                 <div className="space-y-1 px-3 py-3">
-                    <h2 className="text-sm font-semibold">{LABELS.word.health}</h2>
+                    <h2 className="text-title font-semibold">{LABELS.word.health}</h2>
                     <p className="text-xs text-muted-foreground">
                         {reading ? LABELS.shell.reading : LABELS.dashboard.health.hint}
                     </p>

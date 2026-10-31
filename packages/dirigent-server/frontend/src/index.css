@@ -60,19 +60,22 @@
     /* What a finger lands on is this tall below the breakpoint. */
     --spacing-finger: 42px;
 
-    /* The radius ladder, stated rather than derived: 8 for a surface, 6 for a box on a graph,
-       5 for a control and a chip, 3 for a box on a miniature. Tailwind's own rungs land on it. */
-    --radius-mini: 3px;
-    --radius-control: 5px;
-    --radius-node: 6px;
-    --radius-surface: 8px;
-    --radius-sm: 5px;
-    --radius-md: 5px;
-    --radius-lg: 8px;
-    --radius-xl: 8px;
-    --radius-2xl: 8px;
-    --radius-3xl: 8px;
-    --radius-4xl: 8px;
+    /* The radius ladder, stated rather than derived: 4 for a surface and a box on a graph, 3 for
+       a control, 2 for a chip and a box on a miniature. Tailwind's own rungs land on it: `sm` is
+       the chip's, `md` and `lg` the control's, which is what the generated buttons and fields
+       ship, and `xl` up the surface's. */
+    --radius-mini: 2px;
+    --radius-chip: 2px;
+    --radius-control: 3px;
+    --radius-node: 4px;
+    --radius-surface: 4px;
+    --radius-sm: 2px;
+    --radius-md: 3px;
+    --radius-lg: 3px;
+    --radius-xl: 4px;
+    --radius-2xl: 4px;
+    --radius-3xl: 4px;
+    --radius-4xl: 4px;
 
     /* Soft elevation, which is what separates a surface from the page instead of an edge. */
     --shadow-surface: var(--elevation-surface);
@@ -1093,6 +1096,38 @@ html.dark[data-theme='contrast'],
 [data-slot='combobox-content'],
 [data-slot='dropdown-menu-content'] {
     max-width: min(var(--available-width), calc(100vw - 2rem));
+    border-radius: var(--radius-surface);
+}
+
+/* ---------------------------------------------------------------------------
+   A SURFACE, DRAWN ONCE.
+
+   Every surface on a page is `components/ds/Surface` or the generated card, and how one is drawn
+   -- its ground, its corner, what stands it off the page -- is here and nowhere else, so a
+   treatment is changed in one place. A raised one is lifted by its shadow rather than edged, a
+   recessed one sits a rung below the page with nothing around it, and a critical one is the
+   failure's wash. The contrast palette draws every raised surface by its edge instead.
+   --------------------------------------------------------------------------- */
+.dg-surface,
+[data-slot='card'] {
+    border-radius: var(--radius-surface);
+    background-color: var(--card);
+    box-shadow: var(--elevation-surface);
+}
+[data-slot='card'] {
+    --tw-ring-shadow: 0 0 #0000;
+}
+.dg-surface[data-tone='recessed'] {
+    background-color: var(--canvas);
+    box-shadow: none;
+}
+.dg-surface[data-tone='critical'] {
+    background-color: var(--critical-wash);
+    box-shadow: none;
+}
+html[data-theme='contrast'] .dg-surface[data-tone='raised'],
+html[data-theme='contrast'] [data-slot='card'] {
+    box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 [data-slot='combobox-content'][class~='w-(--anchor-width)'],
 [data-slot='dropdown-menu-content'][class~='w-(--anchor-width)'] {

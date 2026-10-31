@@ -5,18 +5,14 @@ import { cn } from '@/lib/utils'
 /** Which rung a surface stands on. */
 export type SurfaceTone = 'raised' | 'recessed' | 'critical'
 
-const TONES: Record<SurfaceTone, string> = {
-    raised: 'bg-card shadow-surface',
-    recessed: 'bg-canvas',
-    critical: 'bg-critical-wash',
-}
-
 /**
  * A surface on a page: a listing, a panel, a card.
  *
- * A raised one is lifted off the page by its shadow rather than edged, a recessed one sits a rung
- * below the page, and a critical one is the failure's wash. `inset` is false where the surface's
- * own rows lay out their padding, as a listing's do.
+ * How a surface is drawn -- its ground, its corner, its elevation or its edge -- is `.dg-surface`
+ * in `index.css` keyed by `data-tone`, and nothing else in the app spells it, so a treatment
+ * changes in one place. A raised one stands off the page, a recessed one sits a rung below it,
+ * and a critical one is the failure's wash. `inset` is false where the surface's own rows lay
+ * out their padding, as a listing's do.
  */
 export function Surface({
     tone = 'raised',
@@ -36,7 +32,8 @@ export function Surface({
 }) {
     return (
         <Tag
-            className={cn('min-w-0 overflow-hidden rounded-lg', TONES[tone], inset && 'p-4', className)}
+            className={cn('dg-surface min-w-0 overflow-hidden', inset && 'p-4', className)}
+            data-tone={tone}
             {...rest}
         >
             {children}
