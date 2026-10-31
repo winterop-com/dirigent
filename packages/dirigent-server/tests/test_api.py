@@ -1075,6 +1075,41 @@ def test_a_pipeline_that_has_never_run_carries_no_last_run(client: TestClient) -
     assert (row["schedules"], row["active_runs"]) == (0, 0)
 
 
+def test_a_listing_row_and_a_read_carry_the_current_versions_shape(client: TestClient) -> None:
+    apply_document(
+        client,
+        "format: dirigent/v1\ncode: shaped\ndescription: A fan-out after a step.\n"
+        "steps:\n  first:\n    name: The first\n    block: shell.run\n    config: { argv: [echo, hi] }\n"
+        "  each:\n    block: shell.run\n    depends_on: [first]\n    for_each: [1, 2]\n"
+        "    config: { argv: [echo, hi] }\n",
+    )
+    row = client.get(f"{PREFIX}/pipelines").json()["items"][0]
+    assert row["shape"] == [
+        {
+            "code": "first",
+            "name": "The first",
+            "kind": "block",
+            "block": "shell.run",
+            "depends_on": [],
+            "fan_out": False,
+        },
+        {"code": "each", "name": None, "kind": "block", "block": "shell.run", "depends_on": ["first"], "fan_out": True},
+    ]
+    assert client.get(f"{PREFIX}/pipelines/shaped").json()["shape"] == row["shape"]
+
+
+def test_a_pipeline_is_an_example_when_its_code_is_one_the_corpus_ships(client: TestClient) -> None:
+    shipped = client.get(f"{PREFIX}/examples", params={"limit": 1}).json()["items"]
+    apply_document(client, DOCUMENT)
+    if shipped:
+        apply_document(client, DOCUMENT.replace("code: api-demo", f"code: {shipped[0]['code']}"))
+    flagged = {row["code"]: row["example"] for row in client.get(f"{PREFIX}/pipelines").json()["items"]}
+    assert flagged["api-demo"] is False
+    if shipped:
+        assert flagged[shipped[0]["code"]] is True
+        assert client.get(f"{PREFIX}/pipelines/{shipped[0]['code']}").json()["example"] is True
+
+
 def test_a_pipeline_listing_counts_what_fires_it_and_what_is_in_flight(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     triggers = f"{PREFIX}/pipelines/api-demo/triggers"

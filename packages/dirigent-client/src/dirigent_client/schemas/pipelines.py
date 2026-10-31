@@ -7,7 +7,15 @@ from uuid import UUID
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
-from dirigent_client.enums import DocumentKind, Importance, LogLevel, ProvenanceSource, RunPriority, RunStatus
+from dirigent_client.enums import (
+    DocumentKind,
+    Importance,
+    LogLevel,
+    ProvenanceSource,
+    RunPriority,
+    RunStatus,
+    StepKind,
+)
 from dirigent_client.messages import (
     BACKFILL_RUNS_FORWARDS,
     EMPTY_LOG_LEVEL_PATTERN,
@@ -57,6 +65,24 @@ class LastRun(WireModel):
     """The step whose first failed attempt this run holds, when it did not end well."""
 
 
+class StepShape(WireModel):
+    """One step of a pipeline's current version, reduced to what its miniature graph draws."""
+
+    code: str
+    """The step's key in the document, which is what every edge references."""
+
+    name: str | None = None
+    """The step's human title, when the document gave it one."""
+
+    kind: StepKind = StepKind.BLOCK
+    block: str
+    """The block a block step runs, the kind of a source, or ``reply``."""
+
+    depends_on: list[str] = Field(default_factory=list[str])
+    fan_out: bool = False
+    """Whether the step runs once per element of a list."""
+
+
 class PipelineOut(WireModel):
     """A pipeline as a listing shows it."""
 
@@ -78,6 +104,12 @@ class PipelineOut(WireModel):
 
     last_run: LastRun | None = None
     """How the newest run of this pipeline went, or nothing when it has never run."""
+
+    shape: list[StepShape] = Field(default_factory=list[StepShape])
+    """The current version's steps in the order they were written, or nothing before the first."""
+
+    example: bool = False
+    """Whether this pipeline's code is one the installed example corpus ships."""
 
     created_at: datetime
     updated_at: datetime

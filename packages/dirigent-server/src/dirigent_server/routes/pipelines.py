@@ -21,6 +21,7 @@ from dirigent_client.schemas import (
     PruneResult,
     RunAccepted,
     RunRequest,
+    StepShape,
     ValidationIssue,
 )
 from dirigent_core.directory import prune_absent
@@ -28,6 +29,7 @@ from dirigent_core.documents import carried_refusal, load_document
 from dirigent_core.engine import Attribution, create_run
 from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.runs import Provenance, RunWindow
+from dirigent_core.engine.services import EngineServices
 from dirigent_core.messages import PIPELINE_DEACTIVATED, PIPELINE_NO_VERSIONS
 from dirigent_core.models import Pipeline, utcnow
 from dirigent_core.pipelines import (
@@ -41,6 +43,7 @@ from dirigent_core.pipelines import (
     list_pipelines,
     list_versions,
     listing_counts,
+    listing_shapes,
     require_pipeline,
     revalidate,
     set_active,
@@ -58,15 +61,28 @@ from dirigent_server.transactions import Transactional
 router = APIRouter(route_class=Transactional, tags=["pipelines"])
 
 
-def render(row: Pipeline, counts: PipelineCounts = NO_COUNTS, last: LastRun | None = None) -> PipelineOut:
-    """Render a pipeline row with the counts and the last run a listing draws beside it."""
+def render(
+    row: Pipeline,
+    counts: PipelineCounts = NO_COUNTS,
+    last: LastRun | None = None,
+    shape: list[StepShape] | None = None,
+    examples: frozenset[str] = frozenset(),
+) -> PipelineOut:
+    """Render a pipeline row with the counts, the last run and the shape a listing draws beside it."""
     return PipelineOut.model_validate(row, from_attributes=True).model_copy(
         update={
             "active_runs": counts.active_runs,
             "schedules": counts.schedules,
             "last_run": last,
+            "shape": shape or [],
+            "example": row.code in examples,
         }
     )
+
+
+def example_codes(services: EngineServices) -> frozenset[str]:
+    """Name every code the installed example corpus ships."""
+    return frozenset(entry.code for entry in services.host.examples())
 
 
 @router.get(
@@ -77,6 +93,7 @@ def render(row: Pipeline, counts: PipelineCounts = NO_COUNTS, last: LastRun | No
 )
 async def list_all(
     session: SessionDep,
+    services: ServicesDep,
     principal: PrincipalDep,
     after: AfterParam = None,
     limit: LimitParam = DEFAULT_PAGE,
@@ -94,7 +111,11 @@ async def list_all(
     ids = [row.id for row in page]
     counts = await listing_counts(session, ids)
     latest = await last_runs(session, ids)
-    found = [render(row, counts.get(row.id, NO_COUNTS), latest.get(row.id)) for row in page]
+    shapes = await listing_shapes(session, ids)
+    examples = example_codes(services)
+    found = [
+        render(row, counts.get(row.id, NO_COUNTS), latest.get(row.id), shapes.get(row.id), examples) for row in page
+    ]
     return Page(items=found, next=following)
 
 
@@ -171,7 +192,7 @@ async def prune(
     summary="Read a pipeline",
     response_model=PipelineDetail,
 )
-async def get_one(code: str, session: SessionDep, principal: PrincipalDep) -> PipelineDetail:
+async def get_one(code: str, session: SessionDep, services: ServicesDep, principal: PrincipalDep) -> PipelineDetail:
     """Read a pipeline and the document its current version holds."""
     pipeline = await _require(session, code)
     document = None
@@ -179,7 +200,14 @@ async def get_one(code: str, session: SessionDep, principal: PrincipalDep) -> Pi
         document = (await get_version(session, pipeline)).ordered_document
     counts = await listing_counts(session, [pipeline.id])
     latest = await last_runs(session, [pipeline.id])
-    base = render(pipeline, counts.get(pipeline.id, NO_COUNTS), latest.get(pipeline.id))
+    shapes = await listing_shapes(session, [pipeline.id])
+    base = render(
+        pipeline,
+        counts.get(pipeline.id, NO_COUNTS),
+        latest.get(pipeline.id),
+        shapes.get(pipeline.id),
+        example_codes(services),
+    )
     return PipelineDetail(**base.model_dump(), document=document)
 
 
