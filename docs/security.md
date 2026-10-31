@@ -405,10 +405,10 @@ JSON, because those are not the same string -- in `X-Dirigent-Signature`, or the
 no timestamp, cannot call a signed source directly.
 
 **A signature is taken once.** A timestamp further than `DIRIGENT_SOURCE_SIGNATURE_WINDOW`
-(5 minutes) from the server's clock, either way, is refused 401, and because the timestamp is
-signed it cannot be moved. Inside the window, a signature taken is recorded in
-`source_signatures` until its timestamp leaves the window, and the same signature presented
-again is refused 401. The record is in the database, so it holds across replicas and restarts,
+(5 minutes) from the server's clock when the body has arrived, either way, is refused 401, and
+because the timestamp is signed it cannot be moved. Inside the window, a signature taken is
+recorded in `source_signatures` until a minute after its timestamp leaves the window, and the
+same signature presented again is refused 401. The record is in the database, so it holds across replicas and restarts,
 and it is written only for a signature that verified, so it costs a stranger nothing and gives
 them no way to fill it. A signature is spent by being verified, whatever the call is answered
 afterwards, so a sender retrying a 429 or a 503 signs again; `webhook.post` and `dg source call`
