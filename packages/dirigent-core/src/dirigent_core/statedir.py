@@ -9,6 +9,7 @@ import os
 import shutil
 import stat
 import struct
+import unicodedata
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -170,12 +171,21 @@ def _refuse_tracked(directory: Path) -> None:
         tracked = _tracked_paths(data, index.parent)
     except (OSError, ValueError, struct.error, UnicodeDecodeError) as error:
         raise StateRefused(STATE_UNCHECKED, where=str(directory), detail=str(error)) from error
-    prefix = absolute.relative_to(top).as_posix().casefold()
-    # A case-insensitive filesystem opens .DIRIGENT/STATE when asked for .dirigent/state.
+    prefix = _canonical(absolute.relative_to(top).as_posix())
     for path in tracked:
-        name = os.fsdecode(path).casefold()
+        name = _canonical(os.fsdecode(path))
         if prefix == "." or name == prefix or name.startswith(f"{prefix}/"):
             raise StateRefused(STATE_TRACKED, where=str(directory), repository=str(top))
+
+
+def _canonical(path: str) -> str:
+    """One spelling of a path for every one a filesystem may open it under.
+
+    A case-insensitive filesystem opens ``.DIRIGENT/STATE`` when asked for ``.dirigent/state``, and
+    APFS opens one directory under both normalisations of a name. Folding can leave a name
+    unnormalised, so it is normalised on both sides of the fold.
+    """
+    return unicodedata.normalize("NFC", unicodedata.normalize("NFC", path).casefold())
 
 
 def _find_index(start: Path) -> tuple[Path, Path] | None:
