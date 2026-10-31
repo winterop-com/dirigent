@@ -101,18 +101,29 @@ async def open_sqlite(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
         raise
 
 
-#: Half a surrogate pair. JSON's parser takes one, and a whole pair parses to one character.
-LONE_SURROGATE: Final = re.compile("[\ud800-\udfff]")
+#: In written JSON: an escaped backslash, the escape of a NUL, or half a surrogate pair. JSON's
+#: parser takes a lone half, and a whole pair parses to one character.
+UNSTORABLE: Final = re.compile(r"\\\\|\\u0000|[\ud800-\udfff]")
+
+
+def _stored(found: re.Match[str]) -> str:
+    """Keep an escaped backslash, and write a NUL or half a surrogate pair as its escape's text."""
+    held = found.group()
+    if held == "\\\\":
+        return held
+    if held == "\\u0000":
+        return "\\\\u0000"
+    return f"\\\\u{ord(held):04x}"
 
 
 def storable_json(value: object) -> str:
-    """Write a JSON column's value, with half a surrogate pair as the text of its escape.
+    """Write a JSON column's value, with a NUL or half a surrogate pair as the text of its escape.
 
-    JSONB refuses one and no response can encode one, so an outside service's answer holding one
-    would fail the step's settling on PostgreSQL and every read of the run on SQLite.
+    JSONB refuses either, and no response can encode half a pair, so an outside service's answer
+    holding one would fail the step's settling on PostgreSQL and every read of the run on SQLite.
+    A string that already holds the six characters of an escape reads back as those characters.
     """
-    text = json.dumps(value, ensure_ascii=False)
-    return LONE_SURROGATE.sub(lambda found: f"\\\\u{ord(found.group()):04x}", text)
+    return UNSTORABLE.sub(_stored, json.dumps(value, ensure_ascii=False))
 
 
 def create_engine(settings: Settings) -> AsyncEngine:
