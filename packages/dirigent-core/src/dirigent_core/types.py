@@ -42,22 +42,48 @@ class UtcDateTime(sa.TypeDecorator[datetime]):
 Timestamp = UtcDateTime()
 
 
+def storable_text(value: str) -> str:
+    """Write a NUL and what UTF-8 cannot as its backslash escape, and leave everything else as it is.
+
+    Text that has been through this once comes through it again unchanged.
+    """
+    return value.encode("utf-8", "backslashreplace").decode("utf-8").replace("\x00", "\\u0000")
+
+
 class SaidText(sa.TypeDecorator[str]):
-    """Text something said about a failure, which holds whatever it quoted.
+    """Text something said, which holds whatever it quoted of a run, a caller or a service.
 
     JSON can carry a lone surrogate, which no database driver can encode, and a NUL, which
     PostgreSQL's text refuses, so a quoted value holding either would fail the write that records
-    the failure and leave its step to run again. Each is stored as its backslash escape.
+    it, and with it whatever else that transaction settles. Each is stored as its backslash escape.
     """
 
     impl = sa.Text
     cache_ok = True
 
     def process_bind_param(self, value: str | None, dialect: Dialect) -> str | None:
-        """Write a NUL and what UTF-8 cannot as its escape, and leave everything else as it is."""
-        if value is None:
-            return None
-        return value.encode("utf-8", "backslashreplace").decode("utf-8").replace("\x00", "\\u0000")
+        """Write a NUL and what UTF-8 cannot as its escape."""
+        return None if value is None else storable_text(value)
+
+
+class SaidString(sa.TypeDecorator[str]):
+    """Bounded text something said, written as ``SaidText`` writes it and cut to the column's length.
+
+    An escape is longer than the character it stands for, so text cut to fit before it was
+    escaped can outgrow the column after.
+    """
+
+    impl = sa.String
+    cache_ok = True
+
+    def __init__(self, length: int) -> None:
+        """Bound the column to ``length`` characters."""
+        super().__init__(length)
+        self.length = length
+
+    def process_bind_param(self, value: str | None, dialect: Dialect) -> str | None:
+        """Write a NUL and what UTF-8 cannot as its escape, and keep what fits."""
+        return None if value is None else storable_text(value)[: self.length]
 
 
 def _enum_values(enum_class: type[StrEnum]) -> list[str]:

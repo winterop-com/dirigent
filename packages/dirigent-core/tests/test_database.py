@@ -26,7 +26,8 @@ from dirigent_core.database import (
     storable_json,
     with_deadlock_retry,
 )
-from dirigent_core.types import SaidText
+from dirigent_core.models import Notification, RunItem, SourceInput, StepAttempt
+from dirigent_core.types import SaidString, SaidText
 
 
 class Aborted(Exception):
@@ -251,3 +252,28 @@ def test_a_json_column_holds_half_a_surrogate_pair_as_the_text_of_its_escape() -
 def test_a_json_column_holds_a_nul_as_the_text_of_its_escape() -> None:
     held = json.loads(storable_json({"nul \x00": ["a \x00 b"], "said": "\\u0000", "slash": "\\\x00", "tab": "\t"}))
     assert held == {"nul \\u0000": ["a \\u0000 b"], "said": "\\u0000", "slash": "\\\\u0000", "tab": "\t"}
+
+
+def test_said_string_writes_its_escape_and_cuts_it_to_the_column() -> None:
+    said = SaidString(12)
+    assert said.process_bind_param("key \x00", DefaultDialect()) == "key \\u0000"
+    assert said.process_bind_param("held \udc80 here", DefaultDialect()) == "held \\udc80 "
+    assert said.process_bind_param("blå", DefaultDialect()) == "blå"
+    assert said.process_bind_param(None, DefaultDialect()) is None
+
+
+@pytest.mark.parametrize(
+    ("column", "kind"),
+    [
+        (RunItem.item_key, SaidString),
+        (StepAttempt.waiting_message, SaidString),
+        (Notification.subject, SaidText),
+        (Notification.body, SaidText),
+        (SourceInput.path, SaidString),
+        (SourceInput.label, SaidString),
+    ],
+    ids=["item_key", "waiting_message", "notification_subject", "notification_body", "input_path", "input_label"],
+)
+def test_text_a_run_a_caller_or_a_service_produced_is_written_as_said(column: Any, kind: type) -> None:
+    """Each of these holds text from outside the instance, which can carry a NUL or half a surrogate pair."""
+    assert isinstance(column.type, kind)
