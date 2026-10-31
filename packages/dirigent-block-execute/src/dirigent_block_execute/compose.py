@@ -458,7 +458,7 @@ def _global_flags(
     for profile in profiles:
         flags += ["--profile", profile]
     for env_file in env_files:
-        flags += ["--env-file", str(root / env_file)]
+        flags += ["--env-file", str(subprocess.inside_work(root, env_file))]
     return flags
 
 
@@ -645,7 +645,7 @@ def _compose_file(file: str | None, content: str | None, ctx: StepContext, root:
         path.write_text(content)
         return path
     if file is not None:
-        return root / file
+        return subprocess.inside_work(root, file)
     return None
 
 

@@ -191,6 +191,15 @@ where it outlives the run, and a target without one is a path relative to the wo
 which is how one step produces the compose file or the build context the next step opens.
 `inputs` is always storage: a URI read into the read-only mount.
 
+An image is not trusted about what it leaves in its output mount. Each declared output is opened
+without following a link, on the way to it or at its end, and has to be a regular file, so a link
+planted under the declared name fails the step as `execute.output_not_a_file` rather than copying
+a worker's file out. A target in the work directory is opened the same way and fails as
+`execute.output_target_refused`. A compose file, an env file, a build context or a Dockerfile named
+by a path that a link leads outside the work directory fails as
+`execute.path_leaves_the_work_directory`, so a repository a step checked out cannot hand one of the
+worker's own files to the CLI.
+
 On the compose stack the daemon mounts that directory at the same path the worker sees it at,
 because a bind is resolved on the daemon's filesystem rather than the worker's. It is local to
 one worker, so a step that reads what another step put there must run on the same worker.

@@ -1118,6 +1118,8 @@ const refused = {
         duplicate: 'Pipeline {pipeline} already has a schedule coded {code}.',
         exactly_one_clock:
             'A schedule declares exactly one of cron, interval, or at. This one declares {named}.',
+        interval_too_long:
+            'A schedule firing every {interval} would not fire again. The longest interval is {limit}.',
         unknown: 'Pipeline {pipeline} has no schedule coded {code}.',
         unknown_timezone: '{name} is not an IANA timezone this host knows. Try UTC or Europe/Oslo.',
     },
@@ -1132,6 +1134,8 @@ const refused = {
         key_file_unreadable: 'The secret key file {path} cannot be read as a key: {detail}',
         key_malformed: 'DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken.',
         key_twice: 'Both secret_key and secret_key_file are set. Name the envelope key one way.',
+        not_sendable:
+            '{fields} holds a control character or a blank at its end, which no HTTP header can carry.',
     },
     server: {
         bad_credentials: 'Invalid username or password.',
@@ -1206,6 +1210,7 @@ const refused = {
         not_signed: 'Source {code} of pipeline {pipeline} is {auth}, so it has no signing secret to set.',
         paused: 'Source {code} of pipeline {pipeline} is paused.',
         pipeline_inactive: 'Pipeline {pipeline} is deactivated, so its source {code} takes no input.',
+        poll_too_long: 'A source polled every {poll} would not poll again. The longest cadence is {limit}.',
         rate: 'This endpoint takes {per_minute} calls a minute.',
         reference_error_not_upstream:
             '{reference} reads the failure of {target}, which is not upstream of step {step}.',

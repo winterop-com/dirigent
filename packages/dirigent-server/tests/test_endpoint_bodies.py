@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
 import httpx2
@@ -11,6 +11,8 @@ from fastapi import FastAPI
 from starlette.types import Message, Scope
 
 from dirigent_core.config import Settings
+from dirigent_core.sources import intake
+from dirigent_plugin.sources import sign_body
 from dirigent_server import create_app
 
 PREFIX: Final = "/api/v1"
@@ -169,3 +171,98 @@ async def test_a_body_that_stops_arriving_is_answered_408_and_closes_the_connect
         assert call.headers[b"connection"] == b"close"
         inputs = (await client.get(f"{PREFIX}/pipelines/stalled/sources/ask/inputs")).json()["items"]
         assert [row["status"] for row in inputs] == [408] * journaled
+
+
+#: Far enough from the wall clock that no test here reads it by accident.
+SIGNED_AT: Final = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
+
+SECRET: Final = "DUMMY-signing-secret"
+
+#: The whole body an ``Unfinished`` call sends: its first byte, then the rest.
+BODY: Final = b"{}"
+
+
+class HeldClock:
+    """A clock a test moves by hand, in place of the one the intake reads."""
+
+    def __init__(self, at: datetime) -> None:
+        """Start at a fixed moment."""
+        self.at = at
+
+    def __call__(self) -> datetime:
+        """Say what time the test has set."""
+        return self.at
+
+
+def _signed_head(at: datetime, body: bytes) -> list[tuple[bytes, bytes]]:
+    """Write the headers of one signed call at a moment, over a body."""
+    stamp = str(int(at.timestamp()))
+    return [
+        (b"host", b"testserver"),
+        (b"content-type", b"application/json"),
+        (b"content-length", str(len(body)).encode()),
+        (b"x-dirigent-timestamp", stamp.encode()),
+        (b"x-dirigent-signature", sign_body(SECRET.encode(), stamp, body).encode()),
+    ]
+
+
+async def _signed_call(app: FastAPI, at: datetime, body: bytes) -> int:
+    """Send one whole signed call and say how it was answered."""
+    answered: list[Message] = []
+
+    async def receive() -> Message:
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    async def send(message: Message) -> None:
+        answered.append(message)
+
+    scope = {**_scope("/endpoints/stalled"), "headers": _signed_head(at, body)}
+    await app(scope, receive, send)
+    return int(answered[0]["status"])
+
+
+async def test_a_spent_signature_held_across_the_end_of_its_window_is_refused(
+    app: FastAPI, admin: httpx2.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await _apply(admin, "hmac")
+    secret = await admin.post(f"{PREFIX}/pipelines/stalled/sources/ask/$set-secret", json={"secret": SECRET})
+    assert secret.status_code == 200, secret.text
+    clock = HeldClock(SIGNED_AT)
+    monkeypatch.setattr(intake, "utcnow", clock)
+    window = app.state.services.settings.source_signature_window
+
+    assert await _signed_call(app, SIGNED_AT, BODY) == 202
+    assert await _signed_call(app, SIGNED_AT, BODY) == 401
+
+    held = Unfinished()
+    scope = {**_scope("/endpoints/stalled"), "headers": _signed_head(SIGNED_AT, BODY)}
+    task = asyncio.create_task(app(scope, held.receive, held.send))
+    await asyncio.wait_for(held.stalled.wait(), timeout=60)
+
+    clock.at = SIGNED_AT + window + timedelta(hours=1)
+    assert await _signed_call(app, clock.at, b'{"another": "call"}') == 202, "this call purges old signatures"
+
+    held.finish.set()
+    await task
+
+    assert held.status == 401, "the record of what it copies may be gone, and the clock says it is stale"
+    inputs = (await admin.get(f"{PREFIX}/pipelines/stalled/sources/ask/inputs")).json()["items"]
+    assert [row["status"] for row in inputs if row["status"] == 202] == [202, 202]
+
+
+async def test_a_spent_signature_keeps_its_record_past_the_window_for_a_call_that_read_the_clock_inside_it(
+    app: FastAPI, admin: httpx2.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await _apply(admin, "hmac")
+    secret = await admin.post(f"{PREFIX}/pipelines/stalled/sources/ask/$set-secret", json={"secret": SECRET})
+    assert secret.status_code == 200, secret.text
+    clock = HeldClock(SIGNED_AT)
+    monkeypatch.setattr(intake, "utcnow", clock)
+    window = app.state.services.settings.source_signature_window
+    assert await _signed_call(app, SIGNED_AT, BODY) == 202
+
+    clock.at = SIGNED_AT + window + timedelta(seconds=1)
+    assert await _signed_call(app, clock.at, b'{"another": "call"}') == 202
+
+    clock.at = SIGNED_AT + window
+    assert await _signed_call(app, SIGNED_AT, BODY) == 401

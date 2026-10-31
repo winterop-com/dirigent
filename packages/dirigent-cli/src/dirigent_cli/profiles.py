@@ -257,6 +257,8 @@ class Endpoint(BaseModel):
     timeout: Duration = DEFAULT_REQUEST_TIMEOUT
     connect_timeout: Duration = DEFAULT_CONNECT_BUDGET
     retries: int = DEFAULT_RETRIES
+    named_by_a_project: bool = False
+    """Whether a checkout's file chose this server off this host, rather than the person running this."""
 
 
 def resolve_endpoint(
@@ -320,4 +322,5 @@ def resolve_endpoint(
         timeout=chosen.timeout if chosen else DEFAULT_REQUEST_TIMEOUT,
         connect_timeout=chosen.connect_timeout if chosen else DEFAULT_CONNECT_BUDGET,
         retries=chosen.retries if chosen else DEFAULT_RETRIES,
+        named_by_a_project=url_from_project and not _is_loopback(url),
     )

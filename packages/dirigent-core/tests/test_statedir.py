@@ -1,7 +1,9 @@
 """A state directory is opened or deleted only when a checkout cannot have supplied it."""
 
 import os
+import struct
 import subprocess
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -253,6 +255,84 @@ def test_a_different_case_is_the_same_state(tmp_path: Path) -> None:
     state.mkdir(parents=True, exist_ok=True)
 
     assert refusal(state) == "database.state_tracked"
+
+
+def write_index(root: Path, *paths: str) -> None:
+    """Write a repository's index holding exactly these paths, spelled byte for byte."""
+    entries = b""
+    for path in sorted(os.fsencode(path) for path in paths):
+        fixed = struct.pack(">10L", 0, 0, 0, 0, 0, 0, 0o100644, 0, 0, 0) + b"\0" * 20
+        body = fixed + struct.pack(">H", len(path)) + path
+        entries += body + b"\0" * (8 - len(body) % 8)
+    git_directory = root / ".git"
+    git_directory.mkdir(parents=True)
+    (git_directory / "index").write_bytes(b"DIRC" + struct.pack(">LL", 2, len(paths)) + entries + b"\0" * 20)
+
+
+@pytest.mark.parametrize(
+    ("on_disk", "in_the_index"),
+    [
+        pytest.param("cafe\u0301", "caf\u00e9", id="nfd-on-disk"),
+        pytest.param("caf\u00e9", "cafe\u0301", id="nfc-on-disk"),
+        pytest.param("CAFE\u0301", "caf\u00e9", id="case-and-normalisation"),
+        pytest.param("stra\u00dfe", "STRASSE", id="a-fold-longer-than-its-letter"),
+        pytest.param("\u212a", "k", id="a-fold-to-ascii"),
+        pytest.param("\u1e69", "s\u0307\u0323", id="reordered-marks"),
+    ],
+)
+def test_another_spelling_of_a_directory_above_the_state_is_the_same_state(
+    tmp_path: Path, on_disk: str, in_the_index: str
+) -> None:
+    """A filesystem that merges two spellings opens what the index spells the other way."""
+    write_index(tmp_path, f"{in_the_index}/.dirigent/state/dirigent.db")
+    state = honest_state(tmp_path / on_disk)
+
+    assert refusal(state) == "database.state_tracked"
+
+
+def test_another_name_beside_the_state_is_not_taken_for_it(tmp_path: Path) -> None:
+    write_index(tmp_path, "caf\u00e9x/.dirigent/state/dirigent.db", "cafe/.dirigent/state/dirigent.db")
+    state = honest_state(tmp_path / "caf\u00e9")
+
+    check_state_directory(state)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="only a normalisation-insensitive filesystem merges the spellings")
+def test_a_clone_spelling_a_directory_two_ways_is_refused_on_this_filesystem(tmp_path: Path) -> None:
+    """The first spelling names the directory on disk, and the state is committed under the other."""
+    nfd, nfc = "cafe\u0301", "caf\u00e9"
+    author = tmp_path / "author"
+    author.mkdir()
+    git("init", "-q", cwd=author)
+    git("config", "core.precomposeunicode", "false", cwd=author)
+    env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+    blob = (
+        subprocess.run(
+            ["git", "hash-object", "-w", "--stdin"],  # noqa: S607
+            cwd=author,
+            env=env,
+            input=b"x",
+            check=True,
+            capture_output=True,
+        )
+        .stdout.decode()
+        .strip()
+    )
+    subprocess.run(
+        ["git", "update-index", "--add", "--index-info"],  # noqa: S607
+        cwd=author,
+        env=env,
+        input=f"100644 {blob}\t{nfd}/x\n100644 {blob}\t{nfc}/.dirigent/state/dirigent.db\n".encode(),
+        check=True,
+        capture_output=True,
+    )
+    git("commit", "-qm", "state", cwd=author)
+    git("clone", "-q", str(author), str(tmp_path / "checkout"), cwd=tmp_path)
+    (tmp_path / "checkout" / nfc / ".dirigent").chmod(0o755)
+    (tmp_path / "checkout" / nfc / ".dirigent" / "state").chmod(0o700)
+
+    assert refusal(tmp_path / "checkout" / nfd / ".dirigent" / "state") == "database.state_tracked"
+    assert refusal(tmp_path / "checkout" / nfc / ".dirigent" / "state") == "database.state_tracked"
 
 
 def test_state_ignored_beside_tracked_files_is_accepted(tmp_path: Path) -> None:

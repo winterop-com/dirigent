@@ -22,7 +22,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 from types import TracebackType
-from typing import Annotated, ClassVar, NamedTuple, cast
+from typing import Annotated, BinaryIO, ClassVar, Literal, NamedTuple, cast
 
 import httpx2
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr, model_validator
@@ -38,8 +38,10 @@ from dirigent_block_execute.messages import (
     MOUNTED_FILE_STAYS_INSIDE,
     NO_DAEMON,
     NOT_A_DAEMON_SCHEME,
+    OUTPUT_NOT_A_FILE,
     OUTPUT_NOT_WRITTEN,
     OUTPUT_STAYS_INSIDE,
+    OUTPUT_TARGET_REFUSED,
     REGISTRY_WITHOUT_A_CREDENTIAL,
     RUN_ONE_CPU_FIELD,
     RUN_ONE_DAEMON,
@@ -775,31 +777,77 @@ async def _collect_outputs(config: DockerRunConfig, handle: RemoteHandle, ctx: S
     directory = Path(handle.meta["outputs_dir"])
     collected: dict[str, str] = {}
     for name, target in config.outputs.items():
-        produced = directory / name
-        if not produced.is_file():
-            raise BlockFailure(
-                OUTPUT_NOT_WRITTEN,
-                error_class=ErrorClass.REJECTED,
-                name=repr(name),
-                path=config.outputs_path,
-            )
-        if "://" in target:
+        with _open_output(directory, name, config) as source:
             written = 0
-            with produced.open("rb") as source:
+            if "://" in target:
                 async with ctx.storage.open_write(target) as sink:
                     while chunk := source.read(COPY_CHUNK_BYTES):
                         written += await sink.write(chunk)
-            ctx.log.info("output collected", name=name, uri=target, bytes_written=written)
-        else:
-            written = 0
-            destination = ctx.work / target
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            with produced.open("rb") as source, destination.open("wb") as sink:
-                while chunk := source.read(COPY_CHUNK_BYTES):
-                    written += sink.write(chunk)
-            ctx.log.info("output collected", name=name, path=target, bytes_written=written)
+                ctx.log.info("output collected", name=name, uri=target, bytes_written=written)
+            else:
+                with _open_target(ctx.work, target) as sink:
+                    while chunk := source.read(COPY_CHUNK_BYTES):
+                        written += sink.write(chunk)
+                ctx.log.info("output collected", name=name, path=target, bytes_written=written)
         collected[name] = target
     return collected
+
+
+def _open_below(base: Path, relative: str, flags: int, *, make_parents: bool = False) -> int:
+    """Open a path below a directory, following no link on the way to it or at its end.
+
+    Each component is opened relative to the descriptor of the one before it, so a link swapped in
+    while this walks is refused rather than followed. A FIFO opens without waiting for its other end.
+    """
+    parts = Path(relative).parts
+    if not parts:
+        raise IsADirectoryError(relative)
+    directory = os.open(base, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for part in parts[:-1]:
+            if make_parents:
+                with contextlib.suppress(FileExistsError):
+                    os.mkdir(part, dir_fd=directory)
+            below = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
+            os.close(directory)
+            directory = below
+        return os.open(parts[-1], flags | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, 0o666, dir_fd=directory)
+    finally:
+        os.close(directory)
+
+
+def _open_output(directory: Path, name: str, config: DockerRunConfig) -> BinaryIO:
+    """Open one declared output for reading, once it is certain to be a regular file in the mount."""
+    refused = BlockFailure(
+        OUTPUT_NOT_A_FILE, error_class=ErrorClass.REJECTED, name=repr(name), path=config.outputs_path
+    )
+    try:
+        descriptor = _open_below(directory, name, os.O_RDONLY)
+    except FileNotFoundError as error:
+        raise BlockFailure(
+            OUTPUT_NOT_WRITTEN, error_class=ErrorClass.REJECTED, name=repr(name), path=config.outputs_path
+        ) from error
+    except OSError as error:
+        raise refused from error
+    return _regular(descriptor, "rb", refused)
+
+
+def _open_target(root: Path, target: str) -> BinaryIO:
+    """Open an output's target in the run's work directory for writing, making its parents."""
+    refused = BlockFailure(OUTPUT_TARGET_REFUSED, error_class=ErrorClass.REJECTED, target=repr(target))
+    try:
+        descriptor = _open_below(root, target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, make_parents=True)
+    except OSError as error:
+        raise refused from error
+    return _regular(descriptor, "wb", refused)
+
+
+def _regular(descriptor: int, mode: Literal["rb", "wb"], refused: BlockFailure) -> BinaryIO:
+    """The open file behind a descriptor, or the refusal when it is not a regular file."""
+    if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        os.close(descriptor)
+        raise refused
+    return os.fdopen(descriptor, mode)
 
 
 async def _stream_since(daemon: "DockerDaemon", handle: RemoteHandle, ctx: StepContext) -> dict[str, str]:

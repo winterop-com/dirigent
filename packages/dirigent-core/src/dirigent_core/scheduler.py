@@ -23,8 +23,9 @@ from dirigent_client.enums import AttemptStatus, FiringOutcome, RunStatus, Trigg
 from dirigent_core import retention, telemetry
 from dirigent_core.database import create_lock_engine, create_session_factory, session_scope
 from dirigent_core.engine.definition import ConcurrencyPolicy, load_definition
-from dirigent_core.engine.runs import ACTIVE_RUN_STATUSES, Attribution, RunCreationError, create_run
+from dirigent_core.engine.runs import ACTIVE_RUN_STATUSES, Attribution, create_run
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import Pipeline, PipelineVersion, Run, Schedule, ScheduleFiring, StepAttempt, utcnow
 from dirigent_core.triggers.schedules import ScheduleError, advance_clock, window_for
@@ -165,9 +166,11 @@ async def _create(
     version = await _current_version(session, schedule)
     if version is None:
         return FiringOutcome.FAILED, None, "the pipeline has no current version to run"
-    definition = load_definition(version.document)
-    replacing = definition.concurrency is ConcurrencyPolicy.REPLACE and await _has_active(session, schedule.pipeline_id)
     try:
+        definition = load_definition(version.document)
+        replacing = definition.concurrency is ConcurrencyPolicy.REPLACE and await _has_active(
+            session, schedule.pipeline_id
+        )
         run = await create_run(
             session,
             services,
@@ -179,7 +182,9 @@ async def _create(
             priority=schedule.priority,
             now=moment,
         )
-    except (RunCreationError, ValueError) as error:
+    except ScheduleError:
+        raise
+    except (DomainError, ValueError) as error:
         return FiringOutcome.FAILED, None, str(error)
     if run is None:
         paused = await _paused_run(session, schedule.pipeline_id)
@@ -243,7 +248,8 @@ async def tick(
 ) -> list[Fired]:
     """Run one scheduler tick: claim what is due, and fire each one in its own transaction.
 
-    One transaction per schedule, so a bad document cannot roll back the firings beside it.
+    One transaction per schedule, so a bad document cannot roll back the firings beside it, and
+    whatever one of them raises stays its own, so the schedules due after it still fire.
     """
     moment = now or utcnow()
     async with session_scope(sessions) as session:
@@ -253,24 +259,27 @@ async def tick(
     telemetry.gauges.observe(scheduler_lag=max((moment - oldest).total_seconds(), 0.0) if oldest else 0.0)
     fired: list[Fired] = []
     for schedule_id in due:
-        async with session_scope(sessions) as session:
-            schedule = await _claim_one(session, schedule_id, moment)
-            if schedule is None:
-                continue
-            try:
-                fired.append(await fire(session, services, schedule, now=moment))
-            except ScheduleError as error:
-                schedule.paused = True
-                session.add(
-                    ScheduleFiring(
-                        schedule_id=schedule.id,
-                        scheduled_for=schedule.next_fire_at or moment,
-                        created_at=moment,
-                        outcome=FiringOutcome.FAILED,
-                        detail=f"{error}; the schedule is paused until it is corrected",
+        try:
+            async with session_scope(sessions) as session:
+                schedule = await _claim_one(session, schedule_id, moment)
+                if schedule is None:
+                    continue
+                try:
+                    fired.append(await fire(session, services, schedule, now=moment))
+                except (ScheduleError, OverflowError) as error:
+                    schedule.paused = True
+                    session.add(
+                        ScheduleFiring(
+                            schedule_id=schedule.id,
+                            scheduled_for=schedule.next_fire_at or moment,
+                            created_at=moment,
+                            outcome=FiringOutcome.FAILED,
+                            detail=f"{error}; the schedule is paused until it is corrected",
+                        )
                     )
-                )
-                _logger.error("schedule paused after a clock error", schedule=schedule.code, error=str(error))
+                    _logger.error("schedule paused after a clock error", schedule=schedule.code, error=str(error))
+        except Exception as error:
+            _logger.error("schedule could not be fired", schedule_id=str(schedule_id), error=str(error))
     return fired
 
 

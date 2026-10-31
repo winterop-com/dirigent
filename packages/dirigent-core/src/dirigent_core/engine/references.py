@@ -32,7 +32,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, SkipValidation
 
 from dirigent_common import JsonMap, Message
-from dirigent_core.engine.shell import REFERENCE_MARK, Quoting, Unread, read_shell
+from dirigent_core.engine.shell import REFERENCE_MARK, Quoting, Unread, evaluated_in_any_quoting, read_shell
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     COMPOSE_REFERENCE,
@@ -274,10 +274,12 @@ def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str,
 
     Bash re-reads a value in arithmetic, where a subscript in it runs a command substitution. So
     a reference inside ``$(( ))``, ``(( ))``, ``$[ ]``, ``let``, ``unset``, the operands of
-    ``[[ -eq ]]`` and ``[[ -v ]]``, an indexed array's subscript, ``${var:offset}``, the name of
-    a declared variable, or anywhere in a command that declares an integer variable, resolves only
-    to an integer, and any other value is refused before the command starts. The first three are
-    also looked for with no regard to quotes, so that one cannot be hidden by a misreading.
+    ``[[ -eq ]]`` and ``[[ -v ]]``, the operand of ``-v`` to ``[``, ``test`` or ``printf``, a name
+    ``read`` assigns, an indexed array's subscript, a compound assignment's subscript,
+    ``${var:offset}``, the name of a declared variable, or anywhere in a command that declares an
+    integer or nameref variable, resolves only to an integer, and any other value is refused
+    before the command starts. Most of those are also looked for with no regard to quotes, so that
+    one cannot be hidden by a misreading.
 
     A command the reader cannot follow to its end is refused whatever its values are, because
     where a reference lands in it is not known.
@@ -298,8 +300,13 @@ def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str,
             reference = match.group(2).strip()
             last_reference = reference
             text = _as_text(lookup(reference, scope))
-            place = reading.places[offsets[match.start()]]
-            integer = place.integer or _arithmetic_open(value[: match.start()])
+            offset = offsets[match.start()]
+            place = reading.places[offset]
+            integer = (
+                place.integer
+                or _arithmetic_open(value[: match.start()])
+                or evaluated_in_any_quoting(literal_text, offset)
+            )
             if integer and SHELL_INTEGER.fullmatch(text) is None:
                 raise UnknownReference(SHELL_ARITHMETIC, reference=reference)
             name = f"{SHELL_VARIABLE_PREFIX}{len(variables)}"

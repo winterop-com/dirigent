@@ -592,3 +592,44 @@ async def test_a_real_stack_comes_up_is_joined_and_torn_down(local_ctx: FakeCont
         )
         assert isinstance(down, DockerComposeDownOutput)
         assert down.torn_down is True
+
+
+# -- a path a link leads away ------------------------------------------------------
+
+
+@pytest.mark.parametrize("field", ["file", "env_files"])
+async def test_a_path_a_link_leads_out_of_the_work_directory_is_refused(
+    local_ctx: FakeContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str
+) -> None:
+    calls = scripted_exec(monkeypatch, lambda argv: FakeProcess(0))
+    install_daemon(monkeypatch, FakeComposeDaemon([]))
+    outside = tmp_path / "outside-the-run.env"
+    outside.write_text("KEY=DUMMY\n")
+    local_ctx.work.mkdir(parents=True, exist_ok=True)
+    (local_ctx.work / "planted").symlink_to(outside)
+    config = (
+        DockerComposeUpConfig(file="planted")
+        if field == "file"
+        else DockerComposeUpConfig(content="services: {}", env_files=["planted"])
+    )
+
+    with pytest.raises(BlockFailure) as raised:
+        await DockerComposeUpOperator().execute(config, local_ctx.as_context())
+
+    assert raised.value.code == "execute.path_leaves_the_work_directory"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert calls == []
+
+
+async def test_a_link_that_stays_inside_the_work_directory_is_followed(
+    local_ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = scripted_exec(monkeypatch, lambda argv: FakeProcess(0, stdout=b"Started\n"))
+    install_daemon(monkeypatch, FakeComposeDaemon([WEB_CONTAINER]))
+    local_ctx.work.mkdir(parents=True, exist_ok=True)
+    (local_ctx.work / "real.yaml").write_text("services: {}\n")
+    (local_ctx.work / "stack.yaml").symlink_to("real.yaml")
+
+    await DockerComposeUpOperator().execute(DockerComposeUpConfig(file="stack.yaml"), local_ctx.as_context())
+
+    assert calls

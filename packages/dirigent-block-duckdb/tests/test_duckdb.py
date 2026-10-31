@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import duckdb
 import pytest
 from pydantic import SecretStr, ValidationError
 from sqlalchemy.engine import Connection
@@ -30,8 +31,6 @@ from dirigent_testing import FakeContext
 
 def httpfs_installed() -> bool:
     """Whether this worker can load httpfs, which the s3 path loads and never installs."""
-    import duckdb
-
     try:
         duckdb.connect().execute(f"LOAD {HTTPFS}")
     except duckdb.Error:
@@ -144,6 +143,183 @@ async def test_a_read_only_duckdb_connection_cannot_overwrite_its_own_file(ducke
     assert database.read_bytes() == before
 
 
+#: A write onto the database file that nothing but its parsed tree shows, in each place duckdb
+#: runs one or reads one.
+COPIES = "COPY (SELECT 'x' AS v) TO '{database}' (FORMAT csv, USE_TMP_FILE false)"
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        f"WITH w AS ({COPIES}) SELECT * FROM w",
+        f"with w as ({COPIES}) select * from w",
+        f"/* a */ WITH /* b */ w /* c */ AS /* d */ ({COPIES}) SELECT * FROM w",
+        f"-- a read\nWITH w AS ({COPIES})\nSELECT * FROM w",
+        f"WITH w AS MATERIALIZED ({COPIES}) SELECT * FROM w",
+        f"WITH w AS NOT MATERIALIZED ({COPIES}) SELECT * FROM w",
+        f"(WITH w AS ({COPIES}) SELECT * FROM w)",
+        f"WITH a AS (SELECT 1), w AS ({COPIES}) SELECT * FROM w",
+        f"WITH w AS ({COPIES}) FROM w",
+        f"WITH w AS ({COPIES}) SELECT 1",
+        f"WITH w AS ({COPIES}) VALUES (1)",
+        f"WITH w AS ({COPIES}) SELECT * FROM w UNION ALL SELECT 1",
+        f"WITH w AS ({COPIES}) SELECT 1;",
+        f"SELECT * FROM (WITH w AS ({COPIES}) SELECT * FROM w)",
+        f"SELECT 1 UNION ALL (WITH w AS ({COPIES}) SELECT * FROM w)",
+        f"SUMMARIZE WITH w AS ({COPIES}) SELECT * FROM w",
+        f"DESCRIBE WITH w AS ({COPIES}) SELECT * FROM w",
+        "WITH w AS (COPY reading TO '{database}' (FORMAT csv)) SELECT 1",
+        "WITH w AS (COPY (SELECT 'x' AS v) TO '{database}.wal' (FORMAT csv)) SELECT 1",
+    ],
+    ids=[
+        "with",
+        "lower-case",
+        "block-comments",
+        "line-comment",
+        "materialized",
+        "not-materialized",
+        "parenthesised",
+        "second-cte",
+        "from-first",
+        "unused",
+        "values",
+        "union",
+        "semicolon",
+        "subquery",
+        "union-branch",
+        "summarize",
+        "describe",
+        "table",
+        "wal",
+    ],
+)
+async def test_a_read_only_duckdb_connection_refuses_a_copy_anywhere_in_a_statement(
+    ducked: FakeContext, statement: str
+) -> None:
+    database = ducked.as_context().work / "demo.duckdb"
+    before = database.read_bytes()
+    duck(ducked, read_only=True)
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, statement.format(database=database))
+    assert raised.value.code == "sql.duckdb.read_only_runs_select"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "COPY" in str(raised.value)
+    assert database.read_bytes() == before
+
+
+async def test_a_copy_bound_as_a_parameter_is_refused_all_the_same(ducked: FakeContext) -> None:
+    database = ducked.as_context().work / "demo.duckdb"
+    before = database.read_bytes()
+    duck(ducked, read_only=True)
+    with pytest.raises(BlockFailure) as raised:
+        await query(
+            ducked,
+            "WITH w AS (COPY (SELECT 'x' AS v) TO :target (FORMAT csv, USE_TMP_FILE false)) SELECT * FROM w",
+            params={"target": f"file://{database}"},
+        )
+    assert raised.value.code == "sql.duckdb.read_only_runs_select"
+    assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "WITH w AS (INSERT INTO reading VALUES (9, 'x', 1.0) RETURNING *) SELECT * FROM w",
+        "WITH w AS (UPDATE reading SET id = 9 RETURNING *) SELECT * FROM w",
+        "WITH w AS (DELETE FROM reading RETURNING *) SELECT * FROM w",
+    ],
+    ids=["insert", "update", "delete"],
+)
+async def test_a_read_only_duckdb_connection_refuses_a_write_inside_a_with(ducked: FakeContext, statement: str) -> None:
+    duck(ducked, read_only=True)
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, statement)
+    assert raised.value.code == "sql.duckdb.read_only_runs_select"
+
+
+def carried(statement: str) -> str:
+    """A statement as ``json_execute_serialized_sql`` takes it: serialized, in a string."""
+    tree = duckdb.connect().execute("SELECT json_serialize_sql(?)", [statement]).fetchone()
+    assert tree is not None
+    return "'" + str(tree[0]).replace("'", "''") + "'"
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "FROM json_execute_serialized_sql({carried})",
+        "SELECT * FROM json_execute_serialized_sql({carried})",
+        "FROM JSON_EXECUTE_SERIALIZED_SQL({carried})",
+        'FROM "json_execute_serialized_sql"({carried})',
+        "FROM system.main.json_execute_serialized_sql({carried})",
+        "SELECT * FROM range(1), json_execute_serialized_sql({carried})",
+        "FROM query($$FROM json_execute_serialized_sql({carried})$$)",
+        "FROM query($$WITH w AS (COPY (SELECT 1 AS v) TO '{database}' (FORMAT csv)) SELECT * FROM w$$)",
+        "FROM query_table('reading')",
+    ],
+    ids=["from", "select", "upper", "quoted", "qualified", "joined", "query", "query-copy", "query-table"],
+)
+async def test_a_statement_carried_in_a_string_is_refused_rather_than_run(ducked: FakeContext, shape: str) -> None:
+    database = ducked.as_context().work / "demo.duckdb"
+    before = database.read_bytes()
+    duck(ducked, read_only=True)
+    statement = shape.replace(
+        "{carried}", carried(f"WITH w AS ({COPIES.format(database=database)}) SELECT * FROM w")
+    ).replace("{database}", str(database))
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, statement)
+    assert raised.value.code == "sql.duckdb.read_only_runs_select"
+    assert database.read_bytes() == before
+
+
+class AnsweringTree:
+    """A connection whose ``json_serialize_sql`` answers with this, or raises it."""
+
+    def __init__(self, answer: Exception | str) -> None:
+        """Hold what the serialization answers."""
+        self.answer = answer
+
+    def execute(self, *_arguments: object) -> "AnsweringTree":
+        return self
+
+    def fetchone(self) -> tuple[str]:
+        if isinstance(self.answer, Exception):
+            raise self.answer
+        return (self.answer,)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        duckdb.Error("no such function"),
+        '{"error":true,"error_message":"no tree"}',
+        '{"error":false,"statements":[]}',
+        '{"error":false,"statements":[{},{}]}',
+        '{"error":false}',
+        '{"statements":[{}]}',
+        "[]",
+        "not json",
+        "[" * 100_000,
+    ],
+    ids=[
+        "raises",
+        "error",
+        "no-statements",
+        "too-many",
+        "no-field",
+        "no-error-field",
+        "a-list",
+        "not-json",
+        "too-deep",
+    ],
+)
+def test_a_tree_that_cannot_be_had_whole_is_refused_rather_than_run(answer: Exception | str) -> None:
+    with pytest.raises(BlockFailure) as raised:
+        engine.parsed_tree(AnsweringTree(answer), "SELECT 1", 1)
+    assert raised.value.code == "sql.duckdb.read_only_unparsed"
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
 @pytest.mark.parametrize(
     "statement",
     ["SET threads = 1", "ATTACH ':memory:' AS other", "CALL pragma_table_info('reading')", "   ", "-- nothing"],
@@ -171,8 +347,47 @@ async def test_a_read_only_duckdb_connection_refuses_what_it_cannot_parse(ducked
         ("SELECT id::text AS id FROM reading WHERE id = :id", {"id": 2}, [{"id": "2"}]),
         ("WITH picked AS (SELECT id FROM reading WHERE id = 1) SELECT id FROM picked", {}, [{"id": 1}]),
         ("FROM reading SELECT id WHERE id = 2", {}, [{"id": 2}]),
+        (
+            "SELECT 'COPY_QUERY_NODE' AS type, 'query' AS function_name",
+            {},
+            [{"type": "COPY_QUERY_NODE", "function_name": "query"}],
+        ),
+        ("SELECT {'type': 'COPY_QUERY_NODE'}.type AS kind", {}, [{"kind": "COPY_QUERY_NODE"}]),
+        ("SELECT 1 AS copy_query_node", {}, [{"copy_query_node": 1}]),
+        ("SELECT id FROM reading WHERE id = 1 UNION SELECT 7 ORDER BY id", {}, [{"id": 1}, {"id": 7}]),
+        ("SELECT id FROM reading WHERE id < 3 EXCEPT SELECT 2", {}, [{"id": 1}]),
+        (
+            "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM n WHERE x < 2) FROM n",
+            {},
+            [{"x": 1}, {"x": 2}],
+        ),
+        ("WITH a AS MATERIALIZED (SELECT 3 AS x) SELECT x FROM a", {}, [{"x": 3}]),
+        ("SELECT x FROM (WITH a AS (SELECT 4 AS x) SELECT * FROM a)", {}, [{"x": 4}]),
+        ("SELECT (SELECT MAX(id) FROM reading) AS top", {}, [{"top": 2}]),
+        ("VALUES (5)", {}, [{"col0": 5}]),
+        ("SELECT COUNT(*) AS n FROM range(2)", {}, [{"n": 2}]),
+        ("SELECT COUNT(*) > 0 AS any FROM duckdb_tables()", {}, [{"any": True}]),
+        ("SELECT * FROM (VALUES (1)) t(a), LATERAL (SELECT a + 1 AS b)", {}, [{"a": 1, "b": 2}]),
     ],
-    ids=["bound", "cast", "with", "from-first"],
+    ids=[
+        "bound",
+        "cast",
+        "with",
+        "from-first",
+        "literal-naming-a-node",
+        "struct-naming-a-node",
+        "alias-naming-a-node",
+        "union",
+        "except",
+        "recursive",
+        "materialized",
+        "with-in-a-subquery",
+        "scalar-subquery",
+        "values",
+        "table-function",
+        "catalog-function",
+        "lateral",
+    ],
 )
 async def test_a_read_only_duckdb_connection_still_runs_every_spelling_of_a_read(
     ducked: FakeContext, statement: str, params: JsonMap, rows: list[JsonMap]
@@ -204,6 +419,14 @@ async def test_duckdb_writes_a_parquet_artifact_and_reads_it_back_through_a_stor
         params={"source": target, "id": 1},
     )
     assert output.rows == [{"site": "north", "value": 2.5}]
+
+
+async def test_a_read_only_duckdb_connection_reads_a_file_a_step_wrote(ducked: FakeContext) -> None:
+    target = f"{ducked.scratch}/reading.parquet"
+    await execute(ducked, "COPY (SELECT id FROM reading ORDER BY id) TO :target (FORMAT parquet)", target=target)
+    duck(ducked, read_only=True)
+    output = await query(ducked, "SELECT COUNT(*) AS n FROM read_parquet(:source)", params={"source": target})
+    assert output.rows == [{"n": 2}]
 
 
 async def test_duckdb_reads_a_csv_through_a_storage_uri(ducked: FakeContext) -> None:

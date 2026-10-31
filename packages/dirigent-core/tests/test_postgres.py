@@ -203,6 +203,19 @@ async def test_a_stored_output_past_what_pydantic_walks_does_not_hold_back_other
         assert (await session.get(Run, bystander.id)).status is RunStatus.SUCCEEDED  # type: ignore[union-attr]
 
 
+async def test_jsonb_takes_an_output_holding_half_a_surrogate_pair_as_the_text_of_its_escape(
+    pg_sessions: Any, pg_services: EngineServices
+) -> None:
+    """JSONB refuses the character itself, which would fail the transaction settling the step."""
+    run = await start(pg_sessions, pg_services, batch(1))
+    async with session_scope(pg_sessions) as session:
+        attempt = (await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run.id))).scalar_one()
+        attempt.output = {"lone \udc80": ["\ud800"], "pair": "\U0001f600"}
+    async with pg_sessions() as session:
+        stored = (await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run.id))).scalar_one()
+    assert stored.output == {"lone \\udc80": ["\\ud800"], "pair": "\U0001f600"}
+
+
 #: The instants the counted run is settled at, so the earliest one is a fact and not a clock read.
 COUNTED = datetime(2026, 3, 1, tzinfo=UTC)
 

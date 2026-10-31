@@ -28,6 +28,7 @@ from dirigent_common import (
     JsonMap,
     format_duration,
     raised_detail,
+    scrub,
 )
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
@@ -461,7 +462,10 @@ class Engine:
                 with contextlib.suppress(asyncio.CancelledError):
                     await flusher
             if isinstance(result, Errored):
+                result = Errored(failure=result.failure.scrubbed(logger.secrets))
                 telemetry.record_failure(span, result.failure.message)
+            if isinstance(result, Vanished):
+                result = Vanished(message=scrub(result.message, logger.secrets))
             if isinstance(result, Submitted):
                 await self.record_handle(unit, result.handle)
             if isinstance(result, Produced) and result.fetched:
@@ -526,9 +530,9 @@ class Engine:
                 context.log.error(
                     "the block raised an error it does not account for",
                     raised_kind=type(error).__name__,
-                    raised_detail=raised_detail(error),
+                    raised_detail=raised_detail(error, redact=context.opened_secrets),
                 )
-            return Errored(failure=Failure.of(block, error))
+            return Errored(failure=Failure.of(block, error, redact=context.opened_secrets))
 
     async def _call_operator(
         self,

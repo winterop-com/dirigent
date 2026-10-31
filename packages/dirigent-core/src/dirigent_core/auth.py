@@ -476,6 +476,28 @@ async def resolve_token(session: AsyncSession, secret: str, *, now: datetime | N
     )
 
 
+async def principal_stands(session: AsyncSession, principal: Principal, *, now: datetime | None = None) -> bool:
+    """Say whether what authenticated a principal would still authenticate it, in one indexed read.
+
+    What a long-lived response asks on every poll, inside that poll's own transaction, so the
+    credential it was opened with is held to the same rule a new request is.
+    """
+    moment = now or utcnow()
+    if principal.token_id is None:
+        statement = sa.select(User.active).where(User.id == principal.user_id)
+    else:
+        statement = (
+            sa.select(User.active)
+            .join(ApiToken, ApiToken.user_id == User.id)
+            .where(
+                ApiToken.id == principal.token_id,
+                ApiToken.revoked_at.is_(None),
+                sa.or_(ApiToken.expires_at.is_(None), ApiToken.expires_at > moment),
+            )
+        )
+    return (await session.execute(statement)).scalar_one_or_none() is True
+
+
 async def list_tokens(
     session: AsyncSession,
     *,
