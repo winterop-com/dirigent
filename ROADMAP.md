@@ -94,7 +94,38 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
    - **The pipelines list and its panel show what a pipeline does,** a graph first.
    - **Examples are separated from a person's own pipelines.**
    - **No column that says nothing.**
-2. **dirigent-fhir: FHIR as a system of its own.** A general FHIR pack, not a DHIS2 one: a
+
+   Where it stands: Codex drafted three directions as live HTML with real data, in
+   `redesign-directions/` beside this repository (A operator console, B flow first, C quiet
+   document), with a board of five corner ladders on the same components. None is chosen yet, and
+   nothing in `docs/ui-conventions.md` or the code has changed for it. The choice comes next, then
+   the chosen direction on a canvas, then the conventions, then the code.
+2. **What the third security review left open.** The review and the sibling packs' first reviews
+   are fixed and merged; these are what they did not settle, each its own slice:
+   - **A backtracking `pattern` in `validate.schema` holds a worker.** Python's `re` keeps the
+     interpreter's lock, so a thread does not help; it takes a killable process or a regex engine
+     without backtracking. `unevaluatedItems` and `unevaluatedProperties` stay quadratic, about a
+     minute of thread time at the 1 MiB cap.
+   - **A NUL in a stored value on PostgreSQL.** JSONB refuses `\u0000` as it refused half a
+     surrogate pair, so a step whose output holds one cannot settle there. Escape it the way
+     `storable_json` escapes a lone surrogate, behind a test on a real PostgreSQL.
+   - **A run-wide storage quota.** The packs now bound each answer, but many answers under the
+     bound still fill storage, and only the engine can count a run's total.
+   - **The two ten-year bounds,** `LONGEST_POLL` and `LONGEST_INTERVAL`, are one rule written
+     twice and want one constant.
+   - **The units the reviews never reached.** Step deadline arithmetic, gate expansion and the
+     lease sweep, attempt reads at the depth limit, retention sweeps, alert queueing,
+     `dg pipeline new` writing to a name the instance chooses, storage blocks across runs, tokens
+     refused by header on step paths, and connection fields a reference chooses. In the packs: the
+     `analytics_run` probe and retry logic, what the shipped schema gates admit, a credential a
+     service echoes back, a job's end of life, and `capture`'s unbounded read of an error answer.
+   - **Leads that need a real service to settle.** Which of a data value set's own `dryRun` and
+     `strategy` and the step's query DHIS2 obeys, which decides whether a document's body can turn
+     a dry run into a write; a broker message stalling polled sources on PostgreSQL; a checked-out
+     symlink redirecting a run-relative SQLite file.
+   - **The parallel-sleep CLI test is flaky.** It expects the three roots queued in the order
+     written, and a loaded runner queues them in another.
+3. **dirigent-fhir: FHIR as a system of its own.** A general FHIR pack, not a DHIS2 one: a
    pipeline that pulls from one FHIR server and pushes to another, neither of them DHIS2, is as
    much its purpose as feeding DHIS2. It depends on the FHIR engine only, and carries no DHIS2
    dependency. Between steps a resource or a Bundle is plain FHIR JSON, as a data value set is
@@ -152,7 +183,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      package reader `dhis2w-fhir` has is for its own organisation-unit registry. It belongs
      beside the engine too, since validation in both repositories needs it.
    The pack depends on these by package name, not by repository.
-3. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project
+4. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project
    in the workspace, beside `dirigent-examples`. It is one instance that has it all:
    - every package and pack as dependencies, `dirigent-integration`'s shelves included;
    - every service the corpus teaches with, running in its compose stack: object storage
@@ -164,7 +195,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
    - a `verify.sh` that brings it up from nothing, applies, runs the corpus and asserts
      green, the way the example repos do.
    It is a demo, not a product install; a real instance still installs only what it uses.
-4. **A DHIS2 app for dirigent, shipped with dirigent-dhis2.** DHIS2 people want to see and run
+5. **A DHIS2 app for dirigent, shipped with dirigent-dhis2.** DHIS2 people want to see and run
    their pipelines from inside DHIS2: an App Platform app, installed through App Management,
    listing the pipelines that touch this DHIS2 instance, their runs and logs, and the sources
    waiting for input, with run, pause and rerun where the user may. It belongs to
@@ -187,13 +218,13 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      for CORS.
    - *Where it ships.* A built app zip as a release asset of `dirigent-dhis2`, versioned with
      the pack, with the App Hub as a later option.
-5. **More packs.** An outside system goes in the one `dirigent-contrib` package, beside Chap and
+6. **More packs.** An outside system goes in the one `dirigent-contrib` package, beside Chap and
    the open climate service, rather than in a package or a repository of its own. Only a system
    big enough to carry its own repository takes one, as `dirigent-dhis2` does, with its own
    examples and tests, self-testing against `dirigent-plugin`'s main and assembled by
    `dirigent-integration`. Either way a pack is wired through a connection kind, with a client
    written fresh or wrapping a stable one.
-6. **AI blocks: local models and hosted APIs, both first-class.** A pipeline step that asks a
+7. **AI blocks: local models and hosted APIs, both first-class.** A pipeline step that asks a
    model, whose answer is data a later step can read rather than prose. Local is the starting
    point, so an AI step runs in `dg run --local` with nothing in the cloud; a hosted API sits
    behind the same blocks, and a document moves between them by changing the connection.
