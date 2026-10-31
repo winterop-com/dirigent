@@ -1038,9 +1038,9 @@ SOURCE_WAITING_SHARE = SOURCE.define(
     "send again shortly",
 )
 
-REPLY_REJECTED = SOURCE.define("reply_rejected", "run {run} refused the input at step {step}: {detail}")
+REPLY_REJECTED = SOURCE.define("reply_rejected", "run {run} refused the input at step {step}")
 
-REPLY_FAILED = SOURCE.define("reply_failed", "run {run} failed at step {step} before any reply answered: {detail}")
+REPLY_FAILED = SOURCE.define("reply_failed", "run {run} failed at step {step} before any reply answered")
 
 REPLY_UNANSWERED = SOURCE.define("reply_unanswered", "run {run} is {status}, and no reply answered")
 

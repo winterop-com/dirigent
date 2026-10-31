@@ -495,6 +495,11 @@ the reply renders, where a value a reference resolved to that holds a line break
 (`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
 pipeline's to set, so a reply can redirect, name a download or answer a browser caller.
 
+**A failed step's text stays on the run.** A held caller whose run fails before a reply answers is
+told the run and the step, and nothing the step said: that text can hold the artifact root, an
+internal address or a query value, and a caller may have no right to read the run. A reply can
+still put a step's error in its own body, as the author chooses.
+
 **A route is one source's.** Two sources answering one method at one template are refused at
 apply, across pipelines, and a unique constraint holds it when two applies race.
 
