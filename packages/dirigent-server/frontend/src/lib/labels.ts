@@ -1202,6 +1202,7 @@ const refused = {
         not_signed: 'Source {code} of pipeline {pipeline} is {auth}, so it has no signing secret to set.',
         paused: 'Source {code} of pipeline {pipeline} is paused.',
         pipeline_inactive: 'Pipeline {pipeline} is deactivated, so its source {code} takes no input.',
+        poll_too_long: 'A source polled every {poll} would not poll again. The longest cadence is {limit}.',
         rate: 'This endpoint takes {per_minute} calls a minute.',
         reference_error_not_upstream:
             '{reference} reads the failure of {target}, which is not upstream of step {step}.',

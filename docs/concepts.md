@@ -209,7 +209,7 @@ callers on one reader, woken when a run settles, and a held input's journal row 
 `replied` or `timed_out`.
 
 A `storage` source is polled rather than called: a worker lists its `uri`, a prefix or a glob,
-every `poll`, and each object it has not handed over before becomes one run,
+every `poll` (at most ten years, past which apply refuses it), and each object it has not handed over before becomes one run,
 `${steps.<source>.output.uri}` naming it. An object is known by its URI, so one copied in still
 carrying an old date is found and one re-copied with a fresh date is not run twice;
 `rerun_changed: true` runs an object again whenever its modification time changes, for a file
