@@ -78,6 +78,16 @@ not delete through a link and leaves tracked state in place. New state directori
 `0700`, and a group-writable one from before has to be cleared with `--wipe-state`. These rules
 protect a separately installed `dg`: `uv run dg` runs the checkout's own pyproject first.
 
+**A seeded instance no longer starts runs on its own.** `dg dev --seed`, `--seed-installed` and
+`make dev-seeded` land polled and held sources (`sensor`, `storage`, `kafka`, `rabbitmq`) paused, the
+way they land schedules, and endpoints stay live. `dg source resume PIPELINE CODE`, or Resume on the
+Triggers screen, starts one. `dg apply --paused` covers the same sources, and a source the instance
+already holds keeps its state.
+
+**`pause_schedules` is now `paused`.** That covers `POST /pipelines/$apply`, `dg.pipelines.apply` and
+the MCP `apply_document` tool. The old name is ignored rather than refused, so a script still sending
+it gets live schedules and sources: change it.
+
 **Other changes a deployment can notice.**
 
 - Behind a proxy on another host, set `FORWARDED_ALLOW_IPS`. Login limits and the `Secure` cookie
