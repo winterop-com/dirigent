@@ -223,6 +223,27 @@ document can notice.
 - A polled source's `poll` past ten years is refused at apply (`source.poll_too_long`), and one
   source's failure stays on its own row.
 
+**What the review left open, now closed.**
+
+- **A run has a storage quota.** `run_storage_quota` (default `1gb`) caps what a run, together with
+  every run its steps start through `pipeline.run`, writes to storage: captures, storage writes and
+  copies, and outputs too large to inline. The write that would pass it writes nothing and fails
+  its step as `run.storage_quota`, which is not retried. Each run's `stored_bytes` is on the run and
+  in `dg runs show`. The baseline migration gains two columns, so a state database from an earlier
+  version is refused at boot, as usual before 1.0.
+- `validate.schema` takes a `timeout` (default `10s`). A check past it fails the step as rejected
+  (`base.value_unchecked`), and a cancelled step stops its check at the next keyword. A pattern
+  that backtracks now holds a thread rather than the worker, and no pattern is newly refused.
+  `unevaluatedItems` and `unevaluatedProperties` cost time in step with the value. Checking a
+  run's parameters stops after one second and refuses the run (`parameter.unchecked`).
+- A NUL, or half a surrogate pair, in a step's output, input or failure text, a fan-out item's key,
+  a wait's message, an alert, or a source input's path or label is stored as its six-character
+  escape, so it settles on PostgreSQL. A reader sees `\u0000` where the NUL was.
+- A document or management request holding a NUL or half a surrogate pair in its text is refused
+  with a 422 and `validation.text_unstorable`, where PostgreSQL used to fail the write as a 500.
+- A schedule's interval and a polled source's cadence share one ten-year bound.
+- `dg run --local` announces a run's roots as queued in the order they are written.
+
 ## 0.27.1
 
 Released 2026-10-30. Every package in the workspace moves to 0.27.1 together, and so do
