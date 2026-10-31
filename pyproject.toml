@@ -204,4 +204,5 @@ dev = [
     "types-pyyaml>=6.0.12.20260815",
     "aiosmtpd>=1.4.6",
     "pytest-xdist>=3.8.0",
+    "types-regex>=2026.9.29.20261030",
 ]

@@ -16,6 +16,11 @@ WAITER_CANCELLED = BASE.define("waiter_cancelled", "the run waiting on it was ca
 
 VALUE_REFUSED = BASE.define("value_refused", "at {location}: {detail}")
 
+VALUE_UNCHECKED = BASE.define(
+    "value_unchecked",
+    "the value was not checked against the schema within its timeout of {timeout}",
+)
+
 SCHEMA_REFERENCE_UNRESOLVED = BASE.define(
     "schema_reference_unresolved",
     "the schema's $ref {ref} is not in the schema itself, and a schema's references are never fetched",

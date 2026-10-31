@@ -15,13 +15,15 @@ from dirigent_common import (
     LOCAL_REFERENCES,
     TEMPLATE_MEDIA_TYPE,
     EntityName,
+    EvaluationOverrun,
     JsonMap,
     StepName,
     TemplateError,
     ValueValidator,
+    bounded_evaluation,
     compile_template,
 )
-from dirigent_common.durations import Duration
+from dirigent_common.durations import Duration, format_duration
 from dirigent_core.engine.references import has_reference, references_in
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
@@ -30,6 +32,7 @@ from dirigent_core.messages import (
     DUPLICATE_TRIGGER_CODES,
     PARAMETER_INVALID,
     PARAMETER_SCHEMA_INVALID,
+    PARAMETER_UNCHECKED,
     REPLY_BAD_HEADER,
     REPLY_BAD_STATUS,
     REPLY_BODY_TWICE,
@@ -57,6 +60,9 @@ KIND_TRIGGERS: Final = "triggers"
 REPLY_BLOCK_ID: Final = "reply"
 
 EMPTY_PARAMS_SCHEMA: JsonMap = {"type": "object", "properties": {}}
+
+#: How long checking a run's parameters against the pipeline's schema may take.
+PARAMETERS_CHECKED_WITHIN: Final = timedelta(seconds=1)
 
 #: A tag as it is stored and compared: the entity-name family, loosened -- a tag is a label
 #: somebody types into a filter, not a key anything is addressed by, so a trailing or doubled
@@ -662,14 +668,21 @@ class PipelineDefinition(BaseModel):
         The schema is checked before it is used, because a version stored before that check
         existed can hold a schema that is not one, and jsonschema then raises something no
         caller of this method catches.
+
+        The check runs where it is called, the event loop included, and stops at
+        ``PARAMETERS_CHECKED_WITHIN``.
         """
         resolved = _with_defaults(self.params, params)
         try:
             Draft202012Validator.check_schema(self.params)
-            ValueValidator(self.params, format_checker=format_checker, registry=LOCAL_REFERENCES).validate(resolved)
+            validator = ValueValidator(self.params, format_checker=format_checker, registry=LOCAL_REFERENCES)
+            with bounded_evaluation(PARAMETERS_CHECKED_WITHIN):
+                validator.validate(resolved)
         except SchemaValidationError as error:
             location = "/".join(str(part) for part in error.absolute_path) or "(root)"
             raise ParameterError(PARAMETER_INVALID, location=location, detail=error.message) from error
+        except EvaluationOverrun as error:
+            raise ParameterError(PARAMETER_UNCHECKED, timeout=format_duration(error.within)) from error
         except Exception as error:
             # Anything but a validation error here is the pipeline's schema failing, not the
             # supplied parameters: an unknown type, an unresolvable $ref, a subschema that is

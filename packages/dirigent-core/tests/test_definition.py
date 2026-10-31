@@ -1,5 +1,6 @@
 """Tests for the pipeline definition model: the graph checks and parameter validation."""
 
+import time
 from datetime import timedelta
 from typing import Any
 
@@ -176,6 +177,21 @@ def test_a_parameter_schema_keeps_its_own_references_and_the_published_metaschem
     assert definition.validate_params({"day": "x", "shape": {"type": "string"}}, base_format_checker())["day"] == "x"
     with pytest.raises(ParameterError):
         definition.validate_params({"day": 1}, base_format_checker())
+
+
+def test_a_backtracking_parameter_pattern_refuses_the_run_at_its_bound() -> None:
+    """Parameters are checked on the event loop, so a match that would take seconds stops at one."""
+    definition = PipelineDefinition(
+        code="backtracks",
+        params={"type": "object", "properties": {"name": {"type": "string", "pattern": "^(a|aa)+$"}}},
+        steps={"a": StepDefinition(block="test.echo")},
+    )
+    began = time.monotonic()
+    with pytest.raises(ParameterError) as raised:
+        definition.validate_params({"name": "a" * 38 + "!"}, base_format_checker())
+    assert time.monotonic() - began < 10
+    assert raised.value.code == "parameter.unchecked"
+    assert str(raised.value) == "the parameters were not checked against the pipeline's parameter schema within 1s"
 
 
 def test_a_parameter_schema_that_is_not_a_schema_refuses_the_run_rather_than_escaping() -> None:

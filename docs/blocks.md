@@ -710,6 +710,7 @@ Contributed by `block-base`. Idempotent.
 | --- | --- | --- | --- | --- |
 | `input` | `any` |  | `null` | The value to check, normally a `${steps....}` reference to what an upstream step produced. An explicit null is a value like any other and is checked as one. |
 | `schema` | `string` | yes |  | The code of the schema the value must satisfy: one the instance holds, or one the document carries in its top-level `schemas` section. The named schema was validated when it was stored or applied, so nothing rechecks it here; a code no instance holds fails the run at the gate. |
+| `timeout` | `string (humane-duration)` |  | `"10s"` | How long checking the value may take. Past it the step fails, refused rather than retried, and the check stops: a pattern that backtracks, or a schema whose cost grows faster than the value, ends here. |
 
 **Output**
 
