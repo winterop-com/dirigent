@@ -8,12 +8,12 @@ encrypt it. Only those fields go into the envelope; the rest stay queryable JSON
 import hashlib
 import hmac
 import json
-from typing import Any
+from typing import Any, Final
 
 from cryptography.fernet import Fernet, InvalidToken
 from pydantic import BaseModel, SecretStr, ValidationError
 
-from dirigent_common import JsonMap
+from dirigent_common import REDACTED, JsonMap
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     CONNECTION_UNREADABLE,
@@ -21,9 +21,11 @@ from dirigent_core.messages import (
     SECRET_KEY_MALFORMED,
     SECRET_KEY_MISMATCH,
     SECRET_KEY_MISSING,
+    SECRET_NOT_SENDABLE,
 )
 
-REDACTED = "***"
+#: The secret fields the engine sends whole as an HTTP header, read by these names on any config.
+HEADER_SECRET_FIELDS: Final = ("bearer_token", "api_token")
 
 #: What separates the key behind `SecretBox.keyed_digest` from the instance key it comes from.
 KEYED_DIGEST_PURPOSE = b"dirigent keyed digest v1"
@@ -60,6 +62,17 @@ class EmptySecret(SecretError):
         """Name the fields that came in empty."""
         super().__init__(fields=", ".join(fields))
         self.fields = fields
+
+
+class SecretNotSendable(SecretError):
+    """A secret sent as a header holds what a header cannot carry, which fails on every use."""
+
+    status = 422
+    message = SECRET_NOT_SENDABLE
+
+    def __init__(self, fields: list[str]) -> None:
+        """Name the fields, and no value."""
+        super().__init__(fields=", ".join(fields))
 
 
 class SecretKeyMismatch(SecretError):
@@ -142,6 +155,27 @@ def unset_empty_secrets(model: type[BaseModel], config: JsonMap) -> JsonMap:
     return {name: (None if name in empty else value) for name, value in config.items()}
 
 
+def refuse_unsendable_secrets(model: type[BaseModel], config: JsonMap) -> None:
+    """Refuse a secret sent as a header that holds a control character or a blank at its end.
+
+    A trailing newline from a file or a blank from a paste makes every use of the credential
+    fail, and the HTTP library refuses it by quoting the whole header in its error.
+    """
+    secret_names = set(secret_fields(model))
+    refused: list[str] = [
+        name
+        for name in HEADER_SECRET_FIELDS
+        if name in secret_names and isinstance(text := config.get(name), str) and _unsendable(text)
+    ]
+    if refused:
+        raise SecretNotSendable(refused)
+
+
+def _unsendable(text: str) -> bool:
+    """Say whether a header value could not hold this text."""
+    return text != text.strip() or any(character < " " or character == "\x7f" for character in text)
+
+
 def redact(model: type[BaseModel], config: JsonMap) -> JsonMap:
     """Replace every secret field's value with the redaction marker, for display."""
     secret_names = set(secret_fields(model))
@@ -207,7 +241,9 @@ class SecretBox:
 
         A secret field left empty is stored unset, so nothing seals an empty credential.
         """
-        public, secret = split_secrets(model, unset_empty_secrets(model, dump_config(config)))
+        dumped = unset_empty_secrets(model, dump_config(config))
+        refuse_unsendable_secrets(model, dumped)
+        public, secret = split_secrets(model, dumped)
         if not secret:
             return public, None, None
         return public, self.seal(secret), self.key_id

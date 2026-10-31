@@ -211,7 +211,7 @@ callers on one reader, woken when a run settles, and a held input's journal row 
 `replied` or `timed_out`.
 
 A `storage` source is polled rather than called: a worker lists its `uri`, a prefix or a glob,
-every `poll`, and each object it has not handed over before becomes one run,
+every `poll` (at most ten years, past which apply refuses it), and each object it has not handed over before becomes one run,
 `${steps.<source>.output.uri}` naming it. An object is known by its URI, so one copied in still
 carrying an old date is found and one re-copied with a fresh date is not run twice;
 `rerun_changed: true` runs an object again whenever its modification time changes, for a file
@@ -529,7 +529,7 @@ already public and the document has to stand alone; anywhere else the instance h
 What starts a run on its own, or by hand. Two kinds:
 
 - **Ad hoc** -- `dg run`, the API, or the UI. Always available, always parameterized.
-- **A schedule** -- cron, a fixed interval, or a single instant, each with its own timezone and
+- **A schedule** -- cron, a fixed interval of at most ten years, or a single instant, each with its own timezone and
   its own parameter overrides. Several per pipeline is the normal case: nightly against
   staging and weekly against production is two schedules on one pipeline, not two pipelines.
 

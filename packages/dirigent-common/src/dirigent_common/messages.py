@@ -6,12 +6,13 @@ code and render the same refusal in another language without anything else chang
 """
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from string import Formatter
 from typing import Any, ClassVar, Final, Self
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dirigent_common.redaction import scrub
 from dirigent_common.types import JsonMap
 
 #: A message name: lowercase words joined by underscores, and dotted where a family of
@@ -217,15 +218,16 @@ def validation_issues(errors: Sequence[Mapping[str, Any]]) -> list[Issue]:
 RAISED_DETAIL_CHARS: Final = 2000
 
 
-def raised_detail(error: Exception) -> str:
+def raised_detail(error: Exception, *, redact: Collection[str] = ()) -> str:
     """Say what an exception said about itself, falling back to its class when it said nothing.
 
     A Python class name is not a sentence anybody wrote, so it is the last thing left to say
     rather than the first thing said. What comes back is an operator's detail: it belongs in a
     log, in a refusal's params, or in the ``{detail}`` of a message that supplies the sentence
-    around it, and never alone in front of a person.
+    around it, and never alone in front of a person. ``redact`` is scrubbed before the cut, which
+    would otherwise leave a long secret too short to be found.
     """
-    detail = str(error).strip() or type(error).__name__
+    detail = scrub(str(error).strip(), redact) or type(error).__name__
     if len(detail) > RAISED_DETAIL_CHARS:
         return f"{detail[:RAISED_DETAIL_CHARS]} [truncated, {len(detail)} characters]"
     return detail

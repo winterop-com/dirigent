@@ -2,7 +2,8 @@
 
 import asyncio
 import json
-from collections.abc import AsyncGenerator
+import os
+from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -784,6 +785,137 @@ async def test_a_declared_output_the_container_never_wrote_is_a_rejection(
         await DockerRunOperator().fetch(handle, config, local_ctx.as_context())
     assert raised.value.error_class is ErrorClass.REJECTED
     assert "did not write the declared output" in str(raised.value)
+
+
+async def collected_after(
+    daemon: FakeDaemon,
+    ctx: FakeContext,
+    plant: Callable[[Path], None],
+    *,
+    name: str = "result.txt",
+    target: str = "file://out/result.txt",
+) -> DockerRunOutput:
+    """Run a container whose image leaves ``plant``'s work in the output mount, and collect it."""
+    daemon.exited(0)
+    config = DockerRunConfig(image="alpine", outputs={name: target})
+    handle = await DockerRunOperator().execute(config, ctx.as_context())
+    assert isinstance(handle, RemoteHandle)
+    plant(Path(handle.meta["outputs_dir"]))
+    output = await DockerRunOperator().fetch(handle, config, ctx.as_context())
+    assert isinstance(output, DockerRunOutput)
+    return output
+
+
+@pytest.fixture
+def worker_file(tmp_path: Path) -> Path:
+    """A file only the worker can read, outside the run's work directory."""
+    secret = tmp_path / "outside-the-run" / "worker-only.txt"
+    secret.parent.mkdir()
+    secret.write_text("DUMMY-WORKER-ONLY-VALUE\n")
+    return secret
+
+
+@pytest.mark.parametrize("target", ["file://out/result.txt", "context/result.txt"], ids=["storage", "work"])
+async def test_an_output_that_is_a_link_is_refused_rather_than_followed(
+    daemon: FakeDaemon, local_ctx: FakeContext, worker_file: Path, target: str
+) -> None:
+    def plant(mount: Path) -> None:
+        (mount / "result.txt").symlink_to(worker_file)
+
+    with pytest.raises(BlockFailure) as raised:
+        await collected_after(daemon, local_ctx, plant, target=target)
+    assert raised.value.code == "execute.output_not_a_file"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert not (local_ctx.work / "context/result.txt").exists()
+    assert not local_ctx.storage.path_for("file://out/result.txt").exists()
+
+
+async def test_an_output_below_a_linked_parent_is_refused(
+    daemon: FakeDaemon, local_ctx: FakeContext, worker_file: Path
+) -> None:
+    def plant(mount: Path) -> None:
+        (mount / "linked").symlink_to(worker_file.parent)
+
+    with pytest.raises(BlockFailure) as raised:
+        await collected_after(daemon, local_ctx, plant, name="linked/worker-only.txt")
+    assert raised.value.code == "execute.output_not_a_file"
+    assert not local_ctx.storage.path_for("file://out/result.txt").exists()
+
+
+async def test_an_output_that_is_a_relative_link_inside_the_mount_is_refused_too(
+    daemon: FakeDaemon, local_ctx: FakeContext
+) -> None:
+    def plant(mount: Path) -> None:
+        (mount / "real.txt").write_text("x")
+        (mount / "result.txt").symlink_to("real.txt")
+
+    with pytest.raises(BlockFailure) as raised:
+        await collected_after(daemon, local_ctx, plant)
+    assert raised.value.code == "execute.output_not_a_file"
+
+
+@pytest.mark.parametrize("kind", ["fifo", "directory", "dangling"])
+async def test_an_output_that_is_not_a_regular_file_is_refused_without_waiting_on_it(
+    daemon: FakeDaemon, local_ctx: FakeContext, kind: str
+) -> None:
+    def plant(mount: Path) -> None:
+        path = mount / "result.txt"
+        if kind == "fifo":
+            os.mkfifo(path)
+        elif kind == "directory":
+            path.mkdir()
+        else:
+            path.symlink_to(mount / "absent")
+
+    async with asyncio.timeout(10):
+        with pytest.raises(BlockFailure) as raised:
+            await collected_after(daemon, local_ctx, plant)
+    assert raised.value.code == "execute.output_not_a_file"
+
+
+async def test_a_regular_output_in_a_subdirectory_is_still_collected(
+    daemon: FakeDaemon, local_ctx: FakeContext
+) -> None:
+    def plant(mount: Path) -> None:
+        (mount / "deep" / "er").mkdir(parents=True)
+        (mount / "deep" / "er" / "result.txt").write_bytes(b"the answer\n")
+
+    output = await collected_after(daemon, local_ctx, plant, name="deep/er/result.txt", target="a/b/c.txt")
+    assert output.outputs == {"deep/er/result.txt": "a/b/c.txt"}
+    assert (local_ctx.work / "a/b/c.txt").read_bytes() == b"the answer\n"
+
+
+async def test_an_output_target_already_a_regular_file_is_replaced(daemon: FakeDaemon, local_ctx: FakeContext) -> None:
+    (local_ctx.work / "context").mkdir(parents=True)
+    (local_ctx.work / "context/result.txt").write_bytes(b"a much longer earlier file\n")
+
+    def plant(mount: Path) -> None:
+        (mount / "result.txt").write_bytes(b"new\n")
+
+    await collected_after(daemon, local_ctx, plant, target="context/result.txt")
+    assert (local_ctx.work / "context/result.txt").read_bytes() == b"new\n"
+
+
+@pytest.mark.parametrize("planted", ["target", "parent"])
+async def test_an_output_target_through_a_planted_link_leaves_the_outside_file_alone(
+    daemon: FakeDaemon, local_ctx: FakeContext, worker_file: Path, planted: str
+) -> None:
+    local_ctx.work.mkdir(parents=True, exist_ok=True)
+    if planted == "target":
+        (local_ctx.work / "result.txt").symlink_to(worker_file)
+        target = "result.txt"
+    else:
+        (local_ctx.work / "linked").symlink_to(worker_file.parent)
+        target = "linked/worker-only.txt"
+
+    def plant(mount: Path) -> None:
+        (mount / "result.txt").write_text("planted_by_a_container = True\n")
+
+    with pytest.raises(BlockFailure) as raised:
+        await collected_after(daemon, local_ctx, plant, target=target)
+    assert raised.value.code == "execute.output_target_refused"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert worker_file.read_text() == "DUMMY-WORKER-ONLY-VALUE\n"
 
 
 async def test_fetch_on_a_container_that_vanished_is_transient(daemon: FakeDaemon, local_ctx: FakeContext) -> None:

@@ -10,7 +10,7 @@ import httpx2
 import typer
 from pydantic import JsonValue
 
-from dirigent_cli.commands import fail, paged
+from dirigent_cli.commands import fail, paged, refuse_a_server_a_project_named
 from dirigent_cli.context import client_for, state_of
 from dirigent_cli.messages import ONE_INPUT_BODY, SOURCE_NOT_CALLABLE, SOURCE_UNREACHABLE, TAKES_NAME_EQUALS_VALUE
 from dirigent_cli.output import emit_fact, emit_one, emit_records
@@ -102,6 +102,7 @@ def source_set_secret(
     ] = None,
 ) -> None:
     """Replace a signed source's signing secret with one its sender issued, such as a provider's own."""
+    refuse_a_server_a_project_named(state_of(ctx))
     given = secret or typer.prompt("signing secret", hide_input=True)
     with client_for(state_of(ctx)) as dg:
         row = dg.call(dg.sources.set_secret(pipeline, code, given))

@@ -41,8 +41,28 @@ _EXPRESSION_FRAMES: Final = frozenset({_ARITHMETIC, _BRACKET, _GROUP, _SUBSCRIPT
 
 #: Words that leave the next word in command position.
 _KEYWORDS: Final = frozenset(
-    {"if", "then", "elif", "else", "fi", "while", "until", "do", "done", "!", "time", "{", "}", "command", "builtin"}
+    {
+        "if",
+        "then",
+        "elif",
+        "else",
+        "fi",
+        "while",
+        "until",
+        "do",
+        "done",
+        "!",
+        "time",
+        "{",
+        "}",
+        "command",
+        "builtin",
+        "coproc",
+    }
 )
+
+#: Words that take options and then a command, as ``time -p`` and ``command -p`` do.
+_PREFIXES: Final = frozenset({"time", "command", "builtin"})
 
 #: Commands whose words name a variable, and take the attribute flags.
 _DECLARERS: Final = frozenset({"declare", "typeset", "local", "readonly", "export"})
@@ -55,10 +75,25 @@ _EVALUATING_TESTS: Final = frozenset({"-eq", "-ne", "-lt", "-le", "-gt", "-ge", 
 
 _ASSIGNMENT: Final = re.compile(r"[A-Za-z_]\w*(\[.*\])?\+?=")
 _NAME: Final = re.compile(r"[A-Za-z_]\w*")
+_FUNCTION_PARENS: Final = re.compile(r"\(\s*\)")
+_DESCRIPTOR: Final = re.compile(r"[0-9]+|\{[A-Za-z_]\w*\}")
 _BRACE_NAME: Final = re.compile(r"[#!]?(?:[A-Za-z_]\w*|[0-9]+|[@*#?$!-])")
 
 #: What ends a here-document's delimiter when it is not quoted.
 _WORD_END: Final = " \t\n;&|()<>"
+
+#: What ends a command for a reading that follows no quote.
+_COMMAND_BOUNDARY: Final = re.compile(r"[;|\n(`]|(?<![<>])&")
+_REDIRECTION: Final = re.compile(r"(?:[0-9]*|\{[A-Za-z_]\w*\})[<>]")
+_BARE_REDIRECTION: Final = re.compile(r"[0-9]*[<>]+&?")
+_WORD_START: Final = r"(?<![^\s;&|(){}!\"'`])"
+_TEST_OPENER: Final = re.compile(rf"{_WORD_START}\[\[\s")
+_TEST_CLOSER: Final = re.compile(r"(?<!\\)\]\](?=[\s;&|)]|$)")
+_TEST_CLAUSE_END: Final = re.compile(r"&&|\|\||(?<!\\)\]\](?=[\s;&|)]|$)")
+_EVALUATING_OPERATOR: Final = re.compile(rf"{_WORD_START}(?:-eq|-ne|-lt|-le|-gt|-ge|-v)(?![^\s)\"'])")
+_ATTRIBUTE_DECLARERS: Final = frozenset({"declare", "typeset", "local"})
+_QUOTED_COMPOUND: Final = re.compile(rf"{_WORD_START}(?:declare|typeset|local)\s[^\n;&|]*[\"']\w+\+?=\([^\n)]*$")
+_COMPOUND_OPENER: Final = "=("
 
 
 class Quoting(StrEnum):
@@ -112,6 +147,8 @@ class _Frame(BaseModel):
     strip_tabs: bool = False
     quoted: bool = False
     at_line_start: bool = False
+    redirected: bool = False
+    prefixed: bool = False
 
 
 class _HereDocument(BaseModel):
@@ -399,11 +436,19 @@ class _Reader:
                 self._reset_command(top)
             self.index += 1
         elif character in "<>":
+            if _DESCRIPTOR.fullmatch(top.word) is not None:
+                top.word = ""
+                top.in_word = False
             self._end_word(top)
-            self._redirection()
+            self._redirection(top)
         elif character == "(":
             self._end_word(top)
-            if ahead == "(":
+            top.redirected = False
+            parens = _FUNCTION_PARENS.match(self.text, self.index)
+            if parens is not None:
+                self._reset_command(top)
+                self.index = parens.end()
+            elif ahead == "(":
                 self._push(_ARITHMETIC, "((", 2, arithmetic=True)
             else:
                 self._push(_SUBSHELL, "(", 1)
@@ -411,6 +456,8 @@ class _Reader:
             self._end_word(top)
             if top.kind == _SUBSHELL and top.case_depth == 0:
                 self.stack.pop()
+                if top.opener == "(":
+                    self._reset_command(self.stack[-1])
             else:
                 self._reset_command(top)
             self.index += 1
@@ -463,12 +510,15 @@ class _Reader:
             end += 1
         self.index = end
 
-    def _redirection(self) -> None:
+    def _redirection(self, top: _Frame) -> None:
+        """Pass over a redirection operator, whose next word is a target and no command."""
         if self.text.startswith("<<<", self.index):
+            top.redirected = True
             self.index += 3
         elif self.text.startswith("<<", self.index):
             self._here_document()
         else:
+            top.redirected = True
             self.index += 1
 
     def _here_document(self) -> None:
@@ -564,6 +614,7 @@ class _Reader:
         elif character == "\\":
             if self.index + 1 not in self.references:
                 self._note(self.text[self.index + 1 : self.index + 2])
+            top.quoted = True
             self._escape()
         elif two in ("&&", "||") or character in "()":
             if not self._end_test_word(top):
@@ -571,6 +622,7 @@ class _Reader:
                 self.index += 2 if two in ("&&", "||") else 1
         elif self._quote(character):
             top.in_word = True
+            top.quoted = True
         elif not self._substitution(character):
             self._note(character)
             self.index += 1
@@ -578,11 +630,13 @@ class _Reader:
     def _end_test_word(self, top: _Frame) -> bool:
         """Finish a word of a ``[[ ]]``, and say whether it was the ``]]`` that closes it."""
         word = top.word
+        quoted = top.quoted
         top.word = ""
         top.in_word = False
+        top.quoted = False
         if word in _EVALUATING_TESTS:
             top.clause_evaluates = True
-        if word == "]]":
+        if word == "]]" and not quoted:
             self._end_clause(top)
             self.stack.pop()
             return True
@@ -605,7 +659,11 @@ class _Reader:
         word = frame.word
         frame.word = ""
         frame.in_word = False
-        if frame.expect_command:
+        if frame.redirected:
+            frame.redirected = False
+        elif word in ("{", "}"):
+            self._reset_command(frame)
+        elif frame.expect_command:
             self._command_word(frame, word)
         elif frame.command in _DECLARERS:
             self._declared_word(frame, word)
@@ -617,7 +675,9 @@ class _Reader:
             frame.case_depth += 1
             frame.expect_command = False
             frame.command = word
-        elif word not in _KEYWORDS and _ASSIGNMENT.match(word) is None:
+        elif word in _KEYWORDS:
+            frame.prefixed = word in _PREFIXES
+        elif not (frame.prefixed and word.startswith("-")) and _ASSIGNMENT.match(word) is None:
             frame.expect_command = False
             frame.command = word
             frame.arithmetic = word in _EVALUATORS
@@ -636,8 +696,107 @@ class _Reader:
         frame.command = ""
         frame.arithmetic = False
         frame.associative = False
+        frame.prefixed = False
 
 
 def read_shell(text: str, references: Collection[int]) -> ShellReading:
     """Read a command in which each offset of ``references`` holds a reference, one character wide."""
     return _Reader(text, references).read()
+
+
+def evaluated_in_any_quoting(text: str, offset: int) -> bool:
+    """Whether bash may evaluate the value of the reference at this offset, whatever the text quotes.
+
+    It reads neither quotes, comments nor here-documents, so none can hide a word from it, and a
+    word in a string can read as one. It looks at the word in command position of the text since
+    the last separator, so ``echo let ${x}`` and ``echo "let me ${x}"`` take any value.
+    """
+    before = text[:offset]
+    words = _command_words(_COMMAND_BOUNDARY.split(before)[-1])
+    if words and not before[-1].isspace():
+        words.pop()
+    command = _unquoted(words[0]) if words else ""
+    named = bool(words) and _unquoted(words[-1]) == "-v"
+    return (
+        command in _EVALUATORS
+        or (named and command in ("[", "[[", "test", "printf"))
+        or (command == "read" and "<" not in before[before.rfind(words[0]) :])
+        or _in_evaluating_test(text, offset)
+        or _in_compound_subscript(before)
+        or _QUOTED_COMPOUND.search(before) is not None
+        or _declares_attribute(text)
+    )
+
+
+def _command_words(segment: str) -> list[str]:
+    """A command's words from the one in command position on, with no regard to quotes."""
+    words = segment.split()
+    index = 0
+    while index < len(words):
+        word = _unquoted(words[index])
+        if word == "case":
+            index += 1
+            while index < len(words) and not words[index].endswith(")"):
+                index += 1
+            index += 1
+        elif word == "function" or _BARE_REDIRECTION.fullmatch(word) is not None:
+            index += 2
+        elif word in _PREFIXES:
+            index += 1
+            while index < len(words) and words[index].startswith("-"):
+                index += 1
+        elif (
+            word in _KEYWORDS
+            or word.endswith(")")
+            or _REDIRECTION.match(word) is not None
+            or _ASSIGNMENT.match(word) is not None
+        ):
+            index += 1
+        else:
+            return words[index:]
+    return []
+
+
+def _unquoted(word: str) -> str:
+    return word.strip("\"'\\")
+
+
+def _in_evaluating_test(text: str, offset: int) -> bool:
+    """Whether this offset is in a clause of a ``[[ ]]`` that has an evaluating operator."""
+    opener = None
+    for found in _TEST_OPENER.finditer(text, 0, offset):
+        ahead = _command_words(_COMMAND_BOUNDARY.split(text[: found.start()])[-1])
+        if not ahead:
+            opener = found
+    if opener is None or _TEST_CLOSER.search(text, opener.end(), offset) is not None:
+        return False
+    start = opener.end()
+    for separator in _TEST_CLAUSE_END.finditer(text, start, offset):
+        start = separator.end()
+    end = _TEST_CLAUSE_END.search(text, offset + 1)
+    return _EVALUATING_OPERATOR.search(text, start, end.start() if end else len(text)) is not None
+
+
+def _in_compound_subscript(before: str) -> bool:
+    """Whether the end of this text is inside a ``[`` of a compound assignment, ``a=([x]=1)``."""
+    opener = before.rfind(_COMPOUND_OPENER)
+    if opener < 0:
+        return False
+    depth = 0
+    inner = before[opener + len(_COMPOUND_OPENER) :]
+    for character in inner:
+        depth += (character == "(") - (character == ")")
+        if depth < 0:
+            return False
+    return inner.rfind("[") > inner.rfind("]")
+
+
+def _declares_attribute(text: str) -> bool:
+    """Whether any command here gives a variable the integer or nameref attribute."""
+    for segment in _COMMAND_BOUNDARY.split(text):
+        words = _command_words(segment)
+        if words and _unquoted(words[0]) in _ATTRIBUTE_DECLARERS:
+            for word in words[1:]:
+                if word.startswith("-") and ("i" in word or "n" in word):
+                    return True
+    return False

