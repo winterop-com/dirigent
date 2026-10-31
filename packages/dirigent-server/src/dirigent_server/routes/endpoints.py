@@ -169,7 +169,11 @@ async def _answer(
 
 
 def _unanswered(request: Request, answered: Unanswered, run: str, where: dict[str, str]) -> Response:
-    """Map a run no reply can answer any more: a refused input is 422, anything else 502."""
+    """Map a run no reply can answer any more: a refused input is 422, anything else 502.
+
+    It names the step and the run and says no more. What the step failed with can hold the
+    artifact root, an internal address or a query value, and belongs to whoever may read the run.
+    """
     if answered.step is None:
         state = answered.run_status.value if answered.run_status is not None else "gone"
         return _problem(
@@ -181,11 +185,10 @@ def _unanswered(request: Request, answered: Unanswered, run: str, where: dict[st
             run=run,
             status=state,
         )
-    detail = answered.error or "no error was recorded"
     message = REPLY_REJECTED if answered.refused else REPLY_FAILED
     code = 422 if message is REPLY_REJECTED else 502
-    rendered = message.render(run=run, step=repr(answered.step), detail=detail)
-    return _problem(request, code, message.code, rendered, where, run=run, step=repr(answered.step), detail=detail)
+    rendered = message.render(run=run, step=repr(answered.step))
+    return _problem(request, code, message.code, rendered, where, run=run, step=repr(answered.step))
 
 
 async def _replied(session: AsyncSession, services: EngineServices, replied: Replied) -> Response:
