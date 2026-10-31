@@ -215,9 +215,17 @@ two-digit index:
 {"type": "string", "pattern": "^[A-Z]{2}-[A-Z]{4}-[0-9]{2}$"}
 ```
 
-Write a `pattern` that cannot backtrack without end. A nested repeat such as `^(a+)+$` over a
-string a caller wrote holds the whole worker process for as long as the regular expression engine
-takes, and the step's timeout does not fire meanwhile.
+A pattern is read with Python's regular expression syntax and meaning, which JSON Schema's
+ECMA-262 patterns mostly share: `$` also matches before a final newline, and `\d` and `\w` match
+Unicode digits and letters, so anchor with `\Z` or spell a class such as `[0-9]` where that
+matters. A pattern Python cannot compile is refused when the schema is stored or applied.
+
+A pattern that backtracks, such as the nested repeat `^(a+)+$`, can take time exponential in the
+string it reads. The engine matches without holding the worker, and a check stops at its bound:
+a `validate.schema` step at its `timeout` (10 seconds by default), failing as `rejected` with
+`base.value_unchecked`, and a run's parameters after one second, refusing the run with
+`parameter.unchecked`. A schema still fails that way on every value long enough, so write
+patterns that do not backtrack.
 
 That accepts `"NO-BRGN-01"` and rejects `"too-short"` and `"has a space here!!"`. A `number` or
 `integer` takes `minimum`, `maximum`, and the exclusive pair `exclusiveMinimum` / `exclusiveMaximum`.

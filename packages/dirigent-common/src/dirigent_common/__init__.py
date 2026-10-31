@@ -53,7 +53,7 @@ from dirigent_common.programs import (
 )
 from dirigent_common.redaction import REDACTED, scrub, scrub_json, secrets_of, spellings
 from dirigent_common.schema_references import LOCAL_REFERENCES, Unresolvable
-from dirigent_common.schema_values import ValueValidator
+from dirigent_common.schema_values import EvaluationOverrun, ValueValidator, bounded_evaluation
 from dirigent_common.schemas import BlockModel, HealthReport, HttpConnectionConfig
 from dirigent_common.sizes import (
     FILLER,
@@ -75,8 +75,10 @@ __all__ = [
     "LOCAL_REFERENCES",
     "REDACTED",
     "BoundedLoader",
+    "EvaluationOverrun",
     "Unresolvable",
     "ValueValidator",
+    "bounded_evaluation",
     "YamlExpansionError",
     "bounded_load",
     "bounded_load_all",

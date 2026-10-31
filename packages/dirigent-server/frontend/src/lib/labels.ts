@@ -1038,6 +1038,8 @@ const refused = {
         invalid: 'Parameter {location} is invalid: {detail}',
         schema_invalid:
             "The pipeline's parameter schema is not itself valid JSON Schema ({problem}). Apply a corrected document to fix it.",
+        unchecked:
+            "The parameters were not checked against the pipeline's parameter schema within {timeout}.",
     },
     pipeline: {
         deactivated: 'Pipeline {code} is deactivated.',

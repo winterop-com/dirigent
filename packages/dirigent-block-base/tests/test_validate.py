@@ -2,10 +2,13 @@
 
 import asyncio
 import threading
+import time
+from collections.abc import Awaitable
 from typing import Any
 
 import pytest
 
+from dirigent_block_base import validate
 from dirigent_block_base.validate import ValidateSchemaConfig, ValidateSchemaOperator, ValidateSchemaOutput
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext, call_block
@@ -146,7 +149,7 @@ async def test_a_null_input_is_a_value_the_schema_judges(ctx: FakeContext) -> No
 def test_the_document_writes_the_schema_key() -> None:
     """A document says ``schema``; the Python attribute is renamed only to dodge a pydantic clash."""
     published = ValidateSchemaConfig.model_json_schema(mode="serialization")
-    assert set(published["properties"]) == {"input", "schema"}
+    assert set(published["properties"]) == {"input", "schema", "timeout"}
     assert published["additionalProperties"] is False
 
 
@@ -270,3 +273,137 @@ async def test_a_step_timeout_fires_while_a_value_is_being_evaluated(ctx: FakeCo
         assert not release.is_set(), "and the loop turned with the evaluation still in progress"
     finally:
         release.set()
+
+
+#: A pattern every engine that backtracks takes time exponential in the run of ``a`` it reads.
+BACKTRACKING = "^(a|aa)+$"
+
+
+def _backtracked(length: int) -> str:
+    """A string ``BACKTRACKING`` reads every way it can split before it fails to match."""
+    return "a" * length + "!"
+
+
+async def _longest_pause(call: Awaitable[Any]) -> tuple[float, float, BaseException | None]:
+    """Run ``call`` beside a ticker; return the longest the loop went without turning, the whole, and what it raised."""
+    task = asyncio.ensure_future(call)
+    began = time.monotonic()
+    longest = 0.0
+    while not task.done():
+        before = time.monotonic()
+        await asyncio.sleep(0.01)
+        longest = max(longest, time.monotonic() - before)
+    whole = time.monotonic() - began
+    return longest, whole, task.exception()
+
+
+@pytest.mark.parametrize(
+    ("schema", "value"),
+    [
+        ({"pattern": BACKTRACKING}, _backtracked(32)),
+        ({"patternProperties": {BACKTRACKING: {}}}, {_backtracked(32): 1}),
+        ({"patternProperties": {BACKTRACKING: {}}, "additionalProperties": False}, {_backtracked(32): 1}),
+        ({"propertyNames": {"pattern": BACKTRACKING}}, {_backtracked(32): 1}),
+    ],
+    ids=["pattern", "patternProperties", "additionalProperties", "propertyNames"],
+)
+async def test_a_backtracking_pattern_leaves_the_loop_turning(ctx: FakeContext, schema: Any, value: Any) -> None:
+    """A match that takes the better part of a second never stops the loop for half of it."""
+    ctx.schemas["backtracks"] = schema
+    longest, whole, raised = await _longest_pause(
+        call_block(ValidateSchemaOperator(), {"input": value, "schema": "backtracks"}, ctx)
+    )
+    assert raised is None or isinstance(raised, BlockFailure)
+    assert longest < whole / 2, f"the loop stood still for {longest:.2f}s of {whole:.2f}s"
+
+
+async def test_a_backtracking_pattern_fails_the_step_at_its_timeout(ctx: FakeContext) -> None:
+    """A match that would run for minutes ends at the gate's timeout, refused rather than retried."""
+    ctx.schemas["backtracks"] = {"pattern": BACKTRACKING}
+    began = time.monotonic()
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(
+            ValidateSchemaOperator(), {"input": _backtracked(44), "schema": "backtracks", "timeout": "200ms"}, ctx
+        )
+    assert time.monotonic() - began < 10
+    assert raised.value.code == "base.value_unchecked"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert raised.value.message == "the value was not checked against the schema within its timeout of 200ms"
+
+
+async def test_a_schema_whose_cost_doubles_with_depth_fails_the_step_at_its_timeout(ctx: FakeContext) -> None:
+    """Each level of this schema evaluates the level below twice, so forty levels never finish."""
+    ctx.schemas["tree"] = {"additionalProperties": {"$ref": "#"}, "unevaluatedProperties": False}
+    value: Any = {}
+    for _ in range(40):
+        value = {"child": value}
+    began = time.monotonic()
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(ValidateSchemaOperator(), {"input": value, "schema": "tree", "timeout": "300ms"}, ctx)
+    assert time.monotonic() - began < 10
+    assert raised.value.code == "base.value_unchecked"
+
+
+@pytest.mark.parametrize(
+    ("schema", "value"),
+    [
+        ({"prefixItems": [True], "unevaluatedItems": False}, [*range(2000)]),
+        ({"properties": {"k0": {}}, "unevaluatedProperties": False}, {f"k{index}": index for index in range(2000)}),
+    ],
+    ids=["unevaluatedItems", "unevaluatedProperties"],
+)
+async def test_unevaluated_keywords_never_scan_a_list_per_element(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch, schema: Any, value: Any
+) -> None:
+    """The library's ``unevaluated*`` look each element up in a list its own helpers build."""
+
+    def refused(*_: object) -> list[object]:
+        raise AssertionError("the library's unevaluated lookup ran")
+
+    monkeypatch.setattr("jsonschema._keywords.find_evaluated_item_indexes_by_schema", refused)
+    monkeypatch.setattr("jsonschema._keywords.find_evaluated_property_keys_by_schema", refused)
+    ctx.schemas["closed"] = schema
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(ValidateSchemaOperator(), {"input": value, "schema": "closed"}, ctx)
+    assert raised.value.code == "base.value_refused"
+    assert "Unevaluated" in raised.value.message
+
+
+async def test_a_cancelled_step_stops_its_check_at_the_next_keyword(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A check held in its first format is cancelled; released, it checks nothing more."""
+    entered = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+    checked: list[object] = []
+
+    def held(value: object) -> bool:
+        checked.append(value)
+        entered.set()
+        release.wait(10)
+        return True
+
+    evaluate = validate._earliest_error  # pyright: ignore[reportPrivateUsage]
+
+    def observed(*arguments: Any) -> Any:
+        try:
+            return evaluate(*arguments)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(validate, "_earliest_error", observed)
+    ctx.formats["held"] = held
+    ctx.schemas["slow"] = {"items": {"format": "held"}}
+    task = asyncio.ensure_future(
+        call_block(ValidateSchemaOperator(), {"input": ["first", "second", "third"], "schema": "slow"}, ctx)
+    )
+    try:
+        assert await asyncio.to_thread(entered.wait, 10)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+    finally:
+        release.set()
+    assert await asyncio.to_thread(finished.wait, 10)
+    assert checked == ["first"]

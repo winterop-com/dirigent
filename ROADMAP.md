@@ -102,10 +102,6 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
    the chosen direction on a canvas, then the conventions, then the code.
 2. **What the third security review left open.** The review and the sibling packs' first reviews
    are fixed and merged; these are what they did not settle, each its own slice:
-   - **A backtracking `pattern` in `validate.schema` holds a worker.** Python's `re` keeps the
-     interpreter's lock, so a thread does not help; it takes a killable process or a regex engine
-     without backtracking. `unevaluatedItems` and `unevaluatedProperties` stay quadratic, about a
-     minute of thread time at the 1 MiB cap.
    - **A NUL in a stored value on PostgreSQL.** JSONB refuses `\u0000` as it refused half a
      surrogate pair, so a step whose output holds one cannot settle there. Escape it the way
      `storable_json` escapes a lone surrogate, behind a test on a real PostgreSQL.

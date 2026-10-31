@@ -203,6 +203,11 @@ PARAMETER_SCHEMA_INVALID = PARAMETER.define(
     "the pipeline's parameter schema is not itself valid JSON Schema ({problem}); apply a corrected document to fix it",
 )
 
+PARAMETER_UNCHECKED = PARAMETER.define(
+    "unchecked",
+    "the parameters were not checked against the pipeline's parameter schema within {timeout}",
+)
+
 DOCUMENT = Catalogue("document")
 
 NOT_YAML = DOCUMENT.define("not_yaml", "the document is not valid YAML or JSON: {detail}")
