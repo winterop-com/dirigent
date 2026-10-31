@@ -1,4 +1,4 @@
-"""Text a caller writes that no database stores as written is refused where it arrives."""
+"""Text a caller writes that no database stores as written is refused where it arrives, an address included."""
 
 import asyncio
 import json
@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Final
 
 import pytest
+import yaml
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
@@ -25,6 +26,62 @@ JSON: Final = {"content-type": "application/json"}
 
 #: The code every refusal of such text carries, in the request's list of problems.
 UNSTORABLE: Final = "validation.text_unstorable"
+
+#: The code an address holding such text is answered with, as naming nothing.
+NOWHERE: Final = "server.address_unstorable"
+
+#: A pipeline whose endpoint source takes a segment of the path from its caller.
+HOOK: Final = """
+format: dirigent/v1
+kind: pipeline
+code: hook
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /hook/{who}
+  shape:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output.body}
+      program: '.'
+"""
+
+#: One address per way a caller's address reaches a lookup or the journal, each holding a NUL.
+ADDRESSES: Final[list[tuple[str, str]]] = [
+    ("get", f"{PREFIX}/pipelines/a%00b"),
+    ("get", f"{PREFIX}/pipelines/a%00b/versions"),
+    ("post", f"{PREFIX}/pipelines/a%00b/$run"),
+    ("get", f"{PREFIX}/connections/a%00b"),
+    ("delete", f"{PREFIX}/schemas/a%00b"),
+    ("get", f"{PREFIX}/users/a%00b"),
+    ("get", f"{PREFIX}/pipelines/hook/sources/a%00b/inputs"),
+    ("get", f"{PREFIX}/runs?pipeline=a%00b"),
+    ("get", f"{PREFIX}/pipelines?tag=a%00b"),
+    ("get", f"{PREFIX}/runs?a%00b=1"),
+    ("post", "/endpoints/hook/a%00b"),
+    ("post", "/endpoints/hook/ann?said=a%00b"),
+    ("post", "/endpoints/hook/ann?a%00b=1"),
+    ("get", "/assets/a%00b.js"),
+]
+
+ADDRESS_IDS: Final = [
+    "pipeline",
+    "pipeline-versions",
+    "pipeline-run",
+    "connection",
+    "schema-delete",
+    "user",
+    "source-inputs",
+    "runs-by-pipeline",
+    "pipelines-by-tag",
+    "query-key",
+    "endpoint-path",
+    "endpoint-query-value",
+    "endpoint-query-key",
+    "ui-asset",
+]
 
 
 def _pipeline(**extra: Any) -> dict[str, Any]:
@@ -84,6 +141,21 @@ def _answer(client: TestClient, method: str, path: str, body: dict[str, Any]) ->
     return answered.status_code, UNSTORABLE in [issue["code"] for issue in problems]
 
 
+def _listening(client: TestClient) -> str:
+    """Apply the pipeline whose source takes a segment of the path, and hand back its token."""
+    applied = client.post(f"{PREFIX}/pipelines/$apply", json={"document": yaml.safe_load(HOOK)})
+    assert applied.status_code == 200, applied.text
+    return str(applied.json()["sources"]["tokens"][0]["token"])
+
+
+def _addressed(client: TestClient, method: str, address: str, token: str) -> tuple[int, str | None]:
+    """Call one address, an endpoint with its source's token, and say its status and code."""
+    headers = {"Authorization": f"Bearer {token}"} if address.startswith("/endpoints/") else {}
+    answered = client.request(method, address, json={}, headers=headers)
+    code = answered.json().get("code") if answered.status_code >= 400 else None
+    return answered.status_code, code
+
+
 def _refused(client: TestClient, method: str, path: str, body: dict[str, Any]) -> None:
     """Make one call and hold it to a 422 that names the text it could not store."""
     assert _answer(client, method, path, body) == (422, True)
@@ -119,6 +191,33 @@ def test_text_a_database_stores_is_taken_as_written(client: TestClient) -> None:
     assert created.json()["name"] == "\U0001f600 \\u0000"
 
 
+@pytest.mark.parametrize(("method", "address"), ADDRESSES, ids=ADDRESS_IDS)
+def test_an_address_holding_a_nul_names_nothing(client: TestClient, method: str, address: str) -> None:
+    token = _listening(client)
+    assert _addressed(client, method, address, token) == (404, NOWHERE)
+
+
+def test_an_endpoint_called_at_such_an_address_journals_nothing(client: TestClient) -> None:
+    token = _listening(client)
+    for method, address in ADDRESSES:
+        if address.startswith("/endpoints/"):
+            _addressed(client, method, address, token)
+    journal = client.get(f"{PREFIX}/pipelines/hook/sources/ask/inputs")
+    assert journal.status_code == 200, journal.text
+    assert journal.json()["items"] == []
+
+
+def test_such_an_address_is_answered_before_any_credential_is_looked_up(anonymous: TestClient) -> None:
+    answered = anonymous.get(f"{PREFIX}/pipelines/a%00b")
+    assert (answered.status_code, answered.json()["code"]) == (404, NOWHERE)
+
+
+@pytest.mark.parametrize("code", ["a%5Cu0000b", "%F0%9F%98%80"], ids=["escape-text", "whole-pair"])
+def test_an_address_a_database_stores_is_looked_up_as_written(client: TestClient, code: str) -> None:
+    answered = client.get(f"{PREFIX}/pipelines/{code}")
+    assert (answered.status_code, answered.json()["code"]) == (404, "pipeline.unknown")
+
+
 @pytest.fixture
 def pg_client(postgres_url: str, tmp_path: Path) -> Iterator[TestClient]:
     """An admin client of an instance on a real PostgreSQL, its schema made afresh."""
@@ -151,3 +250,16 @@ def test_postgresql_is_never_handed_what_it_would_refuse(pg_client: TestClient) 
     """Every door answers 422 on PostgreSQL, which would otherwise fail the write as a 500."""
     answered = {name: _answer(pg_client, *call) for name, call in zip(IDS, CALLS, strict=True)}
     assert answered == dict.fromkeys(IDS, (422, True))
+
+
+@pytest.mark.postgres
+def test_postgresql_is_never_asked_to_look_up_an_address_it_would_refuse(pg_client: TestClient) -> None:
+    """Every address answers 404 on PostgreSQL, where a lookup by it would fail as a 500."""
+    token = _listening(pg_client)
+    answered = {
+        name: _addressed(pg_client, method, address, token)
+        for name, (method, address) in zip(ADDRESS_IDS, ADDRESSES, strict=True)
+    }
+    assert answered == dict.fromkeys(ADDRESS_IDS, (404, NOWHERE))
+    journal = pg_client.get(f"{PREFIX}/pipelines/hook/sources/ask/inputs")
+    assert journal.json()["items"] == []

@@ -1142,6 +1142,8 @@ const refused = {
             '{fields} holds a control character or a blank at its end, which no HTTP header can carry.',
     },
     server: {
+        address_unstorable:
+            'Nothing is found at an address holding a NUL character or half a surrogate pair.',
         bad_credentials: 'Invalid username or password.',
         bad_cursor: '{name}={after} is not a cursor this listing gave out.',
         body_timed_out: 'The whole body did not arrive within {timeout}.',
