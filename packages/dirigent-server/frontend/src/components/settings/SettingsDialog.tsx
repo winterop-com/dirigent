@@ -40,6 +40,7 @@ import { readSystemInfo, type SystemInfo } from '@/lib/system'
 import { choosePalette, paletteAfter, PALETTES, paletteStore, type PaletteName } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
+import { TextLink } from '@/components/ds/TextLink'
 import { Well } from '@/components/ds/Well'
 
 export const SETTINGS_TITLE = LABELS.settings.title
@@ -181,7 +182,11 @@ function Row({ row, children, under }: { row: SettingsRow; children?: ReactNode;
                         <p className="text-xs text-muted-foreground">{row.description}</p>
                     )}
                 </div>
-                {children !== undefined && <div className="flex shrink-0 items-center gap-1">{children}</div>}
+                {children !== undefined && (
+                    <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1 md:max-w-[70%]">
+                        {children}
+                    </div>
+                )}
             </div>
             {under !== undefined && <div className="mt-3">{under}</div>}
         </div>
@@ -229,7 +234,7 @@ function ThemePane({ rows }: { rows: SettingsRow[] }) {
 }
 
 /** The tokens a swatch shows, ground first and accent last: the ladder plus the two inks. */
-const SWATCH_STRIPS = ['bg-background', 'bg-card', 'bg-border', 'bg-foreground', 'bg-primary']
+const SWATCH_STRIPS = ['bg-background', 'bg-card', 'bg-border', 'bg-foreground', 'bg-brand']
 
 /**
  * One card per palette, and the card is the radio.
@@ -275,7 +280,9 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         className={cn(
                             'flex max-w-32 min-w-0 flex-1 flex-col gap-1.5 rounded-md border p-1.5 text-left',
                             'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                            chosen ? 'border-ring ring-2 ring-ring' : 'border-border hover:bg-accent',
+                            chosen
+                                ? 'border-foreground ring-1 ring-foreground'
+                                : 'border-border hover:bg-accent',
                         )}
                         onClick={() => {
                             onChoose(palette.name)
@@ -299,7 +306,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         </span>
                         <span className="flex items-center gap-1 text-xs">
                             {palette.label}
-                            {chosen && <Check className="size-3 text-primary-ink" aria-hidden />}
+                            {chosen && <Check className="size-3 text-foreground" aria-hidden />}
                         </span>
                     </button>
                 )
@@ -599,23 +606,18 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                         {value === null ? (
                             <span className="text-xs text-faint">{LABELS.shell.reading}</span>
                         ) : (
-                            <span className="font-mono text-xs">{factOf(row.id, value)}</span>
+                            <span className="min-w-0 text-right font-mono text-xs">
+                                {factOf(row.id, value)}
+                            </span>
                         )}
                     </Row>
                 )
             })}
             <p className="mt-3 flex gap-4 text-sm">
-                <a
-                    className="text-foreground underline-offset-2 hover:underline"
-                    href={DOCS_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                >
+                <TextLink variant="external" href={DOCS_URL}>
                     {LABELS.settings.documentation}
-                </a>
-                <a className="text-foreground underline-offset-2 hover:underline" href={API_DOCS_URL}>
-                    {LABELS.settings.api_reference}
-                </a>
+                </TextLink>
+                <TextLink href={API_DOCS_URL}>{LABELS.settings.api_reference}</TextLink>
             </p>
         </div>
     )

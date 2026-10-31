@@ -1245,7 +1245,7 @@ foot the instance's name, environment and version. A key is drawn beside a row o
 username, which is the account's code.
 
 **The rail hides whole.** The platform's modifier plus B and the palette's row take it off screen
-and bring it back, and while it is hidden the top strip carries `Show the navigation`{ .label } at
+and bring it back, and while it is hidden the top strip carries `Show navigation`{ .label } at
 its left, where the drawer's button stands below the breakpoint. Whether it is hidden is the
 reader's, and kept.
 

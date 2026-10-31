@@ -27,7 +27,14 @@ import {
     type Placement,
     type Placements,
 } from '@/lib/canvas-layout'
-import { drawnSize, NODE_HEIGHT, nodeWidth, RANK_SPACING, type LayoutShape } from '@/lib/dag-layout'
+import {
+    drawnSize,
+    fanOutRoom,
+    NODE_HEIGHT,
+    nodeWidth,
+    RANK_SPACING,
+    type LayoutShape,
+} from '@/lib/dag-layout'
 import {
     blockOf,
     edgesIn,
@@ -183,7 +190,15 @@ function EditableGraph({
                 const heading = stepHeading(document, name)
                 const block = blockOf(document, name) ?? LABELS.editor.no_block
                 const line = heading.code === null ? block : `${heading.code} · ${block}`
-                return { id: name, width: nodeWidth(heading.title, line), height: NODE_HEIGHT }
+                const fan = fanOutOf(document, name)
+                const marker = !fan.fanOut
+                    ? 0
+                    : fanOutRoom(
+                          fan.items === null
+                              ? LABELS.editor.canvas.fan_out_each
+                              : LABELS.editor.canvas.fan_out_count(String(fan.items)),
+                      )
+                return { id: name, width: nodeWidth(heading.title, line, marker), height: NODE_HEIGHT }
             }),
             edges: edgesIn(document),
         }),

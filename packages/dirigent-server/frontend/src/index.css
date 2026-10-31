@@ -1865,9 +1865,12 @@ html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-backgrou
     box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
-/* A SHUT CONTROL LOOKS SHUT: no fill, a hairline ring, the muted ink at weight 400. */
+/* A SHUT CONTROL LOOKS SHUT: no fill, a hairline ring, the muted ink at weight 400. The raised
+   variant is named again so the rule outranks its fill and its hover. */
 [data-slot='button']:disabled,
-[data-slot='button'][aria-disabled='true'] {
+[data-slot='button'][aria-disabled='true'],
+[data-slot='button'][class~='border-border'][class~='bg-background']:disabled,
+[data-slot='button'][class~='border-border'][class~='bg-background'][aria-disabled='true'] {
     opacity: 1;
     background-color: transparent;
     box-shadow: inset 0 0 0 1px var(--border-strong);

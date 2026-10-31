@@ -1031,18 +1031,18 @@ test('the menu says it is reading the catalog rather than that nothing matches',
 
     const menu = page.getByRole('menu')
     // Before a search: no shelves to draw, and it says why rather than drawing an empty popup.
-    await expect(menu.getByText(LABELS.editor.canvas.reading_catalog, { exact: true })).toBeVisible()
+    await expect(menu.getByText(LABELS.shell.reading, { exact: true })).toBeVisible()
 
     // And during one: still reading, rather than the flat denial the same box used to answer with.
     await page.getByLabel(SEARCH_LABEL).fill('shell')
-    await expect(menu.getByText(LABELS.editor.canvas.reading_catalog, { exact: true })).toBeVisible()
+    await expect(menu.getByText(LABELS.shell.reading, { exact: true })).toBeVisible()
     await expect(menu.getByText(LABELS.editor.canvas.no_block_matches, { exact: true })).toHaveCount(0)
 
     release()
     // The read lands under the search already typed, and the row it found is there to place.
     const found = menu.getByRole('menuitem').filter({ hasText: 'shell ▸ run' })
     await expect(found).toHaveCount(1)
-    await expect(menu.getByText(LABELS.editor.canvas.reading_catalog, { exact: true })).toHaveCount(0)
+    await expect(menu.getByText(LABELS.shell.reading, { exact: true })).toHaveCount(0)
     await found.click()
     await expect(page.locator('.react-flow__node')).toHaveCount(1)
 })

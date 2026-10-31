@@ -21,7 +21,10 @@ const RULE = { code: 'e2e-page-ops', name: 'Page the on-call' }
 const CHANNEL = { code: 'e2e-ops-alert', name: 'On-call mobile' }
 
 /** A rule whose name is long enough to be cut in the column a 1024 window leaves the table. */
-const WIDE = { code: 'e2e-wide-row', name: 'Page the on-call when the nightly load fails' }
+const WIDE = {
+    code: 'e2e-wide-row',
+    name: 'Page the on-call engineer whenever the nightly regional load fails, and again each hour it stays failed',
+}
 
 test.beforeEach(async ({ page }) => {
     await signIn(page)
@@ -47,7 +50,7 @@ function ruleRow(page: Page) {
 }
 
 test('the channel strip is one chip per channel, and the words are on the tooltip', async ({ page }) => {
-    const strip = page.getByRole('heading', { name: LABELS.alerting.channels_heading }).locator('..')
+    const strip = page.getByRole('region', { name: LABELS.alerting.channels_heading })
     // A chip carries the code and nothing else: the log channel has no credential to name, and
     // a kind nothing is set up for names itself.
     await expect(strip.getByText(LABELS.editor.run.log, { exact: true })).toBeVisible()
@@ -61,7 +64,7 @@ test('the channel strip is one chip per channel, and the words are on the toolti
 })
 
 test('a chip of a kind nothing is set up for opens the dialog on that kind', async ({ page }) => {
-    const strip = page.getByRole('heading', { name: LABELS.alerting.channels_heading }).locator('..')
+    const strip = page.getByRole('region', { name: LABELS.alerting.channels_heading })
     await strip.getByRole('link', { name: 'webhook' }).click()
     await expect(page).toHaveURL(/\/connections\?new=webhook$/)
     const dialog = page.getByRole('dialog')
@@ -219,7 +222,7 @@ test.describe('on a phone', () => {
     })
 })
 
-test.describe('in the 712px column a 1024 window leaves', () => {
+test.describe('in the 792px column a 1024 window leaves', () => {
     test.use({ viewport: { width: 1024, height: 768 } })
 
     test('the rules table holds its column, and a long name is cut rather than widening it', async ({

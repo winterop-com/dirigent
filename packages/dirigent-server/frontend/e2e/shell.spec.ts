@@ -52,7 +52,8 @@ test('the account stands at the foot of the rail', async ({ page }) => {
 })
 
 test('the rail hides whole and the strip brings it back', async ({ page }) => {
-    await page.keyboard.press('ControlOrMeta+b')
+    // The suite's browser says it is on Windows, so the rail's chord is Control there.
+    await page.keyboard.press('Control+b')
     await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toHaveCount(0)
     await page.getByRole('button', { name: LABELS.shell.show_nav }).click()
     await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toBeVisible()

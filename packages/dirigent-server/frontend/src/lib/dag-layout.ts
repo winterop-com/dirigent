@@ -53,6 +53,11 @@ export function nodeWidth(title: string, line: string, lineExtra = 0): number {
     return Math.max(NODE_MIN_WIDTH, Math.ceil(words + NODE_CHROME))
 }
 
+/** What a fan-out marker at the end of a node's line takes: the gap, its glyph, and its word. */
+export function fanOutRoom(word: string): number {
+    return Math.ceil(24 + word.length * LINE_CHAR)
+}
+
 /** How tall an ordinary node is: its title, one line under it, and its padding. */
 export const NODE_HEIGHT = 44
 

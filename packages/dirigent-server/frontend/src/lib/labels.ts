@@ -700,8 +700,8 @@ const shell = {
     wordmark: 'dirigent',
 
     /** The rail taken off screen and brought back: the palette's row, and the strip's button. */
-    hide_nav: 'Hide the navigation',
-    show_nav: 'Show the navigation',
+    hide_nav: 'Hide navigation',
+    show_nav: 'Show navigation',
 
     /** The drawer the rail becomes below the breakpoint, and the region it stands in. */
     open_nav: 'Open navigation',
@@ -772,7 +772,7 @@ const shell = {
 
     /** What each chord does, on the shortcuts dialog's rows. The palette's row says `open_palette`. */
     chord: {
-        rail: 'Hide or show the navigation',
+        rail: 'Hide or show navigation',
         terminal: "Show or hide a run's terminal",
         search: "Search this screen's listing",
         shortcuts: 'Open this list',
@@ -1509,7 +1509,7 @@ const editor = {
         /** The palette row that opens the run dialog. The dialog itself is titled with the verb. */
         run_pipeline: 'Run pipeline…',
         /** The palette row that gives the whole arrangement back to elk. */
-        relayout: 'Re-layout the graph',
+        relayout: 'Lay out the graph again',
         /** A run the instance accepted without starting one, and said nothing more about. */
         nothing_started: (status: string) => `nothing started: ${status}`,
     },
@@ -1531,7 +1531,6 @@ const editor = {
         listens_to: (what: string) => `Listens to ${what}`,
         no_block_matches: 'No block matches that.',
         /** The menu opened before the catalog landed, which is not a catalog with nothing in it. */
-        reading_catalog: 'Reading the catalog…',
         /** A box's own menu: one more step after this one, and this one taken away. */
         add_after: 'Add step after…',
         delete_step: 'Delete step',
@@ -2172,7 +2171,7 @@ const runs = {
     toggle_terminal: "Show or hide this run's terminal",
     /** What the palette says the terminal holds. */
     terminal_hint: 'Every line this run wrote, in the order it wrote them',
-    copy_trace_action: 'Copy this run trace id',
+    copy_trace_action: "Copy this run's trace id",
     trace_copied: 'trace id copied',
     /** An insecure origin, or a browser that refused: the string is still on screen. */
     clipboard_refused: 'this browser would not write to the clipboard',
