@@ -539,8 +539,8 @@ SQLite database in a directory spelled `.dirigent/state`, dirigent refuses it wh
 - `.dirigent` or `state` is a symbolic link, or either belongs to another user;
 - `state` can be written by group or others, or `.dirigent` by others;
 - anything directly inside `state` is a link, a special file, or another user's;
-- the enclosing git repository tracks anything under it, including under another case's spelling
-  of the path.
+- the enclosing git repository tracks anything under it, including under another case's or another
+  Unicode normalisation's spelling of the path, both of which a filesystem may open as the same one.
 
 A clone's files are the user's own with ordinary modes, so the last check is what stops a
 committed database. git is not run to make it: a repository's own configuration can start programs,
