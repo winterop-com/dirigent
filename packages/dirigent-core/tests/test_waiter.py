@@ -41,9 +41,7 @@ def test_a_refused_input_is_named_over_any_other_failure_on_the_way() -> None:
         attempt("answer", AttemptStatus.SKIPPED),
     ]
     answered = answer_of(HOLD, RunStatus.FAILED, attempts)
-    assert answered == Unanswered(
-        run_status=RunStatus.FAILED, step="check", error="no email", error_class=ErrorClass.REJECTED
-    )
+    assert answered == Unanswered(run_status=RunStatus.FAILED, step="check", error_class=ErrorClass.REJECTED)
 
 
 def test_a_failed_try_a_retry_replaced_is_not_the_answer() -> None:
