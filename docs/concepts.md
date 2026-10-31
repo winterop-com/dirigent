@@ -527,7 +527,7 @@ already public and the document has to stand alone; anywhere else the instance h
 What starts a run on its own, or by hand. Two kinds:
 
 - **Ad hoc** -- `dg run`, the API, or the UI. Always available, always parameterized.
-- **A schedule** -- cron, a fixed interval, or a single instant, each with its own timezone and
+- **A schedule** -- cron, a fixed interval of at most ten years, or a single instant, each with its own timezone and
   its own parameter overrides. Several per pipeline is the normal case: nightly against
   staging and weekly against production is two schedules on one pipeline, not two pipelines.
 
