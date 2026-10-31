@@ -292,22 +292,31 @@ class Engine:
                 return None
             item_outputs = await collect_item_outputs(session, run.id, item.item_index, family)
         scratch = scratch_prefix(self.services.settings.artifact_root, run.id)
-        scope = ReferenceScope(
-            params=dict(run.params),
-            outputs=await collect_outputs(session, run.id, definition),
-            errors=await collect_errors(session, run.id, definition),
-            item=item_value,
-            has_item=has_item,
-            item_index=item.item_index if item is not None else None,
-            item_outputs=item_outputs,
-            paired=frozenset(family),
-            scratch=scratch,
-            artifacts=self.services.storage.artifact_root,
-            run_id=run.id,
-            window_start=run.window_start,
-            window_end=run.window_end,
-        )
+        outputs = await collect_outputs(session, run.id, definition)
+        errors = await collect_errors(session, run.id, definition)
+        connections = await load_connections(session)
+        previous = attempt.status
+        started = attempt.started_at or now
+        token = uuid7()
+        # Nothing in this block touches the database, so whatever it raises is about this
+        # attempt and settles it. An exception leaving this method rolls the claim back, and
+        # the next claim selects the same attempt again.
         try:
+            scope = ReferenceScope(
+                params=dict(run.params),
+                outputs=outputs,
+                errors=errors,
+                item=item_value,
+                has_item=has_item,
+                item_index=item.item_index if item is not None else None,
+                item_outputs=item_outputs,
+                paired=frozenset(family),
+                scratch=scratch,
+                artifacts=self.services.storage.artifact_root,
+                run_id=run.id,
+                window_start=run.window_start,
+                window_end=run.window_end,
+            )
             block = self.services.block(attempt.block_id)
             config = resolve_config(
                 step.config,
@@ -324,6 +333,33 @@ class Engine:
                 reads=sorted(set(references_in(cast("JsonValue", step.config)))),
                 upstream=sorted(scope.outputs),
                 item=item_value if has_item else None,
+            )
+            deadline = attempt.deadline_at if attempt.deadline_at is not None else self._deadline_for(step, block, now)
+            unit = ClaimedUnit(
+                attempt_id=attempt.id,
+                lease_token=token,
+                run_id=run.id,
+                run_item_id=attempt.run_item_id,
+                step_name=attempt.step_name,
+                block_id=attempt.block_id,
+                attempt_number=attempt.attempt,
+                started_at=started,
+                previous_status=previous,
+                step=step,
+                config=config,
+                params=dict(run.params),
+                log_levels=dict(run.log_levels) if run.log_levels else None,
+                scratch=scratch,
+                item=item_value,
+                has_item=has_item,
+                connections=connections,
+                schemas=dict(run.schemas),
+                traceparent=run.traceparent,
+                remote_handle=RemoteHandle.model_validate(attempt.remote_handle) if attempt.remote_handle else None,
+                fetched_output=attempt.fetched_output,
+                poke_cursor=attempt.poke_cursor,
+                deadline_at=deadline,
+                gone_probes=attempt.gone_probes,
             )
         except (UnknownReference, ValidationError) as error:
             await self._settle_and_advance(
@@ -354,48 +390,19 @@ class Engine:
             )
             return None
 
-        previous = attempt.status
         attempt.status = AttemptStatus.RUNNING
-        started = attempt.started_at or now
         attempt.started_at = started
-        token = uuid7()
         attempt.lease_owner = self.owner
         attempt.lease_token = token
         attempt.lease_expires_at = now + self.services.settings.lease
         attempt.heartbeat_at = now
         attempt.input = {**(attempt.input or {}), "config": config}
-        if attempt.deadline_at is None:
-            attempt.deadline_at = self._deadline_for(step, block, now)
+        attempt.deadline_at = deadline
         if run.status is RunStatus.QUEUED:
             run.status = RunStatus.RUNNING
             run.started_at = run.started_at or now
 
-        return ClaimedUnit(
-            attempt_id=attempt.id,
-            lease_token=token,
-            run_id=run.id,
-            run_item_id=attempt.run_item_id,
-            step_name=attempt.step_name,
-            block_id=attempt.block_id,
-            attempt_number=attempt.attempt,
-            started_at=started,
-            previous_status=previous,
-            step=step,
-            config=config,
-            params=dict(run.params),
-            log_levels=dict(run.log_levels) if run.log_levels else None,
-            scratch=scratch,
-            item=item_value,
-            has_item=has_item,
-            connections=await load_connections(session),
-            schemas=dict(run.schemas),
-            traceparent=run.traceparent,
-            remote_handle=RemoteHandle.model_validate(attempt.remote_handle) if attempt.remote_handle else None,
-            fetched_output=attempt.fetched_output,
-            poke_cursor=attempt.poke_cursor,
-            deadline_at=attempt.deadline_at,
-            gone_probes=attempt.gone_probes,
-        )
+        return unit
 
     def _deadline_for(self, step: StepDefinition, block: AnyOperator | AnySensor, now: datetime) -> datetime | None:
         """Compute when a wait must end: the step's deadline, or a sensor's own default."""

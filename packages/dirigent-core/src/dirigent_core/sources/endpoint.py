@@ -22,6 +22,7 @@ from dirigent_core.messages import (
     ENDPOINT_ACCEPTS_REFUSED,
     ENDPOINT_BODY_NOT_JSON,
     ENDPOINT_BODY_NOT_TEXT,
+    ENDPOINT_BODY_TOO_DEEP,
     ENDPOINT_CHARSET_REFUSED,
     ENDPOINT_METHOD_NOT_DECLARED,
     ENDPOINT_PATH_PARAMS_MISSING,
@@ -56,6 +57,10 @@ def _credentials(config: "EndpointConfig") -> frozenset[str]:
         return CREDENTIAL_HEADERS | {config.auth.header.lower()}
     return CREDENTIAL_HEADERS
 
+
+#: The most levels of lists and objects a JSON body may nest, well inside what pydantic walks
+#: once a body sits in an input, a step's output and a resolved config.
+MAX_BODY_DEPTH: Final = 128
 
 #: What a text body is decoded with when its content type names no charset.
 DEFAULT_CHARSET: Final = "utf-8"
@@ -278,9 +283,14 @@ def _read_body(raw: bytes, family: BodyKind, charset: str) -> JsonValue | Refusa
     """Decode one body of a family the endpoint takes, or refuse it 400."""
     if family is BodyKind.JSON:
         try:
-            return cast("JsonValue", json.loads(raw))
+            value = cast("JsonValue", json.loads(raw))
         except ValueError as error:
             return Refusal.of(ENDPOINT_BODY_NOT_JSON, status=400, detail=str(error))
+        except RecursionError:
+            return Refusal.of(ENDPOINT_BODY_TOO_DEEP, status=400, limit=MAX_BODY_DEPTH)
+        if _nests_past(value, MAX_BODY_DEPTH):
+            return Refusal.of(ENDPOINT_BODY_TOO_DEEP, status=400, limit=MAX_BODY_DEPTH)
+        return value
     codec = CHARSETS.get(charset.strip().lower()) if family is BodyKind.TEXT else "ascii"
     if codec is None:
         return Refusal.of(ENDPOINT_CHARSET_REFUSED, status=415, charset=repr(charset), accepted=", ".join(CHARSETS))
@@ -289,6 +299,21 @@ def _read_body(raw: bytes, family: BodyKind, charset: str) -> JsonValue | Refusa
     except UnicodeError as error:
         return Refusal.of(ENDPOINT_BODY_NOT_TEXT, status=400, charset=charset, detail=str(error))
     return form_values(text) if family is BodyKind.FORM else text
+
+
+def _nests_past(value: JsonValue, limit: int) -> bool:
+    """Say whether a parsed body holds a list or object more than ``limit`` levels down."""
+    level = [value]
+    for _ in range(limit):
+        level = [
+            child
+            for held in level
+            if isinstance(held, dict | list)
+            for child in (held.values() if isinstance(held, dict) else held)
+        ]
+        if not level:
+            return False
+    return any(isinstance(held, dict | list) for held in level)
 
 
 def _template_parameters(template: str) -> list[str]:

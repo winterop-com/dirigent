@@ -165,6 +165,44 @@ async def test_the_dialect_split_takes_the_postgres_branch(pg_sessions: Any) -> 
         assert is_postgres(session) is True
 
 
+async def test_a_stored_output_past_what_pydantic_walks_does_not_hold_back_other_work(
+    pg_sessions: Any, pg_services: EngineServices
+) -> None:
+    """The claim that reads a stored value too deep to validate settles it and hands out the next unit."""
+    poison = PipelineDefinition(
+        code="poison",
+        steps={
+            "first": StepDefinition(block="test.echo", config={"value": "shallow"}),
+            "second": StepDefinition(block="test.echo", depends_on=["first"], config={"value": "untouched"}),
+        },
+    )
+    other = PipelineDefinition(code="other", steps={"only": StepDefinition(block="test.echo", config={"value": "one"})})
+    poisoned = await start(pg_sessions, pg_services, poison)
+    engine = Engine(pg_sessions, pg_services, owner="worker")
+    unit = await engine.claim()
+    assert unit is not None
+    await engine.run_unit(unit)
+    nested: list[Any] = []
+    for _ in range(300):
+        nested = [nested]
+    async with session_scope(pg_sessions) as session:
+        await session.execute(
+            sa.update(StepAttempt)
+            .where(StepAttempt.run_id == poisoned.id, StepAttempt.step_name == "first")
+            .values(output={"value": nested})
+        )
+    bystander = await start(pg_sessions, pg_services, other)
+
+    ran: list[str] = []
+    while (claimed := await engine.claim()) is not None:
+        await engine.run_unit(claimed)
+        ran.append(claimed.step_name)
+
+    assert sorted(ran) == ["only", "second"]
+    async with session_scope(pg_sessions) as session:
+        assert (await session.get(Run, bystander.id)).status is RunStatus.SUCCEEDED  # type: ignore[union-attr]
+
+
 #: The instants the counted run is settled at, so the earliest one is a fact and not a clock read.
 COUNTED = datetime(2026, 3, 1, tzinfo=UTC)
 
