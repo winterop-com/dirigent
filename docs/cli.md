@@ -1239,10 +1239,9 @@ ever sees a page boundary. `dg runs list --limit` bounds the total rather than o
 Defaults worth knowing: `dg runs list --limit` is 50, which is the server's own default for
 that endpoint rather than a second number the CLI invented; `--tz` is `UTC`; an alert rule's `--throttle` is `0s`, meaning no
 throttling. `--host` and `--port` default to whatever the instance's
-settings say, which is `127.0.0.1:3333` out of the box. `dg dev` on any other address needs an
-admin that does not use the fixed `admin` password, created first with `dg db upgrade` and
-`dg admin user create --role admin`. On a loopback address it answers only to a loopback name, so
-another name that resolves to this machine is refused.
+settings say, which is `127.0.0.1:3333` out of the box. `dg dev` signs in as `admin` / `admin` on
+every address, and warns when that address is one other machines can reach. On a loopback address
+it answers only to a loopback name, so another name that resolves to this machine is refused.
 
 Every `list` above also answers to `ls` -- `dg runs ls`, `dg pipeline ls`, `dg alerts rules
 ls`. The alias is hidden from `--help`, which teaches one name; it exists because fingers

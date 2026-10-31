@@ -137,8 +137,8 @@ one you got.
 **Its account is `admin`, with the password `admin`.** `dg dev` creates that admin on an
 empty database, together with an API token named `dev` whose secret the starting record carries
 once. Both are fixtures of a throwaway instance rather than credentials, which is why they are
-fixed and written here. They stay on this machine: on an address other than loopback, `dg dev`
-refuses to make that login or to serve one an earlier start left, and it says what to do instead.
+fixed and written here, on every address `dg dev` binds. On one other machines can reach, it
+warns that anyone there can sign in as `admin`.
 The compose stack is the other shape: its first admin is also `admin`, with
 the password `.env` sets in `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD`, and nothing about it is fixed.
 

@@ -19,10 +19,9 @@ from dirigent_cli.context import CliState, state_of
 from dirigent_cli.formatters import DEFAULT, names
 from dirigent_cli.messages import (
     AUTH_REFUSED,
-    BIND_LOOPBACK_OR_MAKE_AN_ADMIN,
     CONNECTION_UNUSABLE,
     CREATE_AN_ADMIN,
-    DEV_FIXTURE_NEEDS_LOOPBACK,
+    DEV_FIXTURE_EXPOSED,
     DEV_IS_SQLITE_ONLY,
     FORMATTER_TAKES_NO_TEMPLATE,
     FORMATTERS_ARE,
@@ -999,8 +998,6 @@ def dev(
         raise typer.Exit(code=commands.GUARD_EXIT)
     address = host or settings.host
     exposed = not is_loopback_host(address)
-    if exposed and wipe_state:
-        refuse_the_fixture_on(address)
     try:
         if wipe_state:
             cleared = clear_state(settings)
@@ -1176,16 +1173,9 @@ def warn_of_ignored_settings() -> None:
         )
 
 
-def refuse_the_fixture_on(address: str) -> NoReturn:
-    """Refuse to serve the fixed development login on an address other machines can reach."""
-    refuse(
-        DEV_FIXTURE_NEEDS_LOOPBACK,
-        status=commands.GUARD_EXIT,
-        title="Not loopback",
-        problems=[Issue.of(BIND_LOOPBACK_OR_MAKE_AN_ADMIN)],
-        address=address,
-    )
-    raise typer.Exit(code=commands.GUARD_EXIT)
+def warn_of_the_fixture_on(address: str) -> None:
+    """Say that the fixed development login is served on an address other machines can reach."""
+    get_logger("cli").warning(DEV_FIXTURE_EXPOSED.render(address=address), code=DEV_FIXTURE_EXPOSED.code)
 
 
 async def dev_admin(settings: Settings, *, exposed_on: str | None = None) -> tuple[str | None, str | None]:
@@ -1197,8 +1187,8 @@ async def dev_admin(settings: Settings, *, exposed_on: str | None = None) -> tup
     handed over when it was created.
 
     ``exposed_on`` is the non-loopback address the instance is about to bind, if it is one.
-    There the development admin is refused, whether it would be made now or an earlier start
-    on loopback left it with its fixed password.
+    There the development admin is still made, with a warning that its fixed password is
+    reachable from that address.
     """
     from dirigent_core.auth import (
         create_fixture_admin,
@@ -1218,7 +1208,7 @@ async def dev_admin(settings: Settings, *, exposed_on: str | None = None) -> tup
             if exposed_on is not None:
                 fixture = await find_user(session, DEV_ADMIN)
                 if not existing or (fixture and verify_password(fixture.password_hash, DEV_PASSWORD)):
-                    refuse_the_fixture_on(exposed_on)
+                    warn_of_the_fixture_on(exposed_on)
             if existing:
                 return (existing[0].username, None)
             await create_fixture_admin(session, DEV_ADMIN, DEV_PASSWORD)

@@ -100,9 +100,9 @@ it gets live schedules and sources: change it.
   and reply headers such as `set-cookie` are refused.
 - A connection's credentials go only to its own origin, so a step's absolute URL elsewhere is
   refused.
-- `dg dev` creates its admin as `admin` / `admin` on an empty database, and only on a loopback
-  address. On any other address it exits 3 while the state is empty or still holds that login, and
-  that includes `dg dev` in the published image, which sets `DIRIGENT_HOST=0.0.0.0`.
+- `dg dev` creates its admin as `admin` / `admin` on an empty database, on every address. On one
+  other machines can reach, `dg dev` in the published image included (it sets
+  `DIRIGENT_HOST=0.0.0.0`), it logs a warning that anyone there can sign in as `admin`.
 - The unsafe-block allowlist no longer comes from a working directory's `.env` or `dirigent.yaml`.
   Set it in the process environment or in the file `DIRIGENT_CONFIG_FILE` names. Compose passes
   `.env` as environment, so a compose stack keeps working.
