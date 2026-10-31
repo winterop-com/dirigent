@@ -527,6 +527,12 @@ serve a page on the instance's origin, `secret_key_file` would read any file thi
 [settings reference](settings.md) marks each of these host only. A project's `pipelines` directory
 has to be inside the project, and `dg apply` refuses a document that is a link to a file outside it.
 
+A checkout cannot choose where a secret you type goes either. `dg auth login`, `dg auth password`,
+`dg admin user password`, `dg connection create` and `dg source set-secret` refuse a server a project's
+`.dirigent/profiles.yaml` or `.env` names off this host, before they ask for anything or send
+anything, unless you named it yourself with `--url` or the shell's `DG_URL`. A server on this host is
+not affected, which is what a scaffolded project names.
+
 A checkout cannot supply the state either. The default database is `.dirigent/state/dirigent.db`
 under the working directory, and a state that arrived with a clone could hold queued runs, which
 would execute on `dg dev` if the shell allowlists their blocks. So before opening or deleting any
