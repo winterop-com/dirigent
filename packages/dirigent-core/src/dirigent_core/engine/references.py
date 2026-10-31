@@ -29,7 +29,7 @@ from datetime import datetime
 from typing import Any, Final, cast
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, SkipValidation
 
 from dirigent_common import JsonMap, Message
 from dirigent_core.engine.shell import REFERENCE_MARK, Quoting, Unread, read_shell
@@ -90,19 +90,23 @@ class UnknownReference(DomainError):
 
 
 class ReferenceScope(BaseModel):
-    """Everything a reference may read, gathered once per attempt at claim time."""
+    """Everything a reference may read, gathered once per attempt at claim time.
+
+    The values are read back from the run's own rows and are not validated again: a value
+    nested past what pydantic walks is stored fine, and building a scope over it must not raise.
+    """
 
     model_config = ConfigDict(frozen=True)
 
-    params: JsonMap = Field(default_factory=dict)
+    params: SkipValidation[JsonMap] = Field(default_factory=dict)
 
-    outputs: dict[str, JsonValue] = Field(default_factory=dict)
+    outputs: SkipValidation[dict[str, JsonValue]] = Field(default_factory=dict)
     """Stored outputs of upstream steps, keyed by step name."""
 
-    errors: dict[str, JsonMap] = Field(default_factory=dict)
+    errors: SkipValidation[dict[str, JsonMap]] = Field(default_factory=dict)
     """What each failed step failed with, as its code, message and params, keyed by step name."""
 
-    item: JsonValue = None
+    item: SkipValidation[JsonValue] = None
     """The element this run item maps, when the step fans out."""
 
     has_item: bool = False
@@ -111,10 +115,10 @@ class ReferenceScope(BaseModel):
     item_index: int | None = None
     """This run item's position in the grid, which is what pairs it with another fan-out's."""
 
-    grids: dict[str, list[JsonValue]] = Field(default_factory=dict)
+    grids: SkipValidation[dict[str, list[JsonValue]]] = Field(default_factory=dict)
     """The lists fan-out steps map over, keyed by step name, as ``for_each`` expands them."""
 
-    item_outputs: dict[str, JsonValue] = Field(default_factory=dict)
+    item_outputs: SkipValidation[dict[str, JsonValue]] = Field(default_factory=dict)
     """Outputs of the matching item in each step this one shares a grid with, by step name."""
 
     paired: frozenset[str] = frozenset()

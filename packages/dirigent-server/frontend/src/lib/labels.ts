@@ -1179,6 +1179,7 @@ const refused = {
         backlogged:
             'Source {code} has {in_flight} runs unsettled, as many as it allows. Send again once one settles.',
         body_not_json: 'The body is not JSON: {detail}',
+        body_too_deep: 'The body nests deeper than the {limit} levels this endpoint reads.',
         body_not_text: 'The body is not {charset} text: {detail}',
         body_timed_out: 'The body did not arrive within {timeout}.',
         body_too_large: 'The body is larger than the {limit} bytes this endpoint reads.',

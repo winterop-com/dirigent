@@ -464,7 +464,10 @@ taking a token, the content type is checked against what the source `accepts` be
 the body is read; a signed source reads its capped body first, because the signature covers it.
 A text body is decoded only from UTF-8, UTF-16, ASCII, ISO-8859-1 or Windows-1252, under their usual
 spellings, so handling a capped body costs time in step with its size. Any other `charset` is
-refused 415 (`source.charset_refused`) without decoding.
+refused 415 (`source.charset_refused`) without decoding. A JSON body nesting more than 128 levels
+of lists and objects is refused 400 (`source.body_too_deep`) and starts no run. A stored value
+deeper than the engine can validate, from any source, fails the step that reads it
+(`run.config_refused`) and holds back no other work.
 A read holds no database connection: the call's transaction ends before it, and the source and
 its pipeline are read again after it. A body that has not arrived whole within
 `DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,

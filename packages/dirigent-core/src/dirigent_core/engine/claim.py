@@ -129,7 +129,9 @@ def due_attempt_statement(now: datetime, tags: Sequence[str] = (), *, postgres: 
         sa.select(
             StepAttempt.id.label("attempt_id"),
             priority_rank().label("priority_rank"),
-            sa.func.row_number().over(partition_by=StepAttempt.run_id, order_by=(due_at, StepAttempt.id)).label("turn"),
+            sa.func.row_number()
+            .over(partition_by=StepAttempt.run_id, order_by=(due_at.asc().nulls_last(), StepAttempt.id))
+            .label("turn"),
             due_at.label("due_at"),
         )
         .join(Run, Run.id == StepAttempt.run_id)

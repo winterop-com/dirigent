@@ -945,6 +945,9 @@ BODY_WITHOUT_TYPE = SOURCE.define(
 )
 
 ENDPOINT_BODY_NOT_JSON = SOURCE.define("body_not_json", "the body is not JSON: {detail}")
+ENDPOINT_BODY_TOO_DEEP = SOURCE.define(
+    "body_too_deep", "the body nests deeper than the {limit} levels this endpoint reads"
+)
 
 ENDPOINT_BODY_NOT_TEXT = SOURCE.define("body_not_text", "the body is not {charset} text: {detail}")
 
