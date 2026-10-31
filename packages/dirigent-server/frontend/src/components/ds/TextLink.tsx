@@ -6,13 +6,14 @@ import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /** Where a link sits: in prose, as a value in a table, or out of this app. */
-export type TextLinkVariant = 'inline' | 'data' | 'external'
+export type TextLinkVariant = 'inline' | 'data' | 'aside' | 'external'
 
 const VARIANTS: Record<TextLinkVariant, string> = {
-    inline: 'underline decoration-primary-ink/40 underline-offset-2 hover:decoration-primary-ink',
-    data: 'font-mono tabular-nums hover:underline underline-offset-2',
+    inline: 'text-foreground underline decoration-foreground/35 underline-offset-2 hover:decoration-foreground',
+    data: 'text-foreground font-mono tabular-nums hover:underline underline-offset-2',
+    aside: 'text-muted-foreground hover:text-foreground hover:underline underline-offset-2',
     external:
-        'inline-flex items-center gap-0.5 underline decoration-primary-ink/40 underline-offset-2 hover:decoration-primary-ink',
+        'inline-flex items-center gap-0.5 text-foreground underline decoration-foreground/35 underline-offset-2 hover:decoration-foreground',
 }
 
 /**
@@ -35,7 +36,7 @@ export function TextLink({
     children: ReactNode
 } & ({ to: string; href?: undefined } | { href: string; to?: undefined })) {
     const face = cn(
-        'rounded-sm text-primary-ink outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring',
         VARIANTS[variant],
         className,
     )

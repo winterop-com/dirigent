@@ -31,7 +31,7 @@ export function PipelineRef({
             <Link
                 className={cn(
                     'truncate',
-                    inline ? 'text-muted-foreground hover:text-foreground' : 'hover:text-primary-ink',
+                    inline ? 'text-muted-foreground hover:text-foreground' : 'hover:underline',
                     !heading.named && 'font-mono',
                 )}
                 to={`/pipelines/${encodeURIComponent(code)}`}

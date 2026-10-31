@@ -445,7 +445,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
             {view !== null && <span>{view.label}</span>}
             {view !== null && view.runId !== null && (
                 <Link
-                    className="font-mono text-primary-ink hover:underline"
+                    className="font-mono text-foreground underline-offset-2 hover:underline"
                     to={`/runs/${view.runId}`}
                     onClick={(event) => {
                         event.stopPropagation()

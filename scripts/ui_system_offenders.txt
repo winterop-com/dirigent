@@ -53,4 +53,3 @@ word-chip	packages/dirigent-server/frontend/src/components/pipeline/StepTab.tsx	
 word-chip	packages/dirigent-server/frontend/src/components/schemas/SchemaPanel.tsx	1
 word-chip	packages/dirigent-server/frontend/src/components/triggers/marks.tsx	1
 word-chip	packages/dirigent-server/frontend/src/pages/PipelineEditor.tsx	2
-word-chip	packages/dirigent-server/frontend/src/pages/Pipelines.tsx	2

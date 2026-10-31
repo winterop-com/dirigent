@@ -14,6 +14,7 @@ import {
     triggerSummary,
     waitingForWorkers,
     type RunOut,
+    runVerbs,
 } from '@/lib/runs'
 
 const RUN: RunOut = {
@@ -27,6 +28,7 @@ const RUN: RunOut = {
     parent_run_id: null,
     triggered_by_label: 'nightly',
     trace_id: null,
+    stored_bytes: 0,
     error: null,
     error_code: null,
     failed_step: null,
@@ -242,5 +244,29 @@ describe('what a fan-out says about its elements', () => {
 
     test('says nothing at all where the step ran no elements', () => {
         expect(itemsNote(0, 0)).toBeNull()
+    })
+})
+
+describe("a run's four verbs", () => {
+    test('a finished run allows a rerun and says why the rest are shut', () => {
+        const verbs = runVerbs('failed')
+        expect(verbs.rerun.open).toBe(true)
+        expect([verbs.pause.open, verbs.resume.open, verbs.cancel.open]).toEqual([false, false, false])
+        expect(verbs.pause.why).not.toBeNull()
+    })
+
+    test('a running run pauses and cancels, and is not rerun yet', () => {
+        const verbs = runVerbs('running')
+        expect([verbs.pause.open, verbs.resume.open, verbs.cancel.open, verbs.rerun.open]).toEqual([
+            true,
+            false,
+            true,
+            false,
+        ])
+    })
+
+    test('a paused run resumes and cancels', () => {
+        const verbs = runVerbs('paused')
+        expect([verbs.pause.open, verbs.resume.open, verbs.cancel.open]).toEqual([false, true, true])
     })
 })

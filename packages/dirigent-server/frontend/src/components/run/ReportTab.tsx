@@ -121,7 +121,7 @@ export function ReportTab({
                 <Description text={markdown} ink="body" />
                 {prefix !== null && (
                     <a
-                        className="w-fit text-xs text-primary-ink hover:underline"
+                        className="w-fit text-xs text-foreground underline-offset-2 hover:underline"
                         href={artifactUrl(prefix, found.document.id)}
                         download={DOCUMENT_NAME}
                         rel="noopener"

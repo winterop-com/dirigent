@@ -17,7 +17,7 @@ const BANDS: readonly { id: Band; label: string; fill: string }[] = [
         label: LABELS.state.run.completed_with_errors.tile,
         fill: 'bg-status-completed-with-errors/80',
     },
-    { id: 'succeeded', label: LABELS.state.run.succeeded.tile, fill: 'bg-status-succeeded/75' },
+    { id: 'succeeded', label: LABELS.state.run.succeeded.tile, fill: 'bg-muted-foreground/45' },
 ]
 
 /** One hour, said the way the panel's own legend says it. */
@@ -58,7 +58,7 @@ export function RunsChart({
             <CardContent className="flex h-full flex-col gap-3 p-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                     <div className="space-y-1">
-                        <h2 className="text-sm font-semibold">{LABELS.dashboard.chart.title}</h2>
+                        <h2 className="text-title font-semibold">{LABELS.dashboard.chart.title}</h2>
                         <p className="text-xs text-muted-foreground">
                             {reading ? LABELS.shell.reading : LABELS.dashboard.chart.hint}
                         </p>

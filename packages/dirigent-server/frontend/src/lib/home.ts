@@ -10,6 +10,7 @@
  */
 
 import type { Page } from '@/lib/api'
+import { elapsedBetween } from '@/lib/format'
 import {
     connectionsHealth,
     connectionsNote,
@@ -20,7 +21,7 @@ import {
 import { kindGlyph, NO_MARKS, type Glyph, type KindMarks } from '@/lib/glyphs'
 import { counted as pick, LABELS } from '@/lib/labels'
 import { concernTone, DAY, type Tile, type TileTone } from '@/lib/overview'
-import { readPipelines, type PipelineOut } from '@/lib/pipelines'
+import { readAllPipelines, type PipelineOut } from '@/lib/pipelines'
 import { EVERY_RUN, runsLink, type RunOut } from '@/lib/runs'
 import type { RunStatus } from '@/lib/status'
 import { nextFireView, readSchedules, type ScheduleOut } from '@/lib/triggers'
@@ -447,6 +448,48 @@ export async function readSchedulesAhead(): Promise<{
     pipelines: PipelineOut[]
     schedules: PipelineSchedule[]
 }> {
-    const pipelines = await readPipelines(null)
-    return { pipelines: pipelines.items, schedules: await readPipelineSchedules(pipelines.items) }
+    const pipelines = await readAllPipelines()
+    return { pipelines, schedules: await readPipelineSchedules(pipelines) }
+}
+
+/** How long one pipeline's runs took over the window, as the dashboard lists it. */
+export interface PipelineDuration {
+    pipeline: string
+    /** The median of its settled runs, in milliseconds. */
+    median_ms: number
+}
+
+/** How many pipelines the durations card lists. */
+export const DURATION_ROWS = 6
+
+/**
+ * The median duration of each pipeline's settled runs in a window, the longest first.
+ *
+ * A run that has not finished has no duration yet and is left out, so a pipeline whose only run
+ * is still going is not listed at all.
+ */
+export function medianDurations(
+    runs: readonly Pick<RunOut, 'pipeline' | 'started_at' | 'finished_at'>[],
+    rows: number = DURATION_ROWS,
+): PipelineDuration[] {
+    const taken = new Map<string, number[]>()
+    for (const run of runs) {
+        const took = elapsedBetween(run.started_at, run.finished_at)
+        if (took === null) continue
+        taken.set(run.pipeline, [...(taken.get(run.pipeline) ?? []), took])
+    }
+    return [...taken.entries()]
+        .map(([pipeline, durations]) => {
+            const sorted = durations.toSorted((one, other) => one - other)
+            const middle = Math.floor(sorted.length / 2)
+            const median =
+                sorted.length % 2 === 1
+                    ? (sorted[middle] ?? 0)
+                    : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2
+            return { pipeline, median_ms: Math.round(median) }
+        })
+        .toSorted(
+            (one, other) => other.median_ms - one.median_ms || one.pipeline.localeCompare(other.pipeline),
+        )
+        .slice(0, rows)
 }

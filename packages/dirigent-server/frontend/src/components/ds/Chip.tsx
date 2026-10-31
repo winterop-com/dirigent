@@ -12,7 +12,7 @@ const TONES: Record<ChipTone, string> = {
     dashed: 'border-dashed border-border-strong text-faint',
     good: 'border-good/30 bg-good/14 text-good-ink',
     critical: 'border-critical/30 bg-critical/14 text-critical-ink',
-    edit: 'border-primary/50 text-primary-ink',
+    edit: 'border-foreground/40 text-foreground',
 }
 
 /** The chip's box, which `.kind-chip` and `.status-chip` match in `index.css`: 20px, the chip radius. */

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 
 import {
     FIT_MAX_ZOOM,
+    FIT_PADDING,
     FIT_MIN_ZOOM,
     OVERFLOW_MARGIN,
     startOfOverflow,
@@ -9,6 +10,7 @@ import {
     MAX_ZOOM,
     MIN_ZOOM,
     NODE_HEIGHT,
+    NODE_MIN_WIDTH,
     NODE_SPACING,
     NODE_WIDTH,
     RANK_SPACING,
@@ -17,6 +19,9 @@ import {
     WRAP_WIDTH,
     drawnSize,
     fitOptionsFor,
+    fittedHeight,
+    FITTED_MIN_HEIGHT,
+    nodeWidth,
     fittedZoom,
     fromElkGraph,
     heightOf,
@@ -486,5 +491,45 @@ describe('the size of a box', () => {
         const [a, b, c] = placed
         expect(b.y - (a.y + a.height)).toBeGreaterThan(0)
         expect(c.x - (a.x + a.width)).toBeGreaterThan(0)
+    })
+})
+
+describe('a node as wide as its words', () => {
+    test('is never narrower than the floor', () => {
+        expect(nodeWidth('a', 'b')).toBe(NODE_MIN_WIDTH)
+    })
+
+    test('takes the longer of its two lines, so no key is cut', () => {
+        const key = 'notify_failure_on_every_step'
+        expect(nodeWidth(key, 'webhook.post')).toBeGreaterThanOrEqual(key.length * 7.2 + 34)
+        expect(nodeWidth('x', 'a.very.long.block.identifier.here')).toBeGreaterThan(nodeWidth('x', 'short'))
+    })
+
+    test('places each rank after the widest node of the rank before it', () => {
+        const placed = placedByRank({
+            nodes: [
+                { id: 'wide', width: 300, height: NODE_HEIGHT },
+                { id: 'thin', width: 100, height: NODE_HEIGHT },
+                { id: 'next', width: 100, height: NODE_HEIGHT },
+            ],
+            edges: [
+                ['wide', 'next'],
+                ['thin', 'next'],
+            ],
+        })
+        expect(placed.nodes.find((one) => one.id === 'next')?.x).toBe(300 + RANK_SPACING)
+        expect(placed.nodes.find((one) => one.id === 'wide')?.width).toBe(300)
+    })
+})
+
+describe('a canvas as tall as its drawing', () => {
+    test('is the drawing and its ground where the drawing fits the width', () => {
+        expect(fittedHeight({ width: 500, height: 44 }, 1200)).toBe(FITTED_MIN_HEIGHT)
+        expect(fittedHeight({ width: 500, height: 300 }, 1200)).toBe(Math.ceil(300 * (1 + FIT_PADDING)))
+    })
+
+    test('scales a drawing wider than the canvas down with it, never past the floor', () => {
+        expect(fittedHeight({ width: 1140, height: 300 }, 1040)).toBeLessThan(340)
+        expect(fittedHeight({ width: 0, height: 0 }, 1000)).toBe(FITTED_MIN_HEIGHT)
     })
 })

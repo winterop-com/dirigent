@@ -766,7 +766,9 @@ export function PipelineEditor() {
                         setIssues(issuesNote(result.plan.issues))
                         const note = appliedNote(result)
                         toast.success(note.line, { description: note.detail })
-                        const address = creating ? `/pipelines/${encodeURIComponent(result.plan.code)}` : null
+                        const address = creating
+                            ? `/pipelines/${encodeURIComponent(result.plan.code)}/edit`
+                            : null
                         const { tokens } = result.sources
                         setMinted({ tokens, after: address })
                         if (tokens.length > 0 && address !== null) return

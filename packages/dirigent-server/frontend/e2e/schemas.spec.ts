@@ -90,7 +90,7 @@ test('a link that opened a schema leaves the next screen starting closed', async
 
     // The link opened the panel for that visit; the reader never toggled it, so the editor
     // draws the way a first visit does.
-    await page.goto('/pipelines/std-convert-fan-out')
+    await page.goto('/pipelines/std-convert-fan-out/edit')
     await expect(page.locator('.react-flow__node').first()).toBeVisible()
     const panel = page
         .locator('aside')

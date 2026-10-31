@@ -1,6 +1,6 @@
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
-import { counted, LABELS } from '../src/lib/labels.ts'
+import { LABELS } from '../src/lib/labels.ts'
 import { applyDocument, applyExample, ranToCompletion, signIn, startRun } from './support.ts'
 
 /**
@@ -24,7 +24,6 @@ const RAN = {
 }
 
 /** The opening line of that example's description, which the pane renders as markdown. */
-const DESCRIPTION = 'Read a csv, average its active readings by region'
 const IDLE = { file: 'examples/transform/jq-reshape.yaml', code: 'jq-reshape', title: 'Reshape with jq' }
 
 /** A document with no name, whose row is therefore headed by its code. */
@@ -63,18 +62,9 @@ steps:
       program: add
 `
 
-/**
- * The row a pipeline's own title link is in, in whichever form the listing is drawing.
- *
- * A listing beside an open panel has half the width it had and draws its rows as cards, so a
- * test that opens one is asserting about a `listitem` from that moment on. What the row says
- * and what it does are the same in both forms, which is what lets one locator find it.
- */
+/** The row a pipeline is drawn on, found by the title it is headed with. */
 function rowOf(page: Page, title: string) {
-    return page
-        .getByRole('row')
-        .or(page.getByRole('listitem'))
-        .filter({ has: page.getByRole('link', { name: title, exact: true }) })
+    return page.getByTestId('pipeline-row').filter({ has: page.getByTitle(title, { exact: true }) })
 }
 
 /**
@@ -93,7 +83,7 @@ function runRowsOf(page: Page, code: string) {
     return page.getByRole('row').filter({ hasText: code })
 }
 
-test('the pipelines listing carries the identity, the triggers and the last run', async ({ page }) => {
+test('the pipelines listing carries the identity, the shape and the last run', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, RAN.file)
     await applyExample(page.request, IDLE.file)
@@ -101,30 +91,23 @@ test('the pipelines listing carries the identity, the triggers and the last run'
     const runId = await startRun(page.request, RAN.code)
     await ranToCompletion(page.request, runId)
 
-    await page.goto('/pipelines')
+    await page.goto('/pipelines?examples=all')
 
-    // Both documents are here, each headed by its name where it has one -- with the code it
-    // is addressed by still on the row. The version lives in the editor, not on every row.
+    // Each is headed by its name where it has one, with the code it is addressed by on the row,
+    // and led by its miniature graph.
     await expect(rowOf(page, RAN.title)).toContainText(RAN.code)
     await expect(rowOf(page, RAN.title)).not.toContainText('v1')
     await expect(rowOf(page, IDLE.title)).toContainText(IDLE.code)
-    await expect(rowOf(page, NAMELESS.code)).toContainText(NAMELESS.code)
+    await expect(rowOf(page, NAMELESS.code)).toBeVisible()
+    await expect(rowOf(page, RAN.title).locator('svg.mini-graph')).toBeVisible()
 
-    // The one that ran says how it went, and says it as a link to that very run.
-    await expect(rowOf(page, RAN.title).locator(`a[href="/runs/${runId}"]`)).toBeVisible()
-    await expect(rowOf(page, RAN.title).locator('.status-dot')).toBeVisible()
+    // The one that ran says how it went; the one that has not run says nothing there at all.
+    await expect(rowOf(page, RAN.title).locator('.status-chip')).toBeVisible()
+    await expect(rowOf(page, IDLE.title).locator('.status-chip')).toHaveCount(0)
 
-    // The one that has not run says so rather than showing an empty cell.
-    await expect(rowOf(page, IDLE.title)).toContainText(LABELS.pipelines.last_run.never)
-
-    // The foot counts what has been read, and there is no page number anywhere on the screen. The
-    // noun beside the number is the one the catalogue spells for that number, not either form.
-    const pipelines = LABELS.word.pipeline.count
-    const foot = page.getByText(new RegExp(`^\\d+ (${pipelines.one}|${pipelines.many})$`))
-    await expect(foot).toBeVisible()
-    const said = await foot.innerText()
-    const read = Number(said.split(' ')[0])
-    expect(said).toBe(LABELS.shell.rows_read(String(read), counted(read, pipelines)))
+    // The row is the link to the pipeline's page.
+    await rowOf(page, RAN.title).click()
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${RAN.code}$`))
 })
 
 /**
@@ -132,26 +115,17 @@ test('the pipelines listing carries the identity, the triggers and the last run'
  * the server rather than a squint at the rows already loaded -- so a row the filter excludes is
  * one the listing never asked for, and this is the seam a Node test cannot reach.
  */
-test('the pipelines listing wears its tags and a chip on a row narrows to that tag', async ({ page }) => {
+test('a tag in the address narrows the pipelines listing, and its chip widens it again', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, RAN.file)
     await applyExample(page.request, IDLE.file)
 
-    await page.goto('/pipelines')
-
     // Both examples are tagged transform; only the fan-out one is tagged graph.
-    await expect(rowOf(page, RAN.title)).toContainText('graph')
-    await expect(rowOf(page, RAN.title)).toContainText('transform')
-    await expect(rowOf(page, IDLE.title)).toContainText('transform')
-
-    // A chip on the row is the filter reached from the thing that shows what to reach for.
-    await rowOf(page, RAN.title).getByRole('button', { name: 'Filter by graph' }).click()
-
-    await expect(page).toHaveURL(/\?tag=graph$/)
+    await page.goto('/pipelines?examples=all&tag=graph')
     await expect(rowOf(page, RAN.title)).toBeVisible()
     await expect(rowOf(page, IDLE.title)).toHaveCount(0)
 
-    // The filter stands above the table as a chip that removes itself, and removing it asks the
+    // The filter stands above the lists as a chip that removes itself, and removing it asks the
     // wide question again.
     await page.getByRole('button', { name: 'Stop filtering by graph' }).click()
     await expect(rowOf(page, IDLE.title)).toBeVisible()
@@ -166,7 +140,7 @@ test('two tags narrow the pipelines listing, and the address carries what they n
     await applyExample(page.request, IDLE.file)
 
     // A filtered listing is a link somebody sends, so the address is where the filter can start.
-    await page.goto('/pipelines?tag=transform')
+    await page.goto('/pipelines?examples=all&tag=transform')
     await expect(rowOf(page, RAN.title)).toBeVisible()
     await expect(rowOf(page, IDLE.title)).toBeVisible()
     await expect(page.getByRole('button', { name: 'Stop filtering by transform' })).toBeVisible()
@@ -175,7 +149,7 @@ test('two tags narrow the pipelines listing, and the address carries what they n
     await page.getByRole('button', { name: LABELS.shell.tag_filter.label }).click()
     await page.getByRole('menuitemcheckbox', { name: 'graph', exact: true }).click()
 
-    await expect(page).toHaveURL(/\?tag=transform&tag=graph$/)
+    await expect(page).toHaveURL(/tag=transform&tag=graph$/)
     await expect(rowOf(page, RAN.title)).toBeVisible()
     await expect(rowOf(page, IDLE.title)).toHaveCount(0)
 })
@@ -259,7 +233,7 @@ test('a file picked on the listing lands in the new-document editor, and applyin
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByText(/Apply (creates|writes version)/)).toBeVisible()
     await dialog.getByRole('button', { name: LABELS.action.apply }).click()
-    await expect(page).toHaveURL(/\/pipelines\/typed-in-the-browser$/)
+    await expect(page).toHaveURL(/\/pipelines\/typed-in-the-browser\/edit$/)
 
     // TITLE ELSE CODE: this document gave itself a name, so the row's link wears the name and
     // the code it is addressed by is beside it in mono.
@@ -267,277 +241,6 @@ test('a file picked on the listing lands in the new-document editor, and applyin
     const applied = rowOf(page, 'Typed in the browser')
     await expect(applied).toBeVisible()
     await expect(applied).toContainText('typed-in-the-browser')
-})
-
-/**
- * A ROW OPENS BESIDE THE TABLE, AND ITS TITLE OPENS THE EDITOR.
- *
- * Choosing a row is a request to read that pipeline, and the panel is where a pipeline is read:
- * its description, what it takes, what it requires, what has been applied. Going to the editor
- * is the louder intent, and the title is the link that carries it -- so the two gestures on one
- * row do two different things, and neither is the other by accident.
- */
-test('choosing a pipeline row reads it beside the listing, and its title opens the editor', async ({
-    page,
-}) => {
-    await signIn(page)
-    await applyExample(page.request, RAN.file)
-
-    await page.goto('/pipelines')
-    const row = rowOf(page, RAN.title)
-    await expect(row).toBeVisible()
-
-    // The row itself, away from the link: the listing stays on screen and the panel answers.
-    await row.getByText(RAN.code, { exact: true }).click()
-
-    const panel = page.locator('aside')
-    await expect(panel.getByText(LABELS.word.parameters, { exact: true })).toBeVisible()
-    await expect(panel.getByText(LABELS.editor.pipeline_pane.recent_runs, { exact: true })).toBeVisible()
-    await expect(panel.getByText(LABELS.word.version.heading, { exact: true })).toBeVisible()
-    await expect(panel.getByText(DESCRIPTION, { exact: false })).toBeVisible()
-    // Reading a row did not leave the listing.
-    await expect(page).toHaveURL(/\/pipelines$/)
-    await expect(row).toHaveAttribute('aria-selected', 'true')
-
-    // The title is the link, and it is what goes to the editor.
-    await row.getByRole('link', { name: RAN.title, exact: true }).click()
-    await expect(page).toHaveURL(new RegExp(`/pipelines/${RAN.code}$`))
-})
-
-/**
- * A ROW IS A DISCLOSURE, SO PRESSING IT AGAIN TAKES IT BACK.
- *
- * What a press opened a press closes: the panel is shut from the listing that opened it rather
- * than only from its own control, and the row says it is no longer the open one.
- */
-test('pressing the open pipeline row again takes the panel back', async ({ page }) => {
-    await signIn(page)
-    await applyExample(page.request, RAN.file)
-
-    await page.goto('/pipelines')
-    const row = rowOf(page, RAN.title)
-    await expect(row).toBeVisible()
-    const code = row.getByText(RAN.code, { exact: true })
-
-    await code.click()
-    await expect(page.locator('aside').getByText(LABELS.word.parameters, { exact: true })).toBeVisible()
-    await expect(row).toHaveAttribute('aria-selected', 'true')
-
-    await code.click()
-    await expect(row).toHaveAttribute('aria-selected', 'false')
-    // An unfilled panel is not a panel, so the pane it was reading is gone with the selection.
-    await expect(page.getByText(LABELS.word.parameters, { exact: true })).toHaveCount(0)
-    await expect(page).toHaveURL(/\/pipelines$/)
-})
-
-/**
- * Two documents that file themselves under more words than a column can hold.
- *
- * THEY ARE FIXTURES, NOT EXAMPLES. Nothing in `examples/` teaches anything by wearing fifteen
- * tags, and what these are for is the width those tags would take from the identity beside
- * them -- so this spec applies them and they live nowhere else.
- */
-const FIFTEEN = {
-    format: 'dirigent/v1',
-    kind: 'pipeline',
-    code: 'many-tags-fifteen',
-    name: 'GDACS disaster updates, joined and reshaped for the weekly bulletin',
-    description:
-        'Disaster alerts from the GDACS feed, narrowed to the countries this instance reports on, ' +
-        'joined against the population figures and reshaped into the rows the weekly bulletin reads.',
-    tags: [
-        'gdacs',
-        'disasters',
-        'alerts',
-        'humanitarian',
-        'ingest',
-        'hourly',
-        'geo',
-        'emergency',
-        'feeds',
-        'public',
-        'climate',
-        'reporting',
-        'bulletin',
-        'weekly',
-        'joined',
-    ],
-    requires: { blocks: ['transform.jq'] },
-    steps: { total: { block: 'transform.jq', config: { input: [1, 2, 3], program: 'add' } } },
-}
-
-const TEN = {
-    format: 'dirigent/v1',
-    kind: 'pipeline',
-    code: 'many-tags-ten',
-    name: 'GDACS disaster updates, the daily half',
-    description: 'The same feed read once a day, for the countries the weekly bulletin leaves out.',
-    tags: [
-        'gdacs',
-        'disasters',
-        'alerts',
-        'humanitarian',
-        'ingest',
-        'daily',
-        'geo',
-        'emergency',
-        'feeds',
-        'public',
-    ],
-    requires: { blocks: ['transform.jq'] },
-    steps: { total: { block: 'transform.jq', config: { input: [1, 2, 3], program: 'add' } } },
-}
-
-/** How wide one cell of a row is, by the column it is in. */
-async function cellWidth(page: Page, title: string, index: number): Promise<number> {
-    const box = await rowOf(page, title).locator('td').nth(index).boundingBox()
-    expect(box, 'the row has no cell there').not.toBeNull()
-    return box?.width ?? 0
-}
-
-/** How wide the table itself is, which every share on a row is measured against. */
-async function tableWidth(page: Page): Promise<number> {
-    const box = await page.getByRole('table').boundingBox()
-    expect(box, 'there is no table').not.toBeNull()
-    return box?.width ?? 0
-}
-
-/** The chip the rest of a row's tags fold into. */
-function foldOf(page: Page, title: string) {
-    return rowOf(page, title).getByRole('button', { name: /more tags/ })
-}
-
-/** How many words that chip is holding, read off the words it spells on hover. */
-async function foldedWords(fold: Locator): Promise<string[]> {
-    const said = (await fold.getAttribute('title')) ?? ''
-    const listed = /^(\d+) more tags: (.+)$/.exec(said)
-    expect(listed, `the fold says nothing about what it holds: ${said}`).not.toBeNull()
-    const words = (listed?.[2] ?? '').split(', ')
-    expect(words).toHaveLength(Number(listed?.[1]))
-    await expect(fold).toHaveText(`+${String(words.length)}`)
-    return words
-}
-
-/** How many lines the chips of one row are drawn on. */
-async function chipLines(page: Page, title: string): Promise<number> {
-    return rowOf(page, title)
-        .locator('td')
-        .nth(1)
-        .evaluate((cell) => {
-            const tops = [...cell.querySelectorAll('span > span, span > button')].map((chip) =>
-                Math.round(chip.getBoundingClientRect().top),
-            )
-            return new Set(tops).size
-        })
-}
-
-test.describe('a row filed under more words than the column can hold', () => {
-    test.use({ viewport: { width: 1440, height: 900 } })
-
-    test('the identity takes the width and the tags take what is left', async ({ page }) => {
-        await signIn(page)
-        await applyDocument(page.request, FIFTEEN)
-        await applyDocument(page.request, TEN)
-
-        await page.goto('/pipelines')
-        const row = rowOf(page, FIFTEEN.name)
-        await expect(row).toBeVisible()
-
-        // THE TITLE IS NOT CUT. The lead column takes the width, so the whole of the name is on
-        // screen rather than truncated to make room for a vocabulary.
-        const title = row.getByRole('link', { name: FIFTEEN.name, exact: true })
-        const cut = await title.evaluate((link) => link.scrollWidth - link.clientWidth)
-        expect(cut).toBeLessThanOrEqual(0)
-
-        // Half the table is the identity's, and the tags take at most a quarter of it.
-        const table = await tableWidth(page)
-        const lead = await cellWidth(page, FIFTEEN.name, 0)
-        const tags = await cellWidth(page, FIFTEEN.name, 1)
-        expect(lead).toBeGreaterThanOrEqual(table * 0.5)
-        expect(tags).toBeLessThanOrEqual(table * 0.27)
-
-        // ONE LINE OF CHIPS, because this table is under the width a second one is allowed at.
-        expect(await chipLines(page, FIFTEEN.name)).toBe(1)
-
-        // What does not fit folds into one chip, which says how many and spells them on hover.
-        const fold = foldOf(page, FIFTEEN.name)
-        const hidden = await foldedWords(fold)
-        const drawn = await row
-            .locator('td')
-            .nth(1)
-            .getByRole('button', { name: /^Filter by / })
-            .count()
-        expect(drawn + hidden.length).toBe(FIFTEEN.tags.length)
-
-        // The ten-tag row folds its own count, so what a fold says is what it is holding.
-        const fewer = await foldedWords(foldOf(page, TEN.name))
-        expect(fewer.length).toBeLessThan(hidden.length)
-
-        // It is the door every other chip on the row is: the same filter, reached from the words
-        // the column could not draw.
-        await fold.click()
-        // A word only the fifteen-tag document wears, so what it narrowed to is not in doubt.
-        const only = 'climate'
-        expect(hidden).toContain(only)
-        expect(TEN.tags).not.toContain(only)
-        await page.getByRole('menuitem', { name: only, exact: true }).click()
-        await expect(page).toHaveURL(new RegExp(`\\?tag=${only}$`))
-        await expect(rowOf(page, FIFTEEN.name)).toBeVisible()
-        await expect(rowOf(page, TEN.name)).toHaveCount(0)
-    })
-})
-
-/**
- * WHAT A NARROW WINDOW LEAVES THE TABLE is where the identity is squeezed first: a rail, the
- * page's padding and four columns out of 1050px leave about 730 for the table, and that is the
- * width at which a vocabulary used to take the name's place.
- */
-test.describe('the same row on a narrow window', () => {
-    test.use({ viewport: { width: 1050, height: 800 } })
-
-    test('the identity still keeps half the table, and the tags fold hard', async ({ page }) => {
-        await signIn(page)
-        await applyDocument(page.request, FIFTEEN)
-        await applyDocument(page.request, TEN)
-
-        await page.goto('/pipelines')
-        await expect(rowOf(page, FIFTEEN.name)).toBeVisible()
-
-        const table = await tableWidth(page)
-        const lead = await cellWidth(page, FIFTEEN.name, 0)
-        expect(lead).toBeGreaterThanOrEqual(table * 0.5)
-
-        // The chips give way rather than the name: one line, most of it behind the fold.
-        expect(await chipLines(page, FIFTEEN.name)).toBe(1)
-        const hidden = await foldedWords(foldOf(page, FIFTEEN.name))
-        expect(hidden.length).toBeGreaterThanOrEqual(10)
-    })
-})
-
-test.describe('the same row as a card', () => {
-    test.use({ viewport: { width: 390, height: 844 } })
-
-    test('every tag is drawn, wrapped, and nothing scrolls sideways', async ({ page }) => {
-        await signIn(page)
-        await applyDocument(page.request, FIFTEEN)
-
-        await page.goto('/pipelines')
-        const card = page.getByRole('listitem').filter({ hasText: FIFTEEN.code })
-        await expect(card.getByRole('link', { name: FIFTEEN.name })).toBeVisible()
-
-        // A card has a row of its own for the tags, so there is nothing to take width from and
-        // nothing folds.
-        await expect(card.getByRole('button', { name: /more tags/ })).toHaveCount(0)
-        for (const tag of FIFTEEN.tags) {
-            await expect(card.getByRole('button', { name: `Filter by ${tag}` })).toBeVisible()
-        }
-
-        // NOTHING SCROLLS SIDEWAYS, whatever is in it.
-        const sideways = await page.evaluate(
-            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        )
-        expect(sideways).toBeLessThanOrEqual(0)
-    })
 })
 
 /** A parent that starts three child runs, each triggered by a step of it. */

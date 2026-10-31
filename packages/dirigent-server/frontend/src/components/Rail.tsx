@@ -127,7 +127,7 @@ export function Rail() {
                                         type="button"
                                         onClick={toggleRail}
                                         aria-label={EXPAND_LABEL}
-                                        className="group/mark flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md bg-primary text-primary-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                                        className="group/mark flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-node bg-brand text-brand-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                                     >
                                         <Waypoints className="size-4 group-hover/mark:hidden" aria-hidden />
                                         <PanelLeftOpen
@@ -146,7 +146,7 @@ export function Rail() {
                                 aria-label={LABELS.shell.wordmark}
                                 className="flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                             >
-                                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                                <span className="flex size-7 shrink-0 items-center justify-center rounded-node bg-brand text-brand-foreground">
                                     <Waypoints className="size-4" aria-hidden />
                                 </span>
                                 <span className="text-base font-semibold tracking-tight">

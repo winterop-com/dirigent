@@ -18,6 +18,7 @@ import {
     tallest,
     toneOf,
     type PipelineSchedule,
+    medianDurations,
 } from '@/lib/home'
 import type { RunOut } from '@/lib/runs'
 import type { RunStatus } from '@/lib/status'
@@ -36,6 +37,7 @@ function run(status: RunStatus, created: string, id = status + created): RunOut 
         parent_run_id: null,
         triggered_by_label: null,
         trace_id: null,
+        stored_bytes: 0,
         error: null,
         error_code: null,
         failed_step: null,
@@ -520,5 +522,31 @@ describe('the line along the foot of the panel', () => {
         expect(healthNote([worker('alpha')], [])).toBe(
             'Every worker is healthy, and this instance holds no connections.',
         )
+    })
+})
+
+describe('how long each pipeline took over the day', () => {
+    const took = (pipeline: string, seconds: number | null) => ({
+        pipeline,
+        started_at: '2026-03-01T00:00:00Z',
+        finished_at:
+            seconds === null
+                ? null
+                : new Date(Date.parse('2026-03-01T00:00:00Z') + seconds * 1000).toISOString(),
+    })
+
+    test('is the median of the finished runs of each pipeline, the longest first', () => {
+        const rows = medianDurations([
+            took('a', 1),
+            took('a', 3),
+            took('a', 2),
+            took('b', 10),
+            took('b', 20),
+            took('c', null),
+        ])
+        expect(rows).toEqual([
+            { pipeline: 'b', median_ms: 15000 },
+            { pipeline: 'a', median_ms: 2000 },
+        ])
     })
 })
