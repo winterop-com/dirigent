@@ -18,7 +18,7 @@ from typing import NamedTuple
 
 from dirigent_block_execute.capture import Drained, LiveLines, drain
 from dirigent_block_execute.environment import allowed
-from dirigent_block_execute.messages import TIMED_OUT
+from dirigent_block_execute.messages import PATH_LEAVES_THE_WORK_DIRECTORY, TIMED_OUT
 from dirigent_plugin import BlockFailure, ErrorClass, StepContext
 
 #: Inherited whether or not a step's allowlist names them.
@@ -43,6 +43,18 @@ def segment(ctx: StepContext, name: str) -> str:
     """
     item = f"/{ctx.run_item_id}" if ctx.run_item_id is not None else ""
     return f"{name}/{ctx.step}{item}/attempt-{ctx.attempt}"
+
+
+def inside_work(root: Path, relative: str) -> Path:
+    """A path the document named in the run's work directory, refused if a link leads it elsewhere.
+
+    The config refuses one that is absolute or climbs out, which is a check on the text. A link a
+    checkout or an earlier step left there is not, and a tool opening this path would follow it.
+    """
+    path = root / relative
+    if not path.resolve().is_relative_to(root.resolve()):
+        raise BlockFailure(PATH_LEAVES_THE_WORK_DIRECTORY, error_class=ErrorClass.REJECTED, path=repr(relative))
+    return path
 
 
 def workspace(ctx: StepContext, name: str) -> Path:

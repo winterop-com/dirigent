@@ -169,7 +169,8 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
     async def execute(self, config: DockerBuildConfig, ctx: StepContext) -> DockerBuildOutput | RemoteHandle:
         """Build the image, read its id from the iidfile, and report its size and tags."""
         root = ctx.work
-        context = root / config.context
+        context = subprocess.inside_work(root, config.context)
+        subprocess.inside_work(root, str(Path(config.context) / config.dockerfile))
         iidfile = Path(f"{root / subprocess.segment(ctx, 'build')}.iid")
         iidfile.parent.mkdir(parents=True, exist_ok=True)
         settings = ctx.connection(config.connection, DockerConnectionConfig) if config.connection else None
