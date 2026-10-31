@@ -710,14 +710,20 @@ resolve to an integer, and anything else fails the step as `rejected` before the
 
 - `$(( ))`, `(( ))` and `$[ ]`
 - the operands of `[[ -eq ]]`, `-ne`, `-lt`, `-le`, `-gt`, `-ge`, and of `[[ -v ]]`. Another clause
-  of the same `[[ ]]` is not held to it, and neither is `[ ]` or `test`, which do not evaluate.
+  of the same `[[ ]]` is not held to it, and neither is a numeric comparison in `[ ]` or `test`,
+  which does not evaluate.
+- the operand of `-v` to `[`, `test` or `printf`, and a name `read` assigns to
 - `let` and `unset`, in any word
 - `declare`, `typeset`, `local`, `readonly` and `export`, in the word's name, so `export X=${v}` takes
   any value and `export ${v}=1` does not
 - anywhere in a command that declares an integer variable, with `declare -i` or the like, because a
-  later assignment to it evaluates. So one such line holds every reference in that command.
-- an indexed array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`. An array the same
-  command declares with `declare -A` is not held to it, and neither is `echo a[${v}]`, which is a glob.
+  later assignment to it evaluates, or a nameref, with `declare -n`, because reading it does. So one
+  such line holds every reference in that command.
+- an indexed array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`, or a compound
+  assignment's, as `a=([${v}]=1)`. An array the same command declares with `declare -A` is not held
+  to it in the first form, and neither is `echo a[${v}]`, which is a glob.
+- a declaration whose compound assignment is one quoted word, as `declare -a "a=(${v})"`, which bash
+  parses again. `declare -a a=("${v}")` is not held to it.
 - `${var:offset}` and `${var:offset:length}`, but not `${var:-default}` and its kin
 
 Declare the parameter as `type: integer` and a caller's bad value is refused at the door instead. A
@@ -728,11 +734,18 @@ wrong can hide one. That reads a literal opener as one too: after `'$(( '`, in a
 program another tool reads, a reference must be an integer until the opener closes. So must one
 inside a `$( )` within any of the places above, because the shell evaluates what that prints.
 
+`let`, `unset`, `[[`, `-v`, `read`, the `-i` and `-n` declarations and `=(` are looked for the same
+way, on the word that starts each stretch of a command between one `;`, `&`, `|`, `(`, backquote or
+newline and the next, once any keyword, assignment, redirection, function header and case pattern is
+passed over. So `f() { let x=${v}; }` and `2>/dev/null let x=${v}` are held, `echo let ${v}` and
+`echo "let me ${v}"` are not, and `echo "a; let me ${v}"` is, at the cost of a text that only
+reads like a command.
+
 What the check does not cover is a command that hands a value on: the author's own variable to
-arithmetic or `eval`, a value read from `env`, a program in single quotes given to `bash -c`, and a
-variable named by a value through `read`, `printf -v`, `getopts` or `${!var}`, which is not read from
-the command text. Where the value came from a caller and a step needs one of those, use `argv`, which
-involves no shell, or hold the value to a schema first.
+arithmetic, `eval`, `read`, `printf -v`, `getopts` or `${!var}`, a value read from `env`, and a program
+in single quotes given to `bash -c`, none of which is read from the command text. Where the value came
+from a caller and a step needs one of those, use `argv`, which involves no shell, or hold the value to
+a schema first.
 
 ### A reference in a program
 
