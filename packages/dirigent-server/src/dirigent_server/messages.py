@@ -129,6 +129,11 @@ HOST_NOT_LOOPBACK = SERVER.define(
 
 BODY_TIMED_OUT = SERVER.define("body_timed_out", "the whole body did not arrive within {timeout}")
 
+ADDRESS_UNSTORABLE = SERVER.define(
+    "address_unstorable",
+    "nothing is found at an address holding a NUL character or half a surrogate pair",
+)
+
 PLAYGROUND_BODY_TOO_LARGE = SERVER.define(
     "playground_body_too_large", "the body is larger than the {limit} bytes the playground reads"
 )
