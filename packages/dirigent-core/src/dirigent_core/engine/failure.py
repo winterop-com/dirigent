@@ -6,12 +6,13 @@ and never reaches here.
 """
 
 import random
+from collections.abc import Collection
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from dirigent_common import JsonMap, Message, raised_detail
+from dirigent_common import JsonMap, Message, raised_detail, scrub, scrub_json
 from dirigent_core.engine.definition import RetryPolicy
 from dirigent_core.messages import BLOCK_RAISED
 from dirigent_plugin import AnyOperator, AnySensor, BlockFailure, ErrorClass, classify_default
@@ -49,13 +50,17 @@ def backoff_delay(policy: RetryPolicy, attempt: int, rng: random.Random | None =
     return timedelta(seconds=max(seconds, 0.0))
 
 
-def raised_params(block_id: str, error: Exception) -> JsonMap:
+def raised_params(block_id: str, error: Exception, *, redact: Collection[str] = ()) -> JsonMap:
     """Name an unanticipated exception for an operator, beside the sentence a person reads.
 
     ``block`` is what the template renders; the class and the exception's own text are an
     operator's, so they ride here and in the step's log instead of in that sentence.
     """
-    return {"block": repr(block_id), "raised_kind": type(error).__name__, "raised_detail": raised_detail(error)}
+    return {
+        "block": repr(block_id),
+        "raised_kind": type(error).__name__,
+        "raised_detail": raised_detail(error, redact=redact),
+    }
 
 
 class Failure(BaseModel):
@@ -69,7 +74,7 @@ class Failure(BaseModel):
     error_class: ErrorClass
 
     @classmethod
-    def of(cls, block: AnyOperator | AnySensor, error: Exception) -> "Failure":
+    def of(cls, block: AnyOperator | AnySensor, error: Exception, *, redact: Collection[str] = ()) -> "Failure":
         """Build a failure from an exception a block raised, keeping its code when it has one."""
         error_class = classify(block, error)
         if isinstance(error, BlockFailure):
@@ -77,8 +82,19 @@ class Failure(BaseModel):
         return cls(
             code=BLOCK_RAISED.code,
             message=BLOCK_RAISED.render(block=repr(block.spec.id)),
-            params=raised_params(block.spec.id, error),
+            params=raised_params(block.spec.id, error, redact=redact),
             error_class=error_class,
+        )
+
+    def scrubbed(self, secrets: Collection[str]) -> "Failure":
+        """Take every secret out of what this failure says."""
+        if not secrets:
+            return self
+        return self.model_copy(
+            update={
+                "message": scrub(self.message, secrets),
+                "params": cast("JsonMap", scrub_json(cast("JsonValue", self.params), secrets)),
+            }
         )
 
     @classmethod

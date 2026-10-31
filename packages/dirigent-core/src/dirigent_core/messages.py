@@ -95,6 +95,9 @@ SECRET_KEY_MALFORMED = SECRET.define(
 )
 
 EMPTY_SECRET = SECRET.define("empty", "{fields} cannot be stored empty: a required secret needs a value")
+SECRET_NOT_SENDABLE = SECRET.define(
+    "not_sendable", "{fields} holds a control character or a blank at its end, which no HTTP header can carry"
+)
 
 SECRET_KEY_TWICE = SECRET.define(
     "key_twice",

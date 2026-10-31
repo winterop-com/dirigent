@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import ConnectionDetail, ConnectionIn, ConnectionOut, ConnectionUpdate, Page
-from dirigent_common import HealthReport, JsonMap, validation_issues
+from dirigent_common import HealthReport, JsonMap, scrub, secrets_of, validation_issues
 from dirigent_core.connections import ConnectionInUse, connection_users, remove_connection, said
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, utcnow
@@ -310,13 +310,18 @@ async def check(row: Connection, services: EngineServices) -> HealthReport:
     contributed = services.host.connection_kinds.get(row.kind)
     if contributed is None:
         return HealthReport(healthy=False, detail=f"no connection kind {row.kind!r} is installed")
+    secrets: set[str] = set()
     try:
         config = services.secrets.decrypt_config(
             contributed.config_model, dict(row.config), row.secret_envelope, key_id=row.secret_key_id
         )
-        return await contributed.check(config)
+        secrets = secrets_of(config)
+        report = await contributed.check(config)
     except Exception as error:
         # The full text goes to the process log; only a bounded summary reaches the row,
         # which /system/info serves to every principal.
-        _logger.warning("connection check failed", connection=row.code, kind=row.kind, error=str(error))
+        _logger.warning("connection check failed", connection=row.code, kind=row.kind, error=scrub(str(error), secrets))
         return HealthReport(healthy=False, detail=summarise_failure(error))
+    if report.detail is None:
+        return report
+    return report.model_copy(update={"detail": scrub(report.detail, secrets)})

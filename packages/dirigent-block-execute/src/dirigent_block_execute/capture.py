@@ -4,14 +4,13 @@ import asyncio
 from collections.abc import Sequence
 from typing import NamedTuple
 
+from dirigent_common import REDACTED as REDACTED
+from dirigent_common import scrub
 from dirigent_plugin import ByteSink, StepContext
 
 LOGGED_LINES = 40
 
 FAILURE_TAIL_LINES = 5
-
-#: What a scrubbed secret is replaced by, matching the marker the API redacts a connection with.
-REDACTED = "***"
 
 
 class Captured(NamedTuple):
@@ -207,20 +206,6 @@ def decode(payload: bytes) -> str:
 def lines_of(payload: bytes) -> list[str]:
     """Split a captured stream into its non-blank lines."""
     return [line for line in decode(payload).splitlines() if line.strip()]
-
-
-def scrub(text: str, secrets: Sequence[str] = ()) -> str:
-    """Replace every occurrence of a secret with the redaction marker.
-
-    A tool prints what it was given. ``git`` echoes a remote URL, an ssh command line and,
-    when a credential is wrong, sometimes the credential itself, so a block that hands a
-    process a secret hands this the same strings and nothing reaches a log or a failure
-    message with them still in it. Longest first, so a secret that contains another is
-    replaced whole rather than left in pieces.
-    """
-    for secret in sorted((one for one in secrets if one), key=len, reverse=True):
-        text = text.replace(secret, REDACTED)
-    return text
 
 
 def tail(

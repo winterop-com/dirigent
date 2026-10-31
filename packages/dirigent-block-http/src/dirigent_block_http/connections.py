@@ -10,7 +10,7 @@ from typing import ClassVar
 import httpx2
 from pydantic import BaseModel
 
-from dirigent_common import HealthReport, HttpConnectionConfig, build_client, raised_detail
+from dirigent_common import HealthReport, HttpConnectionConfig, build_client, raised_detail, secrets_of
 from dirigent_plugin import ConnectionKind
 
 
@@ -27,7 +27,7 @@ class HttpConnectionKind(ConnectionKind):
             async with build_client(settings) as client:
                 response = await client.get(settings.health_path)
         except httpx2.HTTPError as error:
-            return HealthReport(healthy=False, detail=raised_detail(error))
+            return HealthReport(healthy=False, detail=raised_detail(error, redact=secrets_of(settings)))
         healthy = response.status_code < 500
         return HealthReport(
             healthy=healthy,

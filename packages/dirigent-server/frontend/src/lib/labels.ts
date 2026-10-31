@@ -1128,6 +1128,8 @@ const refused = {
         key_file_unreadable: 'The secret key file {path} cannot be read as a key: {detail}',
         key_malformed: 'DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken.',
         key_twice: 'Both secret_key and secret_key_file are set. Name the envelope key one way.',
+        not_sendable:
+            '{fields} holds a control character or a blank at its end, which no HTTP header can carry.',
     },
     server: {
         bad_credentials: 'Invalid username or password.',
