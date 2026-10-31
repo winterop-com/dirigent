@@ -116,7 +116,7 @@ find from across the room, and that the working size of a dense screen is a step
 | `text-page` | 26px | A page heading, at weight 500, and nothing else on any screen |
 | `text-stat` | 28px mono | A stat's number, and nothing else on any screen |
 | `text-wordmark` | 48px | The login brand lockup's wordmark, and nothing else on any screen |
-| `text-brand` | 20px | The rail's wordmark beside the mark, at weight 600, and nothing else on any screen |
+| `text-lockup` | 20px | The rail's wordmark beside the mark, at weight 600, and nothing else on any screen |
 | `text-display` | 36px | The sign-in heading, and nothing else on any screen |
 | `--text-graph-title` | 12px | A step's title on a graph, in mono at weight 500, and nothing else on any screen |
 | `--text-graph-small` | 11px | Every other word drawn on a graph: the block or what a source listens to, a badge, a count, a duration, a fan-out's strip, words standing over an empty canvas |
@@ -134,7 +134,7 @@ word added to a box inherits its size and no word on a canvas can come out at th
 
 `scripts/check_ui_classes.py` fails the gate on anything outside them, whether the sixth size
 arrives as `text-[17px]` or as `text-lg`. The check has no allowlist -- it knows `text-title`,
-`text-page`, `text-stat`, `text-wordmark`, `text-brand`, `text-display` and the two graph sizes by name, and
+`text-page`, `text-stat`, `text-wordmark`, `text-lockup`, `text-display` and the two graph sizes by name, and
 reads `index.css` itself so another size cannot be minted there either. A named
 exception can be counted; an allowlist is a check people argue with. It skips
 `src/components/ui/`, because those files are generated and regenerating them is how they are
@@ -208,9 +208,9 @@ panels rather than two headings over two cards.
 that belongs together -- a form opened under its row, a minted secret, a sample -- on the panel
 ground, edged in `--panel-line`. An `Inset` is reference material -- a block of JSON, a code block
 in a description, a log -- on the page's own ground, edged the same way, so a preview reads as cut
-into the surface it is on. A code editor is a field, so `CodeFrame` draws it the way every field is
-drawn: the `--field` ground and the `--input` edge at the control's corner, and `WindowedPane` puts
-every pane that opens in a window inside one. A box that says how something is going is a `Notice`,
+into the surface it is on. A code editor is a field, so `CodeFrame` edges it the way every field is
+edged -- the `--input` hairline at the control's corner -- around the editor's own ground, and
+`WindowedPane` puts every pane that opens in a window inside one. A box that says how something is going is a `Notice`,
 and a refusal off the wire is `Refusal`. No screen types a border, a corner and a ground onto a
 `div` of its own: the boxes are `.dg-well`, `.dg-inset` and `.dg-frame` in `index.css`, beside
 `.dg-panel`.
@@ -1228,7 +1228,7 @@ the top strip and the right panel's tab strip put the mark, the crumb and the ta
 rail hidden and the panel open.
 
 **The rail is the mark, the screens and the account, top to bottom.** Its head is the brand tile
-and the word `dirigent` at `text-brand`, which is the way to the dashboard. Its entries are
+and the word `dirigent` at `text-lockup`, which is the way to the dashboard. Its entries are
 **single-line words with no icon**, and a word that names a screen needs no gloss under it. **They
 are grouped by what somebody is there to do**: Dashboard alone at the head; Operate (Runs,
 Triggers); Build (Pipelines, Connections, Schemas); Reference (Blocks, Examples); and, for an
@@ -1252,10 +1252,10 @@ reader's, and kept.
 **The top strip is the screen's crumb and the instance's corner.** At its left stands the crumb:
 where a screen is one thing, the trail back to the listing it belongs to, drawn by `Breadcrumb`
 into the strip rather than onto the page, so the page opens on its heading. A listing has no
-crumb. After it, the screen's note and identifier, and nothing a screen states there is something
-its own page already says -- how many rows were read is the table's, a standing fact is which
-version the instance holds rather than who applied it and when, and an instant is the house's
-relative form. At the right: the palette's button, which is the search glyph with the chord on its
+crumb. At the right, the screen's note and identifier come first, and nothing a screen states
+there is something its own page already says -- how many rows were read is the table's, a
+standing fact is which version the instance holds rather than who applied it and when, and an
+instant is the house's relative form. Then the palette's button, which is the search glyph with the chord on its
 tooltip; the panel's toggle, where the screen has filled a panel; the instance's dot; and the mode
 flip, which is the two-way toggle over Appearance.
 
