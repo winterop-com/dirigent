@@ -24,8 +24,8 @@ from dirigent_block_execute.compose import (
     read_status,
     up_argv,
 )
-from dirigent_common import BlockModel
-from dirigent_plugin import BlockFailure, ErrorClass
+from dirigent_common import COMPOSE_MEDIA_TYPE, BlockModel
+from dirigent_plugin import BlockFailure, ErrorClass, media_fields
 from dirigent_testing import FakeContext
 from dirigent_testing.messages import TEST_REFUSAL
 
@@ -262,6 +262,14 @@ async def test_read_status_parses_services_health_ports_and_networks(monkeypatch
     assert default_network == "proj_default"
     assert networks == ["proj_default"]
     assert "com.docker.compose.project=proj" in daemon.filters[0]
+
+
+# -- the inline file takes no reference -------------------------------------------
+
+
+@pytest.mark.parametrize("config", [DockerComposeUpConfig, DockerComposeDownConfig])
+def test_inline_content_is_published_as_a_compose_file(config: type[BlockModel]) -> None:
+    assert media_fields(config, COMPOSE_MEDIA_TYPE) == {"content"}
 
 
 # -- execute: up -----------------------------------------------------------------

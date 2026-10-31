@@ -20,7 +20,16 @@ from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptKind, AttemptStatus, LogLevel, RunStatus
-from dirigent_common import JQ_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE, Issue, JsonMap, format_duration, raised_detail, scrub
+from dirigent_common import (
+    COMPOSE_MEDIA_TYPE,
+    JQ_MEDIA_TYPE,
+    TEMPLATE_MEDIA_TYPE,
+    Issue,
+    JsonMap,
+    format_duration,
+    raised_detail,
+    scrub,
+)
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
 from dirigent_core.database import session_scope, with_deadlock_retry
@@ -325,6 +334,7 @@ class Engine:
                 config_schema=published_config_schema(block.config_model),
                 jq_fields=media_fields(block.config_model, JQ_MEDIA_TYPE),
                 template_fields=media_fields(block.config_model, TEMPLATE_MEDIA_TYPE),
+                compose_fields=media_fields(block.config_model, COMPOSE_MEDIA_TYPE),
             )
             block.config_model.model_validate(config)
             _logger.debug(

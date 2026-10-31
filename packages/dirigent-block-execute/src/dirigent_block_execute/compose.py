@@ -29,7 +29,7 @@ import contextlib
 from collections.abc import Mapping, Sequence
 from datetime import timedelta
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import Annotated, ClassVar, Literal
 
 import httpx2
 from pydantic import BaseModel, Field, model_validator
@@ -54,7 +54,7 @@ from dirigent_block_execute.messages import (
     COMPOSE_UP_EXITED,
     COMPOSE_UP_ONE_SOURCE,
 )
-from dirigent_common import BlockModel, Duration
+from dirigent_common import COMPOSE_MEDIA_TYPE, BlockModel, Duration
 from dirigent_plugin import (
     BlockFailure,
     ConnectionRef,
@@ -137,11 +137,12 @@ class DockerComposeUpConfig(BlockModel):
     Exactly one of ``file`` or ``content`` is given. This form is for a file an upstream step
     produced, such as a ``git.checkout`` of the document's repository."""
 
-    content: str | None = None
+    content: Annotated[str | None, Field(json_schema_extra={"contentMediaType": COMPOSE_MEDIA_TYPE})] = None
     """The compose file inline, written into the run's work directory before the CLI runs.
 
     Exactly one of ``file`` or ``content`` is given. This form keeps a small stack in the
-    pipeline document itself."""
+    pipeline document itself. It takes no ``${...}`` reference: a value is written ``$${NAME}``
+    here and given to ``env`` under that name, so compose reads it as a value and never as YAML."""
 
     project_name: str | None = None
     """The compose project (``-p``). Defaults to a deterministic name derived from the run id, so
@@ -221,8 +222,10 @@ class DockerComposeDownConfig(BlockModel):
     """A compose file, only if the CLI needs ``-f`` to resolve the project; a project tears down
     by its label alone otherwise. As a path inside the run's work directory."""
 
-    content: str | None = None
-    """A compose file inline, written to the run's work directory, for the same reason as ``file``."""
+    content: Annotated[str | None, Field(json_schema_extra={"contentMediaType": COMPOSE_MEDIA_TYPE})] = None
+    """A compose file inline, written to the run's work directory, for the same reason as ``file``.
+
+    It takes no ``${...}`` reference, as on ``docker.compose.up``."""
 
     profiles: list[str] = Field(default_factory=list[str])
     """Compose profiles to activate, only meaningful alongside a ``file``."""

@@ -11,6 +11,10 @@ SHELL_MEDIA_TYPE: Final = "text/x-shellscript"
 #: A Jinja template rendering text, as the run report and ``report.render`` take one.
 TEMPLATE_MEDIA_TYPE: Final = "text/x-jinja"
 
+#: A compose file, as ``docker.compose.up`` and ``docker.compose.down`` take one inline. A field
+#: publishing this takes no ``${...}`` reference, at apply or at run.
+COMPOSE_MEDIA_TYPE: Final = "application/x-compose+yaml"
+
 #: One SQL statement, as ``sql.query`` and ``sql.execute`` take one. A field publishing this
 #: takes no ``${...}`` reference, at apply or at run.
 SQL_MEDIA_TYPE: Final = "application/sql"

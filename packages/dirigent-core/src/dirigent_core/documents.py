@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
 from dirigent_client.schemas import Catalog, ValidationIssue
 from dirigent_common import (
+    COMPOSE_MEDIA_TYPE,
     JQ_MEDIA_TYPE,
     LOCAL_REFERENCES,
     STORAGE_URI_FORMAT,
@@ -80,6 +81,7 @@ from dirigent_core.messages import (
     STEP_CONFIG_INVALID,
     STEP_CONNECTION_MISSING,
     STEP_PROGRAM_IS_A_REFERENCE,
+    STEP_REFERENCE_IN_COMPOSE,
     STEP_REFERENCE_IN_SQL,
     STEP_REFERENCE_IN_TEMPLATE,
     STEP_SCHEMA_INTERPOLATED,
@@ -674,12 +676,14 @@ def _sql_reference_issues(step: str, config: JsonMap, schema: JsonMap) -> list[V
 
 
 def _program_reference_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
-    """Refuse a reference in a template, and a jq program that is a reference and nothing else."""
+    """Refuse a reference in a template or a compose file, and a jq program that is only a reference."""
     issues = [
-        ValidationIssue.of(
-            STEP_REFERENCE_IN_TEMPLATE, location=f"steps.{step}.config.{field}", reference=reference, field=field
+        ValidationIssue.of(refusal, location=f"steps.{step}.config.{field}", reference=reference, field=field)
+        for refusal, media_type in (
+            (STEP_REFERENCE_IN_TEMPLATE, TEMPLATE_MEDIA_TYPE),
+            (STEP_REFERENCE_IN_COMPOSE, COMPOSE_MEDIA_TYPE),
         )
-        for field in sorted(media_fields_of(schema, TEMPLATE_MEDIA_TYPE))
+        for field in sorted(media_fields_of(schema, media_type))
         for reference in references_in(config.get(field))
     ]
     for field in sorted(media_fields_of(schema, JQ_MEDIA_TYPE)):
