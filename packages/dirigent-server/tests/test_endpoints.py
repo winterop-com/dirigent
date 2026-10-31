@@ -211,6 +211,15 @@ def test_a_paused_source_is_refused_503_until_it_is_resumed(client: TestClient) 
     assert (counted.accepted, counted.refused) == (1, 1)
 
 
+def test_an_endpoint_applied_with_paused_answers_its_callers(client: TestClient) -> None:
+    applied = apply_document(client, echo(), paused=True)
+    assert applied["sources"]["created"] == ["ask"]
+    assert applied["sources"]["paused"] == []
+    assert source(client, "echo").state == "listening"
+    called = client.post("/endpoints/echo/ann", json={"said": "hi"}, headers=bearer(token_of(applied)))
+    assert called.status_code == 200, called.text
+
+
 def test_a_deactivated_pipelines_source_is_refused_503(client: TestClient) -> None:
     token = token_of(apply_document(client, echo()))
     client.post(f"{PREFIX}/pipelines/echo/$deactivate")

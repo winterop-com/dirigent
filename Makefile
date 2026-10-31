@@ -112,7 +112,7 @@ SEED_PORT ?= 3333
 dev: ## Boot an empty instance for manual testing, wiping the state a previous one left
 	$(UV) run dg dev --wipe-state --host $(SEED_HOST) --port $(SEED_PORT)
 
-dev-seeded: ## Boot a seeded instance for manual testing; schedules land paused, some seeded runs fail on purpose
+dev-seeded: ## Boot a seeded instance for manual testing; schedules and self-starting sources land paused, some seeded runs fail on purpose
 	$(UV) run python scripts/seed_dev.py --root $(SEED_ROOT) --host $(SEED_HOST) --port $(SEED_PORT) | $(UV) run dg format
 
 FRONTEND ?= packages/dirigent-server/frontend

@@ -285,7 +285,7 @@ def _apply_one(
             source=source if source is not None else document.source,
             source_ref=document.ref,
             dry_run=dry_run,
-            pause_schedules=paused,
+            paused=paused,
         )
     )
 
@@ -385,7 +385,11 @@ def apply_command(
     as_code: Annotated[str | None, typer.Option("--as", help="Register under a different code.")] = None,
     paused: Annotated[
         bool,
-        typer.Option("--paused", help="Create the schedules this apply creates paused; existing ones are untouched."),
+        typer.Option(
+            "--paused",
+            help="Create the schedules and the polled or held sources this apply creates paused; "
+            "an endpoint stays live, and existing ones are untouched.",
+        ),
     ] = False,
     prune: Annotated[
         bool,
@@ -398,10 +402,11 @@ def apply_command(
 ) -> None:
     """Apply a pipeline document, or every document in the project when given none.
 
-    `--paused` governs what this apply brings into being: a schedule it creates is created
-    paused, and a schedule the instance already holds keeps the state it is in. `--prune`
-    reconciles the whole project: what the project no longer holds is deactivated, never
-    deleted, and only pipelines a directory apply wrote are ever touched.
+    `--paused` governs what this apply brings into being: a schedule or a polled or held source
+    it creates is created paused, a received source stays live, and one the instance already
+    holds keeps the state it is in. `--prune` reconciles the whole project: what the project no
+    longer holds is deactivated, never deleted, and only pipelines a directory apply wrote are
+    ever touched.
     """
     state = state_of(ctx)
     if prune and reference is not None:

@@ -265,7 +265,7 @@ def test_a_redeclaration_keeps_a_schedule_paused(client: TestClient) -> None:
 
 
 def test_an_apply_that_asks_for_paused_schedules_materialises_them_paused(client: TestClient) -> None:
-    result = apply_document(client, WITH_SCHEDULE, pause_schedules=True)
+    result = apply_document(client, WITH_SCHEDULE, paused=True)
     assert result["triggers"]["schedules_created"] == ["nightly"]
 
     rows = client.get(SCHEDULES).json()["items"]
@@ -280,7 +280,7 @@ def test_a_plain_apply_materialises_a_schedule_that_is_running(client: TestClien
 
 
 def test_reapplying_without_the_flag_leaves_a_schedule_an_operator_resumed_alone(client: TestClient) -> None:
-    apply_document(client, WITH_SCHEDULE, pause_schedules=True)
+    apply_document(client, WITH_SCHEDULE, paused=True)
     assert client.post(f"{SCHEDULES}/nightly/$resume").json()["paused"] is False
 
     changed = WITH_SCHEDULE.replace(NIGHTLY, "0 4 * * *")

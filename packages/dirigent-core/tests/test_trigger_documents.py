@@ -64,7 +64,7 @@ async def apply(
     text: str,
     *,
     dry_run: bool = False,
-    pause_schedules: bool = False,
+    paused: bool = False,
     provenance: Provenance | None = None,
 ) -> ApplyResult:
     """Apply one document of either kind, each in its own transaction."""
@@ -74,7 +74,7 @@ async def apply(
             services,
             load_text(text),
             dry_run=dry_run,
-            pause_schedules=pause_schedules,
+            paused=paused,
             provenance=provenance,
         )
 
@@ -214,12 +214,12 @@ async def test_a_dry_run_writes_nothing(sessions: async_sessionmaker[AsyncSessio
         assert await find_trigger_document(session, "fleet-clocks") is None
 
 
-async def test_pause_schedules_reaches_the_schedules_a_triggers_document_mints(
+async def test_paused_reaches_the_schedules_a_triggers_document_mints(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     await apply(sessions, services, PIPELINE)
 
-    await apply(sessions, services, TRIGGERS, pause_schedules=True)
+    await apply(sessions, services, TRIGGERS, paused=True)
 
     async with session_scope(sessions) as session:
         row = (await session.execute(sa.select(Schedule).where(Schedule.code == "ops-nightly"))).scalar_one()

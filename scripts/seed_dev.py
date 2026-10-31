@@ -6,7 +6,8 @@ a document pointed at a connection nothing holds, a handful of runs so a fresh U
 colour, and one health check per connection. `make dev-seeded` is the target that runs this.
 
 The instance this leaves behind is not a clean one, and that is the point: schedules land
-paused, some documents are refused, and some runs fail.
+paused, and so do the sources a worker polls or holds, while an endpoint stays live and answers;
+some documents are refused, and some runs fail.
 """
 
 import argparse
@@ -30,7 +31,7 @@ from pydantic import BaseModel
 from dirigent_cli.commands import GUARD_EXIT
 from dirigent_cli.main import DEV_ADMIN, DEV_PASSWORD
 from dirigent_cli.messages import DEV_FIXTURE_NEEDS_LOOPBACK
-from dirigent_client import BlockingDirigent, DirigentError
+from dirigent_client import BlockingDirigent, DirigentError, SourceState
 from dirigent_common.hosts import is_loopback_host
 from dirigent_core.config import STATE_DIR
 from dirigent_core.protocol import Record, as_json, make
@@ -278,6 +279,12 @@ def count_schedules(client: BlockingDirigent) -> tuple[int, int]:
     return total, paused
 
 
+def read_sources(client: BlockingDirigent) -> tuple[int, list[str]]:
+    """Count the sources the instance holds, and name each paused one as `pipeline/code`."""
+    rows = list(pages(lambda after: client.call(client.sources.list(after=after))))
+    return len(rows), sorted(f"{row.pipeline}/{row.code}" for row in rows if row.state is SourceState.PAUSED)
+
+
 def seed(url: str, seeded: threading.Event) -> None:
     """Wait for the instance's own seeding, then start the demo's runs and check its health."""
     client = connect(url)
@@ -287,10 +294,13 @@ def seed(url: str, seeded: threading.Event) -> None:
         outcomes = seed_runs(client, held_pipelines(client))
         health = check_connections(client, held_connections(client))
         clocks, stopped = count_schedules(client)
+        sources, sources_paused = read_sources(client)
         seed_record(
             "seeded",
             schedules=clocks,
             schedules_paused=stopped,
+            sources=sources,
+            sources_paused=sources_paused,
             runs=outcomes,
             connections_healthy=sorted(code for code, ok in health.items() if ok),
             connections_unhealthy=sorted(code for code, ok in health.items() if not ok),

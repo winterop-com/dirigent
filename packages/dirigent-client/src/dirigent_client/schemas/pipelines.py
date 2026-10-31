@@ -108,9 +108,12 @@ class ApplyRequest(BaseModel):
     code: str | None = Field(default=None, description="Register under this code instead of the document's own.")
     source: ProvenanceSource = ProvenanceSource.API
     source_ref: str | None = Field(default=None, description="The file path or URL the document came from.")
-    pause_schedules: bool = Field(
+    paused: bool = Field(
         default=False,
-        description="Create the schedules this apply brings into being already paused.",
+        description=(
+            "Create the schedules and the polled or held sources this apply brings into being already paused. "
+            "A received source stays live, and what the instance already holds keeps the state it has."
+        ),
     )
 
 

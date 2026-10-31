@@ -164,11 +164,16 @@ async def reconcile_sources(
     secrets: SecretBox,
     pipeline: Pipeline,
     definition: PipelineDefinition,
+    *,
+    pause_created: bool = False,
 ) -> SourceChanges:
     """Create, redeclare and retire one pipeline's source rows, keeping what the instance did to them.
 
     Every route that stops being answered is released before any is claimed, so a route moved
     from one source of the pipeline to another is not refused as taken by itself.
+    ``pause_created`` inserts a row this reconciliation creates paused when a worker polls or
+    holds its kind. A received row is inserted live, and a row the instance already holds keeps
+    the paused state it has.
     """
     existing = {row.code: row for row in await _rows_of(session, pipeline.id)}
     held = await _routes_of(session, [row.id for row in existing.values()])
@@ -193,6 +198,7 @@ async def reconcile_sources(
 
     created: list[str] = []
     updated: list[str] = []
+    paused: list[str] = []
     tokens: list[SourceTokenOut] = []
     for code in definition.sources:
         step = definition.steps[code]
@@ -206,6 +212,9 @@ async def reconcile_sources(
         elif (row.name, row.description, row.kind, row.config) != declared:
             updated.append(code)
         row.name, row.description, row.kind, row.config = declared
+        if pause_created and code not in existing and worker_hosted(kinds, row):
+            row.paused = True
+            paused.append(code)
         _schedule_poll(kinds, row, redeclared=code in created or code in updated)
         await session.flush()
         minted = _mint_if_wanted(kinds, secrets, row)
@@ -215,9 +224,16 @@ async def reconcile_sources(
 
     for code in [*created, *updated, *removed]:
         await wakeups.publish(session, wakeups.SOURCES, f"{pipeline.code}/{code}")
-    changes = SourceChanges(created=created, updated=updated, removed=removed, tokens=tokens)
+    changes = SourceChanges(created=created, updated=updated, removed=removed, paused=paused, tokens=tokens)
     if not changes.empty:
-        _logger.info("sources reconciled", pipeline=pipeline.code, created=created, updated=updated, removed=removed)
+        _logger.info(
+            "sources reconciled",
+            pipeline=pipeline.code,
+            created=created,
+            updated=updated,
+            removed=removed,
+            paused=paused,
+        )
     return changes
 
 

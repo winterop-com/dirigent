@@ -105,6 +105,18 @@ async def test_renaming_a_template_parameter_keeps_the_route_answered(
     assert await routes_of(sessions) == [("POST", "/echo/{name}")]
 
 
+async def test_a_paused_apply_inserts_a_received_source_live(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        applied = await apply_document(session, services, echo(), paused=True)
+    assert applied.sources.created == ["ask"]
+    assert applied.sources.paused == []
+    async with sessions() as session:
+        row = (await session.execute(sa.select(Source))).scalar_one()
+    assert row.paused is False
+
+
 async def test_a_dry_run_names_a_source_the_document_stopped_declaring_and_keeps_it(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

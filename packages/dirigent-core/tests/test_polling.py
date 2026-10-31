@@ -9,6 +9,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import InputOutcome, SourceState
+from dirigent_client.schemas import PlanAction
 from dirigent_core.database import session_scope
 from dirigent_core.documents import load_text
 from dirigent_core.engine.runs import create_run
@@ -195,6 +196,69 @@ async def test_a_paused_source_or_an_inactive_pipeline_is_not_polled(
         await set_paused(session, pipeline, row, paused=False)
         pipeline.active = False
     assert await polling.tick(sessions, services, owner=WORKER) == []
+
+
+async def test_a_paused_apply_inserts_a_polled_source_paused_and_only_a_resume_starts_it(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    inbox = inbox_of(tmp_path)
+    put(inbox, "a.csv", datetime(2026, 1, 1, tzinfo=UTC))
+    async with session_scope(sessions) as session:
+        applied = await apply_document(session, services, load_text(landing(inbox)), paused=True)
+    assert applied.sources.created == ["arrived"]
+    assert applied.sources.paused == ["arrived"]
+
+    row = await the_source(sessions)
+    assert row.paused is True
+    assert row.next_poll_at is not None, "it is due, and paused is all that holds it back"
+    assert await polling.tick(sessions, services, owner=WORKER) == []
+    assert await entered(sessions) == []
+
+    async with session_scope(sessions) as session:
+        held = (await session.execute(sa.select(Source))).scalar_one()
+        pipeline = await session.get(Pipeline, held.pipeline_id)
+        assert pipeline is not None
+        await set_paused(session, pipeline, held, paused=False)
+    [outcome] = await polling.tick(sessions, services, owner=WORKER)
+    assert len(outcome.runs) == 1
+
+
+async def test_a_paused_apply_never_changes_a_polled_source_the_instance_already_holds(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    inbox = inbox_of(tmp_path)
+    await apply(sessions, services, landing(inbox))
+    assert (await the_source(sessions)).paused is False
+
+    async with session_scope(sessions) as session:
+        redeclared = load_text(landing(inbox).replace("poll: 1m", "poll: 2m"))
+        again = await apply_document(session, services, redeclared, paused=True)
+    assert again.sources.updated == ["arrived"]
+    assert again.sources.paused == []
+    assert (await the_source(sessions)).paused is False, "a live source is not paused by the flag"
+
+    async with session_scope(sessions) as session:
+        held = (await session.execute(sa.select(Source))).scalar_one()
+        pipeline = await session.get(Pipeline, held.pipeline_id)
+        assert pipeline is not None
+        await set_paused(session, pipeline, held, paused=True)
+    await apply(sessions, services, landing(inbox))
+    assert (await the_source(sessions)).paused is True, "a paused source is not resumed by leaving the flag off"
+
+
+async def test_a_paused_apply_of_an_unchanged_document_inserts_a_missing_polled_source_paused(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    text = landing(inbox_of(tmp_path))
+    await apply(sessions, services, text)
+    async with session_scope(sessions) as session:
+        await session.execute(sa.delete(Source))
+
+    async with session_scope(sessions) as session:
+        applied = await apply_document(session, services, load_text(text), paused=True)
+    assert applied.plan.action is PlanAction.UNCHANGED
+    assert applied.sources.paused == ["arrived"]
+    assert (await the_source(sessions)).paused is True
 
 
 async def test_a_source_held_by_another_worker_is_left_alone_until_its_lease_runs_out(

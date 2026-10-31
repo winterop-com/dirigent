@@ -276,15 +276,15 @@ async def apply_document(
     *,
     provenance: Provenance | None = None,
     dry_run: bool = False,
-    pause_schedules: bool = False,
+    paused: bool = False,
 ) -> ApplyResult:
     """Validate, plan, and -- unless this is a dry run -- commit what a document declares.
 
     A dry run also says which source rows and managed schedules the apply would retire.
     A pipeline document commits a new version; a triggers document writes itself and its rows.
-    ``pause_schedules`` governs the schedules this apply creates, and only those: one
-    the instance already holds keeps whatever paused state an operator gave it, because that
-    is state about this instance rather than something the document declares.
+    ``paused`` governs what this apply creates that would start runs by itself: its schedules
+    and its polled or held sources. A received source stays live, and a schedule or a source the
+    instance already holds keeps whatever paused state an operator gave it.
     """
     if isinstance(definition, TriggersDefinition):
         # Imported here because applying a triggers document reads the pipeline this module
@@ -297,7 +297,7 @@ async def apply_document(
             definition,
             provenance=provenance,
             dry_run=dry_run,
-            pause_schedules=pause_schedules,
+            paused=paused,
         )
     pipeline = await find_pipeline(session, definition.code)
     if pipeline is not None:
@@ -318,9 +318,15 @@ async def apply_document(
         triggers = Materialized()
         sources = SourceChanges()
         if pipeline is not None and plan.action is PlanAction.UNCHANGED and not dry_run:
-            triggers = await materialize_triggers(session, pipeline, definition, pause_created=pause_schedules)
+            triggers = await materialize_triggers(session, pipeline, definition, pause_created=paused)
             sources = await reconcile_sources(
-                session, services.settings, services.sources, services.secrets, pipeline, definition
+                session,
+                services.settings,
+                services.sources,
+                services.secrets,
+                pipeline,
+                definition,
+                pause_created=paused,
             )
         if pipeline is not None and dry_run and plan.action is not PlanAction.INVALID:
             triggers = await retiring_schedules(session, pipeline, definition)
@@ -335,9 +341,9 @@ async def apply_document(
         )
     version = await save_pipeline(session, definition, provenance=provenance)
     pipeline = await require_pipeline(session, definition.code)
-    triggers = await materialize_triggers(session, pipeline, definition, pause_created=pause_schedules)
+    triggers = await materialize_triggers(session, pipeline, definition, pause_created=paused)
     sources = await reconcile_sources(
-        session, services.settings, services.sources, services.secrets, pipeline, definition
+        session, services.settings, services.sources, services.secrets, pipeline, definition, pause_created=paused
     )
     _logger.info(
         "pipeline applied",

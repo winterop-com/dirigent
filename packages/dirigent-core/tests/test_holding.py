@@ -255,6 +255,29 @@ async def test_pausing_closes_the_consumer_and_resuming_opens_it_again(
         await holder.stop()
 
 
+async def test_a_paused_apply_inserts_a_held_source_paused_and_no_consumer_opens(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        applied = await apply_document(session, services, load_text(mailroom()), paused=True)
+    assert applied.sources.created == ["letters"]
+    assert applied.sources.paused == ["letters"]
+    assert (await the_source(sessions)).paused is True
+
+    holder = Holder(sessions, services, owner=WORKER)
+    try:
+        assert await holder.tick() == []
+        assert INBOX.opened == 0
+        async with session_scope(sessions) as session:
+            row = (await session.execute(sa.select(Source))).scalar_one()
+            pipeline = await session.get(Pipeline, row.pipeline_id)
+            assert pipeline is not None
+            await set_paused(session, pipeline, row, paused=False)
+        assert len(await holder.tick()) == 1
+    finally:
+        await holder.stop()
+
+
 async def test_another_workers_live_lease_is_left_alone(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

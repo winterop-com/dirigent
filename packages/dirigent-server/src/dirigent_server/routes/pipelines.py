@@ -113,8 +113,9 @@ async def apply(
 ) -> ApplyResult:
     """Validate a document against this instance and commit a new version, or plan one.
 
-    ``pause_schedules`` on the request creates this apply's new schedules paused; one the
-    instance already holds keeps the paused state it has.
+    ``paused`` on the request creates this apply's new schedules and its new polled or held
+    sources paused; a received source stays live, and one the instance already holds keeps the
+    paused state it has.
     """
     raw = dict(payload.document)
     if payload.code is not None:
@@ -134,7 +135,7 @@ async def apply(
         definition,
         provenance=Provenance(source=payload.source, ref=payload.source_ref, applied_by=principal.label),
         dry_run=dry_run,
-        pause_schedules=payload.pause_schedules,
+        paused=payload.paused,
     )
 
 

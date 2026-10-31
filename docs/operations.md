@@ -409,17 +409,20 @@ dg apply --paused
 ```
 
 The flag is what makes a bulk apply safe on an instance nobody is watching yet. A document
-that carries a `triggers:` section is a live clock the moment it is stored, so applying
-twenty of them at once can put twenty firings into a queue before anybody has looked at the
-first. `--paused` creates the schedules that apply mints already paused: the row is inserted
-paused rather than paused a moment later, so there is no window in which a due schedule is
-live. `dg schedule resume PIPELINE CODE` starts each one when you mean it to.
+that carries a `triggers:` section is a live clock the moment it is stored, and a source a
+worker polls or holds, such as a `sensor`, can start a run every few seconds from that moment,
+so applying twenty of them at once can put twenty firings into a queue before anybody has
+looked at the first. `--paused` creates the schedules and the polled or held sources that apply
+mints already paused: the row is inserted paused rather than paused a moment later, so there
+is no window in which a due schedule is live or a worker could poke the source first.
+`dg schedule resume PIPELINE CODE` and `dg source resume PIPELINE CODE` start each one when you
+mean it to. A received source, such as an `endpoint`, only acts when called, so it stays live.
 
-It reaches only what the apply creates. A schedule the instance already holds is operational
-state -- an operator paused it, or resumed it, and an apply has no business overruling either
--- so re-applying without the flag never re-pauses one somebody resumed, and re-applying with
-it never pauses one already running. That is what lets the same `dg apply --paused` sit in a
-promotion script and be run on every merge.
+It reaches only what the apply creates. A schedule or a source the instance already holds is
+operational state -- an operator paused it, or resumed it, and an apply has no business
+overruling either -- so re-applying without the flag never re-pauses one somebody resumed, and
+re-applying with it never pauses one already running. That is what lets the same
+`dg apply --paused` sit in a promotion script and be run on every merge.
 
 ## Ports
 

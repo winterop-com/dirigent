@@ -162,11 +162,12 @@ example corpus:
 dg dev --wipe-state --seed examples
 ```
 
-Every `dirigent/v1` document under `examples/` is applied with its schedules paused, and the
-connections the corpus declares are created first, so there is something to look at without
-applying a hundred documents by hand. Each one is a record -- `seed.connection`,
-`seed.applied`, `seed.refused`, and the closing `seed.done` with the counts. A document this
-instance will not store is reported and passed over.
+Every `dirigent/v1` document under `examples/` is applied with its schedules and its polled or
+held sources paused, so the instance starts no run on its own, and the connections the corpus
+declares are created first, so there is something to look at without applying a hundred
+documents by hand. An `endpoint` stays live and answers its callers. Each one is a record --
+`seed.connection`, `seed.applied`, `seed.refused`, and the closing `seed.done` with the counts.
+A document this instance will not store is reported and passed over.
 
 At a terminal it renders its lines; in a pipe or a container's log it writes NDJSON, which
 `dg format` renders back. The starting record says where its state is, what it bound, the admin it made, and the token, **once**; then

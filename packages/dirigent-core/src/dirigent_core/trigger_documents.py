@@ -145,7 +145,7 @@ async def apply_triggers_document(
     *,
     provenance: Provenance | None = None,
     dry_run: bool = False,
-    pause_schedules: bool = False,
+    paused: bool = False,
 ) -> ApplyResult:
     """Validate, plan, and -- unless this is a dry run -- write the document and its rows.
 
@@ -185,7 +185,7 @@ async def apply_triggers_document(
     if existing is None:
         session.add(row)
     await session.flush()
-    triggers = await materialize_triggers(session, pipeline, definition, pause_created=pause_schedules, owner=row.id)
+    triggers = await materialize_triggers(session, pipeline, definition, pause_created=paused, owner=row.id)
     _logger.info(
         "triggers document applied",
         document=definition.code,

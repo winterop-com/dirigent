@@ -287,9 +287,9 @@ together: apply the pipeline, then apply its clocks.
 `make dev-seeded` boots a `dg dev --seed examples` with everything on this page already
 applied, so there is something to look at without applying forty documents by hand. The
 instance walks this directory for `dirigent/v1` documents, creates the connections
-[connections.yaml](connections.yaml) carries, applies each document with its schedules
-paused, and creates what a document carries for its own standalone run before applying it
-without that section. The target adds what only the demo wants: the object store
+[connections.yaml](connections.yaml) carries, applies each document with its schedules and its
+polled or held sources paused, and creates what a document carries for its own standalone run
+before applying it without that section. The target adds what only the demo wants: the object store
 `s3-round-trip.yaml` names, a document pointed at a connection nothing holds, six runs, and
 one health check per connection. Then it hands the terminal to `dg dev`; one ctrl-c ends both.
 
@@ -304,7 +304,8 @@ what a failure looks like, so the seeded one is deliberately mixed:
 | --- | --- | --- |
 | Pipelines stored | 162 | Every document here that an instance will hold, including the ones that carry their own connections or schemas: the seed creates what they carry and applies the rest, which is the only form an instance stores |
 | Documents refused | 18 | Nine in [docker/](docker) and two in [git/](git) name a compose or a build block the seed does not allowlist, some of them also a connection it does not create; four name a connection that does not exist, one of them (`warehouse-nobody-created`) built by the seed on purpose; one names a schema no instance here holds; and two require a pipeline or a target applied after them |
-| Schedules | 17, all paused | `--paused` is what stops seventeen clocks starting to fire at somebody who has not looked at them |
+| Schedules | 22, all paused | `--paused` is what stops twenty-two clocks starting to fire at somebody who has not looked at them |
+| Sources | 8, 4 of them paused | The two `sensor` sources, the `storage` source and the `kafka` source land paused, because each would start runs on its own; [sources/sensor-arrivals.yaml](sources/sensor-arrivals.yaml) alone starts one every five seconds or so. The four `endpoint` sources stay `listening`, because an endpoint only acts when it is called. `dg source resume PIPELINE CODE` starts a paused one, and so does Resume on its panel on the Triggers screen |
 | Runs | 3 succeeded, 1 with errors, 2 failed | `hello-world`, `transform/jq-reshape.yaml` and `triggers/cron-windowed.yaml` settle green; `optional-step.yaml` settles `completed_with_errors`, which is a third status rather than a shade of failed; `error-handler.yaml` fails by design, and `s3-round-trip.yaml` cannot reach an object store nobody started |
 | Connections | 10 healthy, 4 red | The ten that answer are `playground` and the instance's own playground routes the documents carry for their own standalone runs; `artifacts` points at `127.0.0.1:9000`, `work-db` at a database nobody started, and `orders-topic` and `shop-queue` at the two brokers in `infra/compose.queues.yaml`, where nothing is listening unless you started what their headers document |
 
