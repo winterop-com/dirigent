@@ -2443,7 +2443,8 @@ def polls(fast_follow: None, monkeypatch: pytest.MonkeyPatch) -> Polls:
 
     watched = Polls()
 
-    def story(found: StoryRead) -> None:
+    def story(found: StoryRead | None) -> None:
+        assert found is not None, "the token these streams are opened with stands"
         _, _, _, run, _ = found
         watched.read(None if run is None else run.status)
 
