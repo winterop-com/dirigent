@@ -102,10 +102,6 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
    the chosen direction on a canvas, then the conventions, then the code.
 2. **What the third security review left open.** The review and the sibling packs' first reviews
    are fixed and merged; these are what they did not settle, each its own slice:
-   - **A backtracking `pattern` in `validate.schema` holds a worker.** Python's `re` keeps the
-     interpreter's lock, so a thread does not help; it takes a killable process or a regex engine
-     without backtracking. `unevaluatedItems` and `unevaluatedProperties` stay quadratic, about a
-     minute of thread time at the 1 MiB cap.
    - **A run-wide storage quota.** The packs now bound each answer, but many answers under the
      bound still fill storage, and only the engine can count a run's total.
    - **The units the reviews never reached.** Step deadline arithmetic, gate expansion and the

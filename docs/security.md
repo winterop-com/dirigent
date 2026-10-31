@@ -482,14 +482,18 @@ and its run stays readable. A reader then sees `\u0000` where the NUL was, the s
 a string that held them all along reads back as.
 
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
-the step's timeout and the lease heartbeat keep running over a value of any size, and
-`uniqueItems` costs time in step with the array. Two limits remain. A thread cannot be stopped, so
-an evaluation that passed its timeout finishes in the background: `unevaluatedItems` and
-`unevaluatedProperties` still grow with the square of the value, about a minute for an array at
-the default 1 MiB cap. And a regular expression holds the interpreter's lock, so a `pattern`,
-`patternProperties` or `propertyNames` pattern that backtracks without end, over a string the
-caller chose, holds the whole worker: an author who feeds a public source to a schema writes
-patterns that cannot.
+the step's timeout and the lease heartbeat keep running over a value of any size. `uniqueItems`,
+`unevaluatedItems` and `unevaluatedProperties` cost time in step with the value. Every pattern a
+schema holds, in `pattern`, `patternProperties` and `propertyNames`, is matched by an engine that
+releases the interpreter's lock, so a pattern that backtracks over a string the caller chose
+holds one thread and not the worker. Every check is bounded. A `validate.schema` step stops at
+its `timeout`, 10 seconds by default, and fails as `rejected` (`base.value_unchecked`); a pattern
+mid-match stops there too, and the rest of the check stops at its next keyword as soon as the step
+is cancelled, so nothing runs on behind it. That bound also ends a schema whose cost grows faster
+than the value, such as `unevaluatedProperties` beside a recursive `$ref`, which evaluates each
+level twice. A run's parameters are checked where the run is created, on the server's event loop,
+and that check stops after one second and refuses the run (`parameter.unchecked`), so a
+parameter schema holds the loop no longer than that.
 
 **A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
 UI's origin, so it answers with `X-Content-Type-Options: nosniff` and
