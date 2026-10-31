@@ -383,6 +383,7 @@ verbatim, and every other key is what the route decided:
     "body": null,
     "body_kind": "none",
     "body_bytes": 0,
+    "body_truncated": false,
     "content_type": null
   },
   "status": 200
@@ -396,7 +397,8 @@ typed and defaulted.
 
 **A body appears exactly once.** `body_kind` says how it was read -- `json`, `form`, `text`
 or `none` -- and `content_type` says what it arrived under. There is no second copy of a JSON
-body under another name.
+body under another name. A body larger than 8 KiB comes back as the text of its first 8 KiB, with
+`body_truncated` true and `body_bytes` still its whole size.
 
 **A credential is never reflected.** `authorization`, `cookie` and `proxy-authorization` come
 back as `<redacted>`: an origin that reflected a session cookie would hand it to any script
