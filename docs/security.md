@@ -120,10 +120,10 @@ configured database the way `dg db upgrade` does, and `DIRIGENT_BOOTSTRAP_ADMIN_
 creates the first admin unattended in a container. Both are one-way -- they do nothing once
 any account exists -- so leaving the variable set on every deploy cannot reset a live
 instance's password. `dg dev` mints a development admin and prints its token once, because
-that is a SQLite file on a laptop. Its password is the fixed `admin`, so it stays on loopback:
-`dg dev` refuses a non-loopback bind, whether from `--host` or `DIRIGENT_HOST`, while that login
-would be made or still stands. `scripts/seed_dev.py`, which pairs the login with an unsafe
-allowlist, refuses one outright.
+that is a SQLite file on a laptop. Its password is the fixed `admin` on every bind. On an address
+other machines can reach, whether from `--host` or `DIRIGENT_HOST`, `dg dev` still makes it and
+logs a warning (`cli.dev_fixture_exposed`) that anyone who reaches that address can sign in as
+`admin`. Run `dg server` with an admin of your own on any address you do not trust.
 
 On a loopback bind, `dg dev` also answers only to a loopback name: `localhost`, or an address such
 as `127.0.0.1` or `[::1]`. Any other `Host` is refused 421 (`server.host_not_loopback`) before the
@@ -485,6 +485,13 @@ fan-out item's key, what a waiting step last saw, a notification's subject and b
 and label a source's journal records. So the step settles once, its alert is queued, and its run stays
 readable. A reader then sees `\u0000` where the NUL was, the same six characters a string that held
 them all along reads back as. A column with a length keeps what fits of the escaped text.
+
+**Text a caller writes is refused when no database can hold it.** A document holding a NUL or half
+a surrogate pair anywhere, a key included, is refused 422 with `validation.text_unstorable` at each
+place it is, and so is any text field of a management request body: a name, a description, an
+alert rule's template and body, a user's name and email, and where an applied document came from.
+A schema's name and description read from its own `title` and `description` are held to the same
+rule. Stored, such text would read back changed or fail the write, so it is turned away instead.
 
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
 the step's timeout and the lease heartbeat keep running over a value of any size. `uniqueItems`,

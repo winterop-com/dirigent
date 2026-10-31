@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 
 from dirigent_client.enums import (
     FiringOutcome,
@@ -15,12 +15,12 @@ from dirigent_client.enums import (
 from dirigent_client.messages import (
     EMPTY_LOG_LEVEL_PATTERN,
 )
-from dirigent_client.schemas.common import WireModel
+from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_common import EntityName, JsonMap
 from dirigent_common.durations import Duration
 
 
-class ScheduleIn(BaseModel):
+class ScheduleIn(RequestModel):
     """A schedule as a caller declares it: exactly one clock, in its own timezone."""
 
     code: EntityName
@@ -53,7 +53,7 @@ class ScheduleIn(BaseModel):
         return value
 
 
-class SchedulePreviewRequest(BaseModel):
+class SchedulePreviewRequest(RequestModel):
     """A clock as it is being written, for reading back what it would fire.
 
     The three expressions are text rather than parsed values: a clock is previewed while it is

@@ -28,6 +28,8 @@ from dirigent_common import (
     bounded_load,
     validation_issue,
 )
+from dirigent_common.messages import TEXT_UNSTORABLE
+from dirigent_common.storable import unstorable_at
 from dirigent_core.engine.definition import (
     FORMAT_V1,
     KIND_PIPELINE,
@@ -192,8 +194,15 @@ MODELS: Final[dict[str, type[PipelineDefinition] | type[TriggersDefinition]]] = 
 
 
 def load_document(raw: JsonMap) -> Document:
-    """Validate a parsed document against the format, reporting every problem at once."""
+    """Validate a parsed document against the format, reporting every problem at once.
+
+    Text anywhere in it that no database stores as written is refused before the format is read.
+    """
     kind = _check_envelope(raw)
+    unstorable = unstorable_at(raw)
+    if unstorable:
+        problems = [Issue.of(TEXT_UNSTORABLE, location=where) for where in unstorable]
+        raise DocumentError(DOCUMENT_UNSATISFIED, problems=problems, format=FORMAT_V1)
     try:
         return MODELS[kind].model_validate(raw)
     except ValidationError as error:

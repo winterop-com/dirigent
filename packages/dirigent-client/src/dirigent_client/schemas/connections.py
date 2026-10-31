@@ -3,13 +3,13 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from dirigent_client.schemas.common import WireModel
+from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_common import EntityName, JsonMap
 
 
-class ConnectionIn(BaseModel):
+class ConnectionIn(RequestModel):
     """What creating or replacing a connection sends; secret fields are write-only."""
 
     code: EntityName
@@ -20,7 +20,7 @@ class ConnectionIn(BaseModel):
     """The kind's own config, validated against its published model before anything is stored."""
 
 
-class ConnectionUpdate(BaseModel):
+class ConnectionUpdate(RequestModel):
     """What editing a connection may change; the kind and code are fixed once minted.
 
     A field left out is left alone, and a field sent as null is cleared. Those are different

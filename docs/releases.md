@@ -17,7 +17,10 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The two sibling repositories then
 relock against the tag and bump.
 
-## Unreleased
+## 0.28.0
+
+Released 2026-10-31. Every package in the workspace moves to 0.28.0 together, and so do
+`dirigent-dhis2` and `dirigent-integration`.
 
 **`DIRIGENT_SECRET_KEY` has to be a Fernet key.** A passphrase used to be turned into a key by one
 unsalted SHA-256, which made envelopes in a database backup open to offline guessing. It is now
@@ -100,9 +103,9 @@ it gets live schedules and sources: change it.
   and reply headers such as `set-cookie` are refused.
 - A connection's credentials go only to its own origin, so a step's absolute URL elsewhere is
   refused.
-- `dg dev` creates its admin as `admin` / `admin` on an empty database, and only on a loopback
-  address. On any other address it exits 3 while the state is empty or still holds that login, and
-  that includes `dg dev` in the published image, which sets `DIRIGENT_HOST=0.0.0.0`.
+- `dg dev` creates its admin as `admin` / `admin` on an empty database, on every address. On one
+  other machines can reach, `dg dev` in the published image included (it sets
+  `DIRIGENT_HOST=0.0.0.0`), it logs a warning that anyone there can sign in as `admin`.
 - The unsafe-block allowlist no longer comes from a working directory's `.env` or `dirigent.yaml`.
   Set it in the process environment or in the file `DIRIGENT_CONFIG_FILE` names. Compose passes
   `.env` as environment, so a compose stack keeps working.
@@ -222,6 +225,27 @@ document can notice.
   still fire. An `interval` past ten years is refused.
 - A polled source's `poll` past ten years is refused at apply (`source.poll_too_long`), and one
   source's failure stays on its own row.
+
+**What the review left open, now closed.**
+
+- **A run has a storage quota.** `run_storage_quota` (default `1gb`) caps what a run, together with
+  every run its steps start through `pipeline.run`, writes to storage: captures, storage writes and
+  copies, and outputs too large to inline. The write that would pass it writes nothing and fails
+  its step as `run.storage_quota`, which is not retried. Each run's `stored_bytes` is on the run and
+  in `dg runs show`. The baseline migration gains two columns, so a state database from an earlier
+  version is refused at boot, as usual before 1.0.
+- `validate.schema` takes a `timeout` (default `10s`). A check past it fails the step as rejected
+  (`base.value_unchecked`), and a cancelled step stops its check at the next keyword. A pattern
+  that backtracks now holds a thread rather than the worker, and no pattern is newly refused.
+  `unevaluatedItems` and `unevaluatedProperties` cost time in step with the value. Checking a
+  run's parameters stops after one second and refuses the run (`parameter.unchecked`).
+- A NUL, or half a surrogate pair, in a step's output, input or failure text, a fan-out item's key,
+  a wait's message, an alert, or a source input's path or label is stored as its six-character
+  escape, so it settles on PostgreSQL. A reader sees `\u0000` where the NUL was.
+- A document or management request holding a NUL or half a surrogate pair in its text is refused
+  with a 422 and `validation.text_unstorable`, where PostgreSQL used to fail the write as a 500.
+- A schedule's interval and a polled source's cadence share one ten-year bound.
+- `dg run --local` announces a run's roots as queued in the order they are written.
 
 ## 0.27.1
 

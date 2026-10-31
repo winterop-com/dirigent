@@ -3,13 +3,13 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from dirigent_client.schemas.common import WireModel
+from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_common import EntityName, JsonMap
 
 
-class SchemaIn(BaseModel):
+class SchemaIn(RequestModel):
     """What storing a schema sends: the JSON Schema itself, and an identity it need not repeat.
 
     The body is a JSON Schema in its own right. Its identity is read from the schema's own
@@ -26,7 +26,7 @@ class SchemaIn(BaseModel):
     """The JSON Schema, checked to be a valid schema before anything is stored."""
 
 
-class SchemaUpdate(BaseModel):
+class SchemaUpdate(RequestModel):
     """What editing a schema may change; the code is fixed once minted.
 
     A field left out is left alone, and a field sent as null is cleared. The body, when

@@ -186,6 +186,11 @@ _PYDANTIC_TEXT: Final = "{msg}"
 #: closest to when the document format knows one.
 EXTRA_FORBIDDEN = VALIDATION.define("extra_forbidden", "unknown key{suggestion}")
 
+#: Text a caller wrote that no database stores as written, refused where it arrives.
+TEXT_UNSTORABLE = VALIDATION.define(
+    "text_unstorable", "holds a NUL character or half a surrogate pair, which cannot be stored; remove it"
+)
+
 
 def _validation_message(error_type: str) -> Message:
     """Name the message one pydantic error type renders through, minting it on first sight."""

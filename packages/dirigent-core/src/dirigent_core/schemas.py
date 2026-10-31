@@ -21,7 +21,9 @@ from jsonschema.exceptions import SchemaError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import Catalog
-from dirigent_common import JsonMap
+from dirigent_common import Issue, JsonMap
+from dirigent_common.messages import TEXT_UNSTORABLE
+from dirigent_common.storable import is_storable
 from dirigent_core.engine.definition import schemas_named
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import SCHEMA_IN_USE, SCHEMA_INVALID, SCHEMA_NO_CODE
@@ -71,7 +73,8 @@ def resolve_identity(
 
     A code given explicitly wins; then ``$id``; then a fallback such as a filename stem. A
     schema that yields no code any of those ways is refused. ``title`` and ``description``
-    fill name and description when the caller leaves them out.
+    fill name and description when the caller leaves them out, and either is refused when no
+    database stores it as written.
     """
     chosen = code
     if chosen is None:
@@ -86,6 +89,13 @@ def resolve_identity(
     resolved_name = name if name is not None else (title if isinstance(title, str) else None)
     doc = body.get("description")
     resolved_description = description if description is not None else (doc if isinstance(doc, str) else None)
+    unstorable = [
+        Issue.of(TEXT_UNSTORABLE, location=field)
+        for field, text in (("name", resolved_name), ("description", resolved_description))
+        if text is not None and not is_storable(text)
+    ]
+    if unstorable:
+        raise SchemaRefused(TEXT_UNSTORABLE, problems=unstorable)
     return chosen, resolved_name, resolved_description
 
 

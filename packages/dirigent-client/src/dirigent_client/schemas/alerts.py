@@ -3,10 +3,10 @@
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from dirigent_client.enums import AlertEvent, AlertScope, Importance, NotificationStatus
-from dirigent_client.schemas.common import WireModel
+from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_common import EntityName
 from dirigent_common.durations import Duration
 
@@ -36,7 +36,7 @@ TEST_SUBJECT = "dirigent test alert"
 TEST_BODY = "This is a test message sent through the notifier surface."
 
 
-class AlertRuleIn(BaseModel):
+class AlertRuleIn(RequestModel):
     """An alert rule as a caller declares it."""
 
     code: EntityName
@@ -78,7 +78,7 @@ class AlertRuleOut(WireModel):
     created_at: datetime
 
 
-class AlertRuleUpdate(BaseModel):
+class AlertRuleUpdate(RequestModel):
     """What a PATCH may change about an alert rule: whether it is held, and what it says.
 
     Every field is optional, and a field a caller leaves out is left as it was.
@@ -112,7 +112,7 @@ class NotificationOut(WireModel):
     created_at: datetime
 
 
-class TestRequest(BaseModel):
+class TestRequest(RequestModel):
     """Which target to send a test message through, and what to say."""
 
     connection: str | None = Field(default=None, description=TEST_CONNECTION_HELP)

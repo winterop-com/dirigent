@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, SecretStr
 
 from dirigent_client.enums import TokenKind, UserRole
-from dirigent_client.schemas.common import WireModel
+from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_common import Duration, Email, EntityName
 
 #: How long a token may live: above zero and under a century, so its expiry is always a real date.
@@ -44,7 +44,7 @@ class TokenOut(WireModel):
     revoked_at: datetime | None = None
 
 
-class TokenRequest(BaseModel):
+class TokenRequest(RequestModel):
     """What creating an API token asks for."""
 
     name: EntityName
@@ -83,7 +83,7 @@ class UserOut(WireModel):
     created_at: datetime
 
 
-class UserIn(BaseModel):
+class UserIn(RequestModel):
     """What creating an account asks for."""
 
     username: str = Field(min_length=1, max_length=200)
@@ -93,7 +93,7 @@ class UserIn(BaseModel):
     role: UserRole
 
 
-class UserUpdate(BaseModel):
+class UserUpdate(RequestModel):
     """What editing an account may change; the username and the password are not among them.
 
     A field left out is left alone, and ``name`` or ``email`` sent as null is cleared. Those
