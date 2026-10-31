@@ -483,6 +483,13 @@ and label a source's journal records. So the step settles once, its alert is que
 readable. A reader then sees `\u0000` where the NUL was, the same six characters a string that held
 them all along reads back as. A column with a length keeps what fits of the escaped text.
 
+**Text a caller writes is refused when no database can hold it.** A document holding a NUL or half
+a surrogate pair anywhere, a key included, is refused 422 with `validation.text_unstorable` at each
+place it is, and so is any text field of a management request body: a name, a description, an
+alert rule's template and body, a user's name and email, and where an applied document came from.
+A schema's name and description read from its own `title` and `description` are held to the same
+rule. Stored, such text would read back changed or fail the write, so it is turned away instead.
+
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
 the step's timeout and the lease heartbeat keep running over a value of any size. `uniqueItems`,
 `unevaluatedItems` and `unevaluatedProperties` cost time in step with the value. Every pattern a

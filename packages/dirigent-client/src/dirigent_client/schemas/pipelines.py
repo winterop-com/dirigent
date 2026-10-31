@@ -14,7 +14,7 @@ from dirigent_client.messages import (
     WINDOW_HAS_TWO_ENDS,
     WINDOW_RUNS_FORWARDS,
 )
-from dirigent_client.schemas.common import WireModel
+from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_client.schemas.sources import SourceChanges
 from dirigent_common import EntityName, Issue, JsonMap, Message
 
@@ -101,7 +101,7 @@ class PipelineDetail(PipelineOut):
     document: JsonMap | None = None
 
 
-class ApplyRequest(BaseModel):
+class ApplyRequest(RequestModel):
     """A whole ``dirigent/v1`` document, optionally registered under a different code."""
 
     document: JsonMap
@@ -117,7 +117,7 @@ class ApplyRequest(BaseModel):
     )
 
 
-class PruneRequest(BaseModel):
+class PruneRequest(RequestModel):
     """The codes a reconcile keeps: everything else it once applied is deactivated."""
 
     keep: list[str]
@@ -135,7 +135,7 @@ class PruneResult(BaseModel):
     dry_run: bool = False
 
 
-class RunRequest(BaseModel):
+class RunRequest(RequestModel):
     """Ad hoc run parameters, validated against the pipeline's own schema."""
 
     params: JsonMap = Field(default_factory=dict)
@@ -203,7 +203,7 @@ class RunAccepted(WireModel):
     detail: str | None = None
 
 
-class BackfillRequest(BaseModel):
+class BackfillRequest(RequestModel):
     """One backfill: whose cadence defines the windows, what interval to fill, and with what.
 
     ``from_`` and ``to`` bound the firings enumerated, half-open, and each enumerated firing
