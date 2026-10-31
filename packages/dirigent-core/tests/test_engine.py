@@ -2972,6 +2972,27 @@ async def test_the_same_sight_is_logged_once(engine: Engine, sessions: Any, serv
     assert [entry.message for entry in await logs_of(sessions, run.id)] == ["still empty", "finished"]
 
 
+async def test_a_sight_holding_a_nul_is_logged_once_as_its_escape(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    """The row keeps the escape, so the next poll's sight is compared with what the row holds."""
+    definition = PipelineDefinition(
+        code="unchanging-nul",
+        steps=steps(
+            wait=StepDefinition(
+                block="test.tick",
+                config={"ready_after": 3, "says": ["still \x00 empty"]},
+                poll=timedelta(seconds=1),
+            )
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine, step=timedelta(seconds=2))
+
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+    assert [entry.message for entry in await logs_of(sessions, run.id)] == ["still \\u0000 empty", "finished"]
+
+
 async def test_a_running_probe_reports_progress_the_same_way(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
