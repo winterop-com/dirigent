@@ -1,7 +1,6 @@
 """Tests for the dirigent command line."""
 
 import asyncio
-import importlib.util
 import os
 import sys
 from collections.abc import Iterator
@@ -438,46 +437,6 @@ def test_dev_refuses_to_start_on_postgresql(monkeypatch: pytest.MonkeyPatch) -> 
     assert "SQLite standalone mode" in refusal(result.stdout)["message"]
 
 
-@pytest.mark.parametrize("address", ["0.0.0.0", "::", "192.0.2.10", "dirigent.example.org"])  # noqa: S104
-def test_dev_on_another_address_makes_no_fixture_login(address: str) -> None:
-    """The refusal comes after the schema exists, so the empty instance is shown to hold no account."""
-    result = runner.invoke(app, ["dev", "--host", address])
-
-    assert result.exit_code == GUARD_EXIT, result.output
-    record = refusal(result.stdout)
-    assert record["code"] == "cli.dev_fixture_needs_loopback"
-    assert record["params"]["address"] == address
-    assert asyncio.run(_usernames()) == []
-
-
-def test_dev_takes_the_refused_address_from_the_setting_too(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DIRIGENT_HOST", "0.0.0.0")  # noqa: S104
-    reset_settings_cache()
-    result = runner.invoke(app, ["dev"])
-    assert result.exit_code == GUARD_EXIT, result.output
-    assert refusal(result.stdout)["code"] == "cli.dev_fixture_needs_loopback"
-
-
-def test_dev_on_another_address_refuses_before_it_wipes_anything(monkeypatch: pytest.MonkeyPatch) -> None:
-    def cleared(_settings: Settings) -> None:
-        raise AssertionError("the wipe ran before the refusal")
-
-    monkeypatch.setattr(main, "clear_state", cleared)
-    result = runner.invoke(app, ["dev", "--wipe-state", "--host", "0.0.0.0"])  # noqa: S104
-    assert result.exit_code == GUARD_EXIT, result.output
-
-
-def test_a_fixture_login_an_earlier_loopback_start_left_is_not_served_on_another_address() -> None:
-    from dirigent_core import migrations
-
-    settings = get_settings()
-    migrations.upgrade("head", settings)
-    assert asyncio.run(main.dev_admin(settings))[0] == main.DEV_ADMIN
-
-    with pytest.raises(typer.Exit):
-        asyncio.run(main.dev_admin(settings, exposed_on="0.0.0.0"))  # noqa: S104
-
-
 @pytest.mark.parametrize("address", ["127.0.0.1", "127.0.0.2", "localhost", "::1"])
 def test_dev_on_loopback_answers_only_to_a_loopback_name(address: str) -> None:
     from dirigent_core import migrations
@@ -525,6 +484,32 @@ def test_dev_on_loopback_still_makes_the_fixture_login(address: str) -> None:
     assert asyncio.run(logged_in())
 
 
+@pytest.mark.parametrize("address", ["0.0.0.0", "::", "192.0.2.10", "dirigent.example.org"])  # noqa: S104
+def test_dev_on_another_address_still_makes_the_fixture_login(address: str) -> None:
+    """Every dev instance logs in as admin/admin, and one other machines can reach says so."""
+    from dirigent_core import migrations
+    from dirigent_core.auth import authenticate
+
+    assert not main.is_loopback_host(address)
+    settings = get_settings()
+    migrations.upgrade("head", settings)
+
+    admin, token = asyncio.run(main.dev_admin(settings, exposed_on=address))
+
+    assert admin == main.DEV_ADMIN
+    assert token
+
+    async def logged_in() -> bool:
+        engine = create_engine(settings)
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                return await authenticate(session, main.DEV_ADMIN, main.DEV_PASSWORD) is not None
+        finally:
+            await engine.dispose()
+
+    assert asyncio.run(logged_in())
+
+
 def test_an_instance_with_its_own_admin_may_bind_another_address() -> None:
     from dirigent_core import migrations
 
@@ -533,38 +518,6 @@ def test_an_instance_with_its_own_admin_may_bind_another_address() -> None:
     asyncio.run(commands.first_admin(settings, "morten", "a test password"))
 
     assert asyncio.run(main.dev_admin(settings, exposed_on="0.0.0.0")) == ("morten", None)  # noqa: S104
-
-
-def test_the_seeding_script_refuses_another_address_before_it_starts_anything(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    script = Path(__file__).resolve().parents[3] / "scripts" / "seed_dev.py"
-    spec = importlib.util.spec_from_file_location("seed_dev_under_test", script)
-    assert spec is not None and spec.loader is not None
-    seed_dev = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(seed_dev)
-
-    def started(*_args: object, **_kwargs: object) -> None:
-        raise AssertionError("an instance was started")
-
-    monkeypatch.setattr(seed_dev.subprocess, "Popen", started)
-
-    assert seed_dev.main(["--host", "0.0.0.0"]) == GUARD_EXIT  # noqa: S104
-    record = closing(capsys.readouterr().out)
-    assert record["kind"] == "error"
-    assert record["code"] == "cli.dev_fixture_needs_loopback"
-
-
-async def _usernames() -> list[str]:
-    """List the accounts the instance holds, by a connection of this test's own."""
-    from dirigent_core.auth import list_users
-
-    engine = create_engine(get_settings())
-    try:
-        async with session_scope(create_session_factory(engine)) as session:
-            return [user.username for user in await list_users(session)]
-    finally:
-        await engine.dispose()
 
 
 def test_dev_help_says_its_state_belongs_to_the_working_directory() -> None:

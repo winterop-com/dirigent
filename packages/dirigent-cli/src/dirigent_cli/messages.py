@@ -73,14 +73,9 @@ STATE_WAY_OUT = CLI.define(
     "dg dev --wipe-state clears a state that is only too open",
 )
 
-DEV_FIXTURE_NEEDS_LOOPBACK = CLI.define(
-    "dev_fixture_needs_loopback",
-    "dg dev keeps its admin/admin login to loopback, and {address} is not a loopback address",
-)
-
-BIND_LOOPBACK_OR_MAKE_AN_ADMIN = CLI.define(
-    "bind_loopback_or_make_an_admin",
-    "bind 127.0.0.1, or run dg db upgrade and dg admin user create --role admin with a password of your own first",
+DEV_FIXTURE_EXPOSED = CLI.define(
+    "dev_fixture_exposed",
+    "dg dev serves its admin/admin login on {address}, which other machines can reach",
 )
 
 NO_ADMIN_TO_SEED = CLI.define("no_admin_to_seed", "dg dev --seed has no admin account to seed as")
