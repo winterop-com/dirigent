@@ -180,8 +180,19 @@ artifact root is. Within it:
 - a compose file is either inline `content` or a path relative to that directory (one an
   upstream `git.checkout` put there). Inline content is written under
   `compose/<step>[/<item>]/attempt-<n>`, so two compose steps of one run, and two items of one
-  fan-out, never write over each other's document;
+  fan-out, never write over each other's document. It takes no `${...}` reference, refused at apply
+  and when the step starts, because a value spliced into YAML can add keys. Write `$${NAME}` in the
+  file and give the reference to `env` under `NAME`, and compose reads it as one value;
 - a build context is a relative directory, with its Dockerfile relative to that.
+
+Which program runs is the host's decision. `docker.compose.*` and `docker.build` run `docker` from
+the worker's own `PATH`, so a host that wraps it, or spells compose another way, puts a wrapper named
+`docker` first on that `PATH`. A step's `env` cannot set `PATH`, `HOME`, `XDG_CONFIG_HOME`, `DOCKER_CONFIG`,
+`DOCKER_CONTEXT`, `DOCKER_HOST`, `DOCKER_CERT_PATH`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `BUILDX_CONFIG`,
+`SSL_CERT_FILE`, `SSL_CERT_DIR` or an `LD_*` or `DYLD_*` variable (`execute.steering_environment`),
+because the CLI holds a connection's TLS key and registry password while it runs. A daemon is named by a
+`docker` connection instead. The CLI reads its config, and so its plugins and credential helpers, from a private directory
+for that one step, never from the run's work directory, where an earlier step's files could plant one.
 
 `docker.run`'s `outputs` puts a file in either place. Each entry maps a name the container
 wrote in its output mount to a target: a target carrying a URI scheme is copied to storage,

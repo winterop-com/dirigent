@@ -1019,6 +1019,8 @@ const refused = {
             '{reference} is the whole of {field}, and a value is never a program. Write the program, and read the reference in it as the value it is.',
         step_reference_in_template:
             '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
+        step_reference_in_compose:
+            '{reference} is inside {field}, and a value spliced into a compose file can add keys to it. Write $${NAME} in the file and give the reference to env under NAME.',
         step_shell_unreadable:
             '{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a value lands in it is not known. Close it or write it another way, or pass the value through argv.',
         step_reference_in_sql:
@@ -1059,6 +1061,8 @@ const refused = {
             'Source kind {kind} is {hosting}, and a contributed kind is the ReceivedSource, PolledSource or HeldSource its hosting names.',
     },
     reference: {
+        in_compose:
+            '{reference} is inside {field}, and a value spliced into a compose file can add keys to it. Write $${NAME} in the file and give the reference to env under NAME.',
         in_template:
             '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
         jq_whole_program:
@@ -1218,14 +1222,14 @@ const refused = {
         reply_bad_status:
             "A reply's status is a whole number from 200 to 599 or a reference to one, not {status}.",
         reply_body_twice: 'A reply takes body or body_from, not both.',
-        reply_failed: 'Run {run} failed at step {step} before any reply answered: {detail}',
+        reply_failed: 'Run {run} failed at step {step} before any reply answered.',
         reply_field_refused:
             'A reply takes depends_on, rule, name and description, and nothing else. {field} is not one of them.',
         reply_no_source:
             'Reply {step} is downstream of no source that replies, so there is nobody for it to answer.',
         reply_not_a_leaf:
             'Step {dependent} depends on reply {step}, and a reply is a leaf: nothing waits on it.',
-        reply_rejected: 'Run {run} refused the input at step {step}: {detail}',
+        reply_rejected: 'Run {run} refused the input at step {step}.',
         reply_timed_out: 'No reply of run {run} answered within {timeout}. The run carries on.',
         reply_unanswered: 'Run {run} is {status}, and no reply answered.',
         required_param_on_sources:

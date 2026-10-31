@@ -212,6 +212,8 @@ class EndpointSource(ReceivedSource[EndpointConfig, EndpointInput]):
             read = _read_body(request.body, family, params.get("charset") or DEFAULT_CHARSET)
             if isinstance(read, Refusal):
                 return read
+            if family is BodyKind.JSON and _holds_a_lone_surrogate(read):
+                return Refusal.of(ENDPOINT_BODY_NOT_JSON, status=400, detail="it holds a lone surrogate")
             body, kind = read, family
         return EndpointInput(
             method=request.method,
@@ -314,6 +316,15 @@ def _nests_past(value: JsonValue, limit: int) -> bool:
         if not level:
             return False
     return any(isinstance(held, dict | list) for held in level)
+
+
+def _holds_a_lone_surrogate(value: JsonValue) -> bool:
+    """Say whether a parsed body holds half a surrogate pair, which JSON parses and nothing can store."""
+    try:
+        json.dumps(value, ensure_ascii=False).encode()
+    except UnicodeEncodeError:
+        return True
+    return False
 
 
 def _template_parameters(template: str) -> list[str]:

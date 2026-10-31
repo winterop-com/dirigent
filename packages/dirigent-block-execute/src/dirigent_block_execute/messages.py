@@ -170,6 +170,12 @@ MOUNTED_FILE_STAYS_INSIDE = EXECUTE.define(
     "a mounted file is named inside its mount, so it cannot be absolute or climb out",
 )
 
+STEERING_ENVIRONMENT = EXECUTE.define(
+    "steering_environment",
+    "{names} in env would choose what the docker CLI runs or what it trusts, while it holds a "
+    "connection's secrets; which program runs and where it looks is the host's decision",
+)
+
 OUTPUT_NOT_A_FILE = EXECUTE.define(
     "output_not_a_file",
     "the declared output {name} is not a regular file under {path}: a link, or a link on the way to it, "

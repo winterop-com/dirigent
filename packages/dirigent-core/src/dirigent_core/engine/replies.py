@@ -152,7 +152,8 @@ async def _render(
             raise _Unrenderable(Failure.rejected(REPLY_BODY_FROM, step=repr(name), value=repr(uri)))
         stat = await (await services.bound_storage(session)).stat(uri)
         if stat is None:
-            raise _Unrenderable(Failure.rejected(REPLY_REFUSED, step=repr(name), detail=f"nothing is stored at {uri}"))
+            detail = "nothing is stored where its body_from names"
+            raise _Unrenderable(Failure.rejected(REPLY_REFUSED, step=repr(name), detail=detail))
         rendered.update(
             content_type=reply.content_type or stat.content_type or OCTET_STREAM,
             body=None,

@@ -467,7 +467,8 @@ spellings, so handling a capped body costs time in step with its size. Any other
 refused 415 (`source.charset_refused`) without decoding. A JSON body nesting more than 128 levels
 of lists and objects is refused 400 (`source.body_too_deep`) and starts no run. A stored value
 deeper than the engine can validate, from any source, fails the step that reads it
-(`run.config_refused`) and holds back no other work.
+(`run.config_refused`) and holds back no other work. A JSON body holding half a surrogate pair
+is refused 400 (`source.body_not_json`), because no database can store it.
 A read holds no database connection: the call's transaction ends before it, and the source and
 its pipeline are read again after it. A body that has not arrived whole within
 `DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,
@@ -475,7 +476,8 @@ so a stranger who stops sending holds one socket for that long and nothing the A
 
 **A value no database can hold is stored as text.** A JSON answer from an outside service can hold
 half a surrogate pair, which JSONB refuses and no response can encode. Every JSON column writes one
-as the six characters of its escape, so the step settles once and its run stays readable.
+as the six characters of its escape, and so does every column recording what a failure said when it
+quotes one, so the step settles once and its run stays readable.
 
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
 the step's timeout and the lease heartbeat keep running over a value of any size, and
@@ -498,6 +500,11 @@ instance's cookies or storage. A reply may not set `set-cookie`, `www-authentica
 the reply renders, where a value a reference resolved to that holds a line break is refused too
 (`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
 pipeline's to set, so a reply can redirect, name a download or answer a browser caller.
+
+**A failed step's text stays on the run.** A held caller whose run fails before a reply answers is
+told the run and the step, and nothing the step said: that text can hold the artifact root, an
+internal address or a query value, and a caller may have no right to read the run. A reply can
+still put a step's error in its own body, as the author chooses.
 
 **An open stream answers to its credential.** A run's log tail and event stream read the token or
 session they were opened with on every poll, in the transaction that reads what goes out. Once it
@@ -660,6 +667,12 @@ What holds, and what it covers:
   `docker.compose.*`, `docker.build` and `git.checkout` build one from `PATH`, `LANG`, `LC_ALL`,
   `TZ` and what the step names, and a `docker.run` container gets only what its step names. A
   secret is not in what they inherit.
+- **The program holding a docker connection's secrets is the host's choice.** `docker.compose.*` and
+  `docker.build` hand a connection's TLS key and registry password to the `docker` on the worker's own
+  `PATH`, with its config in a private directory. A document cannot name another program, set a
+  variable that steers it (`PATH`, `HOME`, `DOCKER_CONFIG` and the like, listed in
+  [docker.md](docker.md#files-live-in-the-runs-work-directory)), or plant a plugin or credential helper in the work
+  directory. `git.checkout` takes no such field and no `env`, and `shell.run` holds no connection.
 - **`dg worker` and `dg dev` take `DIRIGENT_SECRET_KEY` out of `os.environ` at start-up.** That
   covers what `os.environ` reaches: a subprocess a plugin starts without naming an environment,
   and a library reading a variable.
@@ -769,8 +782,11 @@ The same rule holds for what a step hands to another language. A value reaches S
 parameter and never as text (see [SQL](sql.md)). In a jq program a reference is bound to a jq
 variable, so `.tenant == "${params.t}"` compares against the value however it is quoted, and a
 program that is only a reference is refused. In a `report.render` template a reference is refused at
-apply and at the start of the step, because `values` is how a template reads anything. A template or
-a program that means the literal text writes `$${...}`.
+apply and at the start of the step, because `values` is how a template reads anything. So it is in
+the inline `content` of `docker.compose.up` and `docker.compose.down`, because a value spliced into
+YAML can add `privileged`, a volume or a command: the file writes `$${NAME}`, which compose
+interpolates, and `env` carries the value under `NAME`, where it stays one value whatever it holds. A
+template or a program that means the literal text writes `$${...}`.
 
 ## Secrets lifecycle
 

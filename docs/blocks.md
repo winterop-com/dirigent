@@ -135,9 +135,8 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `no_cache` | `boolean` |  | `false` | Build every layer from scratch, ignoring the cache (`--no-cache`). |
 | `push` | `boolean` |  | `false` | Push every tag the build produced to the registry the connection names. |
 | `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon to build on, the registry to push to, or both. |
-| `env` | `object of string` |  |  | Variables set for the CLI itself, such as BuildKit's own toggles. |
+| `env` | `object of string` |  |  | Variables set for the CLI itself, such as BuildKit's own toggles; never one that chooses what the CLI runs or trusts, such as `PATH` or `DOCKER_CONFIG`. |
 | `env_allowlist` | `string[]` |  |  | Worker environment variables the CLI is allowed to inherit; never the instance's `DIRIGENT_*`. |
-| `command_path` | `string[]` |  |  | The CLI to invoke, for a host that wraps buildx. |
 | `timeout` | `string (humane-duration)` |  | `"30m"` | The overall deadline on the build, after which it is killed as transient. |
 
 **Output**
@@ -167,14 +166,13 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `content` | `string or null` |  | `null` | A compose file inline, written to the run's work directory, for the same reason as `file`. |
 | `profiles` | `string[]` |  |  | Compose profiles to activate, only meaningful alongside a `file`. |
 | `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's work directory (`--env-file`). |
-| `env` | `object of string` |  |  | Variables set for the CLI itself, such as those a compose file interpolates. |
+| `env` | `object of string` |  |  | Variables set for the CLI itself, such as those a compose file interpolates; never one that chooses what the CLI runs or trusts, such as `PATH` or `DOCKER_CONFIG`. |
 | `env_allowlist` | `string[]` |  |  | Worker environment variables the CLI is allowed to inherit; never the instance's `DIRIGENT_*`. |
 | `down_volumes` | `boolean` |  | `false` | Also remove the named volumes the stack declared (`-v`). |
 | `down_timeout` | `string (humane-duration)` |  | `"10s"` | How long to wait for a container to stop before killing it (`--timeout`). |
 | `down_remove_images` | `"none" or "local" or "all"` |  | `"none"` | Which images to remove: `none`, `local` (only untagged), or `all` (`--rmi`). |
 | `remove_orphans` | `boolean` |  | `true` | Remove containers for services no longer in the compose file (`--remove-orphans`). |
 | `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this stack runs on. |
-| `command_path` | `string[]` |  |  | The CLI to invoke, for a host that spells it `docker-compose` or wraps it. |
 | `timeout` | `string (humane-duration)` |  | `"10m"` | The overall deadline on the CLI invocation, after which it is killed as transient. |
 
 **Output**
@@ -201,14 +199,13 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to a deterministic name derived from the run id, so this `up`, the steps that drive it, and a later `down` all address the same project, and two runs never collide. |
 | `profiles` | `string[]` |  |  | Compose profiles to activate (`--profile`). |
 | `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's work directory (`--env-file`). |
-| `env` | `object of string` |  |  | Variables set for the CLI itself, such as those a compose file interpolates. |
+| `env` | `object of string` |  |  | Variables set for the CLI itself, such as those a compose file interpolates; never one that chooses what the CLI runs or trusts, such as `PATH` or `DOCKER_CONFIG`. |
 | `env_allowlist` | `string[]` |  |  | Worker environment variables the CLI is allowed to inherit. |
 | `wait` | `boolean` |  | `false` | Wait until every service is running and healthy before the step returns (`--wait`). |
 | `wait_timeout` | `string (humane-duration)` |  | `"5m"` | How long `--wait` may wait before it gives up. |
 | `remove_orphans` | `boolean` |  | `true` | Remove containers for services no longer in the compose file (`--remove-orphans`). |
 | `pull` | `"always" or "missing" or "never"` |  | `"missing"` | When to pull images: `missing` pulls only what is absent, the compose default. |
 | `cleanup` | `boolean` |  | `true` | On a bring-up that does not succeed, best-effort `down` the same project before leaving. |
-| `command_path` | `string[]` |  |  | The CLI to invoke, for a host that spells it `docker-compose` or wraps it. |
 | `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this stack runs on. |
 | `socket_path` | `string or null` |  | `null` | The daemon socket the status read speaks to, when neither the default nor `DOCKER_HOST` is right. |
 | `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long one call to the daemon for the status read may take. |

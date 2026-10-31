@@ -44,7 +44,13 @@ from dirigent_common.names import (
     is_step_name,
     step_name_error,
 )
-from dirigent_common.programs import JQ_MEDIA_TYPE, SHELL_MEDIA_TYPE, SQL_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE
+from dirigent_common.programs import (
+    COMPOSE_MEDIA_TYPE,
+    JQ_MEDIA_TYPE,
+    SHELL_MEDIA_TYPE,
+    SQL_MEDIA_TYPE,
+    TEMPLATE_MEDIA_TYPE,
+)
 from dirigent_common.redaction import REDACTED, scrub, scrub_json, secrets_of, spellings
 from dirigent_common.schema_references import LOCAL_REFERENCES, Unresolvable
 from dirigent_common.schema_values import ValueValidator
@@ -83,6 +89,7 @@ __all__ = [
     "EMAIL_PATTERN",
     "ENTITY_NAME_MAX_LENGTH",
     "ENTITY_NAME_PATTERN",
+    "COMPOSE_MEDIA_TYPE",
     "JQ_MEDIA_TYPE",
     "SHELL_MEDIA_TYPE",
     "SQL_MEDIA_TYPE",

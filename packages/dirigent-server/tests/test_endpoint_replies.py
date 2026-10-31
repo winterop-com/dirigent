@@ -1,18 +1,24 @@
 """A caller held for its run's reply: what it is answered with, and what its journal row says."""
 
 import asyncio
+import threading
 import time
+from collections.abc import Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, cast
+from uuid import UUID
 
 import httpx2
 import pytest
+import sqlalchemy as sa
 import yaml
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+from dirigent_client.enums import AttemptStatus
 from dirigent_client.schemas import Page, SourceInputOut
 from dirigent_core.config import Settings
 from dirigent_core.engine.definition import ReplyNode
@@ -20,6 +26,7 @@ from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.references import ReferenceScope
 from dirigent_core.engine.replies import _rendered_headers, _Unrenderable  # pyright: ignore[reportPrivateUsage]
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.models import LogEntry, StepAttempt
 from dirigent_server import create_app
 from tests_support import apply_document
 
@@ -167,6 +174,102 @@ def test_anything_a_reply_cannot_render_settles_it_as_rejected(client: TestClien
     assert called.status_code == 422, called.text
     assert called.json()["code"] == "source.reply_rejected"
     assert "artifacts" not in called.text, "the caller is not told where the instance keeps its artifacts"
+
+
+#: What no held caller is told, whichever step failed.
+NEVER_SAID = ("artifacts", "kept/nope", "api_key", "DUMMY-API-KEY", "/internal/report", "127.0.0.1", "answered 500")
+
+
+def failing_on_the_way(step: str) -> str:
+    """Write a public source, one step that fails, and a reply it never reaches."""
+    return f"""
+format: dirigent/v1
+kind: pipeline
+code: failing
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /failing
+      auth: {{kind: public}}
+  work:
+    depends_on: [ask]
+{step}
+  answer:
+    depends_on: [work]
+    reply:
+      body: never
+"""
+
+
+@pytest.fixture
+def internal_url() -> "Iterator[str]":
+    """A local server that answers every request 500, standing in for an internal service."""
+
+    class Refuses(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(500)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Refuses)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}"
+    finally:
+        server.shutdown()
+        thread.join()
+        server.server_close()
+
+
+@pytest.mark.parametrize(
+    ("step", "status", "code"),
+    [
+        (
+            "    block: storage.read\n    config: {source: '${artifacts}/kept/nope'}",
+            422,
+            "source.reply_rejected",
+        ),
+        (
+            "    block: http.request\n    config: {url: '{internal}/internal/report?api_key=DUMMY-API-KEY&q=x'}",
+            502,
+            "source.reply_failed",
+        ),
+    ],
+    ids=["a-missing-object", "a-failing-request"],
+)
+def test_a_held_caller_is_told_the_step_and_not_what_it_said(
+    client: TestClient, internal_url: str, step: str, status: int, code: str
+) -> None:
+    apply_document(client, failing_on_the_way(step.replace("{internal}", internal_url)))
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        sent = held_until_accepted(client, pool, "failing", {})
+        work_one(client)
+        called = sent.result(timeout=30)
+    assert called.status_code == status, called.text
+    problem = called.json()
+    assert problem["code"] == code
+    assert problem["params"]["step"] == "'work'"
+    assert set(problem["params"]) == {"run", "step"}
+    for held_back in NEVER_SAID:
+        assert held_back not in called.text
+    run = problem["params"]["run"]
+    attempts = client.get(f"{PREFIX}/runs/{run}/attempts").json()["items"]
+    [work] = [row for row in attempts if row["step_name"] == "work"]
+    assert work["error"], "a viewer still reads what the step failed with"
+
+
+def test_a_held_caller_is_told_nothing_of_where_a_reply_looked(client: TestClient) -> None:
+    apply_document(client, answered_at_once("      body_from: ${artifacts}/kept/nope\n"))
+    called = client.post("/endpoints/now", json={}, headers={"Authorization": ""})
+    assert called.status_code == 422, called.text
+    assert set(called.json()["params"]) == {"run", "step"}
+    for held_back in NEVER_SAID:
+        assert held_back not in called.text
 
 
 @pytest.mark.parametrize("status", ["²", "9" * 5000])
@@ -355,3 +458,139 @@ def test_one_source_holds_no_more_than_its_share_and_leaves_the_rest_for_others(
             assert other.status_code == 200, "another source still has its seats"
             work_one(client)
             assert sent.result(timeout=10).status_code == 200
+
+
+def surrogate_document(work: str, reply: str) -> str:
+    """Write a public source, one step, and a reply, for a value no driver can encode to reach."""
+    return f"""
+format: dirigent/v1
+kind: pipeline
+code: surrogate
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /surrogate
+      auth: {{kind: public}}
+  work:
+    depends_on: [ask]
+{work}
+  answer:
+    depends_on: [work]
+    reply:
+{reply}
+"""
+
+
+def called_with_a_stored_surrogate(client: TestClient, document: str) -> tuple[int, dict[str, StepAttempt]]:
+    """Hold a caller, put a lone surrogate where another kind of source could have, and work what is due."""
+    apply_document(client, document)
+    app = cast("FastAPI", client.app)
+    engine = Engine(app.state.session_factory, cast("EngineServices", app.state.services), owner="test-worker")
+
+    async def store_it(run_id: UUID) -> None:
+        async with app.state.session_factory() as session:
+            await session.execute(
+                sa.update(StepAttempt)
+                .where(StepAttempt.run_id == run_id, StepAttempt.step_name == "ask")
+                .values(output={"body": {"v": "\udc80"}})
+            )
+            await session.commit()
+
+    async def work_it() -> None:
+        while (unit := await engine.claim()) is not None:
+            await engine.run_unit(unit)
+
+    async def rows(run_id: UUID) -> dict[str, StepAttempt]:
+        async with app.state.session_factory() as session:
+            found = await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run_id))
+            return {row.step_name: row for row in found.scalars()}
+
+    assert client.portal is not None
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        sent = held_until_accepted(client, pool, "surrogate", {"v": "x"})
+        run_id = cast("UUID", inputs(client, "surrogate")[0].run_id)
+        client.portal.call(store_it, run_id)
+        client.portal.call(work_it)
+        called = sent.result(timeout=30)
+    return called.status_code, client.portal.call(rows, run_id)
+
+
+def test_a_reply_refusing_a_stored_surrogate_ends_the_run_with_its_step_run_once(client: TestClient) -> None:
+    status, rows = called_with_a_stored_surrogate(
+        client,
+        surrogate_document(
+            "    block: transform.jq\n    config: {input: 1, program: '.'}",
+            "      body_from: ${artifacts}/kept/${steps.ask.output.body.v}",
+        ),
+    )
+    assert status == 422
+    assert rows["work"].status is AttemptStatus.SUCCEEDED
+    assert rows["work"].attempt == 1
+    assert rows["work"].lease_recoveries == 0
+    assert rows["answer"].status is AttemptStatus.FAILED
+    assert rows["answer"].error_code == "run.reply_refused"
+    assert "kept" not in (rows["answer"].error or "")
+
+
+def test_a_failure_quoting_a_stored_surrogate_is_recorded_with_the_step_run_once(client: TestClient) -> None:
+    status, rows = called_with_a_stored_surrogate(
+        client,
+        surrogate_document(
+            "    block: storage.read\n    config: {source: '${artifacts}/kept/${steps.ask.output.body.v}'}",
+            "      body: never",
+        ),
+    )
+    assert status in (422, 502)
+    assert rows["work"].status is AttemptStatus.FAILED
+    assert rows["work"].lease_recoveries == 0
+    assert rows["work"].error
+    assert "\\udc80" in rows["work"].error
+
+
+def test_failure_text_no_driver_can_encode_is_written_as_its_escape(client: TestClient) -> None:
+    """Whatever a block or a kind quotes, the write that records the failure cannot itself fail."""
+    apply_document(client, answered_at_once("      body: answered\n"))
+    client.post("/endpoints/now", json={}, headers={"Authorization": ""})
+    app = cast("FastAPI", client.app)
+
+    async def write_and_read() -> tuple[str | None, str]:
+        async with app.state.session_factory() as session:
+            attempt = (await session.execute(sa.select(StepAttempt).limit(1))).scalars().first()
+            assert attempt is not None
+            attempt.error = "quoted \udc80"
+            session.add(LogEntry(run_id=attempt.run_id, message="quoted \udc80"))
+            await session.commit()
+            await session.refresh(attempt)
+            logged = (await session.execute(sa.select(LogEntry.message).order_by(LogEntry.id.desc()).limit(1))).scalar()
+            assert logged is not None
+            return attempt.error, logged
+
+    assert client.portal is not None
+    assert client.portal.call(write_and_read) == ("quoted \\udc80", "quoted \\udc80")
+
+
+@pytest.mark.parametrize(
+    "body",
+    [b'{"v": "\\udc80"}', b'{"\\ud800": 1}', b'["\\ud83d"]', b'{"v": "\xed\xb2\x80"}'],
+    ids=["a-low-surrogate", "in-a-key", "a-high-surrogate", "as-raw-bytes"],
+)
+def test_a_json_body_holding_a_lone_surrogate_is_refused_and_starts_no_run(client: TestClient, body: bytes) -> None:
+    apply_document(client, answered_at_once("      body: answered\n"))
+    called = client.post(
+        "/endpoints/now", content=body, headers={"Authorization": "", "Content-Type": "application/json"}
+    )
+    assert called.status_code == 400, called.text
+    assert called.json()["code"] == "source.body_not_json"
+    assert [entry.run_id for entry in inputs(client, "now")] == [None]
+
+
+def test_a_json_body_holding_a_surrogate_pair_is_taken(client: TestClient) -> None:
+    apply_document(client, answered_at_once("      body: ${steps.ask.output.body.v}\n"))
+    called = client.post(
+        "/endpoints/now",
+        content=b'{"v": "\\ud83d\\ude00"}',
+        headers={"Authorization": "", "Content-Type": "application/json"},
+    )
+    assert called.status_code == 200, called.text
+    assert called.text == '"\U0001f600"'
