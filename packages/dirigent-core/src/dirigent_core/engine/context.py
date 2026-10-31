@@ -31,7 +31,7 @@ from dirigent_core.messages import (
 )
 from dirigent_core.models import Connection
 from dirigent_core.secrets import SecretBox
-from dirigent_core.storage import AttemptStorage, Storage, connection_binder, work_dir
+from dirigent_core.storage import AttemptStorage, Meter, Storage, connection_binder, work_dir
 from dirigent_plugin import BlockFailure, ByteSink, Capture, ConnectionRef, ErrorClass, Logger, Runs
 
 #: What an HTTP connection is assumed to call its fields, so core can build a client for
@@ -270,8 +270,9 @@ class EngineStepContext:
         storage_connections: Mapping[str, str] | None = None,
         schemas: dict[str, JsonMap] | None = None,
         cursor: JsonMap | None = None,
+        meter: Meter | None = None,
     ) -> None:
-        """Bind the context to one attempt's scope."""
+        """Bind the context to one attempt's scope, counting what it writes on ``meter`` when given one."""
         self.run_id: UUID = run_id
         self.step: str = step
         self.run_item_id: UUID | None = run_item_id
@@ -292,15 +293,26 @@ class EngineStepContext:
         self._runs = runs
         self._format_checker = format_checker
         self._storage_connections = dict(storage_connections or {})
+        self._meter = meter
         self._bound_storage: AttemptStorage | None = None
+        self._metered_storage: AttemptStorage | None = None
 
     @property
     def storage(self) -> AttemptStorage:
-        """Access URI-addressed storage across every registered scheme.
+        """Access URI-addressed storage across every registered scheme, every write counted.
 
         A scheme configured from a coded connection is bound on first use, on the worker path,
         where connection secrets are opened and nowhere else.
         """
+        if self._meter is None:
+            return self.uncounted_storage
+        if self._metered_storage is None:
+            self._metered_storage = self.uncounted_storage.metered(self._meter)
+        return self._metered_storage
+
+    @property
+    def uncounted_storage(self) -> AttemptStorage:
+        """The same storage with nothing counted, for what the engine writes for the step and counts itself."""
         if self._bound_storage is None:
             self._bound_storage = self._storage.bound_by(
                 connection_binder(self._storage_connections, lambda _scheme, ref, model: self.connection(ref, model))

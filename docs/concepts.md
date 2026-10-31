@@ -363,6 +363,11 @@ No grid may be wider than the instance's `fan_out_max_items` (10000 by default).
 creation over it refuses the run; a late one fails its step as `rejected` with
 `run.fan_out_too_wide`.
 
+Nor may the items together write more than the run may store. `run_storage_quota`, one gigabyte
+by default, holds everything a run and the runs its steps start write to storage, whichever item
+wrote it, and the write that would pass it fails its step as `rejected` with `run.storage_quota`.
+See [what a run may store](security.md#what-a-run-may-store).
+
 A step may also map over a grid another fan-out already has, by writing
 `for_each: ${steps.spread.items}` where `spread` is a fan-out it depends on directly. The two
 steps then share one grid: item 3 of one is item 3 of the other, `${item}` is the same

@@ -13,7 +13,7 @@ from collections.abc import AsyncGenerator, AsyncIterator, Callable, Iterable, M
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import BinaryIO, ClassVar, Final
+from typing import BinaryIO, ClassVar, Final, Protocol
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -455,12 +455,56 @@ class Storage:
         return copied
 
 
+class Meter(Protocol):
+    """Counts the bytes a caller writes, refusing the write that would take it past what it may."""
+
+    async def take(self, size: int) -> None:
+        """Count ``size`` more bytes as written, or raise without counting them."""
+        ...
+
+
+class MeteredSink:
+    """A sink that has every write counted before it reaches the backend."""
+
+    def __init__(self, sink: ByteSink, meter: Meter) -> None:
+        """Wrap the backend's sink with the meter its writes are counted on."""
+        self._sink = sink
+        self._meter = meter
+
+    async def write(self, data: bytes) -> int:
+        """Count the bytes, then append them to the stream; a refused count writes nothing."""
+        await self._meter.take(len(data))
+        return await self._sink.write(data)
+
+
 class AttemptStorage(Storage):
     """A storage facade belonging to exactly one caller: one attempt, one request, one sweep.
 
     The binder opens connection secrets and the backend it returns is cached for the life of
     the facade, so sharing one would hand one caller's credentials to the next.
     """
+
+    _meter: Meter | None = None
+
+    def metered(self, meter: Meter) -> "AttemptStorage":
+        """Return the same facade, sharing its configured schemes, with every write counted on a meter."""
+        counted = AttemptStorage(self._backends, self.artifact_root, self._binder)
+        counted._bound = self._bound
+        counted._meter = meter
+        return counted
+
+    def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
+        """Open a streamed writer for a URI, counting what is written through it when metered."""
+        opened = super().open_write(uri, content_type=content_type)
+        meter = self._meter
+        return opened if meter is None else _counted(opened, meter)
+
+
+@asynccontextmanager
+async def _counted(opened: AbstractAsyncContextManager[ByteSink], meter: Meter) -> AsyncGenerator[ByteSink]:
+    """Hand out a backend's writer with every write counted on a meter."""
+    async with opened as sink:
+        yield MeteredSink(sink, meter)
 
 
 def connection_binder(storage_connections: Mapping[str, str], open_connection: OpenConnection) -> Binder:

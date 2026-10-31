@@ -46,6 +46,9 @@ rather than leaving the gap for you to find.
   says where the request came from, and one that came from elsewhere is refused.
 - Secrets appearing where they are read casually: API responses, pipeline documents, exports,
   process logs, and OpenTelemetry span names are all redacted.
+- A service a pipeline calls filling the instance's storage, by answering every request with as
+  much as the step will take. Each answer is bounded by the block that reads it, and the run as
+  a whole by [`run_storage_quota`](#what-a-run-may-store).
 
 **What it explicitly does not defend against.**
 
@@ -953,6 +956,48 @@ proxy.
 **Set `DIRIGENT_ALERT_BASE_URL`** to the externally reachable base URL, so alerts link back to
 the run they are about. It has to be set on the workers as well as the server, because the
 alert context is built by whichever worker settles the run.
+
+## What a run may store
+
+A block bounds each answer it reads -- `http.request` at its `max_response`, a Chap or
+climate connection at 64MB by default -- but a run that reads many answers under that bound, or
+fans out over many items that each read one, would otherwise write as much as the service cares
+to send. So the engine counts what a run writes, and `run_storage_quota` caps it: one gigabyte
+by default, which is sixteen answers at the largest bound a shipped block or pack sets.
+
+**What is counted.** Every byte a step writes through storage, as it is written: a capture
+(`stdout_uri` and `stderr_uri` of `shell.run` and `docker.run`), a file `docker.run` copies
+out of its container, `storage.write` and `storage.copy`, a converted file, and any other
+write a block makes through `ctx.storage`, whatever the URI's scheme. A step output too large to
+inline (`inline_artifact_max`) counts when it is stored, and so does the input a run entered at a
+source with, though that input was already accepted and is never refused.
+
+**Whose count.** A run started by a step of another run, through `pipeline.run`, spends from the
+quota of the run that began the chain. A fan-out of `pipeline.run` therefore shares one quota
+rather than taking one per item. Each run's own `stored_bytes` is on the run, in the API and in
+`dg runs show`; the chain's count is on its first run.
+
+**What a refusal does.** The write that would pass the quota writes nothing and fails its step
+as `run.storage_quota`, classified `rejected`, so it is not retried. A block that catches the
+refusal fails all the same, and every later write of that step is refused too. What the run
+wrote before stays where it is, counted, under the run's scratch prefix, and goes when
+retention prunes the run (`retention_runs`, with `retention_scratch` on). A write to a URI
+outside that prefix is a deliberate target and is never swept.
+
+**Two steps writing at once.** The count is checked and added in one conditional `UPDATE` of
+the chain's first run, in a transaction of its own. SQLite runs every transaction behind
+`BEGIN IMMEDIATE`, one at a time. PostgreSQL holds a second writer of that row until the first
+commits, then tests the condition again against what the first left, so two writers cannot
+both pass a quota only one of them fits under. A step reserves a megabyte at a time rather than
+a transaction per write, and hands back what it did not write when it settles; a worker that
+dies mid-step leaves at most that megabyte counted against the run.
+
+**What is not counted.** The run's report (bounded by `report_max_size`) and a reply's answer,
+which the engine writes once. What a tool writes itself rather than through storage: a duckdb
+`COPY ... TO` a path, a file a `shell.run` command writes into the artifact root, a bind mount.
+The worker's own work directory. The database, where log lines are bounded by
+`log_entries_per_attempt` and a step's output by the block that made it. A sensor's poke outside
+any run writes to no run.
 
 ## What is deliberately not built yet
 
