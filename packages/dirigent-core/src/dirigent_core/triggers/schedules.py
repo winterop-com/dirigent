@@ -20,6 +20,7 @@ from dirigent_client.enums import RunPriority, ScheduleKind
 from dirigent_common import EntityName, JsonMap, format_duration
 from dirigent_common.durations import Duration, DurationError, parse_duration, refuse_negative
 from dirigent_core.engine.definition import (
+    LONGEST_CADENCE,
     ParameterError,
     PipelineDefinition,
     ScheduleSpec,
@@ -129,10 +130,6 @@ class ScheduleRequest(BaseModel):
         return ScheduleKind.ONE_TIME
 
 
-#: The longest a schedule may wait between firings.
-LONGEST_INTERVAL: Final = timedelta(days=3650)
-
-
 def check_schedule(request: ScheduleRequest) -> None:
     """Refuse a schedule that names no clock, more than one, or a zone or expression nothing can read."""
     declared = [field for field in ("cron", "interval", "at") if getattr(request, field) is not None]
@@ -151,9 +148,9 @@ def _check_interval(interval: timedelta) -> None:
     seconds = interval.total_seconds()
     if seconds < 1 or seconds != int(seconds):
         raise ScheduleError(WHOLE_SECONDS, seconds=seconds)
-    if interval > LONGEST_INTERVAL:
+    if interval > LONGEST_CADENCE:
         raise ScheduleError(
-            INTERVAL_TOO_LONG, interval=format_duration(interval), limit=format_duration(LONGEST_INTERVAL)
+            INTERVAL_TOO_LONG, interval=format_duration(interval), limit=format_duration(LONGEST_CADENCE)
         )
 
 

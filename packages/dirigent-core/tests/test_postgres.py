@@ -216,6 +216,21 @@ async def test_jsonb_takes_an_output_holding_half_a_surrogate_pair_as_the_text_o
     assert stored.output == {"lone \\udc80": ["\\ud800"], "pair": "\U0001f600"}
 
 
+async def test_postgresql_takes_a_nul_in_an_output_and_in_failure_text_as_the_text_of_its_escape(
+    pg_sessions: Any, pg_services: EngineServices
+) -> None:
+    """JSONB and text both refuse the character itself, which would fail the transaction settling the step."""
+    run = await start(pg_sessions, pg_services, batch(1))
+    async with session_scope(pg_sessions) as session:
+        attempt = (await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run.id))).scalar_one()
+        attempt.output = {"nul \x00": ["\x00"], "said": "\\u0000"}
+        attempt.error = "answered \x00"
+    async with pg_sessions() as session:
+        stored = (await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run.id))).scalar_one()
+    assert stored.output == {"nul \\u0000": ["\\u0000"], "said": "\\u0000"}
+    assert stored.error == "answered \\u0000"
+
+
 #: The instants the counted run is settled at, so the earliest one is a fact and not a clock read.
 COUNTED = datetime(2026, 3, 1, tzinfo=UTC)
 

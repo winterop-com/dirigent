@@ -648,9 +648,15 @@ async def _transitions(
                 spill=spills.get(attempt.id) if settled else None,
             )
         )
-    # Stable, so steps that became claimable in the same transaction -- which is every root
-    # of a run -- keep the order in_execution_order put them in, which is the written one.
-    return Tick(transitions=sorted(changed, key=lambda item: item.at), status=status, error=error)
+    # Every root of a run is queued at one instant, and in_execution_order ranks a step that
+    # has started by when it started, so moves at one instant fall back to the written order.
+    # Stable, so the items of one step keep their index order and an attempt's moves their own.
+    written = {name: index for index, name in enumerate(order)}
+    return Tick(
+        transitions=sorted(changed, key=lambda item: (item.at, written.get(item.step, len(written)))),
+        status=status,
+        error=error,
+    )
 
 
 async def run_document(

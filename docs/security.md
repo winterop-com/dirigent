@@ -475,9 +475,11 @@ its pipeline are read again after it. A body that has not arrived whole within
 so a stranger who stops sending holds one socket for that long and nothing the API shares.
 
 **A value no database can hold is stored as text.** A JSON answer from an outside service can hold
-half a surrogate pair, which JSONB refuses and no response can encode. Every JSON column writes one
-as the six characters of its escape, and so does every column recording what a failure said when it
-quotes one, so the step settles once and its run stays readable.
+half a surrogate pair, which JSONB refuses and no response can encode, or a NUL, which PostgreSQL
+refuses in JSONB and in text. Every JSON column writes either as the six characters of its escape,
+and so does every column recording what a failure said when it quotes one, so the step settles once
+and its run stays readable. A reader then sees `\u0000` where the NUL was, the same six characters
+a string that held them all along reads back as.
 
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
 the step's timeout and the lease heartbeat keep running over a value of any size. `uniqueItems`,
