@@ -237,6 +237,7 @@ async def test_a_connection_that_never_opened_takes_its_thread_with_it(
 def test_said_text_writes_what_utf8_cannot_as_its_escape() -> None:
     said = SaidText()
     assert said.process_bind_param("held \udc80 here", DefaultDialect()) == "held \\udc80 here"
+    assert said.process_bind_param("held \x00 here", DefaultDialect()) == "held \\u0000 here"
     assert said.process_bind_param("blå", DefaultDialect()) == "blå"
     assert said.process_bind_param(None, DefaultDialect()) is None
 
@@ -245,3 +246,8 @@ def test_a_json_column_holds_half_a_surrogate_pair_as_the_text_of_its_escape() -
     held = json.loads(storable_json({"lone \udc80": ["a \ud800 b"], "pair": "\U0001f600", "slash": "\\udc80"}))
     assert held == {"lone \\udc80": ["a \\ud800 b"], "pair": "\U0001f600", "slash": "\\udc80"}
     assert storable_json({"plain": [1, None, True, "blå"]}) == '{"plain": [1, null, true, "blå"]}'
+
+
+def test_a_json_column_holds_a_nul_as_the_text_of_its_escape() -> None:
+    held = json.loads(storable_json({"nul \x00": ["a \x00 b"], "said": "\\u0000", "slash": "\\\x00", "tab": "\t"}))
+    assert held == {"nul \\u0000": ["a \\u0000 b"], "said": "\\u0000", "slash": "\\\\u0000", "tab": "\t"}
