@@ -504,6 +504,12 @@ told the run and the step, and nothing the step said: that text can hold the art
 internal address or a query value, and a caller may have no right to read the run. A reply can
 still put a step's error in its own body, as the author chooses.
 
+**An open stream answers to its credential.** A run's log tail and event stream read the token or
+session they were opened with on every poll, in the transaction that reads what goes out. Once it
+is revoked, expired or its account deactivated, the next poll sends nothing more and ends the
+stream with `expired`, so a client reopening is refused like any new request. A quiet stream polls
+every five seconds at the slowest, which is the longest that takes.
+
 **A route is one source's.** Two sources answering one method at one template are refused at
 apply, across pipelines, and a unique constraint holds it when two applies race.
 
