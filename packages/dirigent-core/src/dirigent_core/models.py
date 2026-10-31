@@ -1,7 +1,7 @@
 """The baseline schema: immutable definitions, triggers, and mutable execution state."""
 
 from datetime import UTC, datetime
-from typing import cast
+from typing import Final, cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -29,7 +29,10 @@ from dirigent_client.enums import (
 )
 from dirigent_common import JsonList, JsonMap
 from dirigent_core.ids import uuid7
-from dirigent_core.types import BigId, JsonDocument, SaidText, Timestamp, string_enum
+from dirigent_core.types import BigId, JsonDocument, SaidString, SaidText, Timestamp, string_enum
+
+#: The most of what a waiting attempt last saw that its row keeps.
+WAITING_MESSAGE_LENGTH: Final = 500
 
 #: Predictable constraint and index names, so migrations can always address them.
 NAMING_CONVENTION = {
@@ -274,7 +277,7 @@ class RunItem(Entity):
     run_id: Mapped[UUID] = mapped_column(sa.ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, index=True)
     step_name: Mapped[str] = mapped_column(sa.String(200), nullable=False)
     item_index: Mapped[int] = mapped_column(sa.Integer, nullable=False)
-    item_key: Mapped[str] = mapped_column(sa.String(500), nullable=False)
+    item_key: Mapped[str] = mapped_column(SaidString(500), nullable=False)
     item_value: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     status: Mapped[RunItemStatus] = mapped_column(
         string_enum(RunItemStatus, "run_item_status"), nullable=False, default=RunItemStatus.PENDING, index=True
@@ -340,7 +343,7 @@ class StepAttempt(Entity):
     gone_probes: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
     poke_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
 
-    waiting_message: Mapped[str | None] = mapped_column(sa.String(500))
+    waiting_message: Mapped[str | None] = mapped_column(SaidString(WAITING_MESSAGE_LENGTH))
     """What the last probe or poke said it was seeing, while the attempt waits."""
 
     waiting_progress: Mapped[float | None] = mapped_column(sa.Float)
@@ -553,8 +556,8 @@ class SourceInput(Journal):
     reason: Mapped[str | None] = mapped_column(SaidText)
     params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     method: Mapped[str | None] = mapped_column(sa.String(16))
-    path: Mapped[str | None] = mapped_column(sa.String(2000))
-    label: Mapped[str | None] = mapped_column(sa.String(2000))
+    path: Mapped[str | None] = mapped_column(SaidString(2000))
+    label: Mapped[str | None] = mapped_column(SaidString(2000))
     """What a polled kind names the input, such as the object it found."""
     body_bytes: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
     duration_ms: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
@@ -628,8 +631,8 @@ class Notification(Entity):
     event: Mapped[AlertEvent] = mapped_column(string_enum(AlertEvent, "alert_event"), nullable=False)
     notifier: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     connection_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("connections.id", ondelete="RESTRICT"))
-    subject: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    body: Mapped[str] = mapped_column(sa.Text, nullable=False, default="", server_default="")
+    subject: Mapped[str] = mapped_column(SaidText, nullable=False)
+    body: Mapped[str] = mapped_column(SaidText, nullable=False, default="", server_default="")
     context: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
     status: Mapped[NotificationStatus] = mapped_column(
         string_enum(NotificationStatus, "notification_status"), nullable=False, default=NotificationStatus.PENDING

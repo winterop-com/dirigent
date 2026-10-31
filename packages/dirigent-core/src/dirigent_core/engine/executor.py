@@ -85,8 +85,17 @@ from dirigent_core.messages import (
     SERVER_SETTLED,
     STEP_NOT_IN_VERSION,
 )
-from dirigent_core.models import LogEntry, PipelineVersion, Run, RunItem, StepAttempt, utcnow
+from dirigent_core.models import (
+    WAITING_MESSAGE_LENGTH,
+    LogEntry,
+    PipelineVersion,
+    Run,
+    RunItem,
+    StepAttempt,
+    utcnow,
+)
 from dirigent_core.storage import AttemptStorage, scratch_prefix
+from dirigent_core.types import storable_text
 from dirigent_plugin import (
     AnyOperator,
     AnySensor,
@@ -1213,9 +1222,9 @@ def _note_waiting(session: AsyncSession, attempt: StepAttempt, message: str | No
     """Keep what a waiting attempt last saw, and log the message once per change.
 
     Progress moves on every poll and only updates the row: a log line per poll would be a
-    thousand copies of the same sentence.
+    thousand copies of the same sentence. The message is compared in the form its row holds.
     """
-    said = message[:500] if message is not None else None
+    said = storable_text(message)[:WAITING_MESSAGE_LENGTH] if message is not None else None
     if said is not None and said != attempt.waiting_message:
         session.add(
             LogEntry(

@@ -231,6 +231,32 @@ async def test_postgresql_takes_a_nul_in_an_output_and_in_failure_text_as_the_te
     assert stored.error == "answered \\u0000"
 
 
+async def test_postgresql_takes_a_nul_in_what_a_run_says_as_the_text_of_its_escape(
+    pg_sessions: Any, pg_services: EngineServices
+) -> None:
+    """An item's key, a waiting message and a notification quote what a run produced, which can hold a NUL."""
+    run = await start(pg_sessions, pg_services, batch(1))
+    async with session_scope(pg_sessions) as session:
+        item = (await session.execute(sa.select(RunItem).where(RunItem.run_id == run.id))).scalar_one()
+        item.item_key = "k" * 497 + "\x00"
+        attempt = (await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run.id))).scalar_one()
+        attempt.waiting_message = "waiting on \x00"
+        notification = Notification(
+            event=AlertEvent.RUN_FAILED, notifier="log", subject="failed \x00", body="it said \x00"
+        )
+        session.add(notification)
+    async with pg_sessions() as session:
+        stored_item = (await session.execute(sa.select(RunItem).where(RunItem.run_id == run.id))).scalar_one()
+        stored_attempt = (
+            await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run.id))
+        ).scalar_one()
+        stored_notification = await session.get(Notification, notification.id)
+    assert stored_item.item_key == "k" * 497 + "\\u0", "the escape is cut to the column, not refused by it"
+    assert stored_attempt.waiting_message == "waiting on \\u0000"
+    assert stored_notification is not None
+    assert (stored_notification.subject, stored_notification.body) == ("failed \\u0000", "it said \\u0000")
+
+
 #: The instants the counted run is settled at, so the earliest one is a fact and not a clock read.
 COUNTED = datetime(2026, 3, 1, tzinfo=UTC)
 

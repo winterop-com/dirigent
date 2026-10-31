@@ -480,9 +480,11 @@ so a stranger who stops sending holds one socket for that long and nothing the A
 **A value no database can hold is stored as text.** A JSON answer from an outside service can hold
 half a surrogate pair, which JSONB refuses and no response can encode, or a NUL, which PostgreSQL
 refuses in JSONB and in text. Every JSON column writes either as the six characters of its escape,
-and so does every column recording what a failure said when it quotes one, so the step settles once
-and its run stays readable. A reader then sees `\u0000` where the NUL was, the same six characters
-a string that held them all along reads back as.
+and so does every column holding text a run, a caller or a service produced: what a failure said, a
+fan-out item's key, what a waiting step last saw, a notification's subject and body, and the path
+and label a source's journal records. So the step settles once, its alert is queued, and its run stays
+readable. A reader then sees `\u0000` where the NUL was, the same six characters a string that held
+them all along reads back as. A column with a length keeps what fits of the escaped text.
 
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
 the step's timeout and the lease heartbeat keep running over a value of any size. `uniqueItems`,
