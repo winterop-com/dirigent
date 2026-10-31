@@ -477,6 +477,10 @@ SCHEDULE_EXACTLY_ONE_CLOCK = SCHEDULE.define(
     "a schedule declares exactly one of cron, interval, or at ({named})",
 )
 
+INTERVAL_TOO_LONG = SCHEDULE.define(
+    "interval_too_long", "a schedule firing every {interval} would not fire again: the longest interval is {limit}"
+)
+
 WHOLE_SECONDS = SCHEDULE.define(
     "whole_seconds",
     "an interval schedule fires every whole number of seconds, at least one, not every {seconds}s",

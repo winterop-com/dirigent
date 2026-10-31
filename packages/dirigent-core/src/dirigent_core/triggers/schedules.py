@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import RunPriority, ScheduleKind
-from dirigent_common import EntityName, JsonMap
+from dirigent_common import EntityName, JsonMap, format_duration
 from dirigent_common.durations import Duration, DurationError, parse_duration, refuse_negative
 from dirigent_core.engine.definition import (
     ParameterError,
@@ -36,6 +36,7 @@ from dirigent_core.messages import (
     CRON_NO_TIME_AFTER,
     CRON_NO_TIME_BEFORE,
     DUPLICATE_SCHEDULE,
+    INTERVAL_TOO_LONG,
     NO_CRON,
     NO_INSTANT,
     NO_INTERVAL,
@@ -128,6 +129,10 @@ class ScheduleRequest(BaseModel):
         return ScheduleKind.ONE_TIME
 
 
+#: The longest a schedule may wait between firings.
+LONGEST_INTERVAL: Final = timedelta(days=3650)
+
+
 def check_schedule(request: ScheduleRequest) -> None:
     """Refuse a schedule that names no clock, more than one, or a zone or expression nothing can read."""
     declared = [field for field in ("cron", "interval", "at") if getattr(request, field) is not None]
@@ -142,10 +147,14 @@ def check_schedule(request: ScheduleRequest) -> None:
 
 
 def _check_interval(interval: timedelta) -> None:
-    """Refuse an interval the row cannot hold: it is stored as whole seconds."""
+    """Refuse an interval the row cannot hold, as whole seconds in 32 bits, or a date can't be added to."""
     seconds = interval.total_seconds()
     if seconds < 1 or seconds != int(seconds):
         raise ScheduleError(WHOLE_SECONDS, seconds=seconds)
+    if interval > LONGEST_INTERVAL:
+        raise ScheduleError(
+            INTERVAL_TOO_LONG, interval=format_duration(interval), limit=format_duration(LONGEST_INTERVAL)
+        )
 
 
 def check_schedule_params(definition: PipelineDefinition, params: JsonMap, format_checker: FormatChecker) -> None:

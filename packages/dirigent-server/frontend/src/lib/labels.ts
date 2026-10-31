@@ -1114,6 +1114,8 @@ const refused = {
         duplicate: 'Pipeline {pipeline} already has a schedule coded {code}.',
         exactly_one_clock:
             'A schedule declares exactly one of cron, interval, or at. This one declares {named}.',
+        interval_too_long:
+            'A schedule firing every {interval} would not fire again. The longest interval is {limit}.',
         unknown: 'Pipeline {pipeline} has no schedule coded {code}.',
         unknown_timezone: '{name} is not an IANA timezone this host knows. Try UTC or Europe/Oslo.',
     },

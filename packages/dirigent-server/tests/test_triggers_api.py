@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import pytest
 from fastapi.testclient import TestClient
 
 from tests_support import DOCUMENT, apply_document
@@ -504,3 +505,45 @@ def test_a_backfill_leaves_the_concurrency_policy_in_charge_and_says_what_it_ref
     assert windows[0]["run_id"] is not None
     assert [one["run_id"] for one in windows[1:]] == [None, None]
     assert all(one["detail"] == "a run of this pipeline is already in flight" for one in windows[1:])
+
+
+ABSURD_INTERVAL = "3000000d"
+
+
+def _clocked(interval: str) -> dict[str, Any]:
+    return {
+        "format": "dirigent/v1",
+        "code": "clocked",
+        "steps": {"only": {"block": "transform.jq", "config": {"input": 1, "program": "."}}},
+        "triggers": {"schedules": [{"code": "slow", "interval": interval}]},
+    }
+
+
+@pytest.mark.parametrize("interval", [ABSURD_INTERVAL, "3651d"], ids=["past-a-date", "a-day-past-the-longest"])
+def test_apply_refuses_an_interval_past_the_longest_and_stores_nothing(client: TestClient, interval: str) -> None:
+    applied = client.post(f"{PREFIX}/pipelines/$apply", json={"document": _clocked(interval), "paused": False})
+    assert applied.status_code == 200, applied.text
+    plan = applied.json()["plan"]
+    assert plan["action"] == "invalid"
+    assert plan["issues"][0]["location"] == "triggers.schedules[0].slow"
+    assert "the longest interval is" in plan["issues"][0]["message"]
+    assert client.get(f"{PREFIX}/pipelines/clocked").status_code == 404
+
+
+def test_apply_takes_the_longest_interval(client: TestClient) -> None:
+    applied = client.post(f"{PREFIX}/pipelines/$apply", json={"document": _clocked("3650d"), "paused": False})
+    assert applied.status_code == 200, applied.text
+    assert applied.json()["plan"]["action"] == "create"
+
+
+def test_declaring_an_interval_past_the_longest_is_refused(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    declared = client.post(SCHEDULES, json={"code": "slow", "interval": ABSURD_INTERVAL})
+    assert declared.status_code < 500, declared.text
+    assert declared.json()["code"] == "schedule.interval_too_long"
+
+
+def test_previewing_an_interval_past_the_longest_is_refused(client: TestClient) -> None:
+    previewed = client.post(PREVIEW, json={"interval": ABSURD_INTERVAL})
+    assert previewed.status_code < 500, previewed.text
+    assert previewed.json()["code"] == "schedule.interval_too_long"
