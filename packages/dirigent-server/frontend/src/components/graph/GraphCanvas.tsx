@@ -139,6 +139,9 @@ export function GraphCanvas({
     )
 }
 
+/** A fitted canvas routes its edges orthogonally, the way a diagram on a page is drawn. */
+const FITTED_EDGES = { type: 'smoothstep' as const }
+
 /** The box a fitted canvas stands in, whose height follows the drawing at the width it has. */
 function FittedBox({ nodes, children }: { nodes: Node[]; children: ReactNode }) {
     const box = useRef<HTMLDivElement | null>(null)
@@ -209,6 +212,7 @@ function Canvas({
             preventScrolling={!fitted}
             nodes={nodes}
             edges={edges}
+            defaultEdgeOptions={fitted ? FITTED_EDGES : undefined}
             nodeTypes={nodeTypes}
             fitView
             fitViewOptions={fitOptionsFor()}

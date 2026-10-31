@@ -33,14 +33,21 @@ export function connectionOf(config: JsonMap | null): string | null {
  */
 export function RunFailure({
     run,
+    step,
     block,
+    error,
+    code,
     connection,
 }: {
     run: RunOut
+    /** The step the run failed in, where one did. */
+    step: string | null
     block: string | null
+    /** The sentence the step failed with, or the run's own where no attempt said one. */
+    error: string | null
+    code: string | null
     connection: ConnectionOut | null
 }) {
-    const step = run.failed_step
     const params = Object.entries(run.params)
     return (
         <Surface
@@ -52,14 +59,14 @@ export function RunFailure({
                 <h2 className="min-w-0 truncate text-title font-semibold text-critical-ink">
                     {step === null ? run.status : LABELS.runs.failure.heading(step)}
                 </h2>
-                {run.error_code !== null && <Code value={run.error_code} />}
+                {code !== null && <Code value={code} />}
             </div>
             {block !== null && (
                 <div className="mt-1">
                     <Code value={block} />
                 </div>
             )}
-            {run.error !== null && <p className="mt-3 text-base break-words">{run.error}</p>}
+            {error !== null && <p className="mt-3 text-base break-words">{error}</p>}
             {connection !== null && (
                 <Link
                     to={`/connections/${encodeURIComponent(connection.code)}`}

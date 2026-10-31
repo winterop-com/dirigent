@@ -392,11 +392,17 @@ export function RunDetail() {
 
     const verbs = runVerbs(state.run.status)
     const run = state.run
-    const failedNode = state.dag.nodes.find((node) => node.code === run.failed_step) ?? null
-    const named = connectionOf(
-        run.failed_step === null
+    const failedAt =
+        run.failed_step ?? state.dag.nodes.find((node) => node.outcome === 'failed')?.code ?? null
+    const failedNode = state.dag.nodes.find((node) => node.code === failedAt) ?? null
+    const failedAttempt =
+        failedAt === null
             ? null
-            : ((document?.steps[run.failed_step]?.config as JsonMap | undefined) ?? null),
+            : (Object.values(state.attempts).find(
+                  (attempt) => attempt.step_name === failedAt && attempt.status === 'failed',
+              ) ?? null)
+    const named = connectionOf(
+        failedAt === null ? null : ((document?.steps[failedAt]?.config as JsonMap | undefined) ?? null),
     )
     const troubled = run.status === 'failed' || run.status === 'completed_with_errors'
     const took = elapsedBetween(run.started_at, run.finished_at)
@@ -488,10 +494,10 @@ export function RunDetail() {
 
             <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
                 <StatusChip status={run.status} className="text-sm" />
-                {run.failed_step !== null && (
+                {failedAt !== null && troubled && (
                     <span>
                         {LABELS.runs.line.at}{' '}
-                        <Code value={run.failed_step} tone="body" className="text-sm font-medium" />
+                        <Code value={failedAt} tone="body" className="text-sm font-medium" />
                     </span>
                 )}
                 {took !== null && (
@@ -546,6 +552,9 @@ export function RunDetail() {
                 {troubled && (
                     <RunFailure
                         run={run}
+                        step={failedAt}
+                        error={failedAttempt?.error ?? run.error}
+                        code={failedAttempt?.error_code ?? run.error_code}
                         block={failedNode?.block ?? null}
                         connection={
                             named === null ? null : (connections.find((row) => row.code === named) ?? null)
