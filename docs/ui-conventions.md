@@ -46,8 +46,8 @@ this family are on a different primitive underneath the same imports.
 through `React.lazy` and a `Suspense` whose fallback is the same `PageState` loading card every
 read shows. The entry chunk is what every reader pays for on every screen, so it holds the login
 screen, the two listings this app is mostly read through -- pipelines and runs -- and the 404,
-and everything else is fetched when it is opened: run detail and the pipeline editor, because
-React Flow is the canvas nothing else draws on; the dashboard at `/`, which composes a screenful
+and everything else is fetched when it is opened: run detail, a pipeline's page and the pipeline
+editor, because React Flow is the canvas nothing else draws on; the dashboard at `/`, which composes a screenful
 of reads nothing else composes; connections, triggers, schemas, blocks and examples, each
 carrying the forms, the dialogs and the panels nothing else uses; and the three admin screens,
 which most readers of this app are never offered.
@@ -101,37 +101,44 @@ review, because that packaged copy is what a checkout's `dg dev` serves. The gat
 `make check` behind a check for bun, so a machine without bun gets a loud skip rather than a
 failure.
 
-## Three type sizes, and the named sizes outside them
+## Five type sizes, and the named sizes outside them
 
-The scale is 12px, 14px, and 16px. Nothing arrives beside it without a name.
+The scale is 12px, 13px, 14px, 15px and 26px. Nothing arrives beside it without a name. The faces
+stay IBM Plex Sans and JetBrains Mono; what moved is that a page now has a heading somebody can
+find from across the room, and that the working size of a dense screen is a step under its prose.
 
 | Class | Size | What wears it |
 | --- | --- | --- |
-| `text-xs` | 12px | Chips, badges, counts, timestamps, identifiers -- anything read at a glance rather than as prose |
-| `text-sm` | 14px | Any sentence. The body size of the app |
-| `text-base` | 16px | A page heading, and the command palette's search field |
-| `text-stat` | 28px mono | A stat tile's number, and nothing else on any screen |
+| `text-xs` | 12px | Codes in mono, chips, counts, timestamps, a status word -- anything read at a glance rather than as prose |
+| `text-sm` | 13px | The working size: a control's word, a rail entry, a row's description, a fact, a table cell |
+| `text-base` | 14px | Prose: a description's body, a failure's message, a dialog's sentence, the command palette's search field |
+| `text-title` | 15px | A section heading and a listing row's title, at weight 600 |
+| `text-page` | 26px | A page heading, at weight 500, and nothing else on any screen |
+| `text-stat` | 28px mono | A stat's number, and nothing else on any screen |
 | `text-wordmark` | 48px | The login brand lockup's wordmark, and nothing else on any screen |
 | `text-display` | 36px | The sign-in heading, and nothing else on any screen |
-| `--text-graph-title` | 13px | A step's title on a graph, and nothing else on any screen |
+| `--text-graph-title` | 12px | A step's title on a graph, in mono at weight 500, and nothing else on any screen |
 | `--text-graph-small` | 11px | Every other word drawn on a graph: the block or what a source listens to, a badge, a count, a duration, a fan-out's strip, words standing over an empty canvas |
+
+**Mono is for what is typed somewhere else**: a code, a step's key, a block, a kind, a duration, a
+log line, a JSON value. A title, a heading and a sentence are in the sans face, and a code inside a
+sentence is mono at the sentence's own size through `text-[0.88em]`.
 
 The wordmark is a brand mark rather than text: the login screen draws the product's name at
 display size beside its tile, and no other screen may set a heading there.
 
 A graph has two sizes of its own, because it is drawn at the scale of a diagram rather than of a
-page: a node is 160 by 44, and body text does not fit in it. They are set on `.step-node` and
-`.graph-words` in `index.css` rather than on each word, so a word added to a box inherits its size
-and no word on a canvas can come out at the page's.
+page. They are set on `.step-node` and `.graph-words` in `index.css` rather than on each word, so a
+word added to a box inherits its size and no word on a canvas can come out at the page's.
 
-`scripts/check_ui_classes.py` fails the gate on anything outside them, whether the fourth size
-arrives as `text-[13px]` or as `text-lg`. The check has no allowlist -- it knows `text-stat`,
-`text-wordmark`, `text-display` and the two graph sizes by name, and reads `index.css` itself so a fourth size cannot
-be minted there either. A named
+`scripts/check_ui_classes.py` fails the gate on anything outside them, whether the sixth size
+arrives as `text-[17px]` or as `text-lg`. The check has no allowlist -- it knows `text-title`,
+`text-page`, `text-stat`, `text-wordmark`, `text-display` and the two graph sizes by name, and
+reads `index.css` itself so another size cannot be minted there either. A named
 exception can be counted; an allowlist is a check people argue with. It skips
 `src/components/ui/`, because those files are generated and regenerating them is how they are
 fixed. A size one of them carries is said back onto the scale in `index.css`, against its slot: the
-small button's `0.8rem` is `text-xs`.
+small button's `0.8rem` is `text-sm`.
 
 A relative size composes with the scale rather than escaping it, so `text-[0.85em]` on code inside
 a sentence is deliberate and passes.
@@ -169,40 +176,41 @@ read back through the store. The topbar's toggle is the two-way flip over Appear
 is reachable only here.
 
 **Three palettes ship, ordered quiet to loud: `dirigent`, `paper`, `contrast`.** The default is
-near-achromatic surfaces at hue 255; `paper` is the same app on warm paper with warm ink;
-`contrast` is white on black and black on white with every line and every ink pushed to meet
-4.5:1. **The amber is the identity hue in every one of them.** `--primary`, `--ring`,
-`--terminal-accent` and the run status hues keep the hue they have; a palette moves the amber's
-lightness only where its own ground needs it, and "one accent, spent where the app acts" holds
-unchanged in all three. **The surface ladder keeps its order and roughly its steps** in every
-palette, so a component designed against the rungs still reads -- except where a palette's whole
-point is the ground it commits to, and `contrast` collapses page and card onto one white and one
-black, drawing every card by its edge instead.
+the Flow first palette: neutral blue-grey surfaces, softly raised, in a dark and a light mode;
+`paper` is the same app on warm paper with warm ink; `contrast` is white on black and black on
+white with every line and every ink pushed to meet 4.5:1. **The amber is the brand in every one of
+them**, and a palette moves its lightness only where its own ground needs it. **The surface ladder
+keeps its order and roughly its steps** in every palette, so a component designed against the
+rungs still reads -- except where a palette's whole point is the ground it commits to, and
+`contrast` collapses page and card onto one white and one black, drawing every card by its edge
+instead of its shadow.
 
-**The surface ladder** runs `--background` under `--sidebar` under `--card` under
-`--secondary`, and each rung has to be seen. A control has a ground of its own, `--field`, a rung
-below the page in a dark mode and above it in a light one, and it is edged in `--input`;
-`--muted` is the wash a row takes under the pointer. Two lines divide: `--border` between rows
-inside a panel, `--border-strong` between panels. Ink runs `--foreground`, `--muted-foreground`
-for a hint, `--faint` for a timestamp beside a name. Every surface holds hue 255 at chroma at or
-below 0.017, so a long list reads as a surface.
+**The surface ladder is tone and soft elevation, not lines.** `--sidebar` is the rail, a rung under
+`--background`, the page. `--card` is a surface: a listing, a panel on a page, a card on the
+dashboard, raised off the page by `--shadow-surface` rather than edged. `--secondary` is raised:
+a button's fill, a chip, the active rail entry; `--popover` is a dialog and a menu, raised further
+by `--shadow-pop` over a `--scrim`. `--canvas` is recessed: the ground a graph is drawn on and
+the band the examples stand on. `--node` is a box on a graph. A control has a ground of its own,
+`--field`, which is the page's, edged in `--input`, so an empty box reads as a box in both modes.
+`--muted` is the wash a row takes under the pointer. One line divides: `--border`, the hairline
+between rows inside a surface. `--border-strong` is the shell's rule and nothing on a page draws
+it. Ink runs `--foreground`, `--muted-foreground` for a hint and a code, `--faint` for a
+timestamp beside a name. Every surface stays near-achromatic, so status colour is the only colour
+a screen carries.
 
-**The identity colour is amber**, and it is spent on action and nothing else: a primary button,
-the active rail entry, a focus ring. It sits on `--primary` / `--primary-foreground`, because that
-is what every shadcn primitive reaches for. `--accent` keeps shadcn's own meaning -- the wash
-under a pointer -- and is a quiet tint of the same hue.
+**The amber is the brand and the focus ring, and nothing else.** `--brand` fills the mark, and
+`--ring` is every focus ring. **An action is drawn in ink**: the primary button is `--primary`,
+which is the foreground as a fill with the page's colour on it, so the one loud thing on a strip is
+the verb somebody came to press rather than a colour. A secondary button is `--secondary`, a
+quiet one is ink on nothing, and a verb that takes something away is the critical ink on
+`--critical-wash`. **Selection is neutral**: the active rail entry is a `--secondary` fill and
+weight 600, a chosen box on a graph is a ring in the foreground, and a chosen row is the
+`--muted` wash held.
 
-**`--primary-ink` is the amber as text, and it is worn by the door's eyebrow and by a link.**
-A fill is a ground with its own ink on it, so a light palette's `--primary` is taken down far
-enough to carry light text and does not hold 4.5:1 as text itself; the ink twin is the same hue
-taken further down until it does, and in a dark mode, where the accent already is an ink, it is
-`--primary`. It is the same `-ink` pairing every status hue has. Behind the door the amber stays
-a fill and an inline link's ink and nothing else: a link is a thing the reader can press, so it
-wears the colour that means action, and it wears the ink twin because it is text. A screen that
-set a heading, a label or a hint in it would be spending that colour on something nobody can
-press.
-`scripts/check_ui_classes.py` refuses a bare `text-primary` anywhere in the app's own source:
-amber on the ground is `text-primary-ink`.
+**`--primary-ink` is the amber as text, and it is worn by the door's eyebrow alone.** A link is
+ink, underlined on hover, and an aside link beside a section heading is the muted ink: a link
+names a place, and a place is not news. `scripts/check_ui_classes.py` refuses a bare
+`text-primary` anywhere in the app's own source, because the primary is a fill.
 
 **Status is named for the state machine.** `--status-succeeded`, `--status-failed`,
 `--status-running`, `--status-waiting`, `--status-queued`, `--status-pending`,
@@ -229,11 +237,12 @@ far from hue 80, because that hue is the identity colour and means action.
 
 **Both modes, every time.** This app was designed dark first and the light one is its
 inversion, not a second design: the same hues, the lightness ladder turned over. A token changed
-on one side is checked on every surface that consumes it on the other -- a primary that reads as
-the brand on near-black can read as mustard on near-white, a control filled by a rung that is a
-clear step in one mode can be invisible in the other. `--primary` carries dark ink in the dark
-mode and light ink in the light one, for that reason and no other. A palette is checked the same
-way, on both of the modes it has.
+on one side is checked on every surface that consumes it on the other -- an amber that reads as
+the brand on near-black can read as mustard on near-white, and a raised fill that is a clear step
+on the dark page is white on near-white in the light one, which is why a secondary button there
+also carries a hairline ring. The light mode's shadows are a fraction of the dark mode's, because
+a shadow on a pale ground reads as dirt long before it reads as depth. A palette is checked the
+same way, on both of the modes it has.
 
 **The app has one decorative element, and it is on the login screen.** The brand pane carries a
 graph of steps above the lockup, filled in `--terminal-node` and edged in `--terminal-node-edge`
@@ -286,14 +295,17 @@ the drawing is spread across it and shrunk instead, which is what keeps a step's
 beside it. The lockup and the facts are anchored to the foot of the pane, so neither moves between
 a short pane and a tall one.
 
-**The radius ladder** is crisp: 1px for a chip, 2px for a control, 2px for a card, a panel and a
-dialog, stated in `@theme` rather than derived. A corner that reads as soft or pill-shaped makes a
-dense data screen look generic, so nothing but a status dot or an avatar is fully round: not a
-chip, a switch, a port on the canvas or a scrollbar. Tailwind's middle rungs are flattened onto
-the ladder -- `rounded-lg` through `rounded-4xl` are all the card's 2px -- so a shadcn primitive
-that ships `rounded-xl` lands on it without being edited, and a generated `rounded-full` is said
-back onto a rung in `index.css` against its slot. The login's brand tile stands on the ladder like
-everything else.
+**The radius ladder is four rungs, each for one kind of thing**: 8px for a surface -- a card, a
+listing, a panel, a dialog, a menu, a graph's ground; 6px for a box on a graph and the brand
+tile; 5px for a control and a chip; 3px for a box on a miniature graph. They are stated in
+`@theme` rather than derived, as `--radius-surface`, `--radius-node`, `--radius-control` and
+`--radius-mini`. A ladder of 1 and 2 read as square, and one of 10 and 12 read as a template, so
+the step between rungs is what says which kind of thing a corner belongs to. Nothing but a status
+dot is fully round: not a chip, a switch, an avatar, a port on the canvas or a scrollbar.
+Tailwind's rungs are mapped onto the ladder -- `rounded-sm` and `rounded-md` are the control's 5px,
+`rounded-lg` through `rounded-4xl` the surface's 8px -- so a shadcn primitive that ships
+`rounded-xl` lands on it without being edited, and a generated `rounded-full` is said back onto a
+rung in `index.css` against its slot.
 
 ## `apiFetch` is the only fetch
 
@@ -385,6 +397,12 @@ again, so no two screens can disagree about a name that is whitespace, the code 
 twice, and the string somebody would paste into a URL or type into a document is in the same
 place on every screen. A screen that showed only the name would be a screen nobody can act
 from.
+
+**A code in mono never wraps mid-word.** `report-daily-digest` broken onto two lines at `daily-` is
+a different string to somebody copying it, so a code is one line and nothing else: where it does
+not fit it truncates with an ellipsis and carries the whole of itself on `title`. `components/ds/Code`
+is that rule written once, and every code on a screen -- beside a title, in a fact, on a node, in a
+row -- is drawn through it rather than through a bare `font-mono` span.
 
 **A listing headed by titles is ordered by them.** The API answers a listing in code order, and a
 screen that drew the names but kept the codes' order would read as no order at all -- so the
@@ -508,13 +526,13 @@ heading over the table is the kind, and no id, because a row's key is not someth
 reads. A row whose height depended on how many chips it wore would make a listing of twenty rows
 a listing of twenty heights.
 
-**A connection row is one line, 44px, and three cells.** The lead cell is `headingOf`'s pair drawn
-across rather than stacked -- the title, the kind chip, and the code in mono where the title is
-not already the code -- and nothing stands under it. What a credential is pointed at is read on
-the connection's own dialog: a settings line per row is a column
-of `url=` and `timeout=` to scan past before the health cell is reached, and it pushes the cells
-that matter off the side of the table. There is no description column either, for the same
-reason and because a description is the dialog's. **A healthy connection is a bare dot, and failed or
+**A connection row is two lines and three cells.** The lead cell is `headingOf`'s pair drawn
+across -- the title, and the code in mono where the title is not already the code -- with the
+description's first line under it in the muted ink, truncated, which is what a credential is for
+said in the words of whoever set it up. Then the kind, its mark and its code in mono, and the
+health. What a credential is pointed at is read on the connection's own dialog: a settings line
+per row is a column of `url=` and `timeout=` to scan past before the health cell is reached.
+**A healthy connection is a bare dot, and failed or
 unknown gets the word**, which is the top bar's rule: words only when something is wrong. The dot
 is 8px; the words are `healthOf`'s -- `failed`, `never checked`{ .label }, `not verified`{ .label }, and `healthy` as
 the bare dot's tooltip -- in the channel strip's three colours: green where the last check
@@ -597,16 +615,17 @@ and repeating it narrows, so the control is a menu of checkboxes rather than a c
 chosen tag stands next to it as a chip that removes itself. Where a row already draws its tags,
 the chip on the row adds it to that set: the filter is reached from the thing that shows what to
 reach for. Where a row's tags would be the same words repeated down a column -- every run of one
-pipeline -- the rows carry none and only the filter does. On the pipelines screen the set lives
-in the address (`?tag=`) so a narrowed listing is a link somebody sends, and it is replaced
+pipeline -- the rows carry none and only the filter does, and a pipeline's row carries none
+because its shape and its sentence are what it says about itself. On the pipelines screen the set
+lives in the address (`?tag=`) so a narrowed listing is a link somebody sends, and it is replaced
 rather than pushed, because a filter being assembled is one destination and not five. The runs
 screen carries the same control beside its own three, seeded from the address once and held in
 state after: a control that wrote every keystroke back would put a history entry behind each one.
 
 **A tag on a row is the filter's own door.** `components/TagChip` is a chip until it is given
 `onSelect`, and then it is a button saying "Filter by <tag>" that adds that tag to the set the
-table is already narrowed by rather than replacing it. The pipelines table is where that lives,
-because a tag drawn on a row somebody cannot press is a fact with a gesture missing from it.
+listing is already narrowed by rather than replacing it, because a tag drawn on a row somebody
+cannot press is a fact with a gesture missing from it.
 
 **A column's heading is a label, whatever the cells under it are.** A column of codes draws its
 values in mono and its heading in the sans face, because the heading is the same word in the same
@@ -674,8 +693,22 @@ is prose and truncates in what is left with the whole of it on its title, and th
 value out of a fixed vocabulary and holds its own. Nothing on such a row is `shrink-0` unless
 it is short by construction, or the row's minimum is wider than the card and the card scrolls
 inside itself -- the same defect as a listing that scrolls sideways. A card whose row cannot be
-read at a third of the width takes the whole width instead: the chart and the health card share
-a row at `xl` and stack under it, the way the tiles above them go six across only there.
+read at a third of the width takes the whole width instead: the chart's column and the health
+column share a row at `xl` and stack under it.
+
+**The dashboard says what needs somebody first, then how things are going.** Its first section is
+the runs that need a look -- every pipeline whose newest run failed or completed with errors,
+one row each, led by the pipeline's miniature with the failed step filled, then the title and
+code, the step and the sentence it failed with, the status word, how long ago, how many runs
+that is where it is more than one, and the catalogued code. Where nothing needs a look the section
+is not drawn, because a heading over nothing is a wall of one zero. Then two columns: the runs of
+the last day by the hour, with the failed and the troubled parts of each bar in their hues and the
+rest in a neutral ink, because a green bar is the loudest thing on a page where nothing is wrong;
+and under it how long each pipeline took, the median of its runs in that day. Beside them the
+health of what the runs depend on -- each connection that is not healthy by name with its word,
+a count of how many are, and every worker. Last, the most recent runs, one line each, with
+`All runs`{ .label } beside the heading. There are no stat tiles: a number that is zero on a good day is a
+number nobody reads on a bad one.
 
 **The tags fold to the room they have rather than wrapping into it.** Chips are one line: a row
 whose height depends on how many words it wears makes a listing of twenty rows a listing of
@@ -703,12 +736,65 @@ the foot in both numbers**, as the `{one, many}` pair its `count` entry holds, a
 `noun` prop takes that pair rather than a word: a foot handed one plural would have to reach the
 singular by rule, and the rule that makes a batch out of batches makes an entrie out of entries.
 
+## A pipeline is listed by its shape
+
+**A pipeline's row leads with its miniature graph**, because what a pipeline does is the shape of
+its steps before it is any sentence about them. `components/graph/MiniGraph` draws it from
+`PipelineOut.shape` -- the current version's steps reduced to a key, a block or the kind a source
+listens to, what each depends on and whether it fans out -- and from nothing else, so a listing of
+fifty pipelines is one request. Then the title, the code in mono beside it, and the description's
+first sentence under them, which is what a description's first sentence is written for. What
+fires it and how it last ran stand after that **only where they exist**: a schedule count and the
+kind of each source as chips, and the last run as its status word and how long ago. A pipeline
+that has never run says nothing there, never "never run", because a column of the same words is
+a column that says nothing. The row is the link to the pipeline's page, so it draws no arrow, and
+the listing draws no panel.
+
+**A miniature is drawn the same way everywhere.** A box is 14 by 10 at the miniature rung; a step
+that fans out is a box with a second one stacked behind it; a source is a dashed box on no fill;
+a step the last run failed in is filled in the failed hue, which is the only colour a miniature
+ever carries. Ranks are the longest path to a step, read left to right, and a rank's steps stack
+down. An edge is drawn only where it changes the shape -- an edge another path already implies is
+left out, so a step that waits for everything before it does not draw a fan of lines -- while the
+full graph on the pipeline's page keeps every one. **The scale is shared and capped**: every
+miniature is drawn at the same 22px per rank, so a longer strip is a longer pipeline, until the
+lead cell's width is reached, and a pipeline deeper than that is drawn smaller rather than cut.
+
+**A person's own pipelines and the shipped examples are two lists.** `PipelineOut.example` says
+whether a pipeline's code is one the installed example corpus ships. The person's own come first,
+on a raised surface, at a row's full height, ordered by title. The examples come after, under
+their own heading, on a recessed band at the canvas rung with denser rows: a short set, the ones
+that have run first and most recently, and a link counting all of them to open the rest in place. A screen
+whose examples outnumbered the person's own by twenty to one would otherwise be a screen about
+the examples. Where every pipeline on an instance is an example, the person's list is not drawn,
+and where none is, the band is not.
+
+**The search box and the tag filter narrow both lists**, the tags on the server and the search
+over what was read, and the counts beside each heading are what is left.
+
+## The pipeline's page leads with its graph
+
+**A pipeline's page is its graph first.** The title, the code in mono under it, and Edit,
+Validate and `Run…` at the right of the heading; the description; then the graph on the canvas
+ground, then three panels side by side -- Blocks, which block each step runs with the steps as
+chips that choose them on the graph; Triggers, the schedules and sources that fire it; and
+Connections, what it reaches and how each one is. `Edit` opens the editor at
+`/pipelines/<code>/edit`, which is the screen the rest of this page's editing rules are about;
+`Validate` dry-runs the stored version against the instance as it is now and says the answer in
+one line.
+
+**The graph is fitted, never scrolled.** At 1440 wide a pipeline's graph is drawn whole on the
+page with no scrollbar of its own: the canvas is as tall as the drawing it holds rather than a
+fixed stage, the drawing is scaled down where it is wider than the page and never up past its own
+size, and a graph too deep for the width is wrapped onto rows the way every canvas wraps one.
+Choosing a box says under the graph which block it runs, what it waits for and what it feeds.
+
 ## A graph is a shape, and each screen reduces its own to it
 
 `lib/dag-layout` knows nothing about runs or documents. A run's graph is its pinned definition
 with a state on each node; the editor's is the stored document with an edit mark on each. The
-geometry of the two is one problem, so what elk is handed is an id and a height per node and a
-pair per edge, and each screen reduces its own shape to that. `components/graph` is where React
+geometry of the two is one problem, so what elk is handed is an id, a width and a height per node
+and a pair per edge, and each screen reduces its own shape to that. `components/graph` is where React
 Flow and elk are actually imported -- the canvas with this app's props on it, the hook that asks
 elk for positions, and the door that fetches the engine -- and both graph components are lazy, so
 the two of them share one async chunk rather than shipping two copies.
@@ -728,7 +814,7 @@ setting rather than left to a stylesheet to hide -- and the stylesheet stops the
 well, so a frame rendered before the preference lands is still still.
 
 **Layout is recomputed on the shape, not on the state.** `signatureOf` is what the elk call is
-keyed on: which nodes there are, how tall each is, and what joins them. A step going from running
+keyed on: which nodes there are, how wide and how tall each is, and what joins them. A step going from running
 to succeeded moves nothing, and neither does typing into a config field.
 
 ## A form is a JSON Schema, read once
@@ -1138,8 +1224,9 @@ word that names one of those needs no gloss under it. **They are grouped by what
 to do**: Dashboard alone at the head; Operate (Runs, Triggers); Build (Pipelines, Connections,
 Schemas); Reference (Blocks, Examples); and, for an admin, Admin (Users, Workers, Alerting). `lib/nav`
 is the array the rail draws and the palette offers, and the line an entry carries about itself is
-data on the entry that the palette reads. The active entry wears a slim bar in the gutter, which
-survives the collapse.
+data on the entry that the palette reads. The active entry is a raised fill at weight 600, and a
+group's name over its entries is the faint uppercase label at `text-xs`; collapsed, the fill is the
+icon's tile.
 
 ## Small screens
 
@@ -1292,10 +1379,10 @@ the reader's problem rather than the screen's. The blocks catalog is the one scr
 kinds and draws none: its rows are the registries themselves, where the kind is the row rather
 than what the row is, and it lists schemes and notifiers in the same shape beside them.
 
-**The mark does not take the kind's word off a chip.** Where the kind is carried as a `kind-chip`
--- the connections listing's row, the connection's dialog -- the chip keeps its word and
-its family hue: a chip is the value somebody reads to know what to narrow a listing by or type
-into a document, and a mark cannot be typed. Where there is no chip the mark stands with the code
+**The mark does not take the kind's word away.** Where the kind is said -- the connections
+listing's row and the connection's dialog, as the mark and the kind in mono, with no hue, because
+status is the only colour those two carry -- the word stays beside the mark: it is the value
+somebody types into a document, and a mark cannot be typed. Where it is not said the mark stands with the code
 alone and the kind is not spelled twice: a channel chip and a rule's target are the mark and the
 code and nothing else. The dialog's kind rows and the editor's reference row spell it as well,
 for the reason the picker's rows do -- the kind is half of what the row is found by, and the
@@ -1584,7 +1671,14 @@ refuse, a carried code that collides with what the instance holds, a connection 
 created: in each the apply cannot proceed, so the button is absent and the sentence beside the
 rows is what says why. **The exception is a control shut by who somebody is**, which stays drawn
 and shut with its reason, because that is a courtesy about the account rather than a claim about
-the document -- and it is how somebody learns the verb exists and is not theirs.
+the document -- and it is how somebody learns the verb exists and is not theirs. **A run's verbs
+are the second exception**: what a run allows changes under the reader as it moves, so Pause,
+Resume, Cancel and Rerun keep their places and are shut there with the reason, as the run screen
+says below.
+
+**A shut control looks shut.** It drops its fill for a hairline ring on no ground, its word goes to
+the muted ink at weight 400, and the pointer over it is `not-allowed` -- so a shut verb beside an
+open one is never read as the quieter of two open ones.
 
 **A form that is not filled in yet is not this rule.** A confirm shut because a required box is
 empty, because a write is in flight, or because the reader has not typed what the kind asks for,
@@ -1655,8 +1749,16 @@ them is said in `index.css` against their slots, never by editing them.
 
 ## A graph fits what it draws
 
-**A node is 160 by 44 and two lines, on both canvases.** The title, and under it the block it runs,
-with the key in front where the title is a name. A document's config is a map of any size and one
+**A node is 44 tall, two lines, and as wide as its words, on every canvas.** The title in mono, and
+under it the block it runs, with the key in front where the title is a name. **No key is ever
+cut**: a node's width is read off the longer of its two lines -- both are mono, so a width is
+arithmetic over their characters -- plus its padding and its dot, with a floor of 96px, and elk is
+handed that width for each box so the layout leaves room for it. A name, which is free text, is
+the one word that may truncate, with the whole of it on hover. A box is filled in `--node`, edged
+in a line a step above the canvas, and lifted by a shadow of its own; a status is the only colour
+on it -- a succeeded box takes the succeeded edge, a failed one the failed edge at 1.5px over a
+wash of the same hue, a skipped one a dashed edge on no fill -- and a chosen box is ringed in the
+foreground, which is no colour at all. A document's config is a map of any size and one
 truncated line of it crowds the box, so the step's own pane holds the whole of it. A step whose
 `for_each` fans it out says so on the second line -- a stacked glyph and the count, or the word
 "each" where the list is an expression a run resolves -- in the neutral ink that line is already in,
@@ -1669,8 +1771,8 @@ from a step's output has expanded, that strip is the faint words `waits for <ste
 its height when the elements arrive. Elk is told the height each is actually drawn at, or the rows
 come out spaced for a box that is not there.
 
-**Every word on a box truncates, and the whole of it is on hover.** A title, a key and a block each
-carry their full value on their own `title`, with what the step is doing after it on a run.
+**Every word on a box carries its whole value on hover.** A title, a key and a block each carry
+their full value on their own `title`, with what the step is doing after it on a run.
 
 **A source says what it listens to where a block would be.** A step with `source:` runs no block, so
 its second line is what it listens to and its title leads with `ICONS.source`, on a dashed box. In
@@ -1679,7 +1781,12 @@ or what a polled kind says of itself -- and the document's `kind` until an apply
 run it is the kind, which is what the pinned graph carries. A step with neither says `no block`{ .label }.
 
 
-Both canvases open with the whole DAG in view: `fitView` with padding, held between the two
+**A canvas on a page is as tall as its drawing.** The pipeline's page and the run's page draw the
+graph in a box whose height follows the layout's own proportions at the zoom the width allows, so
+a five-step chain is a strip and not a stage with a strip floating in it. The editor is the one
+canvas that keeps a stage, because it is a workspace somebody adds to.
+
+Every canvas opens with the whole DAG in view: `fitView` with padding, held between the two
 bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` is 1, so a fit never draws a box above its own size and a pipeline of two boxes is
 not magnified to fill the space. `FIT_MIN_ZOOM` is 0.8, so a fit never draws a 13px title under
 10.4px or an 11px word under 8.8px. **Past that floor the graph is not shrunk: it stays at the floor,
@@ -1763,6 +1870,26 @@ to ask what to call it, so `transform.jq` lands as `jq` and the next one as `jq_
 step's own pane is where it is renamed -- alongside everything else about it.
 
 ## The run screen
+
+**What failed, why, and in which step lands above the fold.** The heading is the pipeline's title
+with its code and the run's instant in mono under it; one line under that says the status word,
+the step it ended at, how long it took and who started it; then the graph, as tall as its drawing.
+Under the graph a run that did not end well stands its failure and its log side by side: the
+failure on the critical wash -- the step in mono, the block, the catalogued code, the sentence the
+step failed with, the connection the step named with its health where it named one, and the
+parameters the run was given -- and beside it the run's log lines, latest first, the failing ones
+on the same wash with the fields they carried under them. At 1440 by 900 both start above the
+fold, because a reader opening a failed run is asking one question and the answer is "the step's
+log carries what it raised". A run that ended well has no failure to stand, and its log takes the
+width. Choosing a box on the graph narrows the log to that step and opens it in the panel; the
+terminal, behind `T`, is still the whole console with its filters.
+
+**A run's verbs stand in one place whatever the run is doing.** Pause, Resume, Cancel and Rerun are
+always drawn at the right of the heading, in that order, and a verb the run's state does not allow
+-- Pause on a paused run, Resume on a running one, any of the first three on a run that has
+finished -- is shut in place with `aria-disabled` and its reason on hover and on focus. A row of
+verbs that grew and shrank with the run's state is a row nobody can learn where Rerun is in.
+Rerun is the primary while the run is settled, and Cancel takes the critical wash while it is not.
 
 **A run is named by when it started.** A run has no name of its own and its id is a handle for
 machines, so what heads one is its pipeline's code and the instant it began, spelled the house way
@@ -2077,8 +2204,11 @@ no frame of its own.
 | `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm, or of `verbs` on a dialog that reads one thing |
 | `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. A refusal off the wire is one short line, with no box and no second naming of the thing. A verb that cannot go without one value holds that one field: a password reset's new password. No such verb is immediate |
 | `SecretReveal` | A secret the server answers with once: the value in mono, a copy button that says it copied and resets, and the line saying it is shown once |
-| `PageHeader`, `SplitButton` | A screen's heading. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `trail` for a detail screen. No subtitle |
-| `TextLink` | Every link that is text. `inline` in prose, `data` for a number or a reference in a table, `external` with its mark and a new tab. The one amber treatment of text, and nothing but a link wears it |
+| `PageHeader`, `SplitButton` | A screen's heading, at `text-page`. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `code` under it in mono for a detail screen; a `trail` for a detail screen. No subtitle |
+| `TextLink` | Every link that is text. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table, `aside` in the muted ink beside a section heading, `external` with its mark and a new tab |
+| `Code` | Every code, key, block and kind in mono. One line, truncated with an ellipsis, the whole value on `title`; `tone` is the muted ink beside a title or the body ink where the code is the value |
+| `Surface` | A raised surface on a page: `raised` is the card rung with its shadow, `recessed` the canvas rung with none, `critical` the failure wash. 8px, inset 16px unless its rows lay out their own |
+| `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface
 draws a mark for -- create, edit, delete, run, rerun, pause, resume, cancel, refresh, recheck,
@@ -2089,7 +2219,7 @@ and no two concepts to the same one: fitting the canvas is
 `Scan` and opening a pane in a window is `Maximize2`. A page or a component that needs a mark
 with no concept adds the concept there. A kind's mark is still `lib/glyphs`.
 
-**Nothing is fully round but a status dot and an avatar.** A chip, a control, a card, a dialog
+**Nothing is fully round but a status dot.** A chip, a control, a card, a dialog, an avatar
 and a switch take the radius ladder's rungs, and no class names a radius of its own.
 
 **`scripts/check_ui_system.py` holds the system**, in `make static` and `make ui-lint`. Under
