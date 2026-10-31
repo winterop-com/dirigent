@@ -473,6 +473,10 @@ its pipeline are read again after it. A body that has not arrived whole within
 `DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,
 so a stranger who stops sending holds one socket for that long and nothing the API shares.
 
+**A value no database can hold is stored as text.** A JSON answer from an outside service can hold
+half a surrogate pair, which JSONB refuses and no response can encode. Every JSON column writes one
+as the six characters of its escape, so the step settles once and its run stays readable.
+
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
 the step's timeout and the lease heartbeat keep running over a value of any size, and
 `uniqueItems` costs time in step with the array. Two limits remain. A thread cannot be stopped, so

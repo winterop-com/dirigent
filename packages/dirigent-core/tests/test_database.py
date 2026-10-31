@@ -1,6 +1,7 @@
 """How a transaction is opened, and running one again when the database broke a deadlock."""
 
 import asyncio
+import json
 import sqlite3
 import threading
 import time
@@ -21,6 +22,7 @@ from dirigent_core.database import (
     is_deadlock,
     open_sqlite,
     session_scope,
+    storable_json,
     with_deadlock_retry,
 )
 
@@ -228,3 +230,9 @@ async def test_a_connection_that_never_opened_takes_its_thread_with_it(
     with pytest.raises(sqlite3.OperationalError):
         await open_sqlite(str(blocker / "dirigent.db"))
     assert threads and not threads[0].is_alive(), "the connection's thread outlived the attempt that failed"
+
+
+def test_a_json_column_holds_half_a_surrogate_pair_as_the_text_of_its_escape() -> None:
+    held = json.loads(storable_json({"lone \udc80": ["a \ud800 b"], "pair": "\U0001f600", "slash": "\\udc80"}))
+    assert held == {"lone \\udc80": ["a \\ud800 b"], "pair": "\U0001f600", "slash": "\\udc80"}
+    assert storable_json({"plain": [1, None, True, "blå"]}) == '{"plain": [1, null, true, "blå"]}'
