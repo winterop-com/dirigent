@@ -45,6 +45,7 @@ from dirigent_common.names import (
     step_name_error,
 )
 from dirigent_common.programs import JQ_MEDIA_TYPE, SHELL_MEDIA_TYPE, SQL_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE
+from dirigent_common.redaction import REDACTED, scrub, scrub_json, secrets_of, spellings
 from dirigent_common.schema_references import LOCAL_REFERENCES, Unresolvable
 from dirigent_common.schema_values import ValueValidator
 from dirigent_common.schemas import BlockModel, HealthReport, HttpConnectionConfig
@@ -66,6 +67,7 @@ from dirigent_common.versions import API_VERSION
 
 __all__ = [
     "LOCAL_REFERENCES",
+    "REDACTED",
     "BoundedLoader",
     "Unresolvable",
     "ValueValidator",
@@ -125,7 +127,11 @@ __all__ = [
     "parse_duration",
     "parse_size",
     "render",
+    "scrub",
+    "scrub_json",
+    "secrets_of",
     "spelled",
+    "spellings",
     "step_name_error",
     "to_timedelta",
     "raised_detail",

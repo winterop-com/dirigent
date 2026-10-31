@@ -24,7 +24,7 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_common import JsonMap
+from dirigent_common import JsonMap, scrub
 from dirigent_core import wakeups
 from dirigent_core.database import session_scope
 from dirigent_core.engine.context import ConnectionRecord, load_connections, open_record
@@ -90,10 +90,12 @@ class Holder:
 
     async def _hold(self, taken: Taken) -> None:
         """Keep one source's consumer open until it is let go, then release or back off its lease."""
+        opened: set[str] = set()
         try:
-            await hold(self.sessions, self.services, taken, owner=self.owner, stopping=self._stopping)
+            await hold(self.sessions, self.services, taken, owner=self.owner, stopping=self._stopping, opened=opened)
         except Exception as error:  # the source's failure, recorded on its row and backed off
-            await _failed(self.sessions, self.services, taken.source_id, owner=self.owner, error=_said(error))
+            said = _said(error, opened)
+            await _failed(self.sessions, self.services, taken.source_id, owner=self.owner, error=said)
             return
         await _release(self.sessions, taken.source_id, owner=self.owner)
 
@@ -136,8 +138,12 @@ async def hold(
     *,
     owner: str,
     stopping: asyncio.Event,
+    opened: set[str],
 ) -> None:
-    """Open the source's consumer and turn what it receives into runs, until the source is let go."""
+    """Open the source's consumer and turn what it receives into runs, until the source is let go.
+
+    ``opened`` collects the secrets the consumer opens, for whoever writes what stopped it.
+    """
     async with sessions() as session:
         row = await session.get(Source, taken.source_id)
         found = held(services.sources, row) if row is not None else None
@@ -151,7 +157,7 @@ async def hold(
         resolve(cast("JsonValue", declared), ReferenceScope(artifacts=services.storage.artifact_root))
     )
     mark = wakeups.hub.mark(wakeups.SOURCES, f"{taken.pipeline}/{taken.code}")
-    ctx = _HoldContext(storage=storage, connections=connections, services=services)
+    ctx = _HoldContext(storage=storage, connections=connections, services=services, opened=opened)
     settings = services.settings
     async with kind.listen(config, ctx) as listener:
         await _opened(sessions, taken.source_id, owner=owner)
@@ -304,19 +310,27 @@ async def _failed(
     _logger.warning("held source failed", source=str(source_id), failures=failures, error=error)
 
 
-def _said(error: Exception) -> str:
-    """The line a failure is recorded with."""
-    return str(error) or type(error).__name__
+def _said(error: Exception, secrets: set[str]) -> str:
+    """The line a failure is recorded with, with no secret the source opened in it."""
+    return scrub(str(error), secrets) or type(error).__name__
 
 
 class _HoldContext:
     """What a held kind reaches while it listens."""
 
-    def __init__(self, *, storage: Storage, connections: dict[str, ConnectionRecord], services: EngineServices) -> None:
+    def __init__(
+        self,
+        *,
+        storage: Storage,
+        connections: dict[str, ConnectionRecord],
+        services: EngineServices,
+        opened: set[str],
+    ) -> None:
         """Hold the storage and the connection snapshot this consumer was opened with."""
         self._storage = storage
         self._connections = connections
         self._services = services
+        self._opened = opened
 
     @property
     def log(self) -> Logger:
@@ -334,7 +348,7 @@ class _HoldContext:
         if record is None:
             known = ", ".join(sorted(self._connections)) or "none are configured"
             raise LookupError(RUN_UNKNOWN_CONNECTION.render(ref=repr(ref), available=known))
-        return open_record(self._services.secrets, record, model, self._services.connection_models)
+        return open_record(self._services.secrets, record, model, self._services.connection_models, opened=self._opened)
 
 
 class _ProcessLog:

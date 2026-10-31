@@ -873,6 +873,14 @@ connection that does not validate against the configuration it was read for fail
 neither failure writes a secret into a run's attempts, its logs, a source's `last_error`, or a
 process log.
 
+A connection's `bearer_token` or `api_token` holding a control character, or a blank at either
+end, is refused when it is stored (`secret.not_sendable`, 422), because no HTTP header can carry
+it and the HTTP library refuses it by quoting the whole header. Whatever such a value already
+stored, or any other secret, makes a library say is scrubbed by what writes it down: a connection
+check's detail, a notification's error, a step's failure and log, and a source's `last_error` hold
+`***` in its place. Rows written before this are not rewritten, so a token that reached them is
+rotated.
+
 That is what makes a redacted read editable. `PATCH /api/v1/connections/{code}` replaces the
 config whole, and a secret field carrying the marker means **keep what is stored** -- the
 sealed value is put back before the config is validated and sealed again, so changing a base

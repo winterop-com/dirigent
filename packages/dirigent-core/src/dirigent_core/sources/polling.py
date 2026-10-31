@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import InputOutcome, TriggerKind
-from dirigent_common import JsonMap
+from dirigent_common import JsonMap, scrub
 from dirigent_core import telemetry
 from dirigent_core.database import session_scope
 from dirigent_core.engine.context import ConnectionRecord, build_http_client, load_connections, open_record
@@ -167,14 +167,15 @@ async def poll_one(
         return PollOutcome(source_id=claimed.source_id, runs=[])
     kind = found[0]
     started = time.monotonic()
+    ctx = _PollContext(storage=storage, services=services, step=row.code, connections=connections)
     try:
         config = kind.config_model.model_validate(
             resolve(cast("JsonValue", row.config), ReferenceScope(artifacts=services.storage.artifact_root))
         )
-        ctx = _PollContext(storage=storage, services=services, step=row.code, connections=connections)
         answer = await kind.poll(config, cursor, ctx, claimed.room)
     except Exception as error:  # a kind's failure is the source's, recorded and backed off
-        return await _failed(sessions, services, claimed, owner=owner, error=str(error) or type(error).__name__)
+        said = scrub(str(error), ctx.opened_secrets) or type(error).__name__
+        return await _failed(sessions, services, claimed, owner=owner, error=said)
     return await _settle(sessions, services, claimed, kind, answer, owner=owner, started=started)
 
 
@@ -325,6 +326,8 @@ class _PollContext:
         self._services = services
         self._step = step
         self._connections = connections
+        self.opened_secrets: set[str] = set()
+        """Every spelling of every secret this poll has opened, kept out of what it fails with."""
 
     def sensor_context(self, *, block: str, cursor: JsonMap | None, started_at: datetime) -> StepContext:
         """A context for one poke outside any run, whose run id is a property that refuses."""
@@ -336,6 +339,7 @@ class _PollContext:
             storage=self._storage,
             services=self._services,
             connections=self._connections,
+            opened=self.opened_secrets,
         )
         return cast("StepContext", outside)
 
@@ -366,6 +370,7 @@ class _OutsideRun:
         storage: Storage,
         services: EngineServices,
         connections: dict[str, ConnectionRecord],
+        opened: set[str],
     ) -> None:
         """Bind the context to one poke."""
         self._block = block
@@ -378,6 +383,7 @@ class _OutsideRun:
         self._storage = storage
         self._services = services
         self._connections = connections
+        self._opened = opened
 
     @property
     def run_id(self) -> UUID:
@@ -419,7 +425,7 @@ class _OutsideRun:
     def connection[C: BaseModel](self, ref: ConnectionRef, model: type[C]) -> C:
         """Resolve a connection by code, opened and validated against the sensor's own model."""
         record = self._record(ref)
-        return open_record(self._services.secrets, record, model, self._services.connection_models)
+        return open_record(self._services.secrets, record, model, self._services.connection_models, opened=self._opened)
 
     def storage_connection[C: BaseModel](self, scheme: str, model: type[C]) -> C | None:
         """Resolve the connection this instance configures a storage scheme from, or None."""
