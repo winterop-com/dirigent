@@ -29,7 +29,7 @@ from dirigent_client.enums import (
 )
 from dirigent_common import JsonList, JsonMap
 from dirigent_core.ids import uuid7
-from dirigent_core.types import BigId, JsonDocument, Timestamp, string_enum
+from dirigent_core.types import BigId, JsonDocument, SaidText, Timestamp, string_enum
 
 #: Predictable constraint and index names, so migrations can always address them.
 NAMING_CONVENTION = {
@@ -159,7 +159,7 @@ class Connection(Entity):
     secret_key_id: Mapped[str | None] = mapped_column(sa.String(100))
     last_check_at: Mapped[datetime | None] = mapped_column(Timestamp)
     last_check_healthy: Mapped[bool | None] = mapped_column(sa.Boolean)
-    last_check_detail: Mapped[str | None] = mapped_column(sa.Text)
+    last_check_detail: Mapped[str | None] = mapped_column(SaidText)
 
 
 class Schema(Entity):
@@ -217,7 +217,7 @@ class Run(Entity):
 
     traceparent: Mapped[str | None] = mapped_column(sa.String(64))
     """The trace context the run was created in, which every attempt of it opens under."""
-    error: Mapped[str | None] = mapped_column(sa.Text)
+    error: Mapped[str | None] = mapped_column(SaidText)
     error_code: Mapped[str | None] = mapped_column(sa.String(128))
     error_params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     started_at: Mapped[datetime | None] = mapped_column(Timestamp)
@@ -268,7 +268,7 @@ class RunItem(Entity):
         string_enum(RunItemStatus, "run_item_status"), nullable=False, default=RunItemStatus.PENDING, index=True
     )
     failing_step: Mapped[str | None] = mapped_column(sa.String(200))
-    error: Mapped[str | None] = mapped_column(sa.Text)
+    error: Mapped[str | None] = mapped_column(SaidText)
     error_code: Mapped[str | None] = mapped_column(sa.String(128))
     error_params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     started_at: Mapped[datetime | None] = mapped_column(Timestamp)
@@ -342,7 +342,7 @@ class StepAttempt(Entity):
     input: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     output: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     output_artifact_id: Mapped[UUID | None] = mapped_column(sa.Uuid)
-    error: Mapped[str | None] = mapped_column(sa.Text)
+    error: Mapped[str | None] = mapped_column(SaidText)
     error_code: Mapped[str | None] = mapped_column(sa.String(128))
     error_params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     error_class: Mapped[str | None] = mapped_column(sa.String(32))
@@ -436,7 +436,7 @@ class ScheduleFiring(Journal):
     misfired: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     """Whether this firing was late past the misfire grace, and therefore fired once and advanced."""
 
-    detail: Mapped[str | None] = mapped_column(sa.Text)
+    detail: Mapped[str | None] = mapped_column(SaidText)
 
 
 class Source(Entity):
@@ -504,7 +504,7 @@ class Source(Entity):
     failures: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
     """How many polls in a row have failed."""
 
-    last_error: Mapped[str | None] = mapped_column(sa.Text)
+    last_error: Mapped[str | None] = mapped_column(SaidText)
 
 
 class SourceRoute(Entity):
@@ -538,7 +538,7 @@ class SourceInput(Journal):
     code: Mapped[str | None] = mapped_column(sa.String(128))
     """The refusal's message code, or null for an accepted input."""
 
-    reason: Mapped[str | None] = mapped_column(sa.Text)
+    reason: Mapped[str | None] = mapped_column(SaidText)
     params: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     method: Mapped[str | None] = mapped_column(sa.String(16))
     path: Mapped[str | None] = mapped_column(sa.String(2000))
@@ -633,7 +633,7 @@ class Notification(Entity):
 
     lease_expires_at: Mapped[datetime | None] = mapped_column(Timestamp)
     sent_at: Mapped[datetime | None] = mapped_column(Timestamp)
-    error: Mapped[str | None] = mapped_column(sa.Text)
+    error: Mapped[str | None] = mapped_column(SaidText)
 
 
 class LogEntry(Journal):
@@ -650,7 +650,7 @@ class LogEntry(Journal):
     step_attempt_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("step_attempts.id", ondelete="CASCADE"))
     step_name: Mapped[str | None] = mapped_column(sa.String(200))
     level: Mapped[LogLevel] = mapped_column(string_enum(LogLevel, "log_level"), nullable=False, default=LogLevel.INFO)
-    message: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    message: Mapped[str] = mapped_column(SaidText, nullable=False)
     fields: Mapped[JsonMap | None] = mapped_column(JsonDocument)
 
     error_code: Mapped[str | None] = mapped_column(sa.String(128))

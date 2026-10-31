@@ -467,7 +467,10 @@ spellings, so handling a capped body costs time in step with its size. Any other
 refused 415 (`source.charset_refused`) without decoding. A JSON body nesting more than 128 levels
 of lists and objects is refused 400 (`source.body_too_deep`) and starts no run. A stored value
 deeper than the engine can validate, from any source, fails the step that reads it
-(`run.config_refused`) and holds back no other work.
+(`run.config_refused`) and holds back no other work. A JSON body holding half a surrogate pair
+is refused 400 (`source.body_not_json`), because no database can store it. One that reaches a run
+another way, from an outside service's answer say, is written as its escape wherever a failure
+quotes it.
 A read holds no database connection: the call's transaction ends before it, and the source and
 its pipeline are read again after it. A body that has not arrived whole within
 `DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,

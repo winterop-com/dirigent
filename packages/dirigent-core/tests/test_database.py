@@ -10,6 +10,7 @@ from typing import Any
 import aiosqlite
 import pytest
 import sqlalchemy as sa
+from sqlalchemy.engine.default import DefaultDialect
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from dirigent_core.config import Settings
@@ -23,6 +24,7 @@ from dirigent_core.database import (
     session_scope,
     with_deadlock_retry,
 )
+from dirigent_core.types import SaidText
 
 
 class Aborted(Exception):
@@ -228,3 +230,10 @@ async def test_a_connection_that_never_opened_takes_its_thread_with_it(
     with pytest.raises(sqlite3.OperationalError):
         await open_sqlite(str(blocker / "dirigent.db"))
     assert threads and not threads[0].is_alive(), "the connection's thread outlived the attempt that failed"
+
+
+def test_said_text_writes_what_utf8_cannot_as_its_escape() -> None:
+    said = SaidText()
+    assert said.process_bind_param("held \udc80 here", DefaultDialect()) == "held \\udc80 here"
+    assert said.process_bind_param("blå", DefaultDialect()) == "blå"
+    assert said.process_bind_param(None, DefaultDialect()) is None
