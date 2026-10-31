@@ -2,6 +2,7 @@ import { ChevronRight } from 'lucide-react'
 import { useState, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 
+import { Panel } from '@/components/ds/Panel'
 import { Mark } from '@/components/Mark'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useSmallScreen } from '@/hooks/use-small-screen'
@@ -51,8 +52,7 @@ export function ChannelStrip({ channels, read }: { channels: readonly Channel[];
     const note = channelNote(channels.length, read)
     if (small) return <ChannelFold channels={channels} note={note} />
     return (
-        <>
-            <h2 className="text-sm font-semibold">{LABELS.alerting.channels_heading}</h2>
+        <Panel title={LABELS.alerting.channels_heading}>
             {note === null ? (
                 <ul className="flex flex-wrap gap-2">
                     {channels.map((channel) => (
@@ -64,7 +64,7 @@ export function ChannelStrip({ channels, read }: { channels: readonly Channel[];
             ) : (
                 <p className={note.tone}>{note.text}</p>
             )}
-        </>
+        </Panel>
     )
 }
 

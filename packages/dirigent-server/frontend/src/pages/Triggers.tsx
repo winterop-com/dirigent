@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
 import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
@@ -16,6 +17,7 @@ import { formatInstant, formatRelative } from '@/lib/format'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
+import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import {
@@ -215,13 +217,29 @@ export function Triggers() {
                 empty={schedules.length === 0 && sources.length === 0}
                 emptyMessage={LABELS.triggers.empty}
             >
-                <div className="space-y-6">
-                    <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">{LABELS.word.input_source.heading}</h2>
-                        {sources.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">{LABELS.triggers.source.empty}</p>
-                        ) : (
+                <div className="flex flex-col gap-6">
+                    <Panel
+                        title={LABELS.word.input_source.heading}
+                        meta={
+                            sources.length === 0
+                                ? undefined
+                                : rowsRead(
+                                      sources.length,
+                                      LABELS.word.input_source.count,
+                                      listed.state.next !== null,
+                                  )
+                        }
+                        inset={false}
+                    >
+                        <PageState
+                            bare
+                            loading={false}
+                            problem={null}
+                            empty={sources.length === 0}
+                            emptyMessage={LABELS.triggers.source.empty}
+                        >
                             <ListTable
+                                chrome={{ framed: false }}
                                 columns={sourceColumns(sources)}
                                 rows={sources}
                                 rowKey={sourceId}
@@ -233,15 +251,27 @@ export function Triggers() {
                                 selected={(row) => sourceId(row) === chosenSource}
                                 onClose={unchoose}
                             />
-                        )}
-                    </section>
+                        </PageState>
+                    </Panel>
 
-                    <section className="space-y-2">
-                        <h2 className="text-sm font-semibold">{LABELS.word.schedule.heading}</h2>
-                        {schedules.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">{LABELS.triggers.schedule.empty}</p>
-                        ) : (
+                    <Panel
+                        title={LABELS.word.schedule.heading}
+                        meta={
+                            schedules.length === 0
+                                ? undefined
+                                : rowsRead(schedules.length, LABELS.word.schedule.count, state.next !== null)
+                        }
+                        inset={false}
+                    >
+                        <PageState
+                            bare
+                            loading={false}
+                            problem={null}
+                            empty={schedules.length === 0}
+                            emptyMessage={LABELS.triggers.schedule.empty}
+                        >
                             <ListTable
+                                chrome={{ framed: false }}
                                 columns={scheduleCols}
                                 rows={schedules}
                                 rowKey={scheduleId}
@@ -253,8 +283,8 @@ export function Triggers() {
                                 selected={(row) => scheduleId(row) === chosen}
                                 onClose={unchoose}
                             />
-                        )}
-                    </section>
+                        </PageState>
+                    </Panel>
                 </div>
             </PageState>
 

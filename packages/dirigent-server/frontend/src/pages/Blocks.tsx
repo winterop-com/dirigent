@@ -5,7 +5,9 @@ import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
 import { ListTable, type Column } from '@/components/list/ListTable'
+import { Code } from '@/components/ds/Code'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { Fact, Section } from '@/components/run/Panel'
 import { SearchField } from '@/components/ds/SearchField'
@@ -24,6 +26,7 @@ import {
 import { examplesPerBlock, readAllExamples } from '@/lib/examples'
 import { counted as pick, type Counted, LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
+import { rowsRead } from '@/lib/paging'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 
@@ -164,12 +167,14 @@ export function Blocks() {
             >
                 <div className="flex flex-col gap-6">
                     {groups.map(([group, members]) => (
-                        <section key={group}>
-                            <h2 className="mb-1.5 font-mono text-xs font-semibold tracking-wide text-faint uppercase">
-                                {group}
-                            </h2>
+                        <Panel
+                            key={group}
+                            title={<Code value={group} tone="body" />}
+                            meta={rowsRead(members.length, LABELS.word.block.count, false)}
+                            inset={false}
+                        >
                             <ListTable
-                                chrome={{ footer: false }}
+                                chrome={{ framed: false }}
                                 columns={columns}
                                 rows={members}
                                 rowKey={blockId}
@@ -181,19 +186,21 @@ export function Blocks() {
                                 selected={(entry) => `block:${entry.id}` === chosen}
                                 onClose={unchoose}
                             />
-                        </section>
+                        </Panel>
                     ))}
 
                     {REGISTRIES.map((registry) => {
                         const rows = registryRows[registry.key]
                         if (rows.length === 0) return null
                         return (
-                            <section key={registry.key}>
-                                <h2 className="mb-1.5 font-mono text-xs font-semibold tracking-wide text-faint uppercase">
-                                    {registry.title}
-                                </h2>
+                            <Panel
+                                key={registry.key}
+                                title={registry.title}
+                                meta={rowsRead(rows.length, registry.noun, false)}
+                                inset={false}
+                            >
                                 <ListTable
-                                    chrome={{ footer: false }}
+                                    chrome={{ framed: false }}
                                     columns={entryColumns(registry.key)}
                                     rows={rows}
                                     rowKey={entryKeyOf(registry.key)}
@@ -208,7 +215,7 @@ export function Blocks() {
                                     selected={(entry) => entryKeyOf(registry.key)(entry) === chosen}
                                     onClose={unchoose}
                                 />
-                            </section>
+                            </Panel>
                         )
                     })}
                 </div>

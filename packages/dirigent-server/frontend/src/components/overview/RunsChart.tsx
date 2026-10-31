@@ -1,4 +1,4 @@
-import { Card, CardContent } from '@/components/ui/card'
+import { Panel } from '@/components/ds/Panel'
 import { chartSummary, stackOf, tallest, type HourBucket } from '@/lib/home'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -54,63 +54,55 @@ export function RunsChart({
 }) {
     const most = tallest(buckets)
     return (
-        <Card className={cn('h-full gap-0 p-0', className)}>
-            <CardContent className="flex h-full flex-col gap-3 p-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                    <div className="space-y-1">
-                        <h2 className="text-title font-semibold">{LABELS.dashboard.chart.title}</h2>
-                        <p className="text-xs text-muted-foreground">
-                            {reading ? LABELS.shell.reading : LABELS.dashboard.chart.hint}
-                        </p>
+        <Panel
+            title={LABELS.dashboard.chart.title}
+            meta={reading ? LABELS.shell.reading : LABELS.dashboard.chart.window}
+            className={className}
+            bodyClassName="flex flex-col gap-3"
+        >
+            <div
+                className="flex min-h-32 flex-1 items-end gap-px"
+                role="img"
+                aria-label={chartSummary(buckets)}
+            >
+                {buckets.map((bucket) => (
+                    <div
+                        key={bucket.start}
+                        className="flex h-full flex-1 flex-col justify-end rounded-sm hover:bg-accent/40"
+                        title={bucketNote(bucket)}
+                    >
+                        {BANDS.map((band) =>
+                            bucket[band.id] === 0 ? null : (
+                                <div
+                                    key={band.id}
+                                    className={cn('min-h-0.5 w-full', band.fill)}
+                                    style={{
+                                        height: `${String((bucket[band.id] / Math.max(most, 1)) * 100)}%`,
+                                    }}
+                                />
+                            ),
+                        )}
+                        {stackOf(bucket) === 0 && <div className="h-px w-full bg-border" />}
                     </div>
-                    <ul className="flex items-center gap-3">
-                        {BANDS.map((band) => (
-                            <li
-                                key={band.id}
-                                className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                            >
-                                <span className={cn('size-2 shrink-0 rounded-sm', band.fill)} aria-hidden />
-                                {band.label}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+                ))}
+            </div>
 
-                <div
-                    className="flex min-h-32 flex-1 items-end gap-px"
-                    role="img"
-                    aria-label={chartSummary(buckets)}
-                >
-                    {buckets.map((bucket) => (
-                        <div
-                            key={bucket.start}
-                            className="flex h-full flex-1 flex-col justify-end rounded-sm hover:bg-accent/40"
-                            title={bucketNote(bucket)}
-                        >
-                            {BANDS.map((band) =>
-                                bucket[band.id] === 0 ? null : (
-                                    <div
-                                        key={band.id}
-                                        className={cn('min-h-0.5 w-full', band.fill)}
-                                        style={{
-                                            height: `${String((bucket[band.id] / Math.max(most, 1)) * 100)}%`,
-                                        }}
-                                    />
-                                ),
-                            )}
-                            {stackOf(bucket) === 0 && <div className="h-px w-full bg-border" />}
-                        </div>
-                    ))}
-                </div>
+            <div className="flex gap-px font-mono text-xs text-faint" aria-hidden>
+                {buckets.map((bucket, index) => (
+                    <span key={bucket.start} className="flex-1 text-center">
+                        {index % LABEL_EVERY === 0 ? `${String(bucket.hour).padStart(2, '0')}` : ''}
+                    </span>
+                ))}
+            </div>
 
-                <div className="flex gap-px font-mono text-xs text-faint" aria-hidden>
-                    {buckets.map((bucket, index) => (
-                        <span key={bucket.start} className="flex-1 text-center">
-                            {index % LABEL_EVERY === 0 ? `${String(bucket.hour).padStart(2, '0')}` : ''}
-                        </span>
-                    ))}
-                </div>
-            </CardContent>
-        </Card>
+            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                {BANDS.map((band) => (
+                    <li key={band.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className={cn('size-2 shrink-0 rounded-sm', band.fill)} aria-hidden />
+                        {band.label}
+                    </li>
+                ))}
+            </ul>
+        </Panel>
     )
 }

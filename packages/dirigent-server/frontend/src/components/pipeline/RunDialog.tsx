@@ -24,6 +24,7 @@ import { paramsOf, startRun, type RunAccepted } from '@/lib/pipelines'
 import { readWindow, referencesWindow } from '@/lib/run-window'
 import { fieldsOf, maySubmit, validateFields, withUnreadable } from '@/lib/schema-form'
 import { offsetMinutes, timesMode, zoneLabel } from '@/lib/times'
+import { Notice } from '@/components/ds/Notice'
 
 /**
  * Starting one ad hoc run of the version this instance holds.
@@ -207,13 +208,11 @@ export function RunDialog({
                     )}
 
                     {warnings.length > 0 && (
-                        <div className="space-y-0.5 rounded-md border border-warning/40 bg-warning/10 p-2">
+                        <Notice tone="warning">
                             {warnings.map((line) => (
-                                <p key={line} className="text-xs text-warning-ink">
-                                    {line}
-                                </p>
+                                <p key={line}>{line}</p>
                             ))}
-                        </div>
+                        </Notice>
                     )}
 
                     {problem !== null && (

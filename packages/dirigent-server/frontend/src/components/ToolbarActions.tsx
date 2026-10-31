@@ -39,6 +39,7 @@ export interface ToolbarAction {
 
 /**
  * A screen's verbs: every one of them where they fit, the last one and a menu where they do not.
+ * On the strip a verb is its word; a row in the menu carries its mark as well.
  *
  * A TOOLBAR DOES NOT WRAP. Three buttons beside a breadcrumb is a second line on a 390px
  * strip and a shell that reads as broken, so below the breakpoint the primary action -- the
@@ -157,14 +158,12 @@ export function ToolbarActions({
  * either way, and the click is swallowed here instead.
  */
 function ActionButton({ action }: { action: ToolbarAction }) {
-    const Glyph = action.icon
     const shut = action.disabled === true
     if (action.more !== undefined && action.more.length > 0) {
         return (
             <SplitButton
                 label={action.label}
                 ariaLabel={action.ariaLabel}
-                icon={Glyph}
                 variant={action.variant ?? 'outline'}
                 why={shut ? (action.why ?? '') : undefined}
                 more={action.more}
@@ -177,17 +176,17 @@ function ActionButton({ action }: { action: ToolbarAction }) {
         <Refusable why={action.why}>
             <Button
                 variant={action.variant ?? 'outline'}
-                size="sm"
+                size="lg"
                 aria-label={action.ariaLabel}
                 aria-disabled={shut || undefined}
                 title={action.why}
                 className={cn(
+                    'px-3.5',
                     action.destructive === true && 'destructive-action',
-                    shut && 'opacity-50 hover:bg-transparent',
+                    shut && 'hover:bg-transparent',
                 )}
                 onClick={shut ? undefined : action.onClick}
             >
-                {Glyph !== undefined && <Glyph aria-hidden />}
                 {action.label}
             </Button>
         </Refusable>

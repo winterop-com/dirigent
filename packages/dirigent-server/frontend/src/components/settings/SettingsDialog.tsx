@@ -40,6 +40,7 @@ import { readSystemInfo, type SystemInfo } from '@/lib/system'
 import { choosePalette, paletteAfter, PALETTES, paletteStore, type PaletteName } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
+import { Well } from '@/components/ds/Well'
 
 export const SETTINGS_TITLE = LABELS.settings.title
 
@@ -474,7 +475,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     }
 
     return (
-        <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
+        <Well className="space-y-3 p-3">
             <div className="flex flex-col gap-3 md:flex-row">
                 <div className="min-w-0 flex-1 space-y-1">
                     <Label htmlFor="password-current">{LABELS.settings.current_password}</Label>
@@ -512,7 +513,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
                     {LABELS.settings.change_password}
                 </Button>
             </div>
-        </div>
+        </Well>
     )
 }
 

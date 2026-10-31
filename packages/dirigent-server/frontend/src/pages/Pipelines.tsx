@@ -1,4 +1,3 @@
-import { BookOpen, ChevronDown, FilePlus2, Plus, RefreshCw } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
@@ -7,20 +6,13 @@ import { Chip } from '@/components/ds/Chip'
 import { Code } from '@/components/ds/Code'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { SearchField } from '@/components/ds/SearchField'
+import { TextLink } from '@/components/ds/TextLink'
 import { Panel } from '@/components/ds/Panel'
 import { MiniGraph } from '@/components/graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageState } from '@/components/PageState'
-import { Refusable } from '@/components/Refusable'
 import { StatusChip } from '@/components/run/StatusChip'
-import { Button } from '@/components/ui/button'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { ICONS } from '@/lib/icons'
@@ -121,7 +113,7 @@ export function Pipelines() {
                           title: NEW_PIPELINE_LABEL,
                           group: LIST_GROUP,
                           screen: true,
-                          icon: Plus,
+                          icon: ICONS.create,
                           keywords: ['create', 'draft', 'start', 'editor'],
                           run: () => {
                               void navigate(NEW_PIPELINE_PATH)
@@ -132,7 +124,7 @@ export function Pipelines() {
                           title: LABELS.pipelines.palette.from_starter,
                           group: LIST_GROUP,
                           screen: true,
-                          icon: BookOpen,
+                          icon: ICONS.template,
                           keywords: ['example', 'copy', 'corpus', 'recipe'],
                           run: () => {
                               setPicking(true)
@@ -143,7 +135,7 @@ export function Pipelines() {
                           title: LABELS.pipelines.palette.from_file,
                           group: LIST_GROUP,
                           screen: true,
-                          icon: FilePlus2,
+                          icon: ICONS.upload,
                           keywords: ['upload', 'yaml', 'apply', 'import'],
                           run: () => {
                               filePicker.current?.click()
@@ -156,7 +148,7 @@ export function Pipelines() {
                 title: LABELS.pipelines.palette.reload,
                 group: LIST_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.refresh,
                 keywords: ['refresh', 'reload'],
                 run: again,
             },
@@ -170,6 +162,38 @@ export function Pipelines() {
         <>
             <PageHeader
                 title={LABELS.screen.pipelines.name}
+                actions={[
+                    {
+                        id: 'new',
+                        label: LABELS.action.new,
+                        ariaLabel: NEW_PIPELINE_LABEL,
+                        variant: 'default',
+                        disabled: !write.may,
+                        why: write.why ?? undefined,
+                        onClick: () => {
+                            void navigate(NEW_PIPELINE_PATH)
+                        },
+                        moreLabel: LABELS.pipelines.more_ways,
+                        more: [
+                            {
+                                id: 'starter',
+                                label: FROM_STARTER_LABEL,
+                                icon: ICONS.template,
+                                onClick: () => {
+                                    setPicking(true)
+                                },
+                            },
+                            {
+                                id: 'file',
+                                label: FROM_FILE_LABEL,
+                                icon: ICONS.upload,
+                                onClick: () => {
+                                    filePicker.current?.click()
+                                },
+                            },
+                        ],
+                    },
+                ]}
                 aside={
                     <>
                         <ApiChip tag="pipelines" />
@@ -188,53 +212,6 @@ export function Pipelines() {
                                 })
                             }}
                         />
-                        <div className="flex">
-                            <Refusable why={write.why}>
-                                <Button
-                                    className="rounded-r-none"
-                                    aria-label={NEW_PIPELINE_LABEL}
-                                    disabled={!write.may}
-                                    title={write.why ?? NEW_PIPELINE_LABEL}
-                                    onClick={() => {
-                                        void navigate(NEW_PIPELINE_PATH)
-                                    }}
-                                >
-                                    {LABELS.action.new}
-                                </Button>
-                            </Refusable>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger
-                                    render={
-                                        <Button
-                                            className="rounded-l-none border-l border-primary-foreground/20 px-1.5"
-                                            aria-label={LABELS.pipelines.more_ways}
-                                            disabled={!write.may}
-                                            title={write.why}
-                                        >
-                                            <ChevronDown aria-hidden />
-                                        </Button>
-                                    }
-                                />
-                                <DropdownMenuContent align="end">
-                                    <DropdownMenuItem
-                                        onClick={() => {
-                                            setPicking(true)
-                                        }}
-                                    >
-                                        <BookOpen aria-hidden />
-                                        {FROM_STARTER_LABEL}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        onClick={() => {
-                                            filePicker.current?.click()
-                                        }}
-                                    >
-                                        <FilePlus2 aria-hidden />
-                                        {FROM_FILE_LABEL}
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </div>
                     </>
                 }
             />
@@ -269,18 +246,16 @@ export function Pipelines() {
                             inset={false}
                             aside={
                                 lists.examples.length > EXAMPLES_SHOWN && (
-                                    <button
-                                        type="button"
-                                        className="rounded-sm text-xs font-normal text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                                        aria-expanded={allExamples}
-                                        onClick={toggleExamples}
+                                    <TextLink
+                                        variant="aside"
+                                        className="text-xs font-normal"
+                                        expanded={allExamples}
+                                        onPress={toggleExamples}
                                     >
                                         {allExamples
                                             ? LABELS.pipelines.lists.fewer_examples
-                                            : LABELS.pipelines.lists.all_examples(
-                                                  String(lists.examples.length),
-                                              )}
-                                    </button>
+                                            : LABELS.pipelines.lists.all_examples}
+                                    </TextLink>
                                 )
                             }
                         >

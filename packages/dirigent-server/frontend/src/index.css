@@ -49,13 +49,8 @@
     --text-graph-small: 0.6875rem;
     --text-graph-small--line-height: 0.9375rem;
 
-    /* THE SHELL'S TWO STRIPS, AND EVERY COLUMN WEARS THE SAME ONE. The rail, the content and
-       the right panel each draw their own top row and the rail and the content each draw
-       their own foot, so the border between the strip and the work is one unbroken rule
-       across the width of the app only if all of them are exactly this tall. A column that
-       sized its strip to what happens to be in it is a step in the edge of the window. */
-    --spacing-shell-top: 46px;
-    --spacing-shell-foot: 46px;
+    /* The top row's height: the rail's head, the top strip and the right panel's tab strip. */
+    --spacing-shell-top: 56px;
 
     /* What a finger lands on is this tall below the breakpoint. */
     --spacing-finger: 42px;
@@ -948,6 +943,19 @@ html.dark[data-theme='contrast'],
 }
 
 /* ---------------------------------------------------------------------------
+   THE RAIL'S WORDMARK, BESIDE THE BRAND TILE AT THE HEAD OF THE RAIL.
+
+   `scripts/check_ui_classes.py` knows this class by name and the rail's head is the only place
+   it may be spent.
+   --------------------------------------------------------------------------- */
+@utility text-lockup {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+}
+
+/* ---------------------------------------------------------------------------
    THE SIGN-IN HEADING, WHICH IS THE THIRD NAMED SIZE OUTSIDE THE SCALE.
 
    The login screen is the one screen a person meets before the product's own facts are on it,
@@ -1128,9 +1136,11 @@ html.dark[data-theme='contrast'],
    faint dot grid; a failure carries a rule in the failed ink along its top. The generated card
    follows the same edge and ground.
    --------------------------------------------------------------------------- */
-.dg-panel,
 [data-slot='card'] {
     flex-shrink: 0;
+}
+.dg-panel,
+[data-slot='card'] {
     overflow: hidden;
     border: 1px solid var(--panel-line);
     border-radius: var(--radius-surface);
@@ -1163,6 +1173,28 @@ html.dark[data-theme='contrast'],
 }
 .dg-panel[data-tone='critical'] > .dg-panel-head {
     color: var(--status-failed-ink);
+}
+
+/* THE THREE BOXES INSIDE A SURFACE. A well is a group on the panel ground; an inset is reference
+   material on the page's ground; a frame is a code editor drawn as the field it is. */
+.dg-well,
+.dg-inset {
+    min-width: 0;
+    border: 1px solid var(--panel-line);
+    border-radius: var(--radius-surface);
+}
+.dg-well {
+    background-color: var(--panel-ground);
+}
+.dg-inset {
+    background-color: var(--background);
+}
+.dg-frame {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-control);
+    background-color: var(--background);
 }
 [data-slot='combobox-content'][class~='w-(--anchor-width)'],
 [data-slot='dropdown-menu-content'][class~='w-(--anchor-width)'] {
@@ -1798,8 +1830,15 @@ html.dark[data-theme='contrast'],
     }
 }
 
-/* The rail's current entry: a slim bar in the gutter beside the entry, apart from its tight
-   highlight, rather than a border fused into a full-width pill. */
+/* A rail entry: muted ink, lifted to the card rung under the pointer, and the raised fill at
+   weight 600 where it is the screen in front of somebody. */
+.rail-entry {
+    color: var(--muted-foreground);
+}
+.rail-entry:hover {
+    background-color: var(--card);
+    color: var(--foreground);
+}
 .rail-entry[aria-current='page'] {
     background-color: var(--sidebar-accent);
     color: var(--sidebar-accent-foreground);

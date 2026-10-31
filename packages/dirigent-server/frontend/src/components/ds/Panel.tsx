@@ -16,6 +16,7 @@ export type PanelTone = 'plain' | 'graph' | 'critical'
  * rows lay out their padding, as a listing's do.
  */
 export function Panel({
+    id: named,
     title,
     meta,
     aside,
@@ -25,6 +26,8 @@ export function Panel({
     bodyClassName,
     children,
 }: {
+    /** The heading's id, where something links to this panel by it. */
+    id?: string
     title: ReactNode
     /** The count or fact the bar says at its right, in mono. */
     meta?: ReactNode
@@ -36,9 +39,10 @@ export function Panel({
     bodyClassName?: string
     children: ReactNode
 }) {
-    const id = useId()
+    const made = useId()
+    const id = named ?? made
     return (
-        <section className={cn('dg-panel min-w-0', className)} data-tone={tone} aria-labelledby={id}>
+        <section className={cn('dg-panel min-w-0 shrink-0', className)} data-tone={tone} aria-labelledby={id}>
             <div className="dg-panel-head">
                 <h2 id={id} className="flex min-w-0 items-center gap-2 truncate">
                     {tone === 'critical' && <ICONS.warning className="size-4 shrink-0" aria-hidden />}

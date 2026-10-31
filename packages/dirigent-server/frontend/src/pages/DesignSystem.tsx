@@ -8,7 +8,9 @@ import { Fact, FactList } from '@/components/ds/FactList'
 import { describedBy, FormField } from '@/components/ds/FormField'
 import { IconButton } from '@/components/ds/IconButton'
 import { Notice } from '@/components/ds/Notice'
+import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { Panel } from '@/components/ds/Panel'
 import { SearchField } from '@/components/ds/SearchField'
 import { SecretReveal } from '@/components/ds/SecretReveal'
 import { SectionHeading } from '@/components/ds/SectionHeading'
@@ -76,13 +78,12 @@ function Section({ id, children }: { id: GallerySection; children: ReactNode }) 
     const anchor = galleryAnchor(id)
     const line = LINES[id]
     return (
-        <section data-gallery={id} aria-labelledby={anchor} className="space-y-2">
-            <div className="space-y-0.5">
-                <SectionHeading id={anchor}>{COPY.section[id]}</SectionHeading>
-                {line !== undefined && <p className="text-sm text-muted-foreground">{line}</p>}
-            </div>
-            <div className="divide-y divide-border rounded-lg border border-border bg-card">{children}</div>
-        </section>
+        <div data-gallery={id}>
+            <Panel id={anchor} title={COPY.section[id]} inset={false} bodyClassName="divide-y divide-border">
+                {line !== undefined && <p className="px-4 py-3 text-sm text-muted-foreground">{line}</p>}
+                {children}
+            </Panel>
+        </div>
     )
 }
 
@@ -357,13 +358,13 @@ export function DesignSystem() {
                             </div>
                         </Specimen>
                         <Specimen title={VARIANT.trail}>
-                            <div className="w-full">
+                            <div className="w-full space-y-3">
+                                <Breadcrumb
+                                    trail={[{ label: LABELS.screen.pipelines.name, to: '/pipelines' }]}
+                                    inPlace
+                                />
                                 <PageHeader
                                     title={pipeline.name}
-                                    trail={[
-                                        { label: LABELS.screen.pipelines.name, to: '/pipelines' },
-                                        { label: pipeline.name },
-                                    ]}
                                     code={pipeline.code}
                                     actions={[
                                         {

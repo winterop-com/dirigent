@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router'
 
+import { crumbSlot } from '@/components/Breadcrumb'
 import { CommandPalette } from '@/components/CommandPalette'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
 import { PanelSheet } from '@/components/PanelSheet'
@@ -11,16 +12,13 @@ import { Rail } from '@/components/Rail'
 import { RightPanel } from '@/components/RightPanel'
 import { panelTabs } from '@/lib/panels'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
-import { StatusBar } from '@/components/StatusBar'
 import { ServerStatusButton } from '@/components/ServerStatusButton'
 import { useTheme } from 'next-themes'
 
-import { MODES, MODE_LABELS } from '@/components/ThemeToggle'
+import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
+import { Code } from '@/components/ds/Code'
 import { IconButton } from '@/components/ds/IconButton'
-import { Keyboard, LogOut, PanelLeft, PanelRight, Search, Settings, Monitor, Moon, Sun } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useStore } from '@/hooks/use-store'
 import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
@@ -39,8 +37,10 @@ import {
     VIEW_GROUP,
     type PaletteAction,
 } from '@/lib/palette'
-import { railCollapsed, toggleRail, togglePanel } from '@/lib/panels'
+import { railHidden, toggleRail, togglePanel } from '@/lib/panels'
+import { screenStatus, type StatusTone } from '@/lib/screen-status'
 import { modifierLabel, applePlatform } from '@/lib/shortcuts'
+import { cn } from '@/lib/utils'
 
 export const SIGN_OUT_LABEL = LABELS.action.sign_out
 export const TOGGLE_PANEL_LABEL = LABELS.shell.toggle_panel
@@ -60,9 +60,16 @@ const SettingsDialog = lazy(() =>
     import('@/components/settings/SettingsDialog').then((module) => ({ default: module.SettingsDialog })),
 )
 
+/** How each tone of the screen's note is inked. A live stream is information, not a warning. */
+const TONE: Record<StatusTone, string> = {
+    live: 'text-info-ink',
+    quiet: 'text-muted-foreground',
+    warn: 'text-warning-ink',
+}
+
 /**
- * The chassis: a rail on the left, the screen in the middle, a panel on the right, and one line
- * along the foot.
+ * The chassis: the rail on the left, the screen in the middle under its top strip, and a panel
+ * on the right where the screen fills one.
  *
  * `h-svh` rather than `min-h-svh`. The shell claims the viewport and the content column is the
  * one thing that scrolls, so there is exactly one scrollbar on every screen -- and a screen that
@@ -74,7 +81,7 @@ const SettingsDialog = lazy(() =>
  */
 export function AppShell() {
     const auth = useStore(authStore)
-    const collapsed = useStore(railCollapsed)
+    const hidden = useStore(railHidden)
     const filled = useStore(panelTabs).length > 0
     const navigate = useNavigate()
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -181,9 +188,9 @@ export function AppShell() {
             ...pages,
             {
                 id: 'view:rail',
-                title: collapsed ? LABELS.shell.expand_nav : LABELS.shell.collapse_nav,
+                title: hidden ? LABELS.shell.show_nav : LABELS.shell.hide_nav,
                 group: VIEW_GROUP,
-                icon: PanelLeft,
+                icon: ICONS.sidebar,
                 keywords: ['sidebar', 'rail'],
                 run: toggleRail,
             },
@@ -191,7 +198,7 @@ export function AppShell() {
                 id: 'view:panel',
                 title: TOGGLE_PANEL_LABEL,
                 group: VIEW_GROUP,
-                icon: PanelRight,
+                icon: ICONS.panel,
                 keywords: ['inspector', 'details'],
                 run: togglePanel,
             },
@@ -199,7 +206,7 @@ export function AppShell() {
                 id: 'view:settings',
                 title: LABELS.shell.open_settings,
                 group: VIEW_GROUP,
-                icon: Settings,
+                icon: ICONS.settings,
                 keywords: ['preferences', 'appearance', 'times', 'account', 'password', 'server'],
                 run: openSettings,
             },
@@ -207,7 +214,7 @@ export function AppShell() {
                 id: 'view:shortcuts',
                 title: LABELS.shell.shortcuts,
                 group: VIEW_GROUP,
-                icon: Keyboard,
+                icon: ICONS.shortcuts,
                 keywords: ['keys', 'chords', 'help'],
                 run: () => {
                     setShortcutsOpen(true)
@@ -227,7 +234,7 @@ export function AppShell() {
                 id: `appearance:${mode}`,
                 title: MODE_LABELS[mode],
                 group: APPEARANCE_GROUP,
-                icon: mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor,
+                icon: mode === 'light' ? ICONS.light : mode === 'dark' ? ICONS.dark : ICONS.system,
                 keywords: ['theme', 'appearance', mode],
                 run: () => {
                     setTheme(mode)
@@ -239,7 +246,7 @@ export function AppShell() {
                           id: 'session:sign-out',
                           title: SIGN_OUT_LABEL,
                           group: SESSION_GROUP,
-                          icon: LogOut,
+                          icon: ICONS.sign_out,
                           keywords: ['logout', 'leave'],
                           run: () => {
                               void signOut().then(() => navigate(LOGIN_PATH, { replace: true }))
@@ -248,93 +255,82 @@ export function AppShell() {
                   ]
                 : []),
         ]
-    }, [collapsed, navigate, openSettings, role, setTheme, signedIn])
+    }, [hidden, navigate, openSettings, role, setTheme, signedIn])
 
     useEffect(() => registerActions(actions), [actions])
 
     const modifier = modifierLabel(applePlatform(navigator.userAgent))
+    const setSlot = useCallback((element: HTMLDivElement | null) => {
+        crumbSlot.set(element)
+    }, [])
 
     return (
-        <div className="flex h-svh flex-col overflow-hidden">
-            {/* THE THREE COLUMNS, AND ONE RULE UNDER ALL OF THEM. The rail's head, the topbar
-                and the panel's tab strip are each `h-shell-top`, and the line beneath them is
-                drawn once across the whole width rather than three times -- three borders
-                meeting at two column edges is a rule that can come apart. */}
-            <div className="relative flex min-h-0 flex-1">
-                <Rail />
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                    <header
-                        data-shell-strip="top"
-                        className="flex h-shell-top shrink-0 items-center gap-2 bg-sidebar px-3"
-                    >
-                        {/* The rail is not drawn below the breakpoint, so this is the way to it. */}
+        <div className="flex h-svh overflow-hidden">
+            <Rail onSettings={openSettings} onShortcuts={openShortcuts} />
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                <header
+                    data-shell-strip="top"
+                    className="flex h-shell-top shrink-0 items-center gap-2 px-4 md:px-8"
+                >
+                    {/* The rail is not drawn below the breakpoint, so this is the way to it. */}
+                    <IconButton
+                        ref={menu}
+                        icon={ICONS.menu}
+                        label={OPEN_NAV_LABEL}
+                        size="sm"
+                        className="-ml-2 md:hidden"
+                        onClick={() => {
+                            setDrawerOpen(true)
+                        }}
+                    />
+                    {hidden && (
                         <IconButton
-                            ref={menu}
-                            icon={ICONS.menu}
-                            label={OPEN_NAV_LABEL}
+                            icon={ICONS.sidebar}
+                            label={LABELS.shell.show_nav}
                             size="sm"
-                            className="md:hidden"
-                            onClick={() => {
-                                setDrawerOpen(true)
-                            }}
+                            className="-ml-2 hidden text-muted-foreground md:inline-flex"
+                            onClick={toggleRail}
                         />
-                        <div className="flex-1" />
-                        <ServerStatusButton onOpen={openServerPane} />
-                        <Tooltip>
-                            <TooltipTrigger
-                                render={
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="px-2 font-mono text-xs text-muted-foreground"
-                                        onClick={() => {
-                                            paletteOpen.set(true)
-                                        }}
-                                        aria-label={OPEN_PALETTE_LABEL}
-                                    >
-                                        {/* There is no keyboard below the breakpoint, so what the
-                                            button carries there is the glyph rather than the chord. */}
-                                        <Search className="size-4 md:hidden" aria-hidden />
-                                        <span className="hidden md:inline">
-                                            {LABELS.shell.palette_chord(modifier)}
-                                        </span>
-                                    </Button>
-                                }
-                            />
-                            <TooltipContent side="bottom">{OPEN_PALETTE_LABEL}</TooltipContent>
-                        </Tooltip>
-                        {filled && (
-                            <IconButton
-                                icon={ICONS.panel}
-                                label={TOGGLE_PANEL_LABEL}
-                                size="sm"
-                                className="hidden md:inline-flex"
-                                onClick={togglePanel}
-                            />
-                        )}
-                    </header>
+                    )}
+                    <div ref={setSlot} data-shell-crumb className="flex min-w-0 items-center" />
+                    <div className="flex-1" />
+                    <ScreenFacts />
+                    <IconButton
+                        icon={ICONS.search}
+                        label={OPEN_PALETTE_LABEL}
+                        shortcut={LABELS.shell.palette_chord(modifier)}
+                        size="sm"
+                        className="text-muted-foreground"
+                        onClick={() => {
+                            paletteOpen.set(true)
+                        }}
+                    />
+                    {filled && (
+                        <IconButton
+                            icon={ICONS.panel}
+                            label={TOGGLE_PANEL_LABEL}
+                            size="sm"
+                            className="hidden text-muted-foreground md:inline-flex"
+                            onClick={togglePanel}
+                        />
+                    )}
+                    <ServerStatusButton onOpen={openServerPane} />
+                    <ThemeToggle />
+                </header>
 
-                    <main className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-4 py-6 md:px-8">
-                        {auth.status === 'unknown' ? (
-                            <PageState loading={problem === null} problem={problem} empty={false}>
-                                {null}
-                            </PageState>
-                        ) : (
-                            <Outlet />
-                        )}
-                    </main>
+                <main className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-4 pt-1 pb-12 md:px-8">
+                    {auth.status === 'unknown' ? (
+                        <PageState loading={problem === null} problem={problem} empty={false}>
+                            {null}
+                        </PageState>
+                    ) : (
+                        <Outlet />
+                    )}
+                </main>
 
-                    <PanelSheet />
-                </div>
-                <RightPanel />
-                <div
-                    data-shell-rule="top"
-                    className="pointer-events-none absolute inset-x-0 top-shell-top z-20 h-px bg-border-strong"
-                    aria-hidden
-                />
+                <PanelSheet />
             </div>
-
-            <StatusBar onSettings={openSettings} onShortcuts={openShortcuts} />
+            <RightPanel />
 
             <NavDrawer
                 open={drawerOpen}
@@ -355,6 +351,20 @@ export function AppShell() {
                     />
                 </Suspense>
             )}
+        </div>
+    )
+}
+
+/** What the screen in front of somebody is doing: its note, and its identifier in mono. */
+function ScreenFacts() {
+    const status = useStore(screenStatus)
+    if (status.note === null && status.identifier === null) return null
+    return (
+        <div data-screen-facts className="flex min-w-0 items-center gap-3 pr-2">
+            {status.note !== null && (
+                <span className={cn('min-w-0 truncate text-xs', TONE[status.tone])}>{status.note}</span>
+            )}
+            {status.identifier !== null && <Code value={status.identifier} />}
         </div>
     )
 }

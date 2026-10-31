@@ -85,7 +85,7 @@ const action = {
     /** Start a run. */
     run: 'Run',
     /** Start another run of what this one ran. */
-    rerun: 'Re-run',
+    rerun: 'Rerun',
     /** Stop what is running. */
     cancel_run: 'Cancel',
     /** Open the thing for editing. */
@@ -111,7 +111,6 @@ const action = {
     refresh: 'Refresh',
     /** Put a value on the clipboard, and say so once it is there. */
     copy: {
-        verb: 'Copy',
         done: 'Copied',
     },
     /** Hold what a thing fires or delivers, and let it go again. */
@@ -691,8 +690,8 @@ const screen = {
 /**
  * The frame every screen is drawn inside.
  *
- * The rail and the drawer, the topbar and the corner that names the instance, the right panel
- * and the sheet it becomes on a phone, the bar along the foot, the shortcuts dialog and the
+ * The rail and the drawer, the top strip and the corner that names the instance, the right
+ * panel and the sheet it becomes on a phone, the shortcuts dialog and the
  * theme controls -- plus the chrome a listing, a table and a page state wear on every screen,
  * which belongs to the frame rather than to whichever screen is inside it.
  */
@@ -700,10 +699,9 @@ const shell = {
     /** The product's own name: the mark's label, and what the corner says before any read lands. */
     wordmark: 'dirigent',
 
-    /** What the rail's own controls do, which the collapsed rail says as tooltips. */
-    collapse_nav: 'Collapse the navigation',
-    expand_nav: 'Expand the navigation',
-    resize_nav: 'Resize the navigation',
+    /** The rail taken off screen and brought back: the palette's row, and the strip's button. */
+    hide_nav: 'Hide the navigation',
+    show_nav: 'Show the navigation',
 
     /** The drawer the rail becomes below the breakpoint, and the region it stands in. */
     open_nav: 'Open navigation',
@@ -714,7 +712,7 @@ const shell = {
     breadcrumb: 'Breadcrumb',
 
     open_palette: 'Open the command palette',
-    /** The chord on the palette's button: this platform's modifier, and the letter. */
+    /** The chord on the palette button's tooltip: this platform's modifier, and the letter. */
     palette_chord: (modifier: string) => (modifier.length > 1 ? `${modifier} K` : `${modifier}K`),
     toggle_panel: 'Show or hide the side panel',
     open_settings: 'Open settings',
@@ -774,7 +772,7 @@ const shell = {
 
     /** What each chord does, on the shortcuts dialog's rows. The palette's row says `open_palette`. */
     chord: {
-        rail: 'Collapse or expand the navigation',
+        rail: 'Hide or show the navigation',
         terminal: "Show or hide a run's terminal",
         search: "Search this screen's listing",
         shortcuts: 'Open this list',
@@ -1313,7 +1311,8 @@ const dashboard = {
     /** The bar chart of the last day, and the reading of it for somebody not seeing it. */
     chart: {
         title: 'Runs over time',
-        hint: 'Every run started in the last 24 hours, by the hour it started in.',
+        /** The panel's fact: the window the bars cover, and what one bar is. */
+        window: 'last 24 hours, by hour',
         /** One bar's title, where nothing was started in that hour. */
         hour_empty: (hour: string) => `${hour} — nothing ran`,
         /** One bar's title: the hour, how much started in it, and how that came out. */
@@ -1335,7 +1334,6 @@ const dashboard = {
     health: {
         /** A healthy connection's dot, on the dashboard: the word, and what the check said. */
         healthy_tip: (health: string, said: string) => `${health}: ${said}`,
-        hint: 'The workers claiming work, and every connection.',
         /** A worker with nothing to report: what it is, and how much it can take. */
         worker: {
             one: (count: string) => `worker · ${count} slot`,
@@ -1390,10 +1388,10 @@ const pipelines = {
     lists: {
         own: 'Your pipelines',
         examples: 'Examples',
-        /** Opens the rest of the examples band in place. */
-        all_examples: (count: string) => `All ${count} examples`,
+        /** Opens the rest of the examples band in place; the count is the panel's own. */
+        all_examples: 'Show all',
         /** Takes the band back to its short set. */
-        fewer_examples: 'Fewer examples',
+        fewer_examples: 'Show fewer',
     },
     /** A pipeline's own page: its graph first, then what it runs, what fires it and what it reaches. */
     page: {
@@ -1487,10 +1485,6 @@ const editor = {
         /** The mono chip, where the instance holds no version of this pipeline at all. */
         none: 'no version',
         short: (version: string) => `v${version}`,
-        unapplied: 'No version of this pipeline has been applied.',
-        /** The chip's own tooltip, which is where what makes a version is said. */
-        explained: (version: string) =>
-            `Version ${version}. Only an apply that changes the document creates a version.`,
     },
 
     /** The strip above the canvas, and what this screen contributes to the command palette. */
@@ -2463,6 +2457,9 @@ const triggers = {
     token: {
         title: (code: string) => `The token for ${code}`,
         secret_title: (code: string) => `The signing secret for ${code}`,
+        /** What the copy button beside a minted token or signing secret names. */
+        token_noun: 'the token',
+        secret_noun: 'the signing secret',
         note: 'This is the only time it can be read. Rotating is how a lost one is replaced.',
         /** Over the path a caller is configured with. */
         url: 'Where to call',
@@ -2980,9 +2977,8 @@ const users = {
     token_scope_for: (username: string) => `This token can do whatever ${username} can.`,
     token_name_placeholder: 'ci-deploy',
     token_name_hint: 'Lower case, digits and single hyphens.',
-    /** Beside the secret, which the server answers once and cannot answer again. */
-    token_once: 'This is the only time this token will be shown.',
-    copy_token: 'Copy the token',
+    /** What the copy button beside a minted token names. */
+    token_noun: 'the token',
 
     new_password: 'New password',
 } as const

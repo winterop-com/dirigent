@@ -155,21 +155,18 @@ function Users() {
         <>
             <PageHeader
                 title={LABELS.screen.users.name}
-                aside={
-                    <>
-                        <ApiChip tag="users" />
-                        <Button
-                            size="sm"
-                            aria-label={LABELS.users.new_account}
-                            onClick={() => {
-                                setMaking(true)
-                            }}
-                        >
-                            <UserPlus aria-hidden />
-                            {LABELS.action.new}
-                        </Button>
-                    </>
-                }
+                aside={<ApiChip tag="users" />}
+                actions={[
+                    {
+                        id: 'new',
+                        label: LABELS.action.new,
+                        ariaLabel: LABELS.users.new_account,
+                        variant: 'default',
+                        onClick: () => {
+                            setMaking(true)
+                        },
+                    },
+                ]}
             />
 
             <PageState

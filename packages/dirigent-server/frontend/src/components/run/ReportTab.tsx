@@ -110,6 +110,7 @@ export function ReportTab({
     return (
         <WindowedPane
             name={DOCUMENT_NAME}
+            frame="none"
             className="p-4"
             windowed={
                 <div className={cn('min-h-0 w-full flex-1 overflow-y-auto', READING)}>

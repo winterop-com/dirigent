@@ -48,9 +48,8 @@ const NOTHING_HERE = LABELS.shell.panel_empty
  * no tabs, so the strip carries a plain label rather than one lone tab shaped like a control
  * that cannot be pressed and would do nothing if it could.
  *
- * ITS TAB STRIP IS THE SHELL'S TOP STRIP. `h-shell-top` and the strong border, the same as the
- * rail's head and the topbar, so the rule across the top of the app does not step where the
- * panel begins -- and its close control sits on the line the topbar's own toggle sits on.
+ * ITS TAB STRIP IS AS TALL AS THE SHELL'S TOP STRIP, `h-shell-top`, so its tabs sit on the line
+ * the crumb and the brand sit on, with a hairline under it over the panel's content.
  */
 export function RightPanel() {
     const open = useStore(panelOpen)
@@ -109,7 +108,7 @@ export function RightPanel() {
                         <div className="flex min-h-0 flex-1 flex-col">
                             <div
                                 data-shell-strip="top"
-                                className="flex h-shell-top shrink-0 items-center gap-2 px-3"
+                                className="flex h-shell-top shrink-0 items-center gap-2 border-b border-border-strong px-3"
                             >
                                 <span className="text-xs font-semibold tracking-wide text-faint uppercase">
                                     {EMPTY_HEADING}
@@ -127,7 +126,7 @@ export function RightPanel() {
                         >
                             <div
                                 data-shell-strip="top"
-                                className="flex h-shell-top shrink-0 items-center gap-2 px-2"
+                                className="flex h-shell-top shrink-0 items-center gap-2 border-b border-border-strong px-2"
                             >
                                 <TabsList>
                                     {tabs.map((tab) => (

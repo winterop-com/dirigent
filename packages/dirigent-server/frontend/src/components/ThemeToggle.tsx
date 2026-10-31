@@ -1,8 +1,7 @@
-import { Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { IconButton } from '@/components/ds/IconButton'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 
 /** The three settings of the mode axis; the settings dialog offers all of them. */
@@ -18,38 +17,21 @@ export const MODE_LABELS: Record<Mode, string> = {
 }
 
 /**
- * One click flips the look.
- *
- * The corner is a toggle, not a menu: it shows the appearance in force and a click sets the
- * opposite, as an explicit choice. System lives in the settings dialog's Theme pane --
- * choosing it there hands the switch back to the machine until the next click here.
+ * One click flips the look: the top strip's corner shows the appearance in force and a click
+ * sets the opposite, as an explicit choice. System is the settings dialog's Theme pane.
  */
 export function ThemeToggle() {
     const { resolvedTheme, setTheme } = useTheme()
     const dark = resolvedTheme !== 'light'
-    const label = dark ? LABELS.shell.switch_to_light : LABELS.shell.switch_to_dark
-
     return (
-        <Tooltip>
-            <TooltipTrigger
-                render={
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={label}
-                        onClick={() => {
-                            setTheme(dark ? 'light' : 'dark')
-                        }}
-                    >
-                        {dark ? (
-                            <Moon className="size-4" aria-hidden />
-                        ) : (
-                            <Sun className="size-4" aria-hidden />
-                        )}
-                    </Button>
-                }
-            />
-            <TooltipContent side="bottom">{label}</TooltipContent>
-        </Tooltip>
+        <IconButton
+            icon={dark ? ICONS.dark : ICONS.light}
+            label={dark ? LABELS.shell.switch_to_light : LABELS.shell.switch_to_dark}
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => {
+                setTheme(dark ? 'light' : 'dark')
+            }}
+        />
     )
 }

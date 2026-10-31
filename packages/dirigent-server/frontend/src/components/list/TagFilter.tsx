@@ -1,4 +1,4 @@
-import { ChevronDown, X } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 
 import { TagChip } from '@/components/TagChip'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { LABELS } from '@/lib/labels'
+import { Chip } from '@/components/ds/Chip'
 
 /**
  * The one tag filter, which both listings that have one wear.
@@ -66,18 +67,16 @@ export function TagFilter({
                 </DropdownMenuContent>
             </DropdownMenu>
             {chosen.map((tag) => (
-                <button
+                <Chip
                     key={tag}
-                    type="button"
-                    className="flex cursor-pointer items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs text-muted-foreground hover:border-foreground/40 hover:text-foreground"
-                    aria-label={LABELS.shell.stop_filtering_by_tag(tag)}
-                    onClick={() => {
+                    tone="mono"
+                    removeLabel={LABELS.shell.stop_filtering_by_tag(tag)}
+                    onRemove={() => {
                         onChange(chosen.filter((one) => one !== tag))
                     }}
                 >
                     {tag}
-                    <X className="size-3" aria-hidden />
-                </button>
+                </Chip>
             ))}
         </>
     )

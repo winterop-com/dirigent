@@ -11,9 +11,7 @@ import { ListTable, type Column } from '@/components/list/ListTable'
 import { Mark } from '@/components/Mark'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
-import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
-import { Button } from '@/components/ui/button'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
@@ -189,25 +187,20 @@ export function Connections() {
         <>
             <PageHeader
                 title={LABELS.screen.connections.name}
-                aside={
-                    <>
-                        <ApiChip tag="connections" />
-                        <Refusable why={write.why}>
-                            <Button
-                                size="sm"
-                                aria-label={LABELS.connections.new}
-                                disabled={!write.may}
-                                title={write.why}
-                                onClick={() => {
-                                    setCreating(true)
-                                }}
-                            >
-                                <PlugZap aria-hidden />
-                                {LABELS.action.new}
-                            </Button>
-                        </Refusable>
-                    </>
-                }
+                aside={<ApiChip tag="connections" />}
+                actions={[
+                    {
+                        id: 'new',
+                        label: LABELS.action.new,
+                        ariaLabel: LABELS.connections.new,
+                        variant: 'default',
+                        disabled: !write.may,
+                        why: write.why ?? undefined,
+                        onClick: () => {
+                            setCreating(true)
+                        },
+                    },
+                ]}
             />
 
             <PageState

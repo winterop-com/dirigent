@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { Refusal } from '@/components/Refusal'
+import { CodeFrame } from '@/components/ds/CodeFrame'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { Button } from '@/components/ui/button'
 import {
@@ -103,7 +104,7 @@ export function NewSchema({
                         <code>{KEYWORDS.about}</code>.
                     </DialogDescription>
                 </DialogHeader>
-                <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+                <CodeFrame className="min-h-0 flex-1">
                     <CodePane
                         value={text}
                         mediaType="application/schema+json"
@@ -113,7 +114,7 @@ export function NewSchema({
                         className="h-full min-h-0"
                         onChange={setText}
                     />
-                </div>
+                </CodeFrame>
                 <div className="grid gap-1.5">
                     <Label htmlFor="schema-code">{LABELS.word.code}</Label>
                     <Input

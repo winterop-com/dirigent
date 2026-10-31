@@ -1,5 +1,3 @@
-import { IconButton } from '@/components/ds/IconButton'
-import { ICONS } from '@/lib/icons'
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 
 import { KindChip } from '@/components/KindChip'
@@ -41,6 +39,8 @@ import {
     withRetryKey,
     withStepKey,
 } from '@/lib/step-keys'
+import { Notice } from '@/components/ds/Notice'
+import { Chip } from '@/components/ds/Chip'
 
 /**
  * The step in front of somebody: what it runs, what it waits for, and the config it takes.
@@ -152,9 +152,7 @@ export function StepTab({
                 {block !== null && <p className="text-xs text-muted-foreground">{block.summary}</p>}
             </div>
 
-            {disabled !== undefined && (
-                <p className="rounded-md border border-warning/40 p-2 text-xs text-warning">{disabled}</p>
-            )}
+            {disabled !== undefined && <Notice tone="warning">{disabled}</Notice>}
 
             <Section title={LABELS.word.config}>
                 {blockProblem !== null ? (
@@ -249,14 +247,13 @@ export function StepTab({
             </div>
 
             {refusals.length > 0 && (
-                <div className="space-y-1 rounded-md border border-critical/40 p-2" role="alert">
-                    <p className="text-xs font-medium text-critical">{LABELS.editor.step.refused_at_apply}</p>
-                    <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+                <Notice tone="critical" title={LABELS.editor.step.refused_at_apply}>
+                    <ul className="list-disc space-y-0.5 pl-4 text-xs">
                         {refusals.map(([name, message]) => (
                             <li key={name}>{message}</li>
                         ))}
                     </ul>
-                </div>
+                </Notice>
             )}
         </div>
     )
@@ -306,12 +303,9 @@ function Summary({ parts, chips }: { parts: SummaryPart[]; chips: boolean }) {
         return (
             <span className="ml-auto flex flex-wrap items-center justify-end gap-1">
                 {parts.map((part) => (
-                    <span
-                        key={part.text}
-                        className="rounded-sm border border-border bg-secondary px-1.5 py-0.5 font-mono text-xs"
-                    >
+                    <Chip key={part.text} tone="mono">
                         {part.text}
-                    </span>
+                    </Chip>
                 ))}
             </span>
         )
@@ -349,23 +343,24 @@ function Prerequisites({
                 {prerequisites.length === 0 && (
                     <span className="text-xs text-muted-foreground">{LABELS.editor.no_prerequisites}</span>
                 )}
-                {prerequisites.map((name) => (
-                    <span
-                        key={name}
-                        className="flex items-center gap-1 rounded-sm border border-border bg-secondary px-1.5 py-0.5 text-xs"
-                    >
-                        {name}
-                        <IconButton
-                            icon={ICONS.clear}
-                            size="xs"
-                            label={LABELS.editor.step.stop_waiting(name)}
-                            disabled={disabled !== undefined}
-                            onClick={() => {
+                {prerequisites.map((name) =>
+                    disabled === undefined ? (
+                        <Chip
+                            key={name}
+                            tone="mono"
+                            removeLabel={LABELS.editor.step.stop_waiting(name)}
+                            onRemove={() => {
                                 onDependsOn(prerequisites.filter((one) => one !== name))
                             }}
-                        />
-                    </span>
-                ))}
+                        >
+                            {name}
+                        </Chip>
+                    ) : (
+                        <Chip key={name} tone="mono">
+                            {name}
+                        </Chip>
+                    ),
+                )}
             </div>
             {offered.length > 0 && (
                 <Select

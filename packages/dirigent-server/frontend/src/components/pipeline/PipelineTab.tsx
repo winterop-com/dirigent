@@ -24,6 +24,7 @@ import {
 } from '@/lib/requirements'
 import type { RunOut } from '@/lib/runs'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
+import { Chip } from '@/components/ds/Chip'
 
 /**
  * The pipeline as a whole: what it is, what it takes, what it reaches, and what it has done.
@@ -76,15 +77,9 @@ export function PipelineTab({
                 <h2 className={heading.named ? 'text-sm font-semibold' : 'font-mono text-sm font-semibold'}>
                     {heading.title}
                 </h2>
-                <span
-                    className={
-                        pipeline.active
-                            ? 'rounded-sm border border-good px-1.5 py-0.5 text-xs text-good'
-                            : 'rounded-sm border border-dashed border-border px-1.5 py-0.5 text-xs text-muted-foreground'
-                    }
-                >
+                <Chip tone={pipeline.active ? 'good' : 'dashed'}>
                     {pipeline.active ? LABELS.state.armed.active : LABELS.state.armed.deactivated}
-                </span>
+                </Chip>
                 <span className="font-mono text-xs text-faint">
                     {pipeline.current_version === null
                         ? LABELS.editor.version.none
@@ -179,13 +174,10 @@ export function PipelineTab({
             <Section title={LABELS.word.requires}>
                 <div className="flex flex-wrap gap-1.5">
                     {requiredChips(document, unmet).map((chip) => (
-                        <span
+                        <Chip
                             key={chip.label}
-                            className={
-                                chip.met
-                                    ? 'rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs'
-                                    : 'rounded-sm border border-critical px-1.5 py-0.5 font-mono text-xs text-critical'
-                            }
+                            tone={chip.met ? 'mono' : 'critical'}
+                            className={chip.met ? undefined : 'font-mono'}
                             title={
                                 chip.met
                                     ? undefined
@@ -193,7 +185,7 @@ export function PipelineTab({
                             }
                         >
                             {chip.label}
-                        </span>
+                        </Chip>
                     ))}
                     {requiredChips(document, unmet).length === 0 && (
                         <span className="text-xs text-muted-foreground">

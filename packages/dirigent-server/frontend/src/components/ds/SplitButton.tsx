@@ -18,13 +18,12 @@ export interface SplitItem {
 }
 
 /**
- * A primary verb with its other ways beside it: the face does the common one, the chevron
- * opens the rest. Both halves are shut together by `why`, which each says on hover.
+ * A primary verb with its other ways beside it: the face does the common one, in its word, and
+ * the chevron opens the rest. Both halves are shut together by `why`, which each says on hover.
  */
 export function SplitButton({
     label,
     ariaLabel,
-    icon: Glyph,
     onClick,
     more,
     moreLabel,
@@ -34,7 +33,6 @@ export function SplitButton({
     label: string
     /** The verb's full name, where `label` alone does not say which noun. */
     ariaLabel?: string
-    icon?: Icon
     onClick: () => void
     more: readonly SplitItem[]
     /** What the chevron is called: "More ways to create a pipeline". */
@@ -48,15 +46,14 @@ export function SplitButton({
         <Refusable why={why}>
             <div className="flex">
                 <Button
-                    size="sm"
+                    size="lg"
                     variant={variant}
-                    className={cn('rounded-r-none', off)}
+                    className={cn('rounded-r-none px-3.5', off)}
                     aria-label={ariaLabel}
                     aria-disabled={shut || undefined}
                     title={why ?? ariaLabel}
                     onClick={shut ? undefined : onClick}
                 >
-                    {Glyph !== undefined && <Glyph aria-hidden />}
                     {label}
                 </Button>
                 <DropdownMenu>
@@ -64,10 +61,10 @@ export function SplitButton({
                         disabled={shut}
                         render={
                             <Button
-                                size="sm"
+                                size="lg"
                                 variant={variant}
                                 className={cn(
-                                    'rounded-l-none border-l px-1.5',
+                                    'rounded-l-none border-l px-2',
                                     variant === 'default'
                                         ? 'border-primary-foreground/20'
                                         : 'border-l-border',

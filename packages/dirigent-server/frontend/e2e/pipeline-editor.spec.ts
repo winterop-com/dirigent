@@ -510,7 +510,7 @@ test('a token an apply creates is shown once, before the editor moves on', async
     await asking.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
 
     const shown = page.getByRole('dialog').filter({ hasText: LABELS.triggers.token.title('ask') })
-    await expect(shown.getByTestId('minted-token')).not.toBeEmpty()
+    await expect(shown.locator('code').first()).not.toBeEmpty()
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)
     await shown.getByRole('button', { name: 'Close', exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`/pipelines/${pipeline}/edit$`))
@@ -1255,12 +1255,8 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
 
     // The document has an address of its own now, at the version the apply wrote.
     await expect(page).toHaveURL(new RegExp(`/pipelines/${code}/edit$`))
-    // The chip by its own title, not by its text: once the apply lands, the foot states the
-    // version the instance holds as well, and a bare `v1` matches whichever of the two got
-    // there first.
-    await expect(page.getByTitle(LABELS.editor.version.explained('1'))).toHaveText(
-        LABELS.editor.version.short('1'),
-    )
+    // The top strip states the version the instance holds, once.
+    await expect(page.locator('[data-screen-facts]')).toContainText(LABELS.editor.version.short('1'))
     await expect(page.getByText('Started in the editor', { exact: true }).first()).toBeVisible()
 })
 

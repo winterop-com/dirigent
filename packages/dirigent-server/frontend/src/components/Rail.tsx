@@ -1,251 +1,84 @@
-import { PanelLeftClose, PanelLeftOpen, Waypoints } from 'lucide-react'
 import { NavLink } from 'react-router'
 
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
-
-import { useDragSize } from '@/hooks/use-drag-size'
+import { AccountMenu } from '@/components/AccountMenu'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { DASHBOARD_PATH, marksOnlyItself, sectionsFor, type NavEntry, type NavSection } from '@/lib/nav'
-import {
-    RAIL_COLLAPSED_WIDTH,
-    RAIL_MAX_WIDTH,
-    RAIL_MIN_WIDTH,
-    clampRailWidth,
-    railCollapsed,
-    railDragging,
-    railWidth,
-    setRailWidth,
-    toggleRail,
-} from '@/lib/panels'
-import { cn } from '@/lib/utils'
-
-export const COLLAPSE_LABEL = LABELS.shell.collapse_nav
-export const RESIZE_RAIL_LABEL = LABELS.shell.resize_nav
-
-/** How far one arrow press moves an edge. */
-const KEYBOARD_STEP = 16
-export const EXPAND_LABEL = LABELS.shell.expand_nav
+import { RAIL_WIDTH, railHidden } from '@/lib/panels'
 
 /**
- * The navigation rail: every screen this account is offered, in one column.
+ * The navigation rail: the brand at its head, every screen this account is offered as one word
+ * each, and the account at its foot.
  *
- * Expanded it shows labels at a width the grip on its right edge drags, kept in pixels the
- * way the right panel's is; collapsed it is 56px of icons and the labels come back as
- * tooltips, and the grip goes with them.
- *
- * ONE LINE PER ENTRY. Pipelines, Runs, Schedules, Connections and Blocks are what this app is
- * made of, and a word that says what it is needs no gloss under it. The line each entry carries
- * about itself is the palette's, where a reader is searching rather than recognising.
- *
- * The active entry wears a left border rather than a filled overlay, because the border
- * survives the collapse: a strip of icons has no room for a fill that reads as anything.
- *
- * SETTINGS SITS UNDER THE RAIL, in the bar along the foot of the app -- a destination like
- * every other entry rather than one more icon in a topbar of them, and in the same place
- * however long the navigation grows. The bar owns that cell, and this column ends above it,
- * because one element drawing the whole bottom rule is a rule that cannot come apart.
- *
- * THE HEAD IS THE SHELL'S TOP STRIP, NOT THIS COLUMN'S: `h-shell-top`, the same as the topbar
- * and the panel's tab strip, and the rule under all three is drawn once by the shell.
+ * Its head is `h-shell-top`, the same as the top strip beside it. Hidden, it draws nothing, and
+ * the top strip carries the control that brings it back.
  */
-export function Rail() {
-    const collapsed = useStore(railCollapsed)
-    const width = useStore(railWidth)
+export function Rail({ onSettings, onShortcuts }: { onSettings: () => void; onShortcuts: () => void }) {
+    const hidden = useStore(railHidden)
     const auth = useStore(authStore)
     const sections = sectionsFor(auth.identity?.role ?? null)
-    const aside = useRef<HTMLElement | null>(null)
-    const { dragging, beginResize } = useDragSize('x', width, 1, setRailWidth, clampRailWidth, aside)
-
-    useEffect(() => {
-        railDragging.set(dragging)
-    }, [dragging])
-
-    // A collapsed rail wakes on a drag: pull its edge outward and it expands under the hand,
-    // committing whatever width the release expressed. A click without a pull stays a click.
-    const wake = (event: ReactPointerEvent<HTMLDivElement>) => {
-        event.preventDefault()
-        event.currentTarget.setPointerCapture(event.pointerId)
-        const startX = event.clientX
-        let woke = false
-        const widthAt = (clientX: number) =>
-            clampRailWidth(Math.max(RAIL_MIN_WIDTH, RAIL_COLLAPSED_WIDTH + (clientX - startX)))
-        const follow = (move: globalThis.PointerEvent) => {
-            if (!woke && move.clientX - startX > 8) {
-                woke = true
-                toggleRail()
-            }
-            if (woke && aside.current !== null) {
-                aside.current.style.transition = 'none'
-                aside.current.style.width = `${String(widthAt(move.clientX))}px`
-            }
-        }
-        const done = (up: globalThis.PointerEvent) => {
-            document.removeEventListener('pointermove', follow)
-            document.removeEventListener('pointerup', done)
-            if (!woke) return
-            if (aside.current !== null) {
-                aside.current.style.transition = ''
-                aside.current.style.width = ''
-            }
-            setRailWidth(widthAt(up.clientX))
-        }
-        document.addEventListener('pointermove', follow)
-        document.addEventListener('pointerup', done)
-    }
+    if (hidden) return null
 
     return (
-        <>
-            <aside
-                ref={aside}
-                className={cn(
-                    'relative hidden shrink-0 flex-col overflow-hidden border-r border-border-strong bg-sidebar text-sidebar-foreground md:flex',
-                    !dragging && 'transition-[width] duration-200',
-                )}
-                style={{ width: collapsed ? RAIL_COLLAPSED_WIDTH : width }}
-            >
-                {/* COLLAPSED, THE MARK IS THE TOGGLE. There is no room beside a 28px mark in a
-                56px strip that does not read as a cram, so the mark itself expands the rail,
-                showing the expand glyph under the hand -- and loses nothing as a link, because
-                Home is the first entry right below it. Expanded, the mark is the home link and
-                the collapse control sits beside the wordmark, where it always was. */}
-                <div
-                    data-shell-strip="top"
-                    className={cn(
-                        'flex h-shell-top shrink-0 items-center gap-2 px-3',
-                        collapsed && 'justify-center px-0',
-                    )}
-                >
-                    {collapsed ? (
-                        <Tooltip>
-                            <TooltipTrigger
-                                render={
-                                    <button
-                                        type="button"
-                                        onClick={toggleRail}
-                                        aria-label={EXPAND_LABEL}
-                                        className="group/mark flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-node bg-brand text-brand-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                                    >
-                                        <Waypoints className="size-4 group-hover/mark:hidden" aria-hidden />
-                                        <PanelLeftOpen
-                                            className="hidden size-4 group-hover/mark:block"
-                                            aria-hidden
-                                        />
-                                    </button>
-                                }
-                            />
-                            <TooltipContent side="right">{EXPAND_LABEL}</TooltipContent>
-                        </Tooltip>
-                    ) : (
-                        <>
-                            <NavLink
-                                to={DASHBOARD_PATH}
-                                aria-label={LABELS.shell.wordmark}
-                                className="flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                            >
-                                <span className="flex size-7 shrink-0 items-center justify-center rounded-node bg-brand text-brand-foreground">
-                                    <Waypoints className="size-4" aria-hidden />
-                                </span>
-                                <span className="text-base font-semibold tracking-tight">
-                                    {LABELS.shell.wordmark}
-                                </span>
-                            </NavLink>
-                            <Tooltip>
-                                <TooltipTrigger
-                                    render={
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={toggleRail}
-                                            aria-label={COLLAPSE_LABEL}
-                                            className="ml-auto shrink-0 text-muted-foreground"
-                                        >
-                                            <PanelLeftClose className="size-4" aria-hidden />
-                                        </Button>
-                                    }
-                                />
-                                <TooltipContent side="right">{COLLAPSE_LABEL}</TooltipContent>
-                            </Tooltip>
-                        </>
-                    )}
-                </div>
+        <aside
+            className="hidden shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex"
+            style={{ width: RAIL_WIDTH }}
+        >
+            <div data-shell-strip="top" className="flex h-shell-top shrink-0 items-center px-3.5">
+                <BrandLink />
+            </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto pt-1 pb-2">
-                    {sections.map((section) => (
-                        <nav key={section.id} className="flex flex-col gap-1 px-2 pb-1">
-                            {section.label !== null && !collapsed && <SectionLabel section={section} />}
-                            {section.label !== null && collapsed && (
-                                <div className="mx-2 my-2 border-t border-border" />
-                            )}
-                            {section.entries.map((entry) => (
-                                <RailEntry key={entry.path} entry={entry} collapsed={collapsed} />
-                            ))}
-                        </nav>
-                    ))}
-                </div>
-            </aside>
-            {
-                <div
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-label={collapsed ? EXPAND_LABEL : RESIZE_RAIL_LABEL}
-                    aria-valuenow={collapsed ? RAIL_COLLAPSED_WIDTH : width}
-                    aria-valuemin={RAIL_MIN_WIDTH}
-                    aria-valuemax={RAIL_MAX_WIDTH}
-                    tabIndex={0}
-                    data-dragging={dragging}
-                    onPointerDown={collapsed ? wake : beginResize}
-                    onKeyDown={(event) => {
-                        if (event.key === 'ArrowRight') setRailWidth(width + KEYBOARD_STEP)
-                        else if (event.key === 'ArrowLeft') setRailWidth(width - KEYBOARD_STEP)
-                        else return
-                        event.preventDefault()
-                    }}
-                    className="resize-handle z-10 -mr-1.5 hidden w-1.5 shrink-0 cursor-col-resize touch-none md:block"
-                />
-            }
-        </>
+            <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-2">
+                {sections.map((section) => (
+                    <nav key={section.id} className="flex flex-col gap-px">
+                        {section.label !== null && <SectionLabel section={section} />}
+                        {section.entries.map((entry) => (
+                            <RailEntry key={entry.path} entry={entry} />
+                        ))}
+                    </nav>
+                ))}
+            </div>
+
+            <div className="shrink-0 px-3.5 pt-2 pb-4">
+                <AccountMenu className="w-full" onSettings={onSettings} onShortcuts={onShortcuts} />
+            </div>
+        </aside>
+    )
+}
+
+/** The brand tile and the wordmark, which is the way to the dashboard. */
+export function BrandLink() {
+    return (
+        <NavLink
+            to={DASHBOARD_PATH}
+            aria-label={LABELS.shell.wordmark}
+            className="control-link flex items-center gap-2.5 rounded-control px-1.5 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+        >
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-node bg-brand text-brand-foreground">
+                <ICONS.brand className="size-4" aria-hidden />
+            </span>
+            <span className="text-lockup">{LABELS.shell.wordmark}</span>
+        </NavLink>
     )
 }
 
 /** A group's heading. */
 export function SectionLabel({ section }: { section: NavSection }) {
     return (
-        <p className="px-2 pt-3 pb-1 text-xs font-medium tracking-wide text-faint uppercase">
-            {section.label}
-        </p>
+        <p className="px-2.5 pt-4.5 pb-1.5 text-xs tracking-widest text-faint uppercase">{section.label}</p>
     )
 }
 
-export function RailEntry({ entry, collapsed }: { entry: NavEntry; collapsed: boolean }) {
-    const Icon = entry.icon
-    const link = (
+export function RailEntry({ entry }: { entry: NavEntry }) {
+    return (
         <NavLink
             to={entry.path}
             end={marksOnlyItself(entry.path)}
-            aria-label={entry.label}
-            className={({ isActive }) =>
-                cn(
-                    'control-link rail-entry relative flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors',
-                    collapsed && 'mx-auto size-9 justify-center p-0',
-                    isActive
-                        ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-                        : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
-                )
-            }
+            className="control-link rail-entry flex items-center rounded-control px-2.5 py-1.5 text-sm transition-colors"
         >
-            <Icon className="size-4 shrink-0" aria-hidden />
-            {!collapsed && <span>{entry.label}</span>}
+            {entry.label}
         </NavLink>
-    )
-    if (!collapsed) return link
-    return (
-        <Tooltip>
-            <TooltipTrigger render={link} />
-            <TooltipContent side="right">{entry.label}</TooltipContent>
-        </Tooltip>
     )
 }

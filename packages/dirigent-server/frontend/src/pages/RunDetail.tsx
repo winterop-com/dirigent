@@ -1,4 +1,3 @@
-import { Ban, Copy, RotateCw, SquareTerminal } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -11,13 +10,12 @@ import { StatusChip } from '@/components/run/StatusChip'
 import { StepTab } from '@/components/run/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { Code } from '@/components/ds/Code'
+import { IconButton } from '@/components/ds/IconButton'
 import { Panel } from '@/components/ds/Panel'
 import { connectionOf, RunFailure, RunLogs } from '@/components/run/RunFailure'
 import { PageState } from '@/components/PageState'
 import { ToolbarActions } from '@/components/ToolbarActions'
 import { sayRefusal } from '@/components/Refusal'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
@@ -285,7 +283,7 @@ export function RunDetail() {
                 title: TERMINAL_LABEL,
                 group: shelf,
                 screen: true,
-                icon: SquareTerminal,
+                icon: ICONS.terminal,
                 keywords: ['console', 'logs', 'output', 'lines'],
                 hint: LABELS.runs.terminal_hint,
                 run: toggleTerminal,
@@ -298,7 +296,7 @@ export function RunDetail() {
                           title: CANCEL_LABEL,
                           group: shelf,
                           screen: true,
-                          icon: Ban,
+                          icon: ICONS.cancel,
                           keywords: ['stop', 'abort'],
                           run: cancel,
                       },
@@ -311,7 +309,7 @@ export function RunDetail() {
                           title: RERUN_LABEL,
                           group: shelf,
                           screen: true,
-                          icon: RotateCw,
+                          icon: ICONS.rerun,
                           keywords: ['repeat', 'retry'],
                           run: rerun,
                       },
@@ -324,7 +322,7 @@ export function RunDetail() {
                           title: LABELS.runs.copy_trace_action,
                           group: shelf,
                           screen: true,
-                          icon: Copy,
+                          icon: ICONS.copy,
                           keywords: ['tracing', 'otel'],
                           hint: trace,
                           run: () => {
@@ -411,15 +409,19 @@ export function RunDetail() {
 
     // The page scrolls above the terminal, which stands at the foot of the content area.
     return (
-        <div className="-my-3 flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto py-3">
+        <div className="-mb-9 flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto pb-6">
                 <Breadcrumb
                     trail={[
                         { label: LABELS.screen.runs.name, to: '/runs' },
-                        { label: run.pipeline, to: `/pipelines/${run.pipeline}`, mono: true, keep: true },
+                        {
+                            label: document?.name ?? run.pipeline,
+                            to: `/pipelines/${run.pipeline}`,
+                            mono: document === null || document.name === null,
+                        },
                     ]}
                 />
-                <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="min-w-0">
                         <h1 className="text-page font-medium tracking-tight">
                             {document?.name ?? run.pipeline}
@@ -435,22 +437,13 @@ export function RunDetail() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Tooltip>
-                            <TooltipTrigger
-                                render={
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label={TERMINAL_LABEL}
-                                        aria-pressed={terminal}
-                                        onClick={toggleTerminal}
-                                    >
-                                        <SquareTerminal className="size-4" aria-hidden />
-                                    </Button>
-                                }
-                            />
-                            <TooltipContent side="bottom">{TERMINAL_LABEL}</TooltipContent>
-                        </Tooltip>
+                        <IconButton
+                            icon={ICONS.terminal}
+                            label={TERMINAL_LABEL}
+                            aria-pressed={terminal}
+                            className="text-muted-foreground"
+                            onClick={toggleTerminal}
+                        />
                         <ToolbarActions
                             actions={[
                                 {
@@ -472,7 +465,7 @@ export function RunDetail() {
                                 {
                                     id: 'cancel',
                                     label: LABELS.action.cancel_run,
-                                    icon: Ban,
+                                    icon: ICONS.cancel,
                                     destructive: verbs.cancel.open,
                                     disabled: !write.may || !verbs.cancel.open || cancel === null,
                                     why: write.why ?? verbs.cancel.why ?? undefined,
@@ -483,7 +476,7 @@ export function RunDetail() {
                                 {
                                     id: 'rerun',
                                     label: LABELS.action.rerun,
-                                    icon: RotateCw,
+                                    icon: ICONS.rerun,
                                     variant: verbs.rerun.open ? 'default' : 'outline',
                                     disabled: !write.may || !verbs.rerun.open || rerun === null,
                                     why: write.why ?? verbs.rerun.why ?? undefined,

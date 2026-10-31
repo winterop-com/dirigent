@@ -90,7 +90,7 @@ export function PipelinePage() {
     return (
         <div className="flex min-w-0 flex-col">
             <Breadcrumb trail={[{ label: LABELS.screen.pipelines.name, to: '/pipelines' }]} />
-            <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
                     <h1 className="text-page font-medium tracking-tight">{titleOf(pipeline)}</h1>
                     <div className="mt-1.5">
@@ -245,7 +245,7 @@ function Blocks({
                     key={block}
                     className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5 border-t border-border py-2.5 first:border-t-0"
                 >
-                    <Code value={block} tone="body" className="w-32 shrink-0 font-medium" />
+                    <Code value={block} tone="body" className="w-48 shrink-0 font-medium" />
                     <span className="flex min-w-0 flex-[1_1_160px] flex-wrap gap-1">
                         {codes.map((code) => (
                             <button

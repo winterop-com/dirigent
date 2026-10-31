@@ -1,5 +1,5 @@
-import { cn } from '@/lib/utils'
 import { LABELS } from '@/lib/labels'
+import { Chip } from '@/components/ds/Chip'
 
 /**
  * One tag, drawn the one way this app draws a tag.
@@ -26,23 +26,14 @@ export function TagChip({
     /** What clicking it is called, for the pointer and for a screen reader. */
     label?: string
 }) {
-    const face = cn(
-        'rounded-sm border border-border px-1.5 font-mono text-xs text-muted-foreground',
-        className,
-    )
-    if (onSelect === undefined) return <span className={face}>{tag}</span>
-    return (
-        <button
-            type="button"
-            className={cn(face, 'cursor-pointer hover:border-foreground/40 hover:text-foreground')}
-            aria-label={label ?? LABELS.shell.filter_by_tag(tag)}
-            title={label ?? LABELS.shell.filter_by_tag(tag)}
-            onClick={(event) => {
-                event.stopPropagation()
-                onSelect()
-            }}
-        >
+    const said = label ?? LABELS.shell.filter_by_tag(tag)
+    return onSelect === undefined ? (
+        <Chip tone="mono" className={className}>
             {tag}
-        </button>
+        </Chip>
+    ) : (
+        <Chip tone="mono" className={className} onSelect={onSelect} selectLabel={said}>
+            {tag}
+        </Chip>
     )
 }
