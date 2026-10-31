@@ -470,6 +470,16 @@ its pipeline are read again after it. A body that has not arrived whole within
 `DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,
 so a stranger who stops sending holds one socket for that long and nothing the API shares.
 
+**Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
+the step's timeout and the lease heartbeat keep running over a value of any size, and
+`uniqueItems` costs time in step with the array. Two limits remain. A thread cannot be stopped, so
+an evaluation that passed its timeout finishes in the background: `unevaluatedItems` and
+`unevaluatedProperties` still grow with the square of the value, about a minute for an array at
+the default 1 MiB cap. And a regular expression holds the interpreter's lock, so a `pattern`,
+`patternProperties` or `propertyNames` pattern that backtracks without end, over a string the
+caller chose, holds the whole worker: an author who feeds a public source to a schema writes
+patterns that cannot.
+
 **A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
 UI's origin, so it answers with `X-Content-Type-Options: nosniff` and
 `Content-Security-Policy: sandbox; default-src 'none'; frame-ancestors 'none'` whatever it
