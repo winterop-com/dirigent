@@ -116,6 +116,7 @@ find from across the room, and that the working size of a dense screen is a step
 | `text-page` | 26px | A page heading, at weight 500, and nothing else on any screen |
 | `text-stat` | 28px mono | A stat's number, and nothing else on any screen |
 | `text-wordmark` | 48px | The login brand lockup's wordmark, and nothing else on any screen |
+| `text-brand` | 20px | The rail's wordmark beside the mark, at weight 600, and nothing else on any screen |
 | `text-display` | 36px | The sign-in heading, and nothing else on any screen |
 | `--text-graph-title` | 12px | A step's title on a graph, in mono at weight 500, and nothing else on any screen |
 | `--text-graph-small` | 11px | Every other word drawn on a graph: the block or what a source listens to, a badge, a count, a duration, a fan-out's strip, words standing over an empty canvas |
@@ -133,7 +134,7 @@ word added to a box inherits its size and no word on a canvas can come out at th
 
 `scripts/check_ui_classes.py` fails the gate on anything outside them, whether the sixth size
 arrives as `text-[17px]` or as `text-lg`. The check has no allowlist -- it knows `text-title`,
-`text-page`, `text-stat`, `text-wordmark`, `text-display` and the two graph sizes by name, and
+`text-page`, `text-stat`, `text-wordmark`, `text-brand`, `text-display` and the two graph sizes by name, and
 reads `index.css` itself so another size cannot be minted there either. A named
 exception can be counted; an allowlist is a check people argue with. It skips
 `src/components/ui/`, because those files are generated and regenerating them is how they are
@@ -172,7 +173,7 @@ what a palette is is what it looks like, and a card showing the ground, the surf
 the ink and the accent says in one glance what a sentence under a segmented control took a
 paragraph to approximate -- so no palette carries a line about itself any more. Neither row holds
 a copy of what it sets -- Appearance writes next-themes, Palette writes `choosePalette`, and both
-read back through the store. The topbar's toggle is the two-way flip over Appearance, and System
+read back through the store. The top strip's flip is the two-way toggle over Appearance, and System
 is reachable only here.
 
 **Three palettes ship, ordered quiet to loud: `dirigent`, `paper`, `contrast`.** The default is
@@ -195,6 +196,24 @@ failed ink along its top and the warning mark beside its title, which is the onl
 ever carries. Nothing draws a left border in a status colour, and nothing on a screen styles a
 surface of its own: a treatment is changed in `Panel` and in the `.dg-panel` rules in `index.css`,
 and the generated card follows the same rules.
+
+**A listing is a headed panel too.** `ListTable` draws the `.dg-panel` edge and ground: its row of
+column headings is the panel's bar, on `--card` over the hairline, and its rows stand on the panel
+ground with a `--border` hairline between them and no stripe. Given a `title` it carries the
+panel's own title bar above the headings, with the count where the line along the foot would be,
+so a screen with two listings -- Triggers' sources and schedules, the catalog's families -- is two
+panels rather than two headings over two cards.
+
+**Inside a panel or a dialog there are three boxes, and each is drawn once.** A `Well` is a group
+that belongs together -- a form opened under its row, a minted secret, a sample -- on the panel
+ground, edged in `--panel-line`. An `Inset` is reference material -- a block of JSON, a code block
+in a description, a log -- on the page's own ground, edged the same way, so a preview reads as cut
+into the surface it is on. A code editor is a field, so `CodeFrame` draws it the way every field is
+drawn: the `--field` ground and the `--input` edge at the control's corner, and `WindowedPane` puts
+every pane that opens in a window inside one. A box that says how something is going is a `Notice`,
+and a refusal off the wire is `Refusal`. No screen types a border, a corner and a ground onto a
+`div` of its own: the boxes are `.dg-well`, `.dg-inset` and `.dg-frame` in `index.css`, beside
+`.dg-panel`.
 
 **The rest of the ladder.** `--sidebar` is the rail, a rung under `--background`, the page.
 `--secondary` is raised: a button's fill, a chip, the active rail entry; `--popover` is a dialog
@@ -498,8 +517,9 @@ has yet to reach, and saying "fired" of it would be a second untruth in place of
 ## A listing is a cursor walk
 
 Every screen that draws a listing draws it with one component. `components/list/ListTable` is
-the heading row, the striping, the row that reaches for the next page and the line along the
-foot; a screen decides its columns and what each cell says, and nothing else. Where a row opens
+the panel, the heading row, the hairline between rows, the row that reaches for the next page and
+the count, along the foot or in the title bar where the listing has a title; a screen decides its
+columns and what each cell says, and nothing else. Where a row opens
 something -- a trigger's history beside the table, a connection's dialog over it -- the screen passes
 `onSelect`, and the row answers Enter and Space as well as a click, because a row only a pointer
 can open is a row some people cannot. **The column header is sticky**: rows scroll beneath it
@@ -1153,7 +1173,7 @@ with the query sorts above one that merely contains it.
 
 **Every chord this app binds is a letter.** On a Norwegian layout `[`, `]`, `{`, `}`, `|` and `\`
 all need Alt to reach at all, so a binding over one of them is a binding nobody here can press.
-Cmd/Ctrl+K opens the palette, the platform's own modifier plus B folds the rail, `T` shows and
+Cmd/Ctrl+K opens the palette, the platform's own modifier plus B hides and shows the rail, `T` shows and
 hides a run's terminal, and `?` opens the list of every key -- each matched as the character it
 produced, never as Shift plus a physical key.
 `src/lib/shortcuts.ts` decides every press as a pure function; `hooks/use-app-shortcuts.ts` is the
@@ -1161,11 +1181,10 @@ one place a real `KeyboardEvent` is read.
 
 ## Panels are sized in pixels
 
-The rail is 240px with labels and 56px of icons with the labels back as tooltips, and the width
-it shows labels at is dragged between 160 and 320 -- narrower and the labels it exists for
-truncate, wider is dead space the longest label left behind. `lib/panels` holds those numbers
-beside the two widths and the open flag, each read out of storage as its store is built, so the
-shell renders at its settled size on the first paint rather than snapping into it.
+The rail is 168px and is not dragged: its longest word fits with room, and a grip on its edge
+would be chrome the rail has no use for. The right panel's width and whether it stands open, and
+whether the rail is hidden, are what `lib/panels` keeps, each read out of storage as its store is
+built, so the shell renders at its settled size on the first paint rather than snapping into it.
 
 **What is in the right panel is the screen's.** The panel itself is drawn once, in
 `components/RightPanel`, and a screen fills it with `fillPanel` from an effect that returns the
@@ -1179,10 +1198,10 @@ the only thing that writes the stored preference. A selection, or an address tha
 opens the panel through `openPanel` for that screen alone, and the next screen starts from the
 preference, so a link into one screen never decides how every other screen first draws.
 
-**The status bar is the shell's; the two facts on it are the screen's.** `lib/screen-status`
-holds one note and one identifier, stated for as long as a screen is mounted -- where a run's
-event stream is, and the trace the run is on. The note is data with a tone rather than markup, so
-what a connecting stream says is a pure function and the bar stays one row whatever it holds.
+**The top strip carries the screen's two facts.** `lib/screen-status` holds one note and one
+identifier, stated for as long as a screen is mounted -- where a run's event stream is, and the
+trace the run is on. The note is data with a tone rather than markup, so what a connecting stream
+says is a pure function and the strip stays one line whatever it holds.
 
 The right panel is dragged, and what is stored is **pixels, not a fraction**. What somebody
 dragged it to was a decision about the content in it -- wide enough for a log line, narrow enough
@@ -1191,52 +1210,63 @@ window narrower than the stored width clamps for that session and leaves the sto
 so the intent comes back with the window. The drag handle is a `separator` and answers the arrow
 keys, because a panel that can only be sized by pointer is a panel some people cannot size.
 
-**One hook drags all three edges.** The rail's right edge, the right panel's left edge and the run
-terminal's top edge are the same three sentences with a different coordinate read off the pointer,
-so `hooks/use-drag-size` takes the axis as a parameter rather than being copied per direction.
-The pointer is followed on the document rather than on the handle, and the size is written to the
-element's own style while the drag lasts -- a React render per pointer event leaves the edge
-visibly behind the hand -- with the store hearing one committed number on release.
+**One hook drags both edges.** The right panel's left edge and the run terminal's top edge are the
+same sentences with a different coordinate read off the pointer, so `hooks/use-drag-size` takes
+the axis as a parameter rather than being copied per direction. The pointer is followed on the
+document rather than on the handle, and the size is written to the element's own style while the
+drag lasts -- a React render per pointer event leaves the edge visibly behind the hand -- with the
+store hearing one committed number on release.
 
-## The shell has two rules, and each is one line
+## The shell is a rail and a strip
 
-Rail, content and right panel meet in a strip along the top and a bar along the foot. **Every
-strip in a row is the same height** -- `h-shell-top`, `h-shell-foot`, stated once in `index.css`
--- **and the rule between the strip and the work is drawn once**, never once per column: the
-top rule is a single full-width element the shell owns, and the foot is a single full-width bar
-with two cells inside it, the account cell tracking the rail's own width store. Two elements
-each drawing half a border is a line that comes apart at a column edge, and the bottom of the
-app then reads as a step. `e2e/shell.spec.ts` measures every strip with
-`getBoundingClientRect`, in both palettes, with the rail collapsed and the panel open.
+The rail, the screen and the right panel are three columns, and nothing runs across them: there
+is no bar along the foot and no rule under the top. **The rail stands on `--sidebar`, a rung under
+the page, and that step is its edge**; the top strip stands on the page's own ground. Every strip
+in the top row is one height -- `h-shell-top`, stated once in `index.css` -- so the rail's head,
+the top strip and the right panel's tab strip put the mark, the crumb and the tabs on one line.
+`e2e/shell.spec.ts` measures every strip with `getBoundingClientRect`, in both palettes, with the
+rail hidden and the panel open.
 
-**A fact appears once in the shell.** How this instance is doing belongs to the top bar's dot.
-**The foot carries only what the
-current screen is doing**: its note and its identifier, and nothing that is true of the session
-rather than of the screen. What a screen states there is what nothing else on it already says
--- how many rows were read is the foot of the table's line, not the bar's; a standing fact is
-which version the instance holds, not who applied it and when -- and an instant is the house's
-relative form rather than a locale string.
+**The rail is the mark, the screens and the account, top to bottom.** Its head is the brand tile
+and the word `dirigent` at `text-brand`, which is the way to the dashboard. Its entries are
+**single-line words with no icon**, and a word that names a screen needs no gloss under it. **They
+are grouped by what somebody is there to do**: Dashboard alone at the head; Operate (Runs,
+Triggers); Build (Pipelines, Connections, Schemas); Reference (Blocks, Examples); and, for an
+admin, Admin (Users, Workers, Alerting). A group's name over its entries is the faint uppercase
+label at `text-xs`. An entry is muted ink, the pointer lifts it to `--card` and ink, and the active
+one is the `--secondary` fill at weight 600. `lib/nav` is the array the rail draws and the palette
+offers, and the line an entry carries about itself, and its mark, are data the palette reads.
 
-**The top bar's dot is the whole of what it says while the instance is well.** One dot at the right
-of the bar, and the details are its tooltip: the name and environment from `/system/info`, the
-health and when it was asked, the version, and every check. **Words appear only when something is
-wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unreachable, retrying`{ .label }, beside the dot, in
+**The account stands at the foot of the rail**: a square avatar on `--secondary` at the
+control's corner, and the username in mono. Pressing it opens the account menu, upward: who is
+signed in and their role, Settings, Shortcuts with the key that opens them, Sign out, and at the
+foot the instance's name, environment and version. A key is drawn beside a row only where
+`lib/shortcuts` binds one. `GET /auth/me` carries no display name, so the menu is headed by the
+username, which is the account's code.
+
+**The rail hides whole.** The platform's modifier plus B and the palette's row take it off screen
+and bring it back, and while it is hidden the top strip carries `Show the navigation`{ .label } at
+its left, where the drawer's button stands below the breakpoint. Whether it is hidden is the
+reader's, and kept.
+
+**The top strip is the screen's crumb and the instance's corner.** At its left stands the crumb:
+where a screen is one thing, the trail back to the listing it belongs to, drawn by `Breadcrumb`
+into the strip rather than onto the page, so the page opens on its heading. A listing has no
+crumb. After it, the screen's note and identifier, and nothing a screen states there is something
+its own page already says -- how many rows were read is the table's, a standing fact is which
+version the instance holds rather than who applied it and when, and an instant is the house's
+relative form. At the right: the palette's button, which is the search glyph with the chord on its
+tooltip; the panel's toggle, where the screen has filled a panel; the instance's dot; and the mode
+flip, which is the two-way toggle over Appearance.
+
+**A fact appears once in the shell.** How this instance is doing belongs to the dot, and nothing
+true of the session rather than of the screen stands beside the crumb.
+
+**The dot is the whole of what it says while the instance is well.** Its details are its tooltip:
+the name and environment from `/system/info`, the health and when it was asked, the version, and
+every check. **Words appear only when something is wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unreachable, retrying`{ .label }, beside the dot, in
 that state's ink. `statusWords` in `lib/server-status` decides it. A press opens the settings
 dialog's Server pane, which is what a finger has where there is nothing to hover with.
-
-**The account lives at the bottom of the rail's column**, in that bar: an avatar and the username,
-the avatar alone on a collapsed rail. Pressing it opens the account menu, upward: who is signed in
-and their role, Settings, Shortcuts with the key that opens them, Sign out, and at the foot the
-instance's name, environment and version. A key is drawn beside a row only where `lib/shortcuts`
-binds one. `GET /auth/me` carries no display name, so the menu is headed by the username, which is
-the account's code. The rail's own entries are **single-line labels**, and a
-word that names one of those needs no gloss under it. **They are grouped by what somebody is there
-to do**: Dashboard alone at the head; Operate (Runs, Triggers); Build (Pipelines, Connections,
-Schemas); Reference (Blocks, Examples); and, for an admin, Admin (Users, Workers, Alerting). `lib/nav`
-is the array the rail draws and the palette offers, and the line an entry carries about itself is
-data on the entry that the palette reads. The active entry is a raised fill at weight 600, and a
-group's name over its entries is the faint uppercase label at `text-xs`; collapsed, the fill is the
-icon's tile.
 
 ## Small screens
 
@@ -1286,7 +1316,7 @@ the top strip -- icon only, `aria-label` "Open navigation" -- opens it over a sc
 by its own close button, by Escape, by a tap on the scrim, and on every route change, because a
 drawer still standing over the screen somebody navigated to is a drawer they have to dismiss
 twice. Focus moves into it on open and back to the button on close. The account menu lives at its
-foot, where the rail's own cell in the status bar puts it above the breakpoint.
+foot, as it does at the foot of the rail above the breakpoint.
 
 **A listing row becomes a card where the table will not fit**, which on a phone is every
 listing. The table is one component and so is its narrow form: `ListTable` draws its first
@@ -1329,7 +1359,7 @@ no tab bar.
 delete-step controls are not drawn, and neither is any of the three verbs -- Apply, Run, and the
 Validate that would dry-run a document nothing here can change. The strip says "Read only on a
 small screen" where the verbs were, and carries the document's identity and nothing else: what
-version it is at is along the foot already, and a fact appears once on a screen. A graph is still
+version it is at is in the top strip already, and a fact appears once on a screen. A graph is still
 read, a step is still chosen, and a run is still watched.
 
 **A segmented control that does not fit wraps; it never becomes a menu.** The control is for a
@@ -1360,10 +1390,11 @@ pressed; they keep the size the type scale gives them, and the row holding them 
 finger has -- which is `min-h-finger` already. The rule is about what the app draws as a
 control, and that is what makes it checkable.
 
-**A keyboard chord is drawn only where a keyboard is likely.** Below the breakpoint the palette
-button carries the search glyph in place of Cmd/Ctrl+K, under the same `aria-label` and in the
-square the finger rule gives an icon button, because a phone has no modifier key to press; the
-list of shortcuts keeps its keys, being a list about keyboards.
+**A keyboard chord is drawn only where a keyboard is likely.** The palette button is the search
+glyph at every width, with Cmd/Ctrl+K on its tooltip rather than on its face, because a phone has
+no modifier key to press and a chord on the strip says nothing to a pointer; below the breakpoint
+it takes the square the finger rule gives an icon button. The list of shortcuts keeps its keys,
+being a list about keyboards.
 
 ## A kind may be drawn as well as named
 
@@ -1835,7 +1866,7 @@ run's graph keeps the anchors and shows none, and the browser suite asserts that
 
 **An edge is a `depends_on` entry, and it is one edit however it was made.** Dragging between
 two ports and choosing a step from the chips in its own pane end in the same `withDependsOn`
-against the same local document, so the topbar counts a drawn edge with everything else
+against the same local document, so the editor's strip counts a drawn edge with everything else
 unapplied and nothing is written until an apply. `lib/graph-edits` is that seam: `withEdge` and
 `withoutEdge` answer with the document they were given when it already says what was asked, so
 drawing an edge twice is a gesture rather than an edit. A selected edge and the Delete key take
@@ -1992,8 +2023,8 @@ catalogue could show it beside the others. **A way in that is off screen is stat
 off screen**, so a listing whose rows are declared by a document says so even where a button
 beside it declares one too. A listing carries an `API` chip linking `/docs#/<tag>`, the fragment Swagger UI
 writes on its own tag headings, so the requests behind a screen are one click away. Every screen
-states its own two facts along the foot through `lib/screen-status`, the address nothing answers
-for included.
+states its own two facts in the top strip through `lib/screen-status`, the address nothing
+answers for included.
 
 **A heading names the category, in one noun where a noun exists, and never lists the values of
 a column beneath it.** The Status column is already telling every row which state it is in,
@@ -2153,7 +2184,7 @@ not go on a settings row.
 **The context says most of it; a sentence survives only by adding a fact.** Concretely:
 
 - A screen carries no subtitle. "Pipelines" needs no line saying it lists the pipelines.
-- The status bar's note exists only when it is stateful -- the editor's shape and warnings,
+- The top strip's note exists only when it is stateful -- the editor's shape and warnings,
   the run's settled tone, the workers' health. A static note restating the screen is noise.
 - A section heading over a headed table carries no gloss; the headers name the columns.
 - A dialog's description earns its lines by teaching semantics the controls cannot show
@@ -2210,14 +2241,14 @@ no frame of its own.
 | `SectionHeading` | A heading inside a screen. `section` is sentence case at `text-sm font-semibold`; `group` is the one faint uppercase label over a run of rows. An optional `aside` and `link` |
 | `FactList`, `Fact` | Facts about one thing. `grid` is a term column beside a value column, a panel's and a dialog's, whose term is a key in mono where `termMono` says so; `row` is small facts wrapping on one line, a heading's strip |
 | `FormField`, `SwitchField` | Every field: a prose label or a mono key, the required word in body ink, a hint, the default, help in one ink, an error, one 6px gap. `SwitchField` is a boolean setting as a row, the whole row its label |
-| `Notice`, `Well` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a neutral inset box at 8px for a block that belongs together. A refusal off the wire is still `Refusal` |
+| `Notice`, `Well`, `Inset`, `CodeFrame` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a group that belongs together, on the panel ground at 8px. `Inset` is reference material -- JSON, a code block, a log -- on the page's ground. `CodeFrame` is a code editor drawn as the field it is, and `WindowedPane` puts its pane in one. A refusal off the wire is still `Refusal` |
 | `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm, or of `verbs` on a dialog that reads one thing |
 | `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. A refusal off the wire is one short line, with no box and no second naming of the thing. A verb that cannot go without one value holds that one field: a password reset's new password. No such verb is immediate |
 | `SecretReveal` | A secret the server answers with once: the value in mono, a copy button that says it copied and resets, and the line saying it is shown once |
 | `PageHeader`, `SplitButton` | A screen's heading, at `text-page`. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `code` under it in mono for a detail screen; a `trail` for a detail screen. No subtitle |
 | `TextLink` | Every link that is text. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table, `aside` in the muted ink beside a section heading, `external` with its mark and a new tab |
 | `Code` | Every code, key, block and kind in mono. One line, truncated with an ellipsis, the whole value on `title`; `tone` is the muted ink beside a title or the body ink where the code is the value |
-| `Panel` | Every section of a page: a title bar with the label left and a count or fact right, a hairline, a body on the panel ground, a hairline edge and no shadow. `graph` puts a dot grid on the body, `critical` is the failure with its top rule and warning mark. `inset` is off where the body's rows lay out their own padding |
+| `Panel` | Every section of a page: a title bar with the label left and a count or fact right, a hairline, a body on the panel ground, a hairline edge and no shadow. `graph` puts a dot grid on the body, `critical` is the failure with its top rule and warning mark. `inset` is off where the body's rows lay out their own padding. A listing is `ListTable`, which draws the same panel |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface
