@@ -150,6 +150,10 @@ CONTENT_TYPE: Final = re.compile(r"([^ ;,/]+/[^ ;,/]+)(?: *; *charset=[A-Za-z0-9
 #: The largest body a call may send, read no further than one byte past it.
 MAX_BODY: Final = 1024 * 1024
 
+#: How much of a body comes back in a reflection. JSON writes a control byte as six, so this keeps
+#: what a reply holds for a client that never reads it to about one ``MAX_STREAM_WRITE``.
+MAX_REFLECTED_BODY: Final = 8 * 1024
+
 #: Set on every answer, so a browser that lands on one runs nothing and keeps no origin for it.
 CONTAINED: Final = {
     "content-security-policy": "sandbox; default-src 'none'; frame-ancestors 'none'",
@@ -221,6 +225,9 @@ class RequestFacts(BaseModel):
 
     body_bytes: int = 0
     """How large the body was, in bytes."""
+
+    body_truncated: bool = False
+    """Whether ``body`` holds only the start of a body too large to reflect whole, as text."""
 
     content_type: str | None = None
     """The content type the body arrived under, as the header spelled it."""
@@ -387,7 +394,10 @@ async def _facts(request: Request) -> RequestFacts:
     if len(raw) > MAX_BODY:
         raise Refusal(PLAYGROUND_BODY_TOO_LARGE, status=http_status.HTTP_413_CONTENT_TOO_LARGE, limit=MAX_BODY)
     content_type = request.headers.get("content-type")
-    body, body_kind = _body(raw, content_type)
+    truncated = len(raw) > MAX_REFLECTED_BODY
+    body, body_kind = (
+        (raw[:MAX_REFLECTED_BODY].decode("utf-8", errors="replace"), "text") if truncated else _body(raw, content_type)
+    )
     return RequestFacts(
         method=request.method,
         url=str(request.url),
@@ -397,6 +407,7 @@ async def _facts(request: Request) -> RequestFacts:
         body=body,
         body_kind=body_kind,
         body_bytes=len(raw),
+        body_truncated=truncated,
         content_type=content_type,
     )
 
