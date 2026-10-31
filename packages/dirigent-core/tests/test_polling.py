@@ -12,13 +12,13 @@ from dirigent_client.enums import InputOutcome, SourceState
 from dirigent_client.schemas import PlanAction
 from dirigent_core.database import session_scope
 from dirigent_core.documents import load_text
+from dirigent_core.engine.definition import LONGEST_CADENCE
 from dirigent_core.engine.runs import create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Pipeline, Run, Source, SourceInput, StepAttempt, utcnow
 from dirigent_core.pipelines import apply_document
 from dirigent_core.sources import polling
 from dirigent_core.sources.rows import set_paused, state_of
-from dirigent_core.sources.rules import LONGEST_POLL
 from dirigent_core.sources.storage import StorageConfig, StorageSource
 
 WORKER = "worker-under-test"
@@ -413,7 +413,18 @@ async def _source(sessions: async_sessionmaker[AsyncSession], code: str) -> Sour
 
 
 def test_the_longest_cadence_leaves_room_in_a_date() -> None:
-    assert datetime(9000, 1, 1, tzinfo=UTC) + LONGEST_POLL < datetime.max.replace(tzinfo=UTC)
+    assert datetime(9000, 1, 1, tzinfo=UTC) + LONGEST_CADENCE < datetime.max.replace(tzinfo=UTC)
+
+
+@pytest.mark.parametrize(("days", "codes"), [(3650, []), (3651, ["source.poll_too_long"])])
+async def test_a_poll_is_bounded_by_the_longest_cadence(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path, days: int, codes: list[str]
+) -> None:
+    assert timedelta(days=3650) == LONGEST_CADENCE
+    text = landing(inbox_of(tmp_path)).replace("poll: 1m", f"poll: {days}d")
+    async with session_scope(sessions) as session:
+        applied = await apply_document(session, services, load_text(text), dry_run=True)
+    assert [issue.code for issue in applied.plan.issues] == codes
 
 
 async def test_a_cadence_past_the_longest_is_refused_at_apply(
