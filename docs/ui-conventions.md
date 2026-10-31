@@ -185,16 +185,24 @@ rungs still reads -- except where a palette's whole point is the ground it commi
 `contrast` collapses page and card onto one white and one black, drawing every card by its edge
 instead of its shadow.
 
-**The surface ladder is tone and soft elevation, not lines.** `--sidebar` is the rail, a rung under
-`--background`, the page. `--card` is a surface: a listing, a panel on a page, a card on the
-dashboard, raised off the page by `--shadow-surface` rather than edged. `--secondary` is raised:
-a button's fill, a chip, the active rail entry; `--popover` is a dialog and a menu, raised further
-by `--shadow-pop` over a `--scrim`. `--canvas` is recessed: the ground a graph is drawn on and
-the band the examples stand on. `--node` is a box on a graph. A control has a ground of its own,
-`--field`, which is the page's, edged in `--input`, so an empty box reads as a box in both modes.
-`--muted` is the wash a row takes under the pointer. One line divides: `--border`, the hairline
-between rows inside a surface. `--border-strong` is the shell's rule and nothing on a page draws
-it. Ink runs `--foreground`, `--muted-foreground` for a hint and a code, `--faint` for a
+**Every section of a page is a headed panel.** `components/ds/Panel` is the one surface a page
+draws: a title bar on `--card` with the section's label at the left and its count or a fact
+about it at the right in mono, a hairline in `--panel-line` under the bar, and the body on
+`--panel-ground`, a rung off the bar, edged all round in the same hairline and lifted by no
+shadow. A panel holding a graph has a faint dot grid on its body in `--panel-dot`, because a graph
+is drawn on a ground and not on a card. **A failure is the one panel that says so**: a rule in the
+failed ink along its top and the warning mark beside its title, which is the only colour a panel
+ever carries. Nothing draws a left border in a status colour, and nothing on a screen styles a
+surface of its own: a treatment is changed in `Panel` and in the `.dg-panel` rules in `index.css`,
+and the generated card follows the same rules.
+
+**The rest of the ladder.** `--sidebar` is the rail, a rung under `--background`, the page.
+`--secondary` is raised: a button's fill, a chip, the active rail entry; `--popover` is a dialog
+and a menu, raised by `--shadow-pop` over a `--scrim`, which is the one shadow left. `--node` is a
+box on a graph. A control has a ground of its own, `--field`, which is the page's, edged in
+`--input`, so an empty box reads as a box in both modes. `--muted` is the wash a row takes under
+the pointer. `--border` is the hairline between rows inside a panel body; `--border-strong` is the
+shell's rule. Ink runs `--foreground`, `--muted-foreground` for a hint and a code, `--faint` for a
 timestamp beside a name. Every surface stays near-achromatic, so status colour is the only colour
 a screen carries.
 
@@ -764,8 +772,8 @@ lead cell's width is reached, and a pipeline deeper than that is drawn smaller r
 
 **A person's own pipelines and the shipped examples are two lists.** `PipelineOut.example` says
 whether a pipeline's code is one the installed example corpus ships. The person's own come first,
-on a raised surface, at a row's full height, ordered by title. The examples come after, under
-their own heading, on a recessed band at the canvas rung with denser rows: a short set, the ones
+in their own panel, at a row's full height, ordered by title. The examples come after, in a panel
+of their own with denser rows: a short set, the ones
 that have run first and most recently, and a link counting all of them to open the rest in place. A screen
 whose examples outnumbered the person's own by twenty to one would otherwise be a screen about
 the examples. Where every pipeline on an instance is an example, the person's list is not drawn,
@@ -1877,7 +1885,7 @@ step's own pane is where it is renamed -- alongside everything else about it.
 with its code and the run's instant in mono under it; one line under that says the status word,
 the step it ended at, how long it took and who started it; then the graph, as tall as its drawing.
 Under the graph a run that did not end well stands its failure and its log side by side: the
-failure on the critical wash -- the step in mono, the block, the catalogued code, the sentence the
+failure in the failure panel -- the step in mono, the block, the catalogued code, the sentence the
 step failed with, the connection the step named with its health where it named one, and the
 parameters the run was given -- and beside it the run's log lines, latest first, the failing ones
 on the same wash with the fields they carried under them. At 1440 by 900 both start above the
@@ -2209,7 +2217,7 @@ no frame of its own.
 | `PageHeader`, `SplitButton` | A screen's heading, at `text-page`. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `code` under it in mono for a detail screen; a `trail` for a detail screen. No subtitle |
 | `TextLink` | Every link that is text. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table, `aside` in the muted ink beside a section heading, `external` with its mark and a new tab |
 | `Code` | Every code, key, block and kind in mono. One line, truncated with an ellipsis, the whole value on `title`; `tone` is the muted ink beside a title or the body ink where the code is the value |
-| `Surface` | A raised surface on a page: `raised` is the card rung with its shadow, `recessed` the canvas rung with none, `critical` the failure wash. 4px, inset 16px unless its rows lay out their own |
+| `Panel` | Every section of a page: a title bar with the label left and a count or fact right, a hairline, a body on the panel ground, a hairline edge and no shadow. `graph` puts a dot grid on the body, `critical` is the failure with its top rule and warning mark. `inset` is off where the body's rows lay out their own padding |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface
