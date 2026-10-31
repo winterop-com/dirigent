@@ -126,6 +126,8 @@
     --color-brand: var(--brand);
     --color-brand-foreground: var(--brand-foreground);
     --color-critical-wash: var(--critical-wash);
+    --color-panel-line: var(--panel-line);
+    --color-panel-ground: var(--panel-ground);
     --color-scrim: var(--scrim);
     /* Text quieter than muted: a timestamp beside a name, a hint under a field. */
     --color-faint: var(--faint);
@@ -329,6 +331,9 @@
     --elevation-surface: 0 1px 2px #23333e14, 0 5px 18px #23333e0d;
     --elevation-node: 0 1px 2px #23333e1f;
     --elevation-pop: 0 14px 44px #23333e2e;
+    --panel-line: #d3dbe0;
+    --panel-ground: #f4f6f7;
+    --panel-dot: #202b3426;
 }
 
 /* ---------------------------------------------------------------------------
@@ -475,6 +480,9 @@
     --elevation-surface: 0 1px 2px #0000002e, 0 5px 18px #0000001f;
     --elevation-node: 0 1px 2px #00000040;
     --elevation-pop: 0 14px 44px #00000059;
+    --panel-line: #34414c;
+    --panel-ground: #171e24;
+    --panel-dot: #ffffff1c;
 }
 
 /* ---------------------------------------------------------------------------
@@ -587,6 +595,9 @@ html[data-theme='paper'],
     --node: oklch(0.99 0.008 85);
     --node-line: oklch(0.66 0.02 70);
     --critical-wash: oklch(0.94 0.03 25);
+    --panel-line: oklch(0.86 0.018 80);
+    --panel-ground: oklch(0.965 0.012 85);
+    --panel-dot: oklch(0.2 0.02 60 / 0.15);
 }
 
 /* ---------------------------------------------------------------------------
@@ -657,6 +668,9 @@ html.dark[data-theme='paper'],
     --node: oklch(0.27 0.017 70);
     --node-line: oklch(0.55 0.02 70);
     --critical-wash: oklch(0.25 0.03 25);
+    --panel-line: oklch(0.33 0.018 70);
+    --panel-ground: oklch(0.18 0.013 70);
+    --panel-dot: oklch(1 0 0 / 0.1);
 }
 
 /* ---------------------------------------------------------------------------
@@ -772,6 +786,9 @@ html[data-theme='contrast'],
     --node: oklch(1 0 0);
     --node-line: oklch(0.3 0 0);
     --critical-wash: oklch(0.95 0.03 25);
+    --panel-line: oklch(0.3 0 0);
+    --panel-ground: oklch(1 0 0);
+    --panel-dot: oklch(0 0 0 / 0.15);
 }
 
 /* ---------------------------------------------------------------------------
@@ -871,6 +888,9 @@ html.dark[data-theme='contrast'],
     --node: oklch(0 0 0);
     --node-line: oklch(0.8 0 0);
     --critical-wash: oklch(0.24 0.05 25);
+    --panel-line: oklch(0.8 0 0);
+    --panel-ground: oklch(0 0 0);
+    --panel-dot: oklch(1 0 0 / 0.15);
 }
 
 @layer base {
@@ -1100,34 +1120,49 @@ html.dark[data-theme='contrast'],
 }
 
 /* ---------------------------------------------------------------------------
-   A SURFACE, DRAWN ONCE.
+   A PANEL, DRAWN ONCE.
 
-   Every surface on a page is `components/ds/Surface` or the generated card, and how one is drawn
-   -- its ground, its corner, what stands it off the page -- is here and nowhere else, so a
-   treatment is changed in one place. A raised one is lifted by its shadow rather than edged, a
-   recessed one sits a rung below the page with nothing around it, and a critical one is the
-   failure's wash. The contrast palette draws every raised surface by its edge instead.
+   Every section of a page is `components/ds/Panel`, and how one is drawn is here and nowhere
+   else, so a treatment is changed in one place: a title bar on the card rung, a hairline under it,
+   a body on a ground of its own, a hairline edge all round and no shadow. A graph's body is a
+   faint dot grid; a failure carries a rule in the failed ink along its top. The generated card
+   follows the same edge and ground.
    --------------------------------------------------------------------------- */
-.dg-surface,
+.dg-panel,
 [data-slot='card'] {
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 1px solid var(--panel-line);
     border-radius: var(--radius-surface);
+    background-color: var(--panel-ground);
+    box-shadow: none;
+}
+.dg-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: 2.5rem;
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--panel-line);
     background-color: var(--card);
-    box-shadow: var(--elevation-surface);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+    font-weight: 600;
 }
-[data-slot='card'] {
-    --tw-ring-shadow: 0 0 #0000;
+.dg-panel-body {
+    min-width: 0;
+    background-color: var(--panel-ground);
 }
-.dg-surface[data-tone='recessed'] {
-    background-color: var(--canvas);
-    box-shadow: none;
+.dg-panel[data-tone='graph'] > .dg-panel-body {
+    background-image: radial-gradient(var(--panel-dot) 1px, transparent 1.2px);
+    background-size: 16px 16px;
 }
-.dg-surface[data-tone='critical'] {
-    background-color: var(--critical-wash);
-    box-shadow: none;
+.dg-panel[data-tone='critical'] {
+    border-top: 2px solid var(--status-failed-ink);
 }
-html[data-theme='contrast'] .dg-surface[data-tone='raised'],
-html[data-theme='contrast'] [data-slot='card'] {
-    box-shadow: inset 0 0 0 1px var(--border-strong);
+.dg-panel[data-tone='critical'] > .dg-panel-head {
+    color: var(--status-failed-ink);
 }
 [data-slot='combobox-content'][class~='w-(--anchor-width)'],
 [data-slot='dropdown-menu-content'][class~='w-(--anchor-width)'] {
@@ -1309,6 +1344,9 @@ html[data-theme='contrast'] [data-slot='card'] {
     --xy-selection-border: 1px dashed var(--foreground);
 }
 /* A canvas fitted to its drawing has nothing to pan to and gives the page its wheel back. */
+.react-flow.dg-graph.dg-fitted {
+    --xy-background-color: transparent;
+}
 .react-flow.dg-graph.dg-fitted .react-flow__pane {
     cursor: default;
 }

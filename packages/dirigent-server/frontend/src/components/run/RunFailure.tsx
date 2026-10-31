@@ -3,8 +3,7 @@ import { Link } from 'react-router'
 
 import { HealthSaid } from '@/components/connections/Health'
 import { Code } from '@/components/ds/Code'
-import { SectionHeading } from '@/components/ds/SectionHeading'
-import { Surface } from '@/components/ds/Surface'
+import { Panel } from '@/components/ds/Panel'
 import { Button } from '@/components/ui/button'
 import type { JsonMap } from '@/lib/api'
 import { healthOf, type ConnectionOut } from '@/lib/connections'
@@ -50,22 +49,13 @@ export function RunFailure({
 }) {
     const params = Object.entries(run.params)
     return (
-        <Surface
+        <Panel
             tone="critical"
-            className="flex min-w-0 flex-[1_1_340px] flex-col p-5"
-            aria-label={step ?? undefined}
+            title={step === null ? run.status : LABELS.runs.failure.heading(step)}
+            meta={code ?? undefined}
+            className="flex-[1_1_340px]"
         >
-            <div className="flex flex-wrap items-baseline justify-between gap-x-3.5 gap-y-1.5">
-                <h2 className="min-w-0 truncate text-title font-semibold text-critical-ink">
-                    {step === null ? run.status : LABELS.runs.failure.heading(step)}
-                </h2>
-                {code !== null && <Code value={code} />}
-            </div>
-            {block !== null && (
-                <div className="mt-1">
-                    <Code value={block} />
-                </div>
-            )}
+            {block !== null && <Code value={block} />}
             {error !== null && <p className="mt-3 text-base break-words">{error}</p>}
             {connection !== null && (
                 <Link
@@ -91,7 +81,7 @@ export function RunFailure({
                     ))}
                 </dl>
             )}
-        </Surface>
+        </Panel>
     )
 }
 
@@ -124,64 +114,64 @@ export function RunLogs({
         [logs, step],
     )
     return (
-        <section className="flex min-w-0 flex-[1.6_1_440px] flex-col" aria-labelledby="run-logs">
-            <div className="mb-1.5 flex min-h-9 items-center justify-between gap-3">
-                <SectionHeading id="run-logs">{LABELS.runs.failure.logs}</SectionHeading>
-                {step !== null && (
-                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Panel
+            title={LABELS.runs.failure.logs}
+            meta={String(lines.length)}
+            inset={false}
+            className="flex-[1.6_1_440px]"
+            aside={
+                step === null ? undefined : (
+                    <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
                         {LABELS.runs.failure.step_shown}
                         <Code value={step} tone="body" />
                         <Button variant="ghost" size="sm" onClick={onAllSteps}>
                             {LABELS.runs.failure.all_steps}
                         </Button>
                     </span>
-                )}
-            </div>
-            <Surface inset={false} as="div">
-                {lines.length === 0 ? (
-                    <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.failure.no_logs}</p>
-                ) : (
-                    lines.map((entry) => (
-                        <div
-                            key={entry.id}
-                            className={cn(
-                                'border-t border-border px-4 py-3 first:border-t-0',
-                                failing(entry) && 'bg-critical-wash',
-                            )}
-                        >
-                            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono text-xs text-muted-foreground">
-                                <time title={formatInstant(entry.created_at)}>
-                                    {formatClock(entry.created_at)}
-                                </time>
-                                <span className={cn(failing(entry) && 'text-critical-ink')}>
-                                    {entry.level}
-                                </span>
-                                {entry.step_name !== null && (
-                                    <button
-                                        type="button"
-                                        className="rounded-sm text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                                        onClick={() => {
-                                            if (entry.step_name !== null) onStep(entry.step_name)
-                                        }}
-                                    >
-                                        {entry.step_name}
-                                    </button>
-                                )}
-                            </div>
-                            <p className="mt-1.5 font-mono text-xs break-words">{entry.message}</p>
-                            {entry.fields !== null && Object.keys(entry.fields).length > 0 && (
-                                <div className="mt-1 font-mono text-xs break-all">
-                                    {Object.entries(entry.fields).map(([key, value]) => (
-                                        <div key={key}>
-                                            <span className="text-muted-foreground">{key}</span> {said(value)}
-                                        </div>
-                                    ))}
-                                </div>
+                )
+            }
+        >
+            {lines.length === 0 ? (
+                <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.failure.no_logs}</p>
+            ) : (
+                lines.map((entry) => (
+                    <div
+                        key={entry.id}
+                        className={cn(
+                            'border-t border-border px-4 py-3 first:border-t-0',
+                            failing(entry) && 'bg-critical-wash',
+                        )}
+                    >
+                        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono text-xs text-muted-foreground">
+                            <time title={formatInstant(entry.created_at)}>
+                                {formatClock(entry.created_at)}
+                            </time>
+                            <span className={cn(failing(entry) && 'text-critical-ink')}>{entry.level}</span>
+                            {entry.step_name !== null && (
+                                <button
+                                    type="button"
+                                    className="rounded-sm text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                                    onClick={() => {
+                                        if (entry.step_name !== null) onStep(entry.step_name)
+                                    }}
+                                >
+                                    {entry.step_name}
+                                </button>
                             )}
                         </div>
-                    ))
-                )}
-            </Surface>
-        </section>
+                        <p className="mt-1.5 font-mono text-xs break-words">{entry.message}</p>
+                        {entry.fields !== null && Object.keys(entry.fields).length > 0 && (
+                            <div className="mt-1 font-mono text-xs break-all">
+                                {Object.entries(entry.fields).map(([key, value]) => (
+                                    <div key={key}>
+                                        <span className="text-muted-foreground">{key}</span> {said(value)}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                ))
+            )}
+        </Panel>
     )
 }

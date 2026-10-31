@@ -7,8 +7,7 @@ import { Chip } from '@/components/ds/Chip'
 import { Code } from '@/components/ds/Code'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { SearchField } from '@/components/ds/SearchField'
-import { SectionHeading } from '@/components/ds/SectionHeading'
-import { Surface } from '@/components/ds/Surface'
+import { Panel } from '@/components/ds/Panel'
 import { MiniGraph } from '@/components/graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
@@ -251,51 +250,44 @@ export function Pipelines() {
                 empty={shown === 0}
                 emptyMessage={emptyNote(rows.length, tags)}
             >
-                <div className="flex flex-col gap-9" data-testid="pipeline-lists">
+                <div className="flex flex-col gap-6" data-testid="pipeline-lists">
                     {lists.own.length > 0 && (
-                        <section aria-labelledby="own-pipelines" className="flex flex-col gap-3">
-                            <SectionHeading id="own-pipelines" aside={<Count n={lists.own.length} />}>
-                                {LABELS.pipelines.lists.own}
-                            </SectionHeading>
-                            <Surface inset={false} as="div">
-                                {lists.own.map((row) => (
-                                    <PipelineRow key={row.id} row={row} dense={false} />
-                                ))}
-                            </Surface>
-                        </section>
+                        <Panel
+                            title={LABELS.pipelines.lists.own}
+                            meta={String(lists.own.length)}
+                            inset={false}
+                        >
+                            {lists.own.map((row) => (
+                                <PipelineRow key={row.id} row={row} dense={false} />
+                            ))}
+                        </Panel>
                     )}
                     {lists.examples.length > 0 && (
-                        <section aria-labelledby="example-pipelines" className="flex flex-col gap-3">
-                            <SectionHeading
-                                id="example-pipelines"
-                                aside={
-                                    <>
-                                        <Count n={lists.examples.length} />
-                                        {lists.examples.length > EXAMPLES_SHOWN && (
-                                            <button
-                                                type="button"
-                                                className="rounded-sm text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                                                aria-expanded={allExamples}
-                                                onClick={toggleExamples}
-                                            >
-                                                {allExamples
-                                                    ? LABELS.pipelines.lists.fewer_examples
-                                                    : LABELS.pipelines.lists.all_examples(
-                                                          String(lists.examples.length),
-                                                      )}
-                                            </button>
-                                        )}
-                                    </>
-                                }
-                            >
-                                {LABELS.pipelines.lists.examples}
-                            </SectionHeading>
-                            <Surface tone="recessed" inset={false} as="div">
-                                {examples.map((row) => (
-                                    <PipelineRow key={row.id} row={row} dense />
-                                ))}
-                            </Surface>
-                        </section>
+                        <Panel
+                            title={LABELS.pipelines.lists.examples}
+                            meta={String(lists.examples.length)}
+                            inset={false}
+                            aside={
+                                lists.examples.length > EXAMPLES_SHOWN && (
+                                    <button
+                                        type="button"
+                                        className="rounded-sm text-xs font-normal text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                                        aria-expanded={allExamples}
+                                        onClick={toggleExamples}
+                                    >
+                                        {allExamples
+                                            ? LABELS.pipelines.lists.fewer_examples
+                                            : LABELS.pipelines.lists.all_examples(
+                                                  String(lists.examples.length),
+                                              )}
+                                    </button>
+                                )
+                            }
+                        >
+                            {examples.map((row) => (
+                                <PipelineRow key={row.id} row={row} dense />
+                            ))}
+                        </Panel>
                     )}
                 </div>
             </PageState>
@@ -313,11 +305,6 @@ export function Pipelines() {
             )}
         </>
     )
-}
-
-/** How many rows a list holds, beside its heading. */
-function Count({ n }: { n: number }) {
-    return <span className="text-xs text-muted-foreground tabular-nums">{String(n)}</span>
 }
 
 /**

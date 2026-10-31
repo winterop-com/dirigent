@@ -11,7 +11,7 @@ import { StatusChip } from '@/components/run/StatusChip'
 import { StepTab } from '@/components/run/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { Code } from '@/components/ds/Code'
-import { Surface } from '@/components/ds/Surface'
+import { Panel } from '@/components/ds/Panel'
 import { connectionOf, RunFailure, RunLogs } from '@/components/run/RunFailure'
 import { PageState } from '@/components/PageState'
 import { ToolbarActions } from '@/components/ToolbarActions'
@@ -522,12 +522,7 @@ export function RunDetail() {
                     {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
                 </div>
 
-                <Surface
-                    tone="recessed"
-                    inset={false}
-                    className="mt-3.5"
-                    aria-label={LABELS.pipelines.page.graph}
-                >
+                <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false} className="mt-3.5">
                     {state.dag.nodes.length === 0 ? (
                         <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.graph_empty}</p>
                     ) : (
@@ -550,7 +545,7 @@ export function RunDetail() {
                             />
                         </Suspense>
                     )}
-                </Surface>
+                </Panel>
 
                 <div className="mt-5 flex flex-wrap items-start gap-5">
                     {troubled && (

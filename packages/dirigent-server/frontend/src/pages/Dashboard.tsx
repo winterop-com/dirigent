@@ -5,8 +5,8 @@ import { Link } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { Code } from '@/components/ds/Code'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { SectionHeading } from '@/components/ds/SectionHeading'
-import { Surface } from '@/components/ds/Surface'
+import { Panel } from '@/components/ds/Panel'
+import { TextLink } from '@/components/ds/TextLink'
 import { MiniGraph } from '@/components/graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { HealthPanel } from '@/components/overview/HealthPanel'
@@ -163,11 +163,9 @@ export function Dashboard() {
                         problem={failed.problem ?? messy.problem}
                         empty={false}
                     >
-                        <Surface inset={false} as="div">
-                            {look.map((entry) => (
-                                <TroubledRow key={entry.run.id} entry={entry} />
-                            ))}
-                        </Surface>
+                        {look.map((entry) => (
+                            <TroubledRow key={entry.run.id} entry={entry} />
+                        ))}
                     </PageState>
                 </Section>
             )}
@@ -182,11 +180,12 @@ export function Dashboard() {
                         </PageState>
                     )}
                     {durations.length > 0 && (
-                        <Surface aria-labelledby="durations">
-                            <SectionHeading id="durations" aside={LABELS.dashboard.durations.median}>
-                                {LABELS.dashboard.durations.title}
-                            </SectionHeading>
-                            <div className="mt-2">
+                        <Panel
+                            title={LABELS.dashboard.durations.title}
+                            meta={LABELS.dashboard.durations.median}
+                            bodyClassName="py-1"
+                        >
+                            <div>
                                 {durations.map((row) => (
                                     <Link
                                         key={row.pipeline}
@@ -203,7 +202,7 @@ export function Dashboard() {
                                     </Link>
                                 ))}
                             </div>
-                        </Surface>
+                        </Panel>
                     )}
                 </div>
                 {healthReadable && (
@@ -217,50 +216,41 @@ export function Dashboard() {
 
             {live.length > 0 && (
                 <Section title={LABELS.word.in_flight.heading} to="/runs" count={live.length}>
-                    <Surface inset={false} as="div">
-                        {live.map((run) => (
-                            <RecentRow key={run.id} run={run} name={names.get(run.pipeline) ?? null} />
-                        ))}
-                    </Surface>
+                    {live.map((run) => (
+                        <RecentRow key={run.id} run={run} name={names.get(run.pipeline) ?? null} />
+                    ))}
                 </Section>
             )}
 
             {recent.length > 0 && (
                 <Section title={LABELS.dashboard.recent_runs} to="/runs" link={LABELS.dashboard.all_runs}>
-                    <Surface inset={false} as="div">
-                        {recent.map((run) => (
-                            <RecentRow key={run.id} run={run} name={names.get(run.pipeline) ?? null} />
-                        ))}
-                    </Surface>
+                    {recent.map((run) => (
+                        <RecentRow key={run.id} run={run} name={names.get(run.pipeline) ?? null} />
+                    ))}
                 </Section>
             )}
 
             {fires.length > 0 && (
                 <Section title={LABELS.dashboard.next_firings} to="/triggers">
-                    <Surface inset={false} as="div">
-                        {fires.map((fire) => {
-                            const schedule = headingOf(fire.schedule)
-                            return (
-                                <Link
-                                    key={`${fire.pipeline}:${fire.schedule.code}`}
-                                    to={`/pipelines/${encodeURIComponent(fire.pipeline)}`}
-                                    className="flex items-center gap-4 border-t border-border px-5 py-2.5 first:border-t-0 hover:bg-muted"
-                                >
-                                    <PipelineTitle
-                                        code={fire.pipeline}
-                                        name={names.get(fire.pipeline) ?? null}
-                                    />
-                                    <span className="min-w-0 truncate text-xs text-muted-foreground">
-                                        {schedule.title}
-                                    </span>
-                                    <Instant
-                                        className="w-18 shrink-0 text-right text-xs text-muted-foreground"
-                                        at={fire.at}
-                                    />
-                                </Link>
-                            )
-                        })}
-                    </Surface>
+                    {fires.map((fire) => {
+                        const schedule = headingOf(fire.schedule)
+                        return (
+                            <Link
+                                key={`${fire.pipeline}:${fire.schedule.code}`}
+                                to={`/pipelines/${encodeURIComponent(fire.pipeline)}`}
+                                className="flex items-center gap-4 border-t border-border px-5 py-2.5 first:border-t-0 hover:bg-muted"
+                            >
+                                <PipelineTitle code={fire.pipeline} name={names.get(fire.pipeline) ?? null} />
+                                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                                    {schedule.title}
+                                </span>
+                                <Instant
+                                    className="w-18 shrink-0 text-right text-xs text-muted-foreground"
+                                    at={fire.at}
+                                />
+                            </Link>
+                        )
+                    })}
                 </Section>
             )}
         </>
@@ -290,23 +280,25 @@ function Section({
     children: ReactNode
 }) {
     return (
-        <section className="mb-8 flex flex-col gap-3 last:mb-0">
-            <SectionHeading
-                aside={
-                    count === undefined ? undefined : <span className="tabular-nums">{String(count)}</span>
-                }
-                link={link === undefined ? undefined : { to, label: link }}
-            >
-                {link === undefined ? (
-                    <Link to={to} className="hover:underline">
-                        {title}
-                    </Link>
-                ) : (
-                    title
-                )}
-            </SectionHeading>
+        <Panel
+            className="mb-6 last:mb-0"
+            inset={false}
+            title={
+                <Link to={to} className="hover:underline">
+                    {title}
+                </Link>
+            }
+            meta={count === undefined ? undefined : String(count)}
+            aside={
+                link === undefined ? undefined : (
+                    <TextLink variant="aside" to={to} className="text-xs font-normal">
+                        {link}
+                    </TextLink>
+                )
+            }
+        >
             {children}
-        </section>
+        </Panel>
     )
 }
 

@@ -1,12 +1,11 @@
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { HealthSaid } from '@/components/connections/Health'
 import { Code } from '@/components/ds/Code'
-import { SectionHeading } from '@/components/ds/SectionHeading'
-import { Surface } from '@/components/ds/Surface'
+import { Panel } from '@/components/ds/Panel'
 import { Instant } from '@/components/Instant'
 import { Markdown } from '@/components/Markdown'
 import { PageState } from '@/components/PageState'
@@ -147,46 +146,31 @@ export function PipelinePage() {
                 </div>
             )}
 
-            <Surface tone="recessed" inset={false} className="mt-6" aria-label={LABELS.pipelines.page.graph}>
+            <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false} className="mt-6">
                 {steps.length === 0 ? (
                     <p className="p-4 text-sm text-muted-foreground">
                         {LABELS.editor.canvas.nothing_to_draw}
                     </p>
                 ) : (
-                    <Suspense
-                        fallback={
-                            <PageState loading problem={null} empty={false}>
-                                {null}
-                            </PageState>
-                        }
-                    >
-                        <ShapeGraph steps={steps} selected={selected} onSelect={setSelected} />
-                    </Suspense>
+                    <ShapeGraph steps={steps} selected={selected} onSelect={setSelected} />
                 )}
                 {selected !== null && <ChosenStep steps={steps} code={selected} />}
-            </Surface>
+            </Panel>
 
             <div className="mt-5 flex flex-wrap items-start gap-5">
-                <Surface className="flex-[1_1_420px]" aria-labelledby="pipeline-blocks">
-                    <SectionHeading id="pipeline-blocks">{LABELS.pipelines.page.blocks}</SectionHeading>
+                <Panel title={LABELS.pipelines.page.blocks} className="flex-[1_1_420px]" bodyClassName="py-2">
                     <Blocks steps={steps} selected={selected} onSelect={setSelected} />
-                </Surface>
+                </Panel>
                 <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-5">
-                    <Surface aria-labelledby="pipeline-triggers">
-                        <SectionHeading id="pipeline-triggers">
-                            {LABELS.pipelines.page.triggers}
-                        </SectionHeading>
+                    <Panel title={LABELS.pipelines.page.triggers} bodyClassName="py-2">
                         <Triggers schedules={schedules.value?.items ?? null} steps={steps} />
-                    </Surface>
-                    <Surface aria-labelledby="pipeline-connections">
-                        <SectionHeading id="pipeline-connections">
-                            {LABELS.pipelines.page.connections}
-                        </SectionHeading>
+                    </Panel>
+                    <Panel title={LABELS.pipelines.page.connections} bodyClassName="py-2">
                         <Reaches
                             codes={connectionsNamed(pipeline.document)}
                             held={held.value?.items ?? null}
                         />
-                    </Surface>
+                    </Panel>
                 </div>
             </div>
 
@@ -255,7 +239,7 @@ function Blocks({
         return [...grouped.entries()]
     }, [steps])
     return (
-        <div className="mt-2">
+        <div>
             {byBlock.map(([block, codes]) => (
                 <div
                     key={block}
@@ -292,9 +276,9 @@ function Triggers({ schedules, steps }: { schedules: ScheduleOut[] | null; steps
     const sources = steps.filter((step) => step.kind === 'source')
     if (schedules === null) return null
     if (schedules.length === 0 && sources.length === 0)
-        return <p className="mt-1 text-sm text-muted-foreground">{LABELS.pipelines.page.no_triggers}</p>
+        return <p className="text-sm text-muted-foreground">{LABELS.pipelines.page.no_triggers}</p>
     return (
-        <div className="mt-2">
+        <div>
             {schedules.map((schedule) => {
                 const clock = clockOf(schedule)
                 const next = nextFireView(schedule)
@@ -339,10 +323,10 @@ function Triggers({ schedules, steps }: { schedules: ScheduleOut[] | null; steps
 /** What the pipeline reaches: each connection it names, and how that one is. */
 function Reaches({ codes, held }: { codes: readonly string[]; held: readonly ConnectionOut[] | null }) {
     if (codes.length === 0)
-        return <p className="mt-1 text-sm text-muted-foreground">{LABELS.pipelines.page.no_connections}</p>
+        return <p className="text-sm text-muted-foreground">{LABELS.pipelines.page.no_connections}</p>
     const byCode = new Map((held ?? []).map((row) => [row.code, row]))
     return (
-        <div className="mt-2">
+        <div>
             {codes.map((code) => {
                 const row = byCode.get(code)
                 return (
