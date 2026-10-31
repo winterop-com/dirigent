@@ -129,13 +129,14 @@ def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MC
         return await call(lambda dg: dg.pipelines.apply(parse_document(document), dry_run=True))
 
     @tool(APPLIES)
-    async def apply_document(document: str, pause_schedules: bool = False) -> Any:
+    async def apply_document(document: str, paused: bool = False) -> Any:
         """Store a YAML pipeline or triggers document as a new version; an unchanged one is left as it is.
 
         A source or a schedule the document managed and no longer declares is deleted, and a
-        source's input journal and token go with it. plan_document names them first.
+        source's input journal and token go with it. plan_document names them first. `paused`
+        creates the schedules and the polled or held sources this apply brings into being paused.
         """
-        return await call(lambda dg: dg.pipelines.apply(parse_document(document), pause_schedules=pause_schedules))
+        return await call(lambda dg: dg.pipelines.apply(parse_document(document), paused=paused))
 
     @tool(WRITES)
     async def run_pipeline(

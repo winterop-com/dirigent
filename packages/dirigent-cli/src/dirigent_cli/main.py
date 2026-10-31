@@ -943,7 +943,8 @@ def dev(
         typer.Option(
             "--seed",
             help="Apply every dirigent/v1 document under this directory once the API answers, "
-            "with its schedules paused; name it more than once to seed one directory after another.",
+            "with its schedules and its polled or held sources paused; "
+            "name it more than once to seed one directory after another.",
         ),
     ] = None,
     seed_installed: Annotated[
@@ -966,10 +967,10 @@ def dev(
 
     --seed fills the instance from a directory of documents the moment it answers: the
     connections a file or a document declares and the standalone JSON Schema files are created
-    first, then every document is applied with its schedules paused, and one refused
-    for naming something a later document supplies is applied again once the rest are in. A
-    document an instance will not store is reported and passed over, because a corpus holds
-    those on purpose.
+    first, then every document is applied with its schedules and its polled or held sources
+    paused, and one refused for naming something a later document supplies is applied again once
+    the rest are in. A document an instance will not store is reported and passed over, because
+    a corpus holds those on purpose.
     """
     import asyncio
     import os

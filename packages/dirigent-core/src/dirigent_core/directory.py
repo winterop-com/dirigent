@@ -143,7 +143,7 @@ async def apply_directory(
     *,
     prune: bool = False,
     dry_run: bool = False,
-    pause_schedules: bool = False,
+    paused: bool = False,
     lock_key: int | None = None,
 ) -> DirectorySummary:
     """Apply every schema and document in the directory, then reconcile when asked to.
@@ -160,7 +160,7 @@ async def apply_directory(
             summary.skipped = True
             return summary
         try:
-            await _walk(sessions, services, root, summary, dry_run=dry_run, pause_schedules=pause_schedules)
+            await _walk(sessions, services, root, summary, dry_run=dry_run, paused=paused)
             if prune:
                 await _prune(sessions, services, summary, dry_run=dry_run)
         except SQLAlchemyError as error:
@@ -179,7 +179,7 @@ async def _walk(
     summary: DirectorySummary,
     *,
     dry_run: bool,
-    pause_schedules: bool,
+    paused: bool,
 ) -> None:
     """Apply each discovered file into the summary, refusing without stopping.
 
@@ -197,9 +197,7 @@ async def _walk(
         if rank == _RANK_SCHEMA:
             await _apply_schema(sessions, root, path, summary, dry_run=dry_run)
         else:
-            await _apply_one(
-                sessions, services, root, path, summary, walked, dry_run=dry_run, pause_schedules=pause_schedules
-            )
+            await _apply_one(sessions, services, root, path, summary, walked, dry_run=dry_run, paused=paused)
 
 
 def _walk_rank(path: Path) -> int:
@@ -267,7 +265,7 @@ async def _apply_one(
     walked: dict[str, str],
     *,
     dry_run: bool,
-    pause_schedules: bool,
+    paused: bool,
 ) -> None:
     """Apply one document into the summary."""
     ref = path.relative_to(root).as_posix()
@@ -296,7 +294,7 @@ async def _apply_one(
                 definition,
                 provenance=Provenance(source=ProvenanceSource.DIRECTORY, ref=ref),
                 dry_run=dry_run,
-                pause_schedules=pause_schedules,
+                paused=paused,
             )
     except SQLAlchemyError:
         # A database fault is the instance's, not this document's: refusing 59 documents

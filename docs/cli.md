@@ -349,8 +349,13 @@ so `dg dev` watches its own parent and shuts down the way SIGTERM shuts it down 
 reparented -- which also means backgrounding it past the shell that launched it ends it.
 
 `dg dev --seed DIR` fills the instance the moment its API answers: every `dirigent/v1`
-document under the directory, recursively and in path order, applied with its schedules
-paused. The connections a `connections.yaml` declares go in first, then every standalone JSON
+document under the directory, recursively and in path order, applied the way `dg apply
+--paused` applies it, so its schedules and its polled or held sources land paused and a seeded
+instance starts no run on its own, while an `endpoint` stays live and answers its callers.
+`dg source resume PIPELINE CODE` starts a seeded sensor, and so does Resume on its panel on the
+Triggers screen.
+
+The connections a `connections.yaml` declares go in first, then every standalone JSON
 Schema file beside the documents -- one that declares a string `$id` -- stored under the code
 `dg schema create` would give it, and a document that carries its own `connections:` or
 `schemas:` -- so that it also runs under `dg run --local` -- has those created and is then
@@ -403,11 +408,15 @@ deleted. It marks this apply's documents with directory provenance, which is wha
 prune recognises as its own; a pipeline applied any other way is never touched. With
 `--dry-run` it prints what a reconcile would deactivate without writing anything.
 
-`--paused` creates the schedules an apply mints already paused, so a document whose clock is
-due lands without firing. It governs what the apply brings into being and nothing else: a
-schedule the instance already holds keeps the state an operator gave it, so re-applying
+`--paused` creates what an apply mints that would start runs by itself already paused: its
+schedules, and its sources a worker polls or holds, such as a `sensor`, `storage`, `kafka` or
+`rabbitmq` source. A document whose clock is due or whose sensor would fire lands without
+starting anything. A received source, such as an `endpoint`, only acts when called, so it
+stays live. The flag governs what the apply brings into being and nothing else: a schedule or
+a source the instance already holds keeps the state an operator gave it, so re-applying
 without the flag never re-pauses one somebody resumed, and re-applying with it never pauses
-one already running. `dg schedule resume PIPELINE CODE` is how a paused clock starts.
+one already running. `dg schedule resume PIPELINE CODE` is how a paused clock starts, and
+`dg source resume PIPELINE CODE` how a paused source does.
 
 ## Parameters
 
@@ -783,7 +792,7 @@ rather than being able to change what a parser reads the record by.
 | `process` | A long-running process starts, when it is ready, when `dg dev --wipe-state` clears its state, and when the process that started `dg dev` goes | `process`, and for `dg dev` the `api`, `docs`, `state`, `admin`, `token` and `migrated` it would otherwise have printed; a `state cleared` carries the `state` it deleted and the `hint` that keeps it, and a `parent gone` the `parent` pid that went |
 | `seed.connection` | `dg dev --seed` creates a connection a file or a document declares | `connection`, `connection_kind`, `action` of `created` or `updated`, and the `origin` file it was read from |
 | `seed.schema` | `dg dev --seed` stores a standalone JSON Schema file | `schema`, the code it is stored under, and the `origin` file it was read from |
-| `seed.applied` | `dg dev --seed` stores one document | `document`, `pipeline`, `action`, and the `schedules_paused` this apply brought into being |
+| `seed.applied` | `dg dev --seed` stores one document | `document`, `pipeline`, `action`, and the `schedules_paused` and `sources_paused` this apply brought into being |
 | `seed.refused` | `dg dev --seed` meets something the instance will not take | `document` and the `reason` it gave |
 | `seed.done` | `dg dev --seed` finishes | The `directories` it walked, or with `--seed-installed` the `plugins`, and the `pipelines`, `refused`, `connections` and `schemas` it ended with |
 

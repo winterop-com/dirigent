@@ -32,13 +32,11 @@ steps:
 """
 
 
-def apply_document(
-    client: TestClient, text: str, *, dry_run: bool = False, pause_schedules: bool = False
-) -> dict[str, Any]:
+def apply_document(client: TestClient, text: str, *, dry_run: bool = False, paused: bool = False) -> dict[str, Any]:
     """Apply a YAML document through the API and return the parsed result."""
     response = client.post(
         "/api/v1/pipelines/$apply",
-        json={"document": yaml.safe_load(text), "pause_schedules": pause_schedules},
+        json={"document": yaml.safe_load(text), "paused": paused},
         params={"dry_run": dry_run} if dry_run else None,
     )
     assert response.status_code == 200, response.text

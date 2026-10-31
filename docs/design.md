@@ -841,14 +841,16 @@ And an existing source **keeps its token or signing secret** through an apply, b
 a side effect of an unrelated edit would make every edit a breaking change for whoever is
 already calling.
 
-An apply may ask for the schedules it **creates** to be created paused, through
-`pause_schedules` on the request and `--paused` on the CLI. The flag is a column on the row
-being inserted rather than a second write, so there is no instant in which a due schedule is
-live and unpaused. It reaches only the schedules that apply mints: one the instance already
-holds is operational state, so it is neither re-paused nor resumed by the flag's presence or
-absence. That is what makes bringing a whole directory up on a fresh instance safe -- every
-clock in it lands stopped -- without making a routine re-apply an instrument that overrides
-what an operator decided.
+An apply may ask for what it **creates** that would start runs by itself to be created paused,
+through `paused` on the request and `--paused` on the CLI: its schedules, and its sources a
+worker polls or holds. A received source only acts when called, so it stays live. The flag is a
+column on the row being inserted rather than a second write, so there is no instant in which a
+due schedule is live and unpaused, or in which a worker could poke the source. It reaches only
+what that apply mints: a schedule or a source the instance already holds is operational state,
+so it is neither re-paused nor resumed by the flag's presence or absence. That is what makes
+bringing a whole directory up on a fresh instance safe -- every clock and every sensor in it
+lands stopped -- without making a routine re-apply an instrument that overrides what an
+operator decided. `sources.paused` on the result names the sources the apply inserted paused.
 
 ### A triggers document
 
@@ -1085,7 +1087,8 @@ GET           /api/v1/examples/{code}        # one document, with its source tex
 GET           /api/v1/schema/document        # dirigent/v1 composed with this catalog's configs
 GET           /api/v1/pipelines              # + /{code}, /{code}/versions
 POST          /api/v1/pipelines/$apply       # a whole document; ?dry_run=true returns the plan
-                                             # pause_schedules: true mints its new clocks paused
+                                             # paused: true mints its new clocks and its new
+                                             # polled or held sources paused
 POST          /api/v1/pipelines/$prune       # deactivate directory pipelines a set no longer names
 GET           /api/v1/pipelines/{code}/$export        # canonical YAML
 POST          /api/v1/pipelines/{code}/$validate      # re-check a stored version

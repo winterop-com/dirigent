@@ -158,6 +158,9 @@ class SourceChanges(WireModel):
     created: list[str] = Field(default_factory=list[str])
     updated: list[str] = Field(default_factory=list[str])
     removed: list[str] = Field(default_factory=list[str])
+    paused: list[str] = Field(default_factory=list[str])
+    """The sources of ``created`` this apply inserted paused: the polled and held ones of an apply that asked."""
+
     tokens: list[SourceTokenOut] = Field(default_factory=list[SourceTokenOut])
     """The tokens minted for the sources this apply created, each shown here and nowhere else again."""
 

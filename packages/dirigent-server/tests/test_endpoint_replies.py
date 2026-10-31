@@ -202,7 +202,7 @@ steps:
     ):
         applied = await client.post(
             f"{PREFIX}/pipelines/$apply",
-            json={"document": yaml.safe_load(document), "pause_schedules": False},
+            json={"document": yaml.safe_load(document), "paused": False},
             headers=admin,
         )
         assert applied.status_code == 200, applied.text

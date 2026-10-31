@@ -19,4 +19,6 @@ instead (`--source` names which source when a pipeline has several). Applied to 
 endpoint is called at its route under `/endpoints` with the token the apply printed, or
 signed with the secret it printed for an `auth: {kind: hmac}` source, and `dg source call`
 does either for you. A caller of a pipeline with a reply is held until the reply
-answers; one with none is answered 202.
+answers; one with none is answered 202. A source a worker polls or holds starts runs from the
+moment it is applied, unless it was applied with `dg apply --paused` or seeded by
+`dg dev --seed`: then it lands paused, and `dg source resume PIPELINE CODE` starts it.

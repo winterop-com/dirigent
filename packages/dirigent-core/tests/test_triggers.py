@@ -216,7 +216,7 @@ async def test_a_paused_apply_creates_the_schedule_already_paused(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     async with session_scope(sessions) as session:
-        result = await apply_document(session, services, load_text(WITH_TRIGGERS), pause_schedules=True)
+        result = await apply_document(session, services, load_text(WITH_TRIGGERS), paused=True)
 
     assert result.triggers.schedules_created == ["nightly"]
     schedule = await schedule_named(sessions, "daily-load", "nightly")
@@ -230,7 +230,7 @@ async def test_a_paused_apply_leaves_no_moment_in_which_a_due_schedule_could_fir
 ) -> None:
     """The row is inserted paused, so the first tick that could see it already cannot fire it."""
     async with session_scope(sessions) as session:
-        await apply_document(session, services, load_text(WITH_TRIGGERS), pause_schedules=True)
+        await apply_document(session, services, load_text(WITH_TRIGGERS), paused=True)
     schedule = await schedule_named(sessions, "daily-load", "nightly")
     assert schedule is not None
     assert schedule.next_fire_at is not None
@@ -257,7 +257,7 @@ async def test_reapplying_without_the_flag_leaves_a_resumed_schedule_running(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
     async with session_scope(sessions) as session:
-        await apply_document(session, services, load_text(WITH_TRIGGERS), pause_schedules=True)
+        await apply_document(session, services, load_text(WITH_TRIGGERS), paused=True)
     schedule = await schedule_named(sessions, "daily-load", "nightly")
     assert schedule is not None
     async with session_scope(sessions) as session:
@@ -279,7 +279,7 @@ async def test_reapplying_with_the_flag_does_not_re_pause_a_schedule_that_alread
 ) -> None:
     """--paused governs what an apply brings into being, never what already runs."""
     async with session_scope(sessions) as session:
-        await apply_document(session, services, load_text(WITH_TRIGGERS), pause_schedules=True)
+        await apply_document(session, services, load_text(WITH_TRIGGERS), paused=True)
     schedule = await schedule_named(sessions, "daily-load", "nightly")
     assert schedule is not None
     async with session_scope(sessions) as session:
@@ -289,7 +289,7 @@ async def test_reapplying_with_the_flag_does_not_re_pause_a_schedule_that_alread
 
     changed = WITH_TRIGGERS.replace('cron: "0 5 * * *"', 'cron: "0 7 * * *"')
     async with session_scope(sessions) as session:
-        again = await apply_document(session, services, load_text(changed), pause_schedules=True)
+        again = await apply_document(session, services, load_text(changed), paused=True)
 
     assert again.triggers.schedules_updated == ["nightly"]
     after = await schedule_named(sessions, "daily-load", "nightly")

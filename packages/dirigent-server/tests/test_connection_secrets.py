@@ -49,7 +49,7 @@ async def admin(app: FastAPI, admin_token: str) -> AsyncIterator[httpx2.AsyncCli
 async def _run_one_step(app: FastAPI, client: httpx2.AsyncClient, code: str, step: dict[str, Any]) -> dict[str, Any]:
     """Run one document of a single step on the engine, and return its attempt."""
     document = {"format": "dirigent/v1", "code": code, "steps": {"only": step}}
-    applied = await client.post(f"{PREFIX}/pipelines/$apply", json={"document": document, "pause_schedules": False})
+    applied = await client.post(f"{PREFIX}/pipelines/$apply", json={"document": document, "paused": False})
     assert applied.status_code == 200, applied.text
     run_id = (await client.post(f"{PREFIX}/pipelines/{code}/$run", json={"params": {}})).json()["run_id"]
     engine = Engine(app.state.session_factory, app.state.services, owner="worker")
@@ -97,7 +97,7 @@ def _sourced(code: str, source: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _apply(client: httpx2.AsyncClient, document: dict[str, Any]) -> None:
-    applied = await client.post(f"{PREFIX}/pipelines/$apply", json={"document": document, "pause_schedules": False})
+    applied = await client.post(f"{PREFIX}/pipelines/$apply", json={"document": document, "paused": False})
     assert applied.status_code == 200, applied.text
 
 

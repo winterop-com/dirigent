@@ -59,13 +59,14 @@ class Pipelines(Resource):
         source: ProvenanceSource | None = None,
         source_ref: str | None = None,
         dry_run: bool = False,
-        pause_schedules: bool = False,
+        paused: bool = False,
     ) -> ApplyResult:
         """Validate a document against this instance and commit a new version, or plan one.
 
         A document this instance cannot run arrives as a 200 with ``action`` of ``invalid``
-        and the issues on the plan, not as a refusal. ``pause_schedules`` creates the
-        schedules this apply brings into being paused, and leaves existing ones alone.
+        and the issues on the plan, not as a refusal. ``paused`` creates the schedules and the
+        polled or held sources this apply brings into being paused, and leaves a received source
+        and everything the instance already holds alone.
         """
         parsed, provenance, ref = read_document(document)
         payload = ApplyRequest(
@@ -73,7 +74,7 @@ class Pipelines(Resource):
             code=code,
             source=source if source is not None else provenance,
             source_ref=source_ref if source_ref is not None else ref,
-            pause_schedules=pause_schedules,
+            paused=paused,
         )
         return await self._one(
             ApplyResult,

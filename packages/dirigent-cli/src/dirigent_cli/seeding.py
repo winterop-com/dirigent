@@ -218,14 +218,14 @@ async def _connection(client: Dirigent, spec: ConnectionSpec) -> str:
 
 
 async def _apply(client: Dirigent, raw: JsonMap, origin: str) -> Record:
-    """Apply one document with its schedules paused, without the sections it carries."""
+    """Apply one document with its schedules and polled or held sources paused, without the sections it carries."""
     document = {name: value for name, value in raw.items() if name not in CARRIED}
     try:
         result = await client.pipelines.apply(
             document,
             source=ProvenanceSource.FILE,
             source_ref=origin,
-            pause_schedules=True,
+            paused=True,
         )
     except DirigentError as error:
         return _refused(origin, _reason(error))
@@ -239,6 +239,7 @@ async def _apply(client: Dirigent, raw: JsonMap, origin: str) -> Record:
         pipeline=result.plan.code,
         action=result.plan.action.value,
         schedules_paused=result.triggers.schedules_created,
+        sources_paused=result.sources.paused,
     )
 
 

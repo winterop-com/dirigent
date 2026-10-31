@@ -99,9 +99,7 @@ async def admin(app: FastAPI, admin_token: str) -> AsyncIterator[httpx2.AsyncCli
 
 
 async def _apply(client: httpx2.AsyncClient, auth: str) -> None:
-    applied = await client.post(
-        f"{PREFIX}/pipelines/$apply", json={"document": _document(auth), "pause_schedules": False}
-    )
+    applied = await client.post(f"{PREFIX}/pipelines/$apply", json={"document": _document(auth), "paused": False})
     assert applied.status_code == 200, applied.text
 
 

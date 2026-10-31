@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from pydantic import SecretStr
 
 from dirigent_cli.seeding import seed_directories, seed_installed
-from dirigent_client import Dirigent, PlanAction
+from dirigent_client import Dirigent, PlanAction, SourceState
 from dirigent_client.enums import UserRole
 from dirigent_core.auth import create_user, issue_token
 from dirigent_core.config import Settings
@@ -82,6 +82,39 @@ connections:
 NOT_A_DOCUMENT = """
 title: A note beside the corpus, which is not a document.
 values: [1, 2, 3]
+"""
+
+BOTH_SOURCES = """
+format: dirigent/v1
+kind: pipeline
+code: seeded-sources
+description: A document with one source a worker pokes and one a caller calls.
+steps:
+  poked:
+    source:
+      kind: sensor
+      block: playground.arrive
+      config:
+        after: 5s
+        after_pokes: 0
+      poll: 1s
+      max_in_flight: 2
+  called:
+    source:
+      kind: endpoint
+      path: /seeded-sources
+      auth:
+        kind: public
+  after_poked:
+    block: shell.run
+    depends_on: [poked]
+    config:
+      argv: [echo, poked]
+  after_called:
+    block: shell.run
+    depends_on: [called]
+    config:
+      argv: [echo, called]
 """
 
 
@@ -166,6 +199,34 @@ async def test_a_seeded_schedule_lands_paused(dg: Dirigent, corpus: Path) -> Non
     await seeded(dg, corpus)
     clocks = (await dg.schedules.list("seeded-plain")).items
     assert [(one.code, one.paused) for one in clocks] == [("nightly", True)]
+
+
+async def test_a_seeded_source_that_starts_runs_by_itself_lands_paused(dg: Dirigent, tmp_path: Path) -> None:
+    directory = tmp_path / "self-starting"
+    directory.mkdir()
+    (directory / "both.yaml").write_text(BOTH_SOURCES)
+
+    stream = await seeded(dg, directory)
+
+    assert (await dg.sources.get("seeded-sources", "poked")).state is SourceState.PAUSED
+    assert (await dg.sources.get("seeded-sources", "called")).state is SourceState.LISTENING
+    [applied] = of_kind(stream, "seed.applied")
+    assert applied["sources_paused"] == ["poked"]
+
+
+async def test_re_seeding_leaves_a_resumed_source_running_and_names_nothing(dg: Dirigent, tmp_path: Path) -> None:
+    directory = tmp_path / "self-starting"
+    directory.mkdir()
+    (directory / "both.yaml").write_text(BOTH_SOURCES)
+    await seeded(dg, directory)
+    await dg.sources.resume("seeded-sources", "poked")
+
+    stream = await seeded(dg, directory)
+
+    [applied] = of_kind(stream, "seed.applied")
+    assert applied["action"] == PlanAction.UNCHANGED.value
+    assert applied["sources_paused"] == []
+    assert (await dg.sources.get("seeded-sources", "poked")).state is not SourceState.PAUSED
 
 
 async def test_the_connections_a_file_and_a_document_declare_are_created(dg: Dirigent, corpus: Path) -> None:

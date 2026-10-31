@@ -51,6 +51,37 @@ triggers:
 """
 )
 
+#: One source a worker pokes and one a caller calls.
+SENSOR_AND_ENDPOINT_DOCUMENT = """
+format: dirigent/v1
+kind: pipeline
+code: cli-both
+steps:
+  poked:
+    source:
+      kind: sensor
+      block: playground.arrive
+      config:
+        after: 5s
+        after_pokes: 0
+      poll: 1s
+      max_in_flight: 2
+  called:
+    source:
+      kind: endpoint
+      path: /cli-both
+  after_poked:
+    block: shell.run
+    depends_on: [poked]
+    config:
+      argv: [echo, poked]
+  after_called:
+    block: shell.run
+    depends_on: [called]
+    config:
+      argv: [echo, called]
+"""
+
 # Wide enough that rich never folds a token or a table cell.
 CONSOLE_WIDTH = "200"
 
@@ -767,6 +798,20 @@ def test_a_source_is_listed_paused_resumed_and_given_a_new_token(tmp_path: Path,
     assert minted["url"].endswith("/endpoints/cli-echo/{who}")
     rendered = invoke("source", "rotate-token", "cli-echo", "ask")
     assert "This is the only time it is shown." in plain(rendered.output)
+
+
+def test_apply_paused_lands_a_sensor_source_paused_and_an_endpoint_listening(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "both.yaml"
+    path.write_text(SENSOR_AND_ENDPOINT_DOCUMENT)
+    applied = machine("apply", str(path), "--paused")
+    assert applied.exit_code == 0, applied.output
+    assert only(applied.stdout, "apply")["fields"]["sources"]["paused"] == ["poked"]
+
+    listed = {row["code"]: row["state"] for row in rows_of("source", "list", "cli-both")}
+    assert listed == {"poked": "paused", "called": "listening"}
+
+    resumed = machine("source", "resume", "cli-both", "poked")
+    assert only(resumed.stdout, "source.resumed")["state"] != "paused"
 
 
 def test_a_signed_source_is_called_with_a_body_signed_by_its_secret(tmp_path: Path, server: str) -> None:

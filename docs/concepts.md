@@ -174,7 +174,8 @@ declaration follows the pipeline's current version; whether it is paused, its to
 has counted are the instance's, and survive the apply. A source is `listening`; `backlogged`
 once as many runs from it are unsettled as its `max_in_flight` allows; `draining` when it or
 its pipeline is paused with runs still in flight; then `paused`. `dg source list` shows each one
-with its state.
+with its state. `dg apply --paused` and `dg dev --seed` create a source a worker polls or holds
+`paused`, and `dg source resume` starts it; an `endpoint` they create stays `listening`.
 
 An `endpoint` source is called at its route under `/endpoints`: `path: /greet/{name}` answers
 `POST /endpoints/greet/Bergen`. Unless it writes `auth: {kind: public}`, its caller presents the
