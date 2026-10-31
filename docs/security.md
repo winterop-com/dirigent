@@ -467,7 +467,8 @@ spellings, so handling a capped body costs time in step with its size. Any other
 refused 415 (`source.charset_refused`) without decoding. A JSON body nesting more than 128 levels
 of lists and objects is refused 400 (`source.body_too_deep`) and starts no run. A stored value
 deeper than the engine can validate, from any source, fails the step that reads it
-(`run.config_refused`) and holds back no other work.
+(`run.config_refused`) and holds back no other work. A JSON body holding half a surrogate pair
+is refused 400 (`source.body_not_json`), because no database can store it.
 A read holds no database connection: the call's transaction ends before it, and the source and
 its pipeline are read again after it. A body that has not arrived whole within
 `DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,
@@ -475,7 +476,8 @@ so a stranger who stops sending holds one socket for that long and nothing the A
 
 **A value no database can hold is stored as text.** A JSON answer from an outside service can hold
 half a surrogate pair, which JSONB refuses and no response can encode. Every JSON column writes one
-as the six characters of its escape, so the step settles once and its run stays readable.
+as the six characters of its escape, and so does every column recording what a failure said when it
+quotes one, so the step settles once and its run stays readable.
 
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
 the step's timeout and the lease heartbeat keep running over a value of any size, and
