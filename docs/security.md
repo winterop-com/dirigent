@@ -193,7 +193,7 @@ than by an exception list each endpoint remembers:
   deployment does not want the API surface published, do not expose them past your proxy.
 - Every route under `/endpoints`, which a pipeline's endpoint sources declare, each with its own
   token or signing secret unless it writes itself public. See [endpoint hardening](#endpoint-hardening).
-- The [playground](playground.md) under `/api/v1/playground`, which opens no session and reads no
+- The [playground](playground.md) under `/api/v1/playground`, which reflects at most 8 KiB of a body, opens no session and reads no
   instance data. It shares the UI's origin, so what a caller can make it answer is contained:
   every answer carries `nosniff` and a sandboxing CSP, it answers under no content type a browser
   runs, it sets no header that would make the origin act for the caller, it redirects only on

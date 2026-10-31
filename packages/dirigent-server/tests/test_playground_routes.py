@@ -314,6 +314,31 @@ def test_a_body_past_the_cap_is_refused_by_the_route_with_a_credential(client: T
     assert response.json()["code"] == "server.playground_body_too_large"
 
 
+def test_a_body_at_the_reflected_limit_comes_back_whole(playground: TestClient) -> None:
+    body = {"a": "x" * (8 * 1024 - len('{"a":""}'))}
+    reflected = playground.post(f"{PREFIX}/request", json=body).json()["request"]
+    assert reflected["body"] == body
+    assert reflected["body_kind"] == "json"
+    assert reflected["body_truncated"] is False
+
+
+def test_a_body_past_the_reflected_limit_comes_back_as_its_start(playground: TestClient) -> None:
+    raw = b'{"a":"' + b"x" * (8 * 1024) + b'"}'
+    response = playground.post(f"{PREFIX}/request", content=raw, headers={"content-type": "application/json"})
+    reflected = response.json()["request"]
+    assert reflected["body"] == raw[: 8 * 1024].decode()
+    assert reflected["body_kind"] == "text"
+    assert reflected["body_truncated"] is True
+    assert reflected["body_bytes"] == len(raw)
+
+
+def test_a_body_that_writes_longest_makes_a_reply_no_client_can_be_left_holding(playground: TestClient) -> None:
+    """A megabyte of control bytes is six in JSON, and a client that never reads leaves all of it in memory."""
+    response = playground.post(f"{PREFIX}/request", content=b"\x01" * (1024 * 1024))
+    assert response.status_code == 200, response.text
+    assert len(response.content) < 64 * 1024
+
+
 def test_a_body_at_the_cap_is_reflected(playground: TestClient) -> None:
     response = playground.post(f"{PREFIX}/request", content=b"x" * (1024 * 1024))
     assert response.status_code == 200
