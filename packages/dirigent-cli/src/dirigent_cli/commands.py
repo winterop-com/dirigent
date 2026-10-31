@@ -99,6 +99,7 @@ from dirigent_cli.output import (
     RUNS_IN_FLIGHT,
     Detail,
     age,
+    byte_count,
     connection_health,
     console,
     elapsed,
@@ -2172,6 +2173,7 @@ def runs_show(
             "triggered by": run.triggered_by_label or run.triggered_by_kind.value,
             "started": moment(run.started_at),
             "finished": moment(run.finished_at),
+            "stored": byte_count(run.stored_bytes),
             "trace": run.trace_id or "-",
             "error": run.error or "-",
             **(

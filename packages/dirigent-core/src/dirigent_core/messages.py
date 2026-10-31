@@ -730,6 +730,12 @@ FAN_OUT_TOO_WIDE = RUN.define(
     "step {step} maps over {count} items, and this instance allows at most {maximum} in one grid (fan_out_max_items)",
 )
 
+STORAGE_QUOTA = RUN.define(
+    "storage_quota",
+    "run {run} and the runs its steps started hold {stored_bytes} bytes of storage, and writing "
+    "{size_bytes} more would pass the {quota} this instance allows a run (run_storage_quota)",
+)
+
 FAN_OUT_EMPTY = RUN.define(
     "fan_out_empty",
     "step {step} maps over {expression}, which {source} left empty, so the step is skipped",

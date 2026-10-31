@@ -106,8 +106,6 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      interpreter's lock, so a thread does not help; it takes a killable process or a regex engine
      without backtracking. `unevaluatedItems` and `unevaluatedProperties` stay quadratic, about a
      minute of thread time at the 1 MiB cap.
-   - **A run-wide storage quota.** The packs now bound each answer, but many answers under the
-     bound still fill storage, and only the engine can count a run's total.
    - **The units the reviews never reached.** Step deadline arithmetic, gate expansion and the
      lease sweep, attempt reads at the depth limit, retention sweeps, alert queueing,
      `dg pipeline new` writing to a name the instance chooses, storage blocks across runs, tokens

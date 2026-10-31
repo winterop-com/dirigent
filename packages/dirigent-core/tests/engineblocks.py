@@ -443,6 +443,48 @@ class ChattyOperator(Operator[ChattyConfig, ChattyOutput]):
         return ChattyOutput(lines=config.lines + int(config.last))
 
 
+class CapturingConfig(BaseModel):
+    """How many streams the capturing operator writes, and in what pieces."""
+
+    captures: int = 1
+    size: int = 1024
+    """How many bytes each stream holds."""
+
+    piece: int = 256
+    """How many bytes each write carries."""
+
+    swallow: bool = False
+    """Whether a refused write is caught, and the call answers as though nothing was refused."""
+
+
+class CapturingOutput(BaseModel):
+    """Where each stream that was written whole went."""
+
+    uris: list[str]
+
+
+class CapturingOperator(Operator[CapturingConfig, CapturingOutput]):
+    """Captures streams a small write at a time, the way a chatty process's output arrives."""
+
+    spec = OperatorSpec(id="test.capturing", summary="Capture streams in small writes.", idempotent=True)
+    config_model = CapturingConfig
+    output_model = CapturingOutput
+
+    async def execute(self, config: CapturingConfig, ctx: StepContext) -> CapturingOutput | RemoteHandle:
+        """Write each stream whole, and stop at the first write storage refuses."""
+        uris: list[str] = []
+        try:
+            for index in range(config.captures):
+                async with ctx.capture(f"part-{index}") as sink:
+                    for start in range(0, config.size, config.piece):
+                        await sink.write(b"x" * min(config.piece, config.size - start))
+                uris.append(sink.uri)
+        except BlockFailure:
+            if not config.swallow:
+                raise
+        return CapturingOutput(uris=uris)
+
+
 class CursorConfig(BaseModel):
     """What the cursor sensor is told: how far to read, and how far each poke gets."""
 
@@ -614,6 +656,7 @@ class EngineTestPlugin:
         """Contribute one block of every shape the engine has to handle."""
         return Contribution(
             operators=[
+                CapturingOperator(),
                 CasingTransformer(),
                 ChattyOperator(),
                 EchoOperator(),

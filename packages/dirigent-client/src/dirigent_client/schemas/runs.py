@@ -68,6 +68,9 @@ class RunOut(WireModel):
     window_end: datetime | None = None
     """The end of that interval, exclusive. Both are set or neither is."""
 
+    stored_bytes: int = 0
+    """What this run has written to storage: its steps' writes, captures and outputs too large to inline."""
+
     created_at: datetime
 
     @property

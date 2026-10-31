@@ -668,6 +668,7 @@ exhaustion, which is exactly why it is refused up front.
 | `DIRIGENT_STORAGE_CONNECTIONS` | empty | Which connection configures each storage scheme, by code, as `scheme=connection`. `s3=archive` lets one instance hold several `s3` connections and still say which one `s3://` addresses. A scheme with no entry keeps whatever its package contributed it with, which for `s3://` is the ambient AWS credential chain. |
 | `DIRIGENT_INLINE_ARTIFACT_MAX` | `16kb` | Outputs at or below this serialized size are inlined into the artifact row; larger ones are streamed to the run's scratch prefix. Note this governs the artifact copy only -- the attempt row keeps the output whole either way. |
 | `DIRIGENT_INLINE_CAPTURE` | `8kb` | How much of a captured stream a block may inline in its output: what `shell.run` and `docker.run` put in `stdout` and `stderr`, and what their `stdout_truncated` / `stderr_truncated` fields report on. Raise it for a chatty job; the whole stream is written to the run's scratch either way, and `stdout_uri` and `stderr_uri` address all of it. |
+| `DIRIGENT_RUN_STORAGE_QUOTA` | `1gb` | How much one run, with every run its steps start through `pipeline.run`, may write to storage. The write that would pass it fails its step as `run.storage_quota`. A run's `stored_bytes` says what it has written. See [what a run may store](security.md#what-a-run-may-store). |
 
 Any S3-compatible endpoint serves `s3://`. The endpoint, credentials and addressing style
 live on the connection, so nothing above it knows which server answers: AWS S3, a provider's

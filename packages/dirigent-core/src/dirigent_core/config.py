@@ -359,6 +359,14 @@ class Settings(BaseSettings):
     A grid fixed at creation over it refuses the run. One read from a step's output is
     expanded when that step has settled, so there the gate fails as ``rejected`` instead."""
 
+    run_storage_quota: Size = Field(default=1024**3, ge=1)
+    """How much one run, with every run its steps start, may write to storage.
+
+    Counted as the bytes are written: what a step writes through storage, its captures, and
+    each output too large to inline. The write that would pass it fails its step as
+    ``rejected``, and what was written before it stays under the run's scratch until
+    retention prunes the run."""
+
     log_entries_per_attempt: int = Field(default=1000, ge=1)
     """How many entries one attempt may log before the rest are dropped with one warning."""
 

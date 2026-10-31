@@ -455,6 +455,11 @@ async def _write_source(
         entry.output,
         inline_max_bytes=services.settings.inline_artifact_max,
     )
+    if reference.uri is not None and reference.size_bytes is not None:
+        # A run entered at a source begins its own chain. The input it was created for is
+        # counted there and never refused.
+        run.stored_bytes += reference.size_bytes
+        run.chain_stored_bytes += reference.size_bytes
     session.add(
         LogEntry(
             run_id=run.id,

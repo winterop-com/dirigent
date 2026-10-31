@@ -426,6 +426,20 @@ def _rendered(output: Mapping[str, Any], level: Detail) -> str:
     return summarise(output)
 
 
+#: The units a count of bytes is rendered in, smallest first, each 1024 of the one before.
+BYTE_UNITS: Final = ("B", "kB", "MB", "GB", "TB")
+
+
+def byte_count(size_bytes: int) -> str:
+    """Render a count of bytes in the largest unit it fills, to one decimal past bytes."""
+    amount = float(size_bytes)
+    for unit in BYTE_UNITS[:-1]:
+        if amount < 1024:  # noqa: PLR2004 - each unit is 1024 of the one before
+            return f"{size_bytes} {unit}" if unit == BYTE_UNITS[0] else f"{amount:.1f} {unit}"
+        amount /= 1024
+    return f"{amount:.1f} {BYTE_UNITS[-1]}"
+
+
 def _size(size_bytes: int | None) -> str:
     """Render an artifact's size, or nothing when it was not recorded."""
     if size_bytes is None:
