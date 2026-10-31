@@ -118,8 +118,6 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      `strategy` and the step's query DHIS2 obeys, which decides whether a document's body can turn
      a dry run into a write; a broker message stalling polled sources on PostgreSQL; a checked-out
      symlink redirecting a run-relative SQLite file.
-   - **The parallel-sleep CLI test is flaky.** It expects the three roots queued in the order
-     written, and a loaded runner queues them in another.
 3. **dirigent-fhir: FHIR as a system of its own.** A general FHIR pack, not a DHIS2 one: a
    pipeline that pulls from one FHIR server and pushes to another, neither of them DHIS2, is as
    much its purpose as feeding DHIS2. It depends on the FHIR engine only, and carries no DHIS2

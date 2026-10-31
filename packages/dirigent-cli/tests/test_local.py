@@ -6,7 +6,7 @@ import shutil
 import sys
 import time
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -37,21 +37,23 @@ from dirigent_cli.local import (
     LocalError,
     SchemaSpec,
     _drive,  # pyright: ignore[reportPrivateUsage] - the poll this suite measures
+    _Items,  # pyright: ignore[reportPrivateUsage] - the label cache the transition read takes
     _new_logs,  # pyright: ignore[reportPrivateUsage] - the read this suite measures
+    _transitions,  # pyright: ignore[reportPrivateUsage] - the read this suite orders
     connections_for,
     load_connection_specs,
     load_schema_specs,
     schemas_for,
 )
 from dirigent_cli.main import app, hoist_globals
-from dirigent_client.enums import LogLevel
+from dirigent_client.enums import AttemptStatus, LogLevel
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.documents import load_pipeline_text as load_text
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import create_run, save_pipeline
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.models import Base, LogEntry
+from dirigent_core.models import Base, LogEntry, StepAttempt
 from dirigent_core.plugins import load_plugin_host
 from dirigent_core.protocol import parse
 
@@ -1318,6 +1320,42 @@ async def _seeded_run(root: Path) -> tuple[AsyncEngine, async_sessionmaker[Async
         run = await create_run(session, services, version)
     assert run is not None
     return engine, sessions, services, run.id
+
+
+#: Three roots in the order they are written, which is not the order they start in below.
+ROOTS = ("slow", "medium", "quick")
+
+
+async def test_roots_are_announced_queued_in_the_order_written_whichever_started_first(tmp_path: Path) -> None:
+    """Every root is queued at one instant, so a poll that finds two already running keeps the written order."""
+    settings = Settings(
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'local.db'}",
+        artifact_root=f"file://{tmp_path / 'artifacts'}",
+    )
+    engine = create_engine(settings)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+    sessions = create_session_factory(engine)
+    services = EngineServices.build(settings, load_plugin_host())
+    definition = PipelineDefinition(
+        code="roots",
+        steps={name: StepDefinition(block="storage.copy", config={"source": "a", "target": "b"}) for name in ROOTS},
+    )
+    async with session_scope(sessions) as session:
+        run = await create_run(session, services, await save_pipeline(session, definition))
+        assert run is not None
+        attempts = {row.step_name: row for row in (await session.execute(sa.select(StepAttempt))).scalars()}
+        for offset, name in enumerate(("medium", "quick"), start=1):
+            claimed = attempts[name]
+            assert claimed.available_at is not None
+            claimed.status = AttemptStatus.RUNNING
+            claimed.started_at = claimed.available_at + timedelta(seconds=offset)
+    tick = await _transitions(sessions, run.id, {}, _Items(), ROOTS)
+    await engine.dispose()
+    queued = [moved.step for moved in tick.transitions if moved.status is AttemptStatus.QUEUED]
+    assert queued == list(ROOTS)
+    running = [moved.step for moved in tick.transitions if moved.status is AttemptStatus.RUNNING]
+    assert running == ["medium", "quick"]
 
 
 async def _log_lines(sessions: async_sessionmaker[AsyncSession], run_id: UUID, messages: list[str]) -> None:
