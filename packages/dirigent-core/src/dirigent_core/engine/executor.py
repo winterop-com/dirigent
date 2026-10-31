@@ -31,7 +31,7 @@ from dirigent_common import (
     scrub,
 )
 from dirigent_core import telemetry, wakeups
-from dirigent_core.artifacts import persist_output
+from dirigent_core.artifacts import canonical_json, persist_output
 from dirigent_core.database import session_scope, with_deadlock_retry
 from dirigent_core.engine.claim import (
     CLAIMABLE_RUN_STATUSES,
@@ -55,6 +55,7 @@ from dirigent_core.engine.definition import (
 )
 from dirigent_core.engine.expansion import collect_errors, collect_outputs, is_gate, item_value_of
 from dirigent_core.engine.failure import Failure, backoff_delay, should_retry
+from dirigent_core.engine.quota import StorageMeter
 from dirigent_core.engine.recovery import overdue_deadlines
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, references_in, resolve_config
 from dirigent_core.engine.runs import (
@@ -460,39 +461,59 @@ class Engine:
                 limit=self.services.settings.log_entries_per_attempt,
                 batch=self.services.settings.log_flush_batch,
             )
-            context = self._context(unit, logger)
-            started = time.monotonic()
-            stop = asyncio.Event()
-            flusher = asyncio.create_task(self._flush_while_running(logger, stop))
+            meter = StorageMeter(self.sessions, unit.run_id, self.services.settings.run_storage_quota)
             try:
-                result = await self._call_block(unit, context)
+                context = self._context(unit, logger, meter)
+                started = time.monotonic()
+                stop = asyncio.Event()
+                flusher = asyncio.create_task(self._flush_while_running(logger, stop))
+                try:
+                    result = await self._counted(await self._call_block(unit, context), meter)
+                finally:
+                    stop.set()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await flusher
+                if isinstance(result, Errored):
+                    result = Errored(failure=result.failure.scrubbed(logger.secrets))
+                    telemetry.record_failure(span, result.failure.message)
+                if isinstance(result, Vanished):
+                    result = Vanished(message=scrub(result.message, logger.secrets))
+                if isinstance(result, Submitted):
+                    await self.record_handle(unit, result.handle)
+                if isinstance(result, Produced) and result.fetched:
+                    await self._record_fetched(unit, result.output)
+                await self._record(
+                    unit,
+                    result,
+                    logger,
+                    now or utcnow(),
+                    storage=context.uncounted_storage,
+                    seconds=time.monotonic() - started,
+                )
             finally:
-                stop.set()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await flusher
-            if isinstance(result, Errored):
-                result = Errored(failure=result.failure.scrubbed(logger.secrets))
-                telemetry.record_failure(span, result.failure.message)
-            if isinstance(result, Vanished):
-                result = Vanished(message=scrub(result.message, logger.secrets))
-            if isinstance(result, Submitted):
-                await self.record_handle(unit, result.handle)
-            if isinstance(result, Produced) and result.fetched:
-                await self._record_fetched(unit, result.output)
-            await self._record(
-                unit,
-                result,
-                logger,
-                now or utcnow(),
-                storage=context.storage,
-                seconds=time.monotonic() - started,
-            )
+                await meter.settle()
 
-    def _context(self, unit: ClaimedUnit, logger: BufferedLogger) -> EngineStepContext:
+    async def _counted(self, result: CallResult, meter: StorageMeter) -> CallResult:
+        """Count an output too large to inline before it is stored, and fail a call the quota refused.
+
+        It runs before the outcome transaction opens: a count taken inside it would wait on the
+        lock that transaction holds. A step with a refused write fails whatever the block returned.
+        """
+        if isinstance(result, Produced) and meter.refusal is None:
+            size = len(canonical_json(result.output))
+            if size > self.services.settings.inline_artifact_max:
+                with contextlib.suppress(BlockFailure):
+                    await meter.take(size)
+        if meter.refusal is not None and isinstance(result, Produced | Errored):
+            return Errored(failure=meter.refusal)
+        return result
+
+    def _context(self, unit: ClaimedUnit, logger: BufferedLogger, meter: StorageMeter) -> EngineStepContext:
         """Build the context one unit's call and the outcome of that call both work through.
 
         Its storage is the one the step's own writes went through, so an output too large to
         inline is persisted by the same configured backend rather than the unconfigured one.
+        Everything the block writes through it is counted on ``meter``.
         """
         return EngineStepContext(
             run_id=unit.run_id,
@@ -514,6 +535,7 @@ class Engine:
             format_checker=self.services.format_checker,
             storage_connections=self.services.settings.storage_connections,
             cursor=unit.poke_cursor,
+            meter=meter,
         )
 
     async def _call_block(self, unit: ClaimedUnit, context: EngineStepContext) -> CallResult:

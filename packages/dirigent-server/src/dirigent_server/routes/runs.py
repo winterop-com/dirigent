@@ -148,6 +148,7 @@ def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed: 
         finished_at=run.finished_at,
         window_start=run.window_start,
         window_end=run.window_end,
+        stored_bytes=run.stored_bytes,
         log_levels={pattern: LogLevel(str(level)) for pattern, level in run.log_levels.items()}
         if run.log_levels
         else None,

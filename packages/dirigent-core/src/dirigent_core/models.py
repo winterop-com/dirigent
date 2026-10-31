@@ -255,6 +255,18 @@ class Run(Entity):
     started validates against. The bodies themselves are held, not their codes: there is no
     schema versioning to resolve a code back through."""
 
+    stored_bytes: Mapped[int] = mapped_column(BigId, nullable=False, default=0, server_default=sa.text("0"))
+    """What this run wrote to storage, counted as it was written.
+
+    A step's own writes, its captures, and its outputs too large to inline. While a step is
+    writing it also holds the part of its last grant it has not written yet."""
+
+    chain_stored_bytes: Mapped[int] = mapped_column(BigId, nullable=False, default=0, server_default=sa.text("0"))
+    """What this run and every run its steps started wrote to storage, on the run that began the chain.
+
+    The count ``run_storage_quota`` holds a chain to. A run a step of another run started adds
+    to the chain's first run here, and leaves its own at zero."""
+
 
 class RunItem(Entity):
     """One element of a fan-out step's mapped input, with its own status and retry."""

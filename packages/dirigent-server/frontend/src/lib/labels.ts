@@ -1107,6 +1107,8 @@ const refused = {
         server_settled: 'Step {step} is a {kind}, which the server settles and no worker claims.',
         source_not_retryable:
             'Step {step} is a source, settled with the input the run was created for. Running that input again is a new run.',
+        storage_quota:
+            'Run {run} and the runs its steps started hold {stored_bytes} bytes of storage, and writing {size_bytes} more would pass the {quota} this instance allows a run (run_storage_quota).',
         unknown_schema:
             'This run holds no shape coded {code}. It checks against the shapes its document named when it started ({available}), and takes no others while it runs.',
     },

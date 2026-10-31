@@ -584,6 +584,18 @@ def upgrade() -> None:
             "schemas", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False
         ),
         sa.Column(
+            "stored_bytes",
+            sa.BigInteger().with_variant(sa.Integer(), "sqlite"),
+            server_default=sa.text("0"),
+            nullable=False,
+        ),
+        sa.Column(
+            "chain_stored_bytes",
+            sa.BigInteger().with_variant(sa.Integer(), "sqlite"),
+            server_default=sa.text("0"),
+            nullable=False,
+        ),
+        sa.Column(
             "created_at",
             dirigent_core.types.UtcDateTime(timezone=True),
             server_default=sa.func.now(),
