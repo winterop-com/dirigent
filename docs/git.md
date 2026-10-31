@@ -76,7 +76,10 @@ A credential reaches git, and reaches nothing else. In one paragraph:
 secret is ever an argument. A token is written into a directory of its own in the system's
 temporary directory, created `0700`, holding two `0600` files and a `0700` `GIT_ASKPASS` helper
 that `cat`s the right one when git asks for a username or a password -- so the token is not in
-the environment either, only in a file that one process may read. It is outside the run's work
+the environment either, only in a file that one process may read. The helper answers only the two
+exact prompts git writes for the scheme, host and port of the connection's URL and fails for any
+other, so a [submodule on another host](#refs-depth-and-submodules) or a redirect to one is not
+given the token. The directory is outside the run's work
 directory and scratch space, which a sibling step such as `sql.query` on duckdb can read, so the
 temporary directory has to allow running that helper. An ssh key is a `0600` file in
 the same directory, named by `GIT_SSH_COMMAND`, with `IdentitiesOnly=yes` and `BatchMode=yes`
@@ -140,7 +143,11 @@ exact name for what was checked out -- a branch moves and a tag can be moved.
 `depth` is `1` by default: the one commit the ref points at and none of its history, which is
 what a build wants and a fraction of the bytes. `depth: 0` fetches the whole history, which a
 step that reads the log or runs `git describe` needs. `submodules: true` checks out submodules
-recursively, at the same depth.
+recursively, at the same depth. A submodule on the connection's own scheme, host and port is
+reached with the connection's token. One anywhere else gets no token: it is fetched anonymously if
+its host allows that, and if its host asks for a credential the step fails, with git saying it
+could not read a username for that host. An ssh key is offered to whichever host a submodule's ssh
+URL names, which proves possession of the key without sending it.
 
 A checkout is **idempotent**. A second run into the same target, at the same commit, costs one
 ref listing and reports the same commit rather than cloning again; anything else -- a different

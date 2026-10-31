@@ -8,16 +8,18 @@ commit it landed on, so a downstream ``docker.compose.up`` names its compose fil
 ``docker.build`` names its context, and a transform names its files, all relative to that
 directory.
 
-It is an **ordinary** block. It writes only under the run's work directory and reaches only the
-remote its connection names, which is a narrower grant than ``shell.run`` and does not need the
-unsafe allowlist. A checkout is a directory a tool opens, so it lands on the worker's own
-filesystem rather than in storage, and a step that reads it runs on the same worker.
+It is an **ordinary** block. It writes only under the run's work directory and reaches the remote
+its connection names, plus any submodule that remote's ``.gitmodules`` names when ``submodules``
+is on. That is a narrower grant than ``shell.run`` and does not need the unsafe allowlist. A
+checkout is a directory a tool opens, so it lands on the worker's own filesystem rather than in
+storage, and a step that reads it runs on the same worker.
 
 The credential never becomes an argument. A token reaches git through a ``GIT_ASKPASS`` helper
-that reads it out of a file in a 0700 directory of its own; an ssh key is a 0600 file that
-``GIT_SSH_COMMAND`` names. The remote is always given to git with any userinfo stripped, so the
-checkout's ``.git/config`` holds no credential either, and the directory holding both goes away
-when the step leaves however it leaves.
+that reads it out of a file in a 0700 directory of its own, and answers only the prompts git
+writes for the connection's own origin; an ssh key is a 0600 file that ``GIT_SSH_COMMAND`` names.
+The remote is always given to git with any userinfo stripped, so the checkout's ``.git/config``
+holds no credential either, and the directory holding both goes away when the step leaves however
+it leaves.
 
 Git reads no configuration a step could have written. ``HOME`` and ``XDG_CONFIG_HOME`` are an
 empty directory inside that private one, the global and system files are switched off, and the
@@ -27,13 +29,14 @@ one command that talks to a remote from inside an existing checkout runs from ou
 import contextlib
 import os
 import re
+import shlex
 import shutil
 import tempfile
 from collections.abc import Generator
 from datetime import timedelta
 from pathlib import Path
 from typing import ClassVar
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field, SecretStr, model_validator
 
@@ -102,13 +105,14 @@ REFUSED = (
     "access denied",
 )
 
-#: The askpass helper git runs. It is asked for a username first and a password second, and
-#: answers each out of a file beside it so neither ever reaches an argument list or an
-#: environment variable.
+#: The askpass helper git runs. It answers the two exact prompts git writes for the connection's
+#: origin out of a file beside it, so neither answer reaches an argument list or an environment
+#: variable, and it exits non-zero for a prompt naming anything else.
 ASKPASS = """#!/bin/sh
 case "$1" in
-Username*) exec cat "{directory}/username" ;;
-*) exec cat "{directory}/password" ;;
+{username_prompt}) exec cat {username_file} ;;
+{password_prompt}) exec cat {password_file} ;;
+*) exit 1 ;;
 esac
 """
 
@@ -334,7 +338,7 @@ def _materialise(settings: GitConnectionConfig, directory: Path) -> Sealed:
         secrets.write(directory / "username", settings.username)
         secrets.write(directory / "password", token)
         helper = directory / "askpass.sh"
-        secrets.write(helper, ASKPASS.format(directory=directory), secrets.EXECUTABLE)
+        secrets.write(helper, _askpass(settings, directory), secrets.EXECUTABLE)
         environ["GIT_ASKPASS"] = str(helper)
         hidden.append(token)
     if settings.ssh_key is not None:
@@ -350,6 +354,25 @@ def _materialise(settings: GitConnectionConfig, directory: Path) -> Sealed:
         environ["GIT_SSH_COMMAND"] = " ".join(["ssh", *(_quote(one) for one in options)])
         hidden += [settings.ssh_key.get_secret_value(), str(key)]
     return Sealed(environ, hidden, home)
+
+
+def _askpass(settings: GitConnectionConfig, directory: Path) -> str:
+    """The helper's text, bound to the prompts git writes for this connection's origin.
+
+    A prompt names the scheme, the host and the port as the URL spelled them, and once the username
+    is known, that username, each percent-encoded the way git encodes it. A prompt that differs by
+    a byte goes unanswered, so a connection whose URL git spells otherwise fails rather than leaks.
+    Each value is quoted so ``sh`` matches it as a literal.
+    """
+    split = urlsplit(public_url(settings.url))
+    host = quote(split.netloc, safe="-.:[]").replace("_", "%5F").replace("~", "%7E")
+    user = f"{quote(settings.username, safe='')}@" if settings.username else ""
+    return ASKPASS.format(
+        username_prompt=shlex.quote(f"Username for '{split.scheme}://{host}': "),
+        password_prompt=shlex.quote(f"Password for '{split.scheme}://{user}{host}': "),
+        username_file=shlex.quote(str(directory / "username")),
+        password_file=shlex.quote(str(directory / "password")),
+    )
 
 
 class _Git:
