@@ -175,6 +175,54 @@ it gets live schedules and sources: change it.
 - MCP `apply_document` is marked destructive, because applying can remove sources and schedules, and
   a dry run now lists those removals.
 
+**A third security review, and what its fixes change.** Each item below is a fix a deployment or a
+document can notice.
+
+- `git.checkout` gives its token only to the connection's own scheme, host and port. A submodule or
+  a redirect elsewhere gets none, so a step whose submodule host asks for a credential now fails.
+- `shell.run` and `docker.run` find bash's evaluating contexts in more spellings: one-line
+  functions, `case` patterns, a redirection before the command, `time -p`, `a=([...])`, `[ -v`,
+  `test -v`, `printf -v`, `read` and `declare -n`. A reference there has to be an integer; use
+  `argv` for any other value.
+- A `read_only` DuckDB connection refuses a write anywhere in a statement, inside a `WITH` too, and
+  refuses `query()`, `query_table()` and `json_execute_serialized_sql()` even for a read.
+- A `${...}` in `docker.compose.*` `content` is refused at apply and when the step starts. Write
+  `$${NAME}` in the file and give the value in `env` under `NAME`. The field shows as a YAML editor.
+- `docker.run` fails on an output that is a link or not a regular file, and on a target reached
+  through a link. A compose file, env file, build context or Dockerfile a link leads out of the
+  work directory is refused.
+- `command_path` is gone from `docker.build` and `docker.compose.*`. A step's `env` cannot set
+  `PATH`, `HOME`, `XDG_CONFIG_HOME`, `DOCKER_CONFIG`, `DOCKER_CONTEXT`, `DOCKER_HOST`,
+  `DOCKER_CERT_PATH`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `BUILDX_CONFIG`, `SSL_CERT_FILE`,
+  `SSL_CERT_DIR`, `LD_*` or `DYLD_*`. Name a daemon through a `docker` connection, and wrap docker
+  through the worker's own `PATH`.
+- `dg auth login`, `dg auth password`, `dg admin user password`, `dg connection create` and
+  `dg source set-secret` refuse a server a checkout names off this host, unless it came from `--url`
+  or the shell's `DG_URL`.
+- A state directory under a path a tracked file spells with another Unicode normalisation or case
+  counts as tracked, and is refused.
+- A JSON body nested past 128 levels is refused with 400 `source.body_too_deep`, and a stored value
+  too deep to check settles its step rather than holding queued work.
+- `validate.schema` evaluates off the event loop, and `uniqueItems` costs time in step with the
+  array. A backtracking `pattern` can still hold a worker; see [Security](security.md).
+- A connection's `bearer_token` or `api_token` holding a control character, or a blank at either
+  end, is refused when stored (`secret.not_sendable`). Rows written earlier are not rewritten: rotate
+  such a token if an instance held one.
+- A held caller whose run fails before a reply is told the run and the step, not what the step said.
+  `params.detail` is gone from `source.reply_rejected` and `source.reply_failed`; a reply can still
+  carry it with `${steps.<name>.error.message}`.
+- The playground reflects at most 8 KiB of a body, with `body_truncated` true and `body_bytes` still
+  the whole size.
+- An open log tail or event stream ends with `expired` within five seconds of its token being
+  revoked or expiring, or its account being deactivated.
+- A signed call whose body arrives after its timestamp left the window is refused.
+- An endpoint's JSON body holding half a surrogate pair is refused with 400 `source.body_not_json`,
+  and every JSON column stores one arriving another way as its escape, so its run stays readable.
+- A schedule whose document cannot make a run records a failed firing, and the schedules after it
+  still fire. An `interval` past ten years is refused.
+- A polled source's `poll` past ten years is refused at apply (`source.poll_too_long`), and one
+  source's failure stays on its own row.
+
 ## 0.27.1
 
 Released 2026-10-30. Every package in the workspace moves to 0.27.1 together, and so do
