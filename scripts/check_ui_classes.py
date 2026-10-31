@@ -64,8 +64,7 @@ OFF_SCALE_TYPE_SIZE = re.compile(r"\btext-(?:lg|xl|[2-9]xl)\b")
 PRIMARY_AS_TEXT = re.compile(r"\btext-primary(?![-\w])")
 
 INK_FIX = (
-    "--primary is a fill. Text on the ground is text-foreground or text-muted-foreground. "
-    "See docs/ui-conventions.md."
+    "--primary is a fill. Text on the ground is text-foreground or text-muted-foreground. See docs/ui-conventions.md."
 )
 
 FIX = (
