@@ -274,7 +274,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         className={cn(
                             'flex max-w-32 min-w-0 flex-1 flex-col gap-1.5 rounded-md border p-1.5 text-left',
                             'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                            chosen ? 'border-primary ring-2 ring-primary' : 'border-border hover:bg-accent',
+                            chosen ? 'border-ring ring-2 ring-ring' : 'border-border hover:bg-accent',
                         )}
                         onClick={() => {
                             onChoose(palette.name)
@@ -605,14 +605,14 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
             })}
             <p className="mt-3 flex gap-4 text-sm">
                 <a
-                    className="text-primary-ink hover:underline"
+                    className="text-foreground underline-offset-2 hover:underline"
                     href={DOCS_URL}
                     target="_blank"
                     rel="noreferrer"
                 >
                     {LABELS.settings.documentation}
                 </a>
-                <a className="text-primary-ink hover:underline" href={API_DOCS_URL}>
+                <a className="text-foreground underline-offset-2 hover:underline" href={API_DOCS_URL}>
                     {LABELS.settings.api_reference}
                 </a>
             </p>

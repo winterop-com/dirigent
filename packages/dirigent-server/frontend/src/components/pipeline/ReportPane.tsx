@@ -85,7 +85,7 @@ export function ReportPane({
                                 ? LABELS.editor.report.builtin_says
                                 : LABELS.editor.report.own_says}{' '}
                             <a
-                                className="text-primary-ink hover:underline"
+                                className="text-foreground underline-offset-2 hover:underline"
                                 href={REPORTS_DOCS_URL}
                                 target="_blank"
                                 rel="noreferrer"

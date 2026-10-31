@@ -55,7 +55,7 @@ export function Disclosure({
                     {row}
                 </button>
             )}
-            {open && <div className="my-1 ml-5 border-l border-primary py-1 pl-3">{children}</div>}
+            {open && <div className="my-1 ml-5 border-l border-foreground/40 py-1 pl-3">{children}</div>}
         </div>
     )
 }

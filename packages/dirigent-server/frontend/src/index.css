@@ -28,19 +28,24 @@
     --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
 
-    /* THREE TYPE SIZES, AND ONLY THREE. 12px for chips, badges, counts and metadata; 14px
-       for any sentence; 16px for a page heading. `scripts/check_ui_classes.py` fails the
-       gate on a fourth, whether it is written `text-[13px]` or `text-lg`. */
+    /* FIVE TYPE SIZES. 12px for codes, chips, counts and metadata; 13px, the working size of a
+       dense screen; 14px for prose; 15px for a section heading and a row's title; 26px for a
+       page heading. `scripts/check_ui_classes.py` fails the gate on a sixth, whether it is
+       written `text-[17px]` or `text-lg`. */
     --text-xs: 0.75rem;
     --text-xs--line-height: 1.125rem;
-    --text-sm: 0.875rem;
-    --text-sm--line-height: 1.25rem;
-    --text-base: 1rem;
-    --text-base--line-height: 1.5rem;
+    --text-sm: 0.8125rem;
+    --text-sm--line-height: 1.1875rem;
+    --text-base: 0.875rem;
+    --text-base--line-height: 1.3125rem;
+    --text-title: 0.9375rem;
+    --text-title--line-height: 1.375rem;
+    --text-page: 1.625rem;
+    --text-page--line-height: 2rem;
 
     /* The two sizes a graph is drawn in, which is the scale of a diagram rather than of a page. */
-    --text-graph-title: 0.8125rem;
-    --text-graph-title--line-height: 1.125rem;
+    --text-graph-title: 0.75rem;
+    --text-graph-title--line-height: 0.9375rem;
     --text-graph-small: 0.6875rem;
     --text-graph-small--line-height: 0.9375rem;
 
@@ -55,15 +60,24 @@
     /* What a finger lands on is this tall below the breakpoint. */
     --spacing-finger: 42px;
 
-    /* The radius ladder, stated rather than derived: 1 for a chip, 2 for a control, 2 for a
-       card, a panel and a dialog. */
-    --radius-sm: 1px;
-    --radius-md: 2px;
-    --radius-lg: 2px;
-    --radius-xl: 2px;
-    --radius-2xl: 2px;
-    --radius-3xl: 2px;
-    --radius-4xl: 2px;
+    /* The radius ladder, stated rather than derived: 8 for a surface, 6 for a box on a graph,
+       5 for a control and a chip, 3 for a box on a miniature. Tailwind's own rungs land on it. */
+    --radius-mini: 3px;
+    --radius-control: 5px;
+    --radius-node: 6px;
+    --radius-surface: 8px;
+    --radius-sm: 5px;
+    --radius-md: 5px;
+    --radius-lg: 8px;
+    --radius-xl: 8px;
+    --radius-2xl: 8px;
+    --radius-3xl: 8px;
+    --radius-4xl: 8px;
+
+    /* Soft elevation, which is what separates a surface from the page instead of an edge. */
+    --shadow-surface: var(--elevation-surface);
+    --shadow-node: var(--elevation-node);
+    --shadow-pop: var(--elevation-pop);
 
     --color-background: var(--background);
     --color-foreground: var(--foreground);
@@ -102,6 +116,14 @@
     /* The fifth rung of the surface ladder: a line that has to separate two panels rather
        than merely divide rows inside one. */
     --color-border-strong: var(--border-strong);
+    /* The recessed rung, a graph's box and its edge, the brand's gold and the failure's wash. */
+    --color-canvas: var(--canvas);
+    --color-node: var(--node);
+    --color-node-line: var(--node-line);
+    --color-brand: var(--brand);
+    --color-brand-foreground: var(--brand-foreground);
+    --color-critical-wash: var(--critical-wash);
+    --color-scrim: var(--scrim);
     /* Text quieter than muted: a timestamp beside a name, a hint under a field. */
     --color-faint: var(--faint);
 
@@ -184,12 +206,12 @@
    --------------------------------------------------------------------------- */
 :root,
 [data-palette='dirigent'] {
-    --background: oklch(0.985 0.002 255);
-    --foreground: oklch(0.18 0.012 255);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.18 0.012 255);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.18 0.012 255);
+    --background: #eef0f1;
+    --foreground: #202b34;
+    --card: #fafbfb;
+    --card-foreground: #202b34;
+    --popover: #ffffff;
+    --popover-foreground: #202b34;
 
     /* THE IDENTITY COLOUR IS AMBER, AND IT IS SPENT ON ACTION AND NOTHING ELSE: a primary
        button, the active rail entry, a focus ring. It sits on `--primary` because that is
@@ -201,30 +223,30 @@
        near-white one: the ladder is inverted here, so the fill goes down where the dark
        palette put it up, and the ink goes to the page colour where the dark palette put it
        to the ground. Same hue, same chroma family, the roles swapped. */
-    --primary: oklch(0.57 0.125 80);
-    --primary-foreground: oklch(0.985 0.002 255);
+    --primary: #202b34;
+    --primary-foreground: #eef0f1;
     /* The amber as ink rather than as a fill. The fill is a ground with light ink on it, so on
        this palette's own ground it stops short of 4.5:1 as text; this is the same hue taken
        down until it holds. In a dark mode the accent already is an ink and this is it. */
-    --primary-ink: oklch(0.52 0.13 80);
+    --primary-ink: #806021;
 
-    --secondary: oklch(0.955 0.004 255);
-    --secondary-foreground: oklch(0.22 0.012 255);
+    --secondary: #ffffff;
+    --secondary-foreground: #202b34;
     /* THE HOVER WASH, AND IT HAS TO BE SEEN. `--muted` is what every ghost and outline
        control fills with under a pointer, and on a near-white ground a fill two percent
        below the page is a hover nobody can tell happened. It sits a rung under
        `--secondary` so that hovering a control and filling one read as different things. */
-    --muted: oklch(0.925 0.005 255);
-    --muted-foreground: oklch(0.48 0.015 255);
-    --faint: oklch(0.58 0.015 255);
-    --accent: oklch(0.94 0.02 80);
-    --accent-foreground: oklch(0.34 0.09 80);
-    --destructive: oklch(0.55 0.19 25);
-    --border: oklch(0.9 0.005 255);
-    --border-strong: oklch(0.85 0.008 255);
-    --input: oklch(0.87 0.008 255);
-    --field: oklch(1 0 0);
-    --ring: oklch(0.57 0.125 80);
+    --muted: #e9edef;
+    --muted-foreground: #52616d;
+    --faint: #5f6c77;
+    --accent: #e9edef;
+    --accent-foreground: #202b34;
+    --destructive: #af302d;
+    --border: #e3e8eb;
+    --border-strong: #d3dade;
+    --input: #84939f;
+    --field: #ffffff;
+    --ring: #806021;
 
     --chart-1: oklch(0.57 0.125 80);
     --chart-2: oklch(0.6 0.13 230);
@@ -232,19 +254,19 @@
     --chart-4: oklch(0.6 0.14 305);
     --chart-5: oklch(0.58 0.14 25);
 
-    --sidebar: oklch(0.965 0.003 255);
-    --sidebar-foreground: oklch(0.18 0.012 255);
-    --sidebar-primary: oklch(0.57 0.125 80);
-    --sidebar-primary-foreground: oklch(0.985 0.002 255);
-    --sidebar-accent: oklch(0.94 0.02 80);
-    --sidebar-accent-foreground: oklch(0.34 0.09 80);
-    --sidebar-border: oklch(0.9 0.005 255);
-    --sidebar-ring: oklch(0.57 0.125 80);
+    --sidebar: #e3e7e9;
+    --sidebar-foreground: #202b34;
+    --sidebar-primary: #202b34;
+    --sidebar-primary-foreground: #eef0f1;
+    --sidebar-accent: #ffffff;
+    --sidebar-accent-foreground: #202b34;
+    --sidebar-border: #d3dade;
+    --sidebar-ring: #806021;
 
     --status-succeeded: oklch(0.58 0.13 160);
-    --status-succeeded-ink: oklch(0.44 0.12 160);
+    --status-succeeded-ink: #19764f;
     --status-failed: oklch(0.55 0.19 25);
-    --status-failed-ink: oklch(0.45 0.18 25);
+    --status-failed-ink: #af302d;
     --status-running: oklch(0.56 0.14 230);
     --status-running-ink: oklch(0.44 0.14 230);
     --status-waiting: oklch(0.6 0.11 195);
@@ -254,7 +276,7 @@
     --status-pending: oklch(0.58 0.015 255);
     --status-pending-ink: oklch(0.45 0.015 255);
     --status-completed-with-errors: oklch(0.66 0.13 75);
-    --status-completed-with-errors-ink: oklch(0.48 0.12 75);
+    --status-completed-with-errors-ink: #88610d;
     --status-cancelled: oklch(0.55 0.13 305);
     --status-cancelled-ink: oklch(0.44 0.12 305);
     --status-skipped: oklch(0.58 0.015 255);
@@ -290,7 +312,20 @@
        surfaces either side of it; an edge is read across a ground of dots, and the rung that
        divides two panels is quieter out there than the dots it crosses. One rung further from
        the ground than `--border-strong`, and no further: an edge is the shape, not the news. */
-    --graph-edge: oklch(0.75 0.01 255);
+    --graph-edge: #687b87;
+
+    /* The recessed canvas, a graph box and its edge, the brand, the critical wash, and the
+       soft elevation a surface is lifted by instead of an edge. */
+    --brand: #dfb863;
+    --brand-foreground: #29251d;
+    --canvas: #e6ebee;
+    --node: #ffffff;
+    --node-line: #84939f;
+    --critical-wash: #f6e6e4;
+    --scrim: #202b3466;
+    --elevation-surface: 0 1px 2px #23333e14, 0 5px 18px #23333e0d;
+    --elevation-node: 0 1px 2px #23333e1f;
+    --elevation-pop: 0 14px 44px #23333e2e;
 }
 
 /* ---------------------------------------------------------------------------
@@ -346,30 +381,30 @@
     --terminal-node-edge: oklch(0.24 0.014 255);
     --terminal-graph-edge: oklch(0.31 0.016 255);
     --terminal-graph-faint: oklch(0.155 0.012 255);
-    --background: oklch(0.145 0.012 255);
-    --foreground: oklch(0.95 0.01 255);
-    --card: oklch(0.195 0.015 255);
-    --card-foreground: oklch(0.95 0.01 255);
-    --popover: oklch(0.195 0.015 255);
-    --popover-foreground: oklch(0.95 0.01 255);
+    --background: #14191e;
+    --foreground: #edf0f2;
+    --card: #1d242b;
+    --card-foreground: #edf0f2;
+    --popover: #28313a;
+    --popover-foreground: #edf0f2;
 
-    --primary: oklch(0.8 0.13 80);
-    --primary-foreground: oklch(0.16 0.01 255);
-    --primary-ink: var(--primary);
+    --primary: #edf0f2;
+    --primary-foreground: #14191e;
+    --primary-ink: #dfb863;
 
-    --secondary: oklch(0.235 0.017 255);
-    --secondary-foreground: oklch(0.95 0.01 255);
-    --muted: oklch(0.235 0.017 255);
-    --muted-foreground: oklch(0.62 0.02 255);
-    --faint: oklch(0.55 0.02 255);
-    --accent: oklch(0.28 0.03 80);
-    --accent-foreground: oklch(0.86 0.11 80);
-    --destructive: oklch(0.65 0.19 25);
-    --border: oklch(0.3 0.015 255);
-    --border-strong: oklch(0.34 0.018 255);
-    --input: oklch(0.36 0.02 255);
-    --field: oklch(0.125 0.012 255);
-    --ring: oklch(0.8 0.13 80);
+    --secondary: #28313a;
+    --secondary-foreground: #edf0f2;
+    --muted: #232b33;
+    --muted-foreground: #a8b3bd;
+    --faint: #8f9ba5;
+    --accent: #2b343d;
+    --accent-foreground: #edf0f2;
+    --destructive: #ff958f;
+    --border: #2c353e;
+    --border-strong: #333d47;
+    --input: #74848f;
+    --field: #14191e;
+    --ring: #dfb863;
 
     --chart-1: oklch(0.8 0.13 80);
     --chart-2: oklch(0.68 0.15 230);
@@ -377,19 +412,19 @@
     --chart-4: oklch(0.68 0.14 305);
     --chart-5: oklch(0.65 0.19 25);
 
-    --sidebar: oklch(0.168 0.014 255);
-    --sidebar-foreground: oklch(0.95 0.01 255);
-    --sidebar-primary: oklch(0.8 0.13 80);
-    --sidebar-primary-foreground: oklch(0.16 0.01 255);
-    --sidebar-accent: oklch(0.245 0.017 255);
-    --sidebar-accent-foreground: oklch(0.95 0.01 255);
-    --sidebar-border: oklch(0.3 0.015 255);
-    --sidebar-ring: oklch(0.8 0.13 80);
+    --sidebar: #101419;
+    --sidebar-foreground: #edf0f2;
+    --sidebar-primary: #edf0f2;
+    --sidebar-primary-foreground: #14191e;
+    --sidebar-accent: #28313a;
+    --sidebar-accent-foreground: #edf0f2;
+    --sidebar-border: #2c353e;
+    --sidebar-ring: #dfb863;
 
     --status-succeeded: oklch(0.72 0.14 160);
-    --status-succeeded-ink: oklch(0.8 0.13 160);
+    --status-succeeded-ink: #76d2ab;
     --status-failed: oklch(0.65 0.19 25);
-    --status-failed-ink: oklch(0.75 0.17 25);
+    --status-failed-ink: #ff958f;
     --status-running: oklch(0.68 0.15 230);
     --status-running-ink: oklch(0.78 0.13 230);
     --status-waiting: oklch(0.72 0.12 195);
@@ -399,7 +434,7 @@
     --status-pending: oklch(0.55 0.02 255);
     --status-pending-ink: oklch(0.7 0.02 255);
     --status-completed-with-errors: oklch(0.78 0.14 75);
-    --status-completed-with-errors-ink: oklch(0.85 0.13 75);
+    --status-completed-with-errors-ink: #efc36d;
     --status-cancelled: oklch(0.68 0.14 305);
     --status-cancelled-ink: oklch(0.78 0.13 305);
     --status-skipped: oklch(0.55 0.02 255);
@@ -423,7 +458,20 @@
     --warning: var(--status-completed-with-errors);
     --info: var(--status-running);
 
-    --graph-edge: oklch(0.48 0.02 255);
+    --graph-edge: #83939e;
+
+    /* The recessed canvas, a graph box and its edge, the brand, the critical wash, and the
+       soft elevation a surface is lifted by instead of an edge. */
+    --brand: #dfb863;
+    --brand-foreground: #29251d;
+    --canvas: #192127;
+    --node: #303b45;
+    --node-line: #74848f;
+    --critical-wash: #34292c;
+    --scrim: #0a0d10b3;
+    --elevation-surface: 0 1px 2px #0000002e, 0 5px 18px #0000001f;
+    --elevation-node: 0 1px 2px #00000040;
+    --elevation-pop: 0 14px 44px #00000059;
 }
 
 /* ---------------------------------------------------------------------------
@@ -471,8 +519,8 @@ html[data-theme='paper'],
 
     /* A rung darker than the base amber: the ground it sits on is a rung darker too, and the
        primary has to stay the darkest thing on the page that is not ink. */
-    --primary: oklch(0.55 0.13 80);
-    --primary-foreground: oklch(0.98 0.01 85);
+    --primary: oklch(0.2 0.02 60);
+    --primary-foreground: oklch(0.97 0.012 85);
     --primary-ink: oklch(0.5 0.13 80);
 
     --secondary: oklch(0.94 0.014 85);
@@ -480,8 +528,8 @@ html[data-theme='paper'],
     --muted: oklch(0.915 0.016 85);
     --muted-foreground: oklch(0.46 0.025 60);
     --faint: oklch(0.57 0.025 60);
-    --accent: oklch(0.93 0.035 80);
-    --accent-foreground: oklch(0.34 0.09 80);
+    --accent: oklch(0.915 0.016 85);
+    --accent-foreground: oklch(0.2 0.02 60);
     --destructive: oklch(0.55 0.19 25);
     --border: oklch(0.885 0.016 80);
     --border-strong: oklch(0.835 0.02 80);
@@ -497,10 +545,10 @@ html[data-theme='paper'],
 
     --sidebar: oklch(0.95 0.013 85);
     --sidebar-foreground: oklch(0.2 0.02 60);
-    --sidebar-primary: oklch(0.55 0.13 80);
-    --sidebar-primary-foreground: oklch(0.98 0.01 85);
-    --sidebar-accent: oklch(0.93 0.035 80);
-    --sidebar-accent-foreground: oklch(0.34 0.09 80);
+    --sidebar-primary: oklch(0.2 0.02 60);
+    --sidebar-primary-foreground: oklch(0.97 0.012 85);
+    --sidebar-accent: oklch(0.99 0.008 85);
+    --sidebar-accent-foreground: oklch(0.2 0.02 60);
     --sidebar-border: oklch(0.885 0.016 80);
     --sidebar-ring: oklch(0.55 0.13 80);
 
@@ -529,6 +577,13 @@ html[data-theme='paper'],
     --terminal-node-edge: oklch(0.365 0.017 70);
     --terminal-graph-edge: oklch(0.425 0.017 70);
     --terminal-graph-faint: oklch(0.295 0.015 70);
+
+    /* The recessed canvas, a graph box and its edge, the brand, the critical wash, and the
+       soft elevation a surface is lifted by instead of an edge. */
+    --canvas: oklch(0.94 0.014 85);
+    --node: oklch(0.99 0.008 85);
+    --node-line: oklch(0.66 0.02 70);
+    --critical-wash: oklch(0.94 0.03 25);
 }
 
 /* ---------------------------------------------------------------------------
@@ -547,8 +602,8 @@ html.dark[data-theme='paper'],
     --popover: oklch(0.21 0.015 70);
     --popover-foreground: oklch(0.95 0.012 85);
 
-    --primary: oklch(0.8 0.13 80);
-    --primary-foreground: oklch(0.17 0.015 70);
+    --primary: oklch(0.95 0.012 85);
+    --primary-foreground: oklch(0.16 0.012 70);
     --primary-ink: var(--primary);
 
     --secondary: oklch(0.25 0.017 70);
@@ -556,8 +611,8 @@ html.dark[data-theme='paper'],
     --muted: oklch(0.25 0.017 70);
     --muted-foreground: oklch(0.63 0.022 80);
     --faint: oklch(0.56 0.022 80);
-    --accent: oklch(0.29 0.035 80);
-    --accent-foreground: oklch(0.86 0.11 80);
+    --accent: oklch(0.25 0.017 70);
+    --accent-foreground: oklch(0.95 0.012 85);
     --destructive: oklch(0.65 0.19 25);
     --border: oklch(0.315 0.016 70);
     --border-strong: oklch(0.355 0.018 70);
@@ -573,9 +628,9 @@ html.dark[data-theme='paper'],
 
     --sidebar: oklch(0.183 0.014 70);
     --sidebar-foreground: oklch(0.95 0.012 85);
-    --sidebar-primary: oklch(0.8 0.13 80);
-    --sidebar-primary-foreground: oklch(0.17 0.015 70);
-    --sidebar-accent: oklch(0.26 0.017 70);
+    --sidebar-primary: oklch(0.95 0.012 85);
+    --sidebar-primary-foreground: oklch(0.16 0.012 70);
+    --sidebar-accent: oklch(0.27 0.017 70);
     --sidebar-accent-foreground: oklch(0.95 0.012 85);
     --sidebar-border: oklch(0.315 0.016 70);
     --sidebar-ring: oklch(0.8 0.13 80);
@@ -592,6 +647,13 @@ html.dark[data-theme='paper'],
     --terminal-node-edge: oklch(0.25 0.015 70);
     --terminal-graph-edge: oklch(0.32 0.016 70);
     --terminal-graph-faint: oklch(0.165 0.013 70);
+
+    /* The recessed canvas, a graph box and its edge, the brand, the critical wash, and the
+       soft elevation a surface is lifted by instead of an edge. */
+    --canvas: oklch(0.185 0.013 70);
+    --node: oklch(0.27 0.017 70);
+    --node-line: oklch(0.55 0.02 70);
+    --critical-wash: oklch(0.25 0.03 25);
 }
 
 /* ---------------------------------------------------------------------------
@@ -616,7 +678,7 @@ html[data-theme='contrast'],
     --popover-foreground: oklch(0 0 0);
 
     /* The amber dark enough to carry white text and to hold 3:1 as a ring on white. */
-    --primary: oklch(0.5 0.14 80);
+    --primary: oklch(0 0 0);
     --primary-foreground: oklch(1 0 0);
     --primary-ink: oklch(0.44 0.14 80);
 
@@ -625,8 +687,8 @@ html[data-theme='contrast'],
     --muted: oklch(0.88 0 0);
     --muted-foreground: oklch(0.35 0 0);
     --faint: oklch(0.4 0 0);
-    --accent: oklch(0.9 0.05 80);
-    --accent-foreground: oklch(0.28 0.09 80);
+    --accent: oklch(0.93 0 0);
+    --accent-foreground: oklch(0 0 0);
     --destructive: oklch(0.48 0.2 25);
     /* Every line holds 3:1 against the white it is read on, which is two rungs darker than the
        base's and what makes a card's edge do the work its fill no longer does. */
@@ -644,10 +706,10 @@ html[data-theme='contrast'],
 
     --sidebar: oklch(0.955 0 0);
     --sidebar-foreground: oklch(0 0 0);
-    --sidebar-primary: oklch(0.5 0.14 80);
+    --sidebar-primary: oklch(0 0 0);
     --sidebar-primary-foreground: oklch(1 0 0);
-    --sidebar-accent: oklch(0.9 0.05 80);
-    --sidebar-accent-foreground: oklch(0.28 0.09 80);
+    --sidebar-accent: oklch(0.93 0 0);
+    --sidebar-accent-foreground: oklch(0 0 0);
     --sidebar-border: oklch(0.62 0 0);
     --sidebar-ring: oklch(0.5 0.14 80);
 
@@ -700,6 +762,13 @@ html[data-theme='contrast'],
     --terminal-node-edge: oklch(0.36 0 0);
     --terminal-graph-edge: oklch(0.48 0 0);
     --terminal-graph-faint: oklch(0.22 0 0);
+
+    /* The recessed canvas, a graph box and its edge, the brand, the critical wash, and the
+       soft elevation a surface is lifted by instead of an edge. */
+    --canvas: oklch(1 0 0);
+    --node: oklch(1 0 0);
+    --node-line: oklch(0.3 0 0);
+    --critical-wash: oklch(0.95 0.03 25);
 }
 
 /* ---------------------------------------------------------------------------
@@ -718,7 +787,7 @@ html.dark[data-theme='contrast'],
     --popover: oklch(0.14 0 0);
     --popover-foreground: oklch(1 0 0);
 
-    --primary: oklch(0.85 0.14 80);
+    --primary: oklch(1 0 0);
     --primary-foreground: oklch(0 0 0);
     --primary-ink: var(--primary);
 
@@ -727,8 +796,8 @@ html.dark[data-theme='contrast'],
     --muted: oklch(0.22 0 0);
     --muted-foreground: oklch(0.78 0 0);
     --faint: oklch(0.68 0 0);
-    --accent: oklch(0.3 0.05 80);
-    --accent-foreground: oklch(0.88 0.12 80);
+    --accent: oklch(0.24 0 0);
+    --accent-foreground: oklch(1 0 0);
     --destructive: oklch(0.7 0.19 25);
     /* The same 3:1, the other way up. These lines carry the seams a pure black ground cannot:
        the rail against the page, the console against the graph, a field against the card. */
@@ -746,7 +815,7 @@ html.dark[data-theme='contrast'],
 
     --sidebar: oklch(0.13 0 0);
     --sidebar-foreground: oklch(1 0 0);
-    --sidebar-primary: oklch(0.85 0.14 80);
+    --sidebar-primary: oklch(1 0 0);
     --sidebar-primary-foreground: oklch(0 0 0);
     --sidebar-accent: oklch(0.24 0 0);
     --sidebar-accent-foreground: oklch(1 0 0);
@@ -792,6 +861,13 @@ html.dark[data-theme='contrast'],
     --terminal-node-edge: oklch(0.3 0 0);
     --terminal-graph-edge: oklch(0.44 0 0);
     --terminal-graph-faint: oklch(0.17 0 0);
+
+    /* The recessed canvas, a graph box and its edge, the brand, the critical wash, and the
+       soft elevation a surface is lifted by instead of an edge. */
+    --canvas: oklch(0 0 0);
+    --node: oklch(0 0 0);
+    --node-line: oklch(0.8 0 0);
+    --critical-wash: oklch(0.24 0.05 25);
 }
 
 @layer base {
@@ -876,11 +952,8 @@ html.dark[data-theme='contrast'],
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
-    border-radius: var(--radius-sm);
-    border: 1px solid color-mix(in oklab, var(--chip) 30%, transparent);
-    background-color: color-mix(in oklab, var(--chip) 14%, transparent);
     color: var(--chip-ink);
-    padding: 0.0625rem 0.375rem;
+    font-weight: 500;
     font-size: var(--text-xs);
     line-height: var(--text-xs--line-height);
     white-space: nowrap;
@@ -1179,12 +1252,12 @@ html.dark[data-theme='contrast'],
    dot that can be seen and dragged from, and a run's graph wears none of it.
    --------------------------------------------------------------------------- */
 .react-flow.dg-graph {
-    --xy-background-color: var(--background);
-    --xy-background-pattern-dots-color: var(--border-strong);
+    --xy-background-color: var(--canvas);
+    --xy-background-pattern-dots-color: color-mix(in oklab, var(--node-line) 30%, transparent);
     --xy-edge-stroke: var(--graph-edge);
-    --xy-edge-stroke-selected: var(--primary);
-    --xy-edge-stroke-width: 1.5;
-    --xy-connectionline-stroke: var(--primary);
+    --xy-edge-stroke-selected: var(--foreground);
+    --xy-edge-stroke-width: 1.4;
+    --xy-connectionline-stroke: var(--ring);
     --xy-handle-background-color: transparent;
     --xy-handle-border-color: transparent;
     --xy-attribution-background-color: transparent;
@@ -1193,8 +1266,12 @@ html.dark[data-theme='contrast'],
     --xy-controls-button-color: var(--foreground);
     --xy-controls-button-color-hover: var(--accent-foreground);
     --xy-controls-button-border-color: var(--border);
-    --xy-selection-background-color: color-mix(in oklab, var(--primary) 10%, transparent);
-    --xy-selection-border: 1px dashed var(--primary);
+    --xy-selection-background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
+    --xy-selection-border: 1px dashed var(--foreground);
+}
+/* A canvas fitted to its drawing has nothing to pan to and gives the page its wheel back. */
+.react-flow.dg-graph.dg-fitted .react-flow__pane {
+    cursor: default;
 }
 /* The zoom controls carry this app's own icons, which are drawn as strokes; the library's
    button rule fills whatever svg is inside one. */
@@ -1230,14 +1307,14 @@ html.dark[data-theme='contrast'],
 }
 .step-node:hover .dg-port,
 .react-flow.dg-connecting .dg-port {
-    border-color: var(--primary);
-    background-color: color-mix(in oklab, var(--primary) 45%, var(--card));
+    border-color: var(--ring);
+    background-color: color-mix(in oklab, var(--ring) 45%, var(--card));
 }
 .react-flow.dg-graph .react-flow__handle.dg-port:hover,
 .react-flow.dg-graph .react-flow__handle.dg-port.connectingto {
-    border-color: var(--primary);
-    background-color: var(--primary);
-    box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 22%, transparent);
+    border-color: var(--ring);
+    background-color: var(--ring);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--ring) 22%, transparent);
 }
 
 /* The line under the pointer while a connection is being drawn: the identity colour, dashed,
@@ -1285,7 +1362,7 @@ html.dark[data-theme='contrast'],
    and these rules follow the tints above so a moving edge is amber over whatever it carries. */
 .react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path,
 .react-flow.dg-graph .react-flow__edge.dg-edge-lit .react-flow__edge-path {
-    stroke: color-mix(in oklab, var(--primary) 75%, var(--graph-edge));
+    stroke: color-mix(in oklab, var(--brand) 75%, var(--graph-edge));
     stroke-width: 2;
 }
 .react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path {
@@ -1304,7 +1381,7 @@ html.dark[data-theme='contrast'],
 }
 @keyframes dg-edge-handover {
     from {
-        stroke: var(--primary);
+        stroke: var(--brand);
         stroke-width: 3;
     }
 }
@@ -1312,8 +1389,9 @@ html.dark[data-theme='contrast'],
 /* ---------------------------------------------------------------------------
    ONE STEP, AS A BOX ON THE GRAPH.
 
-   The state is on the left edge as a bar in the state's own hue, which is the same rule the
-   attempt rows in the panel are drawn with, so a failed step reads the same in both places.
+   A box is filled in `--node`, edged a step above the canvas and lifted by its own shadow. A
+   state is the box's edge in the state's ink -- a failed one at 1.5px over a wash of its hue, a
+   skipped one dashed on no fill -- and nothing else on the box takes a colour.
 
    SELECTION IS NEUTRAL, AND IT IS THE ONE THING ON THIS BOX THAT IS NOT ALLOWED A HUE. A ring in
    the identity colour sits next to the green of a succeeded step and the red of a failed one and
@@ -1331,12 +1409,13 @@ html.dark[data-theme='contrast'],
     height: 100%;
     overflow: hidden;
     box-sizing: border-box;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--chip);
-    background-color: var(--card);
-    color: var(--card-foreground);
+    border-radius: var(--radius-node);
+    border: 1px solid var(--node-line);
+    background-color: var(--node);
+    box-shadow: var(--elevation-node);
+    color: var(--foreground);
     padding: 0.25rem 0.5625rem;
+    gap: 0.1875rem;
     font-size: var(--text-graph-small);
     line-height: var(--text-graph-small--line-height);
     text-align: left;
@@ -1345,13 +1424,26 @@ html.dark[data-theme='contrast'],
         border-color 120ms ease-out;
 }
 .step-node:hover {
-    border-color: var(--border-strong);
-    border-left-color: var(--chip);
+    border-color: var(--muted-foreground);
+}
+.step-node[data-outcome='succeeded'] {
+    border-color: var(--status-succeeded-ink);
+}
+.step-node[data-outcome='failed'] {
+    border: 1.5px solid var(--status-failed-ink);
+    background-color: color-mix(in oklab, var(--status-failed-ink) 12%, var(--node));
+}
+.step-node[data-outcome='completed_with_errors'] {
+    border-color: var(--status-completed-with-errors-ink);
+}
+.step-node[data-outcome='running'],
+.step-node[data-outcome='waiting'] {
+    border-color: var(--chip);
 }
 .step-node[data-selected='true'] {
-    border-color: var(--border-strong);
-    border-left-color: var(--chip);
-    box-shadow: 0 0 0 2px color-mix(in oklab, var(--foreground) 35%, transparent);
+    box-shadow:
+        0 0 0 2px var(--canvas),
+        0 0 0 4px var(--foreground);
 }
 .step-node:focus-visible {
     outline: 2px solid var(--ring);
@@ -1359,14 +1451,43 @@ html.dark[data-theme='contrast'],
 }
 .step-node[data-outcome='skipped'] {
     border-style: dashed;
+    background-color: transparent;
+    box-shadow: none;
+    color: var(--muted-foreground);
 }
-/* A source runs no block: it is where an input enters, on the ground rather than on a card. */
+/* A source runs no block: it is where an input enters, on the ground rather than on a box. */
 .step-node[data-source='true'] {
     border-style: dashed;
-    background-color: var(--background);
+    background-color: var(--canvas);
+}
+
+/* A PIPELINE'S SHAPE AT THE SCALE OF A ROW. A box at the miniature rung in the graph's own box
+   colours, a source dashed on no fill, a fan-out a second box behind, and the failed step filled
+   in the failed ink, which is the only colour a miniature carries. */
+.mini-graph .mini-edge {
+    fill: none;
+    stroke: var(--graph-edge);
+    stroke-width: 1.2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+.mini-graph .mini-box {
+    fill: var(--node);
+    stroke: var(--node-line);
+    stroke-width: 1;
+    rx: var(--radius-mini);
+}
+.mini-graph .mini-box[data-source] {
+    fill: none;
+    stroke-dasharray: 2 1.5;
+}
+.mini-graph .mini-box[data-failed] {
+    fill: var(--status-failed-ink);
+    stroke: var(--status-failed-ink);
 }
 /* A node's title. Every other word on the box takes the size the box sets. */
 .step-node-title {
+    font-weight: 500;
     font-size: var(--text-graph-title);
     line-height: var(--text-graph-title--line-height);
 }
@@ -1602,21 +1723,41 @@ html.dark[data-theme='contrast'],
 
 /* The rail's current entry: a slim bar in the gutter beside the entry, apart from its tight
    highlight, rather than a border fused into a full-width pill. */
-.rail-entry[aria-current='page']::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: -0.5rem;
-    width: 3px;
-    height: 1.125rem;
-    transform: translateY(-50%);
-    border-radius: var(--radius-sm);
-    background-color: var(--sidebar-primary);
+.rail-entry[aria-current='page'] {
+    background-color: var(--sidebar-accent);
+    color: var(--sidebar-accent-foreground);
+    font-weight: 600;
 }
 
 /* The generated small button says `0.8rem`, which is not on the scale. */
 [data-slot='button'].text-\[0\.8rem\] {
-    font-size: var(--text-xs);
+    font-size: var(--text-sm);
+    line-height: var(--text-sm--line-height);
+}
+
+/* A SECONDARY BUTTON IS RAISED, NOT EDGED. The generated outline variant is drawn on the raised
+   rung with no line in the dark mode, and with a hairline ring in the light one, where the raised
+   rung is white on a near-white surface. */
+[data-slot='button'][class~='border-border'][class~='bg-background'] {
+    border-color: transparent;
+    background-color: var(--secondary);
+}
+[data-slot='button'][class~='border-border'][class~='bg-background']:hover {
+    background-color: color-mix(in oklab, var(--secondary), var(--foreground) 7%);
+}
+html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-background'] {
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* A SHUT CONTROL LOOKS SHUT: no fill, a hairline ring, the muted ink at weight 400. */
+[data-slot='button']:disabled,
+[data-slot='button'][aria-disabled='true'] {
+    opacity: 1;
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--muted-foreground);
+    font-weight: 400;
+    cursor: not-allowed;
 }
 
 /* A switch stands on the ladder. The generated track and thumb both say `rounded-full`. */

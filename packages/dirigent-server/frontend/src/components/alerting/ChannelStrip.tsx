@@ -221,7 +221,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
                     <Link
                         to={to}
                         className={cn(
-                            'control-link inline-flex items-center rounded-md text-xs text-primary-ink',
+                            'control-link inline-flex items-center rounded-md text-xs text-foreground',
                             REACHED,
                         )}
                     >

@@ -6,26 +6,26 @@ code, correctness. It cannot help here -- to a JS linter a ``className`` is an o
 literal, so ``text-[11px]`` and ``text-lg`` are both invisible to it. That blind spot is how a
 type scale becomes a suggestion.
 
-ONE RULE, MECHANICAL, AND NO ALLOWLIST. The scale is exactly three sizes, so a class naming a
-fourth is a violation whether it was written as an arbitrary value or as one of Tailwind's own
+ONE RULE, MECHANICAL, AND NO ALLOWLIST. The scale is exactly five sizes, so a class naming a
+sixth is a violation whether it was written as an arbitrary value or as one of Tailwind's own
 larger steps. A check with exemptions is a check people argue with; this one has nothing to argue
 about, which is why it can be an error rather than a warning. Everything else in
 docs/ui-conventions.md -- whether a sentence got the prose size, whether a status token was used
 as text -- is review's job, not this file's.
 
-FIVE NAMED SIZES SIT OUTSIDE THE SCALE, AND THEY ARE NAMED HERE. A stat tile's number is
+SEVEN NAMED SIZES SIT OUTSIDE THE SCALE, AND THEY ARE NAMED HERE. A section heading and a
+listing row's title are ``text-title``; a page heading is ``text-page``; a stat's number is
 display type, so it is ``text-stat``; the login brand lockup's wordmark is a brand mark rather
 than text, so it is ``text-wordmark``; the login screen's own greeting is ``text-display``; and a
 graph is drawn at the scale of a diagram, so its title is ``graph-title`` and every other word on
-it ``graph-small``. All five are declared once in index.css and knowable by name. That is not an
+it ``graph-small``. All seven are declared once in index.css and knowable by name. That is not an
 allowlist: nothing else is exempt, and the second half of this check reads index.css itself and
-fails if a size utility appears there that is not the three plus these. A named exception can be counted; a pattern
+fails if a size utility appears there that is not the scale plus these. A named exception can be counted; a pattern
 cannot.
 
-AMBER AS TEXT IS ``text-primary-ink``. ``--primary`` is a fill tuned to carry its own
-foreground, and in a light palette it does not hold 4.5:1 as text on the ground; its ink twin
-does. Anything in the app's own source that sets ``text-primary`` is text or a glyph on the
-ground, so the bare class is refused and the ink twin named.
+THE PRIMARY IS A FILL. ``--primary`` is the ink drawn as a ground for the one verb a strip leads
+with, tuned to carry its own foreground. Anything in the app's own source that sets
+``text-primary`` is text or a glyph on the ground, so the bare class is refused.
 
 Run it alone with ``uv run python scripts/check_ui_classes.py``; ``make ui-lint`` calls it.
 """
@@ -64,22 +64,23 @@ OFF_SCALE_TYPE_SIZE = re.compile(r"\btext-(?:lg|xl|[2-9]xl)\b")
 PRIMARY_AS_TEXT = re.compile(r"\btext-primary(?![-\w])")
 
 INK_FIX = (
-    "--primary is a fill. Amber text or a glyph on the ground is text-primary-ink, which holds "
-    "4.5:1 in every palette. See docs/ui-conventions.md."
+    "--primary is a fill. Text on the ground is text-foreground or text-muted-foreground. "
+    "See docs/ui-conventions.md."
 )
 
 FIX = (
-    "the type scale is three sizes. Use text-xs (chips, badges, counts, metadata), "
-    "text-sm (any sentence), or text-base (a page heading). See docs/ui-conventions.md."
+    "the type scale is five sizes. Use text-xs (codes, chips, counts, metadata), "
+    "text-sm (the working size), text-base (prose), text-title (a section heading or a row's "
+    "title) or text-page (a page heading). See docs/ui-conventions.md."
 )
 
 #: The stylesheet the scale is declared in, which is the only place a size may be minted.
 THEME = ROOTS[0] / "index.css"
 
-#: The three sizes, as the theme tokens that declare them.
-SCALE = {"xs", "sm", "base"}
+#: The scale, as the theme tokens that declare it.
+SCALE = {"xs", "sm", "base", "title", "page"}
 
-#: The sizes outside the scale: a stat tile's number, the login brand lockup's wordmark, the login
+#: The sizes outside the scale: a stat's number, the login brand lockup's wordmark, the login
 #: form's greeting, and the two sizes a graph is drawn in. Nothing else on any screen wears any of
 #: them.
 NAMED = {"stat", "wordmark", "display", "graph-title", "graph-small"}
@@ -93,9 +94,9 @@ DECLARED_TOKEN = re.compile(r"--text-([a-z0-9-]+)\s*:")
 DECLARED_CLASS = re.compile(r"^(?:\.|@utility\s+)text-([a-z0-9-]+)\s*\{", re.MULTILINE)
 
 CSS_FIX = (
-    "index.css declares the scale, and it is three sizes plus the named sizes text-stat, "
+    "index.css declares the scale, and it is five sizes plus the named sizes text-stat, "
     "text-wordmark, text-display, graph-title and graph-small. Minting another here is minting "
-    "a fourth size. "
+    "a sixth size. "
     "See docs/ui-conventions.md."
 )
 

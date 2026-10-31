@@ -32,10 +32,10 @@ export function PageHeader({
     code?: string | null
 }) {
     return (
-        <div className="mb-6 flex min-h-8 flex-nowrap items-center justify-between gap-4">
+        <div className="mb-6 flex min-h-9 flex-nowrap items-center justify-between gap-4">
             {trail === undefined ? (
                 <div className="flex shrink-0 items-baseline gap-2">
-                    <h1 className="text-base font-semibold tracking-tight whitespace-nowrap">{title}</h1>
+                    <h1 className="text-page font-medium tracking-tight whitespace-nowrap">{title}</h1>
                     {count !== undefined && (
                         <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
                     )}

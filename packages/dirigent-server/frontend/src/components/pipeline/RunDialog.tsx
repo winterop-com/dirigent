@@ -197,7 +197,7 @@ export function RunDialog({
                     ) : (
                         <Button
                             variant="link"
-                            className="w-fit px-0 text-primary-ink"
+                            className="w-fit px-0 text-foreground underline-offset-2"
                             onClick={() => {
                                 setWindowAsked(true)
                             }}
