@@ -15,6 +15,7 @@ reachable beside the run's directories.
 """
 
 import asyncio
+import json
 import os
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -25,7 +26,7 @@ from urllib.parse import urlsplit
 import duckdb
 import sqlalchemy
 import sqlalchemy.exc
-from pydantic import SecretStr
+from pydantic import JsonValue, SecretStr
 from sqlalchemy.engine import URL, Connection, Engine, create_engine
 from sqlalchemy.pool import NullPool
 from sqlalchemy.sql.elements import TextClause
@@ -85,6 +86,17 @@ TEMP_DIR: Final = ".duckdb-temp"
 #: default is the worker's home, which the session may not read, and httpfs reads the secret
 #: store on every remote open.
 SECRET_DIR: Final = ".duckdb-secrets"
+
+#: The query nodes a read-only session runs. A ``WITH`` can hold a ``COPY``, an ``INSERT``, an
+#: ``UPDATE`` or a ``DELETE`` and still parse as ``SELECT``, and a node not named here is refused.
+READ_NODES: Final = frozenset({"SELECT_NODE", "SET_OPERATION_NODE", "CTE_NODE", "RECURSIVE_CTE_NODE"})
+
+#: Table functions that run a statement held in a string or in a serialized tree, which a parsed
+#: tree shows only as an argument.
+STATEMENT_RUNNERS: Final = frozenset({"json_execute_serialized_sql", "query", "query_table"})
+
+#: What a refusal says when duckdb answered with a parsed tree that does not hold every statement.
+NO_WHOLE_TREE: Final = "the parsed tree does not cover the whole text"
 
 #: What duckdb says when the containment refused the path a statement named.
 DENIED_PATH: Final = "file system operations are disabled"
@@ -336,6 +348,46 @@ def _database_path(url: URL) -> Path | None:
     return Path(url.database).absolute()
 
 
+def parsed_tree(raw: Any, compiled: str, statements: int) -> JsonValue:
+    """The tree duckdb parses this text into, refusing the text if the whole of it cannot be had."""
+    try:
+        row = raw.execute("SELECT json_serialize_sql(?)", [compiled]).fetchone()
+        tree: JsonValue = json.loads(row[0])
+    except (duckdb.Error, ValueError, TypeError, RecursionError) as error:
+        raise BlockFailure(READ_ONLY_UNPARSED, error_class=ErrorClass.REJECTED, detail=str(error)) from error
+    if isinstance(tree, dict):
+        held = tree.get("statements")
+        if tree.get("error") is False and isinstance(held, list) and len(held) == statements:
+            return tree
+        detail = str(tree.get("error_message") or NO_WHOLE_TREE)
+    else:
+        detail = NO_WHOLE_TREE
+    raise BlockFailure(READ_ONLY_UNPARSED, error_class=ErrorClass.REJECTED, detail=detail)
+
+
+def _beyond_a_read(tree: JsonValue) -> list[str]:
+    """What in a parsed tree a read-only session does not run, named for a refusal.
+
+    Only the fields a tree keeps its own names in are looked at, so a string literal naming a
+    node or a function reads as nothing.
+    """
+    found: set[str] = set()
+    pending = [tree]
+    while pending:
+        item = pending.pop()
+        if isinstance(item, list):
+            pending.extend(item)
+        elif isinstance(item, dict):
+            kind = item.get("type")
+            if isinstance(kind, str) and kind.endswith("_NODE") and kind not in READ_NODES:
+                found.add(kind.removesuffix("_NODE").removesuffix("_QUERY"))
+            function = item.get("function_name")
+            if isinstance(function, str) and function.lower() in STATEMENT_RUNNERS:
+                found.add(f"{function.lower()}()")
+            pending.extend(item.values())
+    return sorted(found)
+
+
 def _refusal(error: Exception, roots: list[Path]) -> BlockFailure | None:
     """What a statement duckdb's containment refused failed for, or nothing for any other error."""
     text = str(error).lower()
@@ -399,7 +451,8 @@ class _Threaded:
 
     A read-only open covers the attached catalog and not file output, and ``COPY`` can name
     the open database's own path, so a read-only session runs nothing that does not parse as
-    ``SELECT``. ``EXPLAIN`` is not one: ``EXPLAIN ANALYZE COPY`` runs the copy.
+    ``SELECT``. ``EXPLAIN`` is not one: ``EXPLAIN ANALYZE COPY`` runs the copy. ``WITH w AS (COPY
+    ...) SELECT`` is one, so the parsed tree of each statement is held to read nodes as well.
     """
 
     def __init__(self, connection: Connection, roots: list[Path], *, read_only: bool = False) -> None:
@@ -431,7 +484,7 @@ class _Threaded:
         return _ThreadedRows(result, self._call)
 
     def _hold_to_reads(self, statement: TextClause) -> None:
-        """Refuse on a read-only session anything but SELECT, parsing the text duckdb would be handed."""
+        """Refuse on a read-only session anything but a read, parsing the text duckdb would be handed."""
         if not self.read_only:
             return
         compiled = str(statement.compile(dialect=self.connection.dialect))
@@ -443,6 +496,9 @@ class _Threaded:
         if not kinds or any(kind is not duckdb.StatementType.SELECT for kind in kinds):
             named = ", ".join(sorted({kind.name for kind in kinds})) or "empty"
             raise BlockFailure(READ_ONLY_RUNS_SELECT, error_class=ErrorClass.REJECTED, kinds=named)
+        written = _beyond_a_read(parsed_tree(self.raw, compiled, len(parsed)))
+        if written:
+            raise BlockFailure(READ_ONLY_RUNS_SELECT, error_class=ErrorClass.REJECTED, kinds=", ".join(written))
 
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator[None]:
