@@ -431,8 +431,9 @@ def test_a_reference_in_params_beside_sql_is_applied() -> None:
     [
         ("{template: 'Day ${params.day}'}", "document.step_reference_in_template", "template"),
         ("{program: '${params.day}'}", "document.step_program_is_a_reference", "program"),
+        ("{stack: 'a: ${params.day}'}", "document.step_reference_in_compose", "stack"),
     ],
-    ids=["template", "whole-program"],
+    ids=["template", "whole-program", "compose"],
 )
 def test_a_reference_a_program_cannot_hold_is_refused_when_the_document_is_applied(
     host: PluginHost, config: str, code: str, field: str
@@ -444,6 +445,26 @@ def test_a_reference_a_program_cannot_hold_is_refused_when_the_document_is_appli
     )
     issues = validate_against_catalog(definition, host.catalog())
     assert [(issue.code, issue.location) for issue in issues] == [(code, f"steps.a.config.{field}")]
+
+
+@pytest.mark.parametrize("block", ["docker.compose.up", "docker.compose.down"])
+def test_a_reference_in_a_compose_step_s_content_is_refused_and_env_is_the_route(block: str) -> None:
+    head = (
+        "format: dirigent/v1\ncode: stack\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        f"steps:\n  a:\n    block: {block}\n    config:\n"
+    )
+    catalog = load_plugin_host().catalog()
+    spliced = load_text(head + "      content: 'services: {a: {image: x, labels: {d: ${params.day}}}}'\n")
+    refused = [
+        (issue.code, issue.location) for issue in validate_against_catalog(spliced, catalog, unsafe_allowed=[block])
+    ]
+    assert refused == [("document.step_reference_in_compose", "steps.a.config.content")]
+
+    carried = load_text(
+        head + "      content: 'services: {a: {image: x, labels: {d: $${DAY}}}}'\n      env: {DAY: '${params.day}'}\n"
+    )
+    assert validate_against_catalog(carried, catalog, unsafe_allowed=[block]) == []
 
 
 def test_a_reference_in_a_jq_program_with_text_of_its_own_is_applied(host: PluginHost) -> None:

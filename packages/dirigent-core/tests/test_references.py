@@ -513,6 +513,27 @@ def test_a_reference_bash_does_not_evaluate_takes_any_value(command: str, expect
     assert resolved["command"] == expected
 
 
+def test_a_reference_in_a_compose_file_is_refused_when_the_step_starts() -> None:
+    config: JsonMap = {"content": "services:\n  web:\n    environment:\n      GREETING: ${params.x}\n", "env": {}}
+    scope = ReferenceScope(params={"x": "hi\n    privileged: true"})
+    with pytest.raises(UnknownReference) as raised:
+        resolve_config(config, scope, compose_fields={"content"})
+    assert raised.value.code == "reference.in_compose"
+    assert raised.value.params["field"] == "content"
+    assert "privileged" not in str(raised.value)
+
+
+def test_a_compose_file_keeps_its_own_interpolation_and_env_carries_the_value_whole() -> None:
+    config: JsonMap = {
+        "content": "services:\n  web:\n    environment:\n      GREETING: $${GREETING}\n",
+        "env": {"GREETING": "${params.x}"},
+    }
+    value = "hi\n    privileged: true"
+    resolved = resolve_config(config, ReferenceScope(params={"x": value}), compose_fields={"content"})
+    assert resolved["content"] == "services:\n  web:\n    environment:\n      GREETING: ${GREETING}\n"
+    assert resolved["env"] == {"GREETING": value}
+
+
 def test_only_a_command_holding_a_reference_is_called_unreadable() -> None:
     assert shell_unreadable("echo '${params.x}") is not None
     assert shell_unreadable("echo '${params.x}'") is None

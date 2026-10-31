@@ -6,7 +6,15 @@ from typing import Annotated, ClassVar
 
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_common import JQ_MEDIA_TYPE, SQL_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE, BlockModel, Duration, StorageUri
+from dirigent_common import (
+    COMPOSE_MEDIA_TYPE,
+    JQ_MEDIA_TYPE,
+    SQL_MEDIA_TYPE,
+    TEMPLATE_MEDIA_TYPE,
+    BlockModel,
+    Duration,
+    StorageUri,
+)
 from dirigent_plugin import (
     BlockFailure,
     Contribution,
@@ -157,10 +165,11 @@ class SqlishOperator(Operator[SqlishConfig, SqlishOutput]):
 
 
 class ProgramishConfig(BlockModel):
-    """A config with a jq program and a template."""
+    """A config with a jq program, a template and a compose file."""
 
     program: Annotated[str, Field(json_schema_extra={"contentMediaType": JQ_MEDIA_TYPE})] = ""
     template: Annotated[str, Field(json_schema_extra={"contentMediaType": TEMPLATE_MEDIA_TYPE})] = ""
+    stack: Annotated[str, Field(json_schema_extra={"contentMediaType": COMPOSE_MEDIA_TYPE})] = ""
 
 
 class ProgramishOutput(BaseModel):

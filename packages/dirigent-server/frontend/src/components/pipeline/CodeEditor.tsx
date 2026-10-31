@@ -266,6 +266,7 @@ const LANGUAGES: Record<string, Buffer> = {
     // A schema document rather than a JSON value: the same language, checked against the draft.
     'application/schema+json': { language: 'json', extension: 'json', metaSchema: true },
     'application/sql': { language: 'sql', extension: 'sql' },
+    'application/x-compose+yaml': { language: 'yaml', extension: 'yaml' },
 }
 
 /**

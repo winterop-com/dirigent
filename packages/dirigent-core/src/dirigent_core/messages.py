@@ -338,6 +338,12 @@ STEP_REFERENCE_IN_TEMPLATE = DOCUMENT.define(
     "give the reference to values under a name, and read that name in the template",
 )
 
+STEP_REFERENCE_IN_COMPOSE = DOCUMENT.define(
+    "step_reference_in_compose",
+    "${{{reference}}} is inside {field}, and a value spliced into a compose file can add keys to it; "
+    "write $${{NAME}} in the file and give the reference to env under NAME",
+)
+
 STEP_SHELL_UNREADABLE = DOCUMENT.define(
     "step_shell_unreadable",
     "{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a "
@@ -621,6 +627,12 @@ TEMPLATE_REFERENCE = _unresolved(
     "in_template",
     "it is inside {field}, and a value reaches a template only through values; "
     "give the reference to values under a name, and read that name in the template",
+)
+
+COMPOSE_REFERENCE = _unresolved(
+    "in_compose",
+    "it is inside {field}, and a value spliced into a compose file can add keys to it; "
+    "write $${{NAME}} in the file and give the reference to env under NAME",
 )
 
 SHELL_UNREADABLE = _unresolved(

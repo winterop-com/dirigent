@@ -740,8 +740,11 @@ The same rule holds for what a step hands to another language. A value reaches S
 parameter and never as text (see [SQL](sql.md)). In a jq program a reference is bound to a jq
 variable, so `.tenant == "${params.t}"` compares against the value however it is quoted, and a
 program that is only a reference is refused. In a `report.render` template a reference is refused at
-apply and at the start of the step, because `values` is how a template reads anything. A template or
-a program that means the literal text writes `$${...}`.
+apply and at the start of the step, because `values` is how a template reads anything. So it is in
+the inline `content` of `docker.compose.up` and `docker.compose.down`, because a value spliced into
+YAML can add `privileged`, a volume or a command: the file writes `$${NAME}`, which compose
+interpolates, and `env` carries the value under `NAME`, where it stays one value whatever it holds. A
+template or a program that means the literal text writes `$${...}`.
 
 ## Secrets lifecycle
 

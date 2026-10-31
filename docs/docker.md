@@ -180,7 +180,9 @@ artifact root is. Within it:
 - a compose file is either inline `content` or a path relative to that directory (one an
   upstream `git.checkout` put there). Inline content is written under
   `compose/<step>[/<item>]/attempt-<n>`, so two compose steps of one run, and two items of one
-  fan-out, never write over each other's document;
+  fan-out, never write over each other's document. It takes no `${...}` reference, refused at apply
+  and when the step starts, because a value spliced into YAML can add keys. Write `$${NAME}` in the
+  file and give the reference to `env` under `NAME`, and compose reads it as one value;
 - a build context is a relative directory, with its Dockerfile relative to that.
 
 `docker.run`'s `outputs` puts a file in either place. Each entry maps a name the container

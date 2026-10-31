@@ -765,9 +765,10 @@ table back.
 **A field that carries a program is edited as one.** A string whose schema published a
 `contentMediaType` -- `application/jq` for the three jq verbs, `text/x-shellscript` for the shell
 string `shell.run` and `docker.run` take, `application/sql` for a query, `text/x-jinja` for a
-report's template -- gets the same Monaco a document is written in, through the same `CodePane`,
-so a jq program is read on the lines it was written on. `dirigent_common.programs` is where the
-four are spelled, and the schema is what decides this and nothing else: every other string stays
+report's template, `application/x-compose+yaml` for an inline compose file -- gets the same Monaco a
+document is written in, through the same `CodePane`, so a jq program is read on the lines it was
+written on. `dirigent_common.programs` is where the
+five are spelled, and the schema is what decides this and nothing else: every other string stays
 one line, however long a value it holds.
 
 **A document is written in one editor wherever it is written.** The editor's source pane and a
