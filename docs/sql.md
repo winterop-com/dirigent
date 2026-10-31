@@ -292,7 +292,13 @@ as well:
   and not file output: `COPY ... TO` could otherwise replace the database file. That refuses
   `COPY`, `EXPLAIN`, `SET`, `ATTACH`, `CALL`, `PRAGMA` and a `PIVOT`, and a statement that does
   not parse is refused rather than run (`sql.duckdb.read_only_unparsed`). `SELECT`, `FROM`-first,
-  `WITH ... SELECT`, `VALUES`, `DESCRIBE`, `SHOW` and `SUMMARIZE` all parse as `SELECT`. It needs
+  `WITH ... SELECT`, `VALUES`, `DESCRIBE`, `SHOW` and `SUMMARIZE` all parse as `SELECT`. Because a
+  `WITH` can hold a write and still parse as `SELECT`, the parsed tree is read too: a `COPY`,
+  `INSERT`, `UPDATE` or `DELETE` anywhere in it is refused the same way, and so are the table
+  functions that run a statement held in a string, `query`, `query_table` and
+  `json_execute_serialized_sql`. A tree that cannot be had is refused rather than run. This reads
+  the statement a step sends, not a view or macro already stored in the file, so a read-only
+  connection trusts what was written there. It needs
   a file that exists, and `duckdb:///:memory:` cannot be `read_only` at all -- DuckDB refuses to
   open an in-memory database read-only, because one starts empty and a read-only one could never
   be filled -- so that connection is refused when it is written.
