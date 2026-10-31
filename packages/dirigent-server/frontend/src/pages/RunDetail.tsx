@@ -409,166 +409,173 @@ export function RunDetail() {
     const summary = triggerSummary(run)
     const trigger = summary.who === null ? null : LABELS.runs.line.by(summary.who)
 
+    // The page scrolls above the terminal, which stands at the foot of the content area.
     return (
-        <div className="flex min-w-0 flex-col">
-            <Breadcrumb
-                trail={[
-                    { label: LABELS.screen.runs.name, to: '/runs' },
-                    { label: run.pipeline, to: `/pipelines/${run.pipeline}`, mono: true, keep: true },
-                ]}
-            />
-            <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
-                <div className="min-w-0">
-                    <h1 className="text-page font-medium tracking-tight">{document?.name ?? run.pipeline}</h1>
-                    <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1">
-                        {document !== null && document.name !== null && <Code value={run.pipeline} />}
-                        <span title={run.id}>
-                            <Code
-                                value={formatInstant(run.started_at ?? run.created_at)}
-                                className="pointer-events-none"
+        <div className="-my-3 flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto py-3">
+                <Breadcrumb
+                    trail={[
+                        { label: LABELS.screen.runs.name, to: '/runs' },
+                        { label: run.pipeline, to: `/pipelines/${run.pipeline}`, mono: true, keep: true },
+                    ]}
+                />
+                <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <h1 className="text-page font-medium tracking-tight">
+                            {document?.name ?? run.pipeline}
+                        </h1>
+                        <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1">
+                            {document !== null && document.name !== null && <Code value={run.pipeline} />}
+                            <span title={run.id}>
+                                <Code
+                                    value={formatInstant(run.started_at ?? run.created_at)}
+                                    className="pointer-events-none"
+                                />
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Tooltip>
+                            <TooltipTrigger
+                                render={
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label={TERMINAL_LABEL}
+                                        aria-pressed={terminal}
+                                        onClick={toggleTerminal}
+                                    >
+                                        <SquareTerminal className="size-4" aria-hidden />
+                                    </Button>
+                                }
                             />
-                        </span>
+                            <TooltipContent side="bottom">{TERMINAL_LABEL}</TooltipContent>
+                        </Tooltip>
+                        <ToolbarActions
+                            actions={[
+                                {
+                                    id: 'pause',
+                                    label: LABELS.action.pause,
+                                    icon: ICONS.pause,
+                                    disabled: !write.may || !verbs.pause.open,
+                                    why: write.why ?? verbs.pause.why ?? undefined,
+                                    onClick: pause,
+                                },
+                                {
+                                    id: 'resume',
+                                    label: LABELS.action.resume,
+                                    icon: ICONS.resume,
+                                    disabled: !write.may || !verbs.resume.open,
+                                    why: write.why ?? verbs.resume.why ?? undefined,
+                                    onClick: resume,
+                                },
+                                {
+                                    id: 'cancel',
+                                    label: LABELS.action.cancel_run,
+                                    icon: Ban,
+                                    destructive: verbs.cancel.open,
+                                    disabled: !write.may || !verbs.cancel.open || cancel === null,
+                                    why: write.why ?? verbs.cancel.why ?? undefined,
+                                    onClick: () => {
+                                        cancel?.()
+                                    },
+                                },
+                                {
+                                    id: 'rerun',
+                                    label: LABELS.action.rerun,
+                                    icon: RotateCw,
+                                    variant: verbs.rerun.open ? 'default' : 'outline',
+                                    disabled: !write.may || !verbs.rerun.open || rerun === null,
+                                    why: write.why ?? verbs.rerun.why ?? undefined,
+                                    onClick: () => {
+                                        rerun?.()
+                                    },
+                                },
+                            ]}
+                        />
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Tooltip>
-                        <TooltipTrigger
-                            render={
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={TERMINAL_LABEL}
-                                    aria-pressed={terminal}
-                                    onClick={toggleTerminal}
-                                >
-                                    <SquareTerminal className="size-4" aria-hidden />
-                                </Button>
+
+                <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
+                    <StatusChip status={run.status} className="text-sm" />
+                    {failedAt !== null && troubled && (
+                        <span>
+                            {LABELS.runs.line.at}{' '}
+                            <Code value={failedAt} tone="body" className="text-sm font-medium" />
+                        </span>
+                    )}
+                    {took !== null && (
+                        <span className="font-mono text-muted-foreground">{formatDuration(took)}</span>
+                    )}
+                    {trigger !== null && <span className="text-muted-foreground">{trigger}</span>}
+                    {run.stored_bytes > 0 && (
+                        <span
+                            className="text-muted-foreground"
+                            title={LABELS.runs.line.stored(String(run.stored_bytes))}
+                        >
+                            {LABELS.runs.line.stored(formatBytes(run.stored_bytes))}
+                        </span>
+                    )}
+                    {priority !== null && (
+                        <span className={cn('text-xs', priority.className)}>{priority.label}</span>
+                    )}
+                    {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
+                </div>
+
+                <Surface
+                    tone="recessed"
+                    inset={false}
+                    className="mt-3.5"
+                    aria-label={LABELS.pipelines.page.graph}
+                >
+                    {state.dag.nodes.length === 0 ? (
+                        <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.graph_empty}</p>
+                    ) : (
+                        <Suspense
+                            fallback={
+                                <PageState loading problem={null} empty={false}>
+                                    {null}
+                                </PageState>
+                            }
+                        >
+                            <RunGraph
+                                dag={state.dag}
+                                views={views}
+                                selected={selected}
+                                fitted
+                                onSelect={(step) => {
+                                    setSelected(step)
+                                    if (step !== null) openPanel()
+                                }}
+                            />
+                        </Suspense>
+                    )}
+                </Surface>
+
+                <div className="mt-5 flex flex-wrap items-start gap-5">
+                    {troubled && (
+                        <RunFailure
+                            run={run}
+                            step={failedAt}
+                            error={failedAttempt?.error ?? run.error}
+                            code={failedAttempt?.error_code ?? run.error_code}
+                            block={failedNode?.block ?? null}
+                            connection={
+                                named === null
+                                    ? null
+                                    : (connections.find((row) => row.code === named) ?? null)
                             }
                         />
-                        <TooltipContent side="bottom">{TERMINAL_LABEL}</TooltipContent>
-                    </Tooltip>
-                    <ToolbarActions
-                        actions={[
-                            {
-                                id: 'pause',
-                                label: LABELS.action.pause,
-                                icon: ICONS.pause,
-                                disabled: !write.may || !verbs.pause.open,
-                                why: write.why ?? verbs.pause.why ?? undefined,
-                                onClick: pause,
-                            },
-                            {
-                                id: 'resume',
-                                label: LABELS.action.resume,
-                                icon: ICONS.resume,
-                                disabled: !write.may || !verbs.resume.open,
-                                why: write.why ?? verbs.resume.why ?? undefined,
-                                onClick: resume,
-                            },
-                            {
-                                id: 'cancel',
-                                label: LABELS.action.cancel_run,
-                                icon: Ban,
-                                destructive: verbs.cancel.open,
-                                disabled: !write.may || !verbs.cancel.open || cancel === null,
-                                why: write.why ?? verbs.cancel.why ?? undefined,
-                                onClick: () => {
-                                    cancel?.()
-                                },
-                            },
-                            {
-                                id: 'rerun',
-                                label: LABELS.action.rerun,
-                                icon: RotateCw,
-                                variant: verbs.rerun.open ? 'default' : 'outline',
-                                disabled: !write.may || !verbs.rerun.open || rerun === null,
-                                why: write.why ?? verbs.rerun.why ?? undefined,
-                                onClick: () => {
-                                    rerun?.()
-                                },
-                            },
-                        ]}
+                    )}
+                    <RunLogs
+                        logs={state.logs}
+                        step={selected}
+                        onAllSteps={() => {
+                            setSelected(null)
+                        }}
+                        onStep={readStep}
                     />
                 </div>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
-                <StatusChip status={run.status} className="text-sm" />
-                {failedAt !== null && troubled && (
-                    <span>
-                        {LABELS.runs.line.at}{' '}
-                        <Code value={failedAt} tone="body" className="text-sm font-medium" />
-                    </span>
-                )}
-                {took !== null && (
-                    <span className="font-mono text-muted-foreground">{formatDuration(took)}</span>
-                )}
-                {trigger !== null && <span className="text-muted-foreground">{trigger}</span>}
-                {run.stored_bytes > 0 && (
-                    <span
-                        className="text-muted-foreground"
-                        title={LABELS.runs.line.stored(String(run.stored_bytes))}
-                    >
-                        {LABELS.runs.line.stored(formatBytes(run.stored_bytes))}
-                    </span>
-                )}
-                {priority !== null && (
-                    <span className={cn('text-xs', priority.className)}>{priority.label}</span>
-                )}
-                {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
-            </div>
-
-            <Surface
-                tone="recessed"
-                inset={false}
-                className="mt-3.5"
-                aria-label={LABELS.pipelines.page.graph}
-            >
-                {state.dag.nodes.length === 0 ? (
-                    <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.graph_empty}</p>
-                ) : (
-                    <Suspense
-                        fallback={
-                            <PageState loading problem={null} empty={false}>
-                                {null}
-                            </PageState>
-                        }
-                    >
-                        <RunGraph
-                            dag={state.dag}
-                            views={views}
-                            selected={selected}
-                            fitted
-                            onSelect={(step) => {
-                                setSelected(step)
-                                if (step !== null) openPanel()
-                            }}
-                        />
-                    </Suspense>
-                )}
-            </Surface>
-
-            <div className="mt-5 flex flex-wrap items-start gap-5">
-                {troubled && (
-                    <RunFailure
-                        run={run}
-                        step={failedAt}
-                        error={failedAttempt?.error ?? run.error}
-                        code={failedAttempt?.error_code ?? run.error_code}
-                        block={failedNode?.block ?? null}
-                        connection={
-                            named === null ? null : (connections.find((row) => row.code === named) ?? null)
-                        }
-                    />
-                )}
-                <RunLogs
-                    logs={state.logs}
-                    step={selected}
-                    onAllSteps={() => {
-                        setSelected(null)
-                    }}
-                    onStep={readStep}
-                />
             </div>
             {terminal && <RunTerminal state={state} runId={id} onSelectStep={readStep} />}
         </div>

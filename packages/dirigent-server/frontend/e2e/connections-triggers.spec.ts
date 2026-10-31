@@ -95,7 +95,7 @@ test('a connection row is its code, its kind and its health, and nothing else', 
     // secret is set are read on its own page, beside the boxes that change them.
     await expect(row).not.toContainText('base_url')
     await expect(row).not.toContainText(DOTS)
-    await expect(row).not.toContainText('This very instance, so a check is a real request.')
+    await expect(row).toContainText('This very instance, so a check is a real request.')
 
     // The credential itself is nowhere on the screen, in any form.
     await expect(page.locator('body')).not.toContainText('a credential nothing may ever show')
@@ -299,10 +299,10 @@ test('a column heading is a label, whatever face its cells are in', async ({ pag
 
 test('a small button is on the type scale', async ({ page }) => {
     await signIn(page)
-    await page.goto('/pipelines')
+    await page.goto('/')
     const small = page.locator('[data-slot="button"].text-\\[0\\.8rem\\]').first()
     await expect(small).toBeVisible()
-    await expect(small).toHaveCSS('font-size', '12px')
+    await expect(small).toHaveCSS('font-size', '13px')
 })
 
 test('a new connection has one way out, and it says Cancel', async ({ page }) => {

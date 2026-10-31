@@ -1199,6 +1199,10 @@ html[data-theme='contrast'] [data-slot='card'] {
     --palette-inset: 1rem;
     --palette-gutter: calc(var(--palette-inset) / 2);
 }
+.dg-palette [data-slot='command-input'] {
+    height: 1.5rem;
+    line-height: 1.5rem;
+}
 .dg-palette [data-slot='command-input-wrapper'] {
     padding: 0;
     border-bottom: 1px solid var(--border);

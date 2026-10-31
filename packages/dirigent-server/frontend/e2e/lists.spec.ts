@@ -233,7 +233,7 @@ test('a file picked on the listing lands in the new-document editor, and applyin
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByText(/Apply (creates|writes version)/)).toBeVisible()
     await dialog.getByRole('button', { name: LABELS.action.apply }).click()
-    await expect(page).toHaveURL(/\/pipelines\/typed-in-the-browser$/)
+    await expect(page).toHaveURL(/\/pipelines\/typed-in-the-browser\/edit$/)
 
     // TITLE ELSE CODE: this document gave itself a name, so the row's link wears the name and
     // the code it is addressed by is beside it in mono.

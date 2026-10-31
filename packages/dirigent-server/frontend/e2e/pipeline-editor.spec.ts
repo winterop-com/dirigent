@@ -170,8 +170,11 @@ test("a pipeline row on the listing opens that pipeline's page, led by its graph
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto('/pipelines')
-    await page.getByRole('link', { name: DOCUMENT_TITLE, exact: true }).click()
+    await page.goto('/pipelines?examples=all')
+    await page
+        .getByTestId('pipeline-row')
+        .filter({ has: page.getByTitle(DOCUMENT_TITLE, { exact: true }) })
+        .click()
 
     await expect(page).toHaveURL(new RegExp(`/pipelines/${DOCUMENT_PIPELINE}$`))
     await expect(page.locator('.react-flow__node')).toHaveCount(STEPS.length)
@@ -692,7 +695,7 @@ test('a graph too big for the floor opens readable, from its start, and is panne
     const prefix = await apiPrefix(page.request)
     const pipeline = 'e2e-past-the-floor'
     await page.request.delete(`${prefix}/pipelines/${pipeline}`)
-    const count = 40
+    const count = 60
     const steps = Object.fromEntries(
         Array.from({ length: count }, (_, at) => [
             `step_${String(at).padStart(2, '0')}`,
@@ -1583,7 +1586,7 @@ test('a carried connection is minted in its own row, and the document is never l
 
     await confirm.click()
     // The first apply creates the pipeline and the screen goes to the address it answers at.
-    await expect(page).toHaveURL(new RegExp(`/pipelines/${CARRYING_CONNECTION_PIPELINE}$`))
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${CARRYING_CONNECTION_PIPELINE}/edit$`))
     await expect(page.locator('.react-flow__node').getByText(CARRIED_STEP, { exact: true })).toBeVisible()
 
     // The document that was stored names the connection by code and carries no section of its own.
@@ -1647,7 +1650,7 @@ test('a carried schema that collides with a stored one is updated in its own row
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)
 
     await confirm.click()
-    await expect(page).toHaveURL(/\/pipelines\/carries-its-shape$/)
+    await expect(page).toHaveURL(/\/pipelines\/carries-its-shape\/edit$/)
 
     // The instance holds what the document carried, identity and all: a store reads a schema's
     // own title and this one declares none, so the name the seed gave it is cleared with it.

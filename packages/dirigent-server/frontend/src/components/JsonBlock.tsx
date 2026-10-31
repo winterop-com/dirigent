@@ -37,7 +37,7 @@ export function JsonBlock({ title, text, className }: { title: string; text: str
     return (
         <WindowedPane
             name={title}
-            className="rounded-lg border border-border bg-background"
+            className="rounded-lg border border-border-strong bg-background"
             windowed={
                 <CodePane
                     value={text}
