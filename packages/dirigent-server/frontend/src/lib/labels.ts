@@ -1274,6 +1274,8 @@ const refused = {
     },
     validation: {
         extra_forbidden: 'Unknown key{suggestion}.',
+        text_unstorable:
+            'This holds a NUL character or half a surrogate pair, which cannot be stored. Remove it.',
     },
 } as const
 

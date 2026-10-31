@@ -1,14 +1,25 @@
-"""What every other wire model is built out of: the base itself, one refusal, and one page."""
+"""What every other wire model is built out of: the bases themselves, one refusal, and one page."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from dirigent_common import Issue, JsonMap
+from dirigent_common.storable import refuse_unstorable
 
 
 class WireModel(BaseModel):
     """A frozen shape that crosses the wire."""
 
     model_config = ConfigDict(frozen=True)
+
+
+class RequestModel(BaseModel):
+    """A body a caller writes, whose text is refused when no database stores it as written."""
+
+    @field_validator("*")
+    @classmethod
+    def _storable(cls, value: object) -> object:
+        """Refuse a NUL or half a surrogate pair in any text field."""
+        return refuse_unstorable(value)
 
 
 class Problem(WireModel):
