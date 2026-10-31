@@ -487,6 +487,106 @@ async def test_deleting_a_schedule_removes_it_from_its_pipeline(
         assert await list_schedules(session) == []
 
 
+# -- one schedule's failure stays its own -----------------------------------------
+
+
+def over_an_unpinned_parameter(name: str) -> PipelineDefinition:
+    """A pipeline whose fan-out names a parameter nothing is required to supply."""
+    return PipelineDefinition(
+        code=name,
+        params={"type": "object", "properties": {"items": {"type": "array"}}},
+        steps={"each": StepDefinition(block="test.echo", for_each="${params.items}", config={"value": "${item}"})},
+    )
+
+
+async def test_a_schedule_whose_fan_out_cannot_resolve_fails_its_firing_and_the_rest_still_fire(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    now = utcnow()
+    _, poison = await declare(
+        sessions, over_an_unpinned_parameter("poison"), ScheduleRequest(code="minutely", cron="* * * * *")
+    )
+    await set_columns(sessions, poison, next_fire_at=now - timedelta(minutes=2))
+    healthy_pipeline, healthy = await due_schedule(sessions, "healthy", now=now)
+
+    fired = await tick(sessions, services, now=now)
+
+    assert [(one.schedule, one.outcome) for one in fired] == [
+        ("minutely", FiringOutcome.FAILED),
+        ("minutely", FiringOutcome.FIRED),
+    ]
+    [failed] = await firings_of(sessions, poison)
+    assert failed.outcome is FiringOutcome.FAILED
+    assert failed.detail is not None
+    assert "params" in failed.detail
+    moved_to = (await load_schedule(sessions, poison)).next_fire_at
+    assert moved_to is not None
+    assert moved_to > now - timedelta(minutes=2), "its clock moved past the slot it owed"
+    assert len(await runs_of(sessions, healthy_pipeline)) == 1
+    assert (await firings_of(sessions, healthy))[0].outcome is FiringOutcome.FIRED
+
+
+async def test_a_stored_document_that_no_longer_loads_fails_its_firing_and_the_rest_still_fire(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    now = utcnow()
+    poison_pipeline, poison = await due_schedule(sessions, "poison", now=now)
+    await set_columns(sessions, poison, next_fire_at=now - timedelta(minutes=2))
+    async with session_scope(sessions) as session:
+        await session.execute(
+            sa.update(PipelineVersion).where(PipelineVersion.pipeline_id == poison_pipeline).values(document={"no": 1})
+        )
+    healthy_pipeline, _ = await due_schedule(sessions, "healthy", now=now)
+
+    await tick(sessions, services, now=now)
+
+    assert [firing.outcome for firing in await firings_of(sessions, poison)] == [FiringOutcome.FAILED]
+    assert len(await runs_of(sessions, healthy_pipeline)) == 1
+
+
+async def test_whatever_one_firing_raises_the_schedules_after_it_still_fire(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    now = utcnow()
+    _, poison = await due_schedule(sessions, "poison", now=now)
+    await set_columns(sessions, poison, next_fire_at=now - timedelta(minutes=2))
+    healthy_pipeline, _ = await due_schedule(sessions, "healthy", now=now)
+    real_fire = scheduler_module.fire
+
+    async def fails_for_the_first(
+        session: AsyncSession, the_services: EngineServices, schedule: Schedule, *, now: datetime
+    ) -> Fired:
+        if schedule.id == poison:
+            raise RuntimeError("something nobody planned for")
+        return await real_fire(session, the_services, schedule, now=now)
+
+    monkeypatch.setattr(scheduler_module, "fire", fails_for_the_first)
+
+    await tick(sessions, services, now=now)
+
+    assert len(await runs_of(sessions, healthy_pipeline)) == 1
+
+
+async def test_a_clock_past_what_a_date_holds_pauses_its_schedule_and_the_rest_still_fire(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    now = utcnow()
+    poison_pipeline, poison = await declare(
+        sessions, one_step("poison"), ScheduleRequest(code="minutely", interval=timedelta(minutes=1))
+    )
+    await set_columns(
+        sessions, poison, next_fire_at=now - timedelta(minutes=2), interval_seconds=4_000_000 * 24 * 60 * 60
+    )
+    healthy_pipeline, _ = await due_schedule(sessions, "healthy", now=now)
+
+    await tick(sessions, services, now=now)
+
+    assert (await load_schedule(sessions, poison)).paused is True
+    assert [firing.outcome for firing in await firings_of(sessions, poison)] == [FiringOutcome.FAILED]
+    assert await runs_of(sessions, poison_pipeline) == []
+    assert len(await runs_of(sessions, healthy_pipeline)) == 1
+
+
 # -- what a tick is allowed to claim ---------------------------------------------
 
 

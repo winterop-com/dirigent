@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import threading
 import time
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
@@ -16,7 +17,7 @@ from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering, closing, of_kind, only, plain, records, refusal, rows
 from dirigent_cli import commands
-from dirigent_cli.commands import instance_settings
+from dirigent_cli.commands import GUARD_EXIT, instance_settings
 from dirigent_cli.main import app, dev_admin, hoist_globals
 from dirigent_cli.output import CONNECTION_HEALTH
 from dirigent_cli.profiles import resolve_endpoint
@@ -87,7 +88,6 @@ def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, extra_plugins: dict[
     """Run the real API on a real port, and point the CLI at it through DG_URL and DG_TOKEN."""
     import asyncio
     import socket
-    import threading
     import time
 
     import uvicorn
@@ -1708,6 +1708,132 @@ def test_the_rendered_login_shows_the_token_once(server: str) -> None:
     assert "export DG_TOKEN=" in text
     assert "only time" in text
     assert text.count("token=") == 0, "the line does not carry the secret the rendering hands over"
+
+
+class Listener:
+    """A port standing in for a server off this host, which records what it is sent."""
+
+    def __init__(self) -> None:
+        """Start listening on loopback, and start with nothing heard."""
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        heard: list[bytes] = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, format: str, *args: Any) -> None:
+                del format, args
+
+            def do_POST(self) -> None:
+                heard.append(self.rfile.read(int(self.headers.get("Content-Length") or 0)))
+                self.send_response(401)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+            do_GET = do_POST
+
+        self.heard = heard
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = int(self.server.server_address[1])
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def stop(self) -> None:
+        """Stop listening."""
+        self.server.shutdown()
+        self.server.server_close()
+
+
+@pytest.fixture
+def listener(monkeypatch: pytest.MonkeyPatch) -> Iterator[Listener]:
+    """A server off this host a checkout might name, with nothing in the shell naming one."""
+    monkeypatch.delenv("DG_URL", raising=False)
+    monkeypatch.delenv("DG_TOKEN", raising=False)
+    running = Listener()
+    yield running
+    running.stop()
+
+
+#: Every command a person types a secret to, with the secret on its command line.
+TYPED_SECRETS = [
+    ["auth", "login", "--username", "ada", "--password", "DUMMY-TYPED-SECRET"],
+    ["auth", "password", "--current", "DUMMY-TYPED-SECRET", "--new", "DUMMY-TYPED-SECRET"],
+    ["admin", "user", "password", "ada", "--password", "DUMMY-TYPED-SECRET"],
+    ["connection", "create", "http", "c", "--set", "bearer_token=DUMMY-TYPED-SECRET"],
+    ["source", "set-secret", "p", "s", "--secret", "DUMMY-TYPED-SECRET"],
+]
+SECRET_IDS = ["login", "password", "user-password", "connection", "source-secret"]
+
+
+def name_the_server_in_a_checkout(tmp_path: Path, listener: Listener, form: str) -> None:
+    """Write a checkout naming the listener, through its profile or its .env, with a token beside it."""
+    project = tmp_path / ".dirigent"
+    project.mkdir()
+    # 0.0.0.0 reaches a listener on loopback and is not this host by the check, as a server elsewhere is not.
+    url = f"http://0.0.0.0:{listener.port}"
+    if form == "profile":
+        (project / "profiles.yaml").write_text(f"profiles:\n  p:\n    url: {url}\n    token: from-the-project\n")
+    else:
+        (project / "profiles.yaml").write_text("profiles: {}\n")
+        (tmp_path / ".env").write_text(f"DG_URL={url}\nDG_TOKEN=from-the-project\n")
+
+
+@pytest.mark.parametrize("argv", TYPED_SECRETS, ids=SECRET_IDS)
+@pytest.mark.parametrize("form", ["profile", "env"])
+def test_a_typed_secret_is_refused_for_a_server_a_checkout_named(
+    tmp_path: Path, listener: Listener, argv: list[str], form: str
+) -> None:
+    name_the_server_in_a_checkout(tmp_path, listener, form)
+
+    result = machine(*argv)
+
+    assert result.exit_code == GUARD_EXIT, result.output
+    assert refusal(result.stdout)["code"] == "cli.server_named_by_a_project"
+    assert listener.heard == []
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["auth", "login"], ["auth", "password"], ["admin", "user", "password", "ada"]],
+    ids=["login", "password", "user-password"],
+)
+def test_nothing_is_asked_for_before_the_refusal(tmp_path: Path, listener: Listener, argv: list[str]) -> None:
+    name_the_server_in_a_checkout(tmp_path, listener, "profile")
+
+    result = runner.invoke(app, hoist_globals(argv), input="DUMMY-TYPED-SECRET\nDUMMY-TYPED-SECRET\n")
+
+    assert result.exit_code == GUARD_EXIT, result.output
+    assert "password:" not in result.output
+    assert "username:" not in result.output
+    assert listener.heard == []
+
+
+def test_a_login_reaches_a_server_named_with_the_flag(tmp_path: Path, listener: Listener) -> None:
+    name_the_server_in_a_checkout(tmp_path, listener, "profile")
+
+    machine("--url", f"http://127.0.0.1:{listener.port}", "auth", "login", "--username", "ada", "--password", "secret")
+
+    assert len(listener.heard) == 1
+
+
+def test_a_login_reaches_a_server_named_in_the_shell(
+    tmp_path: Path, listener: Listener, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    name_the_server_in_a_checkout(tmp_path, listener, "profile")
+    monkeypatch.setenv("DG_URL", f"http://0.0.0.0:{listener.port}")
+
+    machine("auth", "login", "--username", "ada", "--password", "secret")
+
+    assert len(listener.heard) == 1
+
+
+def test_a_login_reaches_a_server_a_checkout_names_on_this_host(tmp_path: Path, listener: Listener) -> None:
+    (tmp_path / ".dirigent").mkdir()
+    (tmp_path / ".dirigent" / "profiles.yaml").write_text(
+        f"profiles:\n  p:\n    url: http://127.0.0.1:{listener.port}\n"
+    )
+
+    machine("auth", "login", "--username", "ada", "--password", "secret")
+
+    assert len(listener.heard) == 1
 
 
 def test_an_account_is_switched_off_and_back_on_from_the_cli(server: str) -> None:

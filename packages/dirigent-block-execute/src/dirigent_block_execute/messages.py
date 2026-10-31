@@ -176,6 +176,24 @@ STEERING_ENVIRONMENT = EXECUTE.define(
     "connection's secrets; which program runs and where it looks is the host's decision",
 )
 
+OUTPUT_NOT_A_FILE = EXECUTE.define(
+    "output_not_a_file",
+    "the declared output {name} is not a regular file under {path}: a link, or a link on the way to it, "
+    "is something a container left there, and it is not followed",
+)
+
+OUTPUT_TARGET_REFUSED = EXECUTE.define(
+    "output_target_refused",
+    "the output target {target} cannot be written: a link, or anything but a directory on the way "
+    "and a regular file at the end, stands there in the run's work directory",
+)
+
+PATH_LEAVES_THE_WORK_DIRECTORY = EXECUTE.define(
+    "path_leaves_the_work_directory",
+    "{path} leads through a link to somewhere outside the run's work directory, and only what is "
+    "inside it is handed to the tool",
+)
+
 OUTPUT_STAYS_INSIDE = EXECUTE.define(
     "output_stays_inside",
     "an output without a URI scheme is a path inside the run's work directory, so it cannot be absolute or climb out",

@@ -1,7 +1,9 @@
 """Async engine and session plumbing."""
 
 import asyncio
+import json
 import random
+import re
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from typing import Any, Final
@@ -99,6 +101,20 @@ async def open_sqlite(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
         raise
 
 
+#: Half a surrogate pair. JSON's parser takes one, and a whole pair parses to one character.
+LONE_SURROGATE: Final = re.compile("[\ud800-\udfff]")
+
+
+def storable_json(value: object) -> str:
+    """Write a JSON column's value, with half a surrogate pair as the text of its escape.
+
+    JSONB refuses one and no response can encode one, so an outside service's answer holding one
+    would fail the step's settling on PostgreSQL and every read of the run on SQLite.
+    """
+    text = json.dumps(value, ensure_ascii=False)
+    return LONE_SURROGATE.sub(lambda found: f"\\\\u{ord(found.group()):04x}", text)
+
+
 def create_engine(settings: Settings) -> AsyncEngine:
     """Build the async engine for the configured database."""
     if settings.is_sqlite:
@@ -109,6 +125,7 @@ def create_engine(settings: Settings) -> AsyncEngine:
             echo=settings.database_echo,
             future=True,
             connect_args={"async_creator_fn": open_sqlite},
+            json_serializer=storable_json,
         )
         _configure_sqlite(engine)
         return engine
@@ -121,6 +138,7 @@ def create_engine(settings: Settings) -> AsyncEngine:
         pool_recycle=int(settings.database_pool_recycle.total_seconds()) if settings.database_pool_recycle else -1,
         pool_pre_ping=True,
         future=True,
+        json_serializer=storable_json,
     )
 
 

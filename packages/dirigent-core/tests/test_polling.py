@@ -14,10 +14,11 @@ from dirigent_core.database import session_scope
 from dirigent_core.documents import load_text
 from dirigent_core.engine.runs import create_run
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.models import Pipeline, Run, Source, SourceInput, StepAttempt
+from dirigent_core.models import Pipeline, Run, Source, SourceInput, StepAttempt, utcnow
 from dirigent_core.pipelines import apply_document
 from dirigent_core.sources import polling
 from dirigent_core.sources.rows import set_paused, state_of
+from dirigent_core.sources.rules import LONGEST_POLL
 from dirigent_core.sources.storage import StorageConfig, StorageSource
 
 WORKER = "worker-under-test"
@@ -369,3 +370,109 @@ async def test_skip_is_refused_beside_a_polled_source(
     async with session_scope(sessions) as session:
         result = await apply_document(session, services, load_text(text), dry_run=True)
     assert [issue.code for issue in result.plan.issues] == ["source.replace_on_held"]
+
+
+def watching(code: str, source: str, directory: Path) -> str:
+    """A pipeline with one storage source on a directory."""
+    return f"""
+format: dirigent/v1
+kind: pipeline
+code: {code}
+steps:
+  {source}:
+    source: {{kind: storage, uri: "file://{directory}/*.csv", poll: 1m}}
+  note:
+    block: test.echo
+    depends_on: [{source}]
+    config: {{value: seen}}
+"""
+
+
+async def two_sources(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> tuple[Path, Path]:
+    """Apply two pipelines, each with a source, unpaused and on their own directories."""
+    first, second = inbox_of(tmp_path, "first"), inbox_of(tmp_path, "second")
+    await apply(sessions, services, watching("one", "aaa", first))
+    await apply(sessions, services, watching("two", "bbb", second))
+    async with session_scope(sessions) as session:
+        await session.execute(sa.update(Source).values(paused=False))
+    return first, second
+
+
+async def _set_poll(sessions: async_sessionmaker[AsyncSession], code: str, poll: str) -> None:
+    """Write a cadence straight onto a stored source, the way one stored before the bound stays."""
+    async with session_scope(sessions) as session:
+        row = (await session.execute(sa.select(Source).where(Source.code == code))).scalar_one()
+        row.config = {**row.config, "poll": poll}
+
+
+async def _source(sessions: async_sessionmaker[AsyncSession], code: str) -> Source:
+    async with sessions() as session:
+        return (await session.execute(sa.select(Source).where(Source.code == code))).scalar_one()
+
+
+def test_the_longest_cadence_leaves_room_in_a_date() -> None:
+    assert datetime(9000, 1, 1, tzinfo=UTC) + LONGEST_POLL < datetime.max.replace(tzinfo=UTC)
+
+
+async def test_a_cadence_past_the_longest_is_refused_at_apply(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    inbox = inbox_of(tmp_path)
+    text = landing(inbox).replace("poll: 1m", "poll: 3000000d")
+    async with session_scope(sessions) as session:
+        applied = await apply_document(session, services, load_text(text), dry_run=True)
+    assert applied.plan.action is PlanAction.INVALID
+    assert [issue.code for issue in applied.plan.issues] == ["source.poll_too_long"]
+    assert applied.plan.issues[0].location == "steps.arrived.source.poll"
+
+
+async def test_a_stored_cadence_past_a_date_stays_on_its_own_row_and_the_next_source_still_polls(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    _, second = await two_sources(sessions, services, tmp_path)
+    await _set_poll(sessions, "aaa", "3000000d")
+    now = utcnow()
+    async with session_scope(sessions) as session:
+        await session.execute(sa.update(Source).values(next_poll_at=now - timedelta(minutes=1)))
+        await session.execute(
+            sa.update(Source).where(Source.code == "aaa").values(next_poll_at=now - timedelta(hours=1))
+        )
+    put(second, "b.csv", now)
+
+    outcomes = await polling.tick(sessions, services, owner=WORKER, now=now)
+
+    assert len(outcomes) == 2
+    poison = await _source(sessions, "aaa")
+    assert poison.failures == 1
+    assert poison.last_error
+    assert poison.lease_owner is None
+    healthy = await _source(sessions, "bbb")
+    assert healthy.failures == 0
+    assert healthy.polled_at is not None
+    assert healthy.lease_owner is None
+
+
+async def test_a_source_at_its_bound_with_a_cadence_past_a_date_does_not_stop_the_claim(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await two_sources(sessions, services, tmp_path)
+    await _set_poll(sessions, "aaa", "3000000d")
+
+    def at_its_bound(_kinds: object, row: Source) -> int | None:
+        return 0 if row.code == "aaa" else None
+
+    monkeypatch.setattr(polling, "max_in_flight", at_its_bound)
+    now = utcnow()
+
+    async with session_scope(sessions) as session:
+        await session.execute(sa.update(Source).values(next_poll_at=now - timedelta(minutes=1)))
+    async with session_scope(sessions) as session:
+        claimed = await polling.claim_due(session, services, owner=WORKER, now=now)
+
+    assert len(claimed) == 1
+    assert (await _source(sessions, "bbb")).lease_owner == WORKER

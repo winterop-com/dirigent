@@ -84,6 +84,11 @@ from dirigent_plugin.sources import (
     sign_body,
 )
 
+#: How long past the window a taken signature's record is kept, longer than one call takes to go
+#: from reading the clock to writing its record, which is the gap another call's purge could use.
+SIGNATURE_RECORD_MARGIN: Final = timedelta(minutes=1)
+
+
 #: How long a process answers from the routes it read before reading them again, a notification or not.
 ROUTES_TTL_SECONDS: Final = 5.0
 
@@ -268,7 +273,7 @@ class Intake:
                 return _counted(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
             if await _current(session, found.source_id) is None:
                 return _counted(Refusal.of(NO_ROUTE, status=404, method=call.method, path=called))
-            unsigned = await _unsigned(session, services, row, auth, call.headers, body, received_at)
+            unsigned = await _unsigned(session, services, row, auth, call.headers, body, utcnow())
             if unsigned is not None:
                 return _counted(unsigned)
         rate = source.rate(config)
@@ -591,10 +596,12 @@ async def _unsigned(
     """Refuse a call whose signature is missing, stale, not this source's secret's, or taken before.
 
     The signature covers ``<timestamp>.<body>`` and the timestamp has to be within the
-    instance's window of now. A signature taken is recorded until its timestamp leaves the
-    window, so the same call sent again is refused for one reason or the other. Both sides of
-    the comparison are bytes, since the header is the caller's and one character outside ASCII
-    would otherwise raise rather than refuse.
+    instance's window of ``moment``, which is read after the body arrived: a head opened inside
+    the window and held across its end would otherwise outlive the record of the signature it
+    copies. A signature taken is recorded until its timestamp is past the window by a margin, so
+    the same call sent again is refused for one reason or the other. Both sides of the comparison
+    are bytes, since the header is the caller's and one character outside ASCII would otherwise
+    raise rather than refuse.
     """
     presented = headers.get(auth.header.lower())
     if not presented:
@@ -613,7 +620,10 @@ async def _unsigned(
         return Refusal.of(SOURCE_SIGNATURE_MISMATCH, status=401)
     await session.execute(
         sa.delete(SourceSignature)
-        .where(SourceSignature.source_id == row.id, SourceSignature.signed_at < moment - window)
+        .where(
+            SourceSignature.source_id == row.id,
+            SourceSignature.signed_at < moment - window - SIGNATURE_RECORD_MARGIN,
+        )
         .execution_options(synchronize_session=False)
     )
     try:

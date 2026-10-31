@@ -421,6 +421,10 @@ dg admin token create ci
 export line to paste. `dg admin token create NAME` mints one under
 a name you choose, which is what a CI job should hold.
 
+Inside a checkout whose `.dirigent/profiles.yaml` or `.env` names a server off this host, login is
+refused until you name that server yourself, with `--url` or `export DG_URL=...`, so a repository
+you cloned cannot collect a password you type.
+
 **The secret prints exactly once.** The instance stores only a SHA-256 of it plus the first
 eight characters, so that a listing can tell two tokens apart without holding either. There is
 no way to recover a token you did not write down -- mint another and revoke the old one.

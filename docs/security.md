@@ -193,7 +193,7 @@ than by an exception list each endpoint remembers:
   deployment does not want the API surface published, do not expose them past your proxy.
 - Every route under `/endpoints`, which a pipeline's endpoint sources declare, each with its own
   token or signing secret unless it writes itself public. See [endpoint hardening](#endpoint-hardening).
-- The [playground](playground.md) under `/api/v1/playground`, which opens no session and reads no
+- The [playground](playground.md) under `/api/v1/playground`, which reflects at most 8 KiB of a body, opens no session and reads no
   instance data. It shares the UI's origin, so what a caller can make it answer is contained:
   every answer carries `nosniff` and a sandboxing CSP, it answers under no content type a browser
   runs, it sets no header that would make the origin act for the caller, it redirects only on
@@ -405,10 +405,10 @@ JSON, because those are not the same string -- in `X-Dirigent-Signature`, or the
 no timestamp, cannot call a signed source directly.
 
 **A signature is taken once.** A timestamp further than `DIRIGENT_SOURCE_SIGNATURE_WINDOW`
-(5 minutes) from the server's clock, either way, is refused 401, and because the timestamp is
-signed it cannot be moved. Inside the window, a signature taken is recorded in
-`source_signatures` until its timestamp leaves the window, and the same signature presented
-again is refused 401. The record is in the database, so it holds across replicas and restarts,
+(5 minutes) from the server's clock when the body has arrived, either way, is refused 401, and
+because the timestamp is signed it cannot be moved. Inside the window, a signature taken is
+recorded in `source_signatures` until a minute after its timestamp leaves the window, and the
+same signature presented again is refused 401. The record is in the database, so it holds across replicas and restarts,
 and it is written only for a signature that verified, so it costs a stranger nothing and gives
 them no way to fill it. A signature is spent by being verified, whatever the call is answered
 afterwards, so a sender retrying a 429 or a 503 signs again; `webhook.post` and `dg source call`
@@ -473,6 +473,10 @@ its pipeline are read again after it. A body that has not arrived whole within
 `DIRIGENT_SOURCE_BODY_TIMEOUT` (default 30 seconds) is answered 408 and the connection closed,
 so a stranger who stops sending holds one socket for that long and nothing the API shares.
 
+**A value no database can hold is stored as text.** A JSON answer from an outside service can hold
+half a surrogate pair, which JSONB refuses and no response can encode. Every JSON column writes one
+as the six characters of its escape, so the step settles once and its run stays readable.
+
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
 the step's timeout and the lease heartbeat keep running over a value of any size, and
 `uniqueItems` costs time in step with the array. Two limits remain. A thread cannot be stopped, so
@@ -494,6 +498,12 @@ instance's cookies or storage. A reply may not set `set-cookie`, `www-authentica
 the reply renders, where a value a reference resolved to that holds a line break is refused too
 (`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
 pipeline's to set, so a reply can redirect, name a download or answer a browser caller.
+
+**An open stream answers to its credential.** A run's log tail and event stream read the token or
+session they were opened with on every poll, in the transaction that reads what goes out. Once it
+is revoked, expired or its account deactivated, the next poll sends nothing more and ends the
+stream with `expired`, so a client reopening is refused like any new request. A quiet stream polls
+every five seconds at the slowest, which is the longest that takes.
 
 **A route is one source's.** Two sources answering one method at one template are refused at
 apply, across pipelines, and a unique constraint holds it when two applies race.
@@ -527,6 +537,12 @@ serve a page on the instance's origin, `secret_key_file` would read any file thi
 [settings reference](settings.md) marks each of these host only. A project's `pipelines` directory
 has to be inside the project, and `dg apply` refuses a document that is a link to a file outside it.
 
+A checkout cannot choose where a secret you type goes either. `dg auth login`, `dg auth password`,
+`dg admin user password`, `dg connection create` and `dg source set-secret` refuse a server a project's
+`.dirigent/profiles.yaml` or `.env` names off this host, before they ask for anything or send
+anything, unless you named it yourself with `--url` or the shell's `DG_URL`. A server on this host is
+not affected, which is what a scaffolded project names.
+
 A checkout cannot supply the state either. The default database is `.dirigent/state/dirigent.db`
 under the working directory, and a state that arrived with a clone could hold queued runs, which
 would execute on `dg dev` if the shell allowlists their blocks. So before opening or deleting any
@@ -535,8 +551,8 @@ SQLite database in a directory spelled `.dirigent/state`, dirigent refuses it wh
 - `.dirigent` or `state` is a symbolic link, or either belongs to another user;
 - `state` can be written by group or others, or `.dirigent` by others;
 - anything directly inside `state` is a link, a special file, or another user's;
-- the enclosing git repository tracks anything under it, including under another case's spelling
-  of the path.
+- the enclosing git repository tracks anything under it, including under another case's or another
+  Unicode normalisation's spelling of the path, both of which a filesystem may open as the same one.
 
 A clone's files are the user's own with ordinary modes, so the last check is what stops a
 committed database. git is not run to make it: a repository's own configuration can start programs,
@@ -716,14 +732,20 @@ resolve to an integer, and anything else fails the step as `rejected` before the
 
 - `$(( ))`, `(( ))` and `$[ ]`
 - the operands of `[[ -eq ]]`, `-ne`, `-lt`, `-le`, `-gt`, `-ge`, and of `[[ -v ]]`. Another clause
-  of the same `[[ ]]` is not held to it, and neither is `[ ]` or `test`, which do not evaluate.
+  of the same `[[ ]]` is not held to it, and neither is a numeric comparison in `[ ]` or `test`,
+  which does not evaluate.
+- the operand of `-v` to `[`, `test` or `printf`, and a name `read` assigns to
 - `let` and `unset`, in any word
 - `declare`, `typeset`, `local`, `readonly` and `export`, in the word's name, so `export X=${v}` takes
   any value and `export ${v}=1` does not
 - anywhere in a command that declares an integer variable, with `declare -i` or the like, because a
-  later assignment to it evaluates. So one such line holds every reference in that command.
-- an indexed array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`. An array the same
-  command declares with `declare -A` is not held to it, and neither is `echo a[${v}]`, which is a glob.
+  later assignment to it evaluates, or a nameref, with `declare -n`, because reading it does. So one
+  such line holds every reference in that command.
+- an indexed array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`, or a compound
+  assignment's, as `a=([${v}]=1)`. An array the same command declares with `declare -A` is not held
+  to it in the first form, and neither is `echo a[${v}]`, which is a glob.
+- a declaration whose compound assignment is one quoted word, as `declare -a "a=(${v})"`, which bash
+  parses again. `declare -a a=("${v}")` is not held to it.
 - `${var:offset}` and `${var:offset:length}`, but not `${var:-default}` and its kin
 
 Declare the parameter as `type: integer` and a caller's bad value is refused at the door instead. A
@@ -734,11 +756,18 @@ wrong can hide one. That reads a literal opener as one too: after `'$(( '`, in a
 program another tool reads, a reference must be an integer until the opener closes. So must one
 inside a `$( )` within any of the places above, because the shell evaluates what that prints.
 
+`let`, `unset`, `[[`, `-v`, `read`, the `-i` and `-n` declarations and `=(` are looked for the same
+way, on the word that starts each stretch of a command between one `;`, `&`, `|`, `(`, backquote or
+newline and the next, once any keyword, assignment, redirection, function header and case pattern is
+passed over. So `f() { let x=${v}; }` and `2>/dev/null let x=${v}` are held, `echo let ${v}` and
+`echo "let me ${v}"` are not, and `echo "a; let me ${v}"` is, at the cost of a text that only
+reads like a command.
+
 What the check does not cover is a command that hands a value on: the author's own variable to
-arithmetic or `eval`, a value read from `env`, a program in single quotes given to `bash -c`, and a
-variable named by a value through `read`, `printf -v`, `getopts` or `${!var}`, which is not read from
-the command text. Where the value came from a caller and a step needs one of those, use `argv`, which
-involves no shell, or hold the value to a schema first.
+arithmetic, `eval`, `read`, `printf -v`, `getopts` or `${!var}`, a value read from `env`, and a program
+in single quotes given to `bash -c`, none of which is read from the command text. Where the value came
+from a caller and a step needs one of those, use `argv`, which involves no shell, or hold the value to
+a schema first.
 
 ### A reference in a program
 
@@ -855,6 +884,14 @@ connection that does not validate against the configuration it was read for fail
 `secret.connection_unreadable`, which names each field and the kind of error and no value, so
 neither failure writes a secret into a run's attempts, its logs, a source's `last_error`, or a
 process log.
+
+A connection's `bearer_token` or `api_token` holding a control character, or a blank at either
+end, is refused when it is stored (`secret.not_sendable`, 422), because no HTTP header can carry
+it and the HTTP library refuses it by quoting the whole header. Whatever such a value already
+stored, or any other secret, makes a library say is scrubbed by what writes it down: a connection
+check's detail, a notification's error, a step's failure and log, and a source's `last_error` hold
+`***` in its place. Rows written before this are not rewritten, so a token that reached them is
+rotated.
 
 That is what makes a redacted read editable. `PATCH /api/v1/connections/{code}` replaces the
 config whole, and a secret field carrying the marker means **keep what is stored** -- the

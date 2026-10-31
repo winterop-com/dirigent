@@ -527,3 +527,29 @@ async def test_a_connection_s_password_reaches_only_the_worker_s_docker_and_a_pr
     configs = {env["DOCKER_CONFIG"] for _argv, _stdin, env in seen}
     assert len(configs) == 1
     assert not Path(configs.pop()).is_relative_to(local_ctx.work)
+
+
+# -- a path a link leads away ------------------------------------------------------
+
+
+@pytest.mark.parametrize("planted", ["context", "dockerfile"])
+async def test_a_context_or_dockerfile_a_link_leads_out_of_the_work_directory_is_refused(
+    local_ctx: FakeContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, planted: str
+) -> None:
+    calls = scripted_exec(monkeypatch, build_and_inspect)
+    outside = tmp_path / "outside-the-run"
+    outside.mkdir()
+    (outside / "Dockerfile").write_text("FROM scratch\n")
+    local_ctx.work.mkdir(parents=True, exist_ok=True)
+    if planted == "context":
+        (local_ctx.work / "ctx").symlink_to(outside)
+    else:
+        (local_ctx.work / "ctx").mkdir()
+        (local_ctx.work / "ctx" / "Dockerfile").symlink_to(outside / "Dockerfile")
+
+    with pytest.raises(BlockFailure) as raised:
+        await DockerBuildOperator().execute(DockerBuildConfig(context="ctx"), local_ctx.as_context())
+
+    assert raised.value.code == "execute.path_leaves_the_work_directory"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert calls == []
