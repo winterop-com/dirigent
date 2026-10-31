@@ -6,7 +6,7 @@ import { ApiChip } from '@/components/ApiChip'
 import { ConnectionDialog } from '@/components/connections/ConnectionDialog'
 import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
-import { KindChip } from '@/components/KindChip'
+import { Code } from '@/components/ds/Code'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { Mark } from '@/components/Mark'
 import { PageHeader } from '@/components/ds/PageHeader'
@@ -35,7 +35,7 @@ import { formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { kindGlyph } from '@/lib/glyphs'
 import { kindMarks } from '@/lib/marks'
-import { headingOf } from '@/lib/identity'
+import { headingOf, oneLine } from '@/lib/identity'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'
@@ -279,6 +279,11 @@ const COLUMNS: Column<ConnectionOut>[] = [
         cell: (row) => <Named row={row} />,
     },
     {
+        id: 'kind',
+        header: LABELS.word.kind.label,
+        cell: (row) => <Kind row={row} />,
+    },
+    {
         id: 'health',
         header: LABELS.word.health,
         cell: (row) => <Health row={row} />,
@@ -294,30 +299,41 @@ const COLUMNS: Column<ConnectionOut>[] = [
 ]
 
 /**
- * What a credential is called, the code it is reached by, and which kind it is.
- *
- * THE MARK LEADS AND THE CHIP FOLLOWS. The kind's glyph is what tells a row from its neighbours
- * at a glance and the chip is the word somebody narrows or types by, so the row wears both: the
- * mark ahead of the identity, then the title and the code together, then the kind in words.
+ * What a credential is called and the code it is reached by, with the first line of what it is
+ * for under them.
  */
 function Named({ row }: { row: ConnectionOut }) {
     const heading = headingOf(row)
+    return (
+        <span className="flex min-w-0 flex-col py-0.5">
+            <span className="flex min-w-0 items-center gap-3">
+                <span
+                    className={cn('truncate font-semibold', !heading.named && 'font-mono')}
+                    title={heading.title}
+                >
+                    {heading.title}
+                </span>
+                {heading.code !== null && <Code value={heading.code} />}
+            </span>
+            {row.description !== null && (
+                <span
+                    className="mt-1 truncate text-xs text-muted-foreground"
+                    title={oneLine(row.description)}
+                >
+                    {oneLine(row.description)}
+                </span>
+            )}
+        </span>
+    )
+}
+
+/** Which kind a credential is: its mark, and the kind in mono with no hue. */
+function Kind({ row }: { row: ConnectionOut }) {
     const marks = useStore(kindMarks)
     return (
         <span className="flex min-w-0 items-center gap-2">
             <Mark glyph={kindGlyph(row.kind, marks)} />
-            <span
-                className={cn('truncate font-semibold', !heading.named && 'font-mono')}
-                title={heading.title}
-            >
-                {heading.title}
-            </span>
-            {heading.code !== null && (
-                <span className="truncate font-mono text-xs text-muted-foreground" title={heading.code}>
-                    {heading.code}
-                </span>
-            )}
-            <KindChip kind={row.kind} />
+            <Code value={row.kind} />
         </span>
     )
 }

@@ -272,10 +272,6 @@ const word = {
         /** The column of what a schedule last did, and the panel's fact for the same moment. */
         last: 'Last firing',
         heading: 'Firings',
-        count: {
-            one: 'firing',
-            many: 'firings',
-        },
     },
     /** One try of one step, or of one delivery. */
     attempt: {
@@ -1356,26 +1352,18 @@ const dashboard = {
         all_well: 'Every worker and every connection is healthy.',
     },
 
-    /** The front door's first feed is headed by the noun, in `word.in_flight`. */
-    nothing_in_flight: 'Nothing is in flight.',
     /** The runs that want somebody, on both screens. */
     troubled_runs: 'Runs in trouble',
-    nothing_troubled: 'Nothing has failed or completed with errors.',
+    /** The most recent runs, and the way to every one of them. */
+    recent_runs: 'Recent runs',
+    all_runs: 'All runs',
+    /** How long each pipeline took over the last day. */
+    durations: {
+        title: 'Durations',
+        median: 'median',
+    },
     /** The firings still ahead. */
     next_firings: 'Next firings',
-    no_fire_due: 'No firing is due.',
-
-    /** The column headers of the three feeds. What each foot counts is `word`. */
-    column: {
-        /** When a live run started. */
-        since: 'Since',
-        /** The step a run died in. */
-        failed_at: 'Failed at',
-        /** What that step said. */
-        error: 'Error',
-        /** When the run was last doing anything. */
-        when: 'When',
-    },
 } as const
 
 /** The pipelines listing, its rows, and the picker that starts one from a shipped starter. */

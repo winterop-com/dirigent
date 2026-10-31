@@ -3,7 +3,7 @@
  */
 
 import type { RunOut } from '@/lib/runs'
-import type { PipelineOut } from '@/lib/pipelines'
+import type { PipelineOut, StepShape } from '@/lib/pipelines'
 import type { Concern } from '@/lib/workers'
 
 /** How loudly a tile is drawn. The four semantic aliases, plus the absence of any of them. */
@@ -67,6 +67,8 @@ export interface LookEntry {
     name: string | null
     /** The step the run died in, which the run's own row names. */
     failedStep: string | null
+    /** The pipeline's current shape, which the row's miniature draws. */
+    shape: StepShape[]
 }
 
 /**
@@ -82,5 +84,6 @@ export function withPipelines(runs: readonly RunOut[], pipelines: readonly Pipel
         run,
         name: held.get(run.pipeline)?.name ?? null,
         failedStep: run.failed_step,
+        shape: held.get(run.pipeline)?.shape ?? [],
     }))
 }

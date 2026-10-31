@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
-import { KindChip } from '@/components/KindChip'
+import { Code } from '@/components/ds/Code'
 import { Mark } from '@/components/Mark'
 import { Refusable } from '@/components/Refusable'
 import { ConnectionForm } from '@/components/connections/ConnectionForm'
@@ -84,7 +84,7 @@ export function ConnectionDialog({
             thing={connection}
             lead={editing ? LABELS.action.edit : undefined}
             glyph={<Mark glyph={kindGlyph(connection.kind, marks)} />}
-            chips={<KindChip kind={connection.kind} />}
+            chips={<Code value={connection.kind} />}
         />
     )
 
