@@ -1,80 +1,49 @@
-import { BookOpen, ChevronDown, Clock, FilePlus2, Plus, RefreshCw } from 'lucide-react'
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { BookOpen, ChevronDown, FilePlus2, Plus, RefreshCw } from 'lucide-react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { useListCards } from '@/components/list/ListForm'
-import { ListTable, type Column } from '@/components/list/ListTable'
-import { TagFilter } from '@/components/list/TagFilter'
+import { Chip } from '@/components/ds/Chip'
+import { Code } from '@/components/ds/Code'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { PageState } from '@/components/PageState'
-import { StatusDot } from '@/components/run/StatusChip'
 import { SearchField } from '@/components/ds/SearchField'
-import { TagChips } from '@/components/TagChips'
+import { SectionHeading } from '@/components/ds/SectionHeading'
+import { Surface } from '@/components/ds/Surface'
+import { MiniGraph } from '@/components/graph/MiniGraph'
+import { Instant } from '@/components/Instant'
+import { TagFilter } from '@/components/list/TagFilter'
+import { PageState } from '@/components/PageState'
 import { Refusable } from '@/components/Refusable'
+import { StatusChip } from '@/components/run/StatusChip'
 import { Button } from '@/components/ui/button'
-import { useMayWrite } from '@/hooks/use-may-write'
-import { usePaged } from '@/hooks/use-paged'
-import { useRead } from '@/hooks/use-read'
-import { formatInstant } from '@/lib/format'
-import { headingOf, oneLine } from '@/lib/identity'
-import { LABELS } from '@/lib/labels'
-import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { closePanel, fillPanel, openPanelTab, type PanelTab } from '@/lib/panels'
+import { useMayWrite } from '@/hooks/use-may-write'
+import { useRead } from '@/hooks/use-read'
+import { ICONS } from '@/lib/icons'
+import { headingOf, oneLine } from '@/lib/identity'
+import { counted, LABELS } from '@/lib/labels'
+import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import {
-    byTitle,
+    EXAMPLES_SHOWN,
     emptyNote,
+    failedStepOf,
     importanceMark,
-    lastRunView,
-    readPipelines,
+    readAllPipelines,
     readTagsOffered,
     retirement,
+    sourceKinds,
+    splitListing,
     tagsFromQuery,
-    triggerSummary,
-    type Importance,
     type PipelineOut,
 } from '@/lib/pipelines'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { statusLabel, statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'
-
-const pipelineId = (row: PipelineOut) => row.id
-
-/**
- * How much a pipeline matters, where that is more than every other one.
- *
- * It is the same chip the deactivated mark wears, so the two sit on one line rather than each
- * inventing a shape of its own.
- */
-function ImportanceChip({ importance }: { importance: Importance }) {
-    const mark = importanceMark(importance)
-    if (mark === null) return null
-    return (
-        <span
-            className={cn('rounded-sm border border-border px-1.5 text-xs', mark.className)}
-            title={mark.title}
-        >
-            {mark.label}
-        </span>
-    )
-}
-
-/**
- * The pane a chosen row opens, which nothing on this screen needs until a row is chosen.
- *
- * It carries the schema reader, the markdown lexer and the requirements check, and this screen
- * is in the entry chunk every reader pays for.
- */
-const PipelinePreview = lazy(() =>
-    import('@/components/pipelines/PipelinePreview').then((module) => ({ default: module.PipelinePreview })),
-)
 
 /**
  * The picker over the installed starters, mounted only once somebody asks for it.
@@ -86,46 +55,35 @@ const StarterPicker = lazy(() =>
     import('@/components/examples/StarterPicker').then((module) => ({ default: module.StarterPicker })),
 )
 
-/** Which tab of the right panel a chosen row opens. */
-const PREVIEW_TAB = 'pipeline'
-
 export const NEW_PIPELINE_LABEL = LABELS.pipelines.new
 
 export const FROM_FILE_LABEL = LABELS.pipelines.from_file
 
 export const FROM_STARTER_LABEL = LABELS.pipelines.from_starter
 
+/** The address flag that opens the whole examples band. */
+const ALL_EXAMPLES = 'examples'
+
 /**
- * Every pipeline this instance holds, in the order the titles on screen read in.
+ * Every pipeline this instance holds, each led by its shape, the person's own apart from the
+ * shipped examples.
  *
- * SEARCHING IS A SQUINT AT THE ROWS ALREADY ON SCREEN, not a question put to the server, and
- * the foot says how many rows those are, so what it is narrowing is never in doubt. THE TAG
- * FILTER IS THE OTHER THING: `GET /pipelines` takes it, so choosing a tag re-reads the listing
- * and pages through what it narrowed to, and choosing a second one narrows again.
+ * THE LISTING IS READ WHOLE. Splitting the two lists and putting the examples that ran first
+ * needs every row, so the walk reads the listing in a few large pages rather than paging as
+ * somebody scrolls. The tag filter is the server's and re-reads it; the search box narrows what
+ * was read.
  *
- * THE TAGS LIVE IN THE ADDRESS. A narrowed listing is a link somebody sends, so the query is
- * the filter's only state and a chip writes to it; it replaces rather than pushes, because a
- * filter somebody is assembling is one destination and not five.
- *
- * A ROW OPENS BESIDE THE TABLE; ITS TITLE OPENS THE EDITOR. Choosing a row is a request to read
- * that pipeline, and reading it is what the panel is for -- the version, what it takes, what it
- * reaches, how it has been running. Going to the editor is a second, louder intent, and the
- * title is the link that carries it.
- *
- * A ROW REGISTERS NOTHING WITH THE PALETTE. A screen registers what only it can do, and a
- * listing of fifty pipelines that each contributed a row would bury every other action in the
- * app under its own contents.
+ * A ROW IS THE LINK TO THE PIPELINE'S PAGE, and draws no panel and no arrow.
  */
 export function Pipelines() {
     const navigate = useNavigate()
     const [needle, setNeedle] = useState('')
     const [asked, setAsked] = useSearchParams()
     const filePicker = useRef<HTMLInputElement | null>(null)
-    const [chosen, setChosen] = useState<PipelineOut | null>(null)
     const [picking, setPicking] = useState(false)
 
-    // Held against the address, so the read below is asked again only when the filter changed.
     const tags = useMemo(() => tagsFromQuery(asked), [asked])
+    const allExamples = asked.get(ALL_EXAMPLES) === 'all'
     const setTags = useCallback(
         (next: readonly string[]) => {
             const query = new URLSearchParams(asked)
@@ -135,23 +93,20 @@ export function Pipelines() {
         },
         [asked, setAsked],
     )
-    const addTag = useCallback(
-        (tag: string) => {
-            if (!tags.includes(tag)) setTags([...tags, tag])
-        },
-        [setTags, tags],
-    )
+    const toggleExamples = useCallback(() => {
+        const query = new URLSearchParams(asked)
+        if (allExamples) query.delete(ALL_EXAMPLES)
+        else query.set(ALL_EXAMPLES, 'all')
+        setAsked(query, { replace: true })
+    }, [allExamples, asked, setAsked])
 
-    const read = useCallback((after: string | null) => readPipelines(after, tags), [tags])
-    const { state, more, reload } = usePaged(read, pipelineId)
-
-    const shown = useMemo(() => narrow(state.rows, needle).toSorted(byTitle), [needle, state.rows])
-    // The tags on offer are read once and stay put, because choosing one narrows the listing:
-    // a menu built from the rows that came back would lose the tags somebody adds next.
+    const listing = useRead(useCallback(() => readAllPipelines(tags), [tags]))
+    const rows = useMemo(() => listing.value ?? [], [listing.value])
+    const lists = useMemo(() => splitListing(narrow(rows, needle)), [needle, rows])
     const offered = useRead(readTagsOffered)
-    const columns = useMemo(() => pipelineColumns(addTag), [addTag])
     const write = useMayWrite()
     const mayWrite = write.may
+    const { again } = listing
 
     useEffect(() => {
         setScreenStatus({ note: null, tone: 'quiet', identifier: null })
@@ -160,7 +115,6 @@ export function Pipelines() {
 
     useEffect(() => {
         return registerActions([
-            // A row this account's role would be refused is a row the palette does not offer.
             ...(mayWrite
                 ? [
                       {
@@ -205,28 +159,13 @@ export function Pipelines() {
                 screen: true,
                 icon: RefreshCw,
                 keywords: ['refresh', 'reload'],
-                run: reload,
+                run: again,
             },
         ])
-    }, [mayWrite, navigate, reload])
+    }, [again, mayWrite, navigate])
 
-    // The panel is the screen's, and it holds the row that was chosen until another one is.
-    const tabs = useMemo<PanelTab[]>(() => {
-        if (chosen === null) return []
-        return [
-            {
-                id: PREVIEW_TAB,
-                label: LABELS.word.pipeline.label,
-                render: () => (
-                    <Suspense fallback={<PanelReading />}>
-                        <PipelinePreview key={chosen.code} pipeline={chosen} />
-                    </Suspense>
-                ),
-            },
-        ]
-    }, [chosen])
-
-    useEffect(() => fillPanel(tabs, { screen: 'pipelines' }), [tabs])
+    const shown = lists.own.length + lists.examples.length
+    const examples = allExamples ? lists.examples : lists.examples.slice(0, EXAMPLES_SHOWN)
 
     return (
         <>
@@ -235,11 +174,6 @@ export function Pipelines() {
                 aside={
                     <>
                         <ApiChip tag="pipelines" />
-                        {summary(shown.length, state.rows.length) !== null && (
-                            <span className="text-xs text-muted-foreground">
-                                {summary(shown.length, state.rows.length)}
-                            </span>
-                        )}
                         <input
                             ref={filePicker}
                             type="file"
@@ -258,7 +192,6 @@ export function Pipelines() {
                         <div className="flex">
                             <Refusable why={write.why}>
                                 <Button
-                                    size="sm"
                                     className="rounded-r-none"
                                     aria-label={NEW_PIPELINE_LABEL}
                                     disabled={!write.may}
@@ -274,7 +207,6 @@ export function Pipelines() {
                                 <DropdownMenuTrigger
                                     render={
                                         <Button
-                                            size="sm"
                                             className="rounded-l-none border-l border-primary-foreground/20 px-1.5"
                                             aria-label={LABELS.pipelines.more_ways}
                                             disabled={!write.may}
@@ -308,36 +240,64 @@ export function Pipelines() {
                 }
             />
 
-            <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="mb-6 flex flex-wrap items-center gap-2">
                 <SearchField value={needle} label={LABELS.pipelines.search} onChange={setNeedle} />
                 <TagFilter chosen={tags} offered={offered.value ?? []} onChange={setTags} />
             </div>
 
             <PageState
-                loading={!state.read}
-                problem={state.problem}
-                empty={shown.length === 0}
-                emptyMessage={emptyNote(state.rows.length, tags)}
+                loading={listing.value === null && listing.problem === null}
+                problem={listing.problem}
+                empty={shown === 0}
+                emptyMessage={emptyNote(rows.length, tags)}
             >
-                <ListTable
-                    columns={columns}
-                    rows={shown}
-                    rowKey={pipelineId}
-                    onSelect={(row) => {
-                        setChosen(row)
-                        openPanelTab(PREVIEW_TAB)
-                    }}
-                    selected={(row) => row.id === chosen?.id}
-                    onClose={() => {
-                        setChosen(null)
-                        closePanel()
-                    }}
-                    rowClassName={(row) => (retirement(row) === null ? undefined : 'opacity-60')}
-                    reading={state.reading}
-                    next={state.next}
-                    onMore={more}
-                    noun={LABELS.word.pipeline.count}
-                />
+                <div className="flex flex-col gap-9" data-testid="pipeline-lists">
+                    {lists.own.length > 0 && (
+                        <section aria-labelledby="own-pipelines" className="flex flex-col gap-3">
+                            <SectionHeading id="own-pipelines" aside={<Count n={lists.own.length} />}>
+                                {LABELS.pipelines.lists.own}
+                            </SectionHeading>
+                            <Surface inset={false} as="div">
+                                {lists.own.map((row) => (
+                                    <PipelineRow key={row.id} row={row} dense={false} />
+                                ))}
+                            </Surface>
+                        </section>
+                    )}
+                    {lists.examples.length > 0 && (
+                        <section aria-labelledby="example-pipelines" className="flex flex-col gap-3">
+                            <SectionHeading
+                                id="example-pipelines"
+                                aside={
+                                    <>
+                                        <Count n={lists.examples.length} />
+                                        {lists.examples.length > EXAMPLES_SHOWN && (
+                                            <button
+                                                type="button"
+                                                className="rounded-sm text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                                                aria-expanded={allExamples}
+                                                onClick={toggleExamples}
+                                            >
+                                                {allExamples
+                                                    ? LABELS.pipelines.lists.fewer_examples
+                                                    : LABELS.pipelines.lists.all_examples(
+                                                          String(lists.examples.length),
+                                                      )}
+                                            </button>
+                                        )}
+                                    </>
+                                }
+                            >
+                                {LABELS.pipelines.lists.examples}
+                            </SectionHeading>
+                            <Surface tone="recessed" inset={false} as="div">
+                                {examples.map((row) => (
+                                    <PipelineRow key={row.id} row={row} dense />
+                                ))}
+                            </Surface>
+                        </section>
+                    )}
+                </div>
             </PageState>
 
             {picking && (
@@ -355,22 +315,16 @@ export function Pipelines() {
     )
 }
 
-/** What stands in the panel while the pane's own chunk is being fetched. */
-function PanelReading() {
-    return (
-        <div className="p-4">
-            <PageState loading problem={null} empty={false}>
-                {null}
-            </PageState>
-        </div>
-    )
+/** How many rows a list holds, beside its heading. */
+function Count({ n }: { n: number }) {
+    return <span className="text-xs text-muted-foreground tabular-nums">{String(n)}</span>
 }
 
 /**
  * The rows whose code, name, description or tags carry what was typed.
  *
  * The tags are in the haystack so a corpus can be found by what it is for without reaching for
- * the filter beside the box: typing `climate` finds the climate pipelines either way.
+ * the filter beside the box.
  */
 function narrow(rows: readonly PipelineOut[], needle: string): PipelineOut[] {
     const wanted = needle.trim().toLowerCase()
@@ -383,148 +337,102 @@ function narrow(rows: readonly PipelineOut[], needle: string): PipelineOut[] {
 }
 
 /**
- * How many rows are on screen out of how many were read, or nothing when they are the same
- * number -- which the foot of the table already says, and the status bar says too.
- */
-function summary(shown: number, loaded: number): string | null {
-    if (shown === loaded) return null
-    return LABELS.pipelines.shown_of_loaded(String(shown), String(loaded))
-}
-
-/**
- * The columns, which differ between readers only by what a tag chip does when it is clicked.
+ * One pipeline: its shape, its title and code, the first sentence of its description, and what
+ * fires it and how it last ran where those exist.
  *
- * A CHIP ON A ROW NARROWS THE LISTING. It is the same filter the bar holds, reached from the
- * row that shows what to reach for, so clicking one adds it rather than replacing what is there.
+ * A dense row is an example's, on the recessed band: one line of description, and its facts
+ * beside the words rather than under them.
  */
-function pipelineColumns(onTag: (tag: string) => void): Column<PipelineOut>[] {
-    return [
-        {
-            id: 'pipeline',
-            header: LABELS.word.pipeline.label,
-            kind: 'title',
-            cell: (row) => {
-                const retired = retirement(row)
-                const heading = headingOf(row)
-                return (
-                    <div className="min-w-0">
-                        <span className="flex items-center gap-2">
-                            <Link
-                                className={cn(
-                                    // Cut with the whole of it on hover in the table, and wrapped
-                                    // on a card, where there is room and no pointer to hover with.
-                                    'truncate font-semibold hover:underline',
-                                    'max-lg:overflow-visible max-lg:whitespace-normal',
-                                    !heading.named && 'font-mono',
-                                )}
-                                to={`/pipelines/${encodeURIComponent(row.code)}`}
-                                title={heading.title}
-                            >
-                                {heading.title}
-                            </Link>
-                            <ImportanceChip importance={row.importance} />
-                            {retired !== null && (
-                                <span
-                                    className="rounded-sm border border-border px-1.5 text-xs text-faint"
-                                    title={LABELS.pipelines.deactivated.explained}
-                                >
-                                    {retired}
-                                </span>
-                            )}
-                        </span>
-                        <p className="flex items-center gap-2 text-xs">
-                            {heading.code !== null && (
-                                <span className="font-mono text-muted-foreground">{heading.code}</span>
-                            )}
-                            {row.description !== null && (
-                                <span
-                                    className="min-w-0 flex-1 truncate text-muted-foreground"
-                                    title={oneLine(row.description)}
-                                >
-                                    {oneLine(row.description)}
-                                </span>
-                            )}
-                        </p>
-                    </div>
-                )
-            },
-        },
-        {
-            id: 'tags',
-            header: LABELS.word.tags,
-            // No width of its own: the cell's own bound is what stops the column, and the lead
-            // column's `w-full` takes everything the chips did not need.
-            cell: (row) => (row.tags.length === 0 ? null : <TagChips tags={row.tags} onSelect={onTag} />),
-        },
-        {
-            id: 'triggers',
-            header: LABELS.word.trigger.heading,
-            cell: (row) =>
-                row.schedules === 0 ? null : (
-                    <span
-                        className="flex items-center gap-1 text-xs text-muted-foreground"
-                        title={triggerSummary(row)}
-                    >
-                        <Clock className="size-3" aria-hidden />
-                        {String(row.schedules)}
-                    </span>
-                ),
-        },
-        {
-            id: 'last-run',
-            header: LABELS.pipelines.column.last_run,
-            // One line, and no wider than that line: what this column says is short, and every
-            // pixel it does not need is the title's.
-            className: 'whitespace-nowrap',
-            cell: (row) => <LastRunCell row={row} />,
-        },
-    ]
-}
-
-/** How the newest run of a pipeline went, or that it has never had one. */
-function LastRunCell({ row }: { row: PipelineOut }) {
-    const view = lastRunView(row.last_run)
-    const cards = useListCards()
-    if (row.active_runs > 0) {
-        return (
-            <span
-                className="status-chip font-medium"
-                data-status="running"
-                data-live="true"
-                style={statusTokens('running') as CSSProperties}
-            >
-                <span className="status-dot" aria-hidden />
-                {LABELS.word.in_flight.counted(String(row.active_runs))}
-            </span>
-        )
-    }
-    if (view === null || row.last_run === null)
-        return <span className="text-xs text-faint">{LABELS.pipelines.last_run.never}</span>
-    return (
-        // Bounded in the table, where half of it is the identity's and this column's own words
-        // are what it gives back: the instant stands and what follows it is cut with the whole
-        // of it on hover. A card has no column beside it to take room from.
-        <span className={cn('flex min-w-0 items-center gap-1.5 text-xs', !cards && 'max-w-[14cqi]')}>
-            <StatusDot status={view.status} />
-            <Link
-                className="shrink-0 hover:underline"
-                to={`/runs/${row.last_run.id}`}
-                title={formatInstant(view.instant)}
-            >
-                {view.when}
-            </Link>
-            {view.failedStep === null ? (
-                <span className="truncate text-faint" title={statusLabel(view.status)}>
-                    {statusLabel(view.status)}
-                </span>
-            ) : (
-                <span
-                    className="truncate text-muted-foreground"
-                    title={LABELS.pipelines.last_run.failed_at(view.failedStep)}
-                >
-                    {LABELS.pipelines.last_run.failed_at(view.failedStep)}
-                </span>
+function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
+    const heading = headingOf(row)
+    const retired = retirement(row)
+    const mark = importanceMark(row.importance)
+    const sources = sourceKinds(row)
+    const sentence = row.description === null ? null : oneLine(row.description)
+    const facts = (
+        <div className={cn('flex flex-wrap items-center gap-x-3.5 gap-y-2', !dense && 'mt-2.5')}>
+            {row.schedules > 0 && (
+                <Chip icon={ICONS.schedule}>
+                    {`${String(row.schedules)} ${counted(row.schedules, LABELS.word.schedule.count)}`}
+                </Chip>
             )}
-        </span>
+            {sources.map((kind) => (
+                <Chip key={kind} icon={ICONS.source}>
+                    {kind}
+                </Chip>
+            ))}
+            {row.active_runs > 0 ? (
+                <StatusChip status="running" label={LABELS.word.in_flight.counted(String(row.active_runs))} />
+            ) : (
+                row.last_run !== null && (
+                    <span className="inline-flex items-center gap-2 text-xs">
+                        <StatusChip status={row.last_run.status} />
+                        <Instant
+                            at={row.last_run.finished_at ?? row.last_run.started_at}
+                            className="text-muted-foreground"
+                        />
+                    </span>
+                )
+            )}
+        </div>
+    )
+    const hasFacts = row.schedules > 0 || sources.length > 0 || row.active_runs > 0 || row.last_run !== null
+    return (
+        <Link
+            to={`/pipelines/${encodeURIComponent(row.code)}`}
+            className={cn(
+                'control-link flex flex-wrap items-center border-t border-border outline-none first:border-t-0 hover:bg-muted focus-visible:bg-muted',
+                dense ? 'min-h-16 gap-x-7 gap-y-2 px-5 py-2.5' : 'min-h-22 gap-x-7 gap-y-3 px-5 py-4',
+                retired !== null && 'opacity-60',
+            )}
+            data-testid="pipeline-row"
+        >
+            <div className={cn('flex w-59 shrink-0 items-center overflow-hidden', dense ? 'h-10' : 'h-13')}>
+                <MiniGraph
+                    steps={row.shape}
+                    failed={failedStepOf(row)}
+                    width={236}
+                    height={dense ? 40 : 52}
+                />
+            </div>
+            <div className="min-w-0 flex-[999_1_320px]">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+                    <span
+                        className={cn(
+                            'min-w-0 truncate',
+                            dense ? 'text-base font-medium' : 'text-title font-semibold',
+                            !heading.named && 'font-mono',
+                        )}
+                        title={heading.title}
+                    >
+                        {heading.title}
+                    </span>
+                    {heading.code !== null && <Code value={heading.code} />}
+                    {mark !== null && (
+                        <Chip tone="critical" title={mark.title}>
+                            {mark.label}
+                        </Chip>
+                    )}
+                    {retired !== null && (
+                        <Chip tone="dashed" title={LABELS.pipelines.deactivated.explained}>
+                            {retired}
+                        </Chip>
+                    )}
+                </div>
+                {sentence !== null && (
+                    <p
+                        className={cn(
+                            'text-sm text-muted-foreground',
+                            dense ? 'mt-0.5 truncate text-xs' : 'mt-1',
+                        )}
+                        title={dense ? sentence : undefined}
+                    >
+                        {sentence}
+                    </p>
+                )}
+                {!dense && hasFacts && facts}
+            </div>
+            {dense && hasFacts && <div className="flex-[0_1_auto]">{facts}</div>}
+        </Link>
     )
 }

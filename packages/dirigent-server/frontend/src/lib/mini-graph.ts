@@ -167,7 +167,9 @@ export function miniLayout(steps: readonly MiniStep[], failed: string | null = n
         edges: edges.flatMap(([from, to]) => {
             const start = byCode.get(from)
             const end = byCode.get(to)
-            return start === undefined || end === undefined ? [] : [{ id: `${from}->${to}`, d: edgePath(start, end) }]
+            return start === undefined || end === undefined
+                ? []
+                : [{ id: `${from}->${to}`, d: edgePath(start, end) }]
         }),
         width: (depth - 1) * MINI_RANK_PITCH + MINI_BOX_WIDTH,
         height: tallest * MINI_ROW_PITCH + MINI_BOX_HEIGHT,
@@ -175,7 +177,10 @@ export function miniLayout(steps: readonly MiniStep[], failed: string | null = n
 }
 
 /** How much a miniature is shrunk to stand inside a lead cell, never enlarged. */
-export function miniScale(layout: Pick<MiniLayout, 'width' | 'height'>, room: { width: number; height: number }): number {
+export function miniScale(
+    layout: Pick<MiniLayout, 'width' | 'height'>,
+    room: { width: number; height: number },
+): number {
     if (layout.width === 0 || layout.height === 0) return 1
     return Math.min(1, room.width / layout.width, room.height / layout.height)
 }

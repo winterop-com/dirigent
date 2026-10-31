@@ -17,6 +17,7 @@ import { PAGE } from '@/lib/paging'
 import { tagsFromQuery } from '@/lib/pipelines'
 import {
     RUN_STATUSES,
+    runSettled,
     type AttemptKind,
     type AttemptStatus,
     type LogLevel,
@@ -59,6 +60,8 @@ export interface RunOut {
     parent_run_id: string | null
     triggered_by_label: string | null
     trace_id: string | null
+    /** What the run and the runs its steps started have written to storage, in bytes. */
+    stored_bytes: number
     error: string | null
     /** The dotted code of the refusal the error was rendered from. */
     error_code: string | null
@@ -265,6 +268,56 @@ export function readLogs(
 /** Stop what has not started, and tell the remote about what has. */
 export function cancelRun(runId: string): Promise<RunOut> {
     return apiJson<RunOut>(`/runs/${encodeURIComponent(runId)}/$cancel`, { method: 'POST' })
+}
+
+/** Hold a queued or running run: nothing more of it starts, and its deadlines stand still. */
+export function pauseRun(runId: string): Promise<RunOut> {
+    return apiJson<RunOut>(`/runs/${encodeURIComponent(runId)}/$pause`, { method: 'POST' })
+}
+
+/** Let a paused run go on. */
+export function resumeRun(runId: string): Promise<RunOut> {
+    return apiJson<RunOut>(`/runs/${encodeURIComponent(runId)}/$resume`, { method: 'POST' })
+}
+
+/** One of a run's four verbs, and why it is shut where the run's state does not allow it. */
+export interface RunVerb {
+    open: boolean
+    why: string | null
+}
+
+/** What a run's state allows of each verb, which stand in one place whatever it allows. */
+export interface RunVerbs {
+    pause: RunVerb
+    resume: RunVerb
+    cancel: RunVerb
+    rerun: RunVerb
+}
+
+/**
+ * Decide which of a run's verbs its state allows.
+ *
+ * A finished run allows a rerun and nothing else; a paused one a resume and a cancel; a queued or
+ * running one a pause and a cancel. Every shut verb says why, so it can stay where it stands.
+ */
+const OPEN: RunVerb = { open: true, why: null }
+
+/** A verb shut where it stands, with the reason it says. */
+function shut(why: string): RunVerb {
+    return { open: false, why }
+}
+
+export function runVerbs(status: RunStatus): RunVerbs {
+    const open = OPEN
+    if (runSettled(status)) {
+        const finished = shut(LABELS.runs.verbs.finished)
+        return { pause: finished, resume: finished, cancel: finished, rerun: open }
+    }
+    const unsettled = shut(LABELS.runs.verbs.unsettled)
+    if (status === 'paused') {
+        return { pause: shut(LABELS.runs.verbs.paused), resume: open, cancel: open, rerun: unsettled }
+    }
+    return { pause: open, resume: shut(LABELS.runs.verbs.not_paused), cancel: open, rerun: unsettled }
 }
 
 /**

@@ -16,6 +16,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { LABELS } from '@/lib/labels'
 
 import {
+    fittedHeight,
     fittedZoom,
     fitOptionsFor,
     MAX_ZOOM,
@@ -87,6 +88,7 @@ export function GraphCanvas({
     editing = null,
     onSelect,
     control = null,
+    fitted = false,
     children,
 }: {
     nodes: Node[]
@@ -100,6 +102,94 @@ export function GraphCanvas({
     control?: ReactNode
     /** What the canvas holds over the graph, such as an affordance in a corner. */
     children?: ReactNode
+    /**
+     * A canvas on a page, as tall as its drawing: no zoom controls, no pan, and the page keeps the
+     * wheel, because a drawing fitted to its box has nothing to move to.
+     */
+    fitted?: boolean
+}) {
+    if (fitted) {
+        return (
+            <FittedBox nodes={nodes}>
+                <Canvas
+                    nodes={nodes}
+                    edges={edges}
+                    nodeTypes={nodeTypes}
+                    editing={null}
+                    onSelect={onSelect}
+                    fitted
+                >
+                    {children}
+                </Canvas>
+            </FittedBox>
+        )
+    }
+    return (
+        <Canvas
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            editing={editing}
+            onSelect={onSelect}
+            control={control}
+            fitted={false}
+        >
+            {children}
+        </Canvas>
+    )
+}
+
+/** The box a fitted canvas stands in, whose height follows the drawing at the width it has. */
+function FittedBox({ nodes, children }: { nodes: Node[]; children: ReactNode }) {
+    const box = useRef<HTMLDivElement | null>(null)
+    const [width, setWidth] = useState(0)
+    useEffect(() => {
+        const element = box.current
+        if (element === null) return
+        const observer = new ResizeObserver(() => {
+            setWidth(element.clientWidth)
+        })
+        observer.observe(element)
+        return () => {
+            observer.disconnect()
+        }
+    }, [])
+    const drawing = boundsOf(nodes)
+    return (
+        <div ref={box} className="w-full" style={{ height: fittedHeight(drawing, width) }}>
+            {children}
+        </div>
+    )
+}
+
+/** The extent of a set of placed nodes, which is what a fitted canvas is sized to. */
+function boundsOf(nodes: readonly Node[]): { width: number; height: number } {
+    if (nodes.length === 0) return { width: 0, height: 0 }
+    const left = Math.min(...nodes.map((node) => node.position.x))
+    const top = Math.min(...nodes.map((node) => node.position.y))
+    const right = Math.max(...nodes.map((node) => node.position.x + (node.width ?? 0)))
+    const bottom = Math.max(...nodes.map((node) => node.position.y + (node.height ?? 0)))
+    return { width: right - left, height: bottom - top }
+}
+
+function Canvas({
+    nodes,
+    edges,
+    nodeTypes,
+    editing,
+    onSelect,
+    control = null,
+    fitted,
+    children,
+}: {
+    nodes: Node[]
+    edges: Edge[]
+    nodeTypes: NodeTypes
+    editing: CanvasEditing | null
+    onSelect: (id: string | null) => void
+    control?: ReactNode
+    fitted: boolean
+    children?: ReactNode
 }) {
     // A pan, a zoom or a drag the reader made, which is what stops the canvas re-deciding the view.
     const [moved, setMoved] = useState(false)
@@ -111,7 +201,12 @@ export function GraphCanvas({
     return (
         <ReactFlow
             proOptions={PRO_OPTIONS}
-            className={`dg-graph${editing === null ? '' : ' dg-editable'}${connecting ? ' dg-connecting' : ''}`}
+            className={`dg-graph${editing === null ? '' : ' dg-editable'}${connecting ? ' dg-connecting' : ''}${fitted ? ' dg-fitted' : ''}`}
+            panOnDrag={!fitted}
+            zoomOnScroll={!fitted}
+            zoomOnPinch={!fitted}
+            zoomOnDoubleClick={!fitted}
+            preventScrolling={!fitted}
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
@@ -209,8 +304,8 @@ export function GraphCanvas({
             }}
         >
             <FitToGraph nodes={nodes} moved={moved} />
-            <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
-            <ZoomControls control={control} empty={nodes.length === 0} />
+            {!fitted && <Background variant={BackgroundVariant.Dots} gap={18} size={1} />}
+            {!fitted && <ZoomControls control={control} empty={nodes.length === 0} />}
             {children}
         </ReactFlow>
     )

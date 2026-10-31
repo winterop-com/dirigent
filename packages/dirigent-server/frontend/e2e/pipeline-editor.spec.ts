@@ -154,7 +154,7 @@ test('a step node is titled by its name over its key, and by its key alone when 
     await signIn(page)
     await applyDocument(page.request, APART)
 
-    await page.goto(`/pipelines/${APART_PIPELINE}`)
+    await page.goto(`/pipelines/${APART_PIPELINE}/edit`)
     await canvasSettled(page)
 
     const named = page.locator(`.react-flow__node[data-id="${NAMED_STEP}"]`)
@@ -166,7 +166,7 @@ test('a step node is titled by its name over its key, and by its key alone when 
     await expect(plain.getByTestId('step-line')).not.toContainText('report')
 })
 
-test('a pipeline row on the listing opens the editor at that pipeline', async ({ page }) => {
+test("a pipeline row on the listing opens that pipeline's page, led by its graph", async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
@@ -181,7 +181,7 @@ test('the stored document reads as its graph, and a step reads as its own config
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
 
     // THE GRAPH IS THE DOCUMENT: every step it declares is a node.
     for (const step of STEPS) {
@@ -210,7 +210,7 @@ test('a step opens on what it needs, and the keys it leaves unset are one link',
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
 
     // rows runs storage.read, which requires a source and offers a content_type and a max_size.
     // The document sets only the source, so the two it says nothing about are behind the link.
@@ -249,7 +249,7 @@ test('the engine half of a step is groups that say their state, and one opens in
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     // per_region is mapped over the parameter, and waits for the step that reshaped the rows.
     await page.locator('.react-flow__node').getByText('per_region', { exact: true }).click()
 
@@ -304,7 +304,7 @@ test('a config field the schema calls a program is edited as one, and every othe
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
 
     // per_region's program is five lines of jq, which is what one input cannot hold.
     await page.locator('.react-flow__node').getByText('per_region', { exact: true }).click()
@@ -346,7 +346,7 @@ test('editing a config field is unapplied until it is applied, and the topbar co
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
 
     const panel = page.locator('aside')
@@ -370,7 +370,7 @@ test('the source tab holds the same document, in the editor the schema is checke
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
 
     const panel = page.locator('aside')
@@ -392,7 +392,7 @@ test('the source tab marks a key the schema does not take, on its line', async (
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
 
     const panel = page.locator('aside')
@@ -429,7 +429,7 @@ async function planWithoutIt(page: Page, pipeline: string, held: Record<string, 
         code: pipeline,
         ...held,
     })
-    await page.goto(`/pipelines/${pipeline}`)
+    await page.goto(`/pipelines/${pipeline}/edit`)
     await page.locator('.react-flow__node').first().click()
     const panel = page.locator('aside')
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
@@ -510,7 +510,7 @@ test('a token an apply creates is shown once, before the editor moves on', async
     await expect(shown.getByTestId('minted-token')).not.toBeEmpty()
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)
     await shown.getByRole('button', { name: 'Close', exact: true }).click()
-    await expect(page).toHaveURL(new RegExp(`/pipelines/${pipeline}$`))
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${pipeline}/edit$`))
     await page.request.delete(`${prefix}/pipelines/${pipeline}`)
 })
 
@@ -518,7 +518,7 @@ test('validating an intact document reports no issues', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     await page.getByRole('button', { name: LABELS.action.validate }).click()
 
     const dialog = page.getByRole('dialog')
@@ -542,7 +542,7 @@ test('apply is shut on a document the instance already holds, and says why', asy
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     const apply = page.getByRole('button', { name: LABELS.action.apply, exact: true })
     await expect(apply).toBeDisabled()
     await expect(apply).toHaveAttribute('title', LABELS.editor.apply.nothing_to_apply)
@@ -564,7 +564,7 @@ test('the run dialog is built from the pipeline own parameter schema', async ({ 
     await signIn(page)
     await applyExample(page.request, PARAMS_EXAMPLE)
 
-    await page.goto(`/pipelines/${PARAMS_PIPELINE}`)
+    await page.goto(`/pipelines/${PARAMS_PIPELINE}/edit`)
     await page.getByRole('button', { name: 'Run…', exact: true }).click()
 
     const dialog = page.getByRole('dialog')
@@ -585,7 +585,7 @@ test('a document that reads a window is not run until it is given one', async ({
     await signIn(page)
     await applyDocument(page.request, WINDOWED)
 
-    await page.goto(`/pipelines/${WINDOWED_PIPELINE}`)
+    await page.goto(`/pipelines/${WINDOWED_PIPELINE}/edit`)
     await page.getByRole('button', { name: 'Run…', exact: true }).click()
 
     const dialog = page.getByRole('dialog')
@@ -625,7 +625,7 @@ test('a document that reads no window keeps its window behind a link and runs wi
     await signIn(page)
     await applyDocument(page.request, PLAIN)
 
-    await page.goto(`/pipelines/${PLAIN_PIPELINE}`)
+    await page.goto(`/pipelines/${PLAIN_PIPELINE}/edit`)
     await page.getByRole('button', { name: 'Run…', exact: true }).click()
 
     const dialog = page.getByRole('dialog')
@@ -666,7 +666,7 @@ async function runFacts(page: Page): Promise<Locator> {
 
 test("a pipeline this instance does not have is refused in this interface's own words", async ({ page }) => {
     await signIn(page)
-    await page.goto('/pipelines/no-such-pipeline')
+    await page.goto('/pipelines/no-such-pipeline/edit')
     // `pipeline.unknown` off the wire, drawn from the catalogue rather than from its `detail`.
     await expect(
         page.getByText(LABELS.refused.pipeline.unknown.replace('{code}', "'no-such-pipeline'")),
@@ -679,7 +679,7 @@ test('the editor opens with the whole graph in view, at a zoom that does not blo
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(STEPS.length)
     await everyNodeIsInView(page)
     // FIT_MAX_ZOOM in lib/dag-layout: a graph of a few boxes sits at a size worth reading
@@ -705,7 +705,7 @@ test('a graph too big for the floor opens readable, from its start, and is panne
     )
     await applyDocument(page.request, { format: 'dirigent/v1', kind: 'pipeline', code: pipeline, steps })
 
-    await page.goto(`/pipelines/${pipeline}`)
+    await page.goto(`/pipelines/${pipeline}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(count)
     await canvasSettled(page)
 
@@ -724,7 +724,7 @@ test('a graph of two steps is fully visible rather than filling the canvas', asy
     await signIn(page)
     await applyExample(page.request, PARAMS_EXAMPLE)
 
-    await page.goto(`/pipelines/${PARAMS_PIPELINE}`)
+    await page.goto(`/pipelines/${PARAMS_PIPELINE}/edit`)
     await everyNodeIsInView(page)
     expect(await graphZoom(page)).toBeLessThanOrEqual(1)
 })
@@ -733,7 +733,7 @@ test('the editor draws a port on every step, and a run graph draws none', async 
     await signIn(page)
     await applyDocument(page.request, APART)
 
-    await page.goto(`/pipelines/${APART_PIPELINE}`)
+    await page.goto(`/pipelines/${APART_PIPELINE}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
 
     // Two per box, both visible and both connectable: this is the canvas that edits.
@@ -747,7 +747,7 @@ test('an edge dragged between two ports is the dependency, and Delete takes it a
     await signIn(page)
     await applyDocument(page.request, APART)
 
-    await page.goto(`/pipelines/${APART_PIPELINE}`)
+    await page.goto(`/pipelines/${APART_PIPELINE}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
     await expect(page.locator('.react-flow__edge')).toHaveCount(0)
     await expect(page.getByText(/unapplied edit/)).toHaveCount(0)
@@ -787,7 +787,7 @@ test('an edge that would close a loop is refused, and the refusal names the loop
     await signIn(page)
     await applyDocument(page.request, APART)
 
-    await page.goto(`/pipelines/${APART_PIPELINE}`)
+    await page.goto(`/pipelines/${APART_PIPELINE}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
     await canvasSettled(page)
 
@@ -808,7 +808,7 @@ test('a box stays where it was dragged, across a reload, until Re-layout gives i
     await signIn(page)
     await applyDocument(page.request, APART)
 
-    await page.goto(`/pipelines/${APART_PIPELINE}`)
+    await page.goto(`/pipelines/${APART_PIPELINE}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
     await canvasSettled(page)
     const placed = await nodeAt(page, 'fetch')
@@ -844,7 +844,7 @@ test('a connection dropped on empty ground adds a step already waiting for the o
     await signIn(page)
     await applyDocument(page.request, APART)
 
-    await page.goto(`/pipelines/${APART_PIPELINE}`)
+    await page.goto(`/pipelines/${APART_PIPELINE}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
     await canvasSettled(page)
 
@@ -911,7 +911,7 @@ test("right-clicking a step opens the step's own menu, and Delete step takes it 
     await signIn(page)
     await applyDocument(page.request, CHAIN)
 
-    await page.goto(`/pipelines/${CHAIN_PIPELINE}`)
+    await page.goto(`/pipelines/${CHAIN_PIPELINE}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
     await expect(page.locator('.react-flow__edge')).toHaveCount(1)
     await canvasSettled(page)
@@ -940,7 +940,7 @@ test('a chosen step is deleted by the key, and never while a text box has the fo
     await signIn(page)
     await applyDocument(page.request, CHAIN)
 
-    await page.goto(`/pipelines/${CHAIN_PIPELINE}`)
+    await page.goto(`/pipelines/${CHAIN_PIPELINE}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
     await canvasSettled(page)
 
@@ -1251,7 +1251,7 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
     await dialog.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
 
     // The document has an address of its own now, at the version the apply wrote.
-    await expect(page).toHaveURL(new RegExp(`/pipelines/${code}$`))
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${code}/edit$`))
     // The chip by its own title, not by its text: once the apply lands, the foot states the
     // version the instance holds as well, and a bare `v1` matches whichever of the two got
     // there first.
@@ -1271,7 +1271,7 @@ test('Apply is quiet until the document differs from the version the instance ho
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     const apply = page.getByRole('button', { name: LABELS.action.apply, exact: true })
     await expect(apply).toBeVisible()
     await expect(apply).not.toHaveClass(/bg-primary/)
@@ -1295,7 +1295,7 @@ test('choosing a step switches the panel to its own tab, whatever was open, and 
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
 
     const panel = page.locator('aside')
@@ -1404,7 +1404,7 @@ test('a field naming a schema the instance holds opens it, and links to its scre
     await seedNamed(page.request, baseURL ?? '')
     await applyDocument(page.request, NAMING)
 
-    await page.goto(`/pipelines/${NAMING_PIPELINE}`)
+    await page.goto(`/pipelines/${NAMING_PIPELINE}/edit`)
     await page.locator('.react-flow__node').getByText('check', { exact: true }).click()
 
     const panel = page.locator('aside')
@@ -1433,7 +1433,7 @@ test('a field naming a connection reads its kind and where its last check left i
     await seedNamed(page.request, baseURL ?? '')
     await applyDocument(page.request, NAMING)
 
-    await page.goto(`/pipelines/${NAMING_PIPELINE}`)
+    await page.goto(`/pipelines/${NAMING_PIPELINE}/edit`)
     await page.locator('.react-flow__node').getByText('call', { exact: true }).click()
 
     const panel = page.locator('aside')
@@ -1456,7 +1456,7 @@ test('a code nothing holds says so, and is not something to press', async ({ pag
     await seedNamed(page.request, baseURL ?? '')
     await applyDocument(page.request, NAMING)
 
-    await page.goto(`/pipelines/${NAMING_PIPELINE}`)
+    await page.goto(`/pipelines/${NAMING_PIPELINE}/edit`)
     await page.locator('.react-flow__node').getByText('check', { exact: true }).click()
 
     // The row follows the box: typing a code nothing holds is what makes it a missing one.

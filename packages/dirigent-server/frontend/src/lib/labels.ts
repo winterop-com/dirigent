@@ -178,10 +178,6 @@ const word = {
     pipeline: {
         label: 'Pipeline',
         term: 'pipeline',
-        count: {
-            one: 'pipeline',
-            many: 'pipelines',
-        },
     },
     /** One execution of a pipeline. */
     run: {
@@ -1400,11 +1396,36 @@ const pipelines = {
     },
     /** The box over the table, which narrows the rows already read. */
     search: 'Search pipelines by code, name or tag',
-    /** How many rows the search left, out of how many were read. */
-    shown_of_loaded: (shown: string, loaded: string) => `${shown} of ${loaded}`,
-    /** The column header no shared noun covers. */
-    column: {
-        last_run: 'Last run',
+    /** The screen's two lists: the person's own pipelines, and the shipped examples apart. */
+    lists: {
+        own: 'Your pipelines',
+        examples: 'Examples',
+        /** Opens the rest of the examples band in place. */
+        all_examples: (count: string) => `All ${count} examples`,
+        /** Takes the band back to its short set. */
+        fewer_examples: 'Fewer examples',
+    },
+    /** A pipeline's own page: its graph first, then what it runs, what fires it and what it reaches. */
+    page: {
+        graph: 'Graph',
+        blocks: 'Blocks',
+        triggers: 'Triggers',
+        connections: 'Connections',
+        no_triggers: 'No triggers.',
+        no_connections: 'No connections.',
+        /** A step chip under a block, which chooses that step on the graph. */
+        choose_step: (step: string) => `Select ${step} in the graph`,
+        /** The strip under the graph about the chosen box. */
+        after: 'after',
+        feeds: 'feeds',
+        /** A source that fires the pipeline, as its row in the triggers panel says it. */
+        listens: (kind: string) => `listens on ${kind}`,
+        /** What Validate says once the dry run has answered. */
+        valid: 'The stored version applies as it is.',
+        invalid: {
+            one: (count: string) => `${count} problem with the stored version.`,
+            many: (count: string) => `${count} problems with the stored version.`,
+        },
     },
     /** The mark beside the title of a pipeline that matters more than every other one. */
     critical: {
@@ -1423,15 +1444,6 @@ const pipelines = {
      */
     trigger_summary: {
         none: 'nothing fires this on its own',
-    },
-    /** How the newest run of a pipeline reads in the listing. */
-    last_run: {
-        /** A run that was read before a worker put a moment on it. */
-        not_started: 'not started',
-        /** Nothing has ever run. */
-        never: 'never run',
-        /** Which step the run stopped at. */
-        failed_at: (step: string) => `at ${step}`,
     },
     /** What the table says when it has nothing in it, which a chosen tag is a reason for. */
     empty: {
@@ -2114,6 +2126,27 @@ const reference = {
  * `lib/run-detail` hands a node or a fact to draw.
  */
 const runs = {
+    /** Why a run's verb is shut where it stands, which is its tooltip. */
+    verbs: {
+        finished: 'This run has finished.',
+        unsettled: 'A run is run again once it has finished.',
+        paused: 'This run is already paused.',
+        not_paused: 'This run is not paused.',
+    },
+    /** The run screen's status line: the step it ended at, who started it, and what it stored. */
+    line: {
+        at: 'at',
+        by: (who: string) => `by ${who}`,
+        stored: (size: string) => `${size} stored`,
+    },
+    /** The failure under the graph, beside the log. */
+    failure: {
+        heading: (step: string) => `${step} failed`,
+        logs: 'Logs',
+        all_steps: 'All steps',
+        step_shown: 'step',
+        no_logs: 'No log lines.',
+    },
     // The listing.
 
     /** The button that folds in what arrived while the listing was being read. */

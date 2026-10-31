@@ -15,7 +15,6 @@
  */
 
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
-import { formatRelative } from '@/lib/format'
 import { titleOf } from '@/lib/identity'
 import { counted, type Counted, LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
@@ -64,6 +63,17 @@ export function importanceMark(importance: Importance): ImportanceMark | null {
     return importance === 'critical' ? CRITICAL_MARK : null
 }
 
+/** One step of a pipeline's current version, as its miniature draws it. `StepShape`. */
+export interface StepShape {
+    code: string
+    name: string | null
+    kind: 'block' | 'source' | 'reply'
+    /** The block a block step runs, the kind of a source, or `reply`. */
+    block: string
+    depends_on: string[]
+    fan_out: boolean
+}
+
 /** A pipeline as a listing shows it. `PipelineOut`. */
 export interface PipelineOut {
     id: string
@@ -81,6 +91,10 @@ export interface PipelineOut {
     active_runs: number
     schedules: number
     last_run: LastRun | null
+    /** The current version's steps in the order they were written. */
+    shape: StepShape[]
+    /** Whether this pipeline's code is one the installed example corpus ships. */
+    example: boolean
     created_at: string
     updated_at: string
 }
@@ -228,6 +242,9 @@ export function tagsPresent(rows: readonly PipelineOut[]): string[] {
     return [...new Set(rows.flatMap((row) => row.tags))].toSorted((left, right) => left.localeCompare(right))
 }
 
+/** How many rows one page of a whole walk asks for, which is what keeps it a few requests. */
+const LISTING_PAGE = 200
+
 /** How many pages of pipelines a name lookup walks before it stops asking. */
 const NAMES_PAGE_LIMIT = 20
 
@@ -238,13 +255,13 @@ const NAMES_PAGE_LIMIT = 20
  * that offers one pipeline out of all of them has to hold all of them to search across, and a
  * corpus is dozens of rows.
  */
-export async function readAllPipelines(): Promise<PipelineOut[]> {
+export async function readAllPipelines(tags: readonly string[] = []): Promise<PipelineOut[]> {
     const rows: PipelineOut[] = []
     let after: string | null = null
     for (let page = 0; page < NAMES_PAGE_LIMIT; page += 1) {
         // A cursor walk is sequential by definition: the next page is named by this one.
         // oxlint-disable-next-line no-await-in-loop
-        const answer: Page<PipelineOut> = await readPipelines(after)
+        const answer: Page<PipelineOut> = await readPipelines(after, tags, LISTING_PAGE)
         rows.push(...answer.items)
         after = answer.next
         if (after === null) break
@@ -389,27 +406,55 @@ function count(many: number, noun: Counted<string>): string | null {
     return `${String(many)} ${counted(many, noun)}`
 }
 
-/** How a pipeline's last run reads in the listing: a state, when it was, and what went wrong. */
-export interface LastRunView {
-    /** A `RunStatus`, which indexes the token the dot is drawn in. */
-    status: RunStatus
-    /** When it ended, or when it started while it has not ended. */
-    when: string
-    /** The instant behind that reading, for the element's title. */
-    instant: string | null
-    failedStep: string | null
+/** How many examples the pipelines screen shows before it is asked for all of them. */
+export const EXAMPLES_SHOWN = 8
+
+/** A pipeline's two lists: the person's own, and the shipped examples. */
+export interface PipelineLists {
+    own: PipelineOut[]
+    examples: PipelineOut[]
 }
 
-/** What the last-run cell draws, or nothing for a pipeline that has never run. */
-export function lastRunView(last: LastRun | null, now: number = Date.now()): LastRunView | null {
+/** When a pipeline last ran, as a number to order by, or null where it never has. */
+function ranAt(row: PipelineOut): number | null {
+    const last = row.last_run
     if (last === null) return null
-    const instant = last.finished_at ?? last.started_at
-    return {
-        status: last.status,
-        when: instant === null ? LABELS.pipelines.last_run.not_started : formatRelative(instant, now),
-        instant,
-        failedStep: last.failed_step,
-    }
+    const instant = last.started_at ?? last.finished_at
+    return instant === null ? 0 : Date.parse(instant)
+}
+
+/**
+ * Split a listing into the person's own pipelines and the shipped examples.
+ *
+ * The person's own read by title. The examples read with the ones that have run first, the most
+ * recent first, and the rest by title after them, so the short set the screen shows is the part
+ * of the corpus somebody has actually been using.
+ */
+export function splitListing(rows: readonly PipelineOut[]): PipelineLists {
+    const own = rows.filter((row) => !row.example).toSorted(byTitle)
+    const examples = rows
+        .filter((row) => row.example)
+        .toSorted((left, right) => {
+            const one = ranAt(left)
+            const other = ranAt(right)
+            if (one !== null && other !== null && one !== other) return other - one
+            if (one !== null && other === null) return -1
+            if (one === null && other !== null) return 1
+            return byTitle(left, right)
+        })
+    return { own, examples }
+}
+
+/** The step a pipeline's newest run failed in, which is the box its miniature fills. */
+export function failedStepOf(row: Pick<PipelineOut, 'last_run'>): string | null {
+    const last = row.last_run
+    if (last === null) return null
+    return last.status === 'failed' || last.status === 'completed_with_errors' ? last.failed_step : null
+}
+
+/** The kinds of source a pipeline listens on, once each, which is what fires it besides a clock. */
+export function sourceKinds(row: Pick<PipelineOut, 'shape'>): string[] {
+    return [...new Set(row.shape.filter((step) => step.kind === 'source').map((step) => step.block))]
 }
 
 /** Whether a pipeline is one the instance no longer runs, and what to call that. */

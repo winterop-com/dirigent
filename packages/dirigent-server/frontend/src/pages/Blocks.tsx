@@ -413,7 +413,9 @@ function FieldReference({ field }: { field: FieldDescriptor }) {
                 <span className="font-mono text-sm font-medium">{field.name}</span>
                 <span className="text-xs text-muted-foreground">{typeLabel(field)}</span>
                 {field.required && (
-                    <span className="text-xs text-foreground underline-offset-2">{LABELS.blocks.field_required}</span>
+                    <span className="text-xs text-foreground underline-offset-2">
+                        {LABELS.blocks.field_required}
+                    </span>
                 )}
                 {field.hint !== null && <span className="text-xs text-faint">{field.hint}</span>}
                 {fallback !== null && (

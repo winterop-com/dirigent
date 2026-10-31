@@ -28,8 +28,30 @@
  * canvas: the ranks still read left to right, and the height nothing was using carries the rest.
  */
 
-/** How wide every node is drawn. */
+/** How wide a node is drawn when a screen does not say: the width before words decided it. */
 export const NODE_WIDTH = 160
+
+/** The narrowest a node is drawn, however short its words. */
+export const NODE_MIN_WIDTH = 96
+
+/** How wide one mono character is in a title, at 12px, and on the line under it, at 11px. */
+const TITLE_CHAR = 7.2
+const LINE_CHAR = 6.6
+
+/** A node's padding and border, and the room its state's dot takes beside the title. */
+const NODE_CHROME = 20
+const DOT_ROOM = 14
+
+/**
+ * How wide a node has to be for none of its words to be cut.
+ *
+ * Both lines are mono, so a width is arithmetic over their characters: the longer of the title
+ * with its dot and the line under it with whatever stands at its end, plus the box's padding.
+ */
+export function nodeWidth(title: string, line: string, lineExtra = 0): number {
+    const words = Math.max(title.length * TITLE_CHAR + DOT_ROOM, line.length * LINE_CHAR + lineExtra)
+    return Math.max(NODE_MIN_WIDTH, Math.ceil(words + NODE_CHROME))
+}
 
 /** How tall an ordinary node is: its title, one line under it, and its padding. */
 export const NODE_HEIGHT = 44
@@ -37,10 +59,17 @@ export const NODE_HEIGHT = 44
 /** What a fan-out node's item strip adds to its height: one line of 11px text. */
 export const STRIP_HEIGHT = 16
 
-/** One node to place: what it is called, and how tall it will be drawn. */
+/** One node to place: what it is called, and how wide and how tall it will be drawn. */
 export interface LayoutNode {
     id: string
+    /** How wide the node is drawn; `NODE_WIDTH` where a screen does not say. */
+    width?: number
     height: number
+}
+
+/** How wide one node is drawn. */
+function widthOf(node: LayoutNode): number {
+    return node.width ?? NODE_WIDTH
 }
 
 /** What a screen reduces its own graph to before elk sees it. */
@@ -91,7 +120,7 @@ export interface PlacedGraph {
 }
 
 /** How much canvas one rank takes: a node and the gap to the next rank. */
-export const RANK_SPACING = 44
+export const RANK_SPACING = 28
 
 /** How far apart two nodes of one rank sit. */
 export const NODE_SPACING = 20
@@ -118,7 +147,7 @@ export const LAYOUT_OPTIONS: Record<string, string> = {
  * It is about what a canvas can show at `FIT_MIN_ZOOM` with the fit's own padding around it, so
  * a graph is wrapped when drawing it in one row would put its text below a size worth reading.
  */
-export const WRAP_WIDTH = 1400
+export const WRAP_WIDTH = 1120
 
 /**
  * What elk is told when a graph is too wide to draw in one row: cut the layering into chunks
@@ -163,10 +192,21 @@ export function rankDepth(shape: LayoutShape): number {
     return [...ranksOf(shape).values()].reduce((most, rank) => Math.max(most, rank + 1), 0)
 }
 
+/** How wide each rank is: the widest node standing in it. */
+function rankWidths(shape: LayoutShape, ranks: Map<string, number>): number[] {
+    const widths: number[] = []
+    for (const node of shape.nodes) {
+        const rank = ranks.get(node.id) ?? 0
+        widths[rank] = Math.max(widths[rank] ?? 0, widthOf(node))
+    }
+    return Array.from(widths, (width) => width ?? 0)
+}
+
 /** How wide a shape would be drawn in one left-to-right row. */
 export function unwrappedWidth(shape: LayoutShape): number {
-    const ranks = rankDepth(shape)
-    return ranks === 0 ? 0 : ranks * NODE_WIDTH + (ranks - 1) * RANK_SPACING
+    const widths = rankWidths(shape, ranksOf(shape))
+    if (widths.length === 0) return 0
+    return widths.reduce((sum, width) => sum + width, 0) + (widths.length - 1) * RANK_SPACING
 }
 
 /** The options one shape is placed with: the layered ones, plus wrapping when it is too wide. */
@@ -187,7 +227,7 @@ export function heightOf(fanOut: boolean): number {
  */
 export function signatureOf(shape: LayoutShape): string {
     return [
-        shape.nodes.map((node) => `${node.id}:${String(node.height)}`).join(','),
+        shape.nodes.map((node) => `${node.id}:${String(widthOf(node))}x${String(node.height)}`).join(','),
         shape.edges.map(([from, to]) => `${from}>${to}`).join(','),
     ].join('|')
 }
@@ -198,7 +238,7 @@ export function toElkGraph(shape: LayoutShape): ElkGraph {
     return {
         id: 'dag',
         layoutOptions: layoutOptionsFor(shape),
-        children: shape.nodes.map((node) => ({ id: node.id, width: NODE_WIDTH, height: node.height })),
+        children: shape.nodes.map((node) => ({ id: node.id, width: widthOf(node), height: node.height })),
         // An edge to or from a node the shape does not carry would be an edge elk cannot place.
         edges: shape.edges
             .filter(([from, to]) => known.has(from) && known.has(to))
@@ -229,7 +269,7 @@ export function fromElkGraph(shape: LayoutShape, laid: ElkLaidOut): PlacedGraph 
                 id: node.id,
                 x: child?.x ?? 0,
                 y: child?.y ?? 0,
-                width: child?.width ?? NODE_WIDTH,
+                width: child?.width ?? widthOf(node),
                 height: child?.height ?? node.height,
             }
         }),
@@ -237,8 +277,25 @@ export function fromElkGraph(shape: LayoutShape, laid: ElkLaidOut): PlacedGraph 
     }
 }
 
-/** How many ranks one row of a wrapped placement holds. */
-const RANKS_PER_ROW = Math.max(1, Math.floor(WRAP_WIDTH / (NODE_WIDTH + RANK_SPACING)))
+/**
+ * Where each rank stands when a shape is placed by hand: which row, and how far along it.
+ *
+ * A row takes ranks until the next would carry it past `WRAP_WIDTH`, and never fewer than one.
+ */
+function rankColumns(widths: readonly number[], wrapping: boolean): { row: number; x: number }[] {
+    const placed: { row: number; x: number }[] = []
+    let row = 0
+    let x = 0
+    for (const width of widths) {
+        if (wrapping && x > 0 && x + width > WRAP_WIDTH) {
+            row += 1
+            x = 0
+        }
+        placed.push({ row, x })
+        x += width + RANK_SPACING
+    }
+    return placed
+}
 
 /**
  * The same shape placed without elk: one column per rank, each stacked down the canvas.
@@ -257,14 +314,15 @@ const RANKS_PER_ROW = Math.max(1, Math.floor(WRAP_WIDTH / (NODE_WIDTH + RANK_SPA
 export function placedByRank(shape: LayoutShape): PlacedGraph {
     const ranks = ranksOf(shape)
     const wrapping = unwrappedWidth(shape) > WRAP_WIDTH
+    const columns = rankColumns(rankWidths(shape, ranks), wrapping)
 
     // Every box in the row and column its rank puts it in, stacked where two share one.
     const nextTop = new Map<string, number>()
     const rowHeights = new Map<number, number>()
     const stacked = shape.nodes.map((node) => {
         const rank = ranks.get(node.id) ?? 0
-        const row = wrapping ? Math.floor(rank / RANKS_PER_ROW) : 0
-        const column = wrapping ? rank % RANKS_PER_ROW : rank
+        const row = columns[rank]?.row ?? 0
+        const column = columns[rank]?.x ?? 0
         const key = `${String(row)}:${String(column)}`
         const top = nextTop.get(key) ?? 0
         nextTop.set(key, top + node.height + NODE_SPACING)
@@ -283,9 +341,9 @@ export function placedByRank(shape: LayoutShape): PlacedGraph {
     return {
         nodes: stacked.map(({ node, row, column, top }) => ({
             id: node.id,
-            x: column * (NODE_WIDTH + RANK_SPACING),
+            x: column,
             y: top + (rowTops.get(row) ?? 0),
-            width: NODE_WIDTH,
+            width: widthOf(node),
             height: node.height,
         })),
         edges: placedEdges(shape),
@@ -339,6 +397,26 @@ export const FIT_MAX_ZOOM = 1
  * 11px word at 8.8px. A graph too big to fit at this zoom is shown at this zoom and panned to.
  */
 export const FIT_MIN_ZOOM = 0.8
+
+/** The ground a fitted canvas keeps above and below its drawing, in pixels. */
+export const FITTED_GROUND = 40
+
+/** The shortest a fitted canvas is drawn, so a graph of one box is not a sliver. */
+export const FITTED_MIN_HEIGHT = 96
+
+/**
+ * How tall a canvas fitted to its drawing is, at the width it was given.
+ *
+ * The drawing is scaled down where it is wider than the canvas and never up past its own size,
+ * and the canvas is as tall as the drawing at that zoom with its ground around it -- never shorter
+ * than a fit with its padding would need, so the fit settles at the same zoom the height assumed.
+ */
+export function fittedHeight(drawing: { width: number; height: number }, width: number): number {
+    if (drawing.width <= 0 || drawing.height <= 0 || width <= 0) return FITTED_MIN_HEIGHT
+    const zoom = fittedZoom(Math.min(FIT_MAX_ZOOM, width / (drawing.width * (1 + FIT_PADDING))))
+    const tall = Math.max(drawing.height * zoom + FITTED_GROUND, drawing.height * zoom * (1 + FIT_PADDING))
+    return Math.max(FITTED_MIN_HEIGHT, Math.ceil(tall))
+}
 
 /** How far one press of a zoom control moves, as a factor on the zoom. */
 export const ZOOM_STEP = 1.5

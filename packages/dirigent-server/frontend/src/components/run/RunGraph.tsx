@@ -5,7 +5,7 @@ import { GraphCanvas } from '@/components/graph/GraphCanvas'
 import { usePlacedGraph } from '@/components/graph/use-placed'
 import { StepNode, type StepNode as StepNodeKind } from '@/components/run/StepNode'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
-import { drawnSize, heightOf, type LayoutShape } from '@/lib/dag-layout'
+import { drawnSize, heightOf, nodeWidth, type LayoutShape } from '@/lib/dag-layout'
 import { drawnStates, edgeClasses, handovers, type StepView } from '@/lib/run-detail'
 import type { AnyStatus } from '@/lib/status'
 import type { DagView } from '@/lib/runs'
@@ -79,10 +79,20 @@ function useHandovers(views: readonly StepView[]): ReadonlySet<string> {
     return handing
 }
 
-/** The run's graph reduced to what elk needs: an id and a height per step, and the pairs. */
+/** What a step's duration takes at the end of its second line. */
+const DURATION_ROOM = 48
+
+/** The run's graph reduced to what elk needs: an id, a width and a height per step, and the pairs. */
 function shapeOf(dag: DagView): LayoutShape {
     return {
-        nodes: dag.nodes.map((node) => ({ id: node.code, height: heightOf(node.fan_out) })),
+        nodes: dag.nodes.map((node) => {
+            const line = node.name === null ? node.block : `${node.code} · ${node.block}`
+            return {
+                id: node.code,
+                width: nodeWidth(node.name ?? node.code, line, DURATION_ROOM),
+                height: heightOf(node.fan_out),
+            }
+        }),
         edges: dag.edges,
     }
 }
@@ -92,11 +102,14 @@ export function RunGraph({
     views,
     selected,
     onSelect,
+    fitted = false,
 }: {
     dag: DagView
     views: StepView[]
     selected: string | null
     onSelect: (step: string | null) => void
+    /** Drawn on a page as tall as the graph, rather than in a stage. */
+    fitted?: boolean
 }) {
     const shape = useMemo(() => shapeOf(dag), [dag])
     const placed = usePlacedGraph(shape)
@@ -134,5 +147,7 @@ export function RunGraph({
         }))
     }, [byCode, handing, placed, reduced])
 
-    return <GraphCanvas nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onSelect={onSelect} />
+    return (
+        <GraphCanvas nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onSelect={onSelect} fitted={fitted} />
+    )
 }

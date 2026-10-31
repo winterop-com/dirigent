@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { MINI_RANK_PITCH, MINI_ROW_PITCH, miniLayout, miniScale, reducedEdges, type MiniStep } from './mini-graph'
+import {
+    MINI_RANK_PITCH,
+    MINI_ROW_PITCH,
+    miniLayout,
+    miniScale,
+    reducedEdges,
+    type MiniStep,
+} from './mini-graph'
 
 const step = (code: string, depends_on: string[] = [], extra: Partial<MiniStep> = {}): MiniStep => ({
     code,

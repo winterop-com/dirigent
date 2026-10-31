@@ -15,6 +15,7 @@
 
 import {
     Activity,
+    Layers2,
     ArrowUpRight,
     Ban,
     Bell,
@@ -145,6 +146,7 @@ export const ICONS = {
     pipeline: Workflow,
     run_history: Activity,
     step: Box,
+    fan_out: Layers2,
     block: Blocks,
     connection: Plug,
     schema: FileBraces,
@@ -228,6 +230,7 @@ export const ICON_GROUPS = {
         'pipeline',
         'run_history',
         'step',
+        'fan_out',
         'block',
         'connection',
         'schema',

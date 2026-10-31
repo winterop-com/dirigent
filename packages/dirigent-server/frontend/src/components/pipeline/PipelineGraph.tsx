@@ -27,7 +27,7 @@ import {
     type Placement,
     type Placements,
 } from '@/lib/canvas-layout'
-import { drawnSize, NODE_HEIGHT, NODE_WIDTH, RANK_SPACING, type LayoutShape } from '@/lib/dag-layout'
+import { drawnSize, NODE_HEIGHT, nodeWidth, RANK_SPACING, type LayoutShape } from '@/lib/dag-layout'
 import {
     blockOf,
     edgesIn,
@@ -179,7 +179,12 @@ function EditableGraph({
 
     const shape = useMemo<LayoutShape>(
         () => ({
-            nodes: stepNames(document).map((name) => ({ id: name, height: NODE_HEIGHT })),
+            nodes: stepNames(document).map((name) => {
+                const heading = stepHeading(document, name)
+                const block = blockOf(document, name) ?? LABELS.editor.no_block
+                const line = heading.code === null ? block : `${heading.code} · ${block}`
+                return { id: name, width: nodeWidth(heading.title, line), height: NODE_HEIGHT }
+            }),
             edges: edgesIn(document),
         }),
         [document],
@@ -313,7 +318,7 @@ function EditableGraph({
                         if (box === undefined) return
                         setDropped({
                             from: onNode.step,
-                            at: { x: box.position.x + NODE_WIDTH + RANK_SPACING, y: box.position.y },
+                            at: { x: box.position.x + (box.width ?? 0) + RANK_SPACING, y: box.position.y },
                             over: onNode.over,
                         })
                     }}

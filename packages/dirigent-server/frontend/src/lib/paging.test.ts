@@ -104,17 +104,16 @@ describe('a cursor-paged listing', () => {
 
 describe('the foot of a listing', () => {
     it('says there is more where the cursor says so', () => {
-        expect(rowsRead(50, LABELS.word.pipeline.count, true)).toBe('50 pipelines, more to load')
+        expect(rowsRead(50, LABELS.word.run.count, true)).toBe('50 runs, more to load')
     })
 
     it('states the count alone once the listing has run out', () => {
-        expect(rowsRead(50, LABELS.word.pipeline.count, false)).toBe('50 pipelines')
+        expect(rowsRead(50, LABELS.word.run.count, false)).toBe('50 runs')
     })
 
     // "1 items" is the whole bug class, so every noun this app counts rows in is pinned at one
     // as well as at two: a plural nothing spelled is a plural somebody derived.
     it.each([
-        [LABELS.word.pipeline.count, '0 pipelines', '1 pipeline', '2 pipelines'],
         [LABELS.word.run.count, '0 runs', '1 run', '2 runs'],
         [LABELS.word.block.count, '0 blocks', '1 block', '2 blocks'],
         [LABELS.word.connection.count, '0 connections', '1 connection', '2 connections'],

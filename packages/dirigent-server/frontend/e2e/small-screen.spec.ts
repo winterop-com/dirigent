@@ -80,7 +80,7 @@ test.describe('a tablet', () => {
 })
 
 test('the editor reads the document and offers nothing that would write one', async ({ page }) => {
-    await page.goto(`/pipelines/${PIPELINE}`)
+    await page.goto(`/pipelines/${PIPELINE}/edit`)
     await expect(page.getByText(LABELS.editor.topbar.read_only)).toBeVisible()
     await expect(page.getByRole('button', { name: LABELS.action.apply })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Run…', exact: true })).toHaveCount(0)
@@ -93,7 +93,7 @@ test('the editor reads the document and offers nothing that would write one', as
 })
 
 test('the panel is a sheet raised from the tab bar', async ({ page }) => {
-    await page.goto(`/pipelines/${PIPELINE}`)
+    await page.goto(`/pipelines/${PIPELINE}/edit`)
     const sheet = page.locator('[data-panel-sheet]')
     await expect(sheet).toBeHidden()
 
@@ -125,7 +125,7 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
 
     await page.keyboard.press('Escape')
 
-    await page.goto(`/pipelines/${PIPELINE}`)
+    await page.goto(`/pipelines/${PIPELINE}/edit`)
     const tabs = page.locator('[data-panel-bar]').getByRole('button')
     await expect(tabs.first()).toBeVisible()
     for (const tab of await tabs.all()) {
