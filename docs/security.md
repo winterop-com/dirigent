@@ -665,6 +665,12 @@ What holds, and what it covers:
   `docker.compose.*`, `docker.build` and `git.checkout` build one from `PATH`, `LANG`, `LC_ALL`,
   `TZ` and what the step names, and a `docker.run` container gets only what its step names. A
   secret is not in what they inherit.
+- **The program holding a docker connection's secrets is the host's choice.** `docker.compose.*` and
+  `docker.build` hand a connection's TLS key and registry password to the `docker` on the worker's own
+  `PATH`, with its config in a private directory. A document cannot name another program, set a
+  variable that steers it (`PATH`, `HOME`, `DOCKER_CONFIG` and the like, listed in
+  [docker.md](docker.md#files-live-in-the-runs-work-directory)), or plant a plugin or credential helper in the work
+  directory. `git.checkout` takes no such field and no `env`, and `shell.run` holds no connection.
 - **`dg worker` and `dg dev` take `DIRIGENT_SECRET_KEY` out of `os.environ` at start-up.** That
   covers what `os.environ` reaches: a subprocess a plugin starts without naming an environment,
   and a library reading a variable.

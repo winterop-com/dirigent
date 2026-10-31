@@ -32,9 +32,8 @@ from dirigent_block_execute.docker import (
     login,
     logout,
     sealed,
-    write_cli_config,
 )
-from dirigent_block_execute.environment import reject_reserved
+from dirigent_block_execute.environment import STEERING_ENV_SCHEMA, reject_reserved, reject_steering
 from dirigent_block_execute.messages import (
     BUILD_EXITED,
     BUILD_PATHS_STAY_INSIDE,
@@ -58,6 +57,10 @@ from dirigent_plugin import (
 
 #: What a daemon that is not there or not ours says, a transient condition rather than a broken build.
 DAEMON_UNREACHABLE = ("cannot connect to the docker daemon", "is the docker daemon running", "permission denied")
+
+#: The CLI the block runs. Which binary that is, is the worker's ``PATH``, and no document's.
+DOCKER_CLI = "docker"
+BUILD_CLI = (DOCKER_CLI, "buildx", "build")
 
 #: What ``docker push`` prints once the registry has taken a tag, which is where its digest is.
 PUSHED_DIGEST = re.compile(r"digest:\s*(sha256:[0-9a-f]{64})")
@@ -102,14 +105,12 @@ class DockerBuildConfig(BlockModel):
     Absent, the build runs against whatever daemon the worker's own environment names and
     nothing is pushed."""
 
-    env: dict[str, str] = Field(default_factory=dict[str, str])
-    """Variables set for the CLI itself, such as BuildKit's own toggles."""
+    env: dict[str, str] = Field(default_factory=dict[str, str], json_schema_extra=STEERING_ENV_SCHEMA)
+    """Variables set for the CLI itself, such as BuildKit's own toggles; never one that chooses what
+    the CLI runs or trusts, such as ``PATH`` or ``DOCKER_CONFIG``."""
 
     env_allowlist: list[str] = Field(default_factory=list[str])
     """Worker environment variables the CLI is allowed to inherit; never the instance's ``DIRIGENT_*``."""
-
-    command_path: list[str] = Field(default_factory=lambda: ["docker", "buildx", "build"])
-    """The CLI to invoke, for a host that wraps buildx."""
 
     timeout: Duration = timedelta(minutes=30)
     """The overall deadline on the build, after which it is killed as transient."""
@@ -125,6 +126,7 @@ class DockerBuildConfig(BlockModel):
             if Path(path).is_absolute() or ".." in Path(path).parts:
                 raise ValueError(BUILD_PATHS_STAY_INSIDE.render())
         reject_reserved(self.env_allowlist)
+        reject_steering(self.env)
         return self
 
 
@@ -178,11 +180,10 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
             raise BlockFailure(NO_REGISTRY_CREDENTIAL, error_class=ErrorClass.REJECTED)
         timeout = config.timeout.total_seconds()
 
-        with sealed(settings, isolate_config=config.push) as material:
+        with sealed(settings, isolate_config=True) as material:
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
-            write_cli_config(root / ".docker")
             code, out, err, stdout_uri, build_log_uri = await subprocess.run(
                 directory=root,
                 ctx=ctx,
@@ -221,7 +222,7 @@ class DockerBuildOperator(Operator[DockerBuildConfig, DockerBuildOutput]):
 
 def build_argv(config: DockerBuildConfig, context: Path, iidfile: Path) -> list[str]:
     """Assemble the ``buildx build`` argv, flag by flag, with the context last."""
-    argv = [*config.command_path, "--file", str(context / config.dockerfile), "--iidfile", str(iidfile)]
+    argv = [*BUILD_CLI, "--file", str(context / config.dockerfile), "--iidfile", str(iidfile)]
     for tag in config.tags:
         argv += ["--tag", tag]
     for name, value in config.build_args.items():
@@ -258,8 +259,7 @@ async def _push(
     if not config.push:
         return [], {}
     assert settings is not None
-    docker = config.command_path[0] if config.command_path else "docker"
-    code, err = await login(docker, root, environ, settings)
+    code, err = await login(DOCKER_CLI, root, environ, settings)
     if code != 0:
         detail = tail(err, redact=material.secrets) or f"docker login exited {code}"
         raise BlockFailure(
@@ -270,7 +270,7 @@ async def _push(
     try:
         for tag in config.tags:
             code, out, err = await subprocess.output(
-                argv=[docker, "push", tag],
+                argv=[DOCKER_CLI, "push", tag],
                 directory=root,
                 environ=environ,
                 timeout_seconds=timeout,
@@ -285,7 +285,7 @@ async def _push(
             pushed.append(tag)
             ctx.log.info("image pushed", tag=tag, registry=settings.registry_name, digest=digests.get(tag, ""))
     finally:
-        await logout(docker, root, environ, settings)
+        await logout(DOCKER_CLI, root, environ, settings)
     return pushed, digests
 
 
@@ -293,10 +293,9 @@ async def _image_size(
     config: DockerBuildConfig, image_id: str, root: Path, environ: dict[str, str], timeout: float
 ) -> int:
     """Read the built image's size from the daemon, best effort; zero when it cannot be read."""
-    docker = config.command_path[0] if config.command_path else "docker"
     try:
         _code, out, _err = await subprocess.output(
-            argv=[docker, "image", "inspect", "--format", "{{.Size}}", image_id],
+            argv=[DOCKER_CLI, "image", "inspect", "--format", "{{.Size}}", image_id],
             directory=root,
             environ=environ,
             timeout_seconds=timeout,
