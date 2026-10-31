@@ -706,8 +706,9 @@ the last day by the hour, with the failed and the troubled parts of each bar in 
 rest in a neutral ink, because a green bar is the loudest thing on a page where nothing is wrong;
 and under it how long each pipeline took, the median of its runs in that day. Beside them the
 health of what the runs depend on -- each connection that is not healthy by name with its word,
-a count of how many are, and every worker. Last, the most recent runs, one line each, with
-`All runs`{ .label } beside the heading. There are no stat tiles: a number that is zero on a good day is a
+a count of how many are, and every worker. Then the runs in flight, the most recent runs, one
+line each, with `All runs`{ .label } beside the heading, and the next firings -- each of the three
+only where there is any. There are no stat tiles: a number that is zero on a good day is a
 number nobody reads on a bad one.
 
 **The tags fold to the room they have rather than wrapping into it.** Chips are one line: a row
