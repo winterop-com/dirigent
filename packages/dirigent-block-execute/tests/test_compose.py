@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import subprocess as std_subprocess
 from collections.abc import Callable
 from datetime import timedelta
@@ -23,6 +24,7 @@ from dirigent_block_execute.compose import (
     read_status,
     up_argv,
 )
+from dirigent_common import BlockModel
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext
 from dirigent_testing.messages import TEST_REFUSAL
@@ -583,3 +585,59 @@ async def test_a_real_stack_comes_up_is_joined_and_torn_down(local_ctx: FakeCont
         )
         assert isinstance(down, DockerComposeDownOutput)
         assert down.torn_down is True
+
+
+# -- the program is the host's -----------------------------------------------------
+
+
+def execs_with_their_environment(monkeypatch: pytest.MonkeyPatch) -> list[tuple[list[str], dict[str, str]]]:
+    """Answer every process with success, recording its argv and the environment it was given."""
+    seen: list[tuple[list[str], dict[str, str]]] = []
+
+    async def fake_exec(*argv: str, env: dict[str, str], **_: object) -> FakeProcess:
+        seen.append((list(argv), dict(env)))
+        return FakeProcess(0, stdout=b"Started\n")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    return seen
+
+
+@pytest.mark.parametrize("config", [DockerComposeUpConfig, DockerComposeDownConfig])
+def test_a_document_cannot_choose_the_program(config: type[BlockModel]) -> None:
+    with pytest.raises(ValidationError, match="command_path"):
+        config.model_validate({"content": "services: {}", "command_path": ["/tmp/mine"]})
+
+
+@pytest.mark.parametrize("config", [DockerComposeUpConfig, DockerComposeDownConfig])
+@pytest.mark.parametrize(
+    "name",
+    ["PATH", "HOME", "DOCKER_CONFIG", "DOCKER_HOST", "DOCKER_CONTEXT", "LD_PRELOAD", "DYLD_INSERT_LIBRARIES"],
+)
+def test_a_step_cannot_set_what_steers_the_program(config: type[BlockModel], name: str) -> None:
+    with pytest.raises(ValidationError, match="the host's decision"):
+        config.model_validate({"content": "services: {}", "env": {name: "/tmp/mine"}})
+
+
+@pytest.mark.parametrize("config", [DockerComposeUpConfig, DockerComposeDownConfig])
+def test_a_variable_a_compose_file_interpolates_is_still_set(config: type[BlockModel]) -> None:
+    assert config.model_validate({"content": "services: {}", "env": {"GREETING": "hi", "DOCKER_BUILDKIT": "1"}})
+
+
+async def test_the_cli_reads_its_config_from_a_private_directory_and_not_from_the_work_directory(
+    local_ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen = execs_with_their_environment(monkeypatch)
+    install_daemon(monkeypatch, FakeComposeDaemon([WEB_CONTAINER]))
+    local_ctx.work.mkdir(parents=True, exist_ok=True)
+    planted = local_ctx.work / ".docker" / "cli-plugins"
+    planted.mkdir(parents=True)
+    (planted / "docker-compose").write_text("#!/bin/sh\n")
+
+    await DockerComposeUpOperator().execute(DockerComposeUpConfig(content="services: {}"), local_ctx.as_context())
+
+    argv, environ = seen[0]
+    assert argv[:2] == ["docker", "compose"]
+    config = Path(environ["DOCKER_CONFIG"])
+    assert not config.is_relative_to(local_ctx.work)
+    assert not config.exists(), "the directory goes when the step leaves"
+    assert environ["PATH"] == os.environ["PATH"]

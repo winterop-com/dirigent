@@ -26,7 +26,7 @@ because a half-built stack should never be left behind.
 
 import asyncio
 import contextlib
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import timedelta
 from pathlib import Path
 from typing import ClassVar, Literal
@@ -35,7 +35,7 @@ import httpx2
 from pydantic import BaseModel, Field, model_validator
 
 from dirigent_block_execute import subprocess
-from dirigent_block_execute.capture import log_stream, tail
+from dirigent_block_execute.capture import log_stream, scrub, tail
 from dirigent_block_execute.docker import (
     DAEMON_ENV,
     ContainerInspect,
@@ -45,9 +45,8 @@ from dirigent_block_execute.docker import (
     open_client,
     resolve_endpoint,
     sealed,
-    write_cli_config,
 )
-from dirigent_block_execute.environment import reject_reserved
+from dirigent_block_execute.environment import STEERING_ENV_SCHEMA, reject_reserved, reject_steering
 from dirigent_block_execute.messages import (
     COMPOSE_DOWN_EXITED,
     COMPOSE_DOWN_ONE_SOURCE,
@@ -79,6 +78,10 @@ CLEANUP_TIMEOUT_SECONDS = 120.0
 #: What a daemon that is not there or not ours says, a transient condition rather than a fault
 #: in the stack: a worker has no daemon of its own unless the deployment gives it one.
 DAEMON_UNREACHABLE = ("cannot connect to the docker daemon", "is the docker daemon running", "permission denied")
+
+
+#: The CLI the blocks run. Which binary that is, is the worker's ``PATH``, and no document's.
+COMPOSE_CLI = ("docker", "compose")
 
 
 class ComposePublisher(BlockModel):
@@ -151,8 +154,9 @@ class DockerComposeUpConfig(BlockModel):
     env_files: list[str] = Field(default_factory=list[str])
     """Env files for compose to read, as paths inside the run's work directory (``--env-file``)."""
 
-    env: dict[str, str] = Field(default_factory=dict[str, str])
-    """Variables set for the CLI itself, such as those a compose file interpolates."""
+    env: dict[str, str] = Field(default_factory=dict[str, str], json_schema_extra=STEERING_ENV_SCHEMA)
+    """Variables set for the CLI itself, such as those a compose file interpolates; never one that
+    chooses what the CLI runs or trusts, such as ``PATH`` or ``DOCKER_CONFIG``."""
 
     env_allowlist: list[str] = Field(default_factory=list[str])
     """Worker environment variables the CLI is allowed to inherit.
@@ -178,9 +182,6 @@ class DockerComposeUpConfig(BlockModel):
     started. This never tears down a *successful* ``up`` -- that persists for the run by
     design."""
 
-    command_path: list[str] = Field(default_factory=lambda: ["docker", "compose"])
-    """The CLI to invoke, for a host that spells it ``docker-compose`` or wraps it."""
-
     connection: ConnectionRef | None = None
     """A ``docker`` connection naming the daemon this stack runs on.
 
@@ -204,6 +205,7 @@ class DockerComposeUpConfig(BlockModel):
             raise ValueError(COMPOSE_UP_ONE_SOURCE.render())
         _reject_escaping((self.file, *self.env_files))
         reject_reserved(self.env_allowlist)
+        reject_steering(self.env)
         return self
 
 
@@ -228,8 +230,9 @@ class DockerComposeDownConfig(BlockModel):
     env_files: list[str] = Field(default_factory=list[str])
     """Env files for compose to read, as paths inside the run's work directory (``--env-file``)."""
 
-    env: dict[str, str] = Field(default_factory=dict[str, str])
-    """Variables set for the CLI itself, such as those a compose file interpolates."""
+    env: dict[str, str] = Field(default_factory=dict[str, str], json_schema_extra=STEERING_ENV_SCHEMA)
+    """Variables set for the CLI itself, such as those a compose file interpolates; never one that
+    chooses what the CLI runs or trusts, such as ``PATH`` or ``DOCKER_CONFIG``."""
 
     env_allowlist: list[str] = Field(default_factory=list[str])
     """Worker environment variables the CLI is allowed to inherit; never the instance's ``DIRIGENT_*``."""
@@ -253,9 +256,6 @@ class DockerComposeDownConfig(BlockModel):
     the steps that drive it and the ``down`` should all name the same connection, because a
     stack only exists on the daemon that was told to create it."""
 
-    command_path: list[str] = Field(default_factory=lambda: ["docker", "compose"])
-    """The CLI to invoke, for a host that spells it ``docker-compose`` or wraps it."""
-
     timeout: Duration = timedelta(minutes=10)
     """The overall deadline on the CLI invocation, after which it is killed as transient."""
 
@@ -266,6 +266,7 @@ class DockerComposeDownConfig(BlockModel):
             raise ValueError(COMPOSE_DOWN_ONE_SOURCE.render())
         _reject_escaping((self.file, *self.env_files))
         reject_reserved(self.env_allowlist)
+        reject_steering(self.env)
         return self
 
 
@@ -340,11 +341,10 @@ class DockerComposeUpOperator(Operator[DockerComposeUpConfig, DockerComposeUpOut
         project = config.project_name or _default_project(ctx)
         timeout = config.timeout.total_seconds()
 
-        with sealed(_connection(config.connection, ctx)) as material:
+        with sealed(_connection(config.connection, ctx), isolate_config=True) as material:
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
-            write_cli_config(root / ".docker")
             try:
                 code, out, err, stdout_uri, stderr_uri = await subprocess.run(
                     directory=root,
@@ -355,21 +355,25 @@ class DockerComposeUpOperator(Operator[DockerComposeUpConfig, DockerComposeUpOut
                     stderr_name="up-stderr",
                     argv=up_argv(config, project, compose_file, root),
                     what="docker compose up",
+                    redact=material.secrets,
                 )
             except BaseException:
                 # The bring-up timed out or the step was cancelled, and whatever compose had
                 # already started is running: tear it down before leaving, the same as a
                 # non-zero exit does.
                 if config.cleanup:
-                    await _abandoned(config, project, compose_file, root, environ, ctx)
+                    await _abandoned(config, project, compose_file, root, environ, ctx, material.secrets)
                 raise
-            log_stream(ctx, "stdout", out)
-            log_stream(ctx, "stderr", err)
+            log_stream(ctx, "stdout", out, material.secrets)
+            log_stream(ctx, "stderr", err, material.secrets)
             ctx.log.info("docker compose up finished", project=project, exit_code=code)
             if code != 0:
                 if config.cleanup:
-                    await _cleanup(config, project, compose_file, root, environ, CLEANUP_TIMEOUT_SECONDS, ctx)
-                detail = tail(err.tail) or tail(out.tail) or "no output"
+                    await _cleanup(
+                        config, project, compose_file, root, environ, CLEANUP_TIMEOUT_SECONDS, ctx, material.secrets
+                    )
+                detail = tail(err.tail, redact=material.secrets) or tail(out.tail, redact=material.secrets)
+                detail = detail or "no output"
                 raise BlockFailure(COMPOSE_UP_EXITED, error_class=_classify(err.tail), code=code, detail=detail)
 
             services, networks, default_network = await read_status(
@@ -408,11 +412,10 @@ class DockerComposeDownOperator(Operator[DockerComposeDownConfig, DockerComposeD
         project = config.project_name or _default_project(ctx)
         timeout = config.timeout.total_seconds()
 
-        with sealed(_connection(config.connection, ctx)) as material:
+        with sealed(_connection(config.connection, ctx), isolate_config=True) as material:
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
-            write_cli_config(root / ".docker")
             code, out, err, stdout_uri, stderr_uri = await subprocess.run(
                 directory=root,
                 ctx=ctx,
@@ -422,12 +425,14 @@ class DockerComposeDownOperator(Operator[DockerComposeDownConfig, DockerComposeD
                 stderr_name="down-stderr",
                 argv=down_argv(config, project, compose_file, root),
                 what="docker compose down",
+                redact=material.secrets,
             )
-        log_stream(ctx, "stdout", out)
-        log_stream(ctx, "stderr", err)
+        log_stream(ctx, "stdout", out, material.secrets)
+        log_stream(ctx, "stderr", err, material.secrets)
         ctx.log.info("docker compose down finished", project=project, exit_code=code)
         if code != 0:
-            detail = tail(err.tail) or tail(out.tail) or "no output"
+            detail = tail(err.tail, redact=material.secrets) or tail(out.tail, redact=material.secrets)
+            detail = detail or "no output"
             raise BlockFailure(COMPOSE_DOWN_EXITED, error_class=_classify(err.tail), code=code, detail=detail)
         return DockerComposeDownOutput(project=project, stdout_uri=stdout_uri, stderr_uri=stderr_uri)
 
@@ -436,7 +441,6 @@ class DockerComposeDownOperator(Operator[DockerComposeDownConfig, DockerComposeD
 
 
 def _global_flags(
-    command_path: list[str],
     project: str,
     compose_file: Path | None,
     profiles: list[str],
@@ -449,7 +453,7 @@ def _global_flags(
     sits in, so relative build contexts and env files in the document resolve against the run's
     own directory rather than against a generated file's directory.
     """
-    flags = [*command_path, "--project-name", project, "--project-directory", str(root)]
+    flags = [*COMPOSE_CLI, "--project-name", project, "--project-directory", str(root)]
     if compose_file is not None:
         flags += ["-f", str(compose_file)]
     for profile in profiles:
@@ -462,7 +466,7 @@ def _global_flags(
 def up_argv(config: DockerComposeUpConfig, project: str, compose_file: Path, root: Path) -> list[str]:
     """Assemble the ``up`` argv, flag by flag."""
     argv = [
-        *_global_flags(config.command_path, project, compose_file, config.profiles, config.env_files, root),
+        *_global_flags(project, compose_file, config.profiles, config.env_files, root),
         "up",
         "-d",
     ]
@@ -477,7 +481,7 @@ def up_argv(config: DockerComposeUpConfig, project: str, compose_file: Path, roo
 def down_argv(config: DockerComposeDownConfig, project: str, compose_file: Path | None, root: Path) -> list[str]:
     """Assemble the ``down`` argv, flag by flag."""
     argv = [
-        *_global_flags(config.command_path, project, compose_file, config.profiles, config.env_files, root),
+        *_global_flags(project, compose_file, config.profiles, config.env_files, root),
         "down",
     ]
     if config.down_volumes:
@@ -493,7 +497,7 @@ def down_argv(config: DockerComposeDownConfig, project: str, compose_file: Path 
 def _cleanup_argv(config: DockerComposeUpConfig, project: str, compose_file: Path, root: Path) -> list[str]:
     """A plain ``down`` for the failed-up backstop, built from the ``up`` config."""
     argv = [
-        *_global_flags(config.command_path, project, compose_file, config.profiles, config.env_files, root),
+        *_global_flags(project, compose_file, config.profiles, config.env_files, root),
         "down",
     ]
     if config.remove_orphans:
@@ -508,6 +512,7 @@ async def _abandoned(
     root: Path,
     environ: dict[str, str],
     ctx: StepContext,
+    redact: Sequence[str],
 ) -> None:
     """Tear down a bring-up nothing is waiting for any more, out of reach of the cancellation.
 
@@ -515,7 +520,7 @@ async def _abandoned(
     behind a shield and is bounded by its own deadline rather than the step's.
     """
     teardown = asyncio.ensure_future(
-        _cleanup(config, project, compose_file, root, environ, CLEANUP_TIMEOUT_SECONDS, ctx)
+        _cleanup(config, project, compose_file, root, environ, CLEANUP_TIMEOUT_SECONDS, ctx, redact)
     )
     try:
         await asyncio.shield(teardown)
@@ -533,6 +538,7 @@ async def _cleanup(
     environ: dict[str, str],
     timeout: float,
     ctx: StepContext,
+    redact: Sequence[str],
 ) -> None:
     """Best-effort tear down a stack whose own ``up`` did not succeed, so nothing half-built is left."""
     try:
@@ -544,10 +550,10 @@ async def _cleanup(
             what="docker compose down",
         )
     except BlockFailure as error:
-        ctx.log.warning("the failed stack could not be cleaned up", project=project, error=str(error))
+        ctx.log.warning("the failed stack could not be cleaned up", project=project, error=scrub(str(error), redact))
         return
     if code != 0:
-        ctx.log.warning("the failed stack could not be cleaned up", project=project, detail=tail(err))
+        ctx.log.warning("the failed stack could not be cleaned up", project=project, detail=tail(err, redact=redact))
     else:
         ctx.log.info("the failed stack was cleaned up", project=project)
 

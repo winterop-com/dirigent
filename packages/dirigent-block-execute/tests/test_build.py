@@ -228,16 +228,22 @@ async def test_a_build_context_comes_from_the_work_directory_whatever_scratch_is
 async def test_a_build_gives_the_cli_a_config_naming_the_workers_plugin_directory(
     local_ctx: FakeContext, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The run's HOME is its work directory, where the CLI would otherwise find no buildx."""
+    """The CLI's config is private to the step, where it would otherwise find no buildx."""
     plugins = tmp_path / "config" / "cli-plugins"
     plugins.mkdir(parents=True)
     monkeypatch.setenv("DOCKER_CONFIG", str(tmp_path / "config"))
-    scripted_exec(monkeypatch, build_and_inspect)
+    written: list[object] = []
+
+    async def fake_exec(*argv: str, env: dict[str, str], **_: object) -> FakeProcess:
+        written.append(json.loads((Path(env["DOCKER_CONFIG"]) / "config.json").read_text()))
+        return build_and_inspect(list(argv))
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
 
     await DockerBuildOperator().execute(DockerBuildConfig(context="."), local_ctx.as_context())
 
-    written = json.loads((local_ctx.work / ".docker" / "config.json").read_text())
-    assert written == {"cliPluginsExtraDirs": [str(plugins)]}
+    assert written[0] == {"cliPluginsExtraDirs": [str(plugins)]}
+    assert not (local_ctx.work / ".docker").exists()
 
 
 async def test_a_size_read_that_fails_leaves_the_size_zero(
@@ -466,3 +472,58 @@ def test_an_optional_connection_says_it_names_one_on_the_branch_that_holds_a_cod
     branch = next(one for one in published["properties"]["connection"]["anyOf"] if "$ref" in one)
     named = str(branch["$ref"]).removeprefix("#/$defs/")
     assert published["$defs"][named]["x-dirigent-ref"] == "connection"
+
+
+# -- the program is the host's -----------------------------------------------------
+
+
+def test_a_document_cannot_choose_the_program() -> None:
+    with pytest.raises(ValidationError, match="command_path"):
+        DockerBuildConfig.model_validate({"context": ".", "command_path": ["/tmp/mine"]})
+
+
+@pytest.mark.parametrize("name", ["PATH", "HOME", "DOCKER_CONFIG", "DOCKER_HOST", "LD_PRELOAD", "SSL_CERT_FILE"])
+def test_a_step_cannot_set_what_steers_the_program(name: str) -> None:
+    with pytest.raises(ValidationError, match="the host's decision"):
+        DockerBuildConfig(context=".", env={name: "/tmp/mine"})
+
+
+def test_buildkit_s_own_toggles_are_still_set() -> None:
+    assert DockerBuildConfig(context=".", env={"DOCKER_BUILDKIT": "1", "BUILDKIT_PROGRESS": "plain"})
+
+
+async def test_a_connection_s_password_reaches_only_the_worker_s_docker_and_a_private_config(
+    local_ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[tuple[list[str], bytes | None, dict[str, str]]] = []
+
+    class Answer(FakeProcess):
+        def __init__(self, argv: list[str], env: dict[str, str]) -> None:
+            super().__init__(0, stdout=b"104857600\n")
+            self.argv = argv
+            self.env = env
+
+        async def communicate(self, stdin: bytes | None = None) -> tuple[bytes, bytes]:
+            seen.append((self.argv, stdin, self.env))
+            return await super().communicate(stdin)
+
+    async def fake_exec(*argv: str, env: dict[str, str], **_: object) -> FakeProcess:
+        if "--iidfile" in argv:
+            Path(argv[argv.index("--iidfile") + 1]).write_text(IMAGE_ID)
+        return Answer(list(argv), dict(env))
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    local_ctx.connections["ghcr"] = DockerConnectionConfig(
+        registry="ghcr.io", username="u", password=SecretStr("DUMMY-REGISTRY-PASSWORD")
+    )
+
+    config = DockerBuildConfig(context=".", push=True, connection="ghcr", tags=["ghcr.io/o/i:1"])
+    await DockerBuildOperator().execute(config, local_ctx.as_context())
+
+    assert seen
+    assert {argv[0] for argv, _stdin, _env in seen} == {"docker"}
+    logins = [stdin for argv, stdin, _env in seen if "login" in argv]
+    assert logins == [b"DUMMY-REGISTRY-PASSWORD"]
+    configs = {env["DOCKER_CONFIG"] for _argv, _stdin, env in seen}
+    assert len(configs) == 1
+    assert not Path(configs.pop()).is_relative_to(local_ctx.work)

@@ -311,21 +311,30 @@ def sealed(settings: DockerConnectionConfig | None, *, isolate_config: bool = Fa
     """Materialise a connection's daemon and registry material, and take it away again.
 
     The TLS triple becomes three 0600 files in a 0700 directory that ``DOCKER_CERT_PATH``
-    names, and a login gets a ``DOCKER_CONFIG`` directory of its own beside them. The tree
-    goes whether the step succeeded, failed, or was cancelled. Without a connection there is
-    nothing to materialise and the worker's own environment stands.
+    names, and ``isolate_config`` gives the CLI a ``DOCKER_CONFIG`` directory of its own beside
+    them, so neither a login nor a plugin or credential helper is read from the run's work
+    directory. The tree goes whether the step succeeded, failed, or was cancelled. With no
+    connection and no isolation there is nothing to materialise and the worker's own environment
+    stands.
     """
-    if settings is None:
+    if settings is None and not isolate_config:
         yield Sealed({}, [])
         return
     with secrets.private_directory("dirigent-docker-") as directory:
         yield _materialise(settings, directory, isolate_config=isolate_config)
 
 
-def _materialise(settings: DockerConnectionConfig, directory: Path, *, isolate_config: bool) -> Sealed:
+def _materialise(settings: DockerConnectionConfig | None, directory: Path, *, isolate_config: bool) -> Sealed:
     """Write the connection's files and name the environment that points docker at them."""
     environ: dict[str, str] = {}
     hidden: list[str] = []
+    if isolate_config:
+        config = directory / "config"
+        config.mkdir(mode=stat.S_IRWXU)
+        write_cli_config(config)
+        environ["DOCKER_CONFIG"] = str(config)
+    if settings is None:
+        return Sealed(environ, hidden)
     if settings.host:
         environ["DOCKER_HOST"] = settings.host
     if settings.tls_key is not None:
@@ -335,11 +344,6 @@ def _materialise(settings: DockerConnectionConfig, directory: Path, *, isolate_c
         environ["DOCKER_TLS_VERIFY"] = "1"
         environ["DOCKER_CERT_PATH"] = str(directory)
         hidden.append(settings.tls_key.get_secret_value())
-    if isolate_config:
-        config = directory / "config"
-        config.mkdir(mode=stat.S_IRWXU)
-        write_cli_config(config)
-        environ["DOCKER_CONFIG"] = str(config)
     if settings.password is not None:
         hidden.append(settings.password.get_secret_value())
     return Sealed(environ, hidden)
