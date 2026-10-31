@@ -1,6 +1,7 @@
 """How a transaction is opened, and running one again when the database broke a deadlock."""
 
 import asyncio
+import json
 import sqlite3
 import threading
 import time
@@ -22,6 +23,7 @@ from dirigent_core.database import (
     is_deadlock,
     open_sqlite,
     session_scope,
+    storable_json,
     with_deadlock_retry,
 )
 from dirigent_core.types import SaidText
@@ -237,3 +239,9 @@ def test_said_text_writes_what_utf8_cannot_as_its_escape() -> None:
     assert said.process_bind_param("held \udc80 here", DefaultDialect()) == "held \\udc80 here"
     assert said.process_bind_param("blå", DefaultDialect()) == "blå"
     assert said.process_bind_param(None, DefaultDialect()) is None
+
+
+def test_a_json_column_holds_half_a_surrogate_pair_as_the_text_of_its_escape() -> None:
+    held = json.loads(storable_json({"lone \udc80": ["a \ud800 b"], "pair": "\U0001f600", "slash": "\\udc80"}))
+    assert held == {"lone \\udc80": ["a \\ud800 b"], "pair": "\U0001f600", "slash": "\\udc80"}
+    assert storable_json({"plain": [1, None, True, "blå"]}) == '{"plain": [1, null, true, "blå"]}'

@@ -407,3 +407,38 @@ def test_a_profile_that_says_nothing_about_patience_gets_the_client_defaults(tmp
     assert endpoint.connect_timeout == timedelta(seconds=DEFAULT_CONNECT_TIMEOUT)
     assert endpoint.timeout == timedelta(seconds=DEFAULT_TIMEOUT)
     assert endpoint.retries == DEFAULT_RETRIES
+
+
+def test_a_server_a_project_names_off_this_host_is_marked(tmp_path: Path) -> None:
+    write(tmp_path, PROJECT_SERVER)
+    assert resolve_endpoint(start=tmp_path, environ={}, needs_token=False).named_by_a_project
+
+
+def test_a_server_a_project_env_file_names_off_this_host_is_marked(tmp_path: Path) -> None:
+    write(tmp_path, "profiles: {}\n")
+    (tmp_path / ".env").write_text("DG_URL=https://project.example.org\n")
+    assert resolve_endpoint(start=tmp_path, environ={}, needs_token=False).named_by_a_project
+
+
+@pytest.mark.parametrize(
+    ("flag", "environment"),
+    [("https://flag.example.org", {}), (None, {"DG_URL": "https://mine.example.org"})],
+    ids=["flag", "shell"],
+)
+def test_a_server_the_person_named_is_not_marked(tmp_path: Path, flag: str | None, environment: dict[str, str]) -> None:
+    write(tmp_path, PROJECT_SERVER)
+    endpoint = resolve_endpoint(url=flag, start=tmp_path, environ=environment, needs_token=False)
+    assert not endpoint.named_by_a_project
+
+
+@pytest.mark.parametrize("host", ["127.0.0.1", "localhost", "[::1]"])
+def test_a_server_a_project_names_on_this_host_is_not_marked(tmp_path: Path, host: str) -> None:
+    write(tmp_path, f"profiles:\n  p:\n    url: http://{host}:3333\n")
+    assert not resolve_endpoint(start=tmp_path, environ={}, needs_token=False).named_by_a_project
+
+
+def test_a_server_the_user_s_own_profile_names_is_not_marked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    user = tmp_path / "user-profiles.yaml"
+    user.write_text("profiles:\n  p:\n    url: https://mine.example.org\n")
+    monkeypatch.setattr("dirigent_cli.profiles.USER_PROFILES", user)
+    assert not resolve_endpoint(start=tmp_path, environ={}, needs_token=False).named_by_a_project

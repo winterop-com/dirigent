@@ -95,6 +95,9 @@ SECRET_KEY_MALFORMED = SECRET.define(
 )
 
 EMPTY_SECRET = SECRET.define("empty", "{fields} cannot be stored empty: a required secret needs a value")
+SECRET_NOT_SENDABLE = SECRET.define(
+    "not_sendable", "{fields} holds a control character or a blank at its end, which no HTTP header can carry"
+)
 
 SECRET_KEY_TWICE = SECRET.define(
     "key_twice",
@@ -477,6 +480,10 @@ SCHEDULE_EXACTLY_ONE_CLOCK = SCHEDULE.define(
     "a schedule declares exactly one of cron, interval, or at ({named})",
 )
 
+INTERVAL_TOO_LONG = SCHEDULE.define(
+    "interval_too_long", "a schedule firing every {interval} would not fire again: the longest interval is {limit}"
+)
+
 WHOLE_SECONDS = SCHEDULE.define(
     "whole_seconds",
     "an interval schedule fires every whole number of seconds, at least one, not every {seconds}s",
@@ -854,6 +861,10 @@ REPLY_BODY_FROM = RUN.define(
 )
 
 SOURCE = Catalogue("source")
+
+SOURCE_POLL_TOO_LONG = SOURCE.define(
+    "poll_too_long", "a source polled every {poll} would not poll again: the longest cadence is {limit}"
+)
 
 SOURCE_FIELD_REFUSED = SOURCE.define(
     "field_refused",

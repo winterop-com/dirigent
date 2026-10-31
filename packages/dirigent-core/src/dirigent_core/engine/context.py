@@ -11,7 +11,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 from uuid import UUID
 
 import httpx2
@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import LogLevel
-from dirigent_common import BaseRedirect, JsonMap
+from dirigent_common import BaseRedirect, JsonMap, scrub, scrub_json, secrets_of
 from dirigent_core.logging import debug_kept, get_logger
 from dirigent_core.messages import (
     CONNECTION_WRONG_KIND,
@@ -165,6 +165,8 @@ class BufferedLogger(BaseModel):
     """How many entries this attempt has logged, including the ones already flushed."""
     full: asyncio.Event = Field(default_factory=asyncio.Event)
     """Set when the buffer reaches the size gate, which is what wakes the flusher."""
+    secrets: set[str] = Field(default_factory=set[str])
+    """Every spelling of every secret this attempt opened, scrubbed out of what it logs."""
 
     def debug(self, message: str, **fields: JsonValue) -> None:
         """Record a debug-level entry."""
@@ -188,6 +190,9 @@ class BufferedLogger(BaseModel):
             return
         if self.recorded > self.limit:
             return
+        if self.secrets:
+            message = scrub(message, self.secrets)
+            fields = cast("JsonMap", scrub_json(cast("JsonValue", fields), self.secrets))
         if self.recorded == self.limit:
             level, message, fields = LogLevel.WARNING, buffer_full(self.limit), {}
         elif len(message) > MAX_MESSAGE_CHARS:
@@ -353,12 +358,17 @@ class EngineStepContext:
                 ref=repr(ref),
                 available=_listed(self._connections, "none are configured"),
             )
-        return open_record(self._secrets, record, model, self._connection_models)
+        return open_record(self._secrets, record, model, self._connection_models, opened=self._buffer.secrets)
 
     def storage_connection[C: BaseModel](self, scheme: str, model: type[C]) -> C | None:
         """Resolve the connection this instance configures a storage scheme from, or None."""
         ref = self._storage_connections.get(scheme)
         return None if ref is None else self.connection(ref, model)
+
+    @property
+    def opened_secrets(self) -> set[str]:
+        """Every spelling of every secret this call has opened so far."""
+        return self._buffer.secrets
 
     def schema(self, code: str) -> JsonMap:
         """Resolve a named JSON Schema by code, as the run pinned it when it was created."""
@@ -395,11 +405,17 @@ class EngineStepContext:
 
 
 def open_record[C: BaseModel](
-    secrets: SecretBox, record: ConnectionRecord, model: type[C], models: Mapping[str, type[BaseModel]]
+    secrets: SecretBox,
+    record: ConnectionRecord,
+    model: type[C],
+    models: Mapping[str, type[BaseModel]],
+    *,
+    opened: set[str] | None = None,
 ) -> C:
     """Open a stored connection for a model, refusing a connection of a kind the model does not read.
 
     A model no installed kind declares has no kind to compare against, and only validates.
+    ``opened`` collects the secrets it held, for whoever writes what a failure said.
     """
     wanted = sorted(kind for kind, candidate in models.items() if candidate is model)
     if wanted and record.kind not in wanted:
@@ -410,7 +426,10 @@ def open_record[C: BaseModel](
             kind=repr(record.kind),
             wanted=", ".join(repr(kind) for kind in wanted),
         )
-    return secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
+    config = secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
+    if opened is not None:
+        opened |= secrets_of(config)
+    return config
 
 
 def _listed(known: "Mapping[str, object]", empty: str) -> str:

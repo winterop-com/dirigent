@@ -229,6 +229,16 @@ PROFILE_NAMES_A_DATABASE = CLI.define(
 
 NOT_AUTHENTICATED = CLI.define("not_authenticated", "no token for {url}")
 
+SERVER_NAMED_BY_A_PROJECT = CLI.define(
+    "server_named_by_a_project",
+    "a file in this checkout names {url} as the server, and a secret typed here would go to it",
+)
+
+NAME_THE_SERVER_YOURSELF = CLI.define(
+    "name_the_server_yourself",
+    "name the server yourself with --url or DG_URL, if {url} is the one you mean",
+)
+
 SET_DG_TOKEN = CLI.define("set_dg_token", "set DG_TOKEN")
 
 OR_A_PROFILE_TOKEN = CLI.define("or_a_profile_token", "or add a token to a profile")

@@ -36,6 +36,7 @@ from dirigent_common import format_duration
 from dirigent_common.durations import DurationError, parse_duration
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json, open_artifact
+from dirigent_core.auth import Principal, principal_stands
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.runs import cancel_run, pause_run, rerun, resume_run, retry_step
@@ -568,7 +569,7 @@ async def read_logs(
         return await _log_page(session, run_id, start, limit, step)
     watcher = _claim(principal.user_id)
     return StreamingResponse(
-        _tail(get_sessions(request), run_id, start, step, watcher),
+        _tail(get_sessions(request), run_id, start, step, watcher, principal),
         media_type="text/event-stream",
         headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
     )
@@ -635,17 +636,23 @@ async def _tail_read(
     run_id: UUID,
     cursor: int,
     step: str | None,
-) -> tuple[Page[LogEntryOut], bool]:
-    """One poll's reads, whole or not at all.
+    principal: Principal,
+) -> tuple[Page[LogEntryOut], bool] | None:
+    """One poll's reads, whole or not at all, or nothing when the credential no longer stands.
 
     A watcher that disconnects cancels its generator wherever it happens to be, and a
     driver await torn down mid-read leaves the pooled connection broken for whoever draws
     it next. Shielded by the caller, the read runs to its own end and closes its session,
     so a cancellation only ever lands between polls.
+
+    The credential is read last, in the same transaction as what it may be shown, so nothing
+    written after a revocation goes out, for one more indexed read a poll.
     """
     async with session_scope(sessions) as session:
         page = await _log_page(session, run_id, cursor, DEFAULT_LOG_PAGE, step)
         run = await session.get(Run, run_id)
+        if not await principal_stands(session, principal):
+            return None
         return page, run is not None and run.status in TERMINAL_RUN_STATUSES
 
 
@@ -655,11 +662,13 @@ async def _tail(
     after: int,
     step: str | None,
     watcher: str,
+    principal: Principal,
 ) -> AsyncGenerator[str]:
     """Stream a run's log entries as server-sent events until the run settles.
 
-    ``end`` says the run settled and there is nothing more to read. At the wall-clock limit
-    the stream says ``expired`` instead, which a client reopens from the last id it saw.
+    ``end`` says the run settled and there is nothing more to read. At the wall-clock limit,
+    or when the credential it was opened with stops standing, the stream says ``expired``
+    instead, which a client reopens from the last id it saw and is answered for afresh.
     """
     with _held(watcher):
         cursor = after
@@ -668,7 +677,10 @@ async def _tail(
         spoke = time.monotonic()
         while waited < FOLLOW_MAX_SECONDS:
             moved = wakeups.settled_mark(run_id)
-            page, settled = await asyncio.shield(_tail_read(sessions, run_id, cursor, step))
+            read = await asyncio.shield(_tail_read(sessions, run_id, cursor, step, principal))
+            if read is None:
+                break
+            page, settled = read
             for entry in page.items:
                 yield f"id: {entry.id}\nevent: log\ndata: {entry.model_dump_json()}\n\n"
                 cursor = entry.id
@@ -710,7 +722,7 @@ async def read_events(
     await _run_row(session, run_id)
     watcher = _claim(principal.user_id)
     return StreamingResponse(
-        _story(get_sessions(request), run_id, _resume_from(after, last_event_id), watcher),
+        _story(get_sessions(request), run_id, _resume_from(after, last_event_id), watcher, principal),
         media_type="text/event-stream",
         headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
     )
@@ -768,14 +780,20 @@ async def _story_read(
     run_id: UUID,
     cursor: int,
     want_labels: bool | None,
-) -> tuple[
-    list[StepAttempt],
-    dict[UUID, tuple[str, int | None]],
-    Page[LogEntryOut],
-    RunOut | None,
-    dict[UUID, tuple[str, int]] | None,
-]:
-    """One story poll's reads, whole or not at all; see ``_tail_read`` for why.
+    principal: Principal,
+) -> (
+    tuple[
+        list[StepAttempt],
+        dict[UUID, tuple[str, int | None]],
+        Page[LogEntryOut],
+        RunOut | None,
+        dict[UUID, tuple[str, int]] | None,
+    ]
+    | None
+):
+    """One story poll's reads, whole or not at all, or nothing when the credential no longer stands.
+
+    See ``_tail_read`` for why.
 
     The run is rendered on every poll, not only once it has settled: a watcher learns that a
     run started the same way it learns that one ended.
@@ -799,6 +817,8 @@ async def _story_read(
             )
         ).all()
         rendered = next((_render_run(run, pipeline, version) for run, pipeline, version in found), None)
+        if not await principal_stands(session, principal):
+            return None
     return attempts, spilled, page, rendered, read_labels
 
 
@@ -831,6 +851,7 @@ async def _story(
     run_id: UUID,
     after: int,
     watcher: str,
+    principal: Principal,
 ) -> AsyncGenerator[str]:
     """Stream a run's own state and its attempt transitions and log entries, in order.
 
@@ -846,8 +867,9 @@ async def _story(
     be told again; the log cursor is the only position a reconnect can restore, and a client
     dedupes the replayed attempts by their own ids.
 
-    ``end`` says the run settled and follows the ``run`` frame. At the wall-clock limit the
-    stream says ``expired`` instead, which a client reopens from the last id it saw.
+    ``end`` says the run settled and follows the ``run`` frame. At the wall-clock limit, or when
+    the credential it was opened with stops standing, the stream says ``expired`` instead, which
+    a client reopens from the last id it saw and is answered for afresh.
     """
     with _held(watcher):
         cursor = after
@@ -863,9 +885,10 @@ async def _story(
             changed = wakeups.settled_mark(run_id)
             # Shielded for the same reason _tail_read is: a disconnect lands between polls,
             # never inside a driver await holding the pooled connection.
-            attempts, spilled, page, rendered, read_labels = await asyncio.shield(
-                _story_read(sessions, run_id, cursor, None if loaded else True)
-            )
+            read = await asyncio.shield(_story_read(sessions, run_id, cursor, None if loaded else True, principal))
+            if read is None:
+                break
+            attempts, spilled, page, rendered, read_labels = read
             if read_labels is not None:
                 labels = read_labels
                 loaded = True

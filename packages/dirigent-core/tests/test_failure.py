@@ -133,3 +133,16 @@ def test_an_exception_that_said_nothing_still_leaves_an_operator_something() -> 
 def test_the_engine_can_raise_its_own_classified_failures() -> None:
     assert Failure.rejected(TEST_REFUSAL, detail="bad config").error_class is ErrorClass.REJECTED
     assert Failure.transient(TEST_REFUSAL, detail="network").error_class is ErrorClass.TRANSIENT
+
+
+def test_a_failure_says_no_secret_it_was_given() -> None:
+    failure = Failure(
+        code="test.failed",
+        message="refused DUMMY-secret",
+        params={"detail": "header DUMMY-secret", "nested": {"text": ["DUMMY-secret"]}},
+        error_class=ErrorClass.REJECTED,
+    )
+    scrubbed = failure.scrubbed({"DUMMY-secret"})
+    assert scrubbed.message == "refused ***"
+    assert scrubbed.params == {"detail": "header ***", "nested": {"text": ["***"]}}
+    assert failure.scrubbed(set()) is failure

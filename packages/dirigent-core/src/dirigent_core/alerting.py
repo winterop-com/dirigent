@@ -35,6 +35,8 @@ from dirigent_common import (
     compile_template,
     format_duration,
     render,
+    scrub,
+    secrets_of,
 )
 from dirigent_core.database import is_deadlock, session_scope
 from dirigent_core.engine.definition import load_definition
@@ -786,18 +788,20 @@ async def send_notification(
     has to be held anyway, because the fence below re-reads the row it writes.
     """
     moment = now or utcnow()
+    secrets: set[str] = set()
     try:
         notifier = services.host.notifiers.get(notification.notifier)
         if notifier is None:
             raise AlertError(NOTIFIER_NOT_ON_WORKER, notifier=repr(notification.notifier))
         connection = await session.get(Connection, notification.connection_id) if notification.connection_id else None
         config = notifier_config(services, notifier, connection)
+        secrets = secrets_of(config)
         await session.commit()
         await notifier.send(_message(notification), config)
     except Exception as error:
         if not await _holds_lease(session, notification, owner, lease_token):
             return False
-        return await _record_failure(session, services, notification, error, moment)
+        return await _record_failure(session, services, notification, error, moment, secrets)
     if not await _holds_lease(session, notification, owner, lease_token):
         return False
     notification.status = NotificationStatus.SENT
@@ -896,9 +900,10 @@ async def _record_failure(
     notification: Notification,
     error: Exception,
     moment: datetime,
+    secrets: set[str],
 ) -> bool:
     """Schedule another delivery, or record that this one is never going to arrive."""
-    message = f"{type(error).__name__}: {error}"
+    message = scrub(f"{type(error).__name__}: {error}", secrets)
     notification.error = message
     notification.lease_owner = None
     notification.lease_token = None
