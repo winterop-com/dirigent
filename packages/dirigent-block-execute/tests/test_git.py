@@ -1,14 +1,18 @@
 """Tests for git.checkout, against a bare repository on disk rather than a network remote."""
 
 import asyncio
+import base64
 import contextlib
+import os
 import shutil
 import subprocess as std_subprocess
 import tempfile
+import threading
 from collections.abc import Generator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, NamedTuple
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import pytest
 from pydantic import SecretStr, ValidationError
@@ -644,6 +648,226 @@ async def test_the_credential_is_written_outside_every_root_a_sibling_step_reads
     assert held
     assert not any(directory.is_relative_to(local_ctx.work) for directory in held)
     assert not any(directory.is_relative_to(scratch) for directory in held)
+
+
+# -- which host is given the token ------------------------------------------------
+
+
+def ask(helper: Path, prompt: str) -> std_subprocess.CompletedProcess[str]:
+    """Run the askpass helper with one prompt, the way git does."""
+    return std_subprocess.run([str(helper), prompt], capture_output=True, text=True, check=False)  # noqa: S603
+
+
+def test_the_helper_answers_only_the_two_prompts_for_the_origin() -> None:
+    settings = GitConnectionConfig(url="https://user:old@Host.example:8443/o/r.git", token=SecretStr("ghp_secret"))
+
+    with credentials(settings) as sealed:
+        helper = Path(sealed.environ["GIT_ASKPASS"])
+        assert ask(helper, "Username for 'https://Host.example:8443': ").stdout == "x-access-token"
+        assert ask(helper, "Password for 'https://x-access-token@Host.example:8443': ").stdout == "ghp_secret"
+        for prompt in (
+            "Username for 'https://other.example': ",
+            "Password for 'https://x-access-token@other.example': ",
+            "Password for 'https://evil@Host.example:8443': ",
+            "Username for 'http://Host.example:8443': ",
+            "Username for 'https://Host.example:8443.other.example': ",
+            "Username for 'https://Host.example:8443': trailing",
+            "Password",
+            "",
+        ):
+            answered = ask(helper, prompt)
+            assert answered.returncode != 0, prompt
+            assert answered.stdout == "", prompt
+
+
+def test_a_username_holding_shell_syntax_is_only_ever_a_literal(credential_home: Path) -> None:
+    marker = credential_home / "ran"
+    username = f"a@b'; touch {marker}; '"
+    settings = GitConnectionConfig(url="https://host/o/r.git", username=username, token=SecretStr("ghp_secret"))
+
+    with credentials(settings) as sealed:
+        helper = Path(sealed.environ["GIT_ASKPASS"])
+        assert ask(helper, "Username for 'https://host': ").stdout == username
+        assert ask(helper, f"Password for 'https://{quote(username, safe='')}@host': ").stdout == "ghp_secret"
+        assert ask(helper, f"Password for 'https://{username}@host': ").returncode != 0
+
+    assert not marker.exists()
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1:3000/o/r.git",
+        "https://Host.Example/o/r.git",
+        "https://host:443/o/r.git",
+        "http://my_host:3000/o/r.git",
+        "http://[::1]:3000/o/r.git",
+        "https://b\u00fccher.example/o/r.git",
+    ],
+)
+@pytest.mark.parametrize("username", ["x-access-token", "a@b c"])
+def test_the_helper_matches_the_prompts_this_git_writes(url: str, username: str) -> None:
+    settings = GitConnectionConfig(url=url, username=username, token=SecretStr("ghp_secret"))
+
+    with credentials(settings) as sealed:
+        done = std_subprocess.run(
+            ["git", "credential", "fill"],  # noqa: S607
+            input=f"url={url}\n\n",
+            capture_output=True,
+            check=True,
+            text=True,
+            env={**sealed.environ, "PATH": os.environ["PATH"]},
+        )
+
+    assert f"username={username}\n" in done.stdout
+    assert "password=ghp_secret\n" in done.stdout
+
+
+class Hosts(NamedTuple):
+    """A private repository behind one loopback port, and what a second port was sent."""
+
+    origin: str
+    sha: str
+    seen: list[str | None]
+
+
+#: What the private repository's port wants before it serves anything.
+BASIC_CREDENTIAL = "Basic " + base64.b64encode(b"x-access-token:ghp_secret").decode()
+
+
+class QuietHandler(BaseHTTPRequestHandler):
+    """A request handler that keeps its access log out of the test's output."""
+
+    def log_message(self, format: str, *args: Any) -> None:
+        del format, args
+
+    def ask_for_a_credential(self) -> None:
+        """Answer 401, which is what makes git go to the askpass helper."""
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="private"')
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+
+def http_backend(root: Path) -> type[BaseHTTPRequestHandler]:
+    """A handler that wants the dummy credential, and then serves ``root`` through git http-backend."""
+
+    class Handler(QuietHandler):
+        def serve(self) -> None:
+            if self.headers.get("Authorization") != BASIC_CREDENTIAL:
+                self.ask_for_a_credential()
+                return
+            body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            path, _, query = self.path.partition("?")
+            done = std_subprocess.run(
+                ["git", "http-backend"],  # noqa: S607
+                input=body,
+                capture_output=True,
+                check=True,
+                env={
+                    "PATH": os.environ["PATH"],
+                    "GIT_CONFIG_NOSYSTEM": "1",
+                    "GIT_CONFIG_GLOBAL": os.devnull,
+                    "GIT_PROJECT_ROOT": str(root),
+                    "GIT_HTTP_EXPORT_ALL": "1",
+                    "PATH_INFO": path,
+                    "QUERY_STRING": query,
+                    "REQUEST_METHOD": self.command,
+                    "CONTENT_TYPE": self.headers.get("Content-Type", ""),
+                    "CONTENT_LENGTH": str(len(body)),
+                    "HTTP_CONTENT_ENCODING": self.headers.get("Content-Encoding", ""),
+                    "HTTP_GIT_PROTOCOL": self.headers.get("Git-Protocol", ""),
+                    "REMOTE_USER": "x-access-token",
+                },
+            )
+            head, _, payload = done.stdout.partition(b"\r\n\r\n")
+            status = 200
+            headers: list[tuple[str, str]] = []
+            for line in head.split(b"\r\n"):
+                name, _, value = line.decode().partition(":")
+                if name.lower() == "status":
+                    status = int(value.split()[0])
+                elif name:
+                    headers.append((name, value.strip()))
+            self.send_response(status)
+            for name, value in headers:
+                self.send_header(name, value)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        do_GET = do_POST = serve
+
+    return Handler
+
+
+@pytest.fixture
+def hosts(tmp_path: Path) -> Generator[Hosts]:
+    """A private repository whose one commit names a submodule on a host that asks for a credential."""
+    seen: list[str | None] = []
+
+    class Other(QuietHandler):
+        def do_GET(self) -> None:
+            seen.append(self.headers.get("Authorization"))
+            self.ask_for_a_credential()
+
+    served = tmp_path / "served"
+    bare = served / "repo.git"
+    bare.mkdir(parents=True)
+    run(bare, "init", "--bare", "--initial-branch", "main", "--quiet")
+    origin = ThreadingHTTPServer(("127.0.0.1", 0), http_backend(served))
+    other = ThreadingHTTPServer(("127.0.0.1", 0), Other)
+    servers = (origin, other)
+    for server in servers:
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    work = tmp_path / "submodule-work"
+    work.mkdir()
+    run(work, "init", "--initial-branch", "main", "--quiet")
+    author(work)
+    (work / ".gitmodules").write_text(
+        f'[submodule "vendor"]\n\tpath = vendor\n\turl = http://127.0.0.1:{other.server_address[1]}/x.git\n'
+    )
+    run(work, "add", ".gitmodules")
+    run(work, "update-index", "--add", "--cacheinfo", f"160000,{'a' * 40},vendor")
+    run(work, "commit", "--quiet", "-m", "with a submodule elsewhere")
+    run(work, "remote", "add", "origin", str(bare))
+    run(work, "push", "--quiet", "origin", "main")
+
+    yield Hosts(
+        origin=f"http://127.0.0.1:{origin.server_address[1]}/repo.git",
+        sha=run(work, "rev-parse", "HEAD"),
+        seen=seen,
+    )
+
+    for server in servers:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("route", ["branch", "sha"])
+async def test_a_submodule_on_another_host_is_never_given_the_token(
+    local_ctx: FakeContext, hosts: Hosts, route: str
+) -> None:
+    install(local_ctx, GitConnectionConfig(url=hosts.origin, token=SecretStr("ghp_secret")))
+
+    with pytest.raises(BlockFailure) as raised:
+        await checkout(local_ctx, ref="main" if route == "branch" else hosts.sha, submodules=True)
+
+    assert hosts.seen, "the submodule's host was reached and asked for a credential"
+    assert set(hosts.seen) == {None}, "no request to that host carried a credential"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "ghp_secret" not in str(raised.value)
+
+
+@pytest.mark.parametrize("route", ["branch", "sha"])
+async def test_the_connections_own_origin_is_still_answered(local_ctx: FakeContext, hosts: Hosts, route: str) -> None:
+    install(local_ctx, GitConnectionConfig(url=hosts.origin, token=SecretStr("ghp_secret")))
+
+    output = await checkout(local_ctx, ref="main" if route == "branch" else hosts.sha)
+
+    assert output.commit == hosts.sha
+    assert hosts.seen == []
 
 
 # -- what the run log and the artifacts get ---------------------------------------
