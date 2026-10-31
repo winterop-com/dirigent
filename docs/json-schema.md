@@ -202,7 +202,8 @@ rejects each of these, each for one reason:
 - `{"sites": [{"id": "x", "name": "Bergen Florida", "elevation": -900}]}` -- `elevation` is below `minimum`.
 - `{"sites": [{"id": 42, "name": "Bergen Florida", "elevation": 12}]}` -- `id` is a number, not a string.
 
-`minItems` and `maxItems` bound the length; `uniqueItems: true` forbids duplicate elements.
+`minItems` and `maxItems` bound the length; `uniqueItems: true` forbids duplicate elements, with
+`1` and `1.0` equal, `true` and `1` different, and an object's keys in no order.
 
 ## Numbers and strings: pinning the value, not just the type
 
@@ -213,6 +214,10 @@ two-digit index:
 ```json
 {"type": "string", "pattern": "^[A-Z]{2}-[A-Z]{4}-[0-9]{2}$"}
 ```
+
+Write a `pattern` that cannot backtrack without end. A nested repeat such as `^(a+)+$` over a
+string a caller wrote holds the whole worker process for as long as the regular expression engine
+takes, and the step's timeout does not fire meanwhile.
 
 That accepts `"NO-BRGN-01"` and rejects `"too-short"` and `"has a space here!!"`. A `number` or
 `integer` takes `minimum`, `maximum`, and the exclusive pair `exclusiveMinimum` / `exclusiveMaximum`.

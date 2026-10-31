@@ -46,6 +46,7 @@ from dirigent_common.names import (
 )
 from dirigent_common.programs import JQ_MEDIA_TYPE, SHELL_MEDIA_TYPE, SQL_MEDIA_TYPE, TEMPLATE_MEDIA_TYPE
 from dirigent_common.schema_references import LOCAL_REFERENCES, Unresolvable
+from dirigent_common.schema_values import ValueValidator
 from dirigent_common.schemas import BlockModel, HealthReport, HttpConnectionConfig
 from dirigent_common.sizes import (
     FILLER,
@@ -67,6 +68,7 @@ __all__ = [
     "LOCAL_REFERENCES",
     "BoundedLoader",
     "Unresolvable",
+    "ValueValidator",
     "YamlExpansionError",
     "bounded_load",
     "bounded_load_all",

@@ -1,5 +1,9 @@
 """Tests for ``validate.schema``."""
 
+import asyncio
+import threading
+from typing import Any
+
 import pytest
 
 from dirigent_block_base.validate import ValidateSchemaConfig, ValidateSchemaOperator, ValidateSchemaOutput
@@ -163,3 +167,106 @@ def test_the_schema_field_says_it_names_a_schema() -> None:
     published = ValidateSchemaConfig.model_json_schema(mode="serialization")
     named = str(published["properties"]["schema"]["$ref"]).removeprefix("#/$defs/")
     assert published["$defs"][named]["x-dirigent-ref"] == "schema"
+
+
+@pytest.mark.parametrize(
+    "items",
+    [
+        [1, 1],
+        [1, 1.0],
+        ["a", "a"],
+        [None, None],
+        [True, True],
+        [[1], [1.0]],
+        [{"a": 1, "b": 2}, {"b": 2.0, "a": 1}],
+        [{"a": [1, {"b": 2}]}, {"a": [1.0, {"b": 2}]}],
+        [1, "mixed", 1],
+    ],
+)
+async def test_unique_items_refuses_what_json_schema_calls_equal(ctx: FakeContext, items: list[Any]) -> None:
+    ctx.schemas["distinct"] = {"uniqueItems": True}
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(ValidateSchemaOperator(), {"input": items, "schema": "distinct"}, ctx)
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "non-unique" in raised.value.message
+
+
+@pytest.mark.parametrize(
+    "items",
+    [
+        [],
+        [1, 2],
+        [True, 1],
+        [False, 0],
+        ["1", 1],
+        [None, 0, False, "", [], {}],
+        [[True], [1]],
+        [{"a": True}, {"a": 1}],
+        [{"a": 1}, {"b": 1}],
+        [1.5, 2.5],
+        [1, 1.5, "mixed"],
+    ],
+)
+async def test_unique_items_passes_what_json_schema_calls_different(ctx: FakeContext, items: list[Any]) -> None:
+    ctx.schemas["distinct"] = {"uniqueItems": True}
+    output = await call_block(ValidateSchemaOperator(), {"input": items, "schema": "distinct"}, ctx)
+    assert isinstance(output, ValidateSchemaOutput)
+    assert output.value == items
+
+
+async def test_unique_items_passes_when_a_schema_turns_it_off(ctx: FakeContext) -> None:
+    ctx.schemas["any"] = {"uniqueItems": False}
+    output = await call_block(ValidateSchemaOperator(), {"input": [1, 1], "schema": "any"}, ctx)
+    assert isinstance(output, ValidateSchemaOutput)
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [
+        {"uniqueItems": True},
+        {"properties": {"list": {"uniqueItems": True}}},
+        {"$defs": {"list": {"uniqueItems": True}}, "properties": {"list": {"$ref": "#/$defs/list"}}},
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "uniqueItems": True,
+            "items": {"anyOf": [{"$ref": "#"}, {"type": ["integer", "string"]}]},
+        },
+    ],
+    ids=["at-the-root", "in-a-subschema", "behind-a-reference", "behind-a-reference-to-the-root"],
+)
+async def test_unique_items_never_compares_every_pair(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch, schema: dict[str, Any]
+) -> None:
+    """The library's pairwise comparison is its ``uniq``, and an array holding one string falls back to it."""
+
+    def refused(_: object) -> bool:
+        raise AssertionError("the library's pairwise comparison ran")
+
+    monkeypatch.setattr("jsonschema._keywords.uniq", refused)
+    ctx.schemas["distinct"] = schema
+    items: list[Any] = [*range(2000), "mixed"]
+    value: Any = {"list": items} if "properties" in schema else items
+    output = await call_block(ValidateSchemaOperator(), {"input": value, "schema": "distinct"}, ctx)
+    assert isinstance(output, ValidateSchemaOutput)
+
+
+async def test_a_step_timeout_fires_while_a_value_is_being_evaluated(ctx: FakeContext) -> None:
+    """The evaluation is held inside a format check until the timeout has been seen to fire."""
+    entered = threading.Event()
+    release = threading.Event()
+
+    def held(value: object) -> bool:
+        entered.set()
+        release.wait(10)
+        return True
+
+    ctx.formats["held"] = held
+    ctx.schemas["slow"] = {"format": "held"}
+    try:
+        call = call_block(ValidateSchemaOperator(), {"input": "value", "schema": "slow"}, ctx)
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(call, timeout=0.2)
+        assert entered.is_set(), "the evaluation began, so what fired was the timeout over it"
+        assert not release.is_set(), "and the loop turned with the evaluation still in progress"
+    finally:
+        release.set()

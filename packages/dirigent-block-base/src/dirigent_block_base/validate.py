@@ -1,13 +1,13 @@
 """``validate.schema``: a gate that fails at the boundary, not three steps later."""
 
+import asyncio
 from typing import Any, ClassVar
 
-from jsonschema import Draft202012Validator
 from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, Field, JsonValue
 
 from dirigent_block_base.messages import SCHEMA_REFERENCE_UNRESOLVED, VALUE_REFUSED
-from dirigent_common import LOCAL_REFERENCES, BlockModel, Issue, Unresolvable
+from dirigent_common import LOCAL_REFERENCES, BlockModel, Issue, Unresolvable, ValueValidator
 from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, SchemaRef, StepContext
 
 
@@ -56,10 +56,9 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
         the gate rather than passing the value on.
         """
         schema = ctx.schema(config.json_schema)
-        validator = Draft202012Validator(schema, format_checker=ctx.format_checker(), registry=LOCAL_REFERENCES)
-        errors: Any = validator.iter_errors(config.input)  # pyright: ignore[reportUnknownMemberType]
+        validator = ValueValidator(schema, format_checker=ctx.format_checker(), registry=LOCAL_REFERENCES)
         try:
-            first = next(iter(sorted(errors, key=_where)), None)
+            first = await asyncio.to_thread(_earliest_error, validator, config.input)
         except Unresolvable as error:
             raise BlockFailure(SCHEMA_REFERENCE_UNRESOLVED, error_class=ErrorClass.REJECTED, ref=error.ref) from error
         if first is not None:
@@ -76,6 +75,12 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
         instance holds, and a carried code satisfies its own reference.
         """
         return []
+
+
+def _earliest_error(validator: Any, value: JsonValue) -> SchemaValidationError | None:
+    """Evaluate a whole value, which a thread does so the step's timeout and the lease keep running."""
+    errors: Any = validator.iter_errors(value)
+    return min(errors, key=_where, default=None)
 
 
 def _where(error: SchemaValidationError) -> str:

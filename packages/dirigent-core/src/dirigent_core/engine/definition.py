@@ -18,6 +18,7 @@ from dirigent_common import (
     JsonMap,
     StepName,
     TemplateError,
+    ValueValidator,
     compile_template,
 )
 from dirigent_common.durations import Duration
@@ -661,9 +662,7 @@ class PipelineDefinition(BaseModel):
         resolved = _with_defaults(self.params, params)
         try:
             Draft202012Validator.check_schema(self.params)
-            Draft202012Validator(self.params, format_checker=format_checker, registry=LOCAL_REFERENCES).validate(  # pyright: ignore[reportUnknownMemberType]
-                resolved
-            )
+            ValueValidator(self.params, format_checker=format_checker, registry=LOCAL_REFERENCES).validate(resolved)
         except SchemaValidationError as error:
             location = "/".join(str(part) for part in error.absolute_path) or "(root)"
             raise ParameterError(PARAMETER_INVALID, location=location, detail=error.message) from error
