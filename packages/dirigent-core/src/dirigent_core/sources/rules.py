@@ -5,14 +5,20 @@ route is a question for the instance, and is asked where the instance is read.
 """
 
 from collections.abc import Mapping
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError
 
 from dirigent_client.schemas import ValidationIssue
 from dirigent_common import JsonMap, format_duration, validation_issue
-from dirigent_core.engine.definition import ConcurrencyPolicy, PipelineDefinition, TriggerRule, TriggerSpecs
+from dirigent_core.engine.definition import (
+    LONGEST_CADENCE,
+    ConcurrencyPolicy,
+    PipelineDefinition,
+    TriggerRule,
+    TriggerSpecs,
+)
 from dirigent_core.messages import (
     JOIN_OF_SOURCES,
     REPLACE_ON_HELD,
@@ -28,10 +34,6 @@ from dirigent_core.messages import (
     UNKNOWN_KIND,
 )
 from dirigent_plugin.sources import AnySource, PolledSource, ReceivedSource, SourceHosting
-
-#: The longest a polled source may wait between looks, well inside what a date can hold once it
-#: is added to now.
-LONGEST_POLL = timedelta(days=3650)
 
 #: The moment a sample is made whole at, which only its ``received_at`` default reads.
 SAMPLE_MOMENT = datetime(2026, 1, 1, tzinfo=UTC)
@@ -101,13 +103,13 @@ def _kind_issues(definition: PipelineDefinition, kinds: Mapping[str, AnySource])
             )
             for issue in kind.check_config(config)
         )
-        if isinstance(kind, PolledSource) and kind.poll_every(config) > LONGEST_POLL:
+        if isinstance(kind, PolledSource) and kind.poll_every(config) > LONGEST_CADENCE:
             issues.append(
                 ValidationIssue.of(
                     SOURCE_POLL_TOO_LONG,
                     location=f"steps.{name}.source.poll",
                     poll=format_duration(kind.poll_every(config)),
-                    limit=format_duration(LONGEST_POLL),
+                    limit=format_duration(LONGEST_CADENCE),
                 )
             )
         sample = definition.steps[name].sample

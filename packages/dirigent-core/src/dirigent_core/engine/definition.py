@@ -210,6 +210,10 @@ def reply_may_set(header: str) -> bool:
     )
 
 
+#: The longest a schedule may wait between firings and a polled source between looks, well inside
+#: what a date can hold once it is added to now.
+LONGEST_CADENCE: Final = timedelta(days=3650)
+
 #: The default for how long an endpoint holds its caller while it waits for a reply.
 DEFAULT_REPLY_TIMEOUT: Final = timedelta(seconds=30)
 

@@ -11,6 +11,7 @@ from dirigent_client.enums import ScheduleKind
 from dirigent_client.schemas import PlanAction
 from dirigent_core.database import session_scope
 from dirigent_core.documents import load_text
+from dirigent_core.engine.definition import LONGEST_CADENCE
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Run, Schedule, utcnow
 from dirigent_core.pipelines import apply_document, find_pipeline
@@ -19,6 +20,7 @@ from dirigent_core.scheduler import claim_due, tick
 from dirigent_core.triggers.schedules import (
     ScheduleError,
     ScheduleRequest,
+    check_schedule,
     create_schedule,
     find_schedule,
     list_schedules,
@@ -400,6 +402,13 @@ async def test_an_interval_of_less_than_whole_seconds_is_refused_at_declaration_
                 session, pipeline, ScheduleRequest(code="too-short", interval=timedelta(milliseconds=500))
             )
         assert "0.5s" in str(sub_second.value)
+
+
+def test_an_interval_is_bounded_by_the_longest_cadence() -> None:
+    check_schedule(ScheduleRequest(code="longest", interval=LONGEST_CADENCE))
+    with pytest.raises(ScheduleError) as refused:
+        check_schedule(ScheduleRequest(code="past", interval=LONGEST_CADENCE + timedelta(seconds=1)))
+    assert refused.value.code == "schedule.interval_too_long"
 
 
 async def test_a_whole_second_interval_is_stored_as_the_seconds_it_names(

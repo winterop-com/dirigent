@@ -108,8 +108,6 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      minute of thread time at the 1 MiB cap.
    - **A run-wide storage quota.** The packs now bound each answer, but many answers under the
      bound still fill storage, and only the engine can count a run's total.
-   - **The two ten-year bounds,** `LONGEST_POLL` and `LONGEST_INTERVAL`, are one rule written
-     twice and want one constant.
    - **The units the reviews never reached.** Step deadline arithmetic, gate expansion and the
      lease sweep, attempt reads at the depth limit, retention sweeps, alert queueing,
      `dg pipeline new` writing to a name the instance chooses, storage blocks across runs, tokens
