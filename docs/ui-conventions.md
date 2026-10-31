@@ -295,17 +295,18 @@ the drawing is spread across it and shrunk instead, which is what keeps a step's
 beside it. The lockup and the facts are anchored to the foot of the pane, so neither moves between
 a short pane and a tall one.
 
-**The radius ladder is four rungs, each for one kind of thing**: 8px for a surface -- a card, a
-listing, a panel, a dialog, a menu, a graph's ground; 6px for a box on a graph and the brand
-tile; 5px for a control and a chip; 3px for a box on a miniature graph. They are stated in
-`@theme` rather than derived, as `--radius-surface`, `--radius-node`, `--radius-control` and
-`--radius-mini`. A ladder of 1 and 2 read as square, and one of 10 and 12 read as a template, so
-the step between rungs is what says which kind of thing a corner belongs to. Nothing but a status
-dot is fully round: not a chip, a switch, an avatar, a port on the canvas or a scrollbar.
-Tailwind's rungs are mapped onto the ladder -- `rounded-sm` and `rounded-md` are the control's 5px,
-`rounded-lg` through `rounded-4xl` the surface's 8px -- so a shadcn primitive that ships
-`rounded-xl` lands on it without being edited, and a generated `rounded-full` is said back onto a
-rung in `index.css` against its slot.
+**The radius ladder is crisp, and it is the floor as well as the ceiling**: 4px for a surface --
+a card, a listing, a panel, a dialog, a menu, a graph's ground -- and for a box on a graph and the
+brand tile; 3px for a control; 2px for a chip and for a box on a miniature graph. They are stated
+in `@theme` rather than derived, as `--radius-surface`, `--radius-node`, `--radius-control`,
+`--radius-chip` and `--radius-mini`, and every component takes its corner from them: no class
+names a radius of its own. A ladder of 1 and 2 read as square and one of 8 and 6 as soft, so this
+one goes neither below nor above. Nothing but a status dot and an avatar is fully round: not a
+chip, a switch, a port on the canvas or a scrollbar. Tailwind's rungs are mapped onto the ladder
+-- `rounded-sm` is the chip's 2px, `rounded-md` and `rounded-lg` the control's 3px, which is
+what the generated buttons and fields ship, `rounded-xl` through `rounded-4xl` the surface's 4px
+-- so a shadcn primitive lands on it without being edited, and a generated `rounded-full` is said
+back onto a rung in `index.css` against its slot.
 
 ## `apiFetch` is the only fetch
 
@@ -751,7 +752,7 @@ that has never run says nothing there, never "never run", because a column of th
 a column that says nothing. The row is the link to the pipeline's page, so it draws no arrow, and
 the listing draws no panel.
 
-**A miniature is drawn the same way everywhere.** A box is 14 by 10 at the miniature rung; a step
+**A miniature is drawn the same way everywhere.** A box is 14 by 10 at the miniature rung, 2px; a step
 that fans out is a box with a second one stacked behind it; a source is a dashed box on no fill;
 a step the last run failed in is filled in the failed hue, which is the only colour a miniature
 ever carries. Ranks are the longest path to a step, read left to right, and a rank's steps stack
@@ -2208,7 +2209,7 @@ no frame of its own.
 | `PageHeader`, `SplitButton` | A screen's heading, at `text-page`. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `code` under it in mono for a detail screen; a `trail` for a detail screen. No subtitle |
 | `TextLink` | Every link that is text. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table, `aside` in the muted ink beside a section heading, `external` with its mark and a new tab |
 | `Code` | Every code, key, block and kind in mono. One line, truncated with an ellipsis, the whole value on `title`; `tone` is the muted ink beside a title or the body ink where the code is the value |
-| `Surface` | A raised surface on a page: `raised` is the card rung with its shadow, `recessed` the canvas rung with none, `critical` the failure wash. 8px, inset 16px unless its rows lay out their own |
+| `Surface` | A raised surface on a page: `raised` is the card rung with its shadow, `recessed` the canvas rung with none, `critical` the failure wash. 4px, inset 16px unless its rows lay out their own |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface
@@ -2220,7 +2221,7 @@ and no two concepts to the same one: fitting the canvas is
 `Scan` and opening a pane in a window is `Maximize2`. A page or a component that needs a mark
 with no concept adds the concept there. A kind's mark is still `lib/glyphs`.
 
-**Nothing is fully round but a status dot.** A chip, a control, a card, a dialog, an avatar
+**Nothing is fully round but a status dot and an avatar.** A chip, a control, a card, a dialog
 and a switch take the radius ladder's rungs, and no class names a radius of its own.
 
 **`scripts/check_ui_system.py` holds the system**, in `make static` and `make ui-lint`. Under
