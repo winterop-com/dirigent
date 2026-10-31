@@ -499,6 +499,11 @@ the reply renders, where a value a reference resolved to that holds a line break
 (`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
 pipeline's to set, so a reply can redirect, name a download or answer a browser caller.
 
+**A failed step's text stays on the run.** A held caller whose run fails before a reply answers is
+told the run and the step, and nothing the step said: that text can hold the artifact root, an
+internal address or a query value, and a caller may have no right to read the run. A reply can
+still put a step's error in its own body, as the author chooses.
+
 **An open stream answers to its credential.** A run's log tail and event stream read the token or
 session they were opened with on every poll, in the transaction that reads what goes out. Once it
 is revoked, expired or its account deactivated, the next poll sends nothing more and ends the
@@ -660,6 +665,12 @@ What holds, and what it covers:
   `docker.compose.*`, `docker.build` and `git.checkout` build one from `PATH`, `LANG`, `LC_ALL`,
   `TZ` and what the step names, and a `docker.run` container gets only what its step names. A
   secret is not in what they inherit.
+- **The program holding a docker connection's secrets is the host's choice.** `docker.compose.*` and
+  `docker.build` hand a connection's TLS key and registry password to the `docker` on the worker's own
+  `PATH`, with its config in a private directory. A document cannot name another program, set a
+  variable that steers it (`PATH`, `HOME`, `DOCKER_CONFIG` and the like, listed in
+  [docker.md](docker.md#files-live-in-the-runs-work-directory)), or plant a plugin or credential helper in the work
+  directory. `git.checkout` takes no such field and no `env`, and `shell.run` holds no connection.
 - **`dg worker` and `dg dev` take `DIRIGENT_SECRET_KEY` out of `os.environ` at start-up.** That
   covers what `os.environ` reaches: a subprocess a plugin starts without naming an environment,
   and a library reading a variable.

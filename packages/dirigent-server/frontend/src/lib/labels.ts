@@ -1222,14 +1222,14 @@ const refused = {
         reply_bad_status:
             "A reply's status is a whole number from 200 to 599 or a reference to one, not {status}.",
         reply_body_twice: 'A reply takes body or body_from, not both.',
-        reply_failed: 'Run {run} failed at step {step} before any reply answered: {detail}',
+        reply_failed: 'Run {run} failed at step {step} before any reply answered.',
         reply_field_refused:
             'A reply takes depends_on, rule, name and description, and nothing else. {field} is not one of them.',
         reply_no_source:
             'Reply {step} is downstream of no source that replies, so there is nobody for it to answer.',
         reply_not_a_leaf:
             'Step {dependent} depends on reply {step}, and a reply is a leaf: nothing waits on it.',
-        reply_rejected: 'Run {run} refused the input at step {step}: {detail}',
+        reply_rejected: 'Run {run} refused the input at step {step}.',
         reply_timed_out: 'No reply of run {run} answered within {timeout}. The run carries on.',
         reply_unanswered: 'Run {run} is {status}, and no reply answered.',
         required_param_on_sources:

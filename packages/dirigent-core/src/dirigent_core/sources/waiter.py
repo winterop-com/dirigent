@@ -72,7 +72,6 @@ class Unanswered(BaseModel):
 
     run_status: RunStatus | None
     step: str | None = None
-    error: str | None = None
     error_class: ErrorClass | None = None
 
     @property
@@ -238,7 +237,6 @@ def answer_of(hold: Hold, status: RunStatus | None, attempts: Sequence[StepAttem
     return Unanswered(
         run_status=status,
         step=first.step_name,
-        error=first.error,
         error_class=ErrorClass(first.error_class) if first.error_class in set(ErrorClass) else ErrorClass.UNKNOWN,
     )
 
