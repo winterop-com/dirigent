@@ -855,6 +855,10 @@ REPLY_BODY_FROM = RUN.define(
 
 SOURCE = Catalogue("source")
 
+SOURCE_POLL_TOO_LONG = SOURCE.define(
+    "poll_too_long", "a source polled every {poll} would not poll again: the longest cadence is {limit}"
+)
+
 SOURCE_FIELD_REFUSED = SOURCE.define(
     "field_refused",
     "a source takes name, description and sample, and nothing else; {field} goes on the step after it",

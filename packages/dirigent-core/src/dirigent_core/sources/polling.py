@@ -88,13 +88,20 @@ async def tick(
     owner: str,
     now: datetime | None = None,
 ) -> list[PollOutcome]:
-    """Poll every polled source that is due and not held by another worker."""
+    """Poll every polled source that is due and not held by another worker.
+
+    Whatever one of them raises goes on its own row, and the sources claimed after it still poll.
+    """
     moment = now or utcnow()
     async with session_scope(sessions) as session:
         claimed = await claim_due(session, services, owner=owner, now=moment)
     outcomes: list[PollOutcome] = []
     for one in claimed:
-        outcomes.append(await poll_one(sessions, services, one, owner=owner))
+        try:
+            outcomes.append(await poll_one(sessions, services, one, owner=owner))
+        except Exception as error:
+            said = str(error) or type(error).__name__
+            outcomes.append(await _failed(sessions, services, one, owner=owner, error=said))
     return outcomes
 
 
@@ -130,12 +137,20 @@ async def claim_due(session: AsyncSession, services: EngineServices, *, owner: s
             room = min(room, bound - unsettled.get(row.id, 0))
         if room <= 0:
             found = polled(kinds, row)
-            row.next_poll_at = now + (found[0].poll_every(found[1]) if found else lease)
+            row.next_poll_at = _after(now, found[0].poll_every(found[1]) if found else lease, lease)
             continue
         row.lease_owner = owner
         row.lease_expires_at = now + lease
         claimed.append(Claimed(source_id=row.id, pipeline_id=row.pipeline_id, room=room))
     return claimed
+
+
+def _after(now: datetime, cadence: timedelta, lease: timedelta) -> datetime:
+    """Say when a source next looks, or one lease from now for a stored cadence no date can hold."""
+    try:
+        return now + cadence
+    except OverflowError:
+        return now + lease
 
 
 async def poll_one(
