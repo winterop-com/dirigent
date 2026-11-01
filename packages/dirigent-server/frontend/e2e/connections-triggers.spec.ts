@@ -26,6 +26,24 @@ const CRON = {
     pipelineTitle: 'Nightly load',
 }
 
+/**
+ * Apply the cron example and make sure its schedule is firing.
+ *
+ * The scratch database outlives a local run, and a run that stopped between a pause and its
+ * resume leaves the schedule paused for the next one; a test reading the next firing starts
+ * from a schedule that has one.
+ */
+async function applyFiringCron(request: APIRequestContext): Promise<void> {
+    await applyExample(request, CRON.file)
+    const prefix = await apiPrefix(request)
+    const resumed = await request.post(
+        `${prefix}/pipelines/${CRON.pipeline}/triggers/schedules/${CRON.schedule}/$resume`,
+    )
+    expect(resumed.status(), await resumed.text()).toBeLessThan(500)
+    const read = await request.get(`${prefix}/pipelines/${CRON.pipeline}/triggers/schedules/${CRON.schedule}`)
+    if (read.ok()) expect(((await read.json()) as { paused: boolean }).paused).toBe(false)
+}
+
 /** What a secret is drawn as. `DOTS` in lib/connections. */
 const DOTS = '●●●'
 
@@ -95,7 +113,7 @@ test('a connection row is its code, its kind and its health, and nothing else', 
     // secret is set are read on its own page, beside the boxes that change them.
     await expect(row).not.toContainText('base_url')
     await expect(row).not.toContainText(DOTS)
-    await expect(row).not.toContainText('This very instance, so a check is a real request.')
+    await expect(row).toContainText('This very instance, so a check is a real request.')
 
     // The credential itself is nowhere on the screen, in any form.
     await expect(page.locator('body')).not.toContainText('a credential nothing may ever show')
@@ -299,10 +317,10 @@ test('a column heading is a label, whatever face its cells are in', async ({ pag
 
 test('a small button is on the type scale', async ({ page }) => {
     await signIn(page)
-    await page.goto('/pipelines')
+    await page.goto('/')
     const small = page.locator('[data-slot="button"].text-\\[0\\.8rem\\]').first()
     await expect(small).toBeVisible()
-    await expect(small).toHaveCSS('font-size', '12px')
+    await expect(small).toHaveCSS('font-size', '13px')
 })
 
 test('a new connection has one way out, and it says Cancel', async ({ page }) => {
@@ -428,7 +446,7 @@ test('a connection is minted through the form its own kind publishes', async ({ 
 
 test('a schedule shows its clock and its zone', async ({ page }) => {
     await signIn(page)
-    await applyExample(page.request, CRON.file)
+    await applyFiringCron(page.request)
 
     await page.goto('/triggers')
 
@@ -456,7 +474,7 @@ test('a schedule shows its clock and its zone', async ({ page }) => {
 
 test('a schedule opens its own facts and its firing history beside the listing', async ({ page }) => {
     await signIn(page)
-    await applyExample(page.request, CRON.file)
+    await applyFiringCron(page.request)
 
     await page.goto('/triggers')
     // The row's own heading, rather than its middle: the middle of a row is whichever
@@ -476,9 +494,11 @@ test('a schedule opens its own facts and its firing history beside the listing',
     await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
     await expect(panel.getByTestId('next-fire')).toHaveCount(0)
     await expect(panel.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(1)
-    // The listing behind says it the same way: its chip, and no Next beside it.
-    await expect(page.getByTestId('next-fire')).toHaveCount(0)
-    await expect(page.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(2)
+    // The row behind says it the same way: its chip, and no Next beside it. The row and not the
+    // page, because other schedules an earlier spec left on the instance are on the page too.
+    const row = rowOf(page, CRON.title)
+    await expect(row.getByTestId('next-fire')).toHaveCount(0)
+    await expect(row.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(1)
 
     await panel.getByRole('button', { name: 'Resume' }).click()
     await expect(panel.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)

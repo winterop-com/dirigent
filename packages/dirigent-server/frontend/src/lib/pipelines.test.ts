@@ -3,11 +3,13 @@ import { describe, expect, test } from 'vitest'
 import {
     byTitle,
     emptyNote,
+    failedStepOf,
     importanceMark,
     importanceOf,
-    lastRunView,
     pipelinesPath,
     retirement,
+    sourceKinds,
+    splitListing,
     tagsFromQuery,
     tagsPresent,
     triggerSummary,
@@ -26,6 +28,8 @@ const ROW: PipelineOut = {
     active_runs: 0,
     schedules: 0,
     last_run: null,
+    shape: [],
+    example: false,
     created_at: '2026-03-01T00:00:00Z',
     updated_at: '2026-03-01T00:00:00Z',
 }
@@ -135,70 +139,6 @@ describe('what fires a pipeline', () => {
     })
 })
 
-describe('the last run of a pipeline', () => {
-    const now = Date.parse('2026-03-04T12:00:00Z')
-
-    test('is nothing at all for a pipeline that has never run', () => {
-        expect(lastRunView(null, now)).toBeNull()
-    })
-
-    test('reads as the state it ended in and how long ago that was', () => {
-        const view = lastRunView(
-            {
-                id: 'r1',
-                status: 'succeeded',
-                started_at: '2026-03-04T10:00:00Z',
-                finished_at: '2026-03-04T11:00:00Z',
-                failed_step: null,
-            },
-            now,
-        )
-        expect(view).toEqual({
-            status: 'succeeded',
-            when: '1h ago',
-            instant: '2026-03-04T11:00:00Z',
-            failedStep: null,
-        })
-    })
-
-    test('names the step it failed at, which is what says where to look', () => {
-        const view = lastRunView(
-            {
-                id: 'r2',
-                status: 'failed',
-                started_at: '2026-03-04T11:50:00Z',
-                finished_at: '2026-03-04T11:58:00Z',
-                failed_step: 'publish',
-            },
-            now,
-        )
-        expect(view?.failedStep).toBe('publish')
-        expect(view?.status).toBe('failed')
-    })
-
-    test('reads from when it started while it is still running', () => {
-        const view = lastRunView(
-            {
-                id: 'r3',
-                status: 'running',
-                started_at: '2026-03-04T11:58:00Z',
-                finished_at: null,
-                failed_step: null,
-            },
-            now,
-        )
-        expect(view?.when).toBe('2m ago')
-    })
-
-    test('says it has not started when it has neither instant', () => {
-        const view = lastRunView(
-            { id: 'r4', status: 'queued', started_at: null, finished_at: null, failed_step: null },
-            now,
-        )
-        expect(view?.when).toBe('not started')
-    })
-})
-
 describe('a pipeline the instance no longer runs', () => {
     test('is nothing for a live one', () => {
         expect(retirement(ROW)).toBeNull()
@@ -266,5 +206,44 @@ describe('how much a pipeline matters', () => {
 
     test('says what the mark means once, so the two screens that draw it cannot disagree', () => {
         expect(importanceMark('critical')?.title).toContain('no lesser one')
+    })
+})
+
+describe("the pipelines screen's two lists", () => {
+    const ran = (code: string, at: string, example = true): PipelineOut => ({
+        ...ROW,
+        code,
+        example,
+        last_run: { id: code, status: 'failed', started_at: at, finished_at: at, failed_step: 'load' },
+    })
+
+    test("puts the person's own by title and the examples that ran first, newest first", () => {
+        const rows = [
+            { ...ROW, code: 'zeta' },
+            { ...ROW, code: 'alpha' },
+            { ...ROW, code: 'never', example: true },
+            ran('older', '2026-03-01T00:00:00Z'),
+            ran('newer', '2026-03-02T00:00:00Z'),
+        ]
+        const lists = splitListing(rows)
+        expect(lists.own.map((row) => row.code)).toEqual(['alpha', 'zeta'])
+        expect(lists.examples.map((row) => row.code)).toEqual(['newer', 'older', 'never'])
+    })
+
+    test('fills the step a troubled run failed in, and nothing for a good one', () => {
+        expect(failedStepOf(ran('x', '2026-03-01T00:00:00Z'))).toBe('load')
+        expect(failedStepOf(ROW)).toBeNull()
+    })
+
+    test('names each kind of source once', () => {
+        const step = { name: null, depends_on: [], fan_out: false }
+        const row = {
+            shape: [
+                { ...step, code: 'a', kind: 'source' as const, block: 'sensor' },
+                { ...step, code: 'b', kind: 'source' as const, block: 'sensor' },
+                { ...step, code: 'c', kind: 'block' as const, block: 'transform.jq' },
+            ],
+        }
+        expect(sourceKinds(row)).toEqual(['sensor'])
     })
 })

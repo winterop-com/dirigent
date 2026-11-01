@@ -1,6 +1,8 @@
-import { Check, Clock3, Copy } from 'lucide-react'
+import { Clock3 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+import { SecretReveal } from '@/components/ds/SecretReveal'
+import { Well } from '@/components/ds/Well'
 import { Picker } from '@/components/Picker'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
 import { Refusable } from '@/components/Refusable'
@@ -270,20 +272,6 @@ export function NewSchedule({
  * makes a different one and invalidates this.
  */
 export function MintedToken({ token, onClose }: { token: SourceTokenOut; onClose: () => void }) {
-    const [copied, setCopied] = useState(false)
-
-    const copy = () => {
-        void navigator.clipboard.writeText(token.token).then(
-            () => {
-                setCopied(true)
-            },
-            () => {
-                // A denied clipboard is not a failure worth a card: the token is on screen and
-                // can be selected.
-            },
-        )
-    }
-
     return (
         <Dialog
             open
@@ -301,15 +289,14 @@ export function MintedToken({ token, onClose }: { token: SourceTokenOut; onClose
                     <DialogDescription>{LABELS.triggers.token.note}</DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
-                    <p className="font-mono text-xs break-all" data-testid="minted-token">
-                        {token.token}
-                    </p>
-                    <Button variant="outline" size="sm" onClick={copy}>
-                        {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                        {copied ? LABELS.action.copy.done : LABELS.action.copy.verb}
-                    </Button>
-                </div>
+                <SecretReveal
+                    value={token.token}
+                    label={
+                        token.auth === 'hmac'
+                            ? LABELS.triggers.token.secret_noun
+                            : LABELS.triggers.token.token_noun
+                    }
+                />
 
                 <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">{LABELS.triggers.token.url}</p>
@@ -575,7 +562,7 @@ function ParamsBox({
                     onChoose={params.show}
                 />
             </div>
-            <div className="rounded-md border border-border p-3">
+            <Well className="p-3">
                 {fields.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                         {chosen ? LABELS.triggers.dialog.no_params : LABELS.triggers.dialog.no_pipeline}
@@ -608,7 +595,7 @@ function ParamsBox({
                         )}
                     </div>
                 )}
-            </div>
+            </Well>
         </div>
     )
 }

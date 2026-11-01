@@ -40,6 +40,8 @@ import { readSystemInfo, type SystemInfo } from '@/lib/system'
 import { choosePalette, paletteAfter, PALETTES, paletteStore, type PaletteName } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
+import { TextLink } from '@/components/ds/TextLink'
+import { Well } from '@/components/ds/Well'
 
 export const SETTINGS_TITLE = LABELS.settings.title
 
@@ -180,7 +182,11 @@ function Row({ row, children, under }: { row: SettingsRow; children?: ReactNode;
                         <p className="text-xs text-muted-foreground">{row.description}</p>
                     )}
                 </div>
-                {children !== undefined && <div className="flex shrink-0 items-center gap-1">{children}</div>}
+                {children !== undefined && (
+                    <div className="flex min-w-0 shrink-0 flex-wrap items-center justify-end gap-1 md:max-w-[70%]">
+                        {children}
+                    </div>
+                )}
             </div>
             {under !== undefined && <div className="mt-3">{under}</div>}
         </div>
@@ -228,7 +234,7 @@ function ThemePane({ rows }: { rows: SettingsRow[] }) {
 }
 
 /** The tokens a swatch shows, ground first and accent last: the ladder plus the two inks. */
-const SWATCH_STRIPS = ['bg-background', 'bg-card', 'bg-border', 'bg-foreground', 'bg-primary']
+const SWATCH_STRIPS = ['bg-background', 'bg-card', 'bg-border', 'bg-foreground', 'bg-brand']
 
 /**
  * One card per palette, and the card is the radio.
@@ -274,7 +280,9 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         className={cn(
                             'flex max-w-32 min-w-0 flex-1 flex-col gap-1.5 rounded-md border p-1.5 text-left',
                             'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                            chosen ? 'border-primary ring-2 ring-primary' : 'border-border hover:bg-accent',
+                            chosen
+                                ? 'border-foreground ring-1 ring-foreground'
+                                : 'border-border hover:bg-accent',
                         )}
                         onClick={() => {
                             onChoose(palette.name)
@@ -298,7 +306,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         </span>
                         <span className="flex items-center gap-1 text-xs">
                             {palette.label}
-                            {chosen && <Check className="size-3 text-primary-ink" aria-hidden />}
+                            {chosen && <Check className="size-3 text-foreground" aria-hidden />}
                         </span>
                     </button>
                 )
@@ -474,7 +482,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     }
 
     return (
-        <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
+        <Well className="space-y-3 p-3">
             <div className="flex flex-col gap-3 md:flex-row">
                 <div className="min-w-0 flex-1 space-y-1">
                     <Label htmlFor="password-current">{LABELS.settings.current_password}</Label>
@@ -512,7 +520,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
                     {LABELS.settings.change_password}
                 </Button>
             </div>
-        </div>
+        </Well>
     )
 }
 
@@ -598,42 +606,44 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                         {value === null ? (
                             <span className="text-xs text-faint">{LABELS.shell.reading}</span>
                         ) : (
-                            <span className="font-mono text-xs">{factOf(row.id, value)}</span>
+                            <span className="flex min-w-0 flex-wrap justify-end gap-x-2 font-mono text-xs">
+                                {factOf(row.id, value).map((one) => (
+                                    <span key={one} className="whitespace-nowrap">
+                                        {one}
+                                    </span>
+                                ))}
+                            </span>
                         )}
                     </Row>
                 )
             })}
             <p className="mt-3 flex gap-4 text-sm">
-                <a
-                    className="text-primary-ink hover:underline"
-                    href={DOCS_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                >
+                <TextLink variant="external" href={DOCS_URL}>
                     {LABELS.settings.documentation}
-                </a>
-                <a className="text-primary-ink hover:underline" href={API_DOCS_URL}>
-                    {LABELS.settings.api_reference}
-                </a>
+                </TextLink>
+                <TextLink href={API_DOCS_URL}>{LABELS.settings.api_reference}</TextLink>
             </p>
         </div>
     )
 }
 
-/** What one server row states, out of the one document that carries all of them. */
-function factOf(id: string, info: SystemInfo): string {
+/**
+ * What one server row states, out of the one document that carries all of them: one value, or the
+ * codes of a list, each of which stays on one line.
+ */
+function factOf(id: string, info: SystemInfo): string[] {
     switch (id) {
         case 'server:version':
-            return info.version
+            return [info.version]
         case 'server:environment':
-            return info.environment
+            return [info.environment]
         case 'server:database':
-            return info.database
+            return [info.database]
         case 'server:blocks':
-            return String(info.blocks)
+            return [String(info.blocks)]
         case 'server:storage':
-            return info.storage_schemes.length === 0 ? LABELS.word.none : info.storage_schemes.join(', ')
+            return info.storage_schemes.length === 0 ? [LABELS.word.none] : info.storage_schemes
         default:
-            return info.plugins.length === 0 ? LABELS.word.none : info.plugins.join(', ')
+            return info.plugins.length === 0 ? [LABELS.word.none] : info.plugins
     }
 }

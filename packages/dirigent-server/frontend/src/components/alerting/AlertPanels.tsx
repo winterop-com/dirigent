@@ -35,6 +35,8 @@ import { kindGlyph } from '@/lib/glyphs'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
+import { Well } from '@/components/ds/Well'
+import { Chip } from '@/components/ds/Chip'
 
 /**
  * One rule beside the listing: what it says, what it has said lately, and what may be done to it.
@@ -271,7 +273,7 @@ function RuleText({
     }
 
     return (
-        <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3">
+        <Well className="space-y-3 p-3">
             <div className="space-y-2">
                 <Label htmlFor={subjectId}>{LABELS.word.subject}</Label>
                 <Input
@@ -293,7 +295,6 @@ function RuleText({
                 <p className="text-xs text-faint">{BODY_HINT}</p>
                 <WindowedPane
                     name={LABELS.alerting.body_pane}
-                    className="overflow-hidden rounded-md border border-border bg-background"
                     aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
                     windowed={
                         <CodePane
@@ -328,7 +329,7 @@ function RuleText({
                     {busy ? LABELS.action.save.busy : LABELS.action.save.verb}
                 </Button>
             </div>
-        </div>
+        </Well>
     )
 }
 
@@ -479,21 +480,15 @@ export function Run({ notification }: { notification: NotificationOut }) {
         return <span className="text-muted-foreground">{LABELS.alerting.no_run}</span>
     const named = notification.run_pipeline ?? LABELS.alerting.a_run
     return (
-        <Link className="text-primary-ink hover:underline" to={`/runs/${notification.run_id}`}>
+        <Link
+            className="text-foreground underline-offset-2 hover:underline"
+            to={`/runs/${notification.run_id}`}
+        >
             <span className="text-sm">{named}</span>
             {notification.run_started_at !== null && (
                 <Instant className="ml-1.5 text-xs text-muted-foreground" at={notification.run_started_at} />
             )}
         </Link>
-    )
-}
-
-/** A word a rule wears about itself. */
-function Chip({ children }: { children: ReactNode }) {
-    return (
-        <span className="rounded-sm border border-border px-1.5 text-xs text-muted-foreground">
-            {children}
-        </span>
     )
 }
 

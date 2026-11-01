@@ -2,6 +2,7 @@ import { counted, LABELS } from '@/lib/labels'
 import type { PlanView } from '@/lib/pipeline-plan'
 import type { ValidationIssue } from '@/lib/pipelines'
 import { sentenceFor } from '@/lib/wording'
+import { Notice } from '@/components/ds/Notice'
 
 /**
  * One dry run, drawn the one way this app draws one.
@@ -38,13 +39,13 @@ export function PlanReading({ view }: { view: PlanView }) {
                 </ul>
             )}
             {view.issues.length > 0 && (
-                <div className="space-y-1 rounded-md border border-critical/40 p-2" role="alert">
-                    <p className="text-xs font-medium text-critical">
-                        {counted(
-                            view.issues.length,
-                            LABELS.editor.plan.issues_refuse,
-                        )(String(view.issues.length))}
-                    </p>
+                <Notice
+                    tone="critical"
+                    title={counted(
+                        view.issues.length,
+                        LABELS.editor.plan.issues_refuse,
+                    )(String(view.issues.length))}
+                >
                     <ul className="space-y-0.5 text-xs">
                         {view.issues.map((issue) => (
                             <li key={`${issue.location}:${issue.message}`}>
@@ -53,7 +54,7 @@ export function PlanReading({ view }: { view: PlanView }) {
                             </li>
                         ))}
                     </ul>
-                </div>
+                </Notice>
             )}
             {view.updates &&
                 view.issues.length === 0 &&

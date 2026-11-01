@@ -24,6 +24,11 @@ export interface ListChrome {
     header?: boolean
     /** Draw the count footer. A grouped listing counts once, outside its groups. */
     footer?: boolean
+    /**
+     * Draw the panel around the listing. Off where a `Panel` already stands around it and says
+     * the count in its title bar.
+     */
+    framed?: boolean
 }
 
 export interface Column<T> extends CardColumn<T> {
@@ -52,8 +57,10 @@ const REACH = '300px'
  * The table every listing screen in this app is drawn as.
  *
  * ONE IMPLEMENTATION, NOT ONE PER SCREEN. A screen decides its columns and what each cell says;
- * the heading row, the striping, how the next page is reached for and what the foot states are
- * the same on every listing, and live here so they cannot drift apart.
+ * the panel, the heading row, the hairline between rows, how the next page is reached for and
+ * what the foot states are the same on every listing, and live here so they cannot drift apart.
+ * The heading row is the panel's bar; inside a titled `Panel` the listing draws no frame and no
+ * foot, and the panel's bar carries the count.
  *
  * THE FOOT COUNTS WHAT IS LOADED, NEVER WHAT EXISTS. This API pages by cursor and answers no
  * total, so there is no last page to jump to and no number of pages to state. What is honest is
@@ -199,10 +206,11 @@ export function ListTable<T>({
     const measured = useCardForm(box, shown)
     const width = measured.width
     const cards = useSmallWindow() || measured.cards
+    const framed = chrome?.framed !== false
 
     return (
         <ListFormProvider width={width} cards={cards}>
-            <div className="flex min-h-0 flex-col overflow-hidden rounded-md border border-border-strong bg-card">
+            <div className={cn('flex min-h-0 flex-col', framed && 'dg-panel')}>
                 {/* The container the columns' shares are taken of, and the box that is measured:
                 the table's own width, inside the card's border rather than across it. */}
                 <div
@@ -224,7 +232,7 @@ export function ListTable<T>({
                                     <li
                                         {...chooses(row)}
                                         className={cn(
-                                            'row-hover flex min-h-finger flex-col justify-center gap-2 px-3 py-3',
+                                            'row-hover flex min-h-finger flex-col justify-center gap-2 px-4 py-3',
                                             selected?.(row) === true && 'bg-accent/70',
                                             onSelect !== undefined && 'cursor-pointer',
                                             rowClassName?.(row),
@@ -242,13 +250,18 @@ export function ListTable<T>({
                     ) : (
                         <Table containerClassName="overflow-x-visible" className={cn(fixed && 'table-fixed')}>
                             {chrome?.header !== false && (
-                                <TableHeader className="sticky top-0 z-10 bg-card">
-                                    <TableRow className="border-border-strong hover:bg-transparent">
+                                <TableHeader
+                                    className={cn(
+                                        'sticky top-0 z-10',
+                                        framed ? 'bg-card' : 'bg-panel-ground',
+                                    )}
+                                >
+                                    <TableRow className="border-panel-line hover:bg-transparent">
                                         {columns.map((column, at) => (
                                             <TableHead
                                                 key={column.id}
                                                 className={cn(
-                                                    'px-3 text-xs font-medium text-muted-foreground',
+                                                    'px-3 text-xs font-medium text-muted-foreground first:pl-4 last:pr-4',
                                                     sizings[at]?.className,
                                                     column.className,
                                                     'font-sans',
@@ -267,15 +280,9 @@ export function ListTable<T>({
                                         <TableRow
                                             className={cn(
                                                 'row-hover border-border',
-                                                // The stripe steps aside for the selection: `even:` carries a
-                                                // pseudo-class, so left in place it would outrank the tint and
-                                                // every even row would look unselected.
                                                 selected?.(row) === true
-                                                    ? 'bg-accent/70 even:bg-accent/70 hover:bg-accent/70'
-                                                    : cn(
-                                                          'even:bg-secondary/30',
-                                                          onSelect !== undefined && 'hover:bg-accent/60',
-                                                      ),
+                                                    ? 'bg-accent/70 hover:bg-accent/70'
+                                                    : onSelect !== undefined && 'hover:bg-accent/60',
                                                 onSelect !== undefined && 'cursor-pointer',
                                                 rowClassName?.(row),
                                             )}
@@ -295,7 +302,7 @@ export function ListTable<T>({
                                                             ? {}
                                                             : { [sizing.marks]: '' })}
                                                         className={cn(
-                                                            'px-3 py-2',
+                                                            'px-3 py-2 first:pl-4 last:pr-4',
                                                             sizing?.className,
                                                             column.className,
                                                         )}
@@ -337,8 +344,8 @@ export function ListTable<T>({
                     )}
                 </div>
 
-                {chrome?.footer !== false && (
-                    <div className="shrink-0 border-t border-border px-3 py-2 text-xs text-faint">
+                {framed && chrome?.footer !== false && (
+                    <div className="shrink-0 border-t border-border px-4 py-2 text-xs text-faint">
                         {rowsRead(rows.length, noun, next !== null)}
                     </div>
                 )}

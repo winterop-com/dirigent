@@ -11,6 +11,7 @@ import { Instant } from '@/components/Instant'
 import { ANY, Choice } from '@/components/list/Choice'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -37,6 +38,7 @@ import { headingOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
+import { rowsRead } from '@/lib/paging'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'
 
@@ -263,86 +265,108 @@ function Alerting() {
                 ]}
             />
 
-            <section className="mb-6 space-y-2">
+            <div className="flex flex-col gap-6">
                 <ChannelStrip channels={channels.rows} read={channels.read} />
-            </section>
 
-            <section className="space-y-2">
-                <h2 className="text-sm font-semibold">{LABELS.word.rule.heading}</h2>
-                <PageState
-                    loading={!rules.state.read}
-                    problem={rules.state.problem}
-                    empty={ruleRows.length === 0}
-                    emptyMessage={LABELS.alerting.rules_empty}
-                >
-                    <ListTable
-                        columns={RULE_COLUMNS}
-                        rows={ruleRows}
-                        rowKey={ruleId}
-                        rowClassName={(rule) => (ruleLive(rule) ? undefined : 'opacity-60')}
-                        reading={rules.state.reading}
-                        next={rules.state.next}
-                        onMore={rules.more}
-                        noun={LABELS.word.rule.count}
-                        onSelect={chooseRule}
-                        selected={(rule) => rule.id === chosenRule}
-                        onClose={unchoose}
-                    />
-                </PageState>
-            </section>
-
-            <section className="mt-8 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-sm font-semibold">{LABELS.word.notification.heading}</h2>
-                    <div className="flex flex-wrap gap-2">
-                        <Choice
-                            label={LABELS.word.status}
-                            value={filters.status}
-                            anything={LABELS.alerting.any_status}
-                            options={NOTIFICATION_STATUSES.map((one) => ({
-                                value: one,
-                                label: one,
-                                mark: <StatusChip status={one} />,
-                            }))}
-                            onChange={(status) => {
-                                setFilters((held) => ({ ...held, status }))
-                            }}
-                        />
-                        <Choice
-                            label={LABELS.alerting.notifier}
-                            value={filters.notifier}
-                            anything={LABELS.alerting.any_notifier}
-                            options={notifierOptions(channels.rows)}
-                            onChange={(notifier) => {
-                                setFilters((held) => ({ ...held, notifier }))
-                            }}
-                        />
-                    </div>
-                </div>
-                <PageState
-                    loading={!notifications.state.read}
-                    problem={notifications.state.problem}
-                    empty={notificationRows.length === 0}
-                    emptyMessage={
-                        narrowed(filters)
-                            ? LABELS.alerting.notifications_empty_filtered
-                            : LABELS.alerting.notifications_empty
+                <Panel
+                    title={LABELS.word.rule.heading}
+                    meta={
+                        ruleRows.length === 0
+                            ? undefined
+                            : rowsRead(ruleRows.length, LABELS.word.rule.count, rules.state.next !== null)
                     }
+                    inset={false}
                 >
-                    <ListTable
-                        columns={NOTIFICATION_COLUMNS}
-                        rows={notificationRows}
-                        rowKey={notificationId}
-                        reading={notifications.state.reading}
-                        next={notifications.state.next}
-                        onMore={notifications.more}
-                        noun={LABELS.word.notification.count}
-                        onSelect={chooseNotification}
-                        selected={(row) => row.id === chosenNotification}
-                        onClose={unchoose}
-                    />
-                </PageState>
-            </section>
+                    <PageState
+                        bare
+                        loading={!rules.state.read}
+                        problem={rules.state.problem}
+                        empty={ruleRows.length === 0}
+                        emptyMessage={LABELS.alerting.rules_empty}
+                    >
+                        <ListTable
+                            chrome={{ framed: false }}
+                            columns={RULE_COLUMNS}
+                            rows={ruleRows}
+                            rowKey={ruleId}
+                            rowClassName={(rule) => (ruleLive(rule) ? undefined : 'opacity-60')}
+                            reading={rules.state.reading}
+                            next={rules.state.next}
+                            onMore={rules.more}
+                            noun={LABELS.word.rule.count}
+                            onSelect={chooseRule}
+                            selected={(rule) => rule.id === chosenRule}
+                            onClose={unchoose}
+                        />
+                    </PageState>
+                </Panel>
+
+                <Panel
+                    title={LABELS.word.notification.heading}
+                    meta={
+                        notificationRows.length === 0
+                            ? undefined
+                            : rowsRead(
+                                  notificationRows.length,
+                                  LABELS.word.notification.count,
+                                  notifications.state.next !== null,
+                              )
+                    }
+                    aside={
+                        <span className="flex gap-2 font-normal">
+                            <Choice
+                                label={LABELS.word.status}
+                                value={filters.status}
+                                anything={LABELS.alerting.any_status}
+                                options={NOTIFICATION_STATUSES.map((one) => ({
+                                    value: one,
+                                    label: one,
+                                    mark: <StatusChip status={one} />,
+                                }))}
+                                onChange={(status) => {
+                                    setFilters((held) => ({ ...held, status }))
+                                }}
+                            />
+                            <Choice
+                                label={LABELS.alerting.notifier}
+                                value={filters.notifier}
+                                anything={LABELS.alerting.any_notifier}
+                                options={notifierOptions(channels.rows)}
+                                onChange={(notifier) => {
+                                    setFilters((held) => ({ ...held, notifier }))
+                                }}
+                            />
+                        </span>
+                    }
+                    inset={false}
+                >
+                    <PageState
+                        bare
+                        loading={!notifications.state.read}
+                        problem={notifications.state.problem}
+                        empty={notificationRows.length === 0}
+                        emptyMessage={
+                            narrowed(filters)
+                                ? LABELS.alerting.notifications_empty_filtered
+                                : LABELS.alerting.notifications_empty
+                        }
+                    >
+                        <ListTable
+                            chrome={{ framed: false }}
+                            columns={NOTIFICATION_COLUMNS}
+                            rows={notificationRows}
+                            rowKey={notificationId}
+                            reading={notifications.state.reading}
+                            next={notifications.state.next}
+                            onMore={notifications.more}
+                            noun={LABELS.word.notification.count}
+                            onSelect={chooseNotification}
+                            selected={(row) => row.id === chosenNotification}
+                            onClose={unchoose}
+                        />
+                    </PageState>
+                </Panel>
+            </div>
 
             <NewRule
                 open={creating}

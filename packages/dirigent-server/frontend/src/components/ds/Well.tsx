@@ -3,15 +3,12 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 /**
- * A neutral inset box inside a surface: one rung up the ladder, edged, and inset 8px.
+ * A group that belongs together inside a surface: a form opened under its row, a minted secret,
+ * a sample. The panel ground, a hairline edge, and inset 8px.
  *
- * It holds a block that belongs together -- a minted secret, a sample, a preview -- and says
- * nothing about how it is going; a box that does is a `Notice`.
+ * It says nothing about how anything is going; a box that does is a `Notice`. How it is drawn is
+ * `.dg-well` in `index.css`.
  */
 export function Well({ children, className }: { children: ReactNode; className?: string }) {
-    return (
-        <div className={cn('min-w-0 rounded-md border border-border bg-secondary/40 p-2', className)}>
-            {children}
-        </div>
-    )
+    return <div className={cn('dg-well p-2', className)}>{children}</div>
 }

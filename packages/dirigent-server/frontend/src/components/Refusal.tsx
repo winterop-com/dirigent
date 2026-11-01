@@ -24,7 +24,7 @@ import { refusalLine, refusalLines, refusalOf } from '@/lib/refusal'
 export function Refusal({ problem }: { problem: Problem }) {
     const lines = refusalLines(problem)
     return (
-        <div className="space-y-1 rounded-md border border-critical/40 p-2" role="alert">
+        <div className="space-y-1 rounded-md border border-critical/35 bg-critical/8 p-2" role="alert">
             {lines.detail !== null && <p className="text-sm break-words text-critical">{lines.detail}</p>}
             {lines.problems.length > 0 && (
                 <ul className="list-disc space-y-0.5 pl-4 text-xs text-critical">

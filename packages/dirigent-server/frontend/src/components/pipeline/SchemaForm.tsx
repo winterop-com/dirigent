@@ -183,7 +183,7 @@ export function SchemaForm({
                 ) : (
                     <Button
                         variant="link"
-                        className="w-fit px-0 text-primary-ink"
+                        className="w-fit px-0 text-foreground underline-offset-2"
                         onClick={() => {
                             setExpanded(true)
                         }}
@@ -658,7 +658,6 @@ function TextControl({
         return (
             <WindowedPane
                 name={field.name}
-                className="overflow-hidden rounded-md border border-border bg-background"
                 onBlur={onTouch}
                 aside={field.kind === 'code' ? <ProgramReference mediaType={mediaType} /> : undefined}
                 windowed={

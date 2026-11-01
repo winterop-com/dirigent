@@ -9,6 +9,7 @@ from typing import Final, NamedTuple
 from uuid import UUID
 
 import sqlalchemy as sa
+from pydantic import ValidationError
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
@@ -22,6 +23,7 @@ from dirigent_client.schemas import (
     PipelinePlan,
     PlanAction,
     SourceChanges,
+    StepShape,
     ValidationIssue,
 )
 from dirigent_common import JsonMap
@@ -521,6 +523,39 @@ async def last_runs(session: AsyncSession, pipeline_ids: Sequence[UUID]) -> dict
         )
         for row in rows
     }
+
+
+async def listing_shapes(session: AsyncSession, pipeline_ids: Sequence[UUID]) -> dict[UUID, list[StepShape]]:
+    """Read the steps of each of a page of pipelines' current versions, as a miniature draws them.
+
+    One statement for the whole page: each pipeline's current version, joined on the version
+    number the pipeline row holds. A stored document this build can no longer read draws no shape.
+    """
+    if not pipeline_ids:
+        return {}
+    current = (
+        sa.select(PipelineVersion)
+        .join(Pipeline, Pipeline.id == PipelineVersion.pipeline_id)
+        .where(Pipeline.id.in_(pipeline_ids), PipelineVersion.version == Pipeline.current_version)
+    )
+    shapes: dict[UUID, list[StepShape]] = {}
+    for version in (await session.execute(current)).scalars():
+        try:
+            definition = load_definition(version.ordered_document)
+        except ValidationError:
+            continue
+        shapes[version.pipeline_id] = [
+            StepShape(
+                code=code,
+                name=step.name,
+                kind=step.kind,
+                block=step.block_id,
+                depends_on=list(step.depends_on),
+                fan_out=step.is_fan_out,
+            )
+            for code, step in definition.steps.items()
+        ]
+    return shapes
 
 
 class FailedStep(NamedTuple):

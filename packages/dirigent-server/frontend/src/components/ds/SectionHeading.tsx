@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 export type SectionTier = 'section' | 'group'
 
 const TIERS: Record<SectionTier, string> = {
-    section: 'text-sm font-semibold',
+    section: 'text-title font-semibold',
     group: 'text-xs font-medium tracking-wide text-faint uppercase',
 }
 
@@ -44,9 +44,13 @@ export function SectionHeading({
                 {children}
             </Tag>
             {(aside !== undefined || link !== undefined) && (
-                <div className="flex shrink-0 items-baseline gap-3 text-xs text-muted-foreground">
+                <div className="flex shrink-0 items-baseline gap-3 text-sm text-muted-foreground">
                     {aside}
-                    {link !== undefined && <TextLink to={link.to}>{link.label}</TextLink>}
+                    {link !== undefined && (
+                        <TextLink variant="aside" to={link.to}>
+                            {link.label}
+                        </TextLink>
+                    )}
                 </div>
             )}
         </div>

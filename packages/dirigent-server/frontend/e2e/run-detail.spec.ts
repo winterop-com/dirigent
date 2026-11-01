@@ -286,7 +286,7 @@ test('the header says the run is running while it still is, without a reload', a
     // moment to be read: that one is over before the graph it drew has finished drawing.
     await expect(page.getByText(LABELS.state.stream.live, { exact: true })).toBeVisible()
 
-    const chip = page.locator('nav[aria-label="Breadcrumb"] + .status-chip')
+    const chip = page.getByRole('main').locator('.status-chip').first()
     await expect(chip).toHaveAttribute('data-status', 'running', { timeout: 15_000 })
     await expect(chip).toHaveAttribute('data-status', 'succeeded', { timeout: 30_000 })
 })

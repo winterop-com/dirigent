@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 
 import { Instant } from '@/components/Instant'
 import { Mark } from '@/components/Mark'
-import { Card, CardContent } from '@/components/ui/card'
+import { Panel } from '@/components/ds/Panel'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import type { HealthRow } from '@/lib/home'
@@ -43,80 +43,71 @@ const DOTS: Record<TileTone, string> = {
 export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: string; reading: boolean }) {
     const role = useStore(authStore).identity?.role ?? null
     return (
-        <Card className="gap-0 p-0">
-            <CardContent className="flex h-full flex-col p-0">
-                <div className="space-y-1 px-3 py-3">
-                    <h2 className="text-sm font-semibold">{LABELS.word.health}</h2>
-                    <p className="text-xs text-muted-foreground">
-                        {reading ? LABELS.shell.reading : LABELS.dashboard.health.hint}
-                    </p>
-                </div>
-
-                <ul className="max-h-64 grow overflow-y-auto">
-                    {rows.map((row) => {
-                        const to =
-                            row.kind === 'connection'
-                                ? '/connections'
-                                : role === 'admin'
-                                  ? '/admin/workers'
-                                  : null
-                        const body = (
-                            <>
-                                {/* How it is, then what it is. A worker is not a kind, so it
+        <Panel
+            title={LABELS.word.health}
+            meta={reading ? LABELS.shell.reading : undefined}
+            inset={false}
+            bodyClassName="flex flex-col"
+        >
+            <ul className="max-h-64 grow overflow-y-auto">
+                {rows.map((row) => {
+                    const to =
+                        row.kind === 'connection'
+                            ? '/connections'
+                            : role === 'admin'
+                              ? '/admin/workers'
+                              : null
+                    const body = (
+                        <>
+                            {/* How it is, then what it is. A worker is not a kind, so it
                                     draws nothing in the mark's place and holds the width, or
                                     the codes under it would not line up. */}
-                                <span className="flex shrink-0 items-center gap-1.5">
-                                    <span
-                                        className={cn('size-2 shrink-0 rounded-full', DOTS[row.tone])}
-                                        title={row.tip ?? undefined}
-                                        aria-hidden
-                                    />
-                                    {row.mark === null ? (
-                                        <span className="size-4 shrink-0" aria-hidden />
-                                    ) : (
-                                        <Mark glyph={row.mark} />
-                                    )}
-                                </span>
+                            <span className="flex shrink-0 items-center gap-1.5">
                                 <span
-                                    className="max-w-[55%] min-w-[6ch] truncate font-mono text-xs"
-                                    title={row.label}
-                                >
-                                    {row.label}
-                                </span>
-                                <span className="flex min-w-0 flex-1 items-baseline justify-end gap-2">
-                                    <span
-                                        className="truncate text-xs text-muted-foreground"
-                                        title={row.detail}
-                                    >
-                                        {row.detail}
-                                    </span>
-                                    {row.at !== null && (
-                                        <Instant className="shrink-0 text-xs text-faint" at={row.at} />
-                                    )}
-                                </span>
-                            </>
-                        )
-                        return (
-                            <li key={`${row.kind}:${row.id}`} className="border-t border-border">
-                                {to === null ? (
-                                    <span className="flex min-w-0 items-center gap-2 px-3 py-1.5">
-                                        {body}
-                                    </span>
+                                    className={cn('size-2 shrink-0 rounded-full', DOTS[row.tone])}
+                                    title={row.tip ?? undefined}
+                                    aria-hidden
+                                />
+                                {row.mark === null ? (
+                                    <span className="size-4 shrink-0" aria-hidden />
                                 ) : (
-                                    <Link
-                                        to={to}
-                                        className="control-link flex min-w-0 items-center gap-2 px-3 py-1.5 hover:bg-accent/60"
-                                    >
-                                        {body}
-                                    </Link>
+                                    <Mark glyph={row.mark} />
                                 )}
-                            </li>
-                        )
-                    })}
-                </ul>
+                            </span>
+                            <span
+                                className="max-w-[55%] min-w-[6ch] truncate font-mono text-xs"
+                                title={row.label}
+                            >
+                                {row.label}
+                            </span>
+                            <span className="flex min-w-0 flex-1 items-baseline justify-end gap-2">
+                                <span className="truncate text-xs text-muted-foreground" title={row.detail}>
+                                    {row.detail}
+                                </span>
+                                {row.at !== null && (
+                                    <Instant className="shrink-0 text-xs text-faint" at={row.at} />
+                                )}
+                            </span>
+                        </>
+                    )
+                    return (
+                        <li key={`${row.kind}:${row.id}`} className="border-t border-border first:border-t-0">
+                            {to === null ? (
+                                <span className="flex min-w-0 items-center gap-2 px-4 py-1.5">{body}</span>
+                            ) : (
+                                <Link
+                                    to={to}
+                                    className="control-link flex min-w-0 items-center gap-2 px-4 py-1.5 hover:bg-accent/60"
+                                >
+                                    {body}
+                                </Link>
+                            )}
+                        </li>
+                    )
+                })}
+            </ul>
 
-                <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">{note}</p>
-            </CardContent>
-        </Card>
+            <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">{note}</p>
+        </Panel>
     )
 }

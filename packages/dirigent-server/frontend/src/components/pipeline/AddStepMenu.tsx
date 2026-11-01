@@ -226,7 +226,7 @@ function AddStepMenuContent({
 
             <div className="p-1 pt-0">
                 {catalogUnread(blocks) ? (
-                    <Note>{LABELS.editor.canvas.reading_catalog}</Note>
+                    <Note>{LABELS.shell.reading}</Note>
                 ) : searching ? (
                     <Results found={found} active={active} onChoose={choose} />
                 ) : (

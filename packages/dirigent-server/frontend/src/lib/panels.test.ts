@@ -3,10 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import {
     PANEL_MAX_WIDTH,
     PANEL_MIN_WIDTH,
-    RAIL_MAX_WIDTH,
-    RAIL_MIN_WIDTH,
     clampPanelWidth,
-    clampRailWidth,
     closePanel,
     fillPanel,
     openPanel,
@@ -16,9 +13,9 @@ import {
     panelStanding,
     panelTab,
     panelTabs,
-    railWidth,
-    setRailWidth,
+    railHidden,
     togglePanel,
+    toggleRail,
     type PanelTab,
 } from '@/lib/panels'
 
@@ -199,17 +196,12 @@ describe('whether the panel is standing', () => {
     })
 })
 
-describe('the rail width', () => {
-    test('clamps a drag to what the labels need and the screen affords', () => {
-        expect(clampRailWidth(20)).toBe(RAIL_MIN_WIDTH)
-        expect(clampRailWidth(9000)).toBe(RAIL_MAX_WIDTH)
-        expect(clampRailWidth(228.6)).toBe(229)
-    })
-
-    test('keeps the dragged width and clamps what it stores', () => {
-        setRailWidth(500)
-        expect(railWidth.get()).toBe(RAIL_MAX_WIDTH)
-        setRailWidth(240)
-        expect(railWidth.get()).toBe(240)
+describe('the rail', () => {
+    test('hides whole and comes back on the same toggle', () => {
+        const before = railHidden.get()
+        toggleRail()
+        expect(railHidden.get()).toBe(!before)
+        toggleRail()
+        expect(railHidden.get()).toBe(before)
     })
 })

@@ -1,6 +1,7 @@
-import { Check, Copy } from 'lucide-react'
 import { useState } from 'react'
 
+import { Code } from '@/components/ds/Code'
+import { SecretReveal } from '@/components/ds/SecretReveal'
 import { Refusal } from '@/components/Refusal'
 import { Button } from '@/components/ui/button'
 import {
@@ -48,14 +49,12 @@ export function CreateToken({
     const [issued, setIssued] = useState<IssuedTokenOut | null>(null)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
-    const [copied, setCopied] = useState(false)
 
     const close = (next: boolean) => {
         if (!next) {
             setName('')
             setIssued(null)
             setProblem(null)
-            setCopied(false)
         }
         onOpenChange(next)
     }
@@ -107,35 +106,12 @@ export function CreateToken({
                         <p className="text-xs text-muted-foreground">{LABELS.users.token_name_hint}</p>
                     </div>
                 ) : (
-                    <div className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3">
+                    <div className="space-y-2">
                         <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="text-sm font-medium">{issued.name}</span>
-                            <span className="font-mono text-xs text-muted-foreground">{issued.username}</span>
+                            <Code value={issued.username} />
                         </p>
-                        <p className="text-xs text-warning">{LABELS.users.token_once}</p>
-                        <div className="flex items-center gap-2">
-                            <code className="flex-1 overflow-x-auto rounded-md border border-border bg-background p-2 font-mono text-xs break-all">
-                                {issued.token}
-                            </code>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                aria-label={LABELS.users.copy_token}
-                                onClick={() => {
-                                    void navigator.clipboard.writeText(issued.token).then(
-                                        () => {
-                                            setCopied(true)
-                                        },
-                                        () => {
-                                            setCopied(false)
-                                        },
-                                    )
-                                }}
-                            >
-                                {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
-                                {copied ? LABELS.action.copy.done : LABELS.action.copy.verb}
-                            </Button>
-                        </div>
+                        <SecretReveal value={issued.token} label={LABELS.users.token_noun} />
                     </div>
                 )}
 

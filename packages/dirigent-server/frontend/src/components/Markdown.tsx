@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 import { readInline, readMarkdown, type Align, type Block, type Inline, type ListItem } from '@/lib/markdown'
 import { cn } from '@/lib/utils'
+import { Inset } from '@/components/ds/Inset'
 
 /**
  * A description, drawn.
@@ -65,13 +66,11 @@ function draw(block: Block, index: number): ReactNode {
             )
         case 'code':
             return (
-                <pre
-                    key={index}
-                    className="overflow-x-auto rounded-md border border-border bg-background p-2 font-mono text-xs"
-                    data-language={block.language ?? undefined}
-                >
-                    {block.text}
-                </pre>
+                <Inset key={index} className="overflow-x-auto">
+                    <pre className="p-2 font-mono text-xs" data-language={block.language ?? undefined}>
+                        {block.text}
+                    </pre>
+                </Inset>
             )
         case 'list':
             return block.ordered ? (
@@ -96,7 +95,7 @@ function draw(block: Block, index: number): ReactNode {
             // A table is as wide as its columns need, and a description is drawn in a panel that
             // is often narrower than that: it scrolls inside its own box rather than the page.
             return (
-                <div key={index} className="overflow-x-auto rounded-md border border-border">
+                <Inset key={index} className="overflow-x-auto">
                     <table className="w-full border-collapse text-xs">
                         <thead>
                             <tr className="border-b border-border bg-secondary/40">
@@ -105,7 +104,7 @@ function draw(block: Block, index: number): ReactNode {
                         </thead>
                         <tbody>{bodyRows(block.rows, block.align)}</tbody>
                     </table>
-                </div>
+                </Inset>
             )
         case 'rule':
             return <hr key={index} className="border-border" />
@@ -181,7 +180,7 @@ function run(inline: Inline, index: number): ReactNode {
             return (
                 <a
                     key={index}
-                    className="text-primary-ink hover:underline"
+                    className="text-foreground underline-offset-2 hover:underline"
                     href={inline.href}
                     target="_blank"
                     rel="noopener noreferrer"

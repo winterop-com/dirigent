@@ -47,7 +47,7 @@ export function PanelSheet() {
         <>
             <div
                 data-panel-bar
-                className="flex h-shell-foot shrink-0 items-stretch border-t border-border-strong bg-sidebar"
+                className="flex shrink-0 items-stretch border-t border-border-strong bg-sidebar"
             >
                 {tabs.map((tab) => (
                     <button

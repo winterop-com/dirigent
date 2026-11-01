@@ -241,7 +241,6 @@ export function NewRule({
                         <p className="text-xs text-faint">{BODY_HINT}</p>
                         <WindowedPane
                             name={BODY_LABEL}
-                            className="overflow-hidden rounded-md border border-border bg-background"
                             aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
                             windowed={
                                 <CodePane

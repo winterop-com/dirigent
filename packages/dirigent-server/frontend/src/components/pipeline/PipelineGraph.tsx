@@ -27,7 +27,14 @@ import {
     type Placement,
     type Placements,
 } from '@/lib/canvas-layout'
-import { drawnSize, NODE_HEIGHT, NODE_WIDTH, RANK_SPACING, type LayoutShape } from '@/lib/dag-layout'
+import {
+    drawnSize,
+    fanOutRoom,
+    NODE_HEIGHT,
+    nodeWidth,
+    RANK_SPACING,
+    type LayoutShape,
+} from '@/lib/dag-layout'
 import {
     blockOf,
     edgesIn,
@@ -62,7 +69,7 @@ import { listeningLine, readPipelineSources, type SourceOut } from '@/lib/source
  * a `depends_on` naming a step the document no longer has is what an apply refuses.
  *
  * ELK DECIDES WHERE A BOX GOES UNTIL SOMEBODY MOVES IT. A dragged position is that pipeline's,
- * kept in `lib/canvas-layout` and surviving a reload; Re-layout gives the whole arrangement back
+ * kept in `lib/canvas-layout` and surviving a reload; laying out again gives the whole arrangement back
  * to elk and fits the view to it again.
  *
  * This module is loaded lazily. React Flow is shared with the run graph and is not in the entry
@@ -179,7 +186,20 @@ function EditableGraph({
 
     const shape = useMemo<LayoutShape>(
         () => ({
-            nodes: stepNames(document).map((name) => ({ id: name, height: NODE_HEIGHT })),
+            nodes: stepNames(document).map((name) => {
+                const heading = stepHeading(document, name)
+                const block = blockOf(document, name) ?? LABELS.editor.no_block
+                const line = heading.code === null ? block : `${heading.code} · ${block}`
+                const fan = fanOutOf(document, name)
+                const marker = !fan.fanOut
+                    ? 0
+                    : fanOutRoom(
+                          fan.items === null
+                              ? LABELS.editor.canvas.fan_out_each
+                              : LABELS.editor.canvas.fan_out_count(String(fan.items)),
+                      )
+                return { id: name, width: nodeWidth(heading.title, line, marker), height: NODE_HEIGHT }
+            }),
             edges: edgesIn(document),
         }),
         [document],
@@ -313,7 +333,7 @@ function EditableGraph({
                         if (box === undefined) return
                         setDropped({
                             from: onNode.step,
-                            at: { x: box.position.x + NODE_WIDTH + RANK_SPACING, y: box.position.y },
+                            at: { x: box.position.x + (box.width ?? 0) + RANK_SPACING, y: box.position.y },
                             over: onNode.over,
                         })
                     }}
