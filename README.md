@@ -177,14 +177,16 @@ Every block, with the config it takes and the output it produces, is in
 None of this exists yet, and the order is roughly the order it is wanted in.
 
 - **More adapter packs.** An adapter is a pack, each its own package on the plugin contract
-  that already exists, released and versioned on its own. The DHIS2 one ships today as
-  [dirigent-dhis2](https://github.com/winterop-com/dirigent-dhis2), and
-  [docs/plugins.md](docs/plugins.md) says how to write the next.
+  that already exists, released and versioned on its own. Three ship today:
+  [dirigent-dhis2](https://github.com/winterop-com/dirigent-dhis2) for DHIS2,
+  [dirigent-fhir](https://github.com/winterop-com/dirigent-fhir) for a FHIR R4 server, and
+  [dirigent-contrib](https://github.com/winterop-com/dirigent-contrib) for Chap and the open
+  climate service; [docs/plugins.md](docs/plugins.md) says how to write the next.
 - **The tabular half of the transform family.** More codecs beside `convert.std` and
   `convert.arrow`, and an engine that runs a language runtime.
-- **AI and FHIR blocks.** A step that asks a model against a schema its answer must fit, and
-  the general half of FHIR: parse, render, validate against a profile, and a `fhir`
-  connection kind.
+- **AI blocks, and more of FHIR.** A step that asks a model against a schema its answer must
+  fit, and beside the REST blocks `dirigent-fhir` ships: FHIRPath on the transform verbs, CQL
+  and measures, and validation against a profile.
 - **Hardening.** Log batching under load.
 - **Scoped authorization.** Three instance-wide roles are the whole model today; there is no
   way to let a team run its own pipelines and nobody else's.
@@ -230,8 +232,8 @@ clock is two lines: set `DIRIGENT_SCHEDULER_ENABLED=false` and add a service who
 
 [The corpus](packages/dirigent-examples/src/dirigent_examples/shelves) holds one runnable
 document per concept, on a shelf per topic: the shapes a DAG takes, one engine behaviour per
-file, failure and retry, the transform verbs, the recipes, the three clocks and the inbound
-webhook, the sensors, the queue and SQL and git and docker and object-storage families, shell
+file, failure and retry, the transform verbs, the recipes, the three clocks and the input
+sources, the sensors, the queue and SQL and git and docker and object-storage families, shell
 on the allowlist, pipelines made of pipelines, schema gates, and real feeds against public
 APIs. A document tagged `starter` is one `dg pipeline new` copies into a project, and
 `dg examples list` is how an instance shows what it holds. It ships as `dirigent-examples`,

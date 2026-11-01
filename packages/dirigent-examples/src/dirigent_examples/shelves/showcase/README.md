@@ -2,9 +2,9 @@
 
 Pipelines sized like the work, rather than cut down to one lesson. Every other shelf is
 deliberately small -- one behaviour per file, so nothing distracts from it. This one is the
-other extreme: documents with fifteen steps, eight-wide fan-outs, gates in the middle and a
+other extreme: documents with sixteen steps, eight-wide fan-outs, gates in the middle and a
 page at the end, because that is what an operated pipeline looks like and it is what the
-screens in [the screens page](../../docs/screens.md) are photographed on.
+screens in [the screens page](https://winterop-com.github.io/dirigent/screens/) are photographed on.
 
 Nothing here needs infrastructure, a credential, an allowlist entry, or a network: where a
 step has to do something it is `playground.generate`, a node that reaches nothing. The schemas

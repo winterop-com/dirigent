@@ -32,5 +32,5 @@ A schema carries its own identity in its keywords, so there is nothing else to p
 `ou-record` is the shape the two [validation documents](../validate) check a payload against, and
 the two reading shapes are the gates either side of the transform in
 [http-fetch-validate-post.yaml](../recipes/http-fetch-validate-post.yaml).
-The [JSON Schema guide](../../docs/json-schema.md) walks through how a schema like it is
+The [JSON Schema guide](https://winterop-com.github.io/dirigent/json-schema/) walks through how a schema like it is
 built, keyword by keyword.

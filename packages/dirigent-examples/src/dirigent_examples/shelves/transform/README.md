@@ -3,7 +3,7 @@
 These pipelines reshape data with the transform verbs -- `transform`, `map`, `filter` and
 `convert` -- which run a program or a codec against a value and execute nothing on the
 worker. None of them needs an allowlist entry, a network, or anything installed first.
-[docs/transforms.md](../../docs/transforms.md) is the page behind them: a verb is a contract
+[docs/transforms.md](https://winterop-com.github.io/dirigent/transforms/) is the page behind them: a verb is a contract
 with a promise its frame enforces, and a kind is the engine that keeps it.
 
 A file that stars an engine is prefixed with its kind, the way a block id's

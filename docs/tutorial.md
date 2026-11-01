@@ -40,7 +40,7 @@ migrates the database, mints a development admin, and emits a token exactly once
 is `.dirigent/state`, kept between starts -- pass `--wipe-state` to begin from nothing:
 
 ```text
-2026-01-01T18:22:23.069+01:00 [info    ] starting   [process] process=dev api=http://127.0.0.1:3333 docs=http://127.0.0.1:3333/docs admin=dev state=/home/you/dirigent-tutorial/.dirigent/state token=C_8u-blmgbzhoV2nbonBBxnxjZUqRflUIb0Oy81BE-g migrated=0001_baseline
+2026-01-01T18:22:23.069+01:00 [info    ] starting   [process] process=dev api=http://127.0.0.1:3333 docs=http://127.0.0.1:3333/docs admin=admin state=/home/you/dirigent-tutorial/.dirigent/state token=C_8u-blmgbzhoV2nbonBBxnxjZUqRflUIb0Oy81BE-g migrated=0001_baseline
 2026-01-01T18:22:23.382+01:00 [info    ] ready      [process] process=dev
 ```
 
@@ -311,7 +311,7 @@ cause and then effect:
 2026-01-01T18:23:03.798+01:00 [info    ] failed                         [step push[north]] block=http.request attempt=1
 2026-01-01T18:23:04.099+01:00 [info    ] http call                      [log notify_failure] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=491 duration_ms=4
 2026-01-01T18:23:04.100+01:00 [info    ] succeeded                      [step notify_failure] block=http.request attempt=1 duration_ms=302
-2026-01-01T18:23:04.918+01:00 [error   ] failed                         [run] pipeline=regional-load run_id=01a04d50-9c18-70f2-a9f8-b0914f5b07fe pipeline_version=1 triggered_by="dev (token dev)" duration_ms=1330 items_total=3 items_failed=3 exit_code=1 priority=normal
+2026-01-01T18:23:04.918+01:00 [error   ] failed                         [run] pipeline=regional-load run_id=01a04d50-9c18-70f2-a9f8-b0914f5b07fe pipeline_version=1 triggered_by="admin (token dev)" duration_ms=1330 items_total=3 items_failed=3 exit_code=1 priority=normal
 ```
 
 Each item of a fan-out is named as `push[east]`, so three regions read as three lines rather
@@ -321,7 +321,7 @@ than one. Then the summary, and under it a steps table with one row per item:
 run 01a04d50-9c18-70f2-a9f8-b0914f5b07fe
 pipeline      regional-load (version 1)
 status        failed
-triggered by  dev (token dev)
+triggered by  admin (token dev)
 duration      1.3s
 items         0/3
 ```
@@ -404,7 +404,7 @@ dg runs show 01a04d50-9c18-70f2-a9f8-b0914f5b07fe
 run 01a04d50-9c18-70f2-a9f8-b0914f5b07fe
 pipeline      regional-load (version 1)
 status        failed
-triggered by  dev (token dev)
+triggered by  admin (token dev)
 started       2026-01-01 18:23:02
 finished      2026-01-01 18:24:13
 trace         -
@@ -482,11 +482,11 @@ dg run regional-load -p day=2026-01-15 --watch
 2026-01-01T18:26:50.853+01:00 [info    ] succeeded                      [step push[north]] block=http.request attempt=1 duration_ms=295
 2026-01-01T18:26:50.875+01:00 [info    ] succeeded                      [step push[east]] block=http.request attempt=1 duration_ms=327
 2026-01-01T18:26:50.875+01:00 [info    ] skipped                        [step notify_failure] block=http.request attempt=1
-2026-01-01T18:26:51.581+01:00 [info    ] succeeded                      [run] pipeline=regional-load run_id=01a04d50-f29a-7160-93cc-8df15a364242 pipeline_version=2 triggered_by="dev (token dev)" duration_ms=1383 items_total=3 items_failed=0 exit_code=0 priority=normal
+2026-01-01T18:26:51.581+01:00 [info    ] succeeded                      [run] pipeline=regional-load run_id=01a04d50-f29a-7160-93cc-8df15a364242 pipeline_version=2 triggered_by="admin (token dev)" duration_ms=1383 items_total=3 items_failed=0 exit_code=0 priority=normal
 run 01a04d50-f29a-7160-93cc-8df15a364242
 pipeline      regional-load (version 2)
 status        succeeded
-triggered by  dev (token dev)
+triggered by  admin (token dev)
 duration      1.4s
 items         3/3
 

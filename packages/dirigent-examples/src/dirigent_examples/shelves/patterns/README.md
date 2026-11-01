@@ -137,8 +137,9 @@ Most take no flags at all:
 dg run --local examples/patterns/rule-one-failed.yaml
 ```
 
-Five need something handed to them, because what they demonstrate is exactly the thing a bare
-local run does not have:
+Eight need something handed to them, because what they demonstrate is exactly the thing a bare
+local run does not have; the three `pipeline-run-` callers not shown take the same `--also-apply`
+as `pipeline-run-wait.yaml`:
 
 ```bash
 dg run --local examples/patterns/references-cheat-sheet.yaml --window 2026-06-01..2026-06-02

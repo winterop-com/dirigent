@@ -4,12 +4,12 @@ What starts a run on its own: a clock. A trigger is declared in the document and
 by `dg apply`, and the scheduler fires it on the instance the document was applied to.
 Operational state -- paused, last fired, the firing history -- stays in the instance, so none
 of it appears in these files. A run started by a call, a file landing, a message or a sensor's
-success is a source's, not a trigger's: see [`sources/`](../sources). [docs/design.md](../../docs/design.md#the-misfire-policy) is the page behind
+success is a source's, not a trigger's: see [`sources/`](../sources). [docs/design.md](https://winterop-com.github.io/dirigent/design/#the-misfire-policy) is the page behind
 the clocks.
 
-Each file is prefixed with the clock kind it teaches, the way `transform/`'s files are
+Each file that teaches one clock is prefixed with its kind, the way `transform/`'s files are
 prefixed with the engine kind: `cron-` for a calendar moment, `interval-` for a rolling
-cadence, `at-` for a single firing. Every one of them also runs ad hoc, with nothing on the
+cadence, `at-` for a single firing. Every one of those also runs ad hoc, with nothing on the
 allowlist and no network:
 
 ```bash

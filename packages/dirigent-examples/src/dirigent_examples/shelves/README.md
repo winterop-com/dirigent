@@ -21,7 +21,7 @@ The documents live on topic shelves, each with its own README:
 | [`triggers/`](triggers) | What starts a run on its own: the three clocks. |
 | [`sources/`](sources) | A pipeline that starts where an input arrives: a source, a signed call, a reply, and a run entered by hand. |
 | [`sensors/`](sensors) | Steps that wait for the world: a drop landing, a clock window opening. |
-| [`queues/`](queues) | A run started by a message: a Kafka topic and a RabbitMQ queue, waited on as sensors. |
+| [`queues/`](queues) | Messages on a Kafka topic and a RabbitMQ queue: waited on as sensors, entered as a source, and published. |
 | [`execute/`](execute) | Code on the worker: a shell step behind the allowlist. |
 | [`docker/`](docker) | The container family: run one, watch it live, build an image and push it, and bring a whole compose stack up and down, on the worker's daemon or one a connection names. |
 | [`git/`](git) | An existing project brought into a run: a repository checked out, then built and brought up from what it ships. |
@@ -29,8 +29,8 @@ The documents live on topic shelves, each with its own README:
 | [`composition/`](composition) | Pipelines made of pipelines, and the handoff to a second instance. |
 | [`s3/`](s3) | Object storage through the `s3://` scheme, with no S3 block anywhere. |
 | [`demo/`](demo) | Surfaces shown off: the run form, rendered markdown, the requires preflight, the weekly-import shared-name pair. |
-| [`showcase/`](showcase) | Pipelines sized like the work: fifteen steps, eight-wide fan-outs, gates in the middle and a page at the end. |
-| [`open-data/`](open-data) | Real feeds against public, mostly keyless APIs: acme, health indicators, maps, earthquakes, humanitarian data. |
+| [`showcase/`](showcase) | Pipelines sized like the work: sixteen steps, eight-wide fan-outs, gates in the middle and a page at the end. |
+| [`open-data/`](open-data) | Real feeds against public, mostly keyless APIs: weather, health indicators, maps, earthquakes, humanitarian data. |
 | [`validate/`](validate) | A gate that checks a value's shape and passes it through: `validate.schema`, with the shape carried and named. |
 | [`schemas/`](schemas) | Not documents but the shapes they are held to: plain JSON Schemas, applied on their own and referenced by code. |
 
@@ -39,17 +39,18 @@ nothing else. The **shelf** is the directory the file sits in, exactly one, and 
 wears it. The **block families** are what its steps use, read off the block ids: `http`,
 `transform` (the jq verbs and the `convert.std` codec), `storage` (a storage block, or a
 converter's `source` and `target`), `execute` (shell and docker), `sql`, `git`, `webhook`
-(`webhook.post`), `kafka`, `rabbitmq`, `pipeline`, `validate`,
-and `sensor` for any sensor block. The **behaviours** are what the document teaches and what a
-reader filters by: `schedule`, `fan-out`, `graph`, `failure`, `retry`, `timeout`,
-`concurrency`, `params`, `references`, `rules`, `priority`, `window`, `composition`,
-`credential`, `outputs`, `filter`, `map`, `relay`, `csv`, `parquet`, `jq`, `sparql`,
-`geocode`, `briefing`, `observability`, `conventions`, `report` for a document that
-declares a `report:` section, so every run of it writes its own account of itself, or renders
-a page of its own with `report.render`, and `starter` for a document `dg pipeline new` may
-copy into a project: a real multi-step flow on a real source. A source's name is never a tag:
-the pipeline's `code` and `name` already say it is USGS or WHO GHO, and a word one document
-wears is a filter nobody can use.
+(`webhook.post`), `kafka`, `rabbitmq`, `pipeline`, `validate`, `playground`
+(`playground.generate` and `playground.arrive`), and `sensor` for any sensor block. The
+**behaviours** are what the document teaches and what a reader filters by: `schedule`,
+`fan-out`, `graph`, `failure`, `retry`, `timeout`, `concurrency`, `params`, `references`,
+`rules`, `priority`, `importance`, `alerting`, `window`, `composition`, `forms`, `credential`,
+`outputs`, `filter`, `map`, `relay`, `csv`, `parquet`, `jq`, `sparql`, `geocode`, `briefing`,
+`observability`, `conventions`, `report` for a document that declares a `report:` section, so
+every run of it writes its own account of itself, or renders a page of its own with
+`report.render`, and `starter` for a document `dg pipeline new` may copy into a project: a real
+multi-step flow on a real source. A source's name is never a tag: the pipeline's `code` and
+`name` already say it is USGS or WHO GHO, and a word one document wears is a filter nobody can
+use.
 
 **The starter rule.** `starter` is the one tag a document opts into rather than wears by
 description, and it is the narrowest. A document earns it by being a real multi-step flow on
@@ -65,8 +66,9 @@ is the list of what to create first.
 need infrastructure whose setup their headers document -- the [`docker/`](docker) shelf needs a
 Docker socket or a daemon a connection names, [`queues/`](queues) needs the brokers
 `infra/compose.queues.yaml` starts, `sql-postgres-readonly.yaml` needs a PostgreSQL,
-`s3-round-trip.yaml` needs an S3-compatible endpoint and a connection to it, and the documents
-that make a real HTTP call need a `dg dev` to make it to.
+the [`s3/`](s3) shelf needs an S3-compatible endpoint and a connection to it, the documents
+that call the playground need a `dg dev` to make it to, and [`open-data/`](open-data) reaches
+the public internet.
 `preview/` is for what cannot run yet because the *code* does not exist: documents whose block
 ids belong to adapter packs nobody has written. A missing credential is not a preview; a
 missing package is.
@@ -84,7 +86,7 @@ dg run --local examples/composition/chained-instances.yaml \
   --connections examples/connections.yaml -p day=2026-01-01
 ```
 
-Most of these use `shell.run`, which executes code on the worker and is refused unless the
+Some of these use `shell.run`, which executes code on the worker and is refused unless the
 instance allowlists it. `--enable-unsafe shell.run` allows it for one command; the instance
 setting allows it for good:
 
@@ -92,7 +94,7 @@ setting allows it for good:
 export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]'
 ```
 
-Not every one of them succeeds, and that is the point of three of them:
+Not every one of them succeeds, and that is the point of these:
 
 | Example | Ends as | Because |
 | --- | --- | --- |
@@ -117,8 +119,10 @@ dg run linear -p day=2026-01-01 --watch
 
 The documents that are *about* HTTP are the exception, and they call the playground routes a
 dirigent instance serves under `/api/v1/playground`, unauthenticated: the whole
-[`recipes/` HTTP section](recipes/README.md), the connection and signed-delivery files on
-[`patterns/`](patterns), [`demo/requires.yaml`](demo/requires.yaml) and
+[`recipes/` HTTP section](recipes/README.md) and the four other recipes that make a call, the
+three HTTP files on [`patterns/`](patterns),
+[`playground/a-stream-to-read.yaml`](playground/a-stream-to-read.yaml),
+[`demo/requires.yaml`](demo/requires.yaml) and
 [`composition/chained-instances.yaml`](composition/chained-instances.yaml). A local run mounts
 no API of its own, so start an instance first and they reach that:
 
@@ -147,14 +151,14 @@ dg run --local examples/patterns/fan-out-continue.yaml         # completed_with_
 dg run --local examples/patterns/timeout-skips-the-step.yaml   # succeeded, having skipped the branch
 ```
 
-Nothing on that shelf runs code on the worker, so none of it needs `--enable-unsafe`. Four
+Nothing on that shelf runs code on the worker, so none of it needs `--enable-unsafe`. Eight
 files are handed something a bare local run does not have -- a window, a connections file, a
 child document -- and [patterns/README.md](patterns/README.md) indexes all of them with the
 outcome each one settles as.
 
 ## Connections
 
-Three of the examples reference a connection by code. Documents are portable precisely because
+Three of the examples reference the `playground` connection by code. Documents are portable precisely because
 they name credentials rather than carrying them, so the credential has to exist wherever the
 document is applied. On a server, create it once:
 
@@ -190,7 +194,7 @@ A schema reads its own identity from its keywords: `$id` becomes the `code` it i
 by, `title` its name, and `description` its body. A server that applies a directory at boot
 stores the schemas it finds there too, before the pipelines that require them, so mounting this
 whole directory lands the schemas as well as the documents. See
-[schemas/README.md](schemas/README.md) and the [JSON Schema guide](../docs/json-schema.md).
+[schemas/README.md](schemas/README.md) and the [JSON Schema guide](https://winterop-com.github.io/dirigent/json-schema/).
 
 ## Recipes
 
@@ -200,8 +204,8 @@ actually asks -- how do I group and sum, how do I join two lists, which types su
 parquet round trip, where do credentials live -- in a complete pipeline whose header comment
 is the lesson. Nothing on the shelf needs infrastructure, a credential, or an allowlist
 entry: the data is inline, generated by a jq program, or generated by `playground.generate`.
-The recipes under HTTP and webhooks call the instance's own playground, so those want a
-`dg dev` running.
+The recipes under HTTP and webhooks, and four elsewhere that make a call, reach the instance's
+own playground, so those want a `dg dev` running.
 
 ```bash
 dg run --local examples/recipes/jq-group-by-and-sum.yaml
@@ -212,7 +216,7 @@ dg run --local examples/recipes/schema-refuses-then-rule.yaml   # fails, by desi
 Two of them end `failed` on purpose and say so in their headers:
 `recipes/schema-refuses-then-rule.yaml`, where a gate refuses and the error branch runs, and
 `recipes/reconcile-two-sources.yaml`, where the two sources disagree past the tolerance the
-run was given. [recipes/README.md](recipes/README.md) indexes all forty-seven by the question
+run was given. [recipes/README.md](recipes/README.md) indexes all forty-nine by the question
 each one answers.
 
 ## The examples
@@ -228,9 +232,9 @@ Two of them are worth running twice, because a parameter flips which branch is t
 
 ```bash
 # publish succeeds; still completed_with_errors as the cache times out
-dg run --local examples/failure/retries.yaml -p status=200 --enable-unsafe shell.run
+dg run --local examples/failure/retries.yaml -p fail_until=0 --enable-unsafe shell.run
 # the success branch, not the alert
-dg run --local examples/failure/error-handler.yaml -p status=200 --enable-unsafe shell.run
+dg run --local examples/failure/error-handler.yaml -p fail_until=0 --enable-unsafe shell.run
 ```
 
 ## Preview documents
@@ -244,7 +248,8 @@ published schema.
 
 [`preview/s3-parquet-to-ingestion.yaml`](preview/s3-parquet-to-ingestion.yaml) is the one on
 the shelf today: every block it names is installed, and what it needs is the
-`dirigent-storage-s3` package and an endpoint for the `s3://` scheme it addresses.
+`dirigent-storage-s3` package, an endpoint for the `s3://` scheme it addresses, and the two
+connections it names.
 
 ## Composing pipelines
 
@@ -285,7 +290,7 @@ together: apply the pipeline, then apply its clocks.
 ## Putting the whole corpus into one instance
 
 `make dev-seeded` boots a `dg dev --seed examples` with everything on this page already
-applied, so there is something to look at without applying forty documents by hand. The
+applied, so there is something to look at without applying two hundred documents by hand. The
 instance walks this directory for `dirigent/v1` documents, creates the connections
 [connections.yaml](connections.yaml) carries, applies each document with its schedules and its
 polled or held sources paused, and creates what a document carries for its own standalone run
@@ -307,7 +312,7 @@ what a failure looks like, so the seeded one is deliberately mixed:
 | Schedules | 22, all paused | `--paused` is what stops twenty-two clocks starting to fire at somebody who has not looked at them |
 | Sources | 8, 4 of them paused | The two `sensor` sources, the `storage` source and the `kafka` source land paused, because each would start runs on its own; [sources/sensor-arrivals.yaml](sources/sensor-arrivals.yaml) alone starts one every five seconds or so. The four `endpoint` sources stay `listening`, because an endpoint only acts when it is called. `dg source resume PIPELINE CODE` starts a paused one, and so does Resume on its panel on the Triggers screen |
 | Runs | 3 succeeded, 1 with errors, 2 failed | `hello-world`, `transform/jq-reshape.yaml` and `triggers/cron-windowed.yaml` settle green; `optional-step.yaml` settles `completed_with_errors`, which is a third status rather than a shade of failed; `error-handler.yaml` fails by design, and `s3-round-trip.yaml` cannot reach an object store nobody started |
-| Connections | 10 healthy, 4 red | The ten that answer are `playground` and the instance's own playground routes the documents carry for their own standalone runs; `artifacts` points at `127.0.0.1:9000`, `work-db` at a database nobody started, and `orders-topic` and `shop-queue` at the two brokers in `infra/compose.queues.yaml`, where nothing is listening unless you started what their headers document |
+| Connections | 10 healthy, 4 red | The ten that answer are `playground`, the instance's own playground routes the documents carry for their own standalone runs, the in-memory DuckDB `analysis`, and the three public GitHub remotes the [git/](git) documents carry; `artifacts` points at `127.0.0.1:9000`, `work-db` at a database nobody started, and `orders-topic` and `shop-queue` at the two brokers in `infra/compose.queues.yaml`, where nothing is listening unless you started what their headers document |
 
 The refusals are reported by code with the reason the instance gave, and the seeding carries
 on past each one -- a refusal is a thing to look at, not an error to fix.

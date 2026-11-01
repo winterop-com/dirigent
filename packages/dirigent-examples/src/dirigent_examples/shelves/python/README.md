@@ -1,7 +1,7 @@
 # Driving an instance from Python
 
 The YAML files above are pipelines. These are programs that drive an instance: each one is a
-single file using [`dirigent-client`](../../packages/dirigent-client), the typed async SDK.
+single file using [`dirigent-client`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-client), the typed async SDK.
 
 Every script reads `DG_URL` and `DG_TOKEN` from the environment, exactly as `dg` does:
 
@@ -20,12 +20,8 @@ uv run python examples/python/apply_and_run.py
 | [`ci_gate.py`](ci_gate.py) | Apply and run in a build job, exiting non-zero when no run started or the run does not succeed. |
 
 `apply_and_run.py`, `follow_logs.py`, and `ci_gate.py` apply
-[`hello-world.yaml`](../hello-world.yaml), which uses `shell.run`. That block executes code
-on the worker, so the instance must allowlist it:
+[`hello-world.yaml`](../hello-world.yaml), a single `value.const` step, so the instance needs
+nothing allowlisted to run it.
 
-```bash
-export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]'
-```
-
-The REST API remains available directly; see [docs/python.md](../../docs/python.md) for the
+The REST API remains available directly; see [docs/python.md](https://winterop-com.github.io/dirigent/python/) for the
 SDK reference and for what the raw endpoints answer with.

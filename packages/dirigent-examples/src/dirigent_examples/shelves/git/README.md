@@ -3,7 +3,7 @@
 `git.checkout` puts an existing project into a run. It clones a repository at a ref into the
 run's work directory and reports the commit it landed on, so a `docker.build` names its context,
 a `docker.compose.up` names its compose file, and a transform names its files, all by a path
-relative to the checkout. [docs/git.md](../../docs/git.md) is the family's home.
+relative to the checkout. [docs/git.md](https://winterop-com.github.io/dirigent/git/) is the family's home.
 
 It is an **ordinary** block: it writes only under the run's work directory and reaches only the
 remote its connection names, so no id has to be allowlisted to run it.

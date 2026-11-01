@@ -276,16 +276,16 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
     await shot(page, 'dashboard')
 
     // The listing filtered to one tag, which is what the screen is for and what makes every
-    // visible row carry a run rather than the word "never".
+    // visible card carry a run rather than the word "never".
     await page.goto(`/pipelines?tag=${TAG}`)
     await page.getByRole('heading', { name: 'Pipelines' }).waitFor({ timeout: 30_000 })
-    await page.getByRole('row').filter({ hasText: BIG }).waitFor({ timeout: 30_000 })
+    await page.getByRole('link').filter({ hasText: BIG }).first().waitFor({ timeout: 30_000 })
     await shot(page, 'pipelines')
 
     // THE EDITOR, with a step open: the panel is half the screen, and a bare canvas is half a
     // picture. `submit` is the step worth opening -- it is the fanned one, and its config
     // carries the item policy and the retry budget.
-    await page.goto(`/pipelines/${BIG}`)
+    await page.goto(`/pipelines/${BIG}/edit`)
     await page.locator('.react-flow__node').getByText('submit', { exact: true }).click()
     await page.locator('aside').getByRole('heading', { name: 'Config' }).waitFor({ timeout: 30_000 })
     await shot(page, 'editor')

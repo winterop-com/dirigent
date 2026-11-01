@@ -18,9 +18,12 @@ both the empty first day and the second day's difference. The two credentialed o
 documents validate and their graphs are the same shape, but nobody's Kobo token or ODK Central
 server is in this repository, so the request itself is what a reader has to supply.
 
-Nothing here uses a block outside the core catalog, and nothing runs code on a worker: no
+Nothing here uses a block outside the core catalog but `convert.arrow`, which the two parquet
+writers take from `dirigent-block-parquet`, and nothing runs code on a worker: no
 `shell.run`, no allowlist entry, no `--enable-unsafe`. Reshaping is jq, encoding is a codec,
-waiting is a sensor.
+waiting is a sensor. The three that post a digest -- `usgs-earthquakes-alert`,
+`gdacs-disaster-updates` and `github-releases-relay` -- post it to the instance's own
+playground by default, so a run with something to post wants a `dg dev` running.
 
 | File | What it teaches |
 | --- | --- |

@@ -13,17 +13,17 @@ corpus already applied.
 
 ## The dashboard
 
-![The dashboard: a day of runs as a chart, the counts beside it, and one row per connection with its health.](images/screens/dashboard.png)
+![The dashboard: the runs in trouble first, each with a sketch of its graph, the step it stopped at and why, and the day's chart and the worker's health beneath them.](images/screens/dashboard.png)
 
-A day at a glance: how many runs there were, how they ended, and whether the things this
-instance talks to are answering.
+A day at a glance: the runs that need someone first, where each one stopped and why, then
+how the day's runs ended and how healthy the instance is.
 
 ## Pipelines
 
-![The pipelines listing filtered to the fan-out tag: the documents wearing it, their tags, their schedules and how each last run ended.](images/screens/pipelines.png)
+![The pipelines listing filtered to the fan-out tag: the documents wearing it, a sketch of each graph, their schedules and how each last run ended.](images/screens/pipelines.png)
 
 Every document on the shelf, narrowed to the ones that fan out. Pipelines are found
-by the tags they wear rather than by a folder somebody agreed on, and the last run is on the row.
+by the tags they wear rather than by a folder somebody agreed on, and the last run is on the card.
 
 ## The editor
 
@@ -71,7 +71,7 @@ what makes alerting work on a fresh install.
 
 ## The block catalog
 
-![The blocks screen: every block the installed packs contribute, with the config and output each one declares.](images/screens/blocks.png)
+![The blocks screen: every block the installed packs contribute, grouped by family, with its kind, how many examples use it and the plugin it comes from.](images/screens/blocks.png)
 
 Every block the installed packages contribute, with the config schema that validates a step and
 renders its form. Installing a pack extends this list without a frontend release.

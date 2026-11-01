@@ -2,7 +2,7 @@
 
 The `sql.*` family reads from and writes to a database. `sql.query` runs one statement and
 hands its rows on; `sql.execute` runs a list of statements as one transaction.
-[docs/sql.md](../../docs/sql.md) is the family's home.
+[docs/sql.md](https://winterop-com.github.io/dirigent/sql/) is the family's home.
 
 Both are **ordinary** blocks: they run no command a document supplies and reach nothing but the
 database their connection names, so no id has to be allowlisted to run them.
@@ -38,7 +38,7 @@ dg connection create sql warehouse-read \
 ```
 
 On the compose stack that database is the `infra/compose.sql.yaml` overlay
-(`make docker-run-sql`), seeded with the `reading` table the third document queries, and the
+(`make docker-run-sql`), seeded with the `reading` table the PostgreSQL document queries, and the
 connection names it as `reader@warehouse:5432/warehouse`.
 
 ## Pipelines
