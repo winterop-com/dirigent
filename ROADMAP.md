@@ -147,29 +147,23 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      mounted inside the dirigent server, picking only the routers wanted. This needs a routes
      contribution surface, the open question "A server in the mix" below.
 
-   **What dhis2w-fhir already has, and what to release outside dhis2w.** Most of the engine
-   this pack needs exists in the `dhis2w-fhir` repository's `dhis2w-fhir-engine`, with no
-   DHIS2 in it: FHIRPath, CQL and ELM evaluators, each run against its conformance suite;
-   measure evaluation by the conventional population definitions; data sources over memory, a
-   Bundle and one patient's Bundle; CQL library resolvers over files, memory and a composite;
-   a terminology service, in memory or against a remote FHIR server; UCUM unit conversion; and
-   closed, frozen R4 models for about twenty resource types that reproduce the wire document
-   key for key. Recommended:
-   - Release the engine under a name that carries no `dhis2w`, so a FHIR user with no DHIS2
-     finds and trusts it, and have `dhis2w-fhir` depend on it as `dirigent-fhir` does. The
-     DHIS2-bound packages stay where they are: IG generation from DHIS2 metadata
-     (`dhis2w-fhir`) and the facade that projects DHIS2 and captures QuestionnaireResponses
-     into it (`dhis2w-fhir-serve`).
-   - Add the FHIR REST client neither has as a generic package beside the engine: search
-     paging, conditional create and update, transaction bundles with `urn:uuid` references,
-     `OperationOutcome` parsing, and `/metadata` reading. `dirigent-fhir`'s REST blocks are a
-     thin layer over it, and `dhis2w-fhir-serve` reuses it wherever it talks FHIR outward.
-   - Keep the R4 models hand-written and growing by need rather than generating all of R4;
-     a resource without a model is carried as JSON, so the list never gates a pipeline.
-   - Generic IG package loading (registry fetch, cache, `name#version`) is new work: the
-     package reader `dhis2w-fhir` has is for its own organisation-unit registry. It belongs
-     beside the engine too, since validation in both repositories needs it.
-   The pack depends on these by package name, not by repository.
+   **The engine, as dhis2w-fhir publishes it.** The pack depends on the `dhis2w-fhir`
+   engine as published, under its own name and version, and asks nothing of how that
+   repository is split or named. The engine has no DHIS2 in it: FHIRPath, CQL and ELM
+   evaluators, each run against its conformance suite; measure evaluation by the conventional
+   population definitions; data sources over memory, a Bundle and one patient's Bundle; CQL
+   library resolvers over files, memory and a composite; a terminology service, in memory or
+   against a remote FHIR server; UCUM unit conversion; and closed, frozen R4 models for about
+   twenty resource types that reproduce the wire document key for key.
+   - The pack takes the engine's DHIS2-free parts only; nothing DHIS2-bound in `dhis2w-fhir`
+     (IG generation from DHIS2 metadata, the facade) is a dependency.
+   - The FHIR REST client the blocks need (search paging, conditional create and update,
+     transaction bundles with `urn:uuid` references, `OperationOutcome` parsing, `/metadata`)
+     lives in the pack.
+   - A resource without an engine model is carried as JSON, so the model list never gates a
+     pipeline. The pin follows the engine's releases.
+   - Generic IG package loading (registry fetch, cache, `name#version`) is new work for the
+     validation stage; where it lives is decided then.
 4. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project
    in the workspace, beside `dirigent-examples`. It is one instance that has it all:
    - every package and pack as dependencies, `dirigent-integration`'s shelves included;
