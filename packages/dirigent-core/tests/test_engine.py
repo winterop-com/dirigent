@@ -2259,8 +2259,9 @@ async def test_a_value_reaches_a_jq_program_as_a_variable_and_never_as_its_text(
         {"program": "${params.region}"},
         {"stack": "a: ${params.region}"},
         {"expression": "name.where(family = '${params.region}')"},
+        {"library": "define Region: '${params.region}'"},
     ],
-    ids=["template", "whole-program", "compose", "fhirpath"],
+    ids=["template", "whole-program", "compose", "fhirpath", "cql"],
 )
 async def test_a_reference_a_program_cannot_hold_is_refused_when_the_step_starts(
     engine: Engine, sessions: Any, services: EngineServices, config: dict[str, Any]

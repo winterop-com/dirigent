@@ -524,7 +524,9 @@ at apply (`document.step_reference_in_fhirpath`) and when the step starts (`refe
 FHIRPath has no literal for an object or a list, so a value cannot be bound ahead of the expression
 the way jq binds one. It goes under the step's `variables` instead, where a reference resolves as
 data, and the expression reads it as an environment variable: `name.where(family = %family)` with
-`variables: {family: ${params.family}}`.
+`variables: {family: ${params.family}}`. A CQL library, `text/cql` in the same pack's `fhir.cql`
+and `fhir.measure`, is refused the same way (`document.step_reference_in_cql`,
+`reference.in_cql`), and a value reaches it as a parameter under `parameters`.
 
 ## Writing an engine
 

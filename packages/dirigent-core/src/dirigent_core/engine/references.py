@@ -36,6 +36,7 @@ from dirigent_core.engine.shell import REFERENCE_MARK, Quoting, Unread, evaluate
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     COMPOSE_REFERENCE,
+    CQL_REFERENCE,
     FHIRPATH_REFERENCE,
     ITEM_FAILED,
     JQ_WHOLE_PROGRAM,
@@ -162,6 +163,7 @@ def resolve_config(
     template_fields: Collection[str] = (),
     compose_fields: Collection[str] = (),
     fhirpath_fields: Collection[str] = (),
+    cql_fields: Collection[str] = (),
 ) -> JsonMap:
     """Resolve a step's whole config map, which is what the engine hands a block.
 
@@ -186,6 +188,9 @@ def resolve_config(
     ``fhirpath_fields`` names the keys a block publishes as a FHIRPath expression, refused the same
     way, because a value reaches one only as a variable the block binds.
 
+    ``cql_fields`` names the keys a block publishes as a CQL library, refused the same way, because
+    a value reaches one only as a parameter the block passes.
+
     ``jq_fields`` names the keys a block publishes as a jq program, where a reference is bound to
     a jq variable rather than spliced into the program's text.
     """
@@ -202,6 +207,9 @@ def resolve_config(
     for key in fhirpath_fields:
         for reference in references_in(config.get(key)):
             raise UnknownReference(FHIRPATH_REFERENCE, reference=reference, field=key)
+    for key in cql_fields:
+        for reference in references_in(config.get(key)):
+            raise UnknownReference(CQL_REFERENCE, reference=reference, field=key)
     variables: dict[str, str] = {}
     resolved: JsonMap = {}
     for key, value in config.items():

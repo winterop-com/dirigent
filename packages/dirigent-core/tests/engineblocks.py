@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, JsonValue
 
 from dirigent_common import (
     COMPOSE_MEDIA_TYPE,
+    CQL_MEDIA_TYPE,
     FHIRPATH_MEDIA_TYPE,
     JQ_MEDIA_TYPE,
     SQL_MEDIA_TYPE,
@@ -167,12 +168,13 @@ class SqlishOperator(Operator[SqlishConfig, SqlishOutput]):
 
 
 class ProgramishConfig(BlockModel):
-    """A config with a jq program, a template, a compose file and a FHIRPath expression."""
+    """A config with a jq program, a template, a compose file, a FHIRPath expression and a CQL library."""
 
     program: Annotated[str, Field(json_schema_extra={"contentMediaType": JQ_MEDIA_TYPE})] = ""
     template: Annotated[str, Field(json_schema_extra={"contentMediaType": TEMPLATE_MEDIA_TYPE})] = ""
     stack: Annotated[str, Field(json_schema_extra={"contentMediaType": COMPOSE_MEDIA_TYPE})] = ""
     expression: Annotated[str, Field(json_schema_extra={"contentMediaType": FHIRPATH_MEDIA_TYPE})] = ""
+    library: Annotated[str, Field(json_schema_extra={"contentMediaType": CQL_MEDIA_TYPE})] = ""
 
 
 class ProgramishOutput(BaseModel):

@@ -19,6 +19,17 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**The FHIR pack gains a search that feeds a fan-out, FHIRPath, validation, CQL and measures.**
+`dirigent-fhir`'s main adds `fhir.search`'s `emit: pages | resources` for a following `for_each`,
+`transform.fhirpath`, `map.fhirpath` and `filter.fhirpath` on the verb frames, `fhir.validate`
+(structural, on the engine's R4 models), and `fhir.cql` and `fhir.measure` (a CQL library, and a
+measure answered as a MeasureReport), released with this version. `application/fhirpath` and
+`text/cql` join the program media types in `dirigent_common.programs`, and a field publishing
+either refuses a `${...}` at apply (`document.step_reference_in_fhirpath`,
+`document.step_reference_in_cql`) and when the step starts (`reference.in_fhirpath`,
+`reference.in_cql`), as a template does: a value reaches the expression as a variable, and the
+library as a parameter.
+
 **Every instance serves MCP over HTTP at `/mcp`.** An agent connects to the instance itself with
 its own API token, `claude mcp add --transport http dirigent https://<instance>/mcp --header
 "Authorization: Bearer …"`, and nothing is installed beside it. Each request acts as the token it

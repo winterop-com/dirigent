@@ -132,25 +132,43 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      [winterop-com/dirigent-fhir](https://github.com/winterop-com/dirigent-fhir), with its own
      docs site, and moves in lockstep with this repository: the `fhir` connection kind and `fhir.read`, `fhir.search`, `fhir.create`,
      `fhir.update` and `fhir.transaction`, every request held to the origin of `base_url`, and
-     `max_response` and `request_deadline` on every answer. It pins `dhis2w-fhir-engine` 1.38.2
+     `max_response` and `request_deadline` on every answer. It pins `dhis2w-fhir-engine` 1.38.3
      and imports no DHIS2 code, though that release declares `dhis2w-client` as a dependency, so
      installing the pack installs it too. It is tested offline against a fake
      FHIR server, and its flagship runs as `fhir-to-fhir` in `dirigent-examples` between two
      local HAPI FHIR servers rather than the public one, whose shared data a copy cannot assert
      on. `dg init --pack dirigent-fhir` offers it, and `dirigent-integration`'s `make test` runs
-     its tests and validates its examples. Left in this stage: a search handing its pages to a
-     fan-out.
+     its tests and validates its examples. **Done on the pack's main, released with the next
+     version:** `fhir.search` hands its pages (`emit: pages`, one Bundle each) or its resources
+     (`emit: resources`) to a following step's `for_each`, as `fhir-copy-page-by-page` shows.
    - **FHIRPath on the verb frames:** `transform.fhirpath`, `map.fhirpath`, `filter.fhirpath`,
      the mapping between two servers' profiles being where FHIRPath earns its place over jq.
+     **Built on the pack's main.** Engines on the verb frames, evaluated in a runner process the
+     step timeout kills, the answer held to `max_output`. The program publishes
+     `application/fhirpath`, which takes no `${...}`: a value goes under `variables` and is read
+     as `%name`, and an unbound `%name` is refused rather than evaluated to nothing. Left: a
+     FHIRPath language entry in the UI's editor, which edits it uncoloured today.
    - **CQL and measures.** `fhir.cql` evaluates a library over the resources a step produced
      (a Bundle, a search, one patient's compartment), with libraries resolved from the
      document, from storage, or as ELM; `fhir.measure` runs a Measure and answers with a
      MeasureReport, which a pipeline then pushes to another FHIR server or, through
      `dirigent-dhis2`, into DHIS2 as aggregate data values. Terminology for `in`/`memberOf`
      comes from a value set carried in the step or from a remote FHIR terminology server.
+     **Begun on the pack's main.** `fhir.cql` evaluates a library written in the step over a
+     Bundle or a list of resources, per patient in the Patient context and once otherwise, its
+     values passed as CQL parameters (`text/cql` takes no `${...}`). `fhir.measure` evaluates the
+     conventional populations per patient, nests them by `proportion`, `ratio` or `cohort`
+     scoring before counting, and answers a summary MeasureReport. Left: libraries from storage
+     or as ELM, one patient's compartment as the data, terminology for `in`/`memberOf`,
+     continuous-variable measures and stratifiers, and the MeasureReport into DHIS2.
    - **Validation, profiles and IG packages:** structural validation first, then a profile
      resolved from a pinned package (`name#version` from the FHIR package registry), a
-     package cache, and terminology for bindings.
+     package cache, and terminology for bindings. **Structural validation built on the pack's
+     main:** `fhir.validate` holds every resource to FHIR's JSON rules and the engine's R4 model
+     for the eighteen types it models, projected onto the elements the model names, and fails
+     its step `rejected` listing the issues by FHIRPath, or reports them as an OperationOutcome.
+     A profile is checked only by the engine's `conformsTo()`, which reads `meta.profile`: the
+     engine resolves no StructureDefinition, so profiles proper, packages and bindings are left.
    - **FHIR in through an endpoint source:** `application/fhir+json` taken, shaped, imported into DHIS2 by the dhis2 pack, and answered with a reply, in
      `dirigent-integration`'s `shelves/fhir/` with a standalone `fhir-to-dhis2` walkthrough.
      Converting a QuestionnaireResponse into DHIS2 uses `dhis2w-fhir` and belongs in
@@ -168,8 +186,15 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
    against a remote FHIR server; UCUM unit conversion; and closed, frozen R4 models for about
    twenty resource types that reproduce the wire document key for key.
    - The pack imports only the engine's DHIS2-free parts, and a test holds it to that. The
-     published `dhis2w-fhir-engine` (1.38.2) still requires `dhis2w-client` and `fastapi`, so
+     published `dhis2w-fhir-engine` (1.38.3) still requires `dhis2w-client` and `fastapi`, so
      installing the pack installs them; whether that changes is dhis2w-fhir's to decide.
+   - What the pack found in the engine (1.38.3), reported to dhis2w-fhir rather than changed:
+     `MeasureEvaluator.evaluate_population` counts each population independently, so a numerator
+     that does not repeat the denominator's criterion is overcounted (the pack nests them
+     itself), and its `to_fhir()` omits `period` and the population code system; FHIRPath's
+     `1 + 1` answers a Decimal rather than an Integer, and an undefined `%name` evaluates to
+     nothing rather than an error; and the R4 models name a subset of each resource's elements
+     and are closed, so they type what they name but cannot validate a resource whole.
    - The FHIR REST client the blocks need (search paging, conditional create and update,
      transaction bundles with `urn:uuid` references, `OperationOutcome` parsing, `/metadata`)
      lives in the pack.
