@@ -34,6 +34,16 @@ The stdio command `uvx dirigent-mcp` is unchanged, and both offer a new `whoami`
 forwards it to `DG_URL`, never `DG_TOKEN`, and refuses another origin's page. An address other
 machines can reach needs `--allow-remote`.
 
+**More MCP tools, and resources to write a document against.** `list_connections`,
+`get_connection` and `check_connection` (secrets redacted; checking is admin only), `list_schemas`
+and `get_schema`, `list_alert_rules` and `get_alert_rule`, `get_source` with an endpoint's full URL
+and how a caller authenticates, and `rotate_source_token`, marked destructive. `get_run` answers
+how a source's input arrived (`via`) and `stored_bytes`. Every tool's `readOnlyHint`,
+`destructiveHint`, `idempotentHint` and `openWorldHint` now say what its call does. The resources
+`dirigent://schema/document`, `dirigent://blocks` and `dirigent://blocks/{block_id}` serve the
+format and the catalogue. `GET /api/v1/alert-rules/{code}` reads one rule, and the client's
+`alerts.rule()` and `blocks.document_schema()` call it and `GET /schema/document`.
+
 **`dirigent-fhir` is on PyPI, and `dg init --pack dirigent-fhir` adds it.** The FHIR pack, a `fhir`
 connection kind and the `fhir.read`, `fhir.search`, `fhir.create`, `fhir.update` and
 `fhir.transaction` blocks for one FHIR R4 server, is published at 0.29.0 and pinned at the

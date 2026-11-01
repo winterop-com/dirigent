@@ -1,7 +1,8 @@
 # dirigent-mcp
 
 An MCP server that lets an agent operate a dirigent instance through its API: write and apply
-pipeline documents, start runs and read them, and pause or resume sources and schedules. Its
+pipeline documents, start runs and read them, pause or resume sources and schedules, and read
+connections, schemas and alert rules. Its
 tools are calls the API already answers, so the agent may do what its token's role may do. No
 tool is a delete, but `apply_document` retires what a document stops declaring: a source, with
 its input journal and its token, and a schedule the document managed. `plan_document` lists them

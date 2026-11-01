@@ -87,7 +87,7 @@ def standalone_app(
 
     endpoint = McpEndpoint(
         authenticate=authenticate,
-        open_client=lambda secret: Dirigent(url=url, token=secret),
+        open_client=lambda secret, _: Dirigent(url=url, token=secret),
         unauthenticated=_unauthenticated,
         cross_origin=_cross_origin,
         max_body=max_body,
