@@ -49,7 +49,7 @@ graph LR
     12-. "Delivers saved exports<br/>[DHIS2 Web API]" .->9
     1-. "Builds pipelines, starts and reads runs<br/>[HTTPS]" .->17
     2-. "Manages connections, users, schedules and alerts" .->17
-    3-. "Calls tools<br/>[MCP over stdio]" .->17
+    3-. "Calls tools<br/>[MCP over stdio, or Streamable HTTP]" .->17
     16-. "Calls an endpoint source<br/>[HTTPS POST /endpoints/...]" .->17
 
   end
@@ -71,30 +71,31 @@ graph TB
 
       18["Web UI<br/>[Container: React SPA]<br/>Pipeline builder, run grid and logs, connections, schedules, sources and alerts. Built from the block catalog."]
       19["API server<br/>[Container: FastAPI / Uvicorn (Python)]<br/>dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler."]
-      26["Scheduler<br/>[Container: asyncio (Python)]<br/>dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time."]
-      27["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
-      41["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
-      42["dirigent-mcp<br/>[Container: MCP over stdio (Python)]<br/>MCP server. Every tool is a call the Python client makes; nothing deletes."]
-      43[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
-      44[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
+      27["Scheduler<br/>[Container: asyncio (Python)]<br/>dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time."]
+      28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
+      42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
+      43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; nothing deletes."]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
 
-    27-. "http.request, webhook.post<br/>[HTTPS]" .->16
+    28-. "http.request, webhook.post<br/>[HTTPS]" .->16
     1-. "Builds pipelines, starts and reads runs<br/>[HTTPS]" .->18
-    1-. "Applies documents, runs and watches pipelines" .->41
+    1-. "Applies documents, runs and watches pipelines" .->42
     2-. "Manages connections, users, schedules and alerts" .->18
-    2-. "Starts processes, migrates, checks health" .->41
-    3-. "Calls tools<br/>[MCP over stdio]" .->42
+    2-. "Starts processes, migrates, checks health" .->42
+    3-. "Calls tools<br/>[MCP over stdio, or Streamable HTTP]" .->43
+    3-. "Calls tools with its own token<br/>[MCP over Streamable HTTP, /mcp]" .->19
     18-. "Loads the bundle<br/>[HTTPS]" .->19
-    41-. "Applies, runs, cancels, retries<br/>[HTTP/JSON (dirigent-client)]" .->19
-    41-. "Migrates the schema, ensures connections<br/>[SQL]" .->43
-    42-. "Calls the API with the agent's token<br/>[HTTP/JSON (dirigent-client)]" .->19
+    42-. "Applies, runs, cancels, retries<br/>[HTTP/JSON (dirigent-client)]" .->19
+    42-. "Migrates the schema, ensures connections<br/>[SQL]" .->44
+    43-. "Calls the API with the agent's token<br/>[HTTP/JSON (dirigent-client)]" .->19
     16-. "Calls an endpoint source<br/>[HTTPS POST /endpoints/...]" .->19
-    19-. "Reads and writes definitions; creates ad hoc runs<br/>[SQL, JSONB]" .->43
-    19-. "Streams artifacts<br/>[file:// or s3://]" .->44
-    26-. "Holds the leader lock; claims due schedules and inserts their runs<br/>[pg_advisory_lock, FOR UPDATE SKIP LOCKED]" .->43
-    27-. "LISTEN dirigent_work<br/>[pg_notify]" .->43
-    27-. "Writes and reads outputs<br/>[file:// or s3://]" .->44
+    19-. "Reads and writes definitions; creates ad hoc runs<br/>[SQL, JSONB]" .->44
+    19-. "Streams artifacts<br/>[file:// or s3://]" .->45
+    27-. "Holds the leader lock; claims due schedules and inserts their runs<br/>[pg_advisory_lock, FOR UPDATE SKIP LOCKED]" .->44
+    28-. "LISTEN dirigent_work<br/>[pg_notify]" .->44
+    28-. "Writes and reads outputs<br/>[file:// or s3://]" .->45
 
   end
 ```
@@ -105,6 +106,8 @@ graph TB
 graph TB
 
   subgraph diagram ["Component View: Dirigent - API server"]
+
+    3["AI agent<br/>[Person]<br/>A coding agent operating an instance through dirigent-mcp, bounded by the role of its token."]
 
     16["HTTP APIs<br/>[Software System]<br/>Any HTTP service an http.request step reaches, or that calls an endpoint source."]
 
@@ -118,31 +121,36 @@ graph TB
         23["Endpoint intake<br/>[Component]<br/>/endpoints: checks a call in a fixed order (route, token, rate, type, size, signature), records the input, creates the run."]
         24["Reply waiter<br/>[Component]<br/>One reader per process. Answers each held caller with the first reply to settle, or with the run's failure, or 504 at its deadline."]
         25["UI host<br/>[Component]<br/>Serves the SPA bundle and the shell for its deep links."]
+        26["MCP endpoint<br/>[Component]<br/>/mcp: MCP over Streamable HTTP. Checks the origin and the bearer token, offers a viewer only the reading tools, and calls the API in process as the caller."]
       end
 
       18["Web UI<br/>[Container: React SPA]<br/>Pipeline builder, run grid and logs, connections, schedules, sources and alerts. Built from the block catalog."]
-      41["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
-      42["dirigent-mcp<br/>[Container: MCP over stdio (Python)]<br/>MCP server. Every tool is a call the Python client makes; nothing deletes."]
-      43[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
-      44[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
+      42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
+      43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; nothing deletes."]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
 
+    3-. "Calls tools<br/>[MCP over stdio, or Streamable HTTP]" .->43
+    3-. "Calls tools with its own token<br/>[MCP over Streamable HTTP, /mcp]" .->26
     18-. "Loads the bundle<br/>[HTTPS]" .->25
     18-. "Reads and writes<br/>[HTTP/JSON]" .->20
     18-. "Follows logs and events<br/>[SSE]" .->22
-    41-. "Applies, runs, cancels, retries<br/>[HTTP/JSON (dirigent-client)]" .->20
-    41-. "Watches a run<br/>[SSE]" .->22
-    41-. "Migrates the schema, ensures connections<br/>[SQL]" .->43
-    42-. "Calls the API with the agent's token<br/>[HTTP/JSON (dirigent-client)]" .->20
+    42-. "Applies, runs, cancels, retries<br/>[HTTP/JSON (dirigent-client)]" .->20
+    42-. "Watches a run<br/>[SSE]" .->22
+    42-. "Migrates the schema, ensures connections<br/>[SQL]" .->44
+    43-. "Calls the API with the agent's token<br/>[HTTP/JSON (dirigent-client)]" .->20
     16-. "Calls an endpoint source<br/>[HTTPS POST /endpoints/...]" .->23
     20-. "Authenticates every call" .->21
-    20-. "Reads and writes definitions; creates ad hoc runs<br/>[SQL, JSONB]" .->43
-    20-. "Streams artifacts<br/>[file:// or s3://]" .->44
-    22-. "Tails log entries; LISTEN dirigent_settled<br/>[SQL, LISTEN]" .->43
-    23-. "Records the input, creates the run; LISTEN dirigent_sources for routes<br/>[SQL, LISTEN]" .->43
+    26-. "Resolves the bearer token" .->21
+    26-. "Calls the API in process with the caller's token<br/>[ASGI (dirigent-client)]" .->20
+    20-. "Reads and writes definitions; creates ad hoc runs<br/>[SQL, JSONB]" .->44
+    20-. "Streams artifacts<br/>[file:// or s3://]" .->45
+    22-. "Tails log entries; LISTEN dirigent_settled<br/>[SQL, LISTEN]" .->44
+    23-. "Records the input, creates the run; LISTEN dirigent_sources for routes<br/>[SQL, LISTEN]" .->44
     23-. "Holds the caller when a reply can answer" .->24
-    24-. "Reads rendered replies; LISTEN dirigent_settled<br/>[SQL, LISTEN]" .->43
-    24-. "Streams a body_from reply<br/>[file:// or s3://]" .->44
+    24-. "Reads rendered replies; LISTEN dirigent_settled<br/>[SQL, LISTEN]" .->44
+    24-. "Streams a body_from reply<br/>[file:// or s3://]" .->45
 
   end
 ```
@@ -164,59 +172,59 @@ graph TB
 
     subgraph 17 ["Dirigent"]
 
-      subgraph 27 ["Worker [1..*]"]
+      subgraph 28 ["Worker [1..*]"]
 
-        28["Wake-ups<br/>[Component]<br/>LISTEN on dirigent_work. A commit wakes idle claims instead of the next poll; a lost one costs the poll it replaced."]
-        29["Claim<br/>[Component]<br/>One query: a queued attempt past available_at, or a waiting one past next_poll_at, by priority then fairness. FOR UPDATE SKIP LOCKED, filtered by tags."]
-        30["Executor<br/>[Component]<br/>Calls one block under a per-worker semaphore: execute, probe, fetch or poke. Commits a remote handle the moment it returns."]
-        31["Readiness and run status<br/>[Component]<br/>The last statement of every outcome transaction: readies dependents, renders replies, derives the run's status."]
-        32["Run creation<br/>[Component]<br/>Inserts a run, its items and attempt rows in one transaction, under the pipeline's lock. Shared by the API, the scheduler and sources."]
-        33["Recovery and deadline sweeps<br/>[Component]<br/>Reclaims expired leases (waiting if a handle was committed, else queued), settles overdue deadlines, flags stuck runs, reaps dead workers."]
-        34["Polled sources<br/>[Component]<br/>Leases each due storage or sensor source, polls it with no lock held, makes a run per input and stores the cursor."]
-        35["Held sources<br/>[Component]<br/>Keeps kafka and rabbitmq consumers open under a lease. A message is acknowledged only after its run commits."]
-        36["Alert dispatcher<br/>[Component]<br/>Claims queued notifications and delivers each through its channel, retried like an attempt."]
-        37["Plugin host<br/>[Component]<br/>Discovers packs through pluginkit entry points at startup, then dispatches by block id."]
-        38["Block contract<br/>[Component]<br/>dirigent-plugin: Operator, Sensor, source kinds, notifiers, storage backends, connection kinds and formats."]
-        39["Built-in blocks<br/>[Component]<br/>dirigent-blocks: http, storage, execute, sql, jq, queues and parquet families, and the alert channels."]
-        40["Storage facade<br/>[Component]<br/>Dispatches URIs by scheme. Keeps a small output inline and a large one as a URI."]
+        29["Wake-ups<br/>[Component]<br/>LISTEN on dirigent_work. A commit wakes idle claims instead of the next poll; a lost one costs the poll it replaced."]
+        30["Claim<br/>[Component]<br/>One query: a queued attempt past available_at, or a waiting one past next_poll_at, by priority then fairness. FOR UPDATE SKIP LOCKED, filtered by tags."]
+        31["Executor<br/>[Component]<br/>Calls one block under a per-worker semaphore: execute, probe, fetch or poke. Commits a remote handle the moment it returns."]
+        32["Readiness and run status<br/>[Component]<br/>The last statement of every outcome transaction: readies dependents, renders replies, derives the run's status."]
+        33["Run creation<br/>[Component]<br/>Inserts a run, its items and attempt rows in one transaction, under the pipeline's lock. Shared by the API, the scheduler and sources."]
+        34["Recovery and deadline sweeps<br/>[Component]<br/>Reclaims expired leases (waiting if a handle was committed, else queued), settles overdue deadlines, flags stuck runs, reaps dead workers."]
+        35["Polled sources<br/>[Component]<br/>Leases each due storage or sensor source, polls it with no lock held, makes a run per input and stores the cursor."]
+        36["Held sources<br/>[Component]<br/>Keeps kafka and rabbitmq consumers open under a lease. A message is acknowledged only after its run commits."]
+        37["Alert dispatcher<br/>[Component]<br/>Claims queued notifications and delivers each through its channel, retried like an attempt."]
+        38["Plugin host<br/>[Component]<br/>Discovers packs through pluginkit entry points at startup, then dispatches by block id."]
+        39["Block contract<br/>[Component]<br/>dirigent-plugin: Operator, Sensor, source kinds, notifiers, storage backends, connection kinds and formats."]
+        40["Built-in blocks<br/>[Component]<br/>dirigent-blocks: http, storage, execute, sql, jq, queues and parquet families, and the alert channels."]
+        41["Storage facade<br/>[Component]<br/>Dispatches URIs by scheme. Keeps a small output inline and a large one as a URI."]
       end
 
-      43[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
-      44[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
 
-    37-. "Calls built-in blocks" .->39
-    37-. "Calls pack blocks<br/>[in-process, entry point dirigent.plugins.v1]" .->4
-    37-. "Calls pack blocks<br/>[in-process, entry point dirigent.plugins.v1]" .->5
-    37-. "Calls pack blocks<br/>[in-process, entry point dirigent.plugins.v1]" .->6
-    39-. "http.request, webhook.post<br/>[HTTPS]" .->16
-    39-. "storage blocks, storage sources<br/>[S3 API]" .->13
-    39-. "Consumes and publishes<br/>[Kafka, AMQP]" .->14
-    39-. "Delivers alerts<br/>[SMTP, HTTPS]" .->15
-    4-. "Implements" .->38
-    5-. "Implements" .->38
-    6-. "Implements" .->38
-    28-. "LISTEN dirigent_work<br/>[pg_notify]" .->43
-    28-. "Wakes" .->29
-    29-. "Claims attempt rows<br/>[FOR UPDATE SKIP LOCKED]" .->43
-    29-. "Hands over the claimed attempt" .->30
-    30-. "Resolves the block by id" .->37
-    30-. "Commits handles, heartbeats the lease, writes logs<br/>[SQL, JSONB]" .->43
-    30-. "Persists the output" .->40
-    30-. "Records the outcome" .->31
-    31-. "Settles the attempt, readies dependents; NOTIFY dirigent_work, dirigent_settled<br/>[SQL, pg_notify]" .->43
-    40-. "Writes and reads outputs<br/>[file:// or s3://]" .->44
-    33-. "Sweeps leases, deadlines, stuck runs, dead workers<br/>[SQL]" .->43
-    34-. "Leases due sources; stores the cursor<br/>[SQL]" .->43
-    34-. "Polls the source kind" .->37
-    34-. "Makes a run per input" .->32
-    35-. "Leases held sources<br/>[SQL]" .->43
-    35-. "Opens the consumer" .->37
-    35-. "Makes a run per message" .->32
-    32-. "Inserts run, item and attempt rows; NOTIFY dirigent_work<br/>[SQL, JSONB, pg_notify]" .->43
-    36-. "Claims queued notifications<br/>[SQL]" .->43
-    36-. "Resolves the notifier" .->37
-    37-. "Indexes contributions by id" .->38
+    36-. "Makes a run per message" .->33
+    33-. "Inserts run, item and attempt rows; NOTIFY dirigent_work<br/>[SQL, JSONB, pg_notify]" .->44
+    37-. "Claims queued notifications<br/>[SQL]" .->44
+    37-. "Resolves the notifier" .->38
+    38-. "Indexes contributions by id" .->39
+    38-. "Calls built-in blocks" .->40
+    38-. "Calls pack blocks<br/>[in-process, entry point dirigent.plugins.v1]" .->4
+    38-. "Calls pack blocks<br/>[in-process, entry point dirigent.plugins.v1]" .->5
+    38-. "Calls pack blocks<br/>[in-process, entry point dirigent.plugins.v1]" .->6
+    40-. "http.request, webhook.post<br/>[HTTPS]" .->16
+    40-. "storage blocks, storage sources<br/>[S3 API]" .->13
+    40-. "Consumes and publishes<br/>[Kafka, AMQP]" .->14
+    40-. "Delivers alerts<br/>[SMTP, HTTPS]" .->15
+    4-. "Implements" .->39
+    5-. "Implements" .->39
+    6-. "Implements" .->39
+    29-. "LISTEN dirigent_work<br/>[pg_notify]" .->44
+    29-. "Wakes" .->30
+    30-. "Claims attempt rows<br/>[FOR UPDATE SKIP LOCKED]" .->44
+    30-. "Hands over the claimed attempt" .->31
+    31-. "Resolves the block by id" .->38
+    31-. "Commits handles, heartbeats the lease, writes logs<br/>[SQL, JSONB]" .->44
+    31-. "Persists the output" .->41
+    31-. "Records the outcome" .->32
+    32-. "Settles the attempt, readies dependents; NOTIFY dirigent_work, dirigent_settled<br/>[SQL, pg_notify]" .->44
+    41-. "Writes and reads outputs<br/>[file:// or s3://]" .->45
+    34-. "Sweeps leases, deadlines, stuck runs, dead workers<br/>[SQL]" .->44
+    35-. "Leases due sources; stores the cursor<br/>[SQL]" .->44
+    35-. "Polls the source kind" .->38
+    35-. "Makes a run per input" .->33
+    36-. "Leases held sources<br/>[SQL]" .->44
+    36-. "Opens the consumer" .->38
 
   end
 ```
@@ -231,25 +239,25 @@ graph LR
     subgraph 17 ["Dirigent"]
 
       19["API server<br/>[Container: FastAPI / Uvicorn (Python)]<br/>dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler."]
-      27["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
-      41["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
-      43[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
-      44[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
+      28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
+      42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
 
     1["Pipeline author<br/>[Person]<br/>Writes pipeline documents in YAML or the builder, applies them, and starts and reads runs."]
     16["HTTP APIs<br/>[Software System]<br/>Any HTTP service an http.request step reaches, or that calls an endpoint source."]
 
-    1-. "1. dg run CODE --watch" .->41
-    41-. "2. POST /api/v1/pipelines/{code}/$run<br/>[HTTP/JSON (dirigent-client)]" .->19
-    19-. "3. Insert run and attempt rows; NOTIFY dirigent_work on commit<br/>[SQL, JSONB]" .->43
-    27-. "4. Wake and claim the queued attempt FOR UPDATE SKIP LOCKED<br/>[pg_notify]" .->43
-    27-. "5. execute: submit the job, get a remote handle<br/>[HTTPS]" .->16
-    27-. "6. Commit the handle; park as waiting with next_poll_at<br/>[pg_notify]" .->43
-    27-. "7. probe when due, until terminal; then fetch<br/>[HTTPS]" .->16
-    27-. "8. Write the output as an artifact<br/>[file:// or s3://]" .->44
-    27-. "9. Settle, ready dependents, derive run status; NOTIFY dirigent_settled<br/>[pg_notify]" .->43
-    41-. "10. GET the run's events (SSE) until it settles<br/>[HTTP/JSON (dirigent-client)]" .->19
+    1-. "1. dg run CODE --watch" .->42
+    42-. "2. POST /api/v1/pipelines/{code}/$run<br/>[HTTP/JSON (dirigent-client)]" .->19
+    19-. "3. Insert run and attempt rows; NOTIFY dirigent_work on commit<br/>[SQL, JSONB]" .->44
+    28-. "4. Wake and claim the queued attempt FOR UPDATE SKIP LOCKED<br/>[pg_notify]" .->44
+    28-. "5. execute: submit the job, get a remote handle<br/>[HTTPS]" .->16
+    28-. "6. Commit the handle; park as waiting with next_poll_at<br/>[pg_notify]" .->44
+    28-. "7. probe when due, until terminal; then fetch<br/>[HTTPS]" .->16
+    28-. "8. Write the output as an artifact<br/>[file:// or s3://]" .->45
+    28-. "9. Settle, ready dependents, derive run status; NOTIFY dirigent_settled<br/>[pg_notify]" .->44
+    42-. "10. GET the run's events (SSE) until it settles<br/>[HTTP/JSON (dirigent-client)]" .->19
 
   end
 ```
@@ -264,17 +272,17 @@ graph LR
     subgraph 17 ["Dirigent"]
 
       19["API server<br/>[Container: FastAPI / Uvicorn (Python)]<br/>dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler."]
-      27["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
-      43[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
     end
 
     16["HTTP APIs<br/>[Software System]<br/>Any HTTP service an http.request step reaches, or that calls an endpoint source."]
 
     16-. "1. POST /endpoints/greet/Bergen with the source's token<br/>[HTTPS POST /endpoints/...]" .->19
-    19-. "2. Check in order, record the input, create the run with the source settled<br/>[SQL, JSONB]" .->43
-    27-. "3. Claim and run each step<br/>[pg_notify]" .->43
-    27-. "4. Last prerequisite settles; the walk renders the reply; NOTIFY dirigent_settled<br/>[pg_notify]" .->43
-    19-. "5. Reply waiter wakes and reads the rendered reply<br/>[SQL, JSONB]" .->43
+    19-. "2. Check in order, record the input, create the run with the source settled<br/>[SQL, JSONB]" .->44
+    28-. "3. Claim and run each step<br/>[pg_notify]" .->44
+    28-. "4. Last prerequisite settles; the walk renders the reply; NOTIFY dirigent_settled<br/>[pg_notify]" .->44
+    19-. "5. Reply waiter wakes and reads the rendered reply<br/>[SQL, JSONB]" .->44
     19-. "6. Answer the held caller with the reply's status, headers and body<br/>[HTTPS POST /endpoints/...]" .->16
 
   end
@@ -289,16 +297,16 @@ graph LR
 
     subgraph 17 ["Dirigent"]
 
-      27["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
-      43[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
     end
 
     13["S3-compatible storage<br/>[Software System]<br/>Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, MinIO."]
 
-    27-. "1. Lease the due source and commit before any I/O<br/>[pg_notify]" .->43
-    27-. "2. List the prefix; objects not in the cursor are new<br/>[S3 API]" .->13
-    27-. "3. Under the pipeline lock: one run per object, store the cursor, next poll one cadence later<br/>[pg_notify]" .->43
-    27-. "4. Any worker claims the new runs' attempts<br/>[pg_notify]" .->43
+    28-. "1. Lease the due source and commit before any I/O<br/>[pg_notify]" .->44
+    28-. "2. List the prefix; objects not in the cursor are new<br/>[S3 API]" .->13
+    28-. "3. Under the pipeline lock: one run per object, store the cursor, next poll one cadence later<br/>[pg_notify]" .->44
+    28-. "4. Any worker claims the new runs' attempts<br/>[pg_notify]" .->44
 
   end
 ```
@@ -310,48 +318,48 @@ graph LR
 
   subgraph diagram ["Deployment View: Dirigent - Docker Compose"]
 
-    subgraph 150 ["Docker host"]
+    subgraph 155 ["Docker host"]
 
-      subgraph 151 ["postgres"]
+      subgraph 156 ["postgres"]
 
-        152[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+        157[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
       end
 
-      subgraph 153 ["s3"]
+      subgraph 158 ["s3"]
 
-        154[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
+        159[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
       end
 
-      subgraph 155 ["migrate"]
+      subgraph 160 ["migrate"]
 
-        156["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
+        161["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
       end
 
-      subgraph 158 ["server"]
+      subgraph 163 ["server"]
 
-        159["API server<br/>[Container: FastAPI / Uvicorn (Python)]<br/>dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler."]
-        163["Scheduler<br/>[Container: asyncio (Python)]<br/>dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time."]
+        164["API server<br/>[Container: FastAPI / Uvicorn (Python)]<br/>dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler."]
+        168["Scheduler<br/>[Container: asyncio (Python)]<br/>dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time."]
       end
 
-      subgraph 165 ["worker"]
+      subgraph 170 ["worker"]
 
-        166["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
+        171["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
       end
 
-      subgraph 169 ["docker"]
+      subgraph 174 ["docker"]
 
-        170["Docker daemon<br/>[Infrastructure Node: TLS on tcp://docker:2376]<br/>Runs what docker.*, compose and build steps start."]
+        175["Docker daemon<br/>[Infrastructure Node: TLS on tcp://docker:2376]<br/>Runs what docker.*, compose and build steps start."]
       end
 
     end
 
-    156-. "Migrates the schema, ensures connections<br/>[SQL]" .->152
-    159-. "Reads and writes definitions; creates ad hoc runs<br/>[SQL, JSONB]" .->152
-    159-. "Streams artifacts<br/>[file:// or s3://]" .->154
-    156-. "Applies, runs, cancels, retries<br/>[HTTP/JSON (dirigent-client)]" .->159
-    163-. "Holds the leader lock; claims due schedules and inserts their runs<br/>[pg_advisory_lock, FOR UPDATE SKIP LOCKED]" .->152
-    166-. "LISTEN dirigent_work<br/>[pg_notify]" .->152
-    166-. "Writes and reads outputs<br/>[file:// or s3://]" .->154
+    161-. "Migrates the schema, ensures connections<br/>[SQL]" .->157
+    164-. "Reads and writes definitions; creates ad hoc runs<br/>[SQL, JSONB]" .->157
+    164-. "Streams artifacts<br/>[file:// or s3://]" .->159
+    161-. "Applies, runs, cancels, retries<br/>[HTTP/JSON (dirigent-client)]" .->164
+    168-. "Holds the leader lock; claims due schedules and inserts their runs<br/>[pg_advisory_lock, FOR UPDATE SKIP LOCKED]" .->157
+    171-. "LISTEN dirigent_work<br/>[pg_notify]" .->157
+    171-. "Writes and reads outputs<br/>[file:// or s3://]" .->159
 
   end
 ```
@@ -363,28 +371,28 @@ graph LR
 
   subgraph diagram ["Deployment View: Dirigent - dg dev"]
 
-    subgraph 172 ["Developer machine"]
+    subgraph 177 ["Developer machine"]
 
-      subgraph 173 ["dg dev"]
+      subgraph 178 ["dg dev"]
 
-        174["API server<br/>[Container: FastAPI / Uvicorn (Python)]<br/>dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler."]
-        175["Scheduler<br/>[Container: asyncio (Python)]<br/>dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time."]
-        176["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
+        179["API server<br/>[Container: FastAPI / Uvicorn (Python)]<br/>dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler."]
+        180["Scheduler<br/>[Container: asyncio (Python)]<br/>dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time."]
+        181["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
       end
 
-      subgraph 177 [".dirigent/state"]
+      subgraph 182 [".dirigent/state"]
 
-        178[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
-        182[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
+        183[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+        187[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
       end
 
     end
 
-    174-. "Reads and writes definitions; creates ad hoc runs<br/>[SQL, JSONB]" .->178
-    175-. "Holds the leader lock; claims due schedules and inserts their runs<br/>[pg_advisory_lock, FOR UPDATE SKIP LOCKED]" .->178
-    176-. "LISTEN dirigent_work<br/>[pg_notify]" .->178
-    174-. "Streams artifacts<br/>[file:// or s3://]" .->182
-    176-. "Writes and reads outputs<br/>[file:// or s3://]" .->182
+    179-. "Reads and writes definitions; creates ad hoc runs<br/>[SQL, JSONB]" .->183
+    180-. "Holds the leader lock; claims due schedules and inserts their runs<br/>[pg_advisory_lock, FOR UPDATE SKIP LOCKED]" .->183
+    181-. "LISTEN dirigent_work<br/>[pg_notify]" .->183
+    179-. "Streams artifacts<br/>[file:// or s3://]" .->187
+    181-. "Writes and reads outputs<br/>[file:// or s3://]" .->187
 
   end
 ```

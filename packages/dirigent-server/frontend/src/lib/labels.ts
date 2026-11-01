@@ -1012,6 +1012,8 @@ const refused = {
             '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
         step_reference_in_compose:
             '{reference} is inside {field}, and a value spliced into a compose file can add keys to it. Write $${NAME} in the file and give the reference to env under NAME.',
+        step_reference_in_fhirpath:
+            '{reference} is inside {field}, and a value reaches a FHIRPath expression only as a variable. Give the reference to variables under a name, and read it in the expression as %name.',
         step_shell_unreadable:
             '{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a value lands in it is not known. Close it or write it another way, or pass the value through argv.',
         step_reference_in_sql:
@@ -1059,6 +1061,8 @@ const refused = {
             '{reference} is inside {field}, and a value spliced into a compose file can add keys to it. Write $${NAME} in the file and give the reference to env under NAME.',
         in_template:
             '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
+        in_fhirpath:
+            '{reference} is inside {field}, and a value reaches a FHIRPath expression only as a variable. Give the reference to variables under a name, and read it in the expression as %name.',
         jq_whole_program:
             '{reference} is the whole of {field}, and a value is never a program. Write the program, and read the reference in it as the value it is.',
         in_sql: '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
@@ -1154,6 +1158,8 @@ const refused = {
         idempotency_key_required:
             'An Idempotency-Key header is required, so a retried request creates one attempt.',
         internal: 'The server failed to handle this request. The server log has the detail.',
+        mcp_cross_origin:
+            'This MCP request was caused by a page on another origin, which this instance does not answer.',
         no_alert_rule: 'No alert rule coded {code}.',
         no_artifact: 'No artifact {artifact_id}.',
         no_attempt: 'No attempt {attempt_id}.',

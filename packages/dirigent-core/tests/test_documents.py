@@ -432,8 +432,9 @@ def test_a_reference_in_params_beside_sql_is_applied() -> None:
         ("{template: 'Day ${params.day}'}", "document.step_reference_in_template", "template"),
         ("{program: '${params.day}'}", "document.step_program_is_a_reference", "program"),
         ("{stack: 'a: ${params.day}'}", "document.step_reference_in_compose", "stack"),
+        ("{expression: 'name.where(family = ${params.day})'}", "document.step_reference_in_fhirpath", "expression"),
     ],
-    ids=["template", "whole-program", "compose"],
+    ids=["template", "whole-program", "compose", "fhirpath"],
 )
 def test_a_reference_a_program_cannot_hold_is_refused_when_the_document_is_applied(
     host: PluginHost, config: str, code: str, field: str

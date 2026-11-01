@@ -26,6 +26,7 @@ from starlette.types import Scope
 
 from dirigent_core import __version__
 from dirigent_core.config import Settings
+from dirigent_mcp.http import MCP_PATH
 from dirigent_server.compression import PRECOMPRESSED, accepted_encodings
 from dirigent_server.errors import Refusal, http_error
 from dirigent_server.messages import NO_ICON
@@ -59,6 +60,7 @@ RESERVED_PREFIXES = (
     "/docs",
     "/redoc",
     "/openapi.json",
+    MCP_PATH,
     ASSETS_MOUNT_PATH,
     CONFIG_PATH,
     FAVICON_PATH,

@@ -70,6 +70,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
                 intake = component "Endpoint intake" "/endpoints: checks a call in a fixed order (route, token, rate, type, size, signature), records the input, creates the run."
                 waiter = component "Reply waiter" "One reader per process. Answers each held caller with the first reply to settle, or with the run's failure, or 504 at its deadline."
                 uiHost = component "UI host" "Serves the SPA bundle and the shell for its deep links."
+                mcpEndpoint = component "MCP endpoint" "/mcp: MCP over Streamable HTTP. Checks the origin and the bearer token, offers a viewer only the reading tools, and calls the API in process as the caller."
             }
 
             scheduler = container "Scheduler" "dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time." "asyncio (Python)"
@@ -92,7 +93,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
 
             cli = container "dg CLI" "Applies documents, starts and watches runs, and starts the server, worker and scheduler processes." "Typer (Python)"
 
-            mcp = container "dirigent-mcp" "MCP server. Every tool is a call the Python client makes; nothing deletes." "MCP over stdio (Python)"
+            mcp = container "dirigent-mcp" "MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; nothing deletes." "MCP over stdio or Streamable HTTP (Python)"
 
             db = container "Database" "Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry." "PostgreSQL 17; SQLite under dg dev" {
                 tags "Database" "PostgreSQL"
@@ -108,7 +109,8 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
         author -> dirigent.cli "Applies documents, runs and watches pipelines"
         operator -> dirigent.ui "Manages connections, users, schedules and alerts"
         operator -> dirigent.cli "Starts processes, migrates, checks health"
-        agent -> dirigent.mcp "Calls tools" "MCP over stdio"
+        agent -> dirigent.mcp "Calls tools" "MCP over stdio, or Streamable HTTP"
+        agent -> dirigent.server.mcpEndpoint "Calls tools with its own token" "MCP over Streamable HTTP, /mcp"
 
         # --- Clients to the API server -----------------------------------
         dirigent.ui -> dirigent.server.uiHost "Loads the bundle" "HTTPS"
@@ -122,6 +124,8 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
 
         # --- API server components ---------------------------------------
         dirigent.server.routes -> dirigent.server.auth "Authenticates every call"
+        dirigent.server.mcpEndpoint -> dirigent.server.auth "Resolves the bearer token"
+        dirigent.server.mcpEndpoint -> dirigent.server.routes "Calls the API in process with the caller's token" "ASGI (dirigent-client)"
         dirigent.server.routes -> dirigent.db "Reads and writes definitions; creates ad hoc runs" "SQL, JSONB"
         dirigent.server.routes -> dirigent.storage "Streams artifacts" "file:// or s3://"
         dirigent.server.streams -> dirigent.db "Tails log entries; LISTEN dirigent_settled" "SQL, LISTEN"

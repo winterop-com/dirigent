@@ -1378,6 +1378,8 @@ dependencies = [
     { name = "dirigent-common" },
     { name = "mcp" },
     { name = "pyyaml" },
+    { name = "starlette" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -1386,6 +1388,8 @@ requires-dist = [
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "mcp", specifier = ">=2.3.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "starlette", specifier = ">=1.10.0" },
+    { name = "uvicorn", specifier = ">=0.52.4" },
 ]
 
 [[package]]
@@ -1416,7 +1420,9 @@ dependencies = [
     { name = "dirigent-common" },
     { name = "dirigent-core" },
     { name = "dirigent-examples" },
+    { name = "dirigent-mcp" },
     { name = "fastapi" },
+    { name = "httpx2" },
 ]
 
 [package.metadata]
@@ -1425,7 +1431,9 @@ requires-dist = [
     { name = "dirigent-common", editable = "packages/dirigent-common" },
     { name = "dirigent-core", editable = "packages/dirigent-core" },
     { name = "dirigent-examples", editable = "packages/dirigent-examples" },
+    { name = "dirigent-mcp", editable = "packages/dirigent-mcp" },
     { name = "fastapi", specifier = ">=0.142.2" },
+    { name = "httpx2", specifier = ">=2.12.0" },
 ]
 
 [[package]]

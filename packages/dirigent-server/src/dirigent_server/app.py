@@ -25,6 +25,7 @@ from dirigent_server.errors import install_error_handlers
 from dirigent_server.health import build_registry
 from dirigent_server.health import router as health_router
 from dirigent_server.logging import get_logger
+from dirigent_server.mcp import install_mcp, mcp_running
 from dirigent_server.routes import TAGS, build_endpoints_router, build_router
 from dirigent_server.routes.playground import install_stream_deadline
 from dirigent_server.security import install_cross_site_guard, install_loopback_hosts_only, install_security_headers
@@ -40,6 +41,8 @@ the session cookie `POST /api/v1/auth/login` sets for a browser. The probes unde
 this document itself, and the playground under `/api/v1/playground` are the exceptions.
 Every route under `/endpoints` is outside the versioned API: a pipeline's endpoint sources
 declare them, and each authenticates its callers with that source's own token or signature.
+`/mcp` answers MCP over Streamable HTTP to a bearer token, and every tool there is a call to
+this API made as that token.
 
 The playground serves generated data and chosen behaviour to documents that need something
 to happen: it needs no credential, opens no database session, and reads no instance data.
@@ -86,7 +89,7 @@ def create_app(
         app.state.scheduler = None
         clock: asyncio.Task[None] | None = None
         try:
-            async with wakeups.listening(resolved.database_url):
+            async with wakeups.listening(resolved.database_url), mcp_running(app):
                 await _bootstrap(app)
                 await _apply_startup_directory(app)
                 clock = await _start_scheduler(app, embed=embed)
@@ -134,6 +137,7 @@ def create_app(
     app.include_router(viewers_router)
     app.include_router(build_router(resolved), prefix=resolved.api_prefix)
     app.include_router(build_endpoints_router(), prefix=resolved.endpoint_prefix)
+    install_mcp(app, resolved)
     mount_ui_shell(app, resolved)
     instrument_fastapi(app)
     install_compression(app)

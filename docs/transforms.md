@@ -515,7 +515,16 @@ expression. `. >= ${params.threshold}` compares against the value as its type, a
   `type: integer`, or write `tonumber`.
 
 Only `transform.jq`, `map.jq` and `filter.jq` do this. A pack's own engine that takes a program in
-another language, and does not publish `application/jq`, still gets a value spliced into its text.
+another language, and does not publish `application/jq`, still gets a value spliced into its text,
+with one exception.
+
+**A FHIRPath expression takes no reference at all.** A field publishing `application/fhirpath`, as
+the FHIR pack's `transform.fhirpath`, `map.fhirpath` and `filter.fhirpath` do, refuses a `${...}`
+at apply (`document.step_reference_in_fhirpath`) and when the step starts (`reference.in_fhirpath`).
+FHIRPath has no literal for an object or a list, so a value cannot be bound ahead of the expression
+the way jq binds one. It goes under the step's `variables` instead, where a reference resolves as
+data, and the expression reads it as an environment variable: `name.where(family = %family)` with
+`variables: {family: ${params.family}}`.
 
 ## Writing an engine
 
