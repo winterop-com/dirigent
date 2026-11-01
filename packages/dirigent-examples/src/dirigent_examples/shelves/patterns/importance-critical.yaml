@@ -57,7 +57,7 @@ description: |
   An alert rule may name the least importance a pipeline must carry before it fires, so one
   rule pages for the critical failures and another logs every failure there is.
 
-tags: [patterns, transform, importance, alerting]
+tags: [patterns, transform]
 
 # Behind whatever somebody is waiting on: it is slow, and nobody is watching it run.
 priority: low

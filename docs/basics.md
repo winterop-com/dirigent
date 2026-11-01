@@ -49,7 +49,7 @@ uv sync
 ```
 
 ```text
-2026-09-26T14:40:28.030+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.20.0
+2026-09-26T14:40:28.030+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.29.0
 ```
 
 It creates the state directory, migrates the schema, creates the first admin, and mints that
@@ -328,7 +328,7 @@ arrived verbatim, and anything beside them is what the route decided. So the que
 came back under `request.args`, with the parameter's default in `station`. The same run is on
 the Runs screen of the UI, and choosing a step opens what it produced:
 
-![A run in the UI: one step named ask, succeeded in 20 milliseconds, its output showing the reflected args.](images/basics/run-first.png)
+![A run in the UI: one step named ask, succeeded, its output open on the reflected args.](images/basics/run-first.png)
 
 *The run's only step, its one attempt, and the answer it stored.*
 
@@ -794,7 +794,7 @@ step that was simply wrong.
 An instance on your machine, a schema it holds, a pipeline in three versions, a second pipeline
 that fails on purpose, and the runs behind them:
 
-![The dirigent dashboard: five runs in the last 24 hours, three succeeded and two failed, with the worker healthy.](images/basics/dashboard.png)
+![The dirigent dashboard: the two failed runs at the top, each with the step it stopped at and why, then the day's chart and the worker healthy.](images/basics/dashboard.png)
 
 *The instance after this page: the runs, and the two failures that are still worth looking at.*
 

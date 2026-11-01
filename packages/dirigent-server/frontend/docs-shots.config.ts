@@ -35,6 +35,7 @@ const scratchRoot = path.join(here, 'docs-shots-src', '.state')
 
 export default defineConfig({
     testDir: './docs-shots-src',
+    testMatch: 'screens.spec.ts',
     fullyParallel: false,
     retries: 0,
     workers: 1,

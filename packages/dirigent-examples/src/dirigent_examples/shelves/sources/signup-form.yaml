@@ -30,7 +30,7 @@ description: |
   A urlencoded form posted to an endpoint becomes a run, and its caller is answered 202 with
   where to read it; a jq step tidies what the form carried.
 
-tags: [sources, forms, transform, jq]
+tags: [sources, transform, jq]
 
 steps:
   signup:
