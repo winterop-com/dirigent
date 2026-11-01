@@ -38,6 +38,7 @@ from dirigent_common import (
     scrub,
     secrets_of,
 )
+from dirigent_common.depth import shown
 from dirigent_core.database import is_deadlock, session_scope
 from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.services import EngineServices
@@ -146,7 +147,7 @@ def build_context(
             "error": run.error,
             "error_code": run.error_code,
             "error_params": dict(run.error_params or {}),
-            "params": dict(run.params),
+            "params": shown(dict(run.params)),
             "trigger": run.triggered_by_label or run.triggered_by_kind.value,
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "finished_at": run.finished_at.isoformat() if run.finished_at else None,

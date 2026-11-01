@@ -468,9 +468,14 @@ the body is read; a signed source reads its capped body first, because the signa
 A text body is decoded only from UTF-8, UTF-16, ASCII, ISO-8859-1 or Windows-1252, under their usual
 spellings, so handling a capped body costs time in step with its size. Any other `charset` is
 refused 415 (`source.charset_refused`) without decoding. A JSON body nesting more than 128 levels
-of lists and objects is refused 400 (`source.body_too_deep`) and starts no run. A stored value
-deeper than the engine can validate, from any source, fails the step that reads it
-(`run.config_refused`) and holds back no other work. A JSON body holding half a surrogate pair
+of lists and objects is refused 400 (`source.body_too_deep`) and starts no run. No value a run
+stores nests more than 160 levels, whatever produced it: a step whose output does fails as
+`rejected` (`run.output_too_deep`), a source whose input does, an answer a worker polled or a
+message it held included, is settled failed (`run.input_too_deep`) and its run fails, and
+parameters that do refuse the run (`parameter.too_deep`). A value stored deeper before that
+bound held is shown cut at 160 levels in every read and in an alert's context, so one row never
+takes a list or an alert down, and a step that reads it fails (`run.config_refused`) and holds
+back no other work. A JSON body holding half a surrogate pair
 is refused 400 (`source.body_not_json`), because no database can store it.
 A read holds no database connection: the call's transaction ends before it, and the source and
 its pipeline are read again after it. A body that has not arrived whole within

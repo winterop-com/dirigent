@@ -995,6 +995,7 @@ const refused = {
             "This YAML's aliases would add more than {limit} values once written out. Write the repeated parts out, or repeat them less.",
         yaml_aliases_write_too_much:
             "This YAML's aliases would add more than {limit} bytes of text once written out. Write the repeated parts out, or repeat them less.",
+        value_not_shown: 'nested deeper than {limit} levels, not shown',
         yaml_nested_too_deep: 'This YAML nests too deeply to be read.',
     },
     document: {
@@ -1026,6 +1027,7 @@ const refused = {
         invalid: 'Parameter {location} is invalid: {detail}',
         schema_invalid:
             "The pipeline's parameter schema is not itself valid JSON Schema ({problem}). Apply a corrected document to fix it.",
+        too_deep: 'The parameters nest deeper than the {limit} levels of lists and objects a run stores.',
         unchecked:
             "The parameters were not checked against the pipeline's parameter schema within {timeout}.",
     },
@@ -1076,10 +1078,14 @@ const refused = {
         entry_on_no_sources: 'Pipeline {code} has no sources, so a run of it is not entered at a step.',
         given_no_entry:
             'Pipeline {code} starts at its sources ({sources}), so a run of it enters through one of them.',
+        input_too_deep:
+            'The input at {step} nests deeper than the {limit} levels of lists and objects a run stores.',
         not_entered: 'The input arrived at {entered}, so {step} was not entered.',
         not_paused: 'This run is {status}, and only a paused run resumes.',
         not_pausable: 'This run is {status}, and only a queued or running run pauses.',
         not_retryable: 'Step {step} is {status}, and only a settled failure can be retried.',
+        output_too_deep:
+            "The step's output nests deeper than the {limit} levels of lists and objects a run stores.",
         lease_recoveries:
             'Step {step} was taken back from a worker more than {limit} times with no result, so it will not run again.',
         reply_body_from: 'Reply {step} streams its body from {value}, and body_from names a storage URI.',

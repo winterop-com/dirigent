@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from dirigent_client.enums import BodyKind
 from dirigent_client.schemas import EndpointInput
 from dirigent_common import Issue, JsonMap, Size
+from dirigent_common.depth import nests_past
 from dirigent_common.requests import form_values, gather_values, media_type
 from dirigent_core.messages import (
     BODY_WITHOUT_TYPE,
@@ -290,7 +291,7 @@ def _read_body(raw: bytes, family: BodyKind, charset: str) -> JsonValue | Refusa
             return Refusal.of(ENDPOINT_BODY_NOT_JSON, status=400, detail=str(error))
         except RecursionError:
             return Refusal.of(ENDPOINT_BODY_TOO_DEEP, status=400, limit=MAX_BODY_DEPTH)
-        if _nests_past(value, MAX_BODY_DEPTH):
+        if nests_past(value, MAX_BODY_DEPTH):
             return Refusal.of(ENDPOINT_BODY_TOO_DEEP, status=400, limit=MAX_BODY_DEPTH)
         return value
     codec = CHARSETS.get(charset.strip().lower()) if family is BodyKind.TEXT else "ascii"
@@ -301,21 +302,6 @@ def _read_body(raw: bytes, family: BodyKind, charset: str) -> JsonValue | Refusa
     except UnicodeError as error:
         return Refusal.of(ENDPOINT_BODY_NOT_TEXT, status=400, charset=charset, detail=str(error))
     return form_values(text) if family is BodyKind.FORM else text
-
-
-def _nests_past(value: JsonValue, limit: int) -> bool:
-    """Say whether a parsed body holds a list or object more than ``limit`` levels down."""
-    level = [value]
-    for _ in range(limit):
-        level = [
-            child
-            for held in level
-            if isinstance(held, dict | list)
-            for child in (held.values() if isinstance(held, dict) else held)
-        ]
-        if not level:
-            return False
-    return any(isinstance(held, dict | list) for held in level)
 
 
 def _holds_a_lone_surrogate(value: JsonValue) -> bool:

@@ -32,7 +32,8 @@ from dirigent_client.schemas import (
     RunStats,
     StepReport,
 )
-from dirigent_common import format_duration
+from dirigent_common import JsonMap, format_duration
+from dirigent_common.depth import shown
 from dirigent_common.durations import DurationError, parse_duration
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json, open_artifact
@@ -133,7 +134,7 @@ def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed: 
         pipeline_version=version.version,
         status=run.status,
         priority=run.priority,
-        params=dict(run.params),
+        params=shown(dict(run.params)),
         triggered_by_kind=run.triggered_by_kind,
         parent_run_id=run.triggered_by_id if run.triggered_by_kind is TriggerKind.PIPELINE else None,
         triggered_by_id=run.triggered_by_id,
@@ -426,8 +427,13 @@ def _render_attempt(attempt: StepAttempt, spilled: dict[UUID, tuple[str, int | N
     """Render one attempt, naming the artifact its output was written to when there is one."""
     uri, size = spilled.get(attempt.id, (None, None))
     return AttemptOut.model_validate(attempt, from_attributes=True).model_copy(
-        update={"output_uri": uri, "output_bytes": size}
+        update={"output": _shown_output(attempt), "output_uri": uri, "output_bytes": size}
     )
+
+
+def _shown_output(attempt: StepAttempt) -> JsonMap | None:
+    """An attempt's inline output, cut where it nests deeper than a run stores."""
+    return None if attempt.output is None else shown(dict(attempt.output))
 
 
 @router.post("/runs/{run_id}/$cancel", operation_id="cancelRun", summary="Cancel a run", response_model=RunOut)
@@ -772,7 +778,13 @@ def _render_event(
     named = labels.get(attempt.run_item_id) if attempt.run_item_id is not None else None
     item, index = named if named is not None else (None, None)
     return AttemptEvent.model_validate(attempt, from_attributes=True).model_copy(
-        update={"output_uri": uri, "output_bytes": size, "item": item, "item_index": index}
+        update={
+            "output": _shown_output(attempt),
+            "output_uri": uri,
+            "output_bytes": size,
+            "item": item,
+            "item_index": index,
+        }
     )
 
 

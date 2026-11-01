@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus
 from dirigent_common import JsonMap, render
+from dirigent_common.depth import shown
 from dirigent_core import alerting, telemetry
 from dirigent_core.artifacts import MARKDOWN_CONTENT_TYPE, canonical_json, persist_document
 from dirigent_core.engine.definition import PipelineDefinition
@@ -210,7 +211,7 @@ async def run_facts(
         # The refusal the step ended on, taken whole: its sentence, its code and its params
         # come off one attempt, so a reader re-rendering it is not mixing two failures.
         failed = next((one for one in of_step if one.status is AttemptStatus.FAILED and one.error), None)
-        output = dict(last.output) if last is not None and last.output is not None else None
+        output = shown(dict(last.output)) if last is not None and last.output is not None else None
         uri, size = stored.get(last.id, (None, None)) if last is not None else (None, None)
         steps.append(
             StepFacts(
