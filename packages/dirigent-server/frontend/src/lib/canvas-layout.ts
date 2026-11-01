@@ -8,7 +8,7 @@
  *
  * PX-INTENT, PER PIPELINE, exactly as the right panel's width is. What somebody dragged a box to
  * was a decision about that pipeline's shape, so it is kept as the flow coordinates it was
- * dropped at, under `dirigent.layout.{pipeline}`, and survives a reload. Re-layout is how it is
+ * dropped at, under `dirigent.layout.{pipeline}`, and survives a reload. Laying out again is how it is
  * given back: the stored positions go and elk decides again.
  *
  * It is a module store because the canvas draws it and the screen adding a step writes to it,

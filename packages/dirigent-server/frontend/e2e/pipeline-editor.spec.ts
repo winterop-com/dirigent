@@ -807,7 +807,9 @@ test('an edge that would close a loop is refused, and the refusal names the loop
     )
 })
 
-test('a box stays where it was dragged, across a reload, until Re-layout gives it back', async ({ page }) => {
+test('a box stays where it was dragged, across a reload, until laying out again gives it back', async ({
+    page,
+}) => {
     await signIn(page)
     await applyDocument(page.request, APART)
 
@@ -828,14 +830,10 @@ test('a box stays where it was dragged, across a reload, until Re-layout gives i
     await expect.poll(async () => (await nodeAt(page, 'fetch')).x).toBeCloseTo(dragged.x, 0)
     expect((await nodeAt(page, 'fetch')).y).toBeCloseTo(dragged.y, 0)
 
-    // Re-layout is how it is given back: elk decides again, and storage holds nothing.
+    // Laying out again is how it is given back: elk decides again, and storage holds nothing.
     await page.keyboard.press('ControlOrMeta+k')
-    await page.getByPlaceholder(LABELS.palette.placeholder).fill('re-layout')
-    await page
-        .getByRole('option')
-        .filter({ hasText: /^Re-layout/ })
-        .first()
-        .click()
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill(LABELS.editor.topbar.relayout)
+    await page.getByRole('option').filter({ hasText: LABELS.editor.topbar.relayout }).first().click()
     await expect.poll(async () => (await nodeAt(page, 'fetch')).x).toBeCloseTo(placed.x, 0)
     expect(await page.evaluate((key) => localStorage.getItem(key), APART_LAYOUT_KEY)).toBeNull()
     await everyNodeIsInView(page)

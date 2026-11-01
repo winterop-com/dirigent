@@ -69,7 +69,7 @@ import { listeningLine, readPipelineSources, type SourceOut } from '@/lib/source
  * a `depends_on` naming a step the document no longer has is what an apply refuses.
  *
  * ELK DECIDES WHERE A BOX GOES UNTIL SOMEBODY MOVES IT. A dragged position is that pipeline's,
- * kept in `lib/canvas-layout` and surviving a reload; Re-layout gives the whole arrangement back
+ * kept in `lib/canvas-layout` and surviving a reload; laying out again gives the whole arrangement back
  * to elk and fits the view to it again.
  *
  * This module is loaded lazily. React Flow is shared with the run graph and is not in the entry

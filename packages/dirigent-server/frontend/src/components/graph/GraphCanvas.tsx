@@ -48,7 +48,7 @@ import {
  * up to fill it, and a graph too big for the canvas is shown at a size its text can be read at
  * and panned to rather than shrunk past legibility. It is fitted again whenever the set of nodes
  * changes or the canvas is resized, and never again once the reader has panned, zoomed or dragged
- * a box: after that the view is theirs, and Re-layout is how they give it back.
+ * a box: after that the view is theirs, and laying out again is how they give it back.
  *
  * THE ZOOM CONTROLS ARE THIS APP'S. React Flow's own move by a fixed twenty percent, which on a
  * graph read at half size is four presses to nothing, and its fit button fits with the library's
