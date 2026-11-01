@@ -1984,7 +1984,14 @@ attempt is waiting or running: a settled attempt still carries the last fraction
 
 A run's screen stacks: the canvas above, and a console across the foot of the content area at
 the height somebody dragged it to. The right panel is beside both and is untouched by either --
-what is beside a run is a different question from what is under it. It is opened from a glyph in
+what is beside a run is a different question from what is under it.
+
+**There is one scroller under the top strip, and the drawer docks inside it.** The content column
+is the only thing that scrolls, its track starts below the top strip, and it keeps its gutter
+whether or not anything overflows (`scrollbar-gutter: stable`), so nothing moves sideways when a
+page grows past the window or the drawer opens and shuts. The drawer is not a second scroller's
+neighbour: it stands at the foot of the page, held to the bottom of the one scroller while the page
+above it scrolls, so the panels above it and the drawer share one right edge. It is opened from a glyph in
 the run screen's own strip, from a row in the palette, and by pressing `T`, which is a bare
 letter because every chord this app has is already spoken for.
 

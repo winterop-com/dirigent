@@ -416,8 +416,8 @@ export function RunDetail() {
 
     // The page scrolls above the terminal, which stands at the foot of the content area.
     return (
-        <div className="-mb-9 flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+        <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex-1 pb-6">
                 <Breadcrumb
                     trail={[
                         { label: LABELS.screen.runs.name, to: '/runs' },
@@ -573,7 +573,11 @@ export function RunDetail() {
                     />
                 </div>
             </div>
-            {terminal && <RunTerminal state={state} runId={id} onSelectStep={readStep} />}
+            {terminal && (
+                <div className="sticky -bottom-12 -mb-12 flex flex-col bg-background pb-3">
+                    <RunTerminal state={state} runId={id} onSelectStep={readStep} />
+                </div>
+            )}
         </div>
     )
 }

@@ -318,7 +318,7 @@ export function AppShell() {
                     <ThemeToggle />
                 </header>
 
-                <main className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto px-4 pt-1 pb-12 md:px-8">
+                <main className="flex min-h-0 w-full flex-1 [scrollbar-gutter:stable] flex-col overflow-y-auto px-4 pt-1 pb-12 md:px-8">
                     {auth.status === 'unknown' ? (
                         <PageState loading={problem === null} problem={problem} empty={false}>
                             {null}
