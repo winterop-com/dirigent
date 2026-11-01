@@ -134,7 +134,7 @@ export function RunLogs({
                     <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
                         {LABELS.runs.failure.step_shown}
                         <Code value={step} tone="body" />
-                        <Button variant="ghost" size="sm" onClick={onAllSteps}>
+                        <Button variant="ghost" size="xs" onClick={onAllSteps}>
                             {LABELS.runs.failure.all_steps}
                         </Button>
                     </span>

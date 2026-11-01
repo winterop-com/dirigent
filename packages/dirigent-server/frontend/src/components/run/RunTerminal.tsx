@@ -224,7 +224,7 @@ export function RunTerminal({
                 className="dg-panel flex shrink-0 flex-col"
                 style={{ height }}
             >
-                <div className="dg-panel-head flex-wrap justify-start">
+                <div data-wraps className="dg-panel-head justify-start max-md:flex-wrap md:flex-nowrap">
                     <h2 className="mr-1 flex items-center gap-2">
                         <ICONS.terminal className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                         {LABELS.terminal.heading}

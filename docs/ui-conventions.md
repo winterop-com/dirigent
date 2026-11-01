@@ -197,6 +197,15 @@ ever carries. Nothing draws a left border in a status colour, and nothing on a s
 surface of its own: a treatment is changed in `Panel` and in the `.dg-panel` rules in `index.css`,
 and the generated card follows the same rules.
 
+**Every panel's title bar is one fixed height, so bars side by side line up.** The bar is
+`--spacing-panel-head` tall -- 40px, and 46px below the breakpoint, where a control in it is a
+finger tall -- with no vertical padding: its label, its count and whatever it carries are centred
+in that height, so two panels standing beside each other put their labels on one baseline. A
+control in a bar is compact, `xs` or `sm`, and fits the bar rather than growing it. A failure's rule
+along the top is drawn inside the panel's edge, over the bar, and adds no height. The run
+terminal's toolbar is the one bar that may wrap onto a second line, and only below the breakpoint,
+because it stands alone and carries filters rather than a label.
+
 **A listing is a headed panel too.** `ListTable` draws the `.dg-panel` edge and ground: its row of
 column headings is the panel's bar, on `--card` over the hairline, and its rows stand on the panel
 ground with a `--border` hairline between them and no stripe. Given a `title` it carries the
