@@ -25,6 +25,12 @@ seconds and "poked again at once after a success" waited out the tick. A worker 
 the earliest polled source falls due, at most `source_poll_tick` and never less than 50
 milliseconds. `source_poll_tick` is now the longest a worker goes without looking.
 
+**`dg source list`, `show` and `inputs` render at a terminal.** They wrote NDJSON whatever the
+terminal, `-o console` included. A source now reads as one line: its state, its step, the
+pipeline, what it listens to, and what it has taken, with a warning level when it last failed. An
+input reads as what came of it, its run or its refusal and reason. In a pipe they write the same
+`source` and `source.input` records as before.
+
 **A `pipeline.run` step says which step of its child failed.** A child run that failed on a step
 used to surface as `run … failed: no reason was recorded`. A run's snapshot now carries its first
 failed step and that step's error, `step 'load' failed: …` (`run.step_failed`), so the parent's

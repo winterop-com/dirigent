@@ -65,8 +65,71 @@ BULKY: Final = frozenset(
 
 
 def line(record: Record) -> Record:
-    """Drop what is rendered beneath the line from the line itself."""
-    return {name: value for name, value in record.items() if name not in BULKY}
+    """Put a row record's own fields where its line reads them, and drop what is rendered beneath."""
+    project = LINES.get(str(record.get("kind")))
+    shown = record if project is None else project(record)
+    return {name: value for name, value in shown.items() if name not in BULKY}
+
+
+def _row(record: Record) -> Mapping[str, object]:
+    """Read the row a listing's record carries under ``fields``."""
+    raw = record.get("fields")
+    return cast("Mapping[str, object]", raw) if isinstance(raw, Mapping) else {}
+
+
+def _source_line(record: Record) -> Record:
+    """A source on one line: its state, its step, what it listens to, and what it has taken."""
+    row = _row(record)
+    methods = row.get("methods")
+    bound = row.get("max_in_flight")
+    return {
+        "at": record.get("at"),
+        "level": "warning" if row.get("last_error") else "info",
+        "kind": record.get("kind"),
+        "step": row.get("code"),
+        "message": row.get("state"),
+        "pipeline": row.get("pipeline"),
+        "source": row.get("kind"),
+        "listens": row.get("summary"),
+        "methods": " ".join(str(one) for one in cast("list[object]", methods)) if methods else None,
+        "url": row.get("url_path"),
+        "auth": row.get("auth"),
+        "in_flight": row.get("in_flight") if bound is None else f"{row.get('in_flight')}/{bound}",
+        "accepted": row.get("accepted"),
+        "refused": row.get("refused"),
+        "last_input_at": row.get("last_input_at"),
+        "next_poll_at": row.get("next_poll_at"),
+        "failures": row.get("failures") or None,
+        "last_error": row.get("last_error"),
+    }
+
+
+def _input_line(record: Record) -> Record:
+    """One input a source took, on one line: what came of it, when, and the run or refusal it became."""
+    row = _row(record)
+    outcome = row.get("outcome")
+    return {
+        "at": row.get("created_at") or record.get("at"),
+        "level": "warning" if outcome in {"refused", "timed_out"} else "info",
+        "kind": record.get("kind"),
+        "message": outcome,
+        "run_id": row.get("run_id"),
+        "status": row.get("status"),
+        "method": row.get("method"),
+        "path": row.get("path"),
+        "label": row.get("label"),
+        "code": row.get("code"),
+        "reason": row.get("reason"),
+        "caller": row.get("caller"),
+        "duration_ms": row.get("duration_ms"),
+    }
+
+
+#: Record kinds that carry a row under ``fields``, and the line each one reads as.
+LINES: Final[Mapping[str, Callable[[Record], Record]]] = {
+    "source": _source_line,
+    "source.input": _input_line,
+}
 
 
 def beneath(record: Record) -> RenderableType | None:

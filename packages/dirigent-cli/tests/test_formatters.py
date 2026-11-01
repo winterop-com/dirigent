@@ -535,3 +535,56 @@ def test_a_changed_schema_nothing_depends_on_draws_nothing_beneath_its_line() ->
     )
     assert summaries.beneath(edited) is None
     assert "lonely" in printed(Console().render(edited))
+
+
+def test_a_source_reads_as_its_state_its_step_and_what_it_has_taken() -> None:
+    listed = make(
+        "source",
+        at=AT,
+        fields={
+            "pipeline": "arrivals",
+            "code": "poked",
+            "kind": "sensor",
+            "state": "listening",
+            "summary": "playground.arrive",
+            "methods": [],
+            "in_flight": 1,
+            "max_in_flight": 2,
+            "accepted": 3,
+            "refused": 0,
+            "failures": 0,
+            "last_error": None,
+        },
+    )
+    drawn = printed(Console().render(listed))
+    assert "listening" in drawn
+    assert "[source poked]" in drawn
+    assert "pipeline=arrivals" in drawn
+    assert "source=sensor" in drawn
+    assert "in_flight=1/2" in drawn
+    assert "accepted=3" in drawn
+    assert "fields.kind" not in drawn, "the source's own kind is not spelled as a namespaced collision"
+    assert "failures" not in drawn, "a source that has not failed says nothing of failures"
+
+
+def test_a_refused_input_reads_as_a_warning_with_its_reason() -> None:
+    taken = make(
+        "source.input",
+        at=AT,
+        fields={
+            "created_at": AT,
+            "outcome": "refused",
+            "status": 401,
+            "code": "source.unauthorised",
+            "reason": "bad token",
+            "method": "POST",
+            "path": "/ask",
+            "duration_ms": 3,
+        },
+    )
+    drawn = printed(Console().render(taken))
+    assert "[warning" in drawn
+    assert "refused" in drawn
+    assert "[source.input]" in drawn
+    assert "status=401" in drawn
+    assert 'reason="bad token"' in drawn

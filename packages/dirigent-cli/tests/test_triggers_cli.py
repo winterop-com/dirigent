@@ -13,6 +13,7 @@ from clisupport import asking_for_the_rendering, only, plain, refusal, rows
 from dirigent_cli.main import app, hoist_globals
 from dirigent_cli.output import alert_event, throttle_note, watching
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
+from dirigent_core.protocol import parse
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
 
@@ -783,6 +784,12 @@ def test_a_source_is_listed_paused_resumed_and_given_a_new_token(tmp_path: Path,
     assert [(row["pipeline"], row["code"], row["state"]) for row in listed] == [("cli-echo", "ask", "listening")]
     assert "token" not in listed[0]
     assert rows_of("source", "list", "cli-echo")[0]["token_prefix"] == old[:8]
+    for asked in (["source", "list"], ["source", "show", "cli-echo", "ask"], ["source", "inputs", "cli-echo", "ask"]):
+        rendered_at_a_terminal = invoke(*asked)
+        assert rendered_at_a_terminal.exit_code == 0, rendered_at_a_terminal.output
+        assert all(parse(line) is None for line in rendered_at_a_terminal.stdout.splitlines()), (
+            f"dg {' '.join(asked)} -o console renders rather than writing records"
+        )
 
     paused = machine("source", "pause", "cli-echo", "ask")
     assert only(paused.stdout, "source.paused")["state"] == "paused"
