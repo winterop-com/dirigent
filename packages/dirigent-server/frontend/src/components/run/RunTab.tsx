@@ -5,7 +5,7 @@ import { Copyable, Fact, Section } from '@/components/run/Panel'
 import { StatusChip } from '@/components/run/StatusChip'
 import { asJson, elapsedBetween, formatDuration, formatWindow } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import { triggerSummary, type RunOut } from '@/lib/runs'
+import { startedBy, triggerSummary, type AttemptOut, type RunOut } from '@/lib/runs'
 
 export const COPY_TRACE_LABEL = LABELS.runs.copy_trace
 export const COPY_RUN_LABEL = LABELS.runs.copy_run_id
@@ -26,9 +26,10 @@ export const COPY_RUN_LABEL = LABELS.runs.copy_run_id
  * recent they are; a window is what a step filtered its query on, so it reads as the two
  * instants themselves, with the pair as the wire wrote them on hover.
  */
-export function RunTab({ run }: { run: RunOut }) {
+export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly AttemptOut[] }) {
     const params = Object.entries(run.params)
     const started = triggerSummary(run)
+    const who = startedBy(run, attempts)
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
@@ -47,7 +48,7 @@ export function RunTab({ run }: { run: RunOut }) {
                         term={LABELS.runs.fact.by}
                         detail={
                             started.parent === null ? (
-                                (started.who ?? LABELS.runs.trigger_not_recorded)
+                                (who ?? LABELS.runs.trigger_not_recorded)
                             ) : (
                                 <Link
                                     className="text-foreground underline-offset-2 hover:underline"

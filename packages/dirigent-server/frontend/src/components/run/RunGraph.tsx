@@ -6,6 +6,7 @@ import { usePlacedGraph } from '@/components/graph/use-placed'
 import { StepNode, type StepNode as StepNodeKind } from '@/components/run/StepNode'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { drawnSize, heightOf, nodeWidth, type LayoutShape } from '@/lib/dag-layout'
+import { LABELS } from '@/lib/labels'
 import { drawnStates, edgeClasses, handovers, type StepView } from '@/lib/run-detail'
 import type { AnyStatus } from '@/lib/status'
 import type { DagView } from '@/lib/runs'
@@ -86,7 +87,9 @@ const DURATION_ROOM = 48
 function shapeOf(dag: DagView): LayoutShape {
     return {
         nodes: dag.nodes.map((node) => {
-            const line = node.name === null ? node.block : `${node.code} · ${node.block}`
+            // A reply's box is sized for the longer of what it says once settled.
+            const what = node.kind === 'reply' ? `${node.block} · ${LABELS.runs.reply.not_sent}` : node.block
+            const line = node.name === null ? what : `${node.code} · ${what}`
             return {
                 id: node.code,
                 width: nodeWidth(node.name ?? node.code, line, DURATION_ROOM),

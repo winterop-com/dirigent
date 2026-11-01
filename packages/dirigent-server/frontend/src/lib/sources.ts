@@ -206,6 +206,90 @@ export function authLine(
     return null
 }
 
+/** The URL a caller of a received source is given: this instance's origin and the source's path. */
+export function endpointUrl(origin: string, source: Pick<SourceOut, 'url_path'>): string | null {
+    if (source.url_path === null) return null
+    return `${origin.replace(/\/+$/, '')}${source.url_path}`
+}
+
+/** One argument of a shell line, quoted so the shell reads it as it is. */
+function shellQuoted(value: string): string {
+    return `'${value.replaceAll("'", `'\\''`)}'`
+}
+
+/** The methods that send no body, so a call with one carries no `-d`. */
+const BODYLESS = new Set(['GET', 'HEAD', 'DELETE', 'OPTIONS'])
+
+/**
+ * A curl line that makes one call to a source with a bearer token: its first method, and the
+ * sample's body as JSON where the method sends one.
+ */
+export function curlLine(call: { url: string; method: string; token: string; body: unknown }): string {
+    const method = call.method.toUpperCase()
+    const parts = [
+        'curl',
+        '-X',
+        method,
+        shellQuoted(call.url),
+        '-H',
+        shellQuoted(`Authorization: Bearer ${call.token}`),
+    ]
+    if (!BODYLESS.has(method)) {
+        parts.push('-H', shellQuoted('Content-Type: application/json'))
+        parts.push('-d', shellQuoted(JSON.stringify(call.body ?? {})))
+    }
+    return parts.join(' ')
+}
+
+/** Where a hand run of a document enters: its one source, whether it has a sample, and whether a reply follows. */
+export interface HandEntry {
+    step: string
+    sampled: boolean
+    replies: boolean
+}
+
+/**
+ * Where a run started by hand enters a document, or null where there is no one source to enter:
+ * a document with none, and one with several, which a hand run has to name.
+ */
+export function handEntryOf(document: JsonMap | null): HandEntry | null {
+    const steps = document?.steps
+    if (!isMap(steps)) return null
+    const entries = Object.entries(steps).filter((entry): entry is [string, JsonMap] => isMap(entry[1]))
+    const sources = entries.filter(([, step]) => isMap(step.source))
+    if (sources.length !== 1 || sources[0] === undefined) return null
+    const [step, declared] = sources[0]
+    return {
+        step,
+        sampled: declared.sample !== undefined && declared.sample !== null,
+        replies: entries.some(([, one]) => isMap(one.reply)),
+    }
+}
+
+/** The body a source's sample carries, where the document gives it one. */
+export function sampleBody(document: JsonMap | null, step: string): unknown {
+    const steps = document?.steps
+    if (!isMap(steps)) return undefined
+    const declared = steps[step]
+    if (!isMap(declared) || !isMap(declared.sample)) return undefined
+    return declared.sample.body
+}
+
+/** The methods a source step declares, or the one an endpoint answers when it declares none. */
+export function declaredMethods(document: JsonMap | null, step: string): string[] {
+    const steps = document?.steps
+    const declared = isMap(steps) ? steps[step] : undefined
+    const source = isMap(declared) ? declared.source : undefined
+    const methods = isMap(source) ? source.methods : undefined
+    if (Array.isArray(methods) && methods.every((one) => typeof one === 'string') && methods.length > 0)
+        return methods
+    return ['POST']
+}
+
+function isMap(value: unknown): value is JsonMap {
+    return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 /** Whether a source's callers present a credential the instance minted, which can be rotated. */
 export function rotatable(source: Pick<SourceOut, 'auth'>): boolean {
     return source.auth === 'token' || source.auth === 'hmac'

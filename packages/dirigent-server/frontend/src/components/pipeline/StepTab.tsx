@@ -24,6 +24,8 @@ import {
 } from '@/lib/pipeline-document'
 import { fieldsOf, validateFields } from '@/lib/schema-form'
 import { said } from '@/lib/refusal'
+import { sampleBody, type SourceOut } from '@/lib/sources'
+import { SourceFacts } from '@/components/triggers/Endpoint'
 import {
     groupProblems,
     stepGroups,
@@ -89,6 +91,8 @@ import { Chip } from '@/components/ds/Chip'
 export function StepTab({
     step,
     document,
+    source,
+    onSourceChanged,
     block,
     blockProblem,
     schemas,
@@ -100,6 +104,10 @@ export function StepTab({
 }: {
     step: string
     document: JsonMap
+    /** What the instance holds of this step where it is a source, or null where it holds nothing. */
+    source: SourceOut | null
+    /** A verb on the source answered with the row as it now stands. */
+    onSourceChanged: (row: SourceOut) => void
     /** The catalog entry for the block this step runs, or null while it is being read. */
     block: BlockEntry | null
     /** Why the block could not be read, such as a plugin this instance does not have. */
@@ -133,6 +141,8 @@ export function StepTab({
     // Which groups somebody opened. The panel is keyed by step upstream, so this belongs to the
     // step in front of them and choosing another one starts over.
     const [opened, setOpened] = useState<ReadonlySet<StepGroupId>>(() => new Set())
+    const runs = blockOf(document, step)
+    const listens = runs === null ? sourceKindOf(document, step) : null
 
     return (
         <div className="flex flex-col gap-4 p-4">
@@ -144,94 +154,106 @@ export function StepTab({
                     {heading.code !== null && (
                         <span className="font-mono text-xs text-muted-foreground">{heading.code}</span>
                     )}
-                    <span className="font-mono text-xs">
-                        {blockOf(document, step) ?? sourceKindOf(document, step) ?? LABELS.editor.no_block}
-                    </span>
-                    {block !== null && <KindChip kind={block.kind} />}
+                    <span className="font-mono text-xs">{runs ?? listens ?? LABELS.editor.no_block}</span>
+                    {block !== null && runs !== null && <KindChip kind={block.kind} />}
                 </p>
-                {block !== null && <p className="text-xs text-muted-foreground">{block.summary}</p>}
+                {block !== null && runs !== null && (
+                    <p className="text-xs text-muted-foreground">{block.summary}</p>
+                )}
             </div>
 
             {disabled !== undefined && <Notice tone="warning">{disabled}</Notice>}
 
-            <Section title={LABELS.word.config}>
-                {blockProblem !== null ? (
-                    <p className="text-xs text-critical">{said(blockProblem)}</p>
-                ) : block === null ? (
-                    <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
-                ) : (
-                    <SchemaForm
-                        // Choosing another step is another form, not the same one with new
-                        // values in it, so every control starts from what that step carries.
-                        key={step}
-                        fields={fields}
-                        values={config}
-                        problems={problems}
-                        disabled={disabled}
-                        fold
-                        references={{ document, schemas, connections }}
-                        deferred
-                        onChange={(name, value) => {
-                            const next = { ...config }
-                            if (value === undefined) delete next[name]
-                            else next[name] = value
-                            onConfig(next)
-                        }}
-                    />
-                )}
-            </Section>
+            {listens !== null && source !== null && (
+                <SourceFacts source={source} body={sampleBody(document, step)} onReplaced={onSourceChanged} />
+            )}
 
-            <div className="flex flex-col">
-                {groups.map((group) => {
-                    const wrong = groupProblems(group, group.id === 'retry' ? retryProblems : keyProblems)
-                    const refused = Object.keys(wrong).length > 0
-                    return (
-                        <Group
-                            key={group.id}
-                            group={group}
-                            open={refused || opened.has(group.id)}
-                            onToggle={
-                                refused
-                                    ? null
-                                    : () => {
-                                          setOpened(toggled(opened, group.id))
-                                      }
-                            }
-                        >
-                            {group.id === 'depends_on' ? (
-                                <Prerequisites
-                                    prerequisites={prerequisites}
-                                    offered={offered}
-                                    disabled={disabled}
-                                    onDependsOn={onDependsOn}
-                                />
-                            ) : group.id === 'retry' ? (
-                                <SchemaForm
-                                    key={`retry-${step}`}
-                                    fields={group.fields}
-                                    values={retry}
-                                    problems={retryProblems}
-                                    disabled={disabled}
-                                    onChange={(name, value) => {
-                                        changeDocument((current) => withRetryKey(current, step, name, value))
-                                    }}
-                                />
-                            ) : (
-                                <SchemaForm
-                                    key={`${group.id}-${step}`}
-                                    fields={group.fields}
-                                    values={keys}
-                                    problems={wrong}
-                                    disabled={disabled}
-                                    onChange={(name, value) => {
-                                        changeDocument((current) => withStepKey(current, step, name, value))
-                                    }}
-                                />
-                            )}
-                        </Group>
-                    )
-                })}
-            </div>
+            {runs !== null && (
+                <Section title={LABELS.word.config}>
+                    {blockProblem !== null ? (
+                        <p className="text-xs text-critical">{said(blockProblem)}</p>
+                    ) : block === null ? (
+                        <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
+                    ) : (
+                        <SchemaForm
+                            // Choosing another step is another form, not the same one with new
+                            // values in it, so every control starts from what that step carries.
+                            key={step}
+                            fields={fields}
+                            values={config}
+                            problems={problems}
+                            disabled={disabled}
+                            fold
+                            references={{ document, schemas, connections }}
+                            deferred
+                            onChange={(name, value) => {
+                                const next = { ...config }
+                                if (value === undefined) delete next[name]
+                                else next[name] = value
+                                onConfig(next)
+                            }}
+                        />
+                    )}
+                </Section>
+            )}
+
+            {listens === null && (
+                <div className="flex flex-col">
+                    {groups.map((group) => {
+                        const wrong = groupProblems(group, group.id === 'retry' ? retryProblems : keyProblems)
+                        const refused = Object.keys(wrong).length > 0
+                        return (
+                            <Group
+                                key={group.id}
+                                group={group}
+                                open={refused || opened.has(group.id)}
+                                onToggle={
+                                    refused
+                                        ? null
+                                        : () => {
+                                              setOpened(toggled(opened, group.id))
+                                          }
+                                }
+                            >
+                                {group.id === 'depends_on' ? (
+                                    <Prerequisites
+                                        prerequisites={prerequisites}
+                                        offered={offered}
+                                        disabled={disabled}
+                                        onDependsOn={onDependsOn}
+                                    />
+                                ) : group.id === 'retry' ? (
+                                    <SchemaForm
+                                        key={`retry-${step}`}
+                                        fields={group.fields}
+                                        values={retry}
+                                        problems={retryProblems}
+                                        disabled={disabled}
+                                        onChange={(name, value) => {
+                                            changeDocument((current) =>
+                                                withRetryKey(current, step, name, value),
+                                            )
+                                        }}
+                                    />
+                                ) : (
+                                    <SchemaForm
+                                        key={`${group.id}-${step}`}
+                                        fields={group.fields}
+                                        values={keys}
+                                        problems={wrong}
+                                        disabled={disabled}
+                                        onChange={(name, value) => {
+                                            changeDocument((current) =>
+                                                withStepKey(current, step, name, value),
+                                            )
+                                        }}
+                                    />
+                                )}
+                            </Group>
+                        )
+                    })}
+                </div>
+            )}
 
             <div className="space-y-1.5">
                 <Label htmlFor="step-display-name">{LABELS.word.name.label}</Label>

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from dirigent_client.enums import (
     AttemptKind,
     AttemptStatus,
+    EntryVia,
     LogLevel,
     RunItemStatus,
     RunPriority,
@@ -98,6 +99,9 @@ class AttemptOut(WireModel):
     output: JsonMap | None = None
     output_uri: str | None = None
     """Where the output was written, when it was too large to inline on the artifact."""
+
+    via: EntryVia | None = None
+    """How a source's input arrived, on a received attempt; None on every other attempt."""
 
     output_bytes: int | None = None
     waiting_message: str | None = None

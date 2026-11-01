@@ -1,7 +1,6 @@
 import { Clock3 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
-import { SecretReveal } from '@/components/ds/SecretReveal'
 import { Well } from '@/components/ds/Well'
 import { Picker } from '@/components/Picker'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
@@ -13,7 +12,6 @@ import {
     Dialog,
     DialogClose,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -44,7 +42,6 @@ import {
     zoneOffset,
     zonesOffered,
 } from '@/lib/trigger-form'
-import type { SourceTokenOut } from '@/lib/sources'
 import { createSchedule, previewSchedule, type ScheduleIn } from '@/lib/triggers'
 
 /** Which clock a new schedule is declared with. Exactly one, which is what the core accepts. */
@@ -259,65 +256,6 @@ export function NewSchedule({
                         </Button>
                     </Refusable>
                 </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    )
-}
-
-/**
- * A token, the one time it is readable.
- *
- * There is no read that answers this again: closing this dialog is the moment the token stops
- * being available to anybody who did not copy it, and the only way back is a rotation, which
- * makes a different one and invalidates this.
- */
-export function MintedToken({ token, onClose }: { token: SourceTokenOut; onClose: () => void }) {
-    return (
-        <Dialog
-            open
-            onOpenChange={(next) => {
-                if (!next) onClose()
-            }}
-        >
-            <DialogContent className="sm:max-w-xl">
-                <DialogHeader>
-                    <DialogTitle>
-                        {token.auth === 'hmac'
-                            ? LABELS.triggers.token.secret_title(token.code)
-                            : LABELS.triggers.token.title(token.code)}
-                    </DialogTitle>
-                    <DialogDescription>{LABELS.triggers.token.note}</DialogDescription>
-                </DialogHeader>
-
-                <SecretReveal
-                    value={token.token}
-                    label={
-                        token.auth === 'hmac'
-                            ? LABELS.triggers.token.secret_noun
-                            : LABELS.triggers.token.token_noun
-                    }
-                />
-
-                <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{LABELS.triggers.token.url}</p>
-                    <p className="font-mono text-xs break-all">{token.url_path}</p>
-                </div>
-
-                <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">{LABELS.triggers.token.how}</p>
-                    {token.auth === 'hmac' && token.header !== null ? (
-                        <>
-                            <p className="font-mono text-xs break-all">
-                                {LABELS.triggers.token.signed_header(token.header)}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                                {LABELS.triggers.token.signed_note}
-                            </p>
-                        </>
-                    ) : (
-                        <p className="font-mono text-xs break-all">{LABELS.triggers.token.bearer}</p>
-                    )}
-                </div>
             </DialogContent>
         </Dialog>
     )

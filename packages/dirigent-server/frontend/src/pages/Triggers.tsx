@@ -9,7 +9,7 @@ import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
 import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
-import { MintedToken, NewSchedule } from '@/components/triggers/NewTrigger'
+import { NewSchedule } from '@/components/triggers/NewTrigger'
 import { SchedulePanel, SourcePanel } from '@/components/triggers/TriggerPanel'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
@@ -20,14 +20,7 @@ import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import {
-    listensTo,
-    readSourcePage,
-    sourceId,
-    stateView,
-    type SourceOut,
-    type SourceTokenOut,
-} from '@/lib/sources'
+import { listensTo, readSourcePage, sourceId, stateView, type SourceOut } from '@/lib/sources'
 import { cn } from '@/lib/utils'
 import {
     firingView,
@@ -56,7 +49,6 @@ import {
 export function Triggers() {
     const [chosen, setChosen] = useState<string | null>(null)
     const [creating, setCreating] = useState<'schedule' | null>(null)
-    const [minted, setMinted] = useState<SourceTokenOut | null>(null)
     // What a verb has since made of a row, over the page it was read on.
     const [fresher, setFresher] = useState<Record<string, ScheduleRow>>({})
 
@@ -104,7 +96,6 @@ export function Triggers() {
                                     [sourceId(row)]: row,
                                 }))
                             }}
-                            onMinted={setMinted}
                         />
                     ),
                 },
@@ -295,14 +286,6 @@ export function Triggers() {
                 }}
                 onCreated={reload}
             />
-            {minted !== null && (
-                <MintedToken
-                    token={minted}
-                    onClose={() => {
-                        setMinted(null)
-                    }}
-                />
-            )}
         </>
     )
 }

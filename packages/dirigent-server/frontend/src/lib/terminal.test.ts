@@ -38,6 +38,7 @@ function run(over: Partial<RunOut> = {}): RunOut {
         triggered_by_kind: 'user',
         parent_run_id: null,
         triggered_by_label: 'dev',
+        source: null,
         trace_id: 'trace-1',
         stored_bytes: 0,
         error: null,

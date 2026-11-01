@@ -197,7 +197,7 @@ def test_a_hand_run_enters_the_only_source_with_its_sample() -> None:
     entry = hand_entry(document(GREET), built_in_kinds(), None, None, received_at=RECEIVED_AT)
     assert entry is not None
     assert entry.step == "ask"
-    assert entry.via == "hand"
+    assert entry.via == "sample"
     assert entry.output["method"] == "POST"
     assert entry.output["path"] == "/greet/Oslo"
     assert entry.output["body"] == {"mood": "cheerful"}
@@ -207,6 +207,7 @@ def test_an_input_given_by_hand_replaces_the_sample() -> None:
     given: dict[str, Any] = {"path_params": {"name": "Bergen"}, "body": {"mood": "wet"}}
     entry = hand_entry(document(GREET), built_in_kinds(), "ask", given, received_at=RECEIVED_AT)
     assert entry is not None
+    assert entry.via == "hand"
     assert entry.output["path"] == "/greet/Bergen"
 
 
@@ -273,7 +274,8 @@ async def test_a_run_entered_by_hand_flows_from_its_source_to_its_reply(
     settled = await attempts(sessions, run.id)
     assert settled["ask"].kind is AttemptKind.RECEIVED
     assert settled["ask"].status is AttemptStatus.SUCCEEDED
-    assert settled["ask"].input == {"via": "hand"}
+    assert settled["ask"].input == {"via": "sample"}
+    assert settled["ask"].via == "sample"
     assert settled["answer"].status is AttemptStatus.SUCCEEDED
     rendered = settled["answer"].output or {}
     assert rendered["status"] == 201

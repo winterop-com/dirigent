@@ -25,7 +25,7 @@ import {
 import type { JsonMap } from '@/lib/api'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
-import { itemsNote, type AttemptEvent } from '@/lib/runs'
+import { itemsNote, replySent, type AttemptEvent } from '@/lib/runs'
 import { runSettled, statusTokens, stepSettled, type AttemptStatus } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
@@ -69,6 +69,7 @@ export function StepTab({
     const items = itemsNote(view.items, view.node.items_failed)
     const queued = spanFact(view.queued_ms, view.duration_ms)
     const waiting = spanFact(view.waiting_ms, view.duration_ms)
+    const sent = view.node.kind === 'reply' ? replySent(view.latest) : null
 
     return (
         <div className="flex min-h-0 flex-col gap-4 p-4">
@@ -103,6 +104,12 @@ export function StepTab({
                     {waiting !== null && <Fact term={LABELS.runs.fact.waiting} detail={waiting} />}
                     {view.node.fan_out && items !== null && (
                         <Fact term={LABELS.runs.fact.items} detail={items} />
+                    )}
+                    {sent !== null && (
+                        <Fact
+                            term={LABELS.runs.fact.answer}
+                            detail={sent ? LABELS.runs.reply.sent_fact : LABELS.runs.reply.not_sent_fact}
+                        />
                     )}
                 </dl>
             </div>

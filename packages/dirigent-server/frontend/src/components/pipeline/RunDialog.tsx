@@ -22,9 +22,12 @@ import { refusalOf, said } from '@/lib/refusal'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { paramsOf, startRun, type RunAccepted } from '@/lib/pipelines'
 import { readWindow, referencesWindow } from '@/lib/run-window'
+import { handEntryOf } from '@/lib/sources'
 import { fieldsOf, maySubmit, validateFields, withUnreadable } from '@/lib/schema-form'
 import { offsetMinutes, timesMode, zoneLabel } from '@/lib/times'
 import { Notice } from '@/components/ds/Notice'
+
+const ENTRY = LABELS.editor.run.entry
 
 /**
  * Starting one ad hoc run of the version this instance holds.
@@ -79,6 +82,7 @@ export function RunDialog({
 }) {
     const fields = useMemo(() => fieldsOf(paramsOf(document)), [document])
     const needsWindow = useMemo(() => referencesWindow(document), [document])
+    const entry = useMemo(() => handEntryOf(document), [document])
     const [values, setValues] = useState<JsonMap>({})
     const [windowStart, setWindowStart] = useState('')
     const [windowEnd, setWindowEnd] = useState('')
@@ -242,6 +246,15 @@ export function RunDialog({
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {entry !== null && (
+                        <p className="text-xs text-muted-foreground" data-testid="run-entry">
+                            {entry.sampled ? ENTRY.sample : ENTRY.empty}
+                            <code className="font-mono text-[0.88em]">{entry.step}</code>
+                            {entry.replies && ENTRY.no_caller}
+                            {ENTRY.end}
+                        </p>
+                    )}
 
                     <p className="text-xs text-faint">
                         {LABELS.editor.run.runs_as(username ?? LABELS.editor.run.this_session)}

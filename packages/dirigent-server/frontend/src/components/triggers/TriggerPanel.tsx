@@ -6,6 +6,7 @@ import { JsonBlock } from '@/components/JsonBlock'
 import { PipelineRef } from '@/components/PipelineRef'
 import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
+import { EndpointAddress, NewToken } from '@/components/triggers/Endpoint'
 import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
 import { Button } from '@/components/ui/button'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -19,15 +20,12 @@ import {
     inputView,
     isPaused,
     readSourceInputs,
-    rotatable,
-    rotateSourceToken,
     inputLine,
     listensTo,
     setSourcePaused,
     stateView,
     type SourceInputOut,
     type SourceOut,
-    type SourceTokenOut,
 } from '@/lib/sources'
 import {
     firingView,
@@ -153,14 +151,11 @@ export function SourcePanel({
     source,
     pipelineName,
     onChanged,
-    onMinted,
 }: {
     source: SourceOut
     pipelineName: string | null
     /** Called with what a verb answered, so the row behind updates without a re-read. */
     onChanged: (row: SourceOut) => void
-    /** Called with a token that is readable exactly once, which the screen shows and forgets. */
-    onMinted: (token: SourceTokenOut) => void
 }) {
     const [busy, setBusy] = useState(false)
 
@@ -203,7 +198,11 @@ export function SourcePanel({
                 </Fact>
                 {listens !== null && (
                     <Fact label={LABELS.triggers.source.listens}>
-                        <span className="font-mono break-all">{listens}</span>
+                        {source.url_path === null ? (
+                            <span className="font-mono break-all">{listens}</span>
+                        ) : (
+                            <EndpointAddress source={source} />
+                        )}
                     </Fact>
                 )}
                 {source.next_poll_at !== null && !paused && (
@@ -218,11 +217,7 @@ export function SourcePanel({
                         <span className="break-words text-muted-foreground">{source.last_error}</span>
                     </Fact>
                 )}
-                {auth !== null && (
-                    <Fact label={LABELS.triggers.source.auth}>
-                        <span className="font-mono">{auth}</span>
-                    </Fact>
-                )}
+                {auth !== null && <Fact label={LABELS.triggers.source.auth}>{auth}</Fact>}
                 <Fact label={LABELS.word.in_flight.heading}>
                     <span>
                         {source.max_in_flight === null
@@ -271,32 +266,8 @@ export function SourcePanel({
                         {paused ? LABELS.action.resume : LABELS.action.pause}
                     </Button>
                 </Refusable>
-                {rotatable(source) && (
-                    <Refusable why={write.why}>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={busy || !write.may}
-                            title={write.why}
-                            onClick={() => {
-                                act(rotateSourceToken(source.pipeline, source.code), (token) => {
-                                    onMinted(token)
-                                    onChanged({
-                                        ...source,
-                                        token_prefix: token.prefix,
-                                        secret_fingerprint: token.fingerprint,
-                                    })
-                                })
-                            }}
-                        >
-                            {source.auth === 'hmac'
-                                ? LABELS.triggers.source.rotate_secret
-                                : LABELS.triggers.rotate}
-                        </Button>
-                    </Refusable>
-                )}
+                <NewToken source={source} body={undefined} onReplaced={onChanged} />
             </div>
-            {rotatable(source) && <p className="text-xs text-faint">{LABELS.triggers.rotate_warning}</p>}
 
             <History
                 title={LABELS.triggers.source.inputs}

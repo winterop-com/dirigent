@@ -27,7 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.enums import InputOutcome, TriggerKind
+from dirigent_client.enums import EntryVia, InputOutcome, TriggerKind
 from dirigent_client.schemas import InputAccepted
 from dirigent_common import JsonMap
 from dirigent_common.durations import format_duration
@@ -439,7 +439,7 @@ async def _create(
     entry = Entry(
         step=row.code,
         output=output,
-        via="request",
+        via=EntryVia.REQUEST,
         note=f"received {call.method} {call.path} {journal.body_bytes} bytes",
     )
     try:
