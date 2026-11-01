@@ -17,7 +17,10 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
-## Unreleased
+## 0.30.0
+
+Released 2026-11-01. Every package in the workspace moves to 0.30.0 together, and so do
+`dirigent-dhis2`, `dirigent-contrib`, `dirigent-fhir` and `dirigent-integration`.
 
 **The FHIR pack gains a search that feeds a fan-out, FHIRPath, validation, CQL and measures.**
 `dirigent-fhir`'s main adds `fhir.search`'s `emit: pages | resources` for a following `for_each`,
