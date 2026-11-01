@@ -249,6 +249,22 @@ def test_no_stack_reaches_for_a_tool_image_to_make_its_bucket(tmp_path: Path) ->
         assert "dg storage ensure" in document
 
 
+@pytest.mark.parametrize("pack", ["dirigent-dhis2", "dirigent-contrib"])
+def test_init_adds_each_published_pack_pinned_at_its_version(tmp_path: Path, pack: str) -> None:
+    result = invoke("init", str(tmp_path / "project"), "--template", "documents", "--pack", pack, "--json")
+    assert result.exit_code == 0, result.output
+    project = tomllib.loads((tmp_path / "project" / "pyproject.toml").read_text())
+    runtime, added = project["project"]["dependencies"]
+    assert added == f"{pack}=={runtime.removeprefix('dirigent-cli==')}"
+
+
+def test_init_refuses_a_pack_it_does_not_know(tmp_path: Path) -> None:
+    result = invoke("init", str(tmp_path / "project"), "--template", "documents", "--pack", "dirigent-acme", "--json")
+    assert result.exit_code == 1
+    assert "the packs are dirigent-contrib, dirigent-dhis2" in refusal(result.stdout)["message"]
+    assert not (tmp_path / "project").exists()
+
+
 def test_a_pack_is_pinned_where_the_runtime_is(tmp_path: Path) -> None:
     local = scaffold(tmp_path / "local", InitChoices(packs=("dirigent-dhis2",), password="x" * 12), version="1.2.3")
     assert local.files

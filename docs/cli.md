@@ -318,7 +318,8 @@ artifacts on a volume), `docker` (the workers' own daemon, so the `docker.*` blo
 `kafka` and `rabbitmq` (a broker, with its connection bootstrapped and a `hello` topic or queue
 declared). `--pipeline` names a starter to copy into `pipelines/`, and may repeat; with none
 named, `pipelines/` is created empty and `dg pipeline new` is how a document arrives later.
-`--pack` adds a published pack pinned at this version, `dirigent-dhis2` today: a line in the
+`--pack` adds a published pack pinned at this version, `dirigent-dhis2` or `dirigent-contrib` (Chap and the
+climate service), and may repeat: a line in the
 stack's `Dockerfile`, or a dependency in `pyproject.toml` for the other two templates.
 `--workflow` writes `.github/workflows/dirigent.yaml`, which applies the project on merge.
 
