@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Outlet, useNavigate } from 'react-router'
 
 import { crumbSlot } from '@/components/Breadcrumb'
+import { headSlot } from '@/components/PageHead'
 import { CommandPalette } from '@/components/CommandPalette'
 import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
 import { PanelSheet } from '@/components/PanelSheet'
@@ -263,6 +264,9 @@ export function AppShell() {
     const setSlot = useCallback((element: HTMLDivElement | null) => {
         crumbSlot.set(element)
     }, [])
+    const setHead = useCallback((element: HTMLDivElement | null) => {
+        headSlot.set(element)
+    }, [])
 
     return (
         <div className="flex h-svh overflow-hidden">
@@ -318,14 +322,17 @@ export function AppShell() {
                     <ThemeToggle />
                 </header>
 
-                <main className="flex min-h-0 w-full flex-1 [scrollbar-gutter:stable] flex-col overflow-y-auto px-4 pt-1 pb-12 md:px-8">
-                    {auth.status === 'unknown' ? (
-                        <PageState loading={problem === null} problem={problem} empty={false}>
-                            {null}
-                        </PageState>
-                    ) : (
-                        <Outlet />
-                    )}
+                <main className="flex min-h-0 w-full flex-1 flex-col">
+                    <div ref={setHead} data-page-head className="shrink-0 px-4 pt-1 md:px-8" />
+                    <div data-page-scroller className="dg-scroller flex min-h-0 flex-1 flex-col pt-px pb-12">
+                        {auth.status === 'unknown' ? (
+                            <PageState loading={problem === null} problem={problem} empty={false}>
+                                {null}
+                            </PageState>
+                        ) : (
+                            <Outlet />
+                        )}
+                    </div>
                 </main>
 
                 <PanelSheet />

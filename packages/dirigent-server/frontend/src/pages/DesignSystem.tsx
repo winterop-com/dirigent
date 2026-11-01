@@ -302,6 +302,7 @@ export function DesignSystem() {
                         <Specimen title={VARIANT.listing}>
                             <div className="w-full">
                                 <PageHeader
+                                    inPlace
                                     title={LABELS.screen.pipelines.name}
                                     count={SAMPLE.pipelines_count}
                                     actions={[
@@ -341,6 +342,7 @@ export function DesignSystem() {
                         <Specimen title={VARIANT.shut}>
                             <div className="w-full">
                                 <PageHeader
+                                    inPlace
                                     title={LABELS.screen.connections.name}
                                     count={SAMPLE.connections_count}
                                     actions={[
@@ -364,6 +366,7 @@ export function DesignSystem() {
                                     inPlace
                                 />
                                 <PageHeader
+                                    inPlace
                                     title={pipeline.name}
                                     code={pipeline.code}
                                     actions={[

@@ -118,7 +118,12 @@ test("a line's step prefix opens that step in the panel", async ({ page }) => {
     await panel.getByRole('tab', { name: 'Run' }).click()
     await expect(panel.getByRole('tab', { name: 'Run' })).toHaveAttribute('aria-selected', 'true')
 
-    await page.locator('[data-log-line] button', { hasText: 'generate' }).click()
+    // Choosing a box narrows the terminal to its step; the step filter takes it back.
+    await expect(page.locator('[data-log-line] button', { hasText: 'generate' })).toHaveCount(0)
+    await page.getByLabel(LABELS.terminal.step_filter).click()
+    await page.getByRole('option', { name: LABELS.terminal.every_step }).click()
+
+    await page.locator('[data-log-line] button', { hasText: 'generate' }).first().click()
 
     await expect(panel.getByRole('tab', { name: LABELS.word.step.label })).toHaveAttribute(
         'aria-selected',

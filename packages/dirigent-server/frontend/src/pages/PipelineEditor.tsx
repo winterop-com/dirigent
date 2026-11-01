@@ -11,6 +11,7 @@ import { RunDialog } from '@/components/pipeline/RunDialog'
 import { SourceTab } from '@/components/pipeline/SourceTab'
 import { StepTab } from '@/components/pipeline/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
+import { PageHead } from '@/components/PageHead'
 import { Chip } from '@/components/ds/Chip'
 import { Code } from '@/components/ds/Code'
 import { Panel } from '@/components/ds/Panel'
@@ -577,83 +578,87 @@ export function PipelineEditor() {
 
     return (
         <div className="-mb-9 flex min-h-0 flex-1 flex-col gap-3">
-            <Breadcrumb
-                trail={[
-                    { label: LABELS.screen.pipelines.name, to: '/pipelines' },
-                    ...(heading === null
-                        ? []
-                        : [{ label: heading.title, to: `/pipelines/${code}`, mono: !heading.named }]),
-                ]}
-            />
-            <div className="flex min-h-9 items-center gap-x-2 md:gap-x-3">
-                {heading === null ? (
-                    <span className="shrink-0 text-sm font-medium">{LABELS.editor.topbar.new_pipeline}</span>
-                ) : (
-                    <Code value={heading.code ?? code} tone="body" />
-                )}
-                {/* Hidden below the breakpoint, where the strip has only the room for the
-                    document's identity and the line saying it is read. */}
-                {matters !== null && (
-                    <Chip tone="critical" title={matters.title} className="hidden md:inline-flex">
-                        {matters.label}
-                    </Chip>
-                )}
-                <div className="flex-1" />
-                {/* THE VERBS THAT WRITE ARE NOT DRAWN BELOW THE BREAKPOINT, and the strip says
-                    so where the first of them would have been. */}
-                {small && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                        {LABELS.editor.topbar.read_only}
-                    </span>
-                )}
-                <ToolbarActions
-                    actions={
-                        // NOTHING THAT WRITES, AND NOTHING THAT ASKS THE SERVER ABOUT WHAT
-                        // CANNOT BE WRITTEN: below the breakpoint the strip carries the
-                        // document's identity and the line saying it is read.
-                        small
+            <PageHead>
+                <Breadcrumb
+                    trail={[
+                        { label: LABELS.screen.pipelines.name, to: '/pipelines' },
+                        ...(heading === null
                             ? []
-                            : [
-                                  {
-                                      id: 'validate',
-                                      label: LABELS.action.validate,
-                                      icon: ShieldCheck,
-                                      disabled: sent !== undefined,
-                                      why: sent,
-                                      onClick: () => {
-                                          setDialog('validate')
-                                      },
-                                  },
-                                  {
-                                      id: 'run',
-                                      label: LABELS.action.asks(LABELS.action.run),
-                                      icon: Play,
-                                      disabled: runRefusal !== undefined,
-                                      why: runRefusal,
-                                      onClick: () => {
-                                          setDialog('run')
-                                      },
-                                  },
-                                  {
-                                      id: 'apply',
-                                      label: LABELS.action.apply,
-                                      icon: CheckCircle2,
-                                      variant: applyVariant(edits, creating),
-                                      disabled: applyRefusal !== undefined,
-                                      why: applyRefusal,
-                                      onClick: () => {
-                                          setDialog('apply')
-                                      },
-                                  },
-                              ]
-                    }
+                            : [{ label: heading.title, to: `/pipelines/${code}`, mono: !heading.named }]),
+                    ]}
                 />
-            </div>
+                <div className="flex min-h-9 items-center gap-x-2 md:gap-x-3">
+                    {heading === null ? (
+                        <span className="shrink-0 text-sm font-medium">
+                            {LABELS.editor.topbar.new_pipeline}
+                        </span>
+                    ) : (
+                        <Code value={heading.code ?? code} tone="body" />
+                    )}
+                    {/* Hidden below the breakpoint, where the strip has only the room for the
+                    document's identity and the line saying it is read. */}
+                    {matters !== null && (
+                        <Chip tone="critical" title={matters.title} className="hidden md:inline-flex">
+                            {matters.label}
+                        </Chip>
+                    )}
+                    <div className="flex-1" />
+                    {/* THE VERBS THAT WRITE ARE NOT DRAWN BELOW THE BREAKPOINT, and the strip says
+                    so where the first of them would have been. */}
+                    {small && (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                            {LABELS.editor.topbar.read_only}
+                        </span>
+                    )}
+                    <ToolbarActions
+                        actions={
+                            // NOTHING THAT WRITES, AND NOTHING THAT ASKS THE SERVER ABOUT WHAT
+                            // CANNOT BE WRITTEN: below the breakpoint the strip carries the
+                            // document's identity and the line saying it is read.
+                            small
+                                ? []
+                                : [
+                                      {
+                                          id: 'validate',
+                                          label: LABELS.action.validate,
+                                          icon: ShieldCheck,
+                                          disabled: sent !== undefined,
+                                          why: sent,
+                                          onClick: () => {
+                                              setDialog('validate')
+                                          },
+                                      },
+                                      {
+                                          id: 'run',
+                                          label: LABELS.action.asks(LABELS.action.run),
+                                          icon: Play,
+                                          disabled: runRefusal !== undefined,
+                                          why: runRefusal,
+                                          onClick: () => {
+                                              setDialog('run')
+                                          },
+                                      },
+                                      {
+                                          id: 'apply',
+                                          label: LABELS.action.apply,
+                                          icon: CheckCircle2,
+                                          variant: applyVariant(edits, creating),
+                                          disabled: applyRefusal !== undefined,
+                                          why: applyRefusal,
+                                          onClick: () => {
+                                              setDialog('apply')
+                                          },
+                                      },
+                                  ]
+                        }
+                    />
+                </div>
+            </PageHead>
 
             <Panel
                 title={LABELS.pipelines.page.graph}
                 inset={false}
-                className="flex min-h-96 flex-1 flex-col"
+                className="mt-3 flex min-h-96 flex-1 flex-col"
                 bodyClassName="relative min-h-0 flex-1"
             >
                 {steps.length === 0 && local !== null && (

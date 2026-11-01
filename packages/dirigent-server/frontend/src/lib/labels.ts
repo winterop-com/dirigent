@@ -2125,10 +2125,6 @@ const runs = {
         heading: (step: string) => `${step} failed`,
         /** A run that completed with errors: the step carried on past items that failed. */
         items_heading: (step: string) => `Items of ${step} failed`,
-        logs: 'Logs',
-        all_steps: 'All steps',
-        step_shown: 'step',
-        no_logs: 'No log lines.',
     },
     // The listing.
 

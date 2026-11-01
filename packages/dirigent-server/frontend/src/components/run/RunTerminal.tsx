@@ -95,10 +95,13 @@ const LEVEL_INK: Record<string, string> = {
 export function RunTerminal({
     state,
     runId,
+    step: chosenStep = null,
     onSelectStep,
 }: {
     state: RunDetailState
     runId: string
+    /** The step chosen on the graph, which narrows the lines to it. */
+    step?: string | null
     /** What a line's step prefix does: select that step and open it in the panel. */
     onSelectStep: (step: string) => void
 }) {
@@ -116,6 +119,11 @@ export function RunTerminal({
     )
 
     const [filters, setFilters] = useState<LineFilters>(EVERY_LINE)
+    useEffect(() => {
+        // The graph is the other place a step is chosen, and the filter follows it.
+        // oxlint-disable-next-line react/set-state-in-effect
+        setFilters((current) => ({ ...current, step: chosenStep ?? '' }))
+    }, [chosenStep])
     // What the reader did to this console, and what they set for every log pane: both follow.
     const [scrolledAway, setScrolledAway] = useState(false)
     const [saving, setSaving] = useState(false)

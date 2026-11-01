@@ -1,20 +1,13 @@
-import { useMemo } from 'react'
 import { Link } from 'react-router'
 
 import { HealthSaid } from '@/components/connections/Health'
 import { Code } from '@/components/ds/Code'
 import { Panel } from '@/components/ds/Panel'
-import { Button } from '@/components/ui/button'
 import type { JsonMap } from '@/lib/api'
 import { healthOf, type ConnectionOut } from '@/lib/connections'
-import { formatClock, formatInstant } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import type { LogEntryOut, RunOut } from '@/lib/runs'
+import type { RunOut } from '@/lib/runs'
 import { statusLabel } from '@/lib/status'
-import { cn } from '@/lib/utils'
-
-/** How many lines the log beside the failure draws; the terminal holds the rest. */
-const LOG_LINES = 200
 
 /** A value as one line of text, the way a fact or a log field is drawn. */
 function said(value: unknown): string {
@@ -63,7 +56,6 @@ export function RunFailure({
                       : LABELS.runs.failure.heading(step)
             }
             meta={code ?? undefined}
-            className="flex-[1_1_340px]"
         >
             {block !== null && <Code value={block} />}
             {error !== null && <p className="mt-3 text-base break-words">{error}</p>}
@@ -90,97 +82,6 @@ export function RunFailure({
                         </div>
                     ))}
                 </dl>
-            )}
-        </Panel>
-    )
-}
-
-/** Whether a line is one a reader of a failure is looking for. */
-function failing(entry: LogEntryOut): boolean {
-    return entry.level === 'error'
-}
-
-/**
- * The run's log lines, latest first, the failing ones on the failure's wash with the fields they
- * carried under them. Choosing a step narrows it to that step.
- */
-export function RunLogs({
-    logs,
-    step,
-    onAllSteps,
-    onStep,
-}: {
-    logs: readonly LogEntryOut[]
-    step: string | null
-    onAllSteps: () => void
-    onStep: (step: string) => void
-}) {
-    const lines = useMemo(
-        () =>
-            logs
-                .filter((entry) => step === null || entry.step_name === step)
-                .slice(-LOG_LINES)
-                .toReversed(),
-        [logs, step],
-    )
-    return (
-        <Panel
-            title={LABELS.runs.failure.logs}
-            meta={String(lines.length)}
-            inset={false}
-            className="flex-[1.6_1_440px]"
-            aside={
-                step === null ? undefined : (
-                    <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
-                        {LABELS.runs.failure.step_shown}
-                        <Code value={step} tone="body" />
-                        <Button variant="ghost" size="xs" onClick={onAllSteps}>
-                            {LABELS.runs.failure.all_steps}
-                        </Button>
-                    </span>
-                )
-            }
-        >
-            {lines.length === 0 ? (
-                <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.failure.no_logs}</p>
-            ) : (
-                lines.map((entry) => (
-                    <div
-                        key={entry.id}
-                        className={cn(
-                            'border-t border-border px-4 py-3 first:border-t-0',
-                            failing(entry) && 'bg-critical-wash',
-                        )}
-                    >
-                        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 font-mono text-xs text-muted-foreground">
-                            <time title={formatInstant(entry.created_at)}>
-                                {formatClock(entry.created_at)}
-                            </time>
-                            <span className={cn(failing(entry) && 'text-critical-ink')}>{entry.level}</span>
-                            {entry.step_name !== null && (
-                                <button
-                                    type="button"
-                                    className="rounded-sm text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                                    onClick={() => {
-                                        if (entry.step_name !== null) onStep(entry.step_name)
-                                    }}
-                                >
-                                    {entry.step_name}
-                                </button>
-                            )}
-                        </div>
-                        <p className="mt-1.5 font-mono text-xs break-words">{entry.message}</p>
-                        {entry.fields !== null && Object.keys(entry.fields).length > 0 && (
-                            <div className="mt-1 font-mono text-xs break-all">
-                                {Object.entries(entry.fields).map(([key, value]) => (
-                                    <div key={key}>
-                                        <span className="text-muted-foreground">{key}</span> {said(value)}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                ))
             )}
         </Panel>
     )

@@ -12,7 +12,8 @@ import { Breadcrumb } from '@/components/Breadcrumb'
 import { Code } from '@/components/ds/Code'
 import { IconButton } from '@/components/ds/IconButton'
 import { Panel } from '@/components/ds/Panel'
-import { connectionOf, RunFailure, RunLogs } from '@/components/run/RunFailure'
+import { connectionOf, RunFailure } from '@/components/run/RunFailure'
+import { PageHead } from '@/components/PageHead'
 import { PageState } from '@/components/PageState'
 import { ToolbarActions } from '@/components/ToolbarActions'
 import { sayRefusal } from '@/components/Refusal'
@@ -43,7 +44,7 @@ import {
 } from '@/lib/runs'
 import { clearScreenStatus, setScreenStatus, streamNote } from '@/lib/screen-status'
 import { runSettled } from '@/lib/status'
-import { terminalOpen, toggleTerminal } from '@/lib/terminal'
+import { openTerminal, terminalOpen, toggleTerminal } from '@/lib/terminal'
 import { cn } from '@/lib/utils'
 
 /**
@@ -380,6 +381,11 @@ export function RunDetail() {
 
     useEffect(() => fillPanel(tabs, { screen: `run:${id}`, open: 'step' }), [tabs, id])
 
+    const failedRun = state?.run.status === 'failed'
+    useEffect(() => {
+        if (failedRun) openTerminal()
+    }, [failedRun])
+
     if (state === null) {
         return (
             <PageState loading={problem === null} problem={problem} empty={false}>
@@ -418,109 +424,111 @@ export function RunDetail() {
     return (
         <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex-1 pb-6">
-                <Breadcrumb
-                    trail={[
-                        { label: LABELS.screen.runs.name, to: '/runs' },
-                        {
-                            label: document?.name ?? run.pipeline,
-                            to: `/pipelines/${run.pipeline}`,
-                            mono: document === null || document.name === null,
-                        },
-                    ]}
-                />
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="min-w-0">
-                        <h1 className="text-page font-medium tracking-tight">
-                            {document?.name ?? run.pipeline}
-                        </h1>
-                        <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1">
-                            {document !== null && document.name !== null && <Code value={run.pipeline} />}
-                            <span title={run.id}>
-                                <Code
-                                    value={formatInstant(run.started_at ?? run.created_at)}
-                                    className="pointer-events-none"
-                                />
-                            </span>
+                <PageHead>
+                    <Breadcrumb
+                        trail={[
+                            { label: LABELS.screen.runs.name, to: '/runs' },
+                            {
+                                label: document?.name ?? run.pipeline,
+                                to: `/pipelines/${run.pipeline}`,
+                                mono: document === null || document.name === null,
+                            },
+                        ]}
+                    />
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0">
+                            <h1 className="text-page font-medium tracking-tight">
+                                {document?.name ?? run.pipeline}
+                            </h1>
+                            <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1">
+                                {document !== null && document.name !== null && <Code value={run.pipeline} />}
+                                <span title={run.id}>
+                                    <Code
+                                        value={formatInstant(run.started_at ?? run.created_at)}
+                                        className="pointer-events-none"
+                                    />
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <IconButton
+                                icon={ICONS.terminal}
+                                label={TERMINAL_LABEL}
+                                aria-pressed={terminal}
+                                className="text-muted-foreground"
+                                onClick={toggleTerminal}
+                            />
+                            <ToolbarActions
+                                actions={[
+                                    {
+                                        id: 'pause',
+                                        label: LABELS.action.pause,
+                                        icon: ICONS.pause,
+                                        disabled: !write.may || !verbs.pause.open,
+                                        why: write.why ?? verbs.pause.why ?? undefined,
+                                        onClick: pause,
+                                    },
+                                    {
+                                        id: 'resume',
+                                        label: LABELS.action.resume,
+                                        icon: ICONS.resume,
+                                        disabled: !write.may || !verbs.resume.open,
+                                        why: write.why ?? verbs.resume.why ?? undefined,
+                                        onClick: resume,
+                                    },
+                                    {
+                                        id: 'cancel',
+                                        label: LABELS.action.cancel_run,
+                                        icon: ICONS.cancel,
+                                        destructive: verbs.cancel.open,
+                                        disabled: !write.may || !verbs.cancel.open || cancel === null,
+                                        why: write.why ?? verbs.cancel.why ?? undefined,
+                                        onClick: () => {
+                                            cancel?.()
+                                        },
+                                    },
+                                    {
+                                        id: 'rerun',
+                                        label: LABELS.action.rerun,
+                                        icon: ICONS.rerun,
+                                        variant: verbs.rerun.open ? 'default' : 'outline',
+                                        disabled: !write.may || !verbs.rerun.open || rerun === null,
+                                        why: write.why ?? verbs.rerun.why ?? undefined,
+                                        onClick: () => {
+                                            rerun?.()
+                                        },
+                                    },
+                                ]}
+                            />
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <IconButton
-                            icon={ICONS.terminal}
-                            label={TERMINAL_LABEL}
-                            aria-pressed={terminal}
-                            className="text-muted-foreground"
-                            onClick={toggleTerminal}
-                        />
-                        <ToolbarActions
-                            actions={[
-                                {
-                                    id: 'pause',
-                                    label: LABELS.action.pause,
-                                    icon: ICONS.pause,
-                                    disabled: !write.may || !verbs.pause.open,
-                                    why: write.why ?? verbs.pause.why ?? undefined,
-                                    onClick: pause,
-                                },
-                                {
-                                    id: 'resume',
-                                    label: LABELS.action.resume,
-                                    icon: ICONS.resume,
-                                    disabled: !write.may || !verbs.resume.open,
-                                    why: write.why ?? verbs.resume.why ?? undefined,
-                                    onClick: resume,
-                                },
-                                {
-                                    id: 'cancel',
-                                    label: LABELS.action.cancel_run,
-                                    icon: ICONS.cancel,
-                                    destructive: verbs.cancel.open,
-                                    disabled: !write.may || !verbs.cancel.open || cancel === null,
-                                    why: write.why ?? verbs.cancel.why ?? undefined,
-                                    onClick: () => {
-                                        cancel?.()
-                                    },
-                                },
-                                {
-                                    id: 'rerun',
-                                    label: LABELS.action.rerun,
-                                    icon: ICONS.rerun,
-                                    variant: verbs.rerun.open ? 'default' : 'outline',
-                                    disabled: !write.may || !verbs.rerun.open || rerun === null,
-                                    why: write.why ?? verbs.rerun.why ?? undefined,
-                                    onClick: () => {
-                                        rerun?.()
-                                    },
-                                },
-                            ]}
-                        />
-                    </div>
-                </div>
 
-                <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
-                    <StatusChip status={run.status} className="text-sm" />
-                    {failedAt !== null && troubled && (
-                        <span>
-                            {LABELS.runs.line.at}{' '}
-                            <Code value={failedAt} tone="body" className="text-sm font-medium" />
-                        </span>
-                    )}
-                    {took !== null && (
-                        <span className="font-mono text-muted-foreground">{formatDuration(took)}</span>
-                    )}
-                    {trigger !== null && <span className="text-muted-foreground">{trigger}</span>}
-                    {run.stored_bytes > 0 && (
-                        <span
-                            className="text-muted-foreground"
-                            title={LABELS.runs.line.stored(String(run.stored_bytes))}
-                        >
-                            {LABELS.runs.line.stored(formatBytes(run.stored_bytes))}
-                        </span>
-                    )}
-                    {priority !== null && (
-                        <span className={cn('text-xs', priority.className)}>{priority.label}</span>
-                    )}
-                    {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
-                </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
+                        <StatusChip status={run.status} className="text-sm" />
+                        {failedAt !== null && troubled && (
+                            <span>
+                                {LABELS.runs.line.at}{' '}
+                                <Code value={failedAt} tone="body" className="text-sm font-medium" />
+                            </span>
+                        )}
+                        {took !== null && (
+                            <span className="font-mono text-muted-foreground">{formatDuration(took)}</span>
+                        )}
+                        {trigger !== null && <span className="text-muted-foreground">{trigger}</span>}
+                        {run.stored_bytes > 0 && (
+                            <span
+                                className="text-muted-foreground"
+                                title={LABELS.runs.line.stored(String(run.stored_bytes))}
+                            >
+                                {LABELS.runs.line.stored(formatBytes(run.stored_bytes))}
+                            </span>
+                        )}
+                        {priority !== null && (
+                            <span className={cn('text-xs', priority.className)}>{priority.label}</span>
+                        )}
+                        {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
+                    </div>
+                </PageHead>
 
                 <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false} className="mt-3.5">
                     {state.dag.nodes.length === 0 ? (
@@ -547,8 +555,8 @@ export function RunDetail() {
                     )}
                 </Panel>
 
-                <div className="mt-5 flex flex-wrap items-start gap-5">
-                    {troubled && (
+                {troubled && (
+                    <div className="mt-5">
                         <RunFailure
                             run={run}
                             step={failedAt}
@@ -562,20 +570,12 @@ export function RunDetail() {
                                     : (connections.find((row) => row.code === named) ?? null)
                             }
                         />
-                    )}
-                    <RunLogs
-                        logs={state.logs}
-                        step={selected}
-                        onAllSteps={() => {
-                            setSelected(null)
-                        }}
-                        onStep={readStep}
-                    />
-                </div>
+                    </div>
+                )}
             </div>
             {terminal && (
                 <div className="sticky -bottom-12 -mb-12 flex flex-col bg-background pb-3">
-                    <RunTerminal state={state} runId={id} onSelectStep={readStep} />
+                    <RunTerminal state={state} runId={id} step={selected} onSelectStep={readStep} />
                 </div>
             )}
         </div>

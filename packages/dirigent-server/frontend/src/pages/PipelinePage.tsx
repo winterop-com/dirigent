@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { Breadcrumb } from '@/components/Breadcrumb'
+import { PageHead } from '@/components/PageHead'
 import { HealthSaid } from '@/components/connections/Health'
 import { Code } from '@/components/ds/Code'
 import { Panel } from '@/components/ds/Panel'
@@ -89,51 +90,55 @@ export function PipelinePage() {
     const noVersion = pipeline.document === null
     return (
         <div className="flex min-w-0 flex-col">
-            <Breadcrumb trail={[{ label: LABELS.screen.pipelines.name, to: '/pipelines' }]} />
-            <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="min-w-0">
-                    <h1 className="text-page font-medium tracking-tight">{titleOf(pipeline)}</h1>
-                    <div className="mt-1.5">
-                        <Code value={pipeline.code} />
+            <PageHead>
+                <Breadcrumb trail={[{ label: LABELS.screen.pipelines.name, to: '/pipelines' }]} />
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <h1 className="text-page font-medium tracking-tight">{titleOf(pipeline)}</h1>
+                        <div className="mt-1.5">
+                            <Code value={pipeline.code} />
+                        </div>
                     </div>
+                    <ToolbarActions
+                        actions={[
+                            {
+                                id: 'edit',
+                                label: LABELS.action.edit,
+                                icon: ICONS.edit,
+                                onClick: () => {
+                                    void navigate(editorPath(pipeline.code))
+                                },
+                            },
+                            {
+                                id: 'validate',
+                                label: LABELS.action.validate,
+                                onClick: validate,
+                                disabled: !write.may || noVersion || validating,
+                                why:
+                                    write.why ??
+                                    (noVersion ? LABELS.editor.canvas.nothing_to_draw : undefined),
+                            },
+                            {
+                                id: 'run',
+                                label: LABELS.action.asks(LABELS.action.run),
+                                icon: ICONS.run,
+                                variant: 'default',
+                                onClick: () => {
+                                    setRunning(true)
+                                },
+                                disabled: !write.may || noVersion || !pipeline.active,
+                                why:
+                                    write.why ??
+                                    (noVersion
+                                        ? LABELS.editor.topbar.not_applied
+                                        : pipeline.active
+                                          ? undefined
+                                          : LABELS.pipelines.deactivated.explained),
+                            },
+                        ]}
+                    />
                 </div>
-                <ToolbarActions
-                    actions={[
-                        {
-                            id: 'edit',
-                            label: LABELS.action.edit,
-                            icon: ICONS.edit,
-                            onClick: () => {
-                                void navigate(editorPath(pipeline.code))
-                            },
-                        },
-                        {
-                            id: 'validate',
-                            label: LABELS.action.validate,
-                            onClick: validate,
-                            disabled: !write.may || noVersion || validating,
-                            why: write.why ?? (noVersion ? LABELS.editor.canvas.nothing_to_draw : undefined),
-                        },
-                        {
-                            id: 'run',
-                            label: LABELS.action.asks(LABELS.action.run),
-                            icon: ICONS.run,
-                            variant: 'default',
-                            onClick: () => {
-                                setRunning(true)
-                            },
-                            disabled: !write.may || noVersion || !pipeline.active,
-                            why:
-                                write.why ??
-                                (noVersion
-                                    ? LABELS.editor.topbar.not_applied
-                                    : pipeline.active
-                                      ? undefined
-                                      : LABELS.pipelines.deactivated.explained),
-                        },
-                    ]}
-                />
-            </div>
+            </PageHead>
 
             {(pipeline.description !== null || pipeline.tags.length > 0) && (
                 <div className="mt-4 max-w-[820px] text-base">

@@ -1268,6 +1268,14 @@ instant is the house's relative form. Then the palette's button, which is the se
 tooltip; the panel's toggle, where the screen has filled a panel; the instance's dot; and the mode
 flip, which is the two-way toggle over Appearance.
 
+**A page's head stands still and its body scrolls.** Under the top strip a page is two parts:
+the head -- the title, the code under it, a line of facts and the screen's verbs, which `PageHeader`
+and `PageHead` draw into the shell's head slot -- and the body, which is the one scroller. So the
+track starts below the verbs, never beside them. The scroller spans the content column to the
+window's edge with the page's padding inside it, and its thin track, in the line tokens, sits in the
+right margin that padding leaves: it takes no width the content had, nothing moves sideways when it
+appears, and the body and a docked terminal end at one right edge, the same edge as the head.
+
 **A fact appears once in the shell.** How this instance is doing belongs to the dot, and nothing
 true of the session rather than of the screen stands beside the crumb.
 
@@ -1924,15 +1932,12 @@ step's own pane is where it is renamed -- alongside everything else about it.
 **What failed, why, and in which step lands above the fold.** The heading is the pipeline's title
 with its code and the run's instant in mono under it; one line under that says the status word,
 the step it ended at, how long it took and who started it; then the graph, as tall as its drawing.
-Under the graph a run that did not end well stands its failure and its log side by side: the
-failure in the failure panel -- the step in mono, the block, the catalogued code, the sentence the
-step failed with, the connection the step named with its health where it named one, and the
-parameters the run was given -- and beside it the run's log lines, latest first, the failing ones
-on the same wash with the fields they carried under them. At 1440 by 900 both start above the
-fold, because a reader opening a failed run is asking one question and the answer is "the step's
-log carries what it raised". A run that ended well has no failure to stand, and its log takes the
-width. Choosing a box on the graph narrows the log to that step and opens it in the panel; the
-terminal, behind `T`, is still the whole console with its filters.
+Under the graph a run that did not end well stands its failure panel across the width -- the step
+in mono, the block, the catalogued code, the sentence the step failed with, the connection the step
+named with its health where it named one, and the parameters the run was given -- and the terminal
+opens at the foot with every line the run wrote. At 1440 by 900 the failure starts above the fold.
+A run that ended well has no failure to stand. Choosing a box on the graph narrows the terminal to
+that step and opens it in the panel.
 
 **A run's verbs stand in one place whatever the run is doing.** Pause, Resume, Cancel and Rerun are
 always drawn at the right of the heading, in that order, and a verb the run's state does not allow
@@ -1984,16 +1989,21 @@ attempt is waiting or running: a settled attempt still carries the last fraction
 
 A run's screen stacks: the canvas above, and a console across the foot of the content area at
 the height somebody dragged it to. The right panel is beside both and is untouched by either --
-what is beside a run is a different question from what is under it.
-
-**There is one scroller under the top strip, and the drawer docks inside it.** The content column
-is the only thing that scrolls, its track starts below the top strip, and it keeps its gutter
-whether or not anything overflows (`scrollbar-gutter: stable`), so nothing moves sideways when a
-page grows past the window or the drawer opens and shuts. The drawer is not a second scroller's
-neighbour: it stands at the foot of the page, held to the bottom of the one scroller while the page
-above it scrolls, so the panels above it and the drawer share one right edge. It is opened from a glyph in
+what is beside a run is a different question from what is under it. It is opened from a glyph in
 the run screen's own strip, from a row in the palette, and by pressing `T`, which is a bare
 letter because every chord this app has is already spoken for.
+
+**The terminal is the run's one log.** The run screen draws no second list of the same lines. A
+run that failed opens on the terminal, for that visit and without writing the preference; any
+other run opens it as the reader last left it. Choosing a box on the graph narrows the terminal to
+that step, the way its own step filter does, and a running run tails live in it. The failure panel
+says what failed in its own words -- the step, the block, the catalogued code, the sentence -- and
+the terminal carries every line, the failing one among them, so the two repeat each other in that
+one line and nowhere else.
+
+**The drawer docks in the page's scroller.** It stands at the foot of the body, held to the bottom
+of the one scroller while the body above it scrolls, so the panels above it and the drawer share
+one right edge.
 
 **The lines are the run's own state, not a second read.** `runs/{id}/$events` already carries
 every line the run wrote; the drawer filters what the reducer holds, opens no connection of its
