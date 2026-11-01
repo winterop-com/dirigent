@@ -487,3 +487,48 @@ async def test_a_source_at_its_bound_with_a_cadence_past_a_date_does_not_stop_th
 
     assert len(claimed) == 1
     assert (await _source(sessions, "bbb")).lease_owner == WORKER
+
+
+async def test_a_worker_waits_until_the_earliest_source_nobody_holds_falls_due(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    await apply(sessions, services, landing(inbox_of(tmp_path)))
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    cap = timedelta(seconds=5)
+
+    async def wait_with(**values: object) -> timedelta:
+        async with session_scope(sessions) as session:
+            await session.execute(sa.update(Source).values(**values))
+        async with sessions() as session:
+            return await polling.until_due(session, services, now=now, cap=cap)
+
+    assert await wait_with(next_poll_at=now + timedelta(seconds=2)) == timedelta(seconds=2)
+    assert await wait_with(next_poll_at=now + timedelta(minutes=1)) == cap
+    assert await wait_with(next_poll_at=now - timedelta(seconds=1)) == polling.POLL_FLOOR, "due at once"
+    assert await wait_with(lease_expires_at=now + timedelta(minutes=1)) == cap, "another worker holds it"
+    assert await wait_with(lease_expires_at=None, paused=True) == cap
+
+
+async def test_the_worker_poll_loop_sleeps_only_until_the_next_source_is_due(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dirigent_core.worker import Worker
+
+    await apply(sessions, services, landing(inbox_of(tmp_path)))
+    worker = Worker(sessions, services, name=WORKER)
+    slept: list[float] = []
+
+    async def nothing(*args: object, **kwargs: object) -> list[polling.PollOutcome]:
+        return []
+
+    async def pause(seconds: float) -> None:
+        slept.append(seconds)
+        worker._halting.set()  # pyright: ignore[reportPrivateUsage]
+
+    monkeypatch.setattr(polling, "tick", nothing)
+    monkeypatch.setattr(worker, "_pause", pause)
+    await worker._poll_loop()  # pyright: ignore[reportPrivateUsage]
+    assert slept == [0.05], "a source that is due is polled again within 50 milliseconds"

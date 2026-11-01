@@ -494,7 +494,9 @@ class Settings(BaseSettings):
     """The least time between two reads of the replies one server process's held callers wait for."""
 
     source_poll_tick: Duration = Field(default=timedelta(seconds=5), gt=timedelta(0))
-    """How often a worker looks for polled sources that are due."""
+    """The longest a worker goes without looking for polled sources that are due.
+
+    A worker sleeps until the earliest source it knows of falls due, and never less than 50ms."""
 
     source_poll_lease: Duration = Field(default=timedelta(minutes=5), gt=timedelta(0))
     """How long a worker holds a worker-hosted source without renewing; another may take it once this passes."""
