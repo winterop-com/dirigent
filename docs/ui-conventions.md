@@ -60,8 +60,9 @@ and the read-only window a produced value is opened in. `CodePane` is the one `R
 reaching `CodeEditor`, so opening a pipeline does not fetch an editor and opening its source tab
 or a jq step does. `monaco-editor` as a whole registers every language it ships, so what is
 imported by path is the api entry, the suggest controller a schema-checked buffer cannot do
-without, and the languages a field can carry -- YAML, shell, twig, SQL and JSON. jq has no monaco
-grammar and is registered in `CodeEditor` as a Monarch tokeniser. Its three web workers are
+without, and the languages a field can carry -- YAML, shell, twig, SQL and JSON. jq, FHIRPath and
+CQL have no monaco grammar, so `lib/program-grammars` writes each as a Monarch tokeniser and
+`CodeEditor` registers them. Its three web workers are
 `?worker` imports, which vite emits as chunks of their own.
 
 **An engine is fetched when the screen that needs it mounts, and not with the screen's code.**
@@ -927,6 +928,14 @@ document is written in, through the same `CodePane`, so a jq program is read on 
 written on. `dirigent_common.programs` is where the
 seven are spelled, and the schema is what decides this and nothing else: every other string stays
 one line, however long a value it holds.
+
+Each of the seven is highlighted in its own grammar and in the house inks, the same in every one:
+a keyword and a number wear the warning ink, a string the good ink, a function -- and jq's
+`.path` -- the info ink, a comment and the punctuation the muted ink, and a name bound from
+outside the program -- jq's `$name`, FHIRPath's `%name` and `$this` -- the violet kind ink, because
+it is the one thing a reader of an expression has to look for elsewhere. Any other name is
+foreground, and so is one written in backticks or in CQL's double quotes, `define "Numerator"`
+included: the quotes are what tell it from a string, which is green.
 
 **A document is written in one editor wherever it is written.** The editor's source pane and a
 step config field whose schema says it carries a program are the same Monaco against the same
