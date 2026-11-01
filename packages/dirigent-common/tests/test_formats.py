@@ -1,10 +1,14 @@
 """The base format checker: standard formats plus dirigent's own."""
 
+import time
 import uuid
+from datetime import timedelta
 
 import pytest
 
 from dirigent_common import base_format_checker, format_checker_with
+from dirigent_common.formats import MAX_FORMAT_REGEX
+from dirigent_common.schema_values import EvaluationOverrun, ValueValidator, bounded_evaluation
 
 # A UUID whose version nibble is 7 and 4 respectively, both with a valid variant.
 UUID7 = "018f6d8e-1a2b-7c3d-8e4f-0123456789ab"
@@ -92,3 +96,70 @@ def test_assembly_does_not_mutate_the_base_checker() -> None:
     format_checker_with({"even-digits": lambda value: True})
     assert "even-digits" not in before
     assert "even-digits" not in set(base.checkers)
+
+
+#: Text that stdlib ``re`` takes seconds to compile, in step with its length.
+SLOW_TO_COMPILE = "[a-\uffff]" * 2000
+
+
+def test_regex_reads_a_pattern_without_compiling_it(checker: object) -> None:
+    assert conforms(checker, r"^[a-z]+(?:-[a-z]+)*$", "regex")
+    assert conforms(checker, r"(?P<x>a)(?P=x)", "regex")
+    assert conforms(checker, r"(?<=ab)c", "regex")
+    assert conforms(checker, 12, "regex")
+    assert not conforms(checker, "a{3,2}", "regex")
+    assert not conforms(checker, r"(a)\2", "regex")
+    assert not conforms(checker, "(?<=a+)b", "regex"), "re refuses a look-behind of no fixed width"
+    assert not conforms(checker, "(?<!ab|c)d", "regex")
+    assert not conforms(checker, "a{99999999999999999999}", "regex")
+    assert not conforms(checker, "(?:" * 2000 + "a" + ")" * 2000, "regex")
+
+
+def test_regex_refuses_text_past_its_limit_before_reading_it(checker: object) -> None:
+    started = time.monotonic()
+    assert not conforms(checker, SLOW_TO_COMPILE, "regex")
+    assert conforms(checker, "a" * MAX_FORMAT_REGEX, "regex")
+    assert time.monotonic() - started < 0.5, "stdlib re takes seconds over this text"
+
+
+def test_a_counted_repeat_costs_nothing_to_check(checker: object) -> None:
+    """The regex package expands a counted repeat when it compiles; this check never compiles."""
+    started = time.monotonic()
+    assert conforms(checker, "a{4294967294}", "regex")
+    assert conforms(checker, "(?:(?:a{65535}){65535}){65535}", "regex")
+    assert time.monotonic() - started < 0.5
+
+
+def test_uri_and_iri_assert_their_rfcs(checker: object) -> None:
+    assert conforms(checker, "https://user@example.org:8080/a/b?q=1#frag", "uri")
+    assert conforms(checker, "urn:isbn:0451450523", "uri")
+    assert conforms(checker, "http://[::1]/", "uri")
+    assert not conforms(checker, "/relative", "uri")
+    assert not conforms(checker, "http://exa mple.org", "uri")
+    assert conforms(checker, "/relative?x#y", "uri-reference")
+    assert conforms(checker, "", "uri-reference")
+    assert not conforms(checker, "http://ex\u00e4mple.org", "uri")
+    assert conforms(checker, "http://ex\u00e4mple.org/\u00fc", "iri")
+    assert conforms(checker, "http://example.org/\U0001f600", "iri"), "RFC 3987 takes every plane's ucschar"
+    assert conforms(checker, "a:?\ue000", "iri"), "a private-use character may sit in the query"
+    assert not conforms(checker, "a:/\ue000", "iri"), "and nowhere else"
+    assert conforms(checker, "\u00fc/x", "iri-reference")
+    assert not conforms(checker, "a b", "iri-reference")
+    assert conforms(checker, 12, "iri")
+
+
+@pytest.mark.parametrize("fmt", ["uri", "uri-reference", "iri", "iri-reference"])
+def test_a_long_reference_costs_time_in_step_with_it(checker: object, fmt: str) -> None:
+    """A parser that takes seconds over twenty thousand characters is not one a caller may feed."""
+    started = time.monotonic()
+    for text in ("PT1H" * 5000, "//" + "%41" * 7000 + "[", "a:" + "/a" * 10000 + " "):
+        conforms(checker, text, fmt)
+    assert time.monotonic() - started < 2
+
+
+def test_a_reference_check_stops_at_the_evaluation_deadline(checker: object) -> None:
+    validator = ValueValidator({"format": "iri-reference"}, format_checker=checker)
+    started = time.monotonic()
+    with pytest.raises(EvaluationOverrun), bounded_evaluation(timedelta(milliseconds=300)):
+        validator.validate("PT1H" * 5_000_000)
+    assert time.monotonic() - started < 2

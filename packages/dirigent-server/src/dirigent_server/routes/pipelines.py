@@ -329,7 +329,7 @@ async def start_run(
         raise Refusal(PIPELINE_NO_VERSIONS, status=status.HTTP_409_CONFLICT, code=repr(code))
     version = await get_version(session, pipeline)
     definition = load_definition(version.document)
-    definition.validate_params(payload.params, services.format_checker)
+    await definition.check_params(payload.params, services.format_checker)
     entry = hand_entry(definition, services.sources, payload.source, payload.input, received_at=utcnow())
     run = await create_run(
         session,

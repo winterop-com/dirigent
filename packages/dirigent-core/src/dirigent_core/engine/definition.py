@@ -1,6 +1,8 @@
 """The pipeline definition model: one immutable document per version, shared by everything."""
 
+import asyncio
 import re
+import threading
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Annotated, Any, Final, Literal, Self, cast
@@ -659,7 +661,20 @@ class PipelineDefinition(BaseModel):
                 pending.difference_update(ready)
         return ordered
 
-    def validate_params(self, params: JsonMap, format_checker: FormatChecker) -> JsonMap:
+    async def check_params(self, params: JsonMap, format_checker: FormatChecker) -> JsonMap:
+        """Validate parameters as :meth:`validate_params` does, on a thread rather than the event loop.
+
+        The check stops at ``PARAMETERS_CHECKED_WITHIN`` or as soon as the caller is cancelled.
+        """
+        stopped = threading.Event()
+        try:
+            return await asyncio.to_thread(self.validate_params, params, format_checker, stopped)
+        finally:
+            stopped.set()
+
+    def validate_params(
+        self, params: JsonMap, format_checker: FormatChecker, stopped: threading.Event | None = None
+    ) -> JsonMap:
         """Validate supplied parameters against the pipeline's own schema, filling defaults.
 
         ``format_checker`` is the instance's assembled checker, so a ``format`` a parameter
@@ -669,14 +684,14 @@ class PipelineDefinition(BaseModel):
         existed can hold a schema that is not one, and jsonschema then raises something no
         caller of this method catches.
 
-        The check runs where it is called, the event loop included, and stops at
-        ``PARAMETERS_CHECKED_WITHIN``.
+        The check runs where it is called and stops at ``PARAMETERS_CHECKED_WITHIN``, or once
+        ``stopped`` is set. A caller on the event loop uses :meth:`check_params` instead.
         """
         resolved = _with_defaults(self.params, params)
         try:
             Draft202012Validator.check_schema(self.params)
             validator = ValueValidator(self.params, format_checker=format_checker, registry=LOCAL_REFERENCES)
-            with bounded_evaluation(PARAMETERS_CHECKED_WITHIN):
+            with bounded_evaluation(PARAMETERS_CHECKED_WITHIN, stopped):
                 validator.validate(resolved)
         except SchemaValidationError as error:
             location = "/".join(str(part) for part in error.absolute_path) or "(root)"

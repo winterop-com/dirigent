@@ -280,7 +280,7 @@ async def create_run(
     moment = now or utcnow()
     definition = load_definition(version.document)
     _check_entry(definition, entry)
-    resolved_params = definition.validate_params(params or {}, services.format_checker)
+    resolved_params = await definition.check_params(params or {}, services.format_checker)
     _refuse_disabled_blocks(definition, services)
     pinned_schemas = await _pin_schemas(session, services, version)
     who = attribution or Attribution()

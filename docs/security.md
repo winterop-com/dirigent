@@ -510,9 +510,13 @@ its `timeout`, 10 seconds by default, and fails as `rejected` (`base.value_unche
 mid-match stops there too, and the rest of the check stops at its next keyword as soon as the step
 is cancelled, so nothing runs on behind it. That bound also ends a schema whose cost grows faster
 than the value, such as `unevaluatedProperties` beside a recursive `$ref`, which evaluates each
-level twice. A run's parameters are checked where the run is created, on the server's event loop,
-and that check stops after one second and refuses the run (`parameter.unchecked`), so a
-parameter schema holds the loop no longer than that.
+level twice. A `format` a caller's text is checked against costs time in step with that text:
+`regex` reads the text as a pattern without compiling it, and refuses one longer than 8192
+characters, and `uri`, `uri-reference`, `iri` and `iri-reference` are matched by the same engine
+as `pattern`, which stops at the bound. A format a pack contributes runs as the pack wrote it. A
+run's parameters are checked off the event loop, on the server and on a worker whose
+`pipeline.run` step starts a child, and that check stops after one second, or when its caller is
+cancelled, and refuses the run (`parameter.unchecked`).
 
 **A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
 UI's origin, so it answers with `X-Content-Type-Options: nosniff` and

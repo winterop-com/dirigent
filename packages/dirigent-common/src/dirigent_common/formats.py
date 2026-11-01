@@ -7,9 +7,13 @@ the seam a plugin pack later adds its own formats to, which is why it lives in t
 leaf rather than in any one package.
 
 It seeds from the library's standard formats (the non-GPL extra provides their validators)
-and adds dirigent's own. None of the ones added here are standard JSON Schema formats, so a
-tool that does not know them treats them as annotations and passes anything -- the graceful
-degradation every non-core format has; on a dirigent instance they assert. Each guards on a
+and adds dirigent's own. ``regex`` is read without being compiled, and ``uri``, ``iri`` and their
+references are matched by the ``regex`` package under the evaluation's deadline, so a check over
+text a caller chose costs time in step with it and stops with the evaluation.
+
+None of dirigent's own are standard JSON Schema formats, so a tool that does not know them
+treats them as annotations and passes anything -- the graceful degradation every non-core
+format has; on a dirigent instance they assert. Each guards on a
 string first and parses where parsing is more correct than a pattern. The draft is 2020-12.
 """
 
@@ -18,16 +22,109 @@ import binascii
 import re
 import uuid
 from collections.abc import Callable, Mapping
+from importlib import import_module
+from typing import Any, Final
 
+import regex
 from jsonschema import FormatChecker
 
 from dirigent_common.durations import is_duration
+from dirigent_common.schema_values import matches_whole
+
+#: Python's own reader of ``re`` syntax, which ``re.compile`` parses with before it compiles.
+_regex_syntax: Any = import_module("re._parser")
+_regex_ops: Any = import_module("re._constants")
+
+#: RFC 3986's IPv6address, as the library's ``uri`` check spells it.
+_IPV6: Final[str] = import_module("rfc3986_validator").IPv6_RE
 
 #: A Crockford base32 ULID: 26 characters, the first at most ``7`` so the timestamp fits 48 bits.
 _ULID = re.compile(r"[0-7][0-9A-HJKMNP-TV-Z]{25}")
 
 #: Hex digests, by their fixed nibble length; a digest is hex of either case.
 _HEX = {"md5": 32, "sha1": 40, "sha256": 64, "sha512": 128}
+
+#: The longest text ``format: regex`` reads as a pattern; anything longer is not one.
+MAX_FORMAT_REGEX: Final = 8192
+
+#: RFC 3987's ``ucschar``: the characters past ASCII an IRI may hold unescaped.
+_UCSCHAR: Final = "\u00a0-\ud7ff\uf900-\ufdcf\ufdf0-\uffef" + "".join(
+    f"{chr(plane * 0x10000 + (0x1000 if plane == 14 else 0))}-{chr(plane * 0x10000 + 0xFFFD)}" for plane in range(1, 15)
+)
+
+#: RFC 3987's ``iprivate``, which only an IRI's query may hold.
+_IPRIVATE: Final = "\ue000-\uf8ff\U000f0000-\U000ffffd\U00100000-\U0010fffd"
+
+
+def _reference_patterns(wide: str, private: str) -> tuple["regex.Pattern[str]", "regex.Pattern[str]"]:
+    """Compile RFC 3986's URI and URI-reference, or with ``wide`` and ``private`` RFC 3987's IRI forms.
+
+    Every repetition is possessive: none of them holds the character that ends it, so giving
+    one back can never let the rest match, and the match costs time in step with the text.
+    """
+    unreserved = rf"a-zA-Z0-9_.~\-{wide}"
+    sub = r"!$&'()*+,;="
+    pct = r"%[0-9A-Fa-f]{2}"
+    octet = r"(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
+    authority = (
+        rf"(?:(?:[{unreserved}{sub}:]|{pct})*+@)?"
+        rf"(?:\[(?:{_IPV6}|v[0-9A-Fa-f]+\.[a-zA-Z0-9_.~\-{sub}:]+)\]"
+        rf"|(?:{octet}\.){{3}}{octet}"
+        rf"|(?:[{unreserved}{sub}]|{pct})*+)"
+        r"(?::[0-9]*+)?"
+    )
+    pchar = rf"(?:[{unreserved}{sub}:@]|{pct})"
+    segments = rf"(?:/{pchar}*+)*+"
+    tail = rf"(?:\?(?:{pchar}|[/?{private}])*+)?(?:\#(?:{pchar}|[/?])*+)?"
+    absolute = rf"/(?:{pchar}++{segments})?"
+    uri = rf"[a-zA-Z][a-zA-Z0-9+.\-]*+:(?://{authority}{segments}|{absolute}|{pchar}++{segments}|){tail}"
+    noscheme = rf"(?:[{unreserved}{sub}@]|{pct})++{segments}"
+    relative = rf"(?://{authority}{segments}|{absolute}|{noscheme}|){tail}"
+    return regex.compile(uri, regex.VERSION0), regex.compile(rf"(?:{uri}|{relative})", regex.VERSION0)
+
+
+_URI, _URI_REFERENCE = _reference_patterns("", "")
+_IRI, _IRI_REFERENCE = _reference_patterns(_UCSCHAR, _IPRIVATE)
+
+#: The operators of a parsed pattern whose argument holds further parsed patterns.
+_NESTING: Final = {
+    _regex_ops.SUBPATTERN,
+    _regex_ops.BRANCH,
+    _regex_ops.MAX_REPEAT,
+    _regex_ops.MIN_REPEAT,
+    _regex_ops.POSSESSIVE_REPEAT,
+    _regex_ops.ASSERT,
+    _regex_ops.ASSERT_NOT,
+    _regex_ops.ATOMIC_GROUP,
+    _regex_ops.GROUPREF_EXISTS,
+}
+
+
+def _is_pattern(value: str) -> bool:
+    """Whether ``value`` is a pattern Python's ``re`` compiles, read without compiling it.
+
+    The parse costs time in step with the text. A look-behind must have one width, which
+    ``re`` checks only when it compiles.
+    """
+    if len(value) > MAX_FORMAT_REGEX:
+        return False
+    try:
+        pending: list[Any] = [_regex_syntax.parse(value)]
+        while pending:
+            parsed = pending.pop()
+            if not isinstance(parsed, _regex_syntax.SubPattern):
+                pending.extend(item for item in parsed if isinstance(item, list | tuple | _regex_syntax.SubPattern))
+                continue
+            for operator, argument in parsed.data:
+                if operator in (_regex_ops.ASSERT, _regex_ops.ASSERT_NOT) and argument[0] < 0:
+                    low, high = argument[1].getwidth()
+                    if low != high:
+                        return False
+                if operator in _NESTING:
+                    pending.append(argument)
+    except (re.error, RecursionError, OverflowError):
+        return False
+    return True
 
 
 def _is_uuid_version(value: object, version: int) -> bool:
@@ -59,6 +156,23 @@ def _is_base64(value: object) -> bool:
 def base_format_checker() -> FormatChecker:
     """Build the format checker dirigent validates values against, standard formats plus its own."""
     checker = FormatChecker()
+
+    @checker.checks("regex")
+    def _regex(value: object) -> bool:  # pyright: ignore[reportUnusedFunction] - the decorator registers it
+        """A pattern Python's ``re`` takes, at most ``MAX_FORMAT_REGEX`` characters long."""
+        return not isinstance(value, str) or _is_pattern(value)
+
+    for _name, _reference in {
+        "uri": _URI,
+        "uri-reference": _URI_REFERENCE,
+        "iri": _IRI,
+        "iri-reference": _IRI_REFERENCE,
+    }.items():
+
+        @checker.checks(_name)
+        def _is_reference(value: object, pattern: "regex.Pattern[str]" = _reference) -> bool:  # pyright: ignore[reportUnusedFunction] - the decorator registers it
+            """An RFC 3986 URI or RFC 3987 IRI, matched within the evaluation's deadline."""
+            return not isinstance(value, str) or matches_whole(pattern, value)
 
     @checker.checks("ulid")
     def _is_ulid(value: object) -> bool:  # pyright: ignore[reportUnusedFunction] - the decorator registers it
