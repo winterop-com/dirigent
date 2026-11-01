@@ -256,6 +256,29 @@ class Settings(BaseSettings):
     answers 404. An instance on a public address that has no use for them turns them off.
     """
 
+    mcp_enabled: bool = True
+    """Whether the server answers MCP over Streamable HTTP at ``/mcp``.
+
+    Every request there presents an API token as ``Authorization: Bearer``, and every tool is a
+    call to this instance's API made with that token, so an agent may do there exactly what its
+    token's role may do through the API. Off, ``/mcp`` is not mounted and answers 404.
+    """
+
+    mcp_max_body: Size = Field(default=4 * 1024 * 1024, ge=1)
+    """The largest MCP message ``/mcp`` reads from an authenticated caller; a larger one is answered 413."""
+
+    mcp_session_idle: Duration = Field(default=timedelta(minutes=30), gt=timedelta(0))
+    """How long an MCP session at ``/mcp`` lives with no request in flight before it is closed.
+
+    A client whose session was closed is answered 404 and starts a new one.
+    """
+
+    mcp_max_sessions: int = Field(default=256, ge=1)
+    """How many MCP sessions one server process holds open at once; a new one past it is answered 503.
+
+    Callers who may operate and callers who may only read are counted apart, each up to this many.
+    """
+
     ui_dir: Path | None = None
     """A built web UI bundle to serve, instead of the one installed with the server.
 
