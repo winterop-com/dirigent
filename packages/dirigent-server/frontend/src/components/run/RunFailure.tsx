@@ -10,6 +10,7 @@ import { healthOf, type ConnectionOut } from '@/lib/connections'
 import { formatClock, formatInstant } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import type { LogEntryOut, RunOut } from '@/lib/runs'
+import { statusLabel } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
 /** How many lines the log beside the failure draws; the terminal holds the rest. */
@@ -33,6 +34,7 @@ export function connectionOf(config: JsonMap | null): string | null {
 export function RunFailure({
     run,
     step,
+    items = false,
     block,
     error,
     code,
@@ -41,6 +43,8 @@ export function RunFailure({
     run: RunOut
     /** The step the run failed in, where one did. */
     step: string | null
+    /** The step carried on, and what failed was some of its items. */
+    items?: boolean
     block: string | null
     /** The sentence the step failed with, or the run's own where no attempt said one. */
     error: string | null
@@ -51,7 +55,13 @@ export function RunFailure({
     return (
         <Panel
             tone="critical"
-            title={step === null ? run.status : LABELS.runs.failure.heading(step)}
+            title={
+                step === null
+                    ? statusLabel(run.status)
+                    : items
+                      ? LABELS.runs.failure.items_heading(step)
+                      : LABELS.runs.failure.heading(step)
+            }
             meta={code ?? undefined}
             className="flex-[1_1_340px]"
         >

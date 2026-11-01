@@ -84,8 +84,10 @@ test('the day is drawn by the hour, and what this instance depends on is beside 
     await page.goto('/')
 
     // The chart is one figure with the whole of what it drew as its name, so a reader who cannot
-    // see the bars is told the same thing the bars say.
-    const chart = page.getByRole('img', { name: /last 24 hours/i })
+    // see the bars is told the same thing the bars say; a day with no runs is that sentence alone.
+    const chart = page
+        .getByRole('img', { name: /last 24 hours/i })
+        .or(page.getByText(LABELS.dashboard.chart.summary_empty, { exact: true }))
     await expect(chart).toBeVisible()
     await expect(page.getByRole('heading', { name: LABELS.dashboard.chart.title })).toBeVisible()
 

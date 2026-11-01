@@ -831,7 +831,7 @@ the two of them share one async chunk rather than shipping two copies.
 
 **Motion lives on edges, and it means data travelling.** A run's graph is the one place in this
 app that moves, and only while the run is live: an edge out of a step that has produced its output
-into one still reading it is dashed in the identity amber and travels along its path, and the
+into one still reading it is dashed in the ink and travels along its path, and the
 moment a step produces its output every edge out of it into a step that could still read it plays
 one short handover before settling. An edge stills as soon as either end is done -- a source that
 failed or skipped never had an output to send, and a target that has settled is not reading one.
@@ -839,7 +839,7 @@ A node gains nothing from any of it -- status colours stay the only colour voice
 there, and selection stays neutral -- so what a reader watches is where the data is, not which box
 is loud. A terminal run is still everywhere, and so is one opened after it settled. Somebody who
 has asked their machine for less motion gets the same reading standing still: a travelling edge is
-lit in the same amber and a handover is not drawn at all, decided in `lib/run-detail` from the
+lit in the same ink and a handover is not drawn at all, decided in `lib/run-detail` from the
 setting rather than left to a stylesheet to hide -- and the stylesheet stops the animations as
 well, so a frame rendered before the preference lands is still still.
 
@@ -927,8 +927,8 @@ and every `validate.schema` step and `requires.schemas` entry names it.
 **The label is the key.** What is being edited is a document, and the word an author writes in it
 is `max_response` rather than "Max Response". `description` is the help under the label, and whether a
 field is required is said beside the label rather than inside it, so the control's accessible
-name stays the key. **The required word is body ink, never amber**: amber is a link's and an
-action's, and a field label is neither. `FormField` draws it.
+name stays the key. **The required word is body ink, never amber**: amber is the brand's and
+the focus ring's, and a field label is neither. `FormField` draws it.
 
 **Every field is a design-system control, and an empty one looks like an empty one.** A field
 renders through `ui/input`, `ui/textarea`, `ui/select` or `ui/switch` and never a bare element,

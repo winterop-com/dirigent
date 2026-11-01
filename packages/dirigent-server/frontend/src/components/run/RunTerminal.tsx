@@ -392,7 +392,7 @@ function Line({
             ) : (
                 <button
                     type="button"
-                    className="text-terminal-accent hover:underline focus-visible:underline focus-visible:outline-none"
+                    className="font-medium text-terminal-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
                     onClick={() => {
                         onSelectStep(step)
                     }}

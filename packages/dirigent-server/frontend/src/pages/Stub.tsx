@@ -1,35 +1,25 @@
 import { useEffect, type ReactNode } from 'react'
+import { useLocation } from 'react-router'
 
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 
 /**
- * A screen this milestone reserved the address for and did not build.
+ * A screen with a heading and one sentence and nothing to read: the address nothing answers.
  *
- * DELIBERATELY THE SAME THREE STATES A REAL SCREEN HAS. A stub that rendered a bare sentence
- * would be thrown away wholesale later; one built on `PageState` is finished by giving it a
- * read, and the empty state it already states is the empty state it keeps.
+ * DELIBERATELY THE SAME THREE STATES A REAL SCREEN HAS, built on `PageState`, so a screen that
+ * starts here is finished by giving it a read.
  *
- * IT STATES ITS FACT ALONG THE FOOT LIKE ANY OTHER SCREEN, so the bar says something true
- * about what is in front of somebody rather than holding whatever the last screen left there.
+ * Its identifier in the top strip is the address it was opened at, which is the one fact the
+ * heading and the sentence do not already say.
  */
-export function Stub({
-    title,
-    waiting,
-    note,
-    aside,
-}: {
-    title: string
-    waiting: string
-    /** The one fact the status bar states while this screen is open. */
-    note: string
-    aside?: ReactNode
-}) {
+export function Stub({ title, waiting, aside }: { title: string; waiting: string; aside?: ReactNode }) {
+    const { pathname } = useLocation()
     useEffect(() => {
-        setScreenStatus({ note, tone: 'quiet', identifier: null })
+        setScreenStatus({ note: null, tone: 'quiet', identifier: pathname })
         return clearScreenStatus
-    }, [note])
+    }, [pathname])
 
     return (
         <>

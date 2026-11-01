@@ -344,8 +344,8 @@
    The ground alone has two depths. On the light palette it is graphite: dark enough for the
    inks, not the black that a light page turns into a hole. On the dark palette the `.dark`
    block takes it a rung below its own `--background`, so the drawer reads as deeper than the
-   app around it. `--terminal-accent` is the identity amber at the dark palette's lightness,
-   spent on the one thing in a line that is a control: the step prefix that opens that step.
+   app around it. `--terminal-accent` is the brand's amber at the dark palette's lightness, and
+   it is the login pane's: the lit run through its graph.
    --------------------------------------------------------------------------- */
 :root {
     --terminal: oklch(0.24 0.012 255);
@@ -1466,12 +1466,12 @@ html.dark[data-theme='contrast'],
 }
 
 /* AN EDGE MOVES WHILE DATA IS TRAVELLING IT, AND NOTHING ELSE ON THE GRAPH MOVES AT ALL. The
-   stroke is the identity colour, because motion here is the app acting rather than a state; a
-   node keeps the state hue it already has. `lib/run-detail` decides which class an edge wears,
-   and these rules follow the tints above so a moving edge is amber over whatever it carries. */
+   stroke is the ink, because motion here is the app acting rather than a state; a node keeps the
+   state hue it already has. `lib/run-detail` decides which class an edge wears, and these rules
+   follow the tints above so a moving edge is ink over whatever it carries. */
 .react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path,
 .react-flow.dg-graph .react-flow__edge.dg-edge-lit .react-flow__edge-path {
-    stroke: color-mix(in oklab, var(--brand) 75%, var(--graph-edge));
+    stroke: color-mix(in oklab, var(--foreground) 75%, var(--graph-edge));
     stroke-width: 2;
 }
 .react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path {
@@ -1490,7 +1490,7 @@ html.dark[data-theme='contrast'],
 }
 @keyframes dg-edge-handover {
     from {
-        stroke: var(--brand);
+        stroke: var(--foreground);
         stroke-width: 3;
     }
 }

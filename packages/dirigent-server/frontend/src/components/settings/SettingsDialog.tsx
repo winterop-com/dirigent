@@ -606,8 +606,12 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                         {value === null ? (
                             <span className="text-xs text-faint">{LABELS.shell.reading}</span>
                         ) : (
-                            <span className="min-w-0 text-right font-mono text-xs">
-                                {factOf(row.id, value)}
+                            <span className="flex min-w-0 flex-wrap justify-end gap-x-2 font-mono text-xs">
+                                {factOf(row.id, value).map((one) => (
+                                    <span key={one} className="whitespace-nowrap">
+                                        {one}
+                                    </span>
+                                ))}
                             </span>
                         )}
                     </Row>
@@ -623,20 +627,23 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
     )
 }
 
-/** What one server row states, out of the one document that carries all of them. */
-function factOf(id: string, info: SystemInfo): string {
+/**
+ * What one server row states, out of the one document that carries all of them: one value, or the
+ * codes of a list, each of which stays on one line.
+ */
+function factOf(id: string, info: SystemInfo): string[] {
     switch (id) {
         case 'server:version':
-            return info.version
+            return [info.version]
         case 'server:environment':
-            return info.environment
+            return [info.environment]
         case 'server:database':
-            return info.database
+            return [info.database]
         case 'server:blocks':
-            return String(info.blocks)
+            return [String(info.blocks)]
         case 'server:storage':
-            return info.storage_schemes.length === 0 ? LABELS.word.none : info.storage_schemes.join(', ')
+            return info.storage_schemes.length === 0 ? [LABELS.word.none] : info.storage_schemes
         default:
-            return info.plugins.length === 0 ? LABELS.word.none : info.plugins.join(', ')
+            return info.plugins.length === 0 ? [LABELS.word.none] : info.plugins
     }
 }

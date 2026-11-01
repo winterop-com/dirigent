@@ -937,8 +937,6 @@ const refusal = {
     /** An address this app does not answer, said where it was opened rather than redirected away. */
     nowhere: {
         detail: 'This app does not answer for the address in the browser bar.',
-        /** The one fact the status bar states while that screen is open. */
-        note: 'no screen at this address',
     },
 } as const
 
@@ -2125,6 +2123,8 @@ const runs = {
     /** The failure under the graph, beside the log. */
     failure: {
         heading: (step: string) => `${step} failed`,
+        /** A run that completed with errors: the step carried on past items that failed. */
+        items_heading: (step: string) => `Items of ${step} failed`,
         logs: 'Logs',
         all_steps: 'All steps',
         step_shown: 'step',
@@ -3322,7 +3322,7 @@ const design = {
         key: 'With a document key',
         error: 'With an error',
         notices: 'With and without a mark',
-        well: 'An inset box',
+        well: 'A group that belongs together',
         dialogs: 'Open one',
         asks: 'A dialog that asks',
         tells: 'A dialog that tells',
@@ -3399,7 +3399,7 @@ const design = {
         notice_critical_body: 'Connection refused by 10.0.0.4:5432.',
         notice_warning: 'This document is not the version the instance holds.',
         notice_neutral: 'Runs started before the upgrade keep the version they started on.',
-        well: 'A block that belongs together, such as a sample payload, inset 8px inside its surface.',
+        well: 'A block that belongs together, such as a form opened under its row, on the panel ground.',
         secret: 'dg_live_4f8a2c9e1b7d6053a8e2f4c1b9d7e6a3',
         secret_name: 'ci-deploy',
         dialog_title: 'New token',

@@ -53,6 +53,17 @@ export function RunsChart({
     className?: string
 }) {
     const most = tallest(buckets)
+    if (!reading && most === 0) {
+        return (
+            <Panel
+                title={LABELS.dashboard.chart.title}
+                meta={LABELS.dashboard.chart.window}
+                className={className}
+            >
+                <p className="text-sm text-muted-foreground">{LABELS.dashboard.chart.summary_empty}</p>
+            </Panel>
+        )
+    }
     return (
         <Panel
             title={LABELS.dashboard.chart.title}

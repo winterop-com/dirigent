@@ -390,8 +390,15 @@ export function RunDetail() {
 
     const verbs = runVerbs(state.run.status)
     const run = state.run
-    const failedAt =
+    const stepFailed =
         run.failed_step ?? state.dag.nodes.find((node) => node.outcome === 'failed')?.code ?? null
+    // A run that completed with errors may have failed in an item of a step rather than in the step.
+    const itemFailed =
+        stepFailed === null && run.status === 'completed_with_errors'
+            ? (Object.values(state.attempts).find((attempt) => attempt.status === 'failed')?.step_name ??
+              null)
+            : null
+    const failedAt = stepFailed ?? itemFailed
     const failedNode = state.dag.nodes.find((node) => node.code === failedAt) ?? null
     const failedAttempt =
         failedAt === null
@@ -545,6 +552,7 @@ export function RunDetail() {
                         <RunFailure
                             run={run}
                             step={failedAt}
+                            items={itemFailed !== null}
                             error={failedAttempt?.error ?? run.error}
                             code={failedAttempt?.error_code ?? run.error_code}
                             block={failedNode?.block ?? null}
