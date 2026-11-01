@@ -493,6 +493,13 @@ alert rule's template and body, a user's name and email, and where an applied do
 A schema's name and description read from its own `title` and `description` are held to the same
 rule. Stored, such text would read back changed or fail the write, so it is turned away instead.
 
+**An address holding such text names nothing.** A request whose path, or any query key or value,
+holds a NUL is answered 404 with `server.address_unstorable` before any route, credential or lookup
+reads it: the versioned API, the endpoint sources' templated routes, and the UI's own files alike.
+Looked up, such a code would fail on PostgreSQL rather than find nothing, and an endpoint source
+would journal its path changed. A percent-escape decodes as UTF-8, with a byte that does not decode
+replaced, so half a surrogate pair never arrives in an address.
+
 **Checking a body leaves the worker running.** `validate.schema` evaluates off the event loop, so
 the step's timeout and the lease heartbeat keep running over a value of any size. `uniqueItems`,
 `unevaluatedItems` and `unevaluatedProperties` cost time in step with the value. Every pattern a

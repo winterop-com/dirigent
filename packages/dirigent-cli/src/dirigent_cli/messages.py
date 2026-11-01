@@ -251,6 +251,12 @@ STARTER_TAG_NEEDED = CLI.define(
 
 ALREADY_THERE = CLI.define("already_there", "{path} is already there")
 
+NOT_A_PIPELINE_CODE = CLI.define(
+    "not_a_pipeline_code",
+    "{code} is not a pipeline code, so it names no file in {directory}: a code is lowercase letters, "
+    "digits and single hyphens, and starts with a letter",
+)
+
 NAME_ANOTHER_CODE = CLI.define("name_another_code", "name another code with --code")
 
 ONE_CLOCK = CLI.define("one_clock", "a schedule takes exactly one of --cron, --interval, or --at ({named} given)")

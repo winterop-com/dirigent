@@ -12,7 +12,7 @@ import pytest
 from pydantic import SecretStr, ValidationError
 from sqlalchemy.engine import Connection
 
-from dirigent_block_duckdb import engine
+from dirigent_block_duckdb import engine, reads
 from dirigent_block_duckdb.engine import HTTPFS, S3StorageSettings, addresses_s3, s3_secret
 from dirigent_block_sql.sql import (
     SqlConnectionConfig,
@@ -268,8 +268,96 @@ async def test_a_statement_carried_in_a_string_is_refused_rather_than_run(ducked
     ).replace("{database}", str(database))
     with pytest.raises(BlockFailure) as raised:
         await query(ducked, statement)
-    assert raised.value.code == "sql.duckdb.read_only_runs_select"
+    assert raised.value.code == "sql.duckdb.read_only_calls_a_function"
     assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "SELECT * FROM destroy_external_resource('json_execute_serialized_sql', {carried})",
+        "FROM destroy_external_resource('json_execute_serialized_sql', :tree)",
+        "FROM destroy_external_resource('query', $$WITH w AS ({copies}) SELECT * FROM w$$)",
+        "SELECT * FROM range(1), Destroy_External_Resource('json_execute_serialized_sql', {carried})",
+        "FROM create_external_resource('json_execute_serialized_sql')",
+        "SELECT list_aggregate([1], 'sum')",
+    ],
+    ids=["destroy", "destroy-bound", "destroy-query", "destroy-joined", "create", "aggregate-by-name"],
+)
+async def test_a_function_that_runs_another_named_in_a_string_is_refused_rather_than_run(
+    ducked: FakeContext, shape: str
+) -> None:
+    database = ducked.as_context().work / "demo.duckdb"
+    before = database.read_bytes()
+    duck(ducked, read_only=True)
+    copies = COPIES.format(database=database)
+    tree = carried(f"WITH w AS ({copies}) SELECT * FROM w")
+    statement = shape.replace("{carried}", tree.replace(":", "\\:")).replace("{copies}", copies.replace(":", "\\:"))
+    with pytest.raises(BlockFailure) as raised:
+        await query(ducked, statement, params={"tree": tree[1:-1].replace("''", "'")} if ":tree" in shape else {})
+    assert raised.value.code == "sql.duckdb.read_only_calls_a_function"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert database.read_bytes() == before
+
+
+def catalogued(*kinds: str) -> set[str]:
+    """Every function of these kinds duckdb's own catalogue holds, lower-cased."""
+    rows = duckdb.connect().execute(
+        "SELECT DISTINCT lower(function_name) FROM duckdb_functions() WHERE list_contains(?, function_type)",
+        [list(kinds)],
+    )
+    return {row[0] for row in rows.fetchall()}
+
+
+def called(statement: str) -> list[str]:
+    """The functions a read-only session refuses in this statement."""
+    return engine._beyond_a_read(engine.parsed_tree(duckdb.connect(), statement, 1))[1]  # pyright: ignore[reportPrivateUsage] - the check under test
+
+
+def test_every_table_function_that_is_not_a_read_is_refused() -> None:
+    refused = catalogued("table", "table_macro") - reads.READ_TABLE_FUNCTIONS
+    assert {"destroy_external_resource", "query", "json_execute_serialized_sql", "checkpoint"} <= refused
+    for name in sorted(refused):
+        assert called(f'FROM "{name}"()') == [f"{name}()"], name
+
+
+def test_every_other_function_left_out_is_refused_wherever_it_is_called() -> None:
+    refused = catalogued("scalar", "aggregate", "window", "macro") - reads.READ_FUNCTIONS
+    assert {"list_aggregate", "json_serialize_plan", "write_log", "nextval"} <= refused
+    for name in sorted(refused):
+        assert called(f'SELECT "{name}"(1)') == [f"{name}()"], name
+        assert called(f'FROM range(1) WHERE "{name}"(1)') == [f"{name}()"], name
+
+
+def test_a_table_function_is_refused_where_only_a_scalar_one_is_allowed_and_the_other_way() -> None:
+    assert called("SELECT read_csv('x.csv')") == ["read_csv()"]
+    assert called("FROM upper('x')") == ["upper()"]
+
+
+def test_every_function_a_read_only_session_may_call_is_one_duckdb_has() -> None:
+    assert catalogued("table") >= reads.READ_TABLE_FUNCTIONS
+    assert catalogued("scalar", "aggregate", "window", "macro") >= reads.READ_FUNCTIONS - reads.BINDER_FUNCTIONS
+
+
+async def test_a_read_only_database_held_outside_the_run_is_not_overwritten_either(
+    local_ctx: FakeContext, tmp_path: Path
+) -> None:
+    held = tmp_path / "held" / "warehouse.duckdb"
+    held.parent.mkdir()
+    duck(local_ctx, f"duckdb:///{held}")
+    await execute(local_ctx, "CREATE TABLE reading (id INTEGER)", "INSERT INTO reading VALUES (1)")
+    before = held.read_bytes()
+    duck(local_ctx, f"duckdb:///{held}", read_only=True)
+    copies = COPIES.format(database=held)
+    with pytest.raises(BlockFailure) as raised:
+        await query(
+            local_ctx,
+            "FROM destroy_external_resource('json_execute_serialized_sql', :tree)",
+            params={"tree": carried(f"WITH w AS ({copies}) SELECT * FROM w")[1:-1].replace("''", "'")},
+        )
+    assert raised.value.code == "sql.duckdb.read_only_calls_a_function"
+    assert (await query(local_ctx, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 1}]
+    assert held.read_bytes() == before
 
 
 class AnsweringTree:
@@ -368,6 +456,40 @@ async def test_a_read_only_duckdb_connection_refuses_what_it_cannot_parse(ducked
         ("SELECT COUNT(*) AS n FROM range(2)", {}, [{"n": 2}]),
         ("SELECT COUNT(*) > 0 AS any FROM duckdb_tables()", {}, [{"any": True}]),
         ("SELECT * FROM (VALUES (1)) t(a), LATERAL (SELECT a + 1 AS b)", {}, [{"a": 1, "b": 2}]),
+        ("SELECT COUNT(*) AS n FROM generate_series(1, 3), unnest([1, 2])", {}, [{"n": 6}]),
+        ("SELECT unnest([7]) AS x, unlist([8]) AS y", {}, [{"x": 7, "y": 8}]),
+        (
+            "SELECT site, SUM(value) OVER (ORDER BY id) AS running, row_number() OVER () AS n "
+            "FROM reading ORDER BY id LIMIT 1",
+            {},
+            [{"site": "north", "running": 2.5, "n": 1}],
+        ),
+        (
+            "SELECT upper(site) || '-' || lpad(id::text, 3, '0') AS code, "
+            "list_transform([id], lambda x: x * 2)[1] AS twice, "
+            "COUNT(*) FILTER (WHERE value > 3) OVER () AS big, "
+            "json_extract_string('{\"a\": \"b\"}', '$.a') AS read, "
+            "coalesce(NULL, date_trunc('day', TIMESTAMP '2020-01-02 03:04')) AS day, "
+            "regexp_matches(site, '^n') AS north "
+            "FROM reading WHERE id = 1",
+            {},
+            [
+                {
+                    "code": "NORTH-001",
+                    "twice": 2,
+                    "big": 0,
+                    "read": "b",
+                    "day": "2020-01-02T00:00:00",
+                    "north": True,
+                }
+            ],
+        ),
+        (
+            "SELECT string_agg(site, ',' ORDER BY id) AS sites, MEDIAN(value) AS mid FROM reading",
+            {},
+            [{"sites": "north,south", "mid": 3.25}],
+        ),
+        ("SELECT COUNT(*) AS n FROM duckdb_columns() WHERE table_name = 'reading'", {}, [{"n": 3}]),
     ],
     ids=[
         "bound",
@@ -387,6 +509,12 @@ async def test_a_read_only_duckdb_connection_refuses_what_it_cannot_parse(ducked
         "table-function",
         "catalog-function",
         "lateral",
+        "series-and-unnest",
+        "unnest-in-select",
+        "window",
+        "scalar-functions",
+        "aggregates",
+        "catalogue-columns",
     ],
 )
 async def test_a_read_only_duckdb_connection_still_runs_every_spelling_of_a_read(
