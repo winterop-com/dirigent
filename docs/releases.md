@@ -19,6 +19,12 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**`dg source list`, `show` and `inputs` render at a terminal.** They wrote NDJSON whatever the
+terminal, `-o console` included. A source now reads as one line: its state, its step, the
+pipeline, what it listens to, and what it has taken, with a warning level when it last failed. An
+input reads as what came of it, its run or its refusal and reason. In a pipe they write the same
+`source` and `source.input` records as before.
+
 **An endpoint source says where it is called and how.** The pipeline page, the editor's step
 panel and the triggers screen's panel show an endpoint's methods and full URL with a copy button,
 and how a caller authenticates: a bearer token, an HMAC signature, or public. `New token` (`New

@@ -188,9 +188,10 @@ def emit_json(payload: object) -> None:
 
 
 def emit_record(kind: str, /, **fields: Any) -> None:
-    """Write one record of a command's answer and flush it."""
-    sys.stdout.write(as_json(make(kind, at=datetime.now(UTC), **fields)) + "\n")
-    sys.stdout.flush()
+    """Write one record of a command's answer in the spelling this invocation asked for, and flush it."""
+    from dirigent_cli.stream import Sink
+
+    Sink(_output).write(make(kind, at=datetime.now(UTC), **fields))
 
 
 def emit_one(kind: str, row: BaseModel) -> None:
@@ -199,7 +200,7 @@ def emit_one(kind: str, row: BaseModel) -> None:
 
 
 def emit_records(kind: str, rows: Iterable[BaseModel]) -> None:
-    """Write a listing as NDJSON: one record per row, each carrying the row whole.
+    """Write a listing as one record per row, each carrying the row whole.
 
     A listing is a record stream like every other command's output, so ``dg pipeline list``
     and a run's events are read the same way: one object per line, each naming its kind.
