@@ -3,12 +3,15 @@
 from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from clisupport import of_kind, only, records, refusal, rows
+from dirigent_cli import commands
 from dirigent_cli.main import app, hoist_globals
 from dirigent_cli.starters import carried_kinds, instantiate, preflight, summary
 from dirigent_client import Requirements
+from dirigent_client.schemas.examples import ExampleDetail
 from dirigent_core.documents import carried_refusal, load_pipeline_text, load_text
 from dirigent_core.engine.definition import PipelineDefinition
 from dirigent_core.plugins import load_plugin_host
@@ -282,6 +285,53 @@ def test_pipeline_new_refuses_to_overwrite_a_file_that_is_there(tmp_path: Path) 
     assert result.exit_code == 1
     assert "already there" in refusal(result.stdout)["message"]
     assert (tmp_path / "report-to-file.yaml").read_text() == "mine\n"
+
+
+def an_instance_answering(monkeypatch: pytest.MonkeyPatch, code: str) -> None:
+    """Have the instance answer every starter with this code and a document of its own choosing."""
+    source = "format: dirigent/v1\ncode: hello\nsteps:\n  greet:\n    uses: core.noop\n"
+    answer = ExampleDetail(code=code, plugin="x", shelf="", starter=True, path="hello.yaml", source=source)
+
+    def example(*_args: object, **_kwargs: object) -> ExampleDetail:
+        return answer
+
+    monkeypatch.setattr(commands, "_example", example)
+
+
+@pytest.mark.parametrize(
+    "code",
+    ["../escaped", "../../.config/dirigent/profiles", "/abs/planted", "sub/dir", "..", ".", "a\\b", "Upper", ""],
+    ids=["dot-dot", "profiles", "absolute", "subdirectory", "parent", "here", "backslash", "upper", "empty"],
+)
+def test_pipeline_new_refuses_a_starter_code_the_instance_answers_that_names_no_file_here(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: str
+) -> None:
+    target = tmp_path / "home" / "work" / "pipelines"
+    an_instance_answering(monkeypatch, code.replace("/abs", str(tmp_path / "abs")))
+    (tmp_path / "abs").mkdir()
+    before = sorted(tmp_path.rglob("*"))
+    result = machine("pipeline", "new", "hello", "--dir", str(target))
+    assert result.exit_code == 1, result.output
+    assert refusal(result.stdout)["code"] == "cli.not_a_pipeline_code"
+    assert sorted(tmp_path.rglob("*")) == before
+
+
+def test_pipeline_new_refuses_a_code_the_user_names_that_is_not_one(tmp_path: Path) -> None:
+    result = machine("pipeline", "new", "report-to-file", "--local", "--code", "../x", "--dir", str(tmp_path / "p"))
+    assert result.exit_code == 1
+    assert refusal(result.stdout)["code"] == "cli.not_a_pipeline_code"
+    assert not (tmp_path / "x.yaml").exists()
+    assert not (tmp_path / "p").exists()
+
+
+def test_pipeline_new_does_not_follow_a_link_where_the_file_would_be(tmp_path: Path) -> None:
+    elsewhere = tmp_path / "elsewhere.yaml"
+    target = tmp_path / "p"
+    target.mkdir()
+    (target / "report-to-file.yaml").symlink_to(elsewhere)
+    result = machine("pipeline", "new", "report-to-file", "--local", "--dir", str(target))
+    assert result.exit_code == 1
+    assert not elsewhere.exists()
 
 
 def test_pipeline_new_renders_the_preflight_at_a_terminal(tmp_path: Path) -> None:
