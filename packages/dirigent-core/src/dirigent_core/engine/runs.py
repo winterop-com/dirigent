@@ -84,6 +84,7 @@ from dirigent_core.messages import (
     RUN_VERSION_GONE,
     SELF_START,
     SOURCE_NOT_RETRYABLE,
+    STEP_FAILED,
     STEP_REFUSED,
 )
 from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, RunItem, Schema, StepAttempt, utcnow
@@ -1121,15 +1122,27 @@ class EngineRuns:
             for step_name, run_item_id, status in rows:
                 key = (step_name, run_item_id)
                 units[key] = units.get(key, True) and status not in UNSETTLED_STATUSES
+            error, code, params = run.error, run.error_code, dict(run.error_params or {})
+            if error is None and run.status is RunStatus.FAILED:
+                failed = await session.execute(
+                    sa.select(StepAttempt.step_name, StepAttempt.error)
+                    .where(StepAttempt.run_id == run_id, StepAttempt.status == AttemptStatus.FAILED)
+                    .order_by(StepAttempt.id)
+                    .limit(1)
+                )
+                first = failed.one_or_none()
+                if first is not None and first.error:
+                    params = {"step": repr(first.step_name), "detail": first.error}
+                    error, code = STEP_FAILED.render(**params), STEP_FAILED.code
             return RunSnapshot(
                 run_id=run.id,
                 pipeline=pipeline.code if pipeline else "",
                 state=RunState(run.status.value),
                 total_steps=len(units),
                 finished_steps=sum(1 for settled in units.values() if settled),
-                error=run.error,
-                error_code=run.error_code,
-                error_params=dict(run.error_params or {}),
+                error=error,
+                error_code=code,
+                error_params=params,
             )
 
     async def cancel(self, run_id: UUID, reason: Message = CANCELLED, /, **params: Any) -> bool:

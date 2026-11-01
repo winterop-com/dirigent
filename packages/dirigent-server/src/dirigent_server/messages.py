@@ -50,7 +50,7 @@ CONNECTION_EXISTS = SERVER.define("connection_exists", "a connection coded {code
 
 CONNECTION_IN_USE = SERVER.define(
     "connection_in_use",
-    "connection {code} cannot be removed while {users} name it; they must stop naming it first",
+    "connection {code} cannot be removed while it is named by {users}; each must stop naming it first",
 )
 
 CONNECTION_REFERENCED = SERVER.define(
