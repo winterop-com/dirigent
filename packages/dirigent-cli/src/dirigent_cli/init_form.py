@@ -159,7 +159,10 @@ class InitForm(App[InitChoices | None]):
             )
 
             yield Label("Packs  (space toggles; pinned at this version)", classes="section")
-            yield SelectionList[str](*((f"{pack.name}  [dim]{pack.what}[/]", pack.name) for pack in PACKS), id="packs")
+            width = max(len(pack.name) for pack in PACKS)
+            yield SelectionList[str](
+                *((f"{pack.name.ljust(width)}  [dim]{pack.what}[/]", pack.name) for pack in PACKS), id="packs"
+            )
 
             yield Checkbox("A GitHub workflow that applies the project on merge", id="workflow")
 

@@ -200,7 +200,10 @@ class Pack(BaseModel):
 
 
 #: The packs on PyPI at this version.
-PACKS: Final = (Pack(name="dirigent-dhis2", what="DHIS2 blocks and connection kinds"),)
+PACKS: Final = (
+    Pack(name="dirigent-dhis2", what="DHIS2 blocks and connection kinds"),
+    Pack(name="dirigent-contrib", what="Chap and climate service blocks"),
+)
 
 
 #: How a project runs: one process here on SQLite, a container stack, or documents against an
