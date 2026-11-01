@@ -5,6 +5,11 @@ from typing import Final
 #: A jq program, as ``transform.jq``, ``map.jq`` and ``filter.jq`` take one.
 JQ_MEDIA_TYPE: Final = "application/jq"
 
+#: A FHIRPath expression, as the FHIR pack's ``transform.fhirpath``, ``map.fhirpath`` and
+#: ``filter.fhirpath`` take one. A field publishing this takes no ``${...}`` reference, at apply or
+#: at run: a value reaches the expression as a variable the block binds, read as ``%name``.
+FHIRPATH_MEDIA_TYPE: Final = "application/fhirpath"
+
 #: A string handed to a shell to parse, as ``shell.run`` and ``docker.run`` take one.
 SHELL_MEDIA_TYPE: Final = "text/x-shellscript"
 
