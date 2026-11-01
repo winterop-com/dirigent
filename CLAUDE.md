@@ -10,26 +10,27 @@
 
 ## Sibling repositories
 
-- `dirigent-dhis2` (a pack) and `dirigent-integration` (the control center that assembles every
-  pack and runs everyone's tests) live in their own repositories beside this one, and both
-  install this repository's packages from git at `main`.
+- `dirigent-dhis2` and `dirigent-contrib` (packs) and `dirigent-integration` (the control center
+  that assembles every pack and runs everyone's tests) live in their own repositories beside
+  this one. The packs pin this repository's packages from PyPI at the released version, so a
+  contract change reaches their own CI at the next release; `dirigent-integration` installs
+  this repository's packages and both packs from git at `main`.
 - A change here that touches a contract they consume is not done until it is reflected there:
   the plugin and testing API, the wire schemas, the CLI's flags and record kinds, a block id or
-  connection kind, and the version number. Grep both checkouts before closing the change.
-- A release here is a release there. `dirigent-dhis2` relocks its dirigent packages at the
-  tagged commit and moves to the same version; `dirigent-integration` moves to the same version
-  and its `make test` is run against the new tips before the release is called done. Its lock
-  is never committed; it resolves `main` fresh. Each of the three then gets the same `vX.Y.Z`
-  tag and a GitHub release; here the tag is what publishes the packages to PyPI and the image
-  to ghcr, through `.github/workflows/release.yaml`.
+  connection kind, and the version number. Grep every sibling checkout before closing the
+  change.
+- A release here is a release there. `dirigent-dhis2` and `dirigent-contrib` each relock their
+  dirigent packages at the tagged commit and move to the same version; `dirigent-integration`
+  moves to the same version and its `make test` is run against the new tips before the release
+  is called done. Its lock is never committed; it resolves `main` fresh. Each of the four then
+  gets the same `vX.Y.Z` tag and a GitHub release; here the tag is what publishes the packages
+  to PyPI and the image to ghcr, through `.github/workflows/release.yaml`.
 - A pack that is installed into the image declares every dependency it needs in `dependencies`,
   never only in `tool.uv.sources`.
 - Run their gates with `env -u VIRTUAL_ENV`, or uv may resync this repository's venv against
   theirs.
-- `dirigent-contrib` is a third sibling: one package of packs for outside systems, with a
-  subpackage and an entry point per system (`dirigent_contrib.chap`, `dirigent_contrib.climate`).
-  It pins this repository's packages from PyPI like `dirigent-dhis2`, so a contract change
-  reaches it at the next release.
+- `dirigent-contrib` is one package of packs for outside systems, with a subpackage and an
+  entry point per system (`dirigent_contrib.chap`, `dirigent_contrib.climate`).
 
 ## Architecture model
 
