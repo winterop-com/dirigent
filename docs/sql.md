@@ -294,11 +294,18 @@ as well:
   not parse is refused rather than run (`sql.duckdb.read_only_unparsed`). `SELECT`, `FROM`-first,
   `WITH ... SELECT`, `VALUES`, `DESCRIBE`, `SHOW` and `SUMMARIZE` all parse as `SELECT`. Because a
   `WITH` can hold a write and still parse as `SELECT`, the parsed tree is read too: a `COPY`,
-  `INSERT`, `UPDATE` or `DELETE` anywhere in it is refused the same way, and so are the table
-  functions that run a statement held in a string, `query`, `query_table` and
-  `json_execute_serialized_sql`. A tree that cannot be had is refused rather than run. This reads
-  the statement a step sends, not a view or macro already stored in the file, so a read-only
-  connection trusts what was written there. It needs
+  `INSERT`, `UPDATE` or `DELETE` anywhere in it is refused the same way. Every function the tree
+  calls must be one that reads (`sql.duckdb.read_only_calls_a_function`): in `FROM`, the readers of
+  files (`read_csv`, `read_parquet`, `read_json`, `read_text`, `glob` and their kin), `range`,
+  `generate_series`, `unnest` and the `duckdb_*` catalogue listings; elsewhere, DuckDB's own scalar,
+  aggregate and window functions. Refused among them: anything that takes another function's name
+  or a statement in a string (`query`, `json_execute_serialized_sql`, the `*_external_resource`
+  functions, `list_aggregate`), anything that writes a log, a sequence or a checkpoint, and a macro
+  stored in the file. A function a later DuckDB adds is refused until it is listed. A tree that
+  cannot be had is refused rather than run. DuckDB itself keeps the open database file and its
+  logs writable to a statement whatever the session's other roots are, so this check is what
+  holds a read-only session off them. It reads the statement a step sends, not a view already
+  stored in the file, so a read-only connection trusts what was written there. It needs
   a file that exists, and `duckdb:///:memory:` cannot be `read_only` at all -- DuckDB refuses to
   open an in-memory database read-only, because one starts empty and a read-only one could never
   be filled -- so that connection is refused when it is written.
