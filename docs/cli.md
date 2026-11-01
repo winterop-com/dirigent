@@ -270,7 +270,10 @@ what to create. Its knobs are its own `params`, and its preflight is its own `re
 which the command prints as the list to work through -- the `dg connection create` lines,
 each with the kind the carried definition named, the schemas to apply, the packs a block
 needs. A code that is not in the catalogue, or one that is an example and not a starter, is
-refused and nothing is written; so is a file that is already there.
+refused and nothing is written; so is a file that is already there, a link where the file would
+be, and a code -- the one `--code` names or the starter's own the instance answers with -- that is
+not a pipeline code, so the copy is always one new file directly inside `--dir`
+(`cli.not_a_pipeline_code`).
 
 ## Projects
 

@@ -64,6 +64,7 @@ from dirigent_cli.messages import (
     NO_SUCH_BLOCK,
     NO_SUCH_EXAMPLE,
     NOT_A_BLOCK_KIND,
+    NOT_A_PIPELINE_CODE,
     NOT_A_PRIORITY,
     NOT_A_RUN_STATUS,
     NOT_A_STARTER,
@@ -179,7 +180,7 @@ from dirigent_client import (
     declared_label,
 )
 from dirigent_client.schemas import TokenLifetime
-from dirigent_common import Issue, JsonMap, Message, bounded_load
+from dirigent_common import Issue, JsonMap, Message, bounded_load, is_entity_name
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings
 from dirigent_core.connections import said
@@ -3320,15 +3321,30 @@ def pipeline_new(
             code=repr(entry.code),
         )
         raise typer.Exit(code=1)
-    new_code = code or entry.code
+    new_code = code if code is not None else entry.code
     path = directory / f"{new_code}.yaml"
-    if path.exists():
+    named = is_entity_name(new_code)
+    if named and (path.is_symlink() or path.exists()):
         refuse(ALREADY_THERE, title="Already there", problems=[Issue.of(NAME_ANOTHER_CODE)], path=path)
         raise typer.Exit(code=1)
+    if not named or path.resolve().parent != directory.resolve():
+        refuse(
+            NOT_A_PIPELINE_CODE,
+            title="Not a pipeline code",
+            problems=[Issue.of(NAME_ANOTHER_CODE)],
+            code=repr(new_code),
+            directory=directory,
+        )
+        raise typer.Exit(code=1)
     text = starters.instantiate(entry.source, new_code)
-    directory.mkdir(parents=True, exist_ok=True)
-    path.write_text(text)
     copied = load_pipeline_text(text).requires
+    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("x", encoding="utf-8") as created:
+            created.write(text)
+    except FileExistsError:
+        refuse(ALREADY_THERE, title="Already there", problems=[Issue.of(NAME_ANOTHER_CODE)], path=path)
+        raise typer.Exit(code=1) from None
     emit_fact(
         "pipeline.created",
         message="created",
