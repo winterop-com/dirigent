@@ -128,6 +128,17 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      entries. An `OperationOutcome` is classified the way the dhis2 pack classifies an import
      conflict, and the health check reads `/metadata`. The first flagship is FHIR to FHIR on a
      schedule against a public test server (`hapi.fhir.org/baseR4`).
+     **Built, not yet published.** `dirigent-fhir` 0.29.0 is a local repository beside this one,
+     with no remote yet: the `fhir` connection kind and `fhir.read`, `fhir.search`, `fhir.create`,
+     `fhir.update` and `fhir.transaction`, every request held to the origin of `base_url`, and
+     `max_response` and `request_deadline` on every answer. It pins `dhis2w-fhir-engine` 1.38.2
+     and imports no DHIS2 code, though that release declares `dhis2w-client` as a dependency, so
+     installing the pack installs it too. It is tested offline against a fake
+     FHIR server, and its flagship runs as `fhir-to-fhir` in `dirigent-examples` between two
+     local HAPI FHIR servers rather than the public one, whose shared data a copy cannot assert
+     on. Left in this stage: a search handing its pages to a fan-out; a GitHub repository, CI and
+     PyPI publishing for the pack; `dg init --pack dirigent-fhir` once it installs from PyPI; and
+     joining `dirigent-integration`'s `make test`.
    - **FHIRPath on the verb frames:** `transform.fhirpath`, `map.fhirpath`, `filter.fhirpath`,
      the mapping between two servers' profiles being where FHIRPath earns its place over jq.
    - **CQL and measures.** `fhir.cql` evaluates a library over the resources a step produced

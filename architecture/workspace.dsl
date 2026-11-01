@@ -15,6 +15,10 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
             tags "Pack"
         }
 
+        fhirPack = softwareSystem "dirigent-fhir" "FHIR pack (dirigent-fhir): the fhir connection kind and the REST blocks for one FHIR R4 server, built on the dhis2w-fhir engine's R4 models." {
+            tags "Pack"
+        }
+
         contrib = softwareSystem "dirigent-contrib" "Block packs for outside systems (winterop-com/dirigent-contrib), one package with a subpackage per system." {
             tags "Pack"
             chapPack = container "dirigent_contrib.chap" "The chap connection kind and blocks for datasets, backtests, predictions, quantiles and the endemic channel." "Python subpackage" {
@@ -30,6 +34,9 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
             tags "External"
         }
         chap = softwareSystem "Chap" "Climate-and-health modelling platform (chap-core). Datasets, backtests and predictions over HTTP." {
+            tags "External"
+        }
+        fhirServers = softwareSystem "FHIR servers" "Any FHIR R4 server: HAPI FHIR, a cloud FHIR service, a facade. Resources read, searched and written over REST." {
             tags "External"
         }
         climate = softwareSystem "Open climate service" "openEO-style climate data service. Aggregates climate data to org units and runs batch jobs." {
@@ -150,6 +157,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
         dirigent.worker.pluginHost -> dirigent.worker.contract "Indexes contributions by id"
         dirigent.worker.pluginHost -> dirigent.worker.builtins "Calls built-in blocks"
         dirigent.worker.pluginHost -> dhis2Pack "Calls pack blocks" "in-process, entry point dirigent.plugins.v1"
+        dirigent.worker.pluginHost -> fhirPack "Calls pack blocks" "in-process, entry point dirigent.plugins.v1"
         dirigent.worker.pluginHost -> contrib.chapPack "Calls pack blocks" "in-process, entry point dirigent.plugins.v1"
         dirigent.worker.pluginHost -> contrib.climatePack "Calls pack blocks" "in-process, entry point dirigent.plugins.v1"
         dirigent.worker.builtins -> httpApis "http.request, webhook.post" "HTTPS"
@@ -159,9 +167,11 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
 
         # --- Packs -------------------------------------------------------
         dhis2Pack -> dirigent.worker.contract "Implements"
+        fhirPack -> dirigent.worker.contract "Implements"
         contrib.chapPack -> dirigent.worker.contract "Implements"
         contrib.climatePack -> dirigent.worker.contract "Implements"
         dhis2Pack -> dhis2 "Reads and writes" "DHIS2 Web API"
+        fhirPack -> fhirServers "Reads, searches, and writes conditionally and in transactions" "FHIR R4 REST, JSON"
         contrib.chapPack -> chap "Imports data, runs backtests and predictions" "HTTP/JSON"
         contrib.climatePack -> climate "Aggregates, runs batch jobs" "HTTP/JSON"
         climate -> dhis2 "Delivers saved exports" "DHIS2 Web API"
@@ -216,7 +226,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
 
         container dirigent "L2_Dirigent" "Level 2 - Containers inside Dirigent and how they talk. The systems a worker's blocks reach are on L1." {
             include *
-            exclude dhis2Pack contrib objectStore brokers alertChannels
+            exclude dhis2Pack fhirPack contrib objectStore brokers alertChannels
             autolayout tb
         }
 
