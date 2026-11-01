@@ -46,6 +46,7 @@ from dirigent_common.names import (
 )
 from dirigent_common.programs import (
     COMPOSE_MEDIA_TYPE,
+    FHIRPATH_MEDIA_TYPE,
     JQ_MEDIA_TYPE,
     SHELL_MEDIA_TYPE,
     SQL_MEDIA_TYPE,
@@ -92,6 +93,7 @@ __all__ = [
     "ENTITY_NAME_MAX_LENGTH",
     "ENTITY_NAME_PATTERN",
     "COMPOSE_MEDIA_TYPE",
+    "FHIRPATH_MEDIA_TYPE",
     "JQ_MEDIA_TYPE",
     "SHELL_MEDIA_TYPE",
     "SQL_MEDIA_TYPE",

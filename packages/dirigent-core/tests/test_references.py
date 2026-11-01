@@ -160,6 +160,19 @@ def test_a_reference_in_a_template_is_refused_and_one_in_its_values_resolves(sco
     assert resolved == {"template": "Day {{ day }} ${x}", "values": {"day": "2026-08-28"}}
 
 
+def test_a_reference_in_a_fhirpath_expression_is_refused_and_one_in_its_variables_resolves(
+    scope: ReferenceScope,
+) -> None:
+    with pytest.raises(UnknownReference) as raised:
+        resolve_config({"expression": "date = ${params.day}"}, scope, fhirpath_fields={"expression"})
+    assert raised.value.code == "reference.in_fhirpath"
+    assert raised.value.params["field"] == "expression"
+    resolved = resolve_config(
+        {"expression": "date = %day", "variables": {"day": "${params.day}"}}, scope, fhirpath_fields={"expression"}
+    )
+    assert resolved == {"expression": "date = %day", "variables": {"day": "2026-08-28"}}
+
+
 def test_a_reference_beside_a_nested_sql_field_resolves(scope: ReferenceScope) -> None:
     resolved = resolve_config(
         {"source": {"query": "SELECT :day", "params": {"day": "${params.day}"}}},

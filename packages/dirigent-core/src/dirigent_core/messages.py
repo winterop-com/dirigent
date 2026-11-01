@@ -356,6 +356,12 @@ STEP_REFERENCE_IN_COMPOSE = DOCUMENT.define(
     "write $${{NAME}} in the file and give the reference to env under NAME",
 )
 
+STEP_REFERENCE_IN_FHIRPATH = DOCUMENT.define(
+    "step_reference_in_fhirpath",
+    "${{{reference}}} is inside {field}, and a value reaches a FHIRPath expression only as a variable; "
+    "give the reference to variables under a name, and read it in the expression as %name",
+)
+
 STEP_SHELL_UNREADABLE = DOCUMENT.define(
     "step_shell_unreadable",
     "{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a "
@@ -649,6 +655,12 @@ COMPOSE_REFERENCE = _unresolved(
     "in_compose",
     "it is inside {field}, and a value spliced into a compose file can add keys to it; "
     "write $${{NAME}} in the file and give the reference to env under NAME",
+)
+
+FHIRPATH_REFERENCE = _unresolved(
+    "in_fhirpath",
+    "it is inside {field}, and a value reaches a FHIRPath expression only as a variable; "
+    "give the reference to variables under a name, and read it in the expression as %name",
 )
 
 SHELL_UNREADABLE = _unresolved(
