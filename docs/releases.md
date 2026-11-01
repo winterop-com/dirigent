@@ -30,6 +30,8 @@ either refuses a `${...}` at apply (`document.step_reference_in_fhirpath`,
 `reference.in_cql`), as a template does: a value reaches the expression as a variable, and the
 library as a parameter.
 
+**FHIRPath and CQL are highlighted where they are written.** The web UI's program editor tokenises `application/fhirpath` and `text/cql` fields in the house inks, both palettes, with a `%name` or `$this` in the ink a jq `$name` wears.
+
 **Every instance serves MCP over HTTP at `/mcp`.** An agent connects to the instance itself with
 its own API token, `claude mcp add --transport http dirigent https://<instance>/mcp --header
 "Authorization: Bearer …"`, and nothing is installed beside it. Each request acts as the token it

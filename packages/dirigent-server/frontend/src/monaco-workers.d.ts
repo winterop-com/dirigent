@@ -11,3 +11,31 @@ declare module 'monaco-editor/internal/common/workers' {
         createWorker?: () => Worker
     }): editor.MonacoWebWorker<T>
 }
+
+/** Monaco's Monarch compiler, which the tokeniser tests run a grammar through. */
+declare module 'monaco-editor/editor/standalone/common/monarch/monarchCompile' {
+    import type { languages } from 'monaco-editor/editor/editor.api'
+
+    export function compile(languageId: string, json: languages.IMonarchLanguage): unknown
+}
+
+/** Monaco's Monarch tokeniser, which reads a compiled grammar one line at a time. */
+declare module 'monaco-editor/editor/standalone/common/monarch/monarchLexer' {
+    import type { languages } from 'monaco-editor/editor/editor.api'
+
+    export class MonarchTokenizer {
+        constructor(
+            languageService: unknown,
+            themeService: unknown,
+            languageId: string,
+            lexer: unknown,
+            configurationService: unknown,
+        )
+        getInitialState(): languages.IState
+        tokenize(
+            line: string,
+            hasEOL: boolean,
+            state: languages.IState,
+        ): { tokens: { offset: number; type: string }[]; endState: languages.IState }
+    }
+}
