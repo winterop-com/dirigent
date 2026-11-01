@@ -17,6 +17,48 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The two sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**A new look for the web UI, "Flow first".** A pipeline's dependency graph now leads the
+pipelines list, the pipeline page and the run page. [UI conventions](ui-conventions.md) is the
+binding description; what a user notices:
+
+- Your own pipelines and the shipped examples are listed apart, with a short set of examples and a
+  way to show them all.
+- A pipeline has a page of its own at `/pipelines/<code>`, graph first, with its blocks, triggers
+  and connections. The editor moved to `/pipelines/<code>/edit`.
+- A failed run puts its failure first. The terminal is the run's one log, and opens on its own for
+  a failed run; clicking a step filters it to that step. A run shows what it stored.
+- Every section is a headed panel with smaller corners, a code never wraps, and amber marks only
+  the brand and the focus ring. The navigation rail is fixed and hides whole with Cmd/Ctrl+B.
+- `PipelineOut` gains `shape` (each step's code, block, dependencies and fan-out) and `example`.
+
+**A fourth security review, and what its fixes change.**
+
+- A `read_only` DuckDB connection runs only the functions that read, from an allowlist: file
+  readers, series and catalogue listings in `FROM`, and DuckDB's own scalar, aggregate and window
+  functions elsewhere. Anything else, `destroy_external_resource` included, is refused with
+  `sql.duckdb.read_only_calls_a_function`, and so is any function a later DuckDB adds until it is
+  listed.
+- A SQLite or DuckDB database named by a relative path is followed through links, and refused with
+  `sql.database_outside_the_run` when it lands outside the run's work directory.
+- `dg pipeline new` refuses a starter code that is not a pipeline code (`cli.not_a_pipeline_code`)
+  and a link where its file would go, and creates one new file directly inside `--dir`.
+- `dg source call` refuses a server a checkout named off this host whenever it carries a source
+  token or signing secret, as the other credential-sending commands do.
+- A `format` check over text a caller chose stops at the check's bound. `format: regex` reads the
+  pattern without compiling it and refuses one past 8192 characters; `uri`, `uri-reference`, `iri`
+  and `iri-reference` are matched in time in step with the text. A run's parameters are checked off
+  the event loop.
+- No value a run stores nests past 160 levels: a deeper step output fails its step
+  (`run.output_too_deep`), a deeper source input fails its source (`run.input_too_deep`), and deeper
+  parameters refuse the run (`parameter.too_deep`). A deeper value stored before is shown cut, so
+  it no longer makes run lists answer 500.
+- A secret a block quotes in an exception no longer reaches an OpenTelemetry span or the
+  remote-cancellation log line.
+- A path, or a query key or value, holding a NUL is answered 404 with `server.address_unstorable`
+  before anything looks it up.
+
 ## 0.28.0
 
 Released 2026-10-31. Every package in the workspace moves to 0.28.0 together, and so do
