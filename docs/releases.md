@@ -17,7 +17,10 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The two sibling repositories then
 relock against the tag and bump.
 
-## Unreleased
+## 0.29.0
+
+Released 2026-11-01. Every package in the workspace moves to 0.29.0 together, and so do
+`dirigent-dhis2`, `dirigent-integration` and `dirigent-contrib`.
 
 **A new look for the web UI, "Flow first".** A pipeline's dependency graph now leads the
 pipelines list, the pipeline page and the run page. [UI conventions](ui-conventions.md) is the
