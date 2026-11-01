@@ -46,6 +46,12 @@ READ_ONLY_RUNS_SELECT = DUCKDB.define(
     "point this step at a connection that may write",
 )
 
+READ_ONLY_CALLS_A_FUNCTION = DUCKDB.define(
+    "read_only_calls_a_function",
+    "a read_only duckdb connection calls only functions that read, and this statement calls "
+    "{functions}; point this step at a connection that may write",
+)
+
 READ_ONLY_UNPARSED = DUCKDB.define(
     "read_only_unparsed",
     "a read_only duckdb connection runs only a statement it can read as SELECT, and this one does not parse: {detail}",

@@ -37,12 +37,14 @@ from dirigent_block_duckdb.messages import (
     NO_STORAGE_CONNECTION,
     PARAMETER_NAMES_STORAGE,
     PARAMETER_OUTSIDE_THE_RUN,
+    READ_ONLY_CALLS_A_FUNCTION,
     READ_ONLY_IN_MEMORY,
     READ_ONLY_RUNS_SELECT,
     READ_ONLY_UNPARSED,
     STATEMENT_LOADS_AN_EXTENSION,
     STATEMENT_OUTSIDE_THE_RUN,
 )
+from dirigent_block_duckdb.reads import READ_FUNCTIONS, READ_TABLE_FUNCTIONS
 from dirigent_block_sql.engines import (
     CHECK_TIMEOUT_SECONDS,
     OUTSIDE_A_RUN,
@@ -91,9 +93,11 @@ SECRET_DIR: Final = ".duckdb-secrets"
 #: ``UPDATE`` or a ``DELETE`` and still parse as ``SELECT``, and a node not named here is refused.
 READ_NODES: Final = frozenset({"SELECT_NODE", "SET_OPERATION_NODE", "CTE_NODE", "RECURSIVE_CTE_NODE"})
 
-#: Table functions that run a statement held in a string or in a serialized tree, which a parsed
-#: tree shows only as an argument.
-STATEMENT_RUNNERS: Final = frozenset({"json_execute_serialized_sql", "query", "query_table"})
+#: The expression classes of a parsed tree that call a function by name.
+CALLS: Final = frozenset({"FUNCTION", "WINDOW"})
+
+#: How a refusal names a call whose tree carries no name for what it calls.
+UNNAMED: Final = "?"
 
 #: What a refusal says when duckdb answered with a parsed tree that does not hold every statement.
 NO_WHOLE_TREE: Final = "the parsed tree does not cover the whole text"
@@ -322,6 +326,11 @@ def _contain(connection: Connection, ctx: StepContext, url: URL, *, s3: bool) ->
     database runs, and the lock refuses the ``SET`` that would widen the roots again. With
     external access off duckdb also refuses to load or install any further extension, so the
     scheme this session was opened with is the only one it has.
+
+    duckdb itself grants the open database's file and its logs to ``allowed_paths`` when
+    external access goes off, and refuses any change to that setting afterwards, so a
+    statement can always name them; a read-only session is held off them by
+    ``_Threaded._hold_to_reads`` instead.
     """
     roots = [str(root) for root in _readable(ctx)]
     if s3:
@@ -365,27 +374,48 @@ def parsed_tree(raw: Any, compiled: str, statements: int) -> JsonValue:
     raise BlockFailure(READ_ONLY_UNPARSED, error_class=ErrorClass.REJECTED, detail=detail)
 
 
-def _beyond_a_read(tree: JsonValue) -> list[str]:
-    """What in a parsed tree a read-only session does not run, named for a refusal.
+def _beyond_a_read(tree: JsonValue) -> tuple[list[str], list[str]]:
+    """The query nodes and the functions in a parsed tree a read-only session does not run.
 
     Only the fields a tree keeps its own names in are looked at, so a string literal naming a
-    node or a function reads as nothing.
+    node or a function reads as nothing. A function is held to the table functions where the
+    tree calls it in ``FROM`` and to the rest everywhere else, by its name and by the last part
+    of its qualified name both.
     """
-    found: set[str] = set()
-    pending = [tree]
+    nodes: set[str] = set()
+    functions: set[str] = set()
+    pending: list[tuple[JsonValue, frozenset[str]]] = [(tree, READ_FUNCTIONS)]
     while pending:
-        item = pending.pop()
+        item, allowed = pending.pop()
         if isinstance(item, list):
-            pending.extend(item)
+            pending.extend((one, READ_FUNCTIONS) for one in item)
         elif isinstance(item, dict):
             kind = item.get("type")
             if isinstance(kind, str) and kind.endswith("_NODE") and kind not in READ_NODES:
-                found.add(kind.removesuffix("_NODE").removesuffix("_QUERY"))
-            function = item.get("function_name")
-            if isinstance(function, str) and function.lower() in STATEMENT_RUNNERS:
-                found.add(f"{function.lower()}()")
-            pending.extend(item.values())
-    return sorted(found)
+                nodes.add(kind.removesuffix("_NODE").removesuffix("_QUERY"))
+            if "function_name" in item or item.get("class") in CALLS:
+                functions.update(f"{name}()" for name in _called(item) if name not in allowed)
+            called = item.get("function")
+            if kind == "TABLE_FUNCTION" and not (isinstance(called, dict) and "function_name" in called):
+                functions.add(f"{UNNAMED}()")
+            for key, value in item.items():
+                in_from = kind == "TABLE_FUNCTION" and key == "function"
+                pending.append((value, READ_TABLE_FUNCTIONS if in_from else READ_FUNCTIONS))
+    return sorted(nodes), sorted(functions)
+
+
+def _called(function: dict[str, JsonValue]) -> set[str]:
+    """Every name a function in a parsed tree is called by, lower-cased the way duckdb looks it up.
+
+    A name that is not a string is answered as one nothing allows, so a tree of a shape this
+    does not know is refused rather than read past.
+    """
+    names: list[JsonValue] = [function.get("function_name")]
+    qualified = function.get("qualified_name")
+    if qualified is not None:
+        path = qualified.get("path") if isinstance(qualified, dict) else None
+        names.append(path[-1] if isinstance(path, list) and path else None)
+    return {name.lower() if isinstance(name, str) else UNNAMED for name in names}
 
 
 def _refusal(error: Exception, roots: list[Path]) -> BlockFailure | None:
@@ -496,9 +526,11 @@ class _Threaded:
         if not kinds or any(kind is not duckdb.StatementType.SELECT for kind in kinds):
             named = ", ".join(sorted({kind.name for kind in kinds})) or "empty"
             raise BlockFailure(READ_ONLY_RUNS_SELECT, error_class=ErrorClass.REJECTED, kinds=named)
-        written = _beyond_a_read(parsed_tree(self.raw, compiled, len(parsed)))
+        written, called = _beyond_a_read(parsed_tree(self.raw, compiled, len(parsed)))
         if written:
             raise BlockFailure(READ_ONLY_RUNS_SELECT, error_class=ErrorClass.REJECTED, kinds=", ".join(written))
+        if called:
+            raise BlockFailure(READ_ONLY_CALLS_A_FUNCTION, error_class=ErrorClass.REJECTED, functions=", ".join(called))
 
     @asynccontextmanager
     async def begin(self) -> AsyncGenerator[None]:
