@@ -30,6 +30,7 @@ from dirigent_common import (
     raised_detail,
     scrub,
 )
+from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import canonical_json, persist_output
 from dirigent_core.database import session_scope, with_deadlock_retry
@@ -79,6 +80,7 @@ from dirigent_core.messages import (
     GONE_PROBES,
     ITEM_UNPAIRED,
     LEASE_RECOVERIES,
+    OUTPUT_TOO_DEEP,
     REMOTE_JOB_FAILED,
     REMOTE_JOB_GONE,
     REMOTE_JOB_SAID,
@@ -468,7 +470,7 @@ class Engine:
                 stop = asyncio.Event()
                 flusher = asyncio.create_task(self._flush_while_running(logger, stop))
                 try:
-                    result = await self._counted(await self._call_block(unit, context), meter)
+                    result = await self._counted(_bounded(await self._call_block(unit, context)), meter)
                 finally:
                     stop.set()
                     with contextlib.suppress(asyncio.CancelledError):
@@ -1289,3 +1291,10 @@ async def _pair_refusal(session: AsyncSession, run_id: UUID, parent: str, item_i
         return None
     key = pair[1].item_key if pair is not None else str(item_index)
     return Issue.of(ITEM_UNPAIRED, index=item_index, key=repr(key), step=repr(parent))
+
+
+def _bounded(result: CallResult) -> CallResult:
+    """Fail a call whose output nests deeper than a run stores."""
+    if isinstance(result, Produced) and nests_past(cast("JsonValue", result.output)):
+        return Errored(failure=Failure.rejected(OUTPUT_TOO_DEEP, limit=MAX_STORED_DEPTH))
+    return result

@@ -22,6 +22,7 @@ from dirigent_client.enums import (
     TriggerKind,
 )
 from dirigent_common import JsonMap, Message
+from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
 from dirigent_core.database import session_scope
@@ -41,6 +42,7 @@ from dirigent_core.engine.definition import (
     schemas_named,
 )
 from dirigent_core.engine.expansion import is_gate, new_attempt, write_items
+from dirigent_core.engine.failure import Failure
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import advance, lock_pipeline, lock_run
@@ -60,6 +62,7 @@ from dirigent_core.messages import (
     FAN_OUT_TOO_WIDE,
     GATE_NOT_RETRYABLE,
     GIVEN_NO_ENTRY,
+    INPUT_TOO_DEEP,
     NO_ATTEMPT_TO_RETRY,
     NOT_ENTERED,
     NOT_PAUSABLE,
@@ -444,8 +447,17 @@ async def _write_source(
         session.add(attempt)
         return
     attempt.kind = AttemptKind.RECEIVED
-    attempt.status = AttemptStatus.SUCCEEDED
     attempt.input = {"via": entry.via}
+    if nests_past(cast("JsonValue", entry.output)):
+        refused = Failure.rejected(INPUT_TOO_DEEP, step=repr(name), limit=MAX_STORED_DEPTH)
+        attempt.status = AttemptStatus.FAILED
+        attempt.error = refused.message
+        attempt.error_code = refused.code
+        attempt.error_params = refused.params or None
+        attempt.error_class = refused.error_class.value
+        session.add(attempt)
+        return
+    attempt.status = AttemptStatus.SUCCEEDED
     session.add(attempt)
     await session.flush()
     reference = await persist_output(

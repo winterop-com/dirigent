@@ -23,6 +23,7 @@ from dirigent_common import (
     bounded_evaluation,
     compile_template,
 )
+from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_common.durations import Duration, format_duration
 from dirigent_core.engine.references import has_reference, references_in
 from dirigent_core.errors import DomainError
@@ -33,6 +34,7 @@ from dirigent_core.messages import (
     PARAMETER_INVALID,
     PARAMETER_SCHEMA_INVALID,
     PARAMETER_UNCHECKED,
+    PARAMETERS_TOO_DEEP,
     REPLY_BAD_HEADER,
     REPLY_BAD_STATUS,
     REPLY_BODY_TWICE,
@@ -673,6 +675,8 @@ class PipelineDefinition(BaseModel):
         ``PARAMETERS_CHECKED_WITHIN``.
         """
         resolved = _with_defaults(self.params, params)
+        if nests_past(cast("JsonValue", resolved)):
+            raise ParameterError(PARAMETERS_TOO_DEEP, limit=MAX_STORED_DEPTH)
         try:
             Draft202012Validator.check_schema(self.params)
             validator = ValueValidator(self.params, format_checker=format_checker, registry=LOCAL_REFERENCES)

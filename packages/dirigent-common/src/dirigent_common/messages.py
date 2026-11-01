@@ -175,6 +175,8 @@ YAML_ALIAS_CYCLE = COMMON.define(
 
 YAML_NESTED_TOO_DEEP = COMMON.define("yaml_nested_too_deep", "the YAML nests too deeply to be read")
 
+VALUE_NOT_SHOWN = COMMON.define("value_not_shown", "nested deeper than {limit} levels, not shown")
+
 VALIDATION = Catalogue("validation")
 
 #: Pydantic names the condition, so the second half of a validation code is its own error

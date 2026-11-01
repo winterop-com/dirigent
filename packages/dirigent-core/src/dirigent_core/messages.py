@@ -208,6 +208,10 @@ PARAMETER_UNCHECKED = PARAMETER.define(
     "the parameters were not checked against the pipeline's parameter schema within {timeout}",
 )
 
+PARAMETERS_TOO_DEEP = PARAMETER.define(
+    "too_deep", "the parameters nest deeper than the {limit} levels of lists and objects a run stores"
+)
+
 DOCUMENT = Catalogue("document")
 
 NOT_YAML = DOCUMENT.define("not_yaml", "the document is not valid YAML or JSON: {detail}")
@@ -872,6 +876,14 @@ REPLY_NOT_RETRYABLE = RUN.define(
 SERVER_SETTLED = RUN.define("server_settled", "step {step} is a {kind}, which the server settles and no worker claims")
 
 NOT_ENTERED = RUN.define("not_entered", "the input arrived at {entered}, so {step} was not entered")
+
+INPUT_TOO_DEEP = RUN.define(
+    "input_too_deep", "the input at {step} nests deeper than the {limit} levels of lists and objects a run stores"
+)
+
+OUTPUT_TOO_DEEP = RUN.define(
+    "output_too_deep", "the step's output nests deeper than the {limit} levels of lists and objects a run stores"
+)
 
 REPLY_REFUSED = RUN.define("reply_refused", "reply {step} could not be rendered: {detail}")
 
