@@ -6,10 +6,8 @@ import { ApiChip } from '@/components/ApiChip'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
-import { Refusable } from '@/components/Refusable'
 import { NewSchema } from '@/components/schemas/NewSchema'
 import { SchemaPanel } from '@/components/schemas/SchemaPanel'
-import { Button } from '@/components/ui/button'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
@@ -150,25 +148,20 @@ export function Schemas() {
         <>
             <PageHeader
                 title={LABELS.screen.schemas.name}
-                aside={
-                    <>
-                        <ApiChip tag="schemas" />
-                        <Refusable why={write.why}>
-                            <Button
-                                size="sm"
-                                aria-label={LABELS.schemas.new}
-                                disabled={!write.may}
-                                title={write.why}
-                                onClick={() => {
-                                    setCreating(true)
-                                }}
-                            >
-                                <FileJson aria-hidden />
-                                {LABELS.action.new}
-                            </Button>
-                        </Refusable>
-                    </>
-                }
+                aside={<ApiChip tag="schemas" />}
+                actions={[
+                    {
+                        id: 'new',
+                        label: LABELS.action.new,
+                        ariaLabel: LABELS.schemas.new,
+                        variant: 'default',
+                        disabled: !write.may,
+                        why: write.why ?? undefined,
+                        onClick: () => {
+                            setCreating(true)
+                        },
+                    },
+                ]}
             />
             <PageState
                 loading={!state.read}

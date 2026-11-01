@@ -28,13 +28,10 @@ import { cn } from '@/lib/utils'
  * the title here and is drawn once.
  */
 export function AccountMenu({
-    collapsed = false,
     className,
     onSettings,
     onShortcuts,
 }: {
-    /** The rail is icons alone, so the trigger is the avatar alone. */
-    collapsed?: boolean
     className?: string
     onSettings: () => void
     onShortcuts: () => void
@@ -59,8 +56,7 @@ export function AccountMenu({
                                     variant="ghost"
                                     aria-label={LABELS.shell.account.label(identity.username)}
                                     className={cn(
-                                        'text-xs text-muted-foreground hover:text-foreground',
-                                        collapsed ? 'justify-center p-0' : 'justify-start gap-2 px-3',
+                                        'justify-start gap-2.5 px-1.5 text-xs text-muted-foreground hover:text-foreground',
                                         className,
                                     )}
                                 />
@@ -69,12 +65,12 @@ export function AccountMenu({
                     }
                 >
                     <span
-                        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-foreground uppercase"
+                        className="flex size-6 shrink-0 items-center justify-center rounded-control bg-secondary text-xs font-semibold text-foreground"
                         aria-hidden
                     >
                         {identity.username.slice(0, 1)}
                     </span>
-                    {!collapsed && <span className="truncate font-mono">{identity.username}</span>}
+                    <span className="truncate font-mono">{identity.username}</span>
                 </DropdownMenuTrigger>
                 <TooltipContent side="top">{LABELS.word.account.label}</TooltipContent>
             </Tooltip>

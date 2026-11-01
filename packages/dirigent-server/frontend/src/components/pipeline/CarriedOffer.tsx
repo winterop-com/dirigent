@@ -15,6 +15,7 @@ import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { updateSchema, wholeSchema } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
+import { Well } from '@/components/ds/Well'
 
 /** What one carried entry is called on its own line, in the reader's word rather than the wire's. */
 const NOUNS: Readonly<Record<CarriedItem['kind'], string>> = LABELS.editor.carried.noun
@@ -271,7 +272,7 @@ function MintConnection({
     const form = useConnectionDraft(kinds, item.code, item.connectionKind)
 
     return (
-        <div className="space-y-3 rounded-lg border border-border bg-secondary/30 p-2">
+        <Well className="space-y-3">
             <ConnectionFields
                 form={form}
                 kinds={kinds}
@@ -297,7 +298,7 @@ function MintConnection({
                     </Button>
                 </Refusable>
             </div>
-        </div>
+        </Well>
     )
 }
 
@@ -354,7 +355,7 @@ function UpdateSchema({
     }
 
     return (
-        <div className="min-w-0 space-y-3 rounded-lg border border-border bg-secondary/30 p-2">
+        <Well className="space-y-3">
             <p className="text-xs font-semibold tracking-wide text-faint uppercase">{words.held_heading}</p>
             {/* Narrower than a preview's own height: nine lines is what this dialog's cap leaves
                 on a 768px screen once the sentences below have had their room. */}
@@ -387,7 +388,7 @@ function UpdateSchema({
                     </Button>
                 </Refusable>
             </div>
-        </div>
+        </Well>
     )
 }
 

@@ -55,6 +55,7 @@ from dirigent_client.schemas.pipelines import (
     Requirements,
     RunAccepted,
     RunRequest,
+    StepShape,
     ValidationIssue,
 )
 from dirigent_client.schemas.runs import (
@@ -173,6 +174,7 @@ __all__ = [
     "SourceChanges",
     "SourceInputOut",
     "SourceOut",
+    "StepShape",
     "SetSecretRequest",
     "SourceTokenOut",
     "Requirements",

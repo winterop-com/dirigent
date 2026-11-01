@@ -51,12 +51,11 @@ test('the drawer closes on Escape and on the scrim', async ({ page }) => {
     await expect(drawer.getByRole('link', { name: LABELS.screen.runs.name })).toBeHidden()
 })
 
-test('the pipelines listing is cards, and the page does not scroll sideways', async ({ page }) => {
-    await page.goto('/pipelines')
-    const card = page.getByRole('listitem').filter({ hasText: PIPELINE })
-    await expect(card.getByRole('link', { name: TITLE })).toBeVisible()
-    await expect(card.getByText(PIPELINE, { exact: true })).toBeVisible()
-    // The columns are gone and their headers with them: what is drawn is a list, not a table.
+test('a pipeline row wraps on a phone, and the page does not scroll sideways', async ({ page }) => {
+    await page.goto('/pipelines?examples=all')
+    const row = page.getByTestId('pipeline-row').filter({ has: page.getByTitle(TITLE, { exact: true }) })
+    await expect(row).toBeVisible()
+    await expect(row.getByText(PIPELINE, { exact: true })).toBeVisible()
     await expect(page.getByRole('table')).toHaveCount(0)
 
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
@@ -69,18 +68,16 @@ test.describe('a tablet', () => {
     test.use({ viewport: { width: 900, height: 1024 } })
 
     test('a listing is still cards while the shell is not small', async ({ page }) => {
-        await page.goto('/pipelines')
+        await page.goto('/runs')
         await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toBeVisible()
         await expect(page.getByRole('button', { name: LABELS.shell.open_nav })).toHaveCount(0)
         await expect(page.getByRole('table')).toHaveCount(0)
-        await expect(
-            page.getByRole('listitem').filter({ hasText: PIPELINE }).getByRole('link', { name: TITLE }),
-        ).toBeVisible()
+        await expect(page.getByRole('listitem').first()).toBeVisible()
     })
 })
 
 test('the editor reads the document and offers nothing that would write one', async ({ page }) => {
-    await page.goto(`/pipelines/${PIPELINE}`)
+    await page.goto(`/pipelines/${PIPELINE}/edit`)
     await expect(page.getByText(LABELS.editor.topbar.read_only)).toBeVisible()
     await expect(page.getByRole('button', { name: LABELS.action.apply })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Run…', exact: true })).toHaveCount(0)
@@ -93,7 +90,7 @@ test('the editor reads the document and offers nothing that would write one', as
 })
 
 test('the panel is a sheet raised from the tab bar', async ({ page }) => {
-    await page.goto(`/pipelines/${PIPELINE}`)
+    await page.goto(`/pipelines/${PIPELINE}/edit`)
     const sheet = page.locator('[data-panel-sheet]')
     await expect(sheet).toBeHidden()
 
@@ -125,7 +122,7 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
 
     await page.keyboard.press('Escape')
 
-    await page.goto(`/pipelines/${PIPELINE}`)
+    await page.goto(`/pipelines/${PIPELINE}/edit`)
     const tabs = page.locator('[data-panel-bar]').getByRole('button')
     await expect(tabs.first()).toBeVisible()
     for (const tab of await tabs.all()) {

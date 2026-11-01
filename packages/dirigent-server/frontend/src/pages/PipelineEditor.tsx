@@ -11,6 +11,10 @@ import { RunDialog } from '@/components/pipeline/RunDialog'
 import { SourceTab } from '@/components/pipeline/SourceTab'
 import { StepTab } from '@/components/pipeline/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
+import { PageHead } from '@/components/PageHead'
+import { Chip } from '@/components/ds/Chip'
+import { Code } from '@/components/ds/Code'
+import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { ToolbarActions } from '@/components/ToolbarActions'
 import { Button } from '@/components/ui/button'
@@ -66,7 +70,6 @@ import {
 import { anythingUnmet, unmetIn, unmetLines } from '@/lib/requirements'
 import { EVERY_RUN, readRuns, type RunOut } from '@/lib/runs'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { cn } from '@/lib/utils'
 import type { SourceTokenOut } from '@/lib/sources'
 
 /**
@@ -295,7 +298,10 @@ export function PipelineEditor() {
         setScreenStatus({
             note: said.length === 0 ? null : said.join(' · '),
             tone: said.length === 0 ? 'quiet' : 'warn',
-            identifier: applied === null ? null : LABELS.editor.version.short(String(applied.version)),
+            identifier:
+                applied === null
+                    ? LABELS.editor.version.none
+                    : LABELS.editor.version.short(String(applied.version)),
         })
         return clearScreenStatus
     }, [applied, issues, unmet, warnings.length])
@@ -571,97 +577,90 @@ export function PipelineEditor() {
     const matters = importanceMark(importanceOf(local))
 
     return (
-        <div className="-mx-1 -my-3 flex min-h-0 flex-1 flex-col gap-3 md:-mx-5">
-            <div className="flex items-center gap-x-2 md:gap-x-3">
+        <div className="-mb-9 flex min-h-0 flex-1 flex-col gap-3">
+            <PageHead>
                 <Breadcrumb
                     trail={[
                         { label: LABELS.screen.pipelines.name, to: '/pipelines' },
-                        heading === null
-                            ? { label: LABELS.editor.topbar.new_pipeline }
-                            : { label: heading.title, mono: !heading.named },
-                    ]}
-                    code={heading?.code}
-                />
-                {/* Hidden below the breakpoint with the version, where the strip has only the
-                    room for the document's identity and the line saying it is read. */}
-                {matters !== null && (
-                    <span
-                        className={cn(
-                            'hidden shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-xs md:inline-block',
-                            matters.className,
-                        )}
-                        title={matters.title}
-                    >
-                        {matters.label}
-                    </span>
-                )}
-                {/* The status bar already says which version this is and when it was applied,
-                    and a fact appears once on a screen. */}
-                <span
-                    className="hidden shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs md:inline-block"
-                    title={
-                        pipeline === null || pipeline.current_version === null
-                            ? LABELS.editor.version.unapplied
-                            : LABELS.editor.version.explained(String(pipeline.current_version))
-                    }
-                >
-                    {pipeline === null || pipeline.current_version === null
-                        ? LABELS.editor.version.none
-                        : LABELS.editor.version.short(String(pipeline.current_version))}
-                </span>
-                <div className="flex-1" />
-                {/* THE VERBS THAT WRITE ARE NOT DRAWN BELOW THE BREAKPOINT, and the strip says
-                    so where the first of them would have been. */}
-                {small && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                        {LABELS.editor.topbar.read_only}
-                    </span>
-                )}
-                <ToolbarActions
-                    actions={
-                        // NOTHING THAT WRITES, AND NOTHING THAT ASKS THE SERVER ABOUT WHAT
-                        // CANNOT BE WRITTEN: below the breakpoint the strip carries the
-                        // document's identity and the line saying it is read.
-                        small
+                        ...(heading === null
                             ? []
-                            : [
-                                  {
-                                      id: 'validate',
-                                      label: LABELS.action.validate,
-                                      icon: ShieldCheck,
-                                      disabled: sent !== undefined,
-                                      why: sent,
-                                      onClick: () => {
-                                          setDialog('validate')
-                                      },
-                                  },
-                                  {
-                                      id: 'run',
-                                      label: LABELS.action.asks(LABELS.action.run),
-                                      icon: Play,
-                                      disabled: runRefusal !== undefined,
-                                      why: runRefusal,
-                                      onClick: () => {
-                                          setDialog('run')
-                                      },
-                                  },
-                                  {
-                                      id: 'apply',
-                                      label: LABELS.action.apply,
-                                      icon: CheckCircle2,
-                                      variant: applyVariant(edits, creating),
-                                      disabled: applyRefusal !== undefined,
-                                      why: applyRefusal,
-                                      onClick: () => {
-                                          setDialog('apply')
-                                      },
-                                  },
-                              ]
-                    }
+                            : [{ label: heading.title, to: `/pipelines/${code}`, mono: !heading.named }]),
+                    ]}
                 />
-            </div>
+                <div className="flex min-h-9 items-center gap-x-2 md:gap-x-3">
+                    {heading === null ? (
+                        <span className="shrink-0 text-sm font-medium">
+                            {LABELS.editor.topbar.new_pipeline}
+                        </span>
+                    ) : (
+                        <Code value={heading.code ?? code} tone="body" />
+                    )}
+                    {/* Hidden below the breakpoint, where the strip has only the room for the
+                    document's identity and the line saying it is read. */}
+                    {matters !== null && (
+                        <Chip tone="critical" title={matters.title} className="hidden md:inline-flex">
+                            {matters.label}
+                        </Chip>
+                    )}
+                    <div className="flex-1" />
+                    {/* THE VERBS THAT WRITE ARE NOT DRAWN BELOW THE BREAKPOINT, and the strip says
+                    so where the first of them would have been. */}
+                    {small && (
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                            {LABELS.editor.topbar.read_only}
+                        </span>
+                    )}
+                    <ToolbarActions
+                        actions={
+                            // NOTHING THAT WRITES, AND NOTHING THAT ASKS THE SERVER ABOUT WHAT
+                            // CANNOT BE WRITTEN: below the breakpoint the strip carries the
+                            // document's identity and the line saying it is read.
+                            small
+                                ? []
+                                : [
+                                      {
+                                          id: 'validate',
+                                          label: LABELS.action.validate,
+                                          icon: ShieldCheck,
+                                          disabled: sent !== undefined,
+                                          why: sent,
+                                          onClick: () => {
+                                              setDialog('validate')
+                                          },
+                                      },
+                                      {
+                                          id: 'run',
+                                          label: LABELS.action.asks(LABELS.action.run),
+                                          icon: Play,
+                                          disabled: runRefusal !== undefined,
+                                          why: runRefusal,
+                                          onClick: () => {
+                                              setDialog('run')
+                                          },
+                                      },
+                                      {
+                                          id: 'apply',
+                                          label: LABELS.action.apply,
+                                          icon: CheckCircle2,
+                                          variant: applyVariant(edits, creating),
+                                          disabled: applyRefusal !== undefined,
+                                          why: applyRefusal,
+                                          onClick: () => {
+                                              setDialog('apply')
+                                          },
+                                      },
+                                  ]
+                        }
+                    />
+                </div>
+            </PageHead>
 
-            <div className="relative min-h-96 flex-1 overflow-hidden rounded-md border border-border-strong bg-background">
+            <Panel
+                title={LABELS.pipelines.page.graph}
+                inset={false}
+                className="mt-3 flex min-h-96 flex-1 flex-col"
+                bodyClassName="relative min-h-0 flex-1"
+            >
                 {steps.length === 0 && local !== null && (
                     <div className="graph-words absolute top-4 left-4 z-10 flex items-center gap-3">
                         <p className="pointer-events-none text-muted-foreground">
@@ -723,7 +722,7 @@ export function PipelineEditor() {
                         />
                     </Suspense>
                 )}
-            </div>
+            </Panel>
 
             {picking && (
                 <Suspense fallback={null}>
@@ -766,7 +765,9 @@ export function PipelineEditor() {
                         setIssues(issuesNote(result.plan.issues))
                         const note = appliedNote(result)
                         toast.success(note.line, { description: note.detail })
-                        const address = creating ? `/pipelines/${encodeURIComponent(result.plan.code)}` : null
+                        const address = creating
+                            ? `/pipelines/${encodeURIComponent(result.plan.code)}/edit`
+                            : null
                         const { tokens } = result.sources
                         setMinted({ tokens, after: address })
                         if (tokens.length > 0 && address !== null) return

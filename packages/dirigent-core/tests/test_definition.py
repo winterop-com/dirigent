@@ -1,13 +1,17 @@
 """Tests for the pipeline definition model: the graph checks and parameter validation."""
 
+import threading
 import time
 from datetime import timedelta
 from typing import Any
 
 import pytest
 from pydantic import JsonValue, ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_common import base_format_checker, format_checker_with
+from dirigent_core.database import session_scope
+from dirigent_core.engine import EngineServices
 from dirigent_core.engine.definition import (
     ConcurrencyPolicy,
     ItemPolicy,
@@ -20,6 +24,7 @@ from dirigent_core.engine.definition import (
     dump_definition,
     load_definition,
 )
+from dirigent_core.engine.runs import create_run, save_pipeline
 
 
 def chain() -> PipelineDefinition:
@@ -405,3 +410,40 @@ def test_a_grid_family_names_the_chain_a_step_fans_with() -> None:
 def test_a_step_that_does_not_fan_out_shares_no_grid() -> None:
     definition = PipelineDefinition(code="plain", steps={"a": StepDefinition(block="test.echo")})
     assert definition.grid_family("a") == []
+
+
+def watched_params(code: str) -> PipelineDefinition:
+    """A pipeline whose one parameter declares a format the test's checker watches."""
+    return PipelineDefinition(
+        code=code,
+        params={"type": "object", "properties": {"x": {"type": "string", "format": "watched"}}},
+        steps={"a": StepDefinition(block="test.echo")},
+    )
+
+
+async def test_a_run_s_parameters_are_checked_off_the_event_loop(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    loop_thread = threading.get_ident()
+    checked_on: list[int] = []
+
+    def watched(value: object) -> bool:
+        checked_on.append(threading.get_ident())
+        return True
+
+    services.format_checker = format_checker_with({"watched": watched})
+    async with session_scope(sessions) as session:
+        version = await save_pipeline(session, watched_params("off-loop"))
+        run = await create_run(session, services, version, params={"x": "y"})
+    assert run is not None
+    assert checked_on
+    assert loop_thread not in checked_on
+
+
+def test_a_parameter_check_whose_caller_stopped_waiting_refuses_the_run() -> None:
+    stopped = threading.Event()
+    stopped.set()
+    with pytest.raises(ParameterError, match="unchecked|within"):
+        watched_params("stopped").validate_params(
+            {"x": "a"}, format_checker_with({"watched": lambda value: True}), stopped
+        )

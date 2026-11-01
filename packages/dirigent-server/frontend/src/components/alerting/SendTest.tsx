@@ -22,6 +22,7 @@ import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
 import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
+import { Well } from '@/components/ds/Well'
 
 /** How often the queued row is read back while it is still moving. */
 const POLL_MS = 1000
@@ -172,32 +173,33 @@ export function SendTest({
 /** Where the message got to: the row's own state, and the sentence behind a refusal. */
 function Delivery({ row }: { row: NotificationOut }) {
     return (
-        <div
-            className="space-y-2 rounded-lg border border-border bg-secondary/40 p-3"
-            data-testid="test-delivery"
-            aria-live="polite"
-        >
-            <p className="flex flex-wrap items-center gap-2">
-                <StatusChip status={row.status} />
-                <span className="text-sm">{row.subject}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-                {row.status === 'sent' ? (
-                    <>
-                        {LABELS.alerting.delivered} <Instant at={row.sent_at} />.
-                    </>
-                ) : row.status === 'failed' ? (
-                    counted(row.max_attempts, LABELS.alerting.delivery_stopped)(row.attempt, row.max_attempts)
-                ) : row.attempt === 0 ? (
-                    LABELS.alerting.queued_for_worker
-                ) : (
-                    <>
-                        {LABELS.alerting.attempt_of(row.attempt, row.max_attempts)}{' '}
-                        <Instant at={row.available_at} />.
-                    </>
-                )}
-            </p>
-            {row.error !== null && <p className="text-xs break-words text-critical">{row.error}</p>}
+        <div data-testid="test-delivery" aria-live="polite">
+            <Well className="space-y-2 p-3">
+                <p className="flex flex-wrap items-center gap-2">
+                    <StatusChip status={row.status} />
+                    <span className="text-sm">{row.subject}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                    {row.status === 'sent' ? (
+                        <>
+                            {LABELS.alerting.delivered} <Instant at={row.sent_at} />.
+                        </>
+                    ) : row.status === 'failed' ? (
+                        counted(row.max_attempts, LABELS.alerting.delivery_stopped)(
+                            row.attempt,
+                            row.max_attempts,
+                        )
+                    ) : row.attempt === 0 ? (
+                        LABELS.alerting.queued_for_worker
+                    ) : (
+                        <>
+                            {LABELS.alerting.attempt_of(row.attempt, row.max_attempts)}{' '}
+                            <Instant at={row.available_at} />.
+                        </>
+                    )}
+                </p>
+                {row.error !== null && <p className="text-xs break-words text-critical">{row.error}</p>}
+            </Well>
         </div>
     )
 }

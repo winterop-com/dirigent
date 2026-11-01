@@ -110,7 +110,7 @@ export function StepNode({ data, selected }: NodeProps<DocumentNode>) {
                     </span>
                 )}
                 {data.edited && !data.missing && (
-                    <span className="ml-auto shrink-0 rounded-sm border border-primary px-1 text-primary-ink">
+                    <span className="ml-auto shrink-0 rounded-sm border border-foreground/40 px-1 text-foreground">
                         {LABELS.editor.canvas.edited}
                     </span>
                 )}

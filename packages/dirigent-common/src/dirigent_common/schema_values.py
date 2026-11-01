@@ -9,6 +9,7 @@ Draft 2020-12, saying what the library says, with these differences in how:
 * ``pattern``, ``patternProperties``, and the patterns ``additionalProperties`` and
   ``unevaluatedProperties`` read match with the ``regex`` package in its ``re``-compatible mode,
   which releases the interpreter's lock while it matches and stops at the evaluation's deadline.
+  :func:`matches_whole` gives a format predicate the same match.
 * Every keyword checks the bound :func:`bounded_evaluation` sets before it runs, and raises
   :class:`EvaluationOverrun` once the deadline has passed or the caller has stopped waiting.
 
@@ -98,10 +99,29 @@ def _found(pattern: str, text: str) -> bool:
 
     The match releases the interpreter's lock while it runs.
     """
+    return _matched(_compiled(pattern), text, whole=False)
+
+
+def matches_whole(pattern: "regex.Pattern[str]", text: str) -> bool:
+    """Whether ``pattern`` matches all of ``text``, within what the evaluation has left.
+
+    The match releases the interpreter's lock while it runs, and outside
+    :func:`bounded_evaluation` it is unbounded.
+
+    Raises:
+        EvaluationOverrun: The deadline passed before or during the match, or the caller stopped waiting.
+    """
+    return _matched(pattern, text, whole=True)
+
+
+def _matched(pattern: "regex.Pattern[str]", text: str, *, whole: bool) -> bool:
+    """Search ``text`` for ``pattern``, or match all of it, stopping at the evaluation's deadline."""
     bound = _BOUND.get()
     left = _remaining(bound)
     try:
-        return _compiled(pattern).search(text, concurrent=True, timeout=left) is not None
+        if whole:
+            return pattern.fullmatch(text, concurrent=True, timeout=left) is not None
+        return pattern.search(text, concurrent=True, timeout=left) is not None
     except TimeoutError as error:
         raise EvaluationOverrun(bound.within if bound is not None else timedelta(0)) from error
 
@@ -315,4 +335,4 @@ ValueValidator: Final[Any] = extend_validator(  # pyright: ignore[reportUnknownV
     version="draft2020-12",
 )
 
-__all__ = ["EvaluationOverrun", "ValueValidator", "bounded_evaluation", "canonical_json"]
+__all__ = ["EvaluationOverrun", "ValueValidator", "bounded_evaluation", "canonical_json", "matches_whole"]

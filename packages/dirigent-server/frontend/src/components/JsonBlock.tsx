@@ -37,7 +37,7 @@ export function JsonBlock({ title, text, className }: { title: string; text: str
     return (
         <WindowedPane
             name={title}
-            className="rounded-lg border border-border bg-background"
+            frame="inset"
             windowed={
                 <CodePane
                     value={text}
@@ -49,7 +49,7 @@ export function JsonBlock({ title, text, className }: { title: string; text: str
                 />
             }
         >
-            <pre className={cn('max-h-72 overflow-auto rounded-t-lg p-2 font-mono text-xs', className)}>
+            <pre className={cn('max-h-72 overflow-auto p-2 font-mono text-xs', className)}>
                 {tokens.map((token, at) => (
                     // The list is stable for a given text, so the position is the identity.
                     // oxlint-disable-next-line no-array-index-key

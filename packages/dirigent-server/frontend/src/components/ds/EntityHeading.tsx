@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { headingOf, oneLine, type Addressable } from '@/lib/identity'
+import { Code } from '@/components/ds/Code'
 import { cn } from '@/lib/utils'
 
 /**
@@ -43,8 +44,8 @@ export function EntityHeading({
     const title = (
         <Title
             className={cn(
-                'min-w-0 font-medium',
-                !inTitle && 'text-sm',
+                'min-w-0 font-semibold',
+                !inTitle && 'text-base',
                 panel ? 'break-words' : 'truncate',
                 !heading.named && 'font-mono',
             )}
@@ -54,12 +55,7 @@ export function EntityHeading({
             {heading.title}
         </Title>
     )
-    const code =
-        heading.code === null ? null : (
-            <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={heading.code}>
-                {heading.code}
-            </span>
-        )
+    const code = heading.code === null ? null : <Code value={heading.code} />
     const line =
         description === undefined || description === null || description.trim() === ''
             ? null

@@ -33,6 +33,7 @@ from dirigent_block_sql import markers
 from dirigent_block_sql.markers import ENGINES_GROUP
 from dirigent_block_sql.messages import (
     CONNECT_TIMED_OUT,
+    DATABASE_OUTSIDE_THE_RUN,
     DRIVER_NOT_INSTALLED,
     ENGINE_PACKAGE_MISSING,
     NO_ASYNC_DRIVER,
@@ -206,8 +207,15 @@ GENERIC: Final = SqlAlchemyEngine()
 
 
 def under_work(url: URL, ctx: StepContext) -> URL:
-    """The same URL with its database file placed under the run's own work directory."""
-    database = ctx.work / str(url.database)
+    """The same URL with its database file placed under the run's own work directory.
+
+    The file is the one its path names once every link is followed, and one outside the work
+    directory is refused before any directory is made.
+    """
+    work = ctx.work.resolve()
+    database = (ctx.work / str(url.database)).resolve()
+    if not database.is_relative_to(work) or database == work:
+        raise BlockFailure(DATABASE_OUTSIDE_THE_RUN, error_class=ErrorClass.REJECTED, database=repr(str(url.database)))
     database.parent.mkdir(parents=True, exist_ok=True)
     return url.set(database=str(database))
 

@@ -108,6 +108,7 @@ export function SourceTab({
             )}
             <WindowedPane
                 name={LABELS.editor.source.pane}
+                frame="none"
                 className="min-h-0 flex-1 bg-background"
                 windowed={pane(true)}
             >

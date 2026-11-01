@@ -1,6 +1,7 @@
 """Tests for the sql family, against a SQLite database in the run's work directory."""
 
 import base64
+import sqlite3
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -347,6 +348,57 @@ async def test_a_run_relative_database_lands_in_the_work_directory(ctx: FakeCont
     ctx.scratch_uri = "s3://bucket/runs/one"
     await query(ctx, "SELECT 1")
     assert list(ctx.work.rglob("*.db")), "the database was made under the run's work directory"
+
+
+def another_database(tmp_path: Path) -> Path:
+    """A sqlite file elsewhere on the worker, holding one row a run must not reach."""
+    other = tmp_path / "elsewhere" / "other.db"
+    other.parent.mkdir()
+    with sqlite3.connect(other) as held:
+        held.execute("CREATE TABLE marker (who TEXT)")
+        held.execute("INSERT INTO marker VALUES ('owner')")
+    held.close()
+    return other
+
+
+@pytest.mark.parametrize(
+    ("url", "link"),
+    [
+        ("sqlite+aiosqlite:///data/demo.db", "data/demo.db"),
+        ("sqlite+aiosqlite:///data/demo.db", "data"),
+        ("sqlite+aiosqlite:///data/deeper/demo.db", "data"),
+    ],
+    ids=["file", "directory", "under-a-directory"],
+)
+async def test_a_link_in_the_work_directory_does_not_lead_a_run_relative_database_elsewhere(
+    local_ctx: FakeContext, tmp_path: Path, url: str, link: str
+) -> None:
+    other = another_database(tmp_path)
+    before = other.read_bytes()
+    planted = local_ctx.work / link
+    planted.parent.mkdir(parents=True, exist_ok=True)
+    planted.symlink_to(other if link.endswith(".db") else other.parent)
+    local_ctx.connections["db"] = SqlConnectionConfig(url=url)
+    with pytest.raises(BlockFailure) as raised:
+        await execute(local_ctx, "CREATE TABLE marker (who TEXT)", "INSERT INTO marker VALUES ('changed')")
+    assert raised.value.code == "sql.database_outside_the_run"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert other.read_bytes() == before
+    assert sorted(path.name for path in other.parent.iterdir()) == ["other.db"]
+
+
+async def test_a_run_relative_database_that_climbs_out_is_refused(local_ctx: FakeContext, tmp_path: Path) -> None:
+    local_ctx.connections["db"] = SqlConnectionConfig(url="sqlite+aiosqlite:///../../../planted/demo.db")
+    with pytest.raises(BlockFailure) as raised:
+        await query(local_ctx, "SELECT 1")
+    assert raised.value.code == "sql.database_outside_the_run"
+    assert not list(tmp_path.rglob("planted"))
+
+
+async def test_a_run_relative_database_in_a_subdirectory_of_its_own_still_opens(local_ctx: FakeContext) -> None:
+    local_ctx.connections["db"] = SqlConnectionConfig(url="sqlite+aiosqlite:///data/deeper/demo.db")
+    assert (await query(local_ctx, "SELECT 1 AS one")).rows == [{"one": 1}]
+    assert (local_ctx.work / "data" / "deeper" / "demo.db").is_file()
 
 
 @pytest.mark.parametrize(

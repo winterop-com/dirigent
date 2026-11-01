@@ -9,6 +9,7 @@ import {
 import { foldTags, linesFor, roomFor } from '@/lib/tag-fold'
 import { counted, LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
+import { Chip } from '@/components/ds/Chip'
 
 /**
  * Every tag a listing row wears, inside the room the row's identity has left it.
@@ -60,12 +61,13 @@ export function TagChips({
 function FoldedTags({ tags, onSelect }: { tags: readonly string[]; onSelect?: (tag: string) => void }) {
     const label = counted(tags.length, LABELS.shell.folded_tags)(String(tags.length), tags.join(', '))
     const chip = `+${String(tags.length)}`
-    const face = 'border-border text-muted-foreground rounded-sm border px-1.5 font-mono text-xs'
+    const face =
+        'inline-flex h-5 items-center rounded-sm border border-border px-1.5 font-mono text-xs text-muted-foreground'
     if (onSelect === undefined)
         return (
-            <span className={face} title={label}>
+            <Chip tone="mono" title={label}>
                 {chip}
-            </span>
+            </Chip>
         )
     return (
         <DropdownMenu>

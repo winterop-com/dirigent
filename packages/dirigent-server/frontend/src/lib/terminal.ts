@@ -78,6 +78,11 @@ export function toggleTerminal(): void {
 }
 
 /** Set the drawer's height, in pixels, clamped to what the content area can draw. */
+/** Open the drawer for this visit, leaving the reader's stored preference as it was. */
+export function openTerminal(): void {
+    terminalOpen.set(true)
+}
+
 export function setTerminalHeight(height: number): void {
     const clamped = clampTerminalHeight(height)
     write(HEIGHT_KEY, String(clamped))

@@ -23,6 +23,12 @@ TOO_MANY_ROWS = SQL.define(
     "the query returned more than max_rows ({maximum}) rows; raise max_rows, or narrow the query",
 )
 
+DATABASE_OUTSIDE_THE_RUN = SQL.define(
+    "database_outside_the_run",
+    "the connection names {database}, which leads outside this run's work directory; a database "
+    "named by a relative path is a file inside the run",
+)
+
 NO_JSON_SPELLING = SQL.define("no_json_spelling", "a column of this result has no JSON spelling: {detail}")
 
 

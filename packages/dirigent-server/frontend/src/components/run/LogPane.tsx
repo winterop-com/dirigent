@@ -77,10 +77,7 @@ export function LogPane({
                 const room = element.scrollHeight - element.scrollTop - element.clientHeight
                 setScrolledAway(room > TAIL_SLACK)
             }}
-            className={cn(
-                'overflow-y-auto rounded-lg border border-border bg-background p-2 font-mono',
-                className,
-            )}
+            className={cn('dg-inset overflow-y-auto p-2 font-mono', className)}
         >
             {entries.length === 0 ? (
                 <p className="text-xs text-faint">

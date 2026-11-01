@@ -38,6 +38,10 @@ const RunDetail = lazy(() => import('@/pages/RunDetail').then((module) => ({ def
  * with no pipeline behind it. A static segment outranks a dynamic one, so a document that has
  * not been applied is reached at the address it will keep answering under once it has been.
  */
+/** A pipeline's own page draws the same graph without the editor, in the same chunk family. */
+const PipelinePage = lazy(() =>
+    import('@/pages/PipelinePage').then((module) => ({ default: module.PipelinePage })),
+)
 const PipelineEditor = lazy(() =>
     import('@/pages/PipelineEditor').then((module) => ({ default: module.PipelineEditor })),
 )
@@ -151,6 +155,14 @@ export default function App() {
                 />
                 <Route
                     path="pipelines/:code"
+                    element={
+                        <Suspense fallback={<Loading />}>
+                            <PipelinePage />
+                        </Suspense>
+                    }
+                />
+                <Route
+                    path="pipelines/:code/edit"
                     element={
                         <Suspense fallback={<Loading />}>
                             <PipelineEditor />

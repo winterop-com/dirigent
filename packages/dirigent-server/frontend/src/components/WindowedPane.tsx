@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react'
 
+import { CodeFrame } from '@/components/ds/CodeFrame'
 import { IconButton } from '@/components/ds/IconButton'
+import { Inset } from '@/components/ds/Inset'
 import { ICONS } from '@/lib/icons'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
@@ -32,6 +34,7 @@ import { LABELS } from '@/lib/labels'
  */
 export function WindowedPane({
     name,
+    frame = 'field',
     className,
     onBlur,
     children,
@@ -40,8 +43,12 @@ export function WindowedPane({
 }: {
     /** What the content is called: the window's title, and what the button names. */
     name: string
-    /** What the box around the pane and the button's strip is, which a source pane draws as a
-     * bordered field. */
+    /**
+     * What the box around the pane and the button's strip is: a code editor's field, an inset
+     * of reference material, or nothing where the pane fills a panel of its own.
+     */
+    frame?: 'field' | 'inset' | 'none'
+    /** How the box is sized and laid out. */
     className?: string
     onBlur?: () => void
     /** The pane as it stands in place, at whatever height its caller gave it. */
@@ -52,20 +59,38 @@ export function WindowedPane({
     aside?: ReactNode
 }) {
     const [wide, setWide] = useState(false)
-    return (
-        <div className={cn('flex flex-col', className)} onBlur={onBlur}>
+    const inPlace = (
+        <>
             <div className="flex min-h-0 flex-1 flex-col">{children}</div>
             <div className="flex shrink-0 justify-end p-1.5 pt-0">
                 <IconButton
                     icon={ICONS.open_in_window}
                     label={LABELS.shell.open_in_window(name)}
-                    size="sm"
-                    className="size-6 rounded-md border border-border bg-background text-faint"
+                    size="xs"
+                    variant="outline"
+                    className="text-faint"
                     onClick={() => {
                         setWide(true)
                     }}
                 />
             </div>
+        </>
+    )
+    return (
+        <>
+            {frame === 'field' ? (
+                <CodeFrame className={className} onBlur={onBlur}>
+                    {inPlace}
+                </CodeFrame>
+            ) : frame === 'inset' ? (
+                <div onBlur={onBlur} className="contents">
+                    <Inset className={cn('flex flex-col', className)}>{inPlace}</Inset>
+                </div>
+            ) : (
+                <div className={cn('flex flex-col', className)} onBlur={onBlur}>
+                    {inPlace}
+                </div>
+            )}
             <Dialog open={wide} onOpenChange={setWide}>
                 {/* Focus is not handed back to the control on close: the library restores it
                     after the exit animation, past any blur, and the ring it then wears reads
@@ -85,6 +110,6 @@ export function WindowedPane({
                     </div>
                 </DialogContent>
             </Dialog>
-        </div>
+        </>
     )
 }
