@@ -130,6 +130,23 @@ claude mcp add dirigent -e DG_URL=https://dirigent.example.org -e DG_TOKEN=... -
 Any MCP client starts it the same way: the command `uvx dirigent-mcp`, with `DG_URL` and
 `DG_TOKEN` in its environment. Keep the token where your other secrets are.
 
+**Over HTTP, as a server of your own.** `--transport http` serves the same tools at `/mcp` in front
+of a remote instance, for a client that speaks only HTTP or an instance that turned `/mcp` off. It
+holds no token: each caller presents its own as a bearer token, which the server checks with the
+instance and forwards on every call, and `DG_TOKEN` is never used for them.
+
+```bash
+DG_URL=https://dirigent.example.org uvx dirigent-mcp --transport http --port 3334
+claude mcp add --transport http dirigent http://127.0.0.1:3334/mcp \
+  --header "Authorization: Bearer $DG_TOKEN"
+```
+
+It listens on `127.0.0.1` and answers only to a loopback `Host`, and refuses a request another
+origin's page caused. An address other machines can reach, such as `--host 0.0.0.0`, is refused
+unless `--allow-remote` is given, and is then served with a warning: put TLS in front of it,
+since every request carries a token. `DG_MCP_READ_ONLY=1` offers every caller only the tools that
+read.
+
 **What applying and running reaches.** An agent that may apply a document and run it may write
 a pipeline that runs with any connection the instance holds and sends what it reads anywhere an
 enabled block reaches. Text it reads back -- a log line, a source's input -- can try to steer it

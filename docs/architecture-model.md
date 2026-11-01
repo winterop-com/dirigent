@@ -49,7 +49,7 @@ graph LR
     12-. "Delivers saved exports<br/>[DHIS2 Web API]" .->9
     1-. "Builds pipelines, starts and reads runs<br/>[HTTPS]" .->17
     2-. "Manages connections, users, schedules and alerts" .->17
-    3-. "Calls tools<br/>[MCP over stdio]" .->17
+    3-. "Calls tools<br/>[MCP over stdio, or Streamable HTTP]" .->17
     16-. "Calls an endpoint source<br/>[HTTPS POST /endpoints/...]" .->17
 
   end
@@ -74,7 +74,7 @@ graph TB
       27["Scheduler<br/>[Container: asyncio (Python)]<br/>dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time."]
       28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
       42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
-      43["dirigent-mcp<br/>[Container: MCP over stdio (Python)]<br/>MCP server run as a local command. Every tool is a call the Python client makes; nothing deletes."]
+      43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; nothing deletes."]
       44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
       45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
@@ -84,7 +84,7 @@ graph TB
     1-. "Applies documents, runs and watches pipelines" .->42
     2-. "Manages connections, users, schedules and alerts" .->18
     2-. "Starts processes, migrates, checks health" .->42
-    3-. "Calls tools<br/>[MCP over stdio]" .->43
+    3-. "Calls tools<br/>[MCP over stdio, or Streamable HTTP]" .->43
     3-. "Calls tools with its own token<br/>[MCP over Streamable HTTP, /mcp]" .->19
     18-. "Loads the bundle<br/>[HTTPS]" .->19
     42-. "Applies, runs, cancels, retries<br/>[HTTP/JSON (dirigent-client)]" .->19
@@ -126,12 +126,12 @@ graph TB
 
       18["Web UI<br/>[Container: React SPA]<br/>Pipeline builder, run grid and logs, connections, schedules, sources and alerts. Built from the block catalog."]
       42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
-      43["dirigent-mcp<br/>[Container: MCP over stdio (Python)]<br/>MCP server run as a local command. Every tool is a call the Python client makes; nothing deletes."]
+      43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; nothing deletes."]
       44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
       45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
 
-    3-. "Calls tools<br/>[MCP over stdio]" .->43
+    3-. "Calls tools<br/>[MCP over stdio, or Streamable HTTP]" .->43
     3-. "Calls tools with its own token<br/>[MCP over Streamable HTTP, /mcp]" .->26
     18-. "Loads the bundle<br/>[HTTPS]" .->25
     18-. "Reads and writes<br/>[HTTP/JSON]" .->20

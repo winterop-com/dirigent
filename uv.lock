@@ -1379,6 +1379,7 @@ dependencies = [
     { name = "mcp" },
     { name = "pyyaml" },
     { name = "starlette" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -1388,6 +1389,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=2.3.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "starlette", specifier = ">=1.10.0" },
+    { name = "uvicorn", specifier = ">=0.52.4" },
 ]
 
 [[package]]

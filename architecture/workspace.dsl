@@ -93,7 +93,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
 
             cli = container "dg CLI" "Applies documents, starts and watches runs, and starts the server, worker and scheduler processes." "Typer (Python)"
 
-            mcp = container "dirigent-mcp" "MCP server run as a local command. Every tool is a call the Python client makes; nothing deletes." "MCP over stdio (Python)"
+            mcp = container "dirigent-mcp" "MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; nothing deletes." "MCP over stdio or Streamable HTTP (Python)"
 
             db = container "Database" "Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry." "PostgreSQL 17; SQLite under dg dev" {
                 tags "Database" "PostgreSQL"
@@ -109,7 +109,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
         author -> dirigent.cli "Applies documents, runs and watches pipelines"
         operator -> dirigent.ui "Manages connections, users, schedules and alerts"
         operator -> dirigent.cli "Starts processes, migrates, checks health"
-        agent -> dirigent.mcp "Calls tools" "MCP over stdio"
+        agent -> dirigent.mcp "Calls tools" "MCP over stdio, or Streamable HTTP"
         agent -> dirigent.server.mcpEndpoint "Calls tools with its own token" "MCP over Streamable HTTP, /mcp"
 
         # --- Clients to the API server -----------------------------------
