@@ -51,6 +51,10 @@ from dirigent_plugin.sources import Polled, PolledSource
 #: How many doublings the backoff takes before the cap is all that is left of it.
 MAX_BACKOFF_DOUBLINGS: Final = 30
 
+#: The least a worker waits between two looks for due sources, so a source due again at once
+#: is polled again at once without a source that is always due spinning the worker.
+POLL_FLOOR: Final = timedelta(milliseconds=50)
+
 _logger = get_logger("sources.polling")
 
 
@@ -143,6 +147,28 @@ async def claim_due(session: AsyncSession, services: EngineServices, *, owner: s
         row.lease_expires_at = now + lease
         claimed.append(Claimed(source_id=row.id, pipeline_id=row.pipeline_id, room=room))
     return claimed
+
+
+async def until_due(session: AsyncSession, services: EngineServices, *, now: datetime, cap: timedelta) -> timedelta:
+    """How long until the earliest polled source nobody holds falls due, at least ``POLL_FLOOR`` and at most ``cap``."""
+    names = [name for name, kind in services.sources.items() if isinstance(kind, PolledSource)]
+    if not names:
+        return cap
+    found = await session.execute(
+        sa.select(sa.func.min(Source.next_poll_at))
+        .join(Pipeline, Pipeline.id == Source.pipeline_id)
+        .where(
+            Source.kind.in_(names),
+            Source.next_poll_at.is_not(None),
+            Source.paused.is_(False),
+            Pipeline.active.is_(True),
+            sa.or_(Source.lease_expires_at.is_(None), Source.lease_expires_at <= now),
+        )
+    )
+    earliest = found.scalar_one_or_none()
+    if earliest is None:
+        return cap
+    return min(max(earliest - now, POLL_FLOOR), cap)
 
 
 def _after(now: datetime, cadence: timedelta, lease: timedelta) -> datetime:

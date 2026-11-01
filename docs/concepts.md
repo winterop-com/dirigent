@@ -259,7 +259,9 @@ once. So a sensor whose success says where it left off -- `playground.arrive` an
 `kafka.consume` both do -- is read on from where the last batch ended, run after run, and the
 runs overlap: batch N is being transformed while batch N+1 is being waited for. The sensor's
 `ctx.started_at` is when the source began waiting, the last success or the first poll, so a
-sensor that waits a duration measures it from there. Only a sensor whose spec declares it a
+sensor that waits a duration measures it from there. A worker sleeps until the earliest polled
+source falls due, at most `source_poll_tick` and never less than 50 milliseconds, so a `poll`
+shorter than the tick is kept and "at once" is within 50 milliseconds. Only a sensor whose spec declares it a
 source may be named, and the apply refuses any other (`source.sensor_not_a_source`) or one no
 installed pack provides (`source.sensor_unknown`); a sensor that reads what only a run has --
 scratch, work, runs, capture, a schema, the run id -- fails the poll with

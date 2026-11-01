@@ -19,6 +19,12 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**A polled source keeps a cadence shorter than the poll tick.** A worker used to look for due
+sources only every `source_poll_tick` (5s), so a sensor source with `poll: 1s` ran every five
+seconds and "poked again at once after a success" waited out the tick. A worker now sleeps until
+the earliest polled source falls due, at most `source_poll_tick` and never less than 50
+milliseconds. `source_poll_tick` is now the longest a worker goes without looking.
+
 **An endpoint source says where it is called and how.** The pipeline page, the editor's step
 panel and the triggers screen's panel show an endpoint's methods and full URL with a copy button,
 and how a caller authenticates: a bearer token, an HMAC signature, or public. `New token` (`New
