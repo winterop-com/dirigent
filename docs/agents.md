@@ -167,12 +167,26 @@ text that is not a document, and the file is not opened.
 | `list_blocks`, `get_block`, `list_examples`, `get_example` | The catalog and the shipped examples, to write a document from |
 | `plan_document`, `apply_document` | Check a document against the instance, then store it |
 | `list_pipelines`, `get_pipeline`, `export_pipeline`, `validate_pipeline` | What the instance holds |
-| `run_pipeline`, `list_runs`, `get_run`, `run_attempts`, `run_logs` | Start a run, optionally waiting for it, and read how it went |
+| `run_pipeline`, `list_runs`, `get_run`, `run_attempts`, `run_logs` | Start a run, optionally waiting for it, and read how it went; `get_run` says how a source's input arrived (`via`) and what the run stored (`stored_bytes`) |
 | `run_stats` | How the runs of a window went: per day, each pipeline's p50, p95 and max duration, and what failed most |
 | `cancel_run`, `pause_run`, `resume_run`, `retry_attempt`, `rerun_run` | Stop a run, pause or resume one, retry one attempt, or run a settled run again with its parameters and source input |
-| `list_sources`, `source_inputs`, `pause_source`, `resume_source` | The input sources and what arrived |
+| `list_sources`, `get_source`, `source_inputs`, `pause_source`, `resume_source` | The input sources and what arrived; `get_source` gives an endpoint's full URL and how a caller authenticates, never its token |
+| `rotate_source_token` | Mint an endpoint source a new token or signing secret, shown once, shutting out every caller of the old one |
+| `list_connections`, `get_connection`, `check_connection` | The connections a document can name, every secret redacted, and whether one's system answers (admin only) |
+| `list_schemas`, `get_schema` | The named JSON Schemas a document can reference |
+| `list_alert_rules`, `get_alert_rule` | What alerts on what, and where it sends |
 | `list_schedules`, `pause_schedule`, `resume_schedule` | The clocks |
 | `instance_info`, `whoami` | The instance's version and what it has installed, and who the calls act as |
+
+Every tool carries the MCP hints a client asks by: `readOnlyHint` on every read,
+`destructiveHint` on `apply_document`, `cancel_run` and `rotate_source_token`, `idempotentHint`
+where asking twice does no more than asking once, and `openWorldHint` on what starts a run or
+reaches a connection's system.
+
+Two resources hold what a document is written against, read from the instance so they match
+what it has installed: `dirigent://schema/document`, the JSON Schema of the format with every
+block's config in it, and `dirigent://blocks`, the block catalogue, with
+`dirigent://blocks/{block_id}` for one block's config and output schemas.
 
 ## Giving it the documentation
 

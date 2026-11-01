@@ -24,6 +24,10 @@ class Alerts(Resource):
         """List every alert rule, with the pipeline each one watches when it is scoped."""
         return await self._many(AlertRuleOut, "GET", "/alert-rules", params=query(after=after, limit=limit))
 
+    async def rule(self, code: str) -> AlertRuleOut:
+        """Read one alert rule."""
+        return await self._one(AlertRuleOut, "GET", f"/alert-rules/{segment(code)}")
+
     async def create_rule(
         self,
         code: str,

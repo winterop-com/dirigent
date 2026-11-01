@@ -6,7 +6,6 @@ the API already has decide what the caller's role may do.
 """
 
 from contextlib import AbstractAsyncContextManager, nullcontext
-from typing import Final
 
 import httpx2
 from fastapi import FastAPI, status
@@ -23,9 +22,6 @@ from dirigent_server.errors import answer, render
 from dirigent_server.messages import MCP_CROSS_ORIGIN, UNAUTHENTICATED
 from dirigent_server.security import initiated_elsewhere
 
-#: The origin a tool's in-process request is addressed to: a loopback name, which a loopback-only server answers.
-IN_PROCESS_URL: Final = "http://localhost"
-
 
 def install_mcp(app: FastAPI, settings: Settings) -> None:
     """Mount ``/mcp`` when the instance serves it. Registered before the UI shell, which would otherwise claim it."""
@@ -39,9 +35,9 @@ def install_mcp(app: FastAPI, settings: Settings) -> None:
             return None
         return Caller(key=str(principal.token_id), may_operate=principal.may_operate)
 
-    def open_client(secret: str) -> Dirigent:
+    def open_client(secret: str, request: Request) -> Dirigent:
         return Dirigent(
-            url=IN_PROCESS_URL,
+            url=f"{request.url.scheme}://{request.url.netloc}",
             token=secret,
             http_transport=httpx2.ASGITransport(app),
             api_prefix=settings.api_prefix,
