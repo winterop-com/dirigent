@@ -10,6 +10,11 @@ JQ_MEDIA_TYPE: Final = "application/jq"
 #: at run: a value reaches the expression as a variable the block binds, read as ``%name``.
 FHIRPATH_MEDIA_TYPE: Final = "application/fhirpath"
 
+#: A CQL library, as the FHIR pack's ``fhir.cql`` and ``fhir.measure`` take one. A field
+#: publishing this takes no ``${...}`` reference, at apply or at run: a value reaches the library
+#: as a CQL parameter the block passes by name.
+CQL_MEDIA_TYPE: Final = "text/cql"
+
 #: A string handed to a shell to parse, as ``shell.run`` and ``docker.run`` take one.
 SHELL_MEDIA_TYPE: Final = "text/x-shellscript"
 

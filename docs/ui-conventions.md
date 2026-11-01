@@ -922,10 +922,10 @@ table back.
 `contentMediaType` -- `application/jq` for the three jq verbs, `text/x-shellscript` for the shell
 string `shell.run` and `docker.run` take, `application/sql` for a query, `text/x-jinja` for a
 report's template, `application/x-compose+yaml` for an inline compose file, `application/fhirpath`
-for the FHIR pack's FHIRPath verbs -- gets the same Monaco a
+for the FHIR pack's FHIRPath verbs, `text/cql` for its CQL library -- gets the same Monaco a
 document is written in, through the same `CodePane`, so a jq program is read on the lines it was
 written on. `dirigent_common.programs` is where the
-six are spelled, and the schema is what decides this and nothing else: every other string stays
+seven are spelled, and the schema is what decides this and nothing else: every other string stays
 one line, however long a value it holds.
 
 **A document is written in one editor wherever it is written.** The editor's source pane and a

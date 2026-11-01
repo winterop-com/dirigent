@@ -173,6 +173,16 @@ def test_a_reference_in_a_fhirpath_expression_is_refused_and_one_in_its_variable
     assert resolved == {"expression": "date = %day", "variables": {"day": "2026-08-28"}}
 
 
+def test_a_reference_in_a_cql_library_is_refused_and_one_in_its_parameters_resolves(scope: ReferenceScope) -> None:
+    with pytest.raises(UnknownReference) as raised:
+        resolve_config({"library": "define Day: @${params.day}"}, scope, cql_fields={"library"})
+    assert raised.value.code == "reference.in_cql"
+    resolved = resolve_config(
+        {"library": "parameter Day String", "parameters": {"Day": "${params.day}"}}, scope, cql_fields={"library"}
+    )
+    assert resolved == {"library": "parameter Day String", "parameters": {"Day": "2026-08-28"}}
+
+
 def test_a_reference_beside_a_nested_sql_field_resolves(scope: ReferenceScope) -> None:
     resolved = resolve_config(
         {"source": {"query": "SELECT :day", "params": {"day": "${params.day}"}}},

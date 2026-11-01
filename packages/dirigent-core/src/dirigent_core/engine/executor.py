@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dirigent_client.enums import AttemptKind, AttemptStatus, LogLevel, RunStatus
 from dirigent_common import (
     COMPOSE_MEDIA_TYPE,
+    CQL_MEDIA_TYPE,
     FHIRPATH_MEDIA_TYPE,
     JQ_MEDIA_TYPE,
     TEMPLATE_MEDIA_TYPE,
@@ -349,6 +350,7 @@ class Engine:
                 template_fields=media_fields(block.config_model, TEMPLATE_MEDIA_TYPE),
                 compose_fields=media_fields(block.config_model, COMPOSE_MEDIA_TYPE),
                 fhirpath_fields=media_fields(block.config_model, FHIRPATH_MEDIA_TYPE),
+                cql_fields=media_fields(block.config_model, CQL_MEDIA_TYPE),
             )
             block.config_model.model_validate(config)
             _logger.debug(
