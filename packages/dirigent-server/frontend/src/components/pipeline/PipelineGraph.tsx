@@ -36,7 +36,7 @@ import {
     type LayoutShape,
 } from '@/lib/dag-layout'
 import {
-    blockOf,
+    stepRuns,
     edgesIn,
     fanOutOf,
     sourceKindOf,
@@ -188,7 +188,7 @@ function EditableGraph({
         () => ({
             nodes: stepNames(document).map((name) => {
                 const heading = stepHeading(document, name)
-                const block = blockOf(document, name) ?? LABELS.editor.no_block
+                const block = stepRuns(document, name)
                 const line = heading.code === null ? block : `${heading.code} · ${block}`
                 const fan = fanOutOf(document, name)
                 const marker = !fan.fanOut
@@ -234,7 +234,7 @@ function EditableGraph({
                 selected: node.id === selected,
                 data: {
                     ...stepHeading(document, node.id),
-                    block: blockOf(document, node.id) ?? LABELS.editor.no_block,
+                    block: stepRuns(document, node.id),
                     listens: kind === null ? null : listeningLine(sources, node.id, kind),
                     edited: stepEdited(edits, node.id),
                     missing: stepMissing(unmet, node.id),

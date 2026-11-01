@@ -17,6 +17,29 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The three sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**An endpoint source says where it is called and how.** The pipeline page, the editor's step
+panel and the triggers screen's panel show an endpoint's methods and full URL with a copy button,
+and how a caller authenticates: a bearer token, an HMAC signature, or public. `New token` (`New
+secret` on a signed source) asks first, then shows the new credential once with a `curl` line that
+calls the endpoint with it. The triggers screen used to replace a token without asking.
+
+**A run says how it started, and whether its reply reached anybody.** The run page reads `by admin,
+from the sample`, `by admin, with an input given`, or `by a call to ask`. A reply's box says `sent`
+or `not sent`, and its panel says `sent to the caller` or `recorded, not sent`. The `Run…` dialog on
+a pipeline with a source says it starts from the source's sample and that nobody receives the reply.
+`AttemptOut` gains `via`, how a source's input arrived (`request`, `poll`, `hold`, `hand`, or
+`sample` for a hand run that gave no input).
+
+**A step that runs no block says what it is.** The editor's canvas and step panel name a reply
+`reply`, as the run graph does, rather than `no block`, and the pipeline page draws no Blocks panel
+for a pipeline whose steps run none.
+
+**`dirigent-contrib` moves with each release.** It relocks at the tagged commit and takes the same
+version as `dirigent-dhis2` and `dirigent-integration`, and the integration `make test` that is run
+before a release is called done covers it.
+
 ## 0.29.0
 
 Released 2026-11-01. Every package in the workspace moves to 0.29.0 together, and so do

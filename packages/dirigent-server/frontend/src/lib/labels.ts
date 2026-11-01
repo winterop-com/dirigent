@@ -1477,6 +1477,8 @@ const editor = {
     no_document: 'This pipeline has no version, so there is no document to read.',
     /** Where a step's block would be named, on a step that names none. */
     no_block: 'no block',
+    /** Where a step's block would be named, on a step that is a reply. */
+    reply: 'reply',
     /** What a step with no prerequisites waits for. */
     no_prerequisites: 'nothing; this step is a root',
     /** A code naming a connection this instance does not hold. */
