@@ -43,7 +43,7 @@ converter's `source` and `target`), `execute` (shell and docker), `sql`, `git`, 
 (`playground.generate` and `playground.arrive`), and `sensor` for any sensor block. The
 **behaviours** are what the document teaches and what a reader filters by: `schedule`,
 `fan-out`, `graph`, `failure`, `retry`, `timeout`, `concurrency`, `params`, `references`,
-`rules`, `priority`, `importance`, `alerting`, `window`, `composition`, `forms`, `credential`,
+`rules`, `priority`, `window`, `composition`, `credential`,
 `outputs`, `filter`, `map`, `relay`, `csv`, `parquet`, `jq`, `sparql`, `geocode`, `briefing`,
 `observability`, `conventions`, `report` for a document that declares a `report:` section, so
 every run of it writes its own account of itself, or renders a page of its own with

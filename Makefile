@@ -33,7 +33,7 @@ COMPOSE_SINKS ?= $(COMPOSE) -f infra/compose.sinks.yaml
 #: Every overlay at once, which is what "take it all away" has to name to reach every volume.
 COMPOSE_ALL ?= $(COMPOSE) -f infra/compose.brokers.yaml -f infra/compose.sql.yaml -f infra/compose.otel.yaml -f infra/compose.sinks.yaml
 
-.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-shots ui-test ui-e2e ui-gate ui-static ui-wheel docs-shots docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-affected test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf architecture architecture-validate architecture-export architecture-export-docs architecture-check-docs architecture-clean clean refresh
+.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-shots ui-test ui-e2e ui-gate ui-static ui-wheel docs-shots docs-shots-basics docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-affected test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf architecture architecture-validate architecture-export architecture-export-docs architecture-check-docs architecture-clean clean refresh
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -157,6 +157,9 @@ ui-shots: ## Photograph every screen in both palettes against a seeded instance,
 
 docs-shots: ## Photograph the nine screens docs/screens.md renders, into docs/images/screens
 	cd $(FRONTEND) && bunx playwright test --config docs-shots.config.ts
+
+docs-shots-basics: ## Photograph the ten pictures docs/basics.md renders, into docs/images/basics (binds 3333)
+	cd $(FRONTEND) && bunx playwright test --config docs-basics.config.ts
 
 ui-gate: ## The UI's half of `make check`, skipped loudly where there is no bun to run it
 	@if [ -z "$(BUN)" ]; then \

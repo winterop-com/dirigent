@@ -5,8 +5,7 @@ The canonical first script: everything a CI job or a scheduler-of-schedulers doe
     export DG_URL=http://127.0.0.1:3333 DG_TOKEN=...
     uv run python examples/python/apply_and_run.py
 
-hello-world.yaml uses shell.run, which executes code on the worker, so the instance must
-allowlist it: DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]'.
+hello-world.yaml is one value.const step, so the instance needs nothing allowlisted to run it.
 """
 
 import asyncio
