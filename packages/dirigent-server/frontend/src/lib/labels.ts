@@ -1154,6 +1154,8 @@ const refused = {
         idempotency_key_required:
             'An Idempotency-Key header is required, so a retried request creates one attempt.',
         internal: 'The server failed to handle this request. The server log has the detail.',
+        mcp_cross_origin:
+            'This MCP request was caused by a page on another origin, which this instance does not answer.',
         no_alert_rule: 'No alert rule coded {code}.',
         no_artifact: 'No artifact {artifact_id}.',
         no_attempt: 'No attempt {attempt_id}.',

@@ -6,22 +6,30 @@ document stops declaring: a source, with its input journal and its token, and a 
 document managed. Applying and running a document is still the whole of the instance's reach: a
 pipeline the agent writes runs with every connection the instance holds. Read-only, the server
 offers the reading tools alone.
+
+Over stdio one client carries the token the environment names; over HTTP each call carries the
+bearer token of the request it arrived on (see :mod:`dirigent_mcp.http`).
 """
 
 import os
 import sys
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextvars import ContextVar
 from datetime import timedelta
-from typing import Any, Final
+from typing import Any, Final, cast
 
 from mcp.server import MCPServer
+from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 from pydantic import TypeAdapter
+from starlette.requests import Request
 
 from dirigent_client import BlockKind, Dirigent, DirigentError, RunStatus
 from dirigent_client.resources.pipelines import parse_document
 from dirigent_common import JsonMap
+from dirigent_mcp.messages import NO_INSTANCE
 
 #: Where the server finds its instance and its token, the names `dg` reads them from.
 URL_ENV: Final = "DG_URL"
@@ -54,25 +62,39 @@ document stops declaring them, so plan first and keep every source and schedule 
 A run is started with run_pipeline, read with get_run, run_logs and run_attempts, and run again with rerun_run."""
 
 
-class Clients:
-    """The client the tools share, opened on the first call so it lives on the server's loop."""
+#: Opens the client one call is made through, and closes it after when it is that call's own.
+Connect = Callable[[], AbstractAsyncContextManager[Dirigent]]
 
-    def __init__(self, open_client: Callable[[], Dirigent]) -> None:
-        """Hold how to open the client, not the client itself."""
-        self._open = open_client
-        self._client: Dirigent | None = None
-
-    def get(self) -> Dirigent:
-        """The client, opened now if no call has opened it yet."""
-        if self._client is None:
-            self._client = self._open()
-        return self._client
+#: The HTTP request the message being handled arrived on; nothing over stdio.
+ARRIVED_ON: ContextVar[Request | None] = ContextVar("dirigent_mcp_arrived_on", default=None)
 
 
-def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MCPServer:
-    """Build the server whose tools call the instance ``open_client`` connects to, or only its reading ones."""
-    server = MCPServer(name="dirigent", instructions=INSTRUCTIONS, log_level="WARNING")
-    clients = Clients(open_client)
+def shared(open_client: Callable[[], Dirigent]) -> Connect:
+    """One client for every call, opened on the first so it lives on the server's loop."""
+    opened: list[Dirigent] = []
+
+    @asynccontextmanager
+    async def connect() -> AsyncGenerator[Dirigent]:
+        if not opened:
+            opened.append(open_client())
+        yield opened[0]
+
+    return connect
+
+
+async def remember_request(ctx: ServerRequestContext[Any, Any], call_next: CallNext) -> HandlerResult:
+    """Hold the HTTP request a message arrived on while it is handled, for a tool to read its credential."""
+    request = ctx.request
+    held = ARRIVED_ON.set(cast(Request, request) if isinstance(request, Request) else None)
+    try:
+        return await call_next(ctx)
+    finally:
+        ARRIVED_ON.reset(held)
+
+
+def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
+    """Build the server whose tools call the instance through ``connect``, or only its reading ones."""
+    server = MCPServer(name="dirigent", instructions=INSTRUCTIONS, log_level="WARNING", middleware=[remember_request])
 
     def tool[F: Callable[..., Any]](annotations: ToolAnnotations) -> Callable[[F], F]:
         """Register a tool, unless the server reads only and this tool writes."""
@@ -83,7 +105,8 @@ def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MC
     async def call[T](work: Callable[[Dirigent], Awaitable[T]]) -> Any:
         """Make one call, answering with its JSON, and a refusal as a tool error the agent reads."""
         try:
-            answer = await work(clients.get())
+            async with connect() as dg:
+                answer = await work(dg)
         except DirigentError as error:
             raise ToolError(str(error)) from error
         return _json(answer)
@@ -92,6 +115,11 @@ def build(open_client: Callable[[], Dirigent], *, read_only: bool = False) -> MC
     async def instance_info() -> Any:
         """Describe the instance: its version, database, and how many blocks it has installed."""
         return await call(lambda dg: dg.system.info())
+
+    @tool(READS)
+    async def whoami() -> Any:
+        """Say who these calls act as: the account, its role, and the name of the token presented."""
+        return await call(lambda dg: dg.auth.whoami())
 
     @tool(READS)
     async def list_pipelines(
@@ -309,8 +337,8 @@ def main() -> None:
     """Serve over stdio, against the instance and with the token the environment names."""
     url = os.environ.get(URL_ENV)
     if not url:
-        sys.stderr.write(f"dirigent-mcp: set {URL_ENV} to the instance, and {TOKEN_ENV} to an API token for it\n")
+        sys.stderr.write(f"dirigent-mcp: {NO_INSTANCE.render(url_env=URL_ENV, token_env=TOKEN_ENV)}\n")
         raise SystemExit(2)
     token = os.environ.get(TOKEN_ENV)
     read_only = os.environ.get(READ_ONLY_ENV, "").strip().lower() in {"1", "true", "yes"}
-    build(lambda: Dirigent(url=url, token=token), read_only=read_only).run("stdio")
+    build(shared(lambda: Dirigent(url=url, token=token)), read_only=read_only).run("stdio")

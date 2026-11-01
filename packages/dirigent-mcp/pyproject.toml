@@ -15,6 +15,7 @@ dependencies = [
     "dirigent-common==0.29.0",
     "mcp>=2.3.0",
     "pyyaml>=6.0.3",
+    "starlette>=1.10.0",
 ]
 
 [project.scripts]

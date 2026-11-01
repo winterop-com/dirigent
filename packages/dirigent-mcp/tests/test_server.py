@@ -73,7 +73,7 @@ async def server(settings: Settings, token: str) -> AsyncIterator[MCPServer]:
         app.router.lifespan_context(app),
         Dirigent(url="http://testserver", token=token, http_transport=transport) as client,
     ):
-        yield mcp_server.build(lambda: client)
+        yield mcp_server.build(mcp_server.shared(lambda: client))
 
 
 async def call(server: MCPServer, tool: str, **arguments: Any) -> Any:
@@ -172,7 +172,7 @@ async def test_a_plan_names_the_schedule_applying_would_retire_and_retires_nothi
 
 async def test_a_read_only_server_offers_only_the_tools_that_read(server: MCPServer) -> None:
     every = {tool.name: tool for tool in await server.list_tools()}
-    reading = mcp_server.build(lambda: pytest.fail("listing tools opens no client"), read_only=True)
+    reading = mcp_server.build(mcp_server.shared(lambda: pytest.fail("listing tools opens no client")), read_only=True)
     offered = {tool.name for tool in await reading.list_tools()}
     assert offered == {name for name, tool in every.items() if tool.annotations and tool.annotations.read_only_hint}
     assert {"apply_document", "run_pipeline", "cancel_run", "pause_source"}.isdisjoint(offered)

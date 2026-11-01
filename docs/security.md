@@ -30,7 +30,8 @@ rather than leaving the gap for you to find.
 **What it is designed to resist.**
 
 - An unauthenticated caller reaching anything but the health probes, the login route, the
-  OpenAPI document, and the endpoint sources a pipeline declares.
+  OpenAPI document, and the endpoint sources a pipeline declares. `/mcp` takes the same API
+  tokens and reaches only what they reach.
 - Enumeration of accounts through the login endpoint -- a missing account and a wrong password
   return the same answer and take the same time, because a short-circuit on a missing user
   answered "does this account exist?" to anyone with a stopwatch.
@@ -255,6 +256,45 @@ source's token or signature is its credential, and no browser holds one.
 uvicorn is trusting it, or the fallback `Origin` comparison sees `http` where the browser
 said `https`. Current browsers send `Sec-Fetch-Site`, which is checked first and carries no
 scheme, so this only bites older ones.
+
+### MCP at `/mcp`
+
+The server answers MCP over Streamable HTTP at `/mcp`, so an agent anywhere can operate the
+instance with its own API token (see [working with a coding agent](agents.md#over-mcp-against-a-running-instance)).
+It exposes nothing the API does not: every tool is a request to this instance's own `/api/v1`,
+made in process with the bearer token the MCP request presented, so the API's routes decide what
+the caller's role may do and its refusals come back as tool errors. `DIRIGENT_MCP_ENABLED=false`
+unmounts it, and `/mcp` then answers 404.
+
+- **A bearer token, on every request.** `/mcp` reads `Authorization: Bearer` and nothing else; the
+  session cookie does not authenticate there. A request without a token that resolves -- missing,
+  revoked, expired, its account deactivated -- is answered 401 with `WWW-Authenticate: Bearer`
+  (`server.unauthenticated`) before its body is read, so a stranger gets no session and no memory.
+  The token is resolved again on every request, so revoking it ends the agent's access on its next
+  call, mid-session.
+- **A session answers only the token that opened it.** A request naming another credential's
+  `Mcp-Session-Id` is answered 404, as if the session did not exist.
+- **A viewer is offered only the reading tools.** A token whose role may not operate gets a
+  server with every tool that writes left out, so a client never offers its model a call the API
+  would refuse with 403. The role is the API's `may_operate`, the same rule its routes apply, and
+  whatever a tool calls is still decided by the route it reaches.
+- **The origin is checked, as the MCP specification requires against DNS rebinding.** A request a
+  browser says another site caused (`Sec-Fetch-Site` other than `same-origin` or `none`) or whose
+  `Origin` is not this instance's own scheme, host and port is answered 403
+  (`server.mcp_cross_origin`). A request carrying neither, which is what every MCP client that is
+  not a web page sends, passes. On a loopback `dg dev`, `/mcp` also answers only to a loopback
+  `Host`, as every other path does, and its answers carry the same security headers.
+- **Bounded.** A message is read up to `mcp_max_body` (4 MiB) and a larger one is answered 413. A
+  session with no request in flight for `mcp_session_idle` (30 minutes) is closed, and one process
+  holds at most `mcp_max_sessions` (256) sessions for callers who may operate and as many for
+  callers who may only read; past that, a new session is answered 503. Like the rest of the
+  authenticated API, `/mcp` is not rate limited.
+
+There is no OAuth discovery at `/mcp`: no `/.well-known/oauth-protected-resource`, and no
+`resource_metadata` in the 401. The instance's credential is its own API token, minted by an
+admin, and it has no authorization server to point a client at. A client connects by sending the
+token as a header it is configured with. That changes when an identity provider does, which is
+the open OIDC question below.
 
 ## What authorizes
 
@@ -1073,7 +1113,8 @@ Stated plainly, because a security page that lists only what exists is not much 
   family, are refused beside a `connection` the same way (`http.routing_header_refused`), whatever
   their value and however they are spelled. An absolute link the
   service itself hands back, such as a next page on the same origin, is still followed. A step that calls another service names no connection and gives the `url`.
-- **Rate limiting on the authenticated API.** Only login and endpoint sources are limited.
+- **Rate limiting on the authenticated API.** Only login and endpoint sources are limited, and `/mcp`
+  is not.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every
   cookie-authenticated write described in [cross-site writes](#cross-site-writes), on top of
   the cookie's `SameSite=Lax`. That is the modern shape and it is what the UI relies on; a

@@ -100,21 +100,44 @@ stay. `plan_document` lists what would go under `sources.removed` and
 `triggers.schedules_removed`, and `apply_document` carries the destructive hint, so a client that
 asks before such a call asks here.
 
+Mint the agent a token of its own first; it is shown once:
+
 ```bash
-dg admin token create agent --user AGENT_USER     # the token is shown once
+dg admin token create agent --user AGENT_USER
+```
+
+**Over HTTP, from the instance itself.** Every dirigent server answers MCP over Streamable HTTP
+at `/mcp`. Point the client at it and send the token as a header:
+
+```bash
+claude mcp add --transport http dirigent https://dirigent.example.org/mcp \
+  --header "Authorization: Bearer $DG_TOKEN"
+```
+
+Nothing is installed beside the agent, and each request acts as the token it presents: two
+agents with two tokens are two callers, and a `viewer` token is offered only the tools that read.
+There is no OAuth sign-in to go through; a client that supports custom headers on an HTTP server
+connects with the token as above. `DIRIGENT_MCP_ENABLED=false` turns `/mcp` off. See
+[MCP at `/mcp`](security.md#mcp-at-mcp) for how it is guarded.
+
+**Over stdio, as a local command.** The same tools run as a process the client starts, with the
+instance and the token in its environment:
+
+```bash
 claude mcp add dirigent -e DG_URL=https://dirigent.example.org -e DG_TOKEN=... -- uvx dirigent-mcp
 ```
 
-Any MCP client starts it the same way: the command `uvx dirigent-mcp` over stdio, with
-`DG_URL` and `DG_TOKEN` in its environment. Keep the token where your other secrets are.
+Any MCP client starts it the same way: the command `uvx dirigent-mcp`, with `DG_URL` and
+`DG_TOKEN` in its environment. Keep the token where your other secrets are.
 
 **What applying and running reaches.** An agent that may apply a document and run it may write
 a pipeline that runs with any connection the instance holds and sends what it reads anywhere an
 enabled block reaches. Text it reads back -- a log line, a source's input -- can try to steer it
 there. So choose the role for what the agent is for:
 
-- **To read and diagnose,** give it a `viewer` token and set `DG_MCP_READ_ONLY=1`. The instance
-  refuses every write from a viewer, and the server offers only the tools that read.
+- **To read and diagnose,** give it a `viewer` token. The instance refuses every write from a
+  viewer, and `/mcp` offers it only the tools that read; over stdio, set `DG_MCP_READ_ONLY=1` for
+  the same.
 - **To write and run,** give it an `operator` token, never `admin`, on an instance whose
   connections and enabled blocks you would let it use; a staging instance is the usual place.
 
@@ -132,7 +155,7 @@ text that is not a document, and the file is not opened.
 | `cancel_run`, `retry_attempt`, `rerun_run` | Stop a run, retry one attempt, or run a settled run again with its parameters and source input |
 | `list_sources`, `source_inputs`, `pause_source`, `resume_source` | The input sources and what arrived |
 | `list_schedules`, `pause_schedule`, `resume_schedule` | The clocks |
-| `instance_info` | The instance's version and what it has installed |
+| `instance_info`, `whoami` | The instance's version and what it has installed, and who the calls act as |
 
 ## Giving it the documentation
 

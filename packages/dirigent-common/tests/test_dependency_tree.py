@@ -20,7 +20,14 @@ ALLOWED: Final[dict[str, set[str]]] = {
     "dirigent-plugin": {"dirigent-common"},
     "dirigent-client": {"dirigent-common"},
     "dirigent-core": {"dirigent-common", "dirigent-plugin", "dirigent-client"},
-    "dirigent-server": {"dirigent-common", "dirigent-plugin", "dirigent-client", "dirigent-core", "dirigent-examples"},
+    "dirigent-server": {
+        "dirigent-common",
+        "dirigent-plugin",
+        "dirigent-client",
+        "dirigent-core",
+        "dirigent-examples",
+        "dirigent-mcp",
+    },
     "dirigent-cli": {
         "dirigent-common",
         "dirigent-plugin",

@@ -15,7 +15,9 @@ dependencies = [
     "dirigent-common==0.29.0",
     "dirigent-core==0.29.0",
     "dirigent-examples==0.29.0",
+    "dirigent-mcp==0.29.0",
     "fastapi>=0.142.2",
+    "httpx2>=2.12.0",
 ]
 
 [build-system]
@@ -26,3 +28,4 @@ build-backend = "uv_build"
 dirigent-client = { workspace = true }
 dirigent-core = { workspace = true }
 dirigent-examples = { workspace = true }
+dirigent-mcp = { workspace = true }

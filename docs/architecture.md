@@ -15,7 +15,7 @@ dirigent-common          value types and shared schemas                 -> nothi
 dirigent-plugin          the block contract                             -> common
 dirigent-client          wire schemas and the SDK                       -> common
 dirigent-core            engine, scheduler, triggers, alerting          -> common, plugin, client
-dirigent-server          the API and auth                               -> common, plugin, client, core, examples
+dirigent-server          the API, auth, and MCP at /mcp                 -> common, plugin, client, core, examples, mcp
 dirigent-cli             the commands                                   -> common, plugin, client, core, server,
                                                                            blocks, block-execute, examples
 dirigent-examples        the example corpus                             -> common, plugin, client

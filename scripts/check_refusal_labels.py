@@ -59,8 +59,8 @@ WORDLESS: Final = re.compile(r"^\{[a-z_][a-z0-9_]*\}$")
 #: A named hole, as both catalogues write one.
 HOLE: Final = re.compile(r"\{([a-z_][a-z0-9_]*)\}")
 
-#: Catalogues only a terminal reads, and the one a test double refuses out of.
-NOT_A_BROWSERS: Final = frozenset({"cli", "health", "testing"})
+#: Catalogues only a terminal or an MCP client reads, and the one a test double refuses out of.
+NOT_A_BROWSERS: Final = frozenset({"cli", "health", "mcp", "testing"})
 
 #: Every package whose import registers a catalogue.
 PACKAGES: Final = (
@@ -70,6 +70,7 @@ PACKAGES: Final = (
     "dirigent_client",
     "dirigent_server",
     "dirigent_cli",
+    "dirigent_mcp",
     "dirigent_testing",
 )
 

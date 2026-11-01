@@ -20,6 +20,11 @@ CROSS_SITE = SERVER.define(
     "origins; automation authenticating with a bearer token is unaffected",
 )
 
+MCP_CROSS_ORIGIN = SERVER.define(
+    "mcp_cross_origin",
+    "this MCP request was caused by a page on another origin, which this instance does not answer",
+)
+
 UNAUTHENTICATED_BODY_TOO_LARGE = SERVER.define(
     "unauthenticated_body_too_large",
     "the body is larger than the {limit} bytes this route reads from a caller it has not authenticated",
