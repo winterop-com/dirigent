@@ -29,6 +29,11 @@ is answered 401, and one a page on another origin caused is answered 403
 (default on) turns it off, and `mcp_max_body`, `mcp_session_idle` and `mcp_max_sessions` bound it.
 The stdio command `uvx dirigent-mcp` is unchanged, and both offer a new `whoami` tool.
 
+**`dirigent-mcp --transport http` serves MCP in front of a remote instance.** It listens on
+`127.0.0.1:3334` and answers only a loopback `Host`, takes each caller's own bearer token and
+forwards it to `DG_URL`, never `DG_TOKEN`, and refuses another origin's page. An address other
+machines can reach needs `--allow-remote`.
+
 **`dirigent-fhir` is on PyPI, and `dg init --pack dirigent-fhir` adds it.** The FHIR pack, a `fhir`
 connection kind and the `fhir.read`, `fhir.search`, `fhir.create`, `fhir.update` and
 `fhir.transaction` blocks for one FHIR R4 server, is published at 0.29.0 and pinned at the

@@ -265,5 +265,5 @@ async def test_the_catalog_is_listed_short_and_read_whole(server: MCPServer) -> 
 def test_the_server_refuses_to_start_without_an_instance(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(mcp_server.URL_ENV, raising=False)
     with pytest.raises(SystemExit) as stopped:
-        mcp_server.main()
+        mcp_server.main([])
     assert stopped.value.code == 2

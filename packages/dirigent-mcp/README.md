@@ -24,5 +24,16 @@ environment; `DG_MCP_READ_ONLY=1` offers only the tools that read:
 claude mcp add dirigent -e DG_URL=https://dirigent.example.org -e DG_TOKEN=... -- uvx dirigent-mcp
 ```
 
+`--transport http` serves the same tools at `/mcp` in front of a remote instance, on loopback by
+default, each caller presenting its own token, which is forwarded to the instance:
+
+```bash
+DG_URL=https://dirigent.example.org uvx dirigent-mcp --transport http --port 3334
+claude mcp add --transport http dirigent http://127.0.0.1:3334/mcp \
+  --header "Authorization: Bearer $DG_TOKEN"
+```
+
+An address other machines can reach needs `--allow-remote`.
+
 See [Working with a coding agent](https://winterop-com.github.io/dirigent/agents/) for the tools
 it offers.

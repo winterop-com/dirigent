@@ -11,9 +11,10 @@ Over stdio one client carries the token the environment names; over HTTP each ca
 bearer token of the request it arrived on (see :mod:`dirigent_mcp.http`).
 """
 
+import argparse
 import os
 import sys
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from contextvars import ContextVar
 from datetime import timedelta
@@ -29,7 +30,8 @@ from starlette.requests import Request
 from dirigent_client import BlockKind, Dirigent, DirigentError, RunStatus
 from dirigent_client.resources.pipelines import parse_document
 from dirigent_common import JsonMap
-from dirigent_mcp.messages import NO_INSTANCE
+from dirigent_common.hosts import is_loopback_host
+from dirigent_mcp.messages import NO_HTTP_INSTANCE, NO_INSTANCE, REMOTE_BIND, REMOTE_BIND_REFUSED
 
 #: Where the server finds its instance and its token, the names `dg` reads them from.
 URL_ENV: Final = "DG_URL"
@@ -37,6 +39,10 @@ TOKEN_ENV: Final = "DG_TOKEN"
 
 #: Set to a true value, the server offers only the tools that read.
 READ_ONLY_ENV: Final = "DG_MCP_READ_ONLY"
+
+#: Where the HTTP transport listens unless told otherwise.
+DEFAULT_HOST: Final = "127.0.0.1"
+DEFAULT_PORT: Final = 3334
 
 #: How many rows a listing answers with when the agent names no limit.
 DEFAULT_LIMIT: Final = 50
@@ -333,12 +339,40 @@ def _json(value: Any) -> Any:
     return ANSWER.dump_python(value, mode="json", exclude_none=True)
 
 
-def main() -> None:
-    """Serve over stdio, against the instance and with the token the environment names."""
+def arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Read the command line: which transport, and for HTTP where to listen."""
+    parser = argparse.ArgumentParser(prog="dirigent-mcp", description="Operate a dirigent instance over MCP.")
+    parser.add_argument("--transport", choices=("stdio", "http"), default="stdio")
+    parser.add_argument("--host", default=DEFAULT_HOST, help="the address HTTP listens on, loopback by default")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="the port HTTP listens on")
+    parser.add_argument("--allow-remote", action="store_true", help="listen on an address other machines can reach")
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    """Serve over stdio with the environment's token, or over HTTP with each caller's own."""
+    given = arguments(argv)
     url = os.environ.get(URL_ENV)
-    if not url:
-        sys.stderr.write(f"dirigent-mcp: {NO_INSTANCE.render(url_env=URL_ENV, token_env=TOKEN_ENV)}\n")
-        raise SystemExit(2)
-    token = os.environ.get(TOKEN_ENV)
     read_only = os.environ.get(READ_ONLY_ENV, "").strip().lower() in {"1", "true", "yes"}
-    build(shared(lambda: Dirigent(url=url, token=token)), read_only=read_only).run("stdio")
+    if given.transport == "stdio":
+        if not url:
+            sys.stderr.write(f"dirigent-mcp: {NO_INSTANCE.render(url_env=URL_ENV, token_env=TOKEN_ENV)}\n")
+            raise SystemExit(2)
+        token = os.environ.get(TOKEN_ENV)
+        build(shared(lambda: Dirigent(url=url, token=token)), read_only=read_only).run("stdio")
+        return
+    if not url:
+        sys.stderr.write(f"dirigent-mcp: {NO_HTTP_INSTANCE.render(url_env=URL_ENV)}\n")
+        raise SystemExit(2)
+    loopback = is_loopback_host(given.host)
+    if not loopback and not given.allow_remote:
+        sys.stderr.write(f"dirigent-mcp: {REMOTE_BIND_REFUSED.render(host=given.host)}\n")
+        raise SystemExit(2)
+    if not loopback:
+        sys.stderr.write(f"dirigent-mcp: {REMOTE_BIND.render(host=given.host)}\n")
+    import uvicorn
+
+    from dirigent_mcp.standalone import standalone_app
+
+    app = standalone_app(url, loopback=loopback, read_only=read_only)
+    uvicorn.run(app, host=given.host, port=given.port, log_level="warning")
