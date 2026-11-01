@@ -8,6 +8,7 @@ import type { JsonMap } from '@/lib/api'
 import { REPORTS_DOCS_URL } from '@/lib/docs'
 import { LABELS } from '@/lib/labels'
 import { reportIn } from '@/lib/pipeline-document'
+import { Notice } from '@/components/ds/Notice'
 
 /** The media type a report template carries. `TEMPLATE_MEDIA_TYPE` in dirigent_common. */
 export const TEMPLATE_MEDIA_TYPE = 'text/x-jinja'
@@ -85,7 +86,7 @@ export function ReportPane({
                                 ? LABELS.editor.report.builtin_says
                                 : LABELS.editor.report.own_says}{' '}
                             <a
-                                className="text-primary-ink hover:underline"
+                                className="text-foreground underline-offset-2 hover:underline"
                                 href={REPORTS_DOCS_URL}
                                 target="_blank"
                                 rel="noreferrer"
@@ -97,14 +98,11 @@ export function ReportPane({
                 </p>
             </div>
 
-            {disabled !== undefined && (
-                <p className="rounded-md border border-warning/40 p-2 text-xs text-warning">{disabled}</p>
-            )}
+            {disabled !== undefined && <Notice tone="warning">{disabled}</Notice>}
 
             {choice === 'own' && (
                 <WindowedPane
                     name={TEMPLATE_LABEL}
-                    className="overflow-hidden rounded-md border border-border bg-background"
                     aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
                     windowed={
                         <CodePane

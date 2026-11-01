@@ -80,7 +80,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
                                         </span>
                                     ) : (
                                         <a
-                                            className="truncate text-sm text-primary-ink hover:underline"
+                                            className="truncate text-sm text-foreground underline-offset-2 hover:underline"
                                             href={artifactUrl(prefix, row.id)}
                                             download
                                             rel="noopener"

@@ -1,5 +1,4 @@
-import { Ban, Copy, RotateCw, SquareTerminal } from 'lucide-react'
-import { Suspense, lazy, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
@@ -10,25 +9,42 @@ import { RunTerminal } from '@/components/run/RunTerminal'
 import { StatusChip } from '@/components/run/StatusChip'
 import { StepTab } from '@/components/run/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
+import { Code } from '@/components/ds/Code'
+import { IconButton } from '@/components/ds/IconButton'
+import { Panel } from '@/components/ds/Panel'
+import { connectionOf, RunFailure } from '@/components/run/RunFailure'
+import { PageHead } from '@/components/PageHead'
 import { PageState } from '@/components/PageState'
 import { ToolbarActions } from '@/components/ToolbarActions'
 import { sayRefusal } from '@/components/Refusal'
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useMayWrite } from '@/hooks/use-may-write'
+import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
+import { readConnections } from '@/lib/connections'
+import { ICONS } from '@/lib/icons'
 import { ApiError, type JsonMap, type Problem } from '@/lib/api'
-import { formatInstant } from '@/lib/format'
+import { elapsedBetween, formatBytes, formatDuration, formatInstant } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { fillPanel, openPanel, openPanelTab, type PanelTab } from '@/lib/panels'
 import { RUN_GROUP, registerActions } from '@/lib/palette'
 import { readPipeline, startRun, stepsOf } from '@/lib/pipelines'
 import { decodeFrame, reduce, resumeCursor, stepViews, type RunDetailState } from '@/lib/run-detail'
 import { follow } from '@/lib/run-stream'
-import { cancelRun, priorityMark, readReport, readRun, waitingForWorkers, type RunReport } from '@/lib/runs'
+import {
+    cancelRun,
+    pauseRun,
+    priorityMark,
+    readReport,
+    readRun,
+    resumeRun,
+    runVerbs,
+    triggerSummary,
+    waitingForWorkers,
+    type RunReport,
+} from '@/lib/runs'
 import { clearScreenStatus, setScreenStatus, streamNote } from '@/lib/screen-status'
 import { runSettled } from '@/lib/status'
-import { terminalOpen, toggleTerminal } from '@/lib/terminal'
+import { openTerminal, terminalOpen, toggleTerminal } from '@/lib/terminal'
 import { cn } from '@/lib/utils'
 
 /**
@@ -70,6 +86,7 @@ export function RunDetail() {
     const [selected, setSelected] = useState<string | null>(null)
     const [document, setDocument] = useState<{
         version: number | null
+        name: string | null
         steps: Record<string, JsonMap>
     } | null>(null)
     const [report, setReport] = useState<RunReport | null>(null)
@@ -141,7 +158,11 @@ export function RunDetail() {
         void readPipeline(pipeline).then(
             (detail) => {
                 if (!cancelled)
-                    setDocument({ version: detail.current_version, steps: stepsOf(detail.document) })
+                    setDocument({
+                        version: detail.current_version,
+                        name: detail.name,
+                        steps: stepsOf(detail.document),
+                    })
             },
             () => {
                 // The pipeline was deleted, or this account may not read it. Every step still
@@ -225,6 +246,20 @@ export function RunDetail() {
         }
     }, [navigate, state])
 
+    // A verb that changes what the run is doing answers with the run, which is folded in like a frame.
+    const pause = () => {
+        void pauseRun(id).then((run) => {
+            dispatch({ kind: 'frame', frame: { kind: 'run', run } })
+        }, sayRefusal)
+    }
+    const resume = () => {
+        void resumeRun(id).then((run) => {
+            dispatch({ kind: 'frame', frame: { kind: 'run', run } })
+        }, sayRefusal)
+    }
+    const connectionsRead = useRead(useCallback(() => readConnections(null), []))
+    const connections = connectionsRead.value?.items ?? []
+
     const cancel = useMemo(() => {
         if (state === null || runSettled(state.run.status)) return null
         return () => {
@@ -249,7 +284,7 @@ export function RunDetail() {
                 title: TERMINAL_LABEL,
                 group: shelf,
                 screen: true,
-                icon: SquareTerminal,
+                icon: ICONS.terminal,
                 keywords: ['console', 'logs', 'output', 'lines'],
                 hint: LABELS.runs.terminal_hint,
                 run: toggleTerminal,
@@ -262,7 +297,7 @@ export function RunDetail() {
                           title: CANCEL_LABEL,
                           group: shelf,
                           screen: true,
-                          icon: Ban,
+                          icon: ICONS.cancel,
                           keywords: ['stop', 'abort'],
                           run: cancel,
                       },
@@ -275,7 +310,7 @@ export function RunDetail() {
                           title: RERUN_LABEL,
                           group: shelf,
                           screen: true,
-                          icon: RotateCw,
+                          icon: ICONS.rerun,
                           keywords: ['repeat', 'retry'],
                           run: rerun,
                       },
@@ -288,7 +323,7 @@ export function RunDetail() {
                           title: LABELS.runs.copy_trace_action,
                           group: shelf,
                           screen: true,
-                          icon: Copy,
+                          icon: ICONS.copy,
                           keywords: ['tracing', 'otel'],
                           hint: trace,
                           run: () => {
@@ -346,6 +381,11 @@ export function RunDetail() {
 
     useEffect(() => fillPanel(tabs, { screen: `run:${id}`, open: 'step' }), [tabs, id])
 
+    const failedRun = state?.run.status === 'failed'
+    useEffect(() => {
+        if (failedRun) openTerminal()
+    }, [failedRun])
+
     if (state === null) {
         return (
             <PageState loading={problem === null} problem={problem} empty={false}>
@@ -354,85 +394,143 @@ export function RunDetail() {
         )
     }
 
-    return (
-        <div className="-mx-1 -my-3 flex min-h-0 flex-1 flex-col gap-3 md:-mx-5">
-            <div className="flex items-center gap-x-3">
-                <Breadcrumb
-                    trail={[
-                        { label: LABELS.screen.runs.name, to: '/runs' },
-                        {
-                            label: state.run.pipeline,
-                            to: `/pipelines/${state.run.pipeline}`,
-                            mono: true,
-                            keep: true,
-                        },
-                        {
-                            label: formatInstant(state.run.started_at ?? state.run.created_at),
-                            mono: true,
-                            title: state.run.id,
-                        },
-                    ]}
-                />
-                <StatusChip status={state.run.status} />
-                {priority !== null && (
-                    <span className={cn('text-xs', priority.className)}>{priority.label}</span>
-                )}
-                {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
-                <div className="flex-1" />
-                <Tooltip>
-                    <TooltipTrigger
-                        render={
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={TERMINAL_LABEL}
-                                aria-pressed={terminal}
-                                onClick={toggleTerminal}
-                            >
-                                <SquareTerminal className="size-4" aria-hidden />
-                            </Button>
-                        }
-                    />
-                    <TooltipContent side="bottom">{TERMINAL_LABEL}</TooltipContent>
-                </Tooltip>
-                <ToolbarActions
-                    actions={[
-                        ...(cancel === null
-                            ? []
-                            : [
-                                  {
-                                      id: 'cancel',
-                                      label: LABELS.action.cancel_run,
-                                      icon: Ban,
-                                      destructive: true,
-                                      disabled: !write.may,
-                                      why: write.why,
-                                      onClick: cancel,
-                                  },
-                              ]),
-                        ...(rerun === null
-                            ? []
-                            : [
-                                  {
-                                      id: 'rerun',
-                                      label: LABELS.action.rerun,
-                                      icon: RotateCw,
-                                      disabled: !write.may,
-                                      why: write.why,
-                                      onClick: rerun,
-                                  },
-                              ]),
-                    ]}
-                />
-            </div>
+    const verbs = runVerbs(state.run.status)
+    const run = state.run
+    const stepFailed =
+        run.failed_step ?? state.dag.nodes.find((node) => node.outcome === 'failed')?.code ?? null
+    // A run that completed with errors may have failed in an item of a step rather than in the step.
+    const itemFailed =
+        stepFailed === null && run.status === 'completed_with_errors'
+            ? (Object.values(state.attempts).find((attempt) => attempt.status === 'failed')?.step_name ??
+              null)
+            : null
+    const failedAt = stepFailed ?? itemFailed
+    const failedNode = state.dag.nodes.find((node) => node.code === failedAt) ?? null
+    const failedAttempt =
+        failedAt === null
+            ? null
+            : (Object.values(state.attempts).find(
+                  (attempt) => attempt.step_name === failedAt && attempt.status === 'failed',
+              ) ?? null)
+    const named = connectionOf(
+        failedAt === null ? null : ((document?.steps[failedAt]?.config as JsonMap | undefined) ?? null),
+    )
+    const troubled = run.status === 'failed' || run.status === 'completed_with_errors'
+    const took = elapsedBetween(run.started_at, run.finished_at)
+    const summary = triggerSummary(run)
+    const trigger = summary.who === null ? null : LABELS.runs.line.by(summary.who)
 
-            <div className="flex min-h-0 flex-1 flex-col">
-                <div
-                    className={cn(
-                        'flex-1 overflow-hidden rounded-md border border-border-strong bg-background',
-                        terminal ? 'min-h-48' : 'min-h-96',
-                    )}
-                >
+    // The page scrolls above the terminal, which stands at the foot of the content area.
+    return (
+        <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex-1 pb-6">
+                <PageHead>
+                    <Breadcrumb
+                        trail={[
+                            { label: LABELS.screen.runs.name, to: '/runs' },
+                            {
+                                label: document?.name ?? run.pipeline,
+                                to: `/pipelines/${run.pipeline}`,
+                                mono: document === null || document.name === null,
+                            },
+                        ]}
+                    />
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-0">
+                            <h1 className="text-page font-medium tracking-tight">
+                                {document?.name ?? run.pipeline}
+                            </h1>
+                            <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1">
+                                {document !== null && document.name !== null && <Code value={run.pipeline} />}
+                                <span title={run.id}>
+                                    <Code
+                                        value={formatInstant(run.started_at ?? run.created_at)}
+                                        className="pointer-events-none"
+                                    />
+                                </span>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <IconButton
+                                icon={ICONS.terminal}
+                                label={TERMINAL_LABEL}
+                                aria-pressed={terminal}
+                                className="text-muted-foreground"
+                                onClick={toggleTerminal}
+                            />
+                            <ToolbarActions
+                                actions={[
+                                    {
+                                        id: 'pause',
+                                        label: LABELS.action.pause,
+                                        icon: ICONS.pause,
+                                        disabled: !write.may || !verbs.pause.open,
+                                        why: write.why ?? verbs.pause.why ?? undefined,
+                                        onClick: pause,
+                                    },
+                                    {
+                                        id: 'resume',
+                                        label: LABELS.action.resume,
+                                        icon: ICONS.resume,
+                                        disabled: !write.may || !verbs.resume.open,
+                                        why: write.why ?? verbs.resume.why ?? undefined,
+                                        onClick: resume,
+                                    },
+                                    {
+                                        id: 'cancel',
+                                        label: LABELS.action.cancel_run,
+                                        icon: ICONS.cancel,
+                                        destructive: verbs.cancel.open,
+                                        disabled: !write.may || !verbs.cancel.open || cancel === null,
+                                        why: write.why ?? verbs.cancel.why ?? undefined,
+                                        onClick: () => {
+                                            cancel?.()
+                                        },
+                                    },
+                                    {
+                                        id: 'rerun',
+                                        label: LABELS.action.rerun,
+                                        icon: ICONS.rerun,
+                                        variant: verbs.rerun.open ? 'default' : 'outline',
+                                        disabled: !write.may || !verbs.rerun.open || rerun === null,
+                                        why: write.why ?? verbs.rerun.why ?? undefined,
+                                        onClick: () => {
+                                            rerun?.()
+                                        },
+                                    },
+                                ]}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
+                        <StatusChip status={run.status} className="text-sm" />
+                        {failedAt !== null && troubled && (
+                            <span>
+                                {LABELS.runs.line.at}{' '}
+                                <Code value={failedAt} tone="body" className="text-sm font-medium" />
+                            </span>
+                        )}
+                        {took !== null && (
+                            <span className="font-mono text-muted-foreground">{formatDuration(took)}</span>
+                        )}
+                        {trigger !== null && <span className="text-muted-foreground">{trigger}</span>}
+                        {run.stored_bytes > 0 && (
+                            <span
+                                className="text-muted-foreground"
+                                title={LABELS.runs.line.stored(String(run.stored_bytes))}
+                            >
+                                {LABELS.runs.line.stored(formatBytes(run.stored_bytes))}
+                            </span>
+                        )}
+                        {priority !== null && (
+                            <span className={cn('text-xs', priority.className)}>{priority.label}</span>
+                        )}
+                        {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
+                    </div>
+                </PageHead>
+
+                <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false} className="mt-3.5">
                     {state.dag.nodes.length === 0 ? (
                         <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.graph_empty}</p>
                     ) : (
@@ -447,6 +545,7 @@ export function RunDetail() {
                                 dag={state.dag}
                                 views={views}
                                 selected={selected}
+                                fitted
                                 onSelect={(step) => {
                                     setSelected(step)
                                     if (step !== null) openPanel()
@@ -454,9 +553,31 @@ export function RunDetail() {
                             />
                         </Suspense>
                     )}
-                </div>
-                {terminal && <RunTerminal state={state} runId={id} onSelectStep={readStep} />}
+                </Panel>
+
+                {troubled && (
+                    <div className="mt-5">
+                        <RunFailure
+                            run={run}
+                            step={failedAt}
+                            items={itemFailed !== null}
+                            error={failedAttempt?.error ?? run.error}
+                            code={failedAttempt?.error_code ?? run.error_code}
+                            block={failedNode?.block ?? null}
+                            connection={
+                                named === null
+                                    ? null
+                                    : (connections.find((row) => row.code === named) ?? null)
+                            }
+                        />
+                    </div>
+                )}
             </div>
+            {terminal && (
+                <div className="sticky -bottom-12 -mb-12 flex flex-col bg-background pb-3">
+                    <RunTerminal state={state} runId={id} step={selected} onSelectStep={readStep} />
+                </div>
+            )}
         </div>
     )
 }

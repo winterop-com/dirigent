@@ -85,7 +85,7 @@ const action = {
     /** Start a run. */
     run: 'Run',
     /** Start another run of what this one ran. */
-    rerun: 'Re-run',
+    rerun: 'Rerun',
     /** Stop what is running. */
     cancel_run: 'Cancel',
     /** Open the thing for editing. */
@@ -111,7 +111,6 @@ const action = {
     refresh: 'Refresh',
     /** Put a value on the clipboard, and say so once it is there. */
     copy: {
-        verb: 'Copy',
         done: 'Copied',
     },
     /** Hold what a thing fires or delivers, and let it go again. */
@@ -178,10 +177,6 @@ const word = {
     pipeline: {
         label: 'Pipeline',
         term: 'pipeline',
-        count: {
-            one: 'pipeline',
-            many: 'pipelines',
-        },
     },
     /** One execution of a pipeline. */
     run: {
@@ -276,10 +271,6 @@ const word = {
         /** The column of what a schedule last did, and the panel's fact for the same moment. */
         last: 'Last firing',
         heading: 'Firings',
-        count: {
-            one: 'firing',
-            many: 'firings',
-        },
     },
     /** One try of one step, or of one delivery. */
     attempt: {
@@ -699,8 +690,8 @@ const screen = {
 /**
  * The frame every screen is drawn inside.
  *
- * The rail and the drawer, the topbar and the corner that names the instance, the right panel
- * and the sheet it becomes on a phone, the bar along the foot, the shortcuts dialog and the
+ * The rail and the drawer, the top strip and the corner that names the instance, the right
+ * panel and the sheet it becomes on a phone, the shortcuts dialog and the
  * theme controls -- plus the chrome a listing, a table and a page state wear on every screen,
  * which belongs to the frame rather than to whichever screen is inside it.
  */
@@ -708,10 +699,9 @@ const shell = {
     /** The product's own name: the mark's label, and what the corner says before any read lands. */
     wordmark: 'dirigent',
 
-    /** What the rail's own controls do, which the collapsed rail says as tooltips. */
-    collapse_nav: 'Collapse the navigation',
-    expand_nav: 'Expand the navigation',
-    resize_nav: 'Resize the navigation',
+    /** The rail taken off screen and brought back: the palette's row, and the strip's button. */
+    hide_nav: 'Hide navigation',
+    show_nav: 'Show navigation',
 
     /** The drawer the rail becomes below the breakpoint, and the region it stands in. */
     open_nav: 'Open navigation',
@@ -722,7 +712,7 @@ const shell = {
     breadcrumb: 'Breadcrumb',
 
     open_palette: 'Open the command palette',
-    /** The chord on the palette's button: this platform's modifier, and the letter. */
+    /** The chord on the palette button's tooltip: this platform's modifier, and the letter. */
     palette_chord: (modifier: string) => (modifier.length > 1 ? `${modifier} K` : `${modifier}K`),
     toggle_panel: 'Show or hide the side panel',
     open_settings: 'Open settings',
@@ -782,7 +772,7 @@ const shell = {
 
     /** What each chord does, on the shortcuts dialog's rows. The palette's row says `open_palette`. */
     chord: {
-        rail: 'Collapse or expand the navigation',
+        rail: 'Hide or show navigation',
         terminal: "Show or hide a run's terminal",
         search: "Search this screen's listing",
         shortcuts: 'Open this list',
@@ -947,8 +937,6 @@ const refusal = {
     /** An address this app does not answer, said where it was opened rather than redirected away. */
     nowhere: {
         detail: 'This app does not answer for the address in the browser bar.',
-        /** The one fact the status bar states while that screen is open. */
-        note: 'no screen at this address',
     },
 } as const
 
@@ -1329,7 +1317,8 @@ const dashboard = {
     /** The bar chart of the last day, and the reading of it for somebody not seeing it. */
     chart: {
         title: 'Runs over time',
-        hint: 'Every run started in the last 24 hours, by the hour it started in.',
+        /** The panel's fact: the window the bars cover, and what one bar is. */
+        window: 'last 24 hours, by hour',
         /** One bar's title, where nothing was started in that hour. */
         hour_empty: (hour: string) => `${hour} — nothing ran`,
         /** One bar's title: the hour, how much started in it, and how that came out. */
@@ -1351,7 +1340,6 @@ const dashboard = {
     health: {
         /** A healthy connection's dot, on the dashboard: the word, and what the check said. */
         healthy_tip: (health: string, said: string) => `${health}: ${said}`,
-        hint: 'The workers claiming work, and every connection.',
         /** A worker with nothing to report: what it is, and how much it can take. */
         worker: {
             one: (count: string) => `worker · ${count} slot`,
@@ -1370,26 +1358,18 @@ const dashboard = {
         all_well: 'Every worker and every connection is healthy.',
     },
 
-    /** The front door's first feed is headed by the noun, in `word.in_flight`. */
-    nothing_in_flight: 'Nothing is in flight.',
     /** The runs that want somebody, on both screens. */
     troubled_runs: 'Runs in trouble',
-    nothing_troubled: 'Nothing has failed or completed with errors.',
+    /** The most recent runs, and the way to every one of them. */
+    recent_runs: 'Recent runs',
+    all_runs: 'All runs',
+    /** How long each pipeline took over the last day. */
+    durations: {
+        title: 'Durations',
+        median: 'median',
+    },
     /** The firings still ahead. */
     next_firings: 'Next firings',
-    no_fire_due: 'No firing is due.',
-
-    /** The column headers of the three feeds. What each foot counts is `word`. */
-    column: {
-        /** When a live run started. */
-        since: 'Since',
-        /** The step a run died in. */
-        failed_at: 'Failed at',
-        /** What that step said. */
-        error: 'Error',
-        /** When the run was last doing anything. */
-        when: 'When',
-    },
 } as const
 
 /** The pipelines listing, its rows, and the picker that starts one from a shipped starter. */
@@ -1410,11 +1390,36 @@ const pipelines = {
     },
     /** The box over the table, which narrows the rows already read. */
     search: 'Search pipelines by code, name or tag',
-    /** How many rows the search left, out of how many were read. */
-    shown_of_loaded: (shown: string, loaded: string) => `${shown} of ${loaded}`,
-    /** The column header no shared noun covers. */
-    column: {
-        last_run: 'Last run',
+    /** The screen's two lists: the person's own pipelines, and the shipped examples apart. */
+    lists: {
+        own: 'Your pipelines',
+        examples: 'Examples',
+        /** Opens the rest of the examples band in place; the count is the panel's own. */
+        all_examples: 'Show all',
+        /** Takes the band back to its short set. */
+        fewer_examples: 'Show fewer',
+    },
+    /** A pipeline's own page: its graph first, then what it runs, what fires it and what it reaches. */
+    page: {
+        graph: 'Graph',
+        blocks: 'Blocks',
+        triggers: 'Triggers',
+        connections: 'Connections',
+        no_triggers: 'No triggers.',
+        no_connections: 'No connections.',
+        /** A step chip under a block, which chooses that step on the graph. */
+        choose_step: (step: string) => `Select ${step} in the graph`,
+        /** The strip under the graph about the chosen box. */
+        after: 'after',
+        feeds: 'feeds',
+        /** A source that fires the pipeline, as its row in the triggers panel says it. */
+        listens: (kind: string) => `listens on ${kind}`,
+        /** What Validate says once the dry run has answered. */
+        valid: 'The stored version applies as it is.',
+        invalid: {
+            one: (count: string) => `${count} problem with the stored version.`,
+            many: (count: string) => `${count} problems with the stored version.`,
+        },
     },
     /** The mark beside the title of a pipeline that matters more than every other one. */
     critical: {
@@ -1433,15 +1438,6 @@ const pipelines = {
      */
     trigger_summary: {
         none: 'nothing fires this on its own',
-    },
-    /** How the newest run of a pipeline reads in the listing. */
-    last_run: {
-        /** A run that was read before a worker put a moment on it. */
-        not_started: 'not started',
-        /** Nothing has ever run. */
-        never: 'never run',
-        /** Which step the run stopped at. */
-        failed_at: (step: string) => `at ${step}`,
     },
     /** What the table says when it has nothing in it, which a chosen tag is a reason for. */
     empty: {
@@ -1495,10 +1491,6 @@ const editor = {
         /** The mono chip, where the instance holds no version of this pipeline at all. */
         none: 'no version',
         short: (version: string) => `v${version}`,
-        unapplied: 'No version of this pipeline has been applied.',
-        /** The chip's own tooltip, which is where what makes a version is said. */
-        explained: (version: string) =>
-            `Version ${version}. Only an apply that changes the document creates a version.`,
     },
 
     /** The strip above the canvas, and what this screen contributes to the command palette. */
@@ -1523,7 +1515,7 @@ const editor = {
         /** The palette row that opens the run dialog. The dialog itself is titled with the verb. */
         run_pipeline: 'Run pipeline…',
         /** The palette row that gives the whole arrangement back to elk. */
-        relayout: 'Re-layout the graph',
+        relayout: 'Lay out the graph again',
         /** A run the instance accepted without starting one, and said nothing more about. */
         nothing_started: (status: string) => `nothing started: ${status}`,
     },
@@ -1545,7 +1537,6 @@ const editor = {
         listens_to: (what: string) => `Listens to ${what}`,
         no_block_matches: 'No block matches that.',
         /** The menu opened before the catalog landed, which is not a catalog with nothing in it. */
-        reading_catalog: 'Reading the catalog…',
         /** A box's own menu: one more step after this one, and this one taken away. */
         add_after: 'Add step after…',
         delete_step: 'Delete step',
@@ -2124,6 +2115,25 @@ const reference = {
  * `lib/run-detail` hands a node or a fact to draw.
  */
 const runs = {
+    /** Why a run's verb is shut where it stands, which is its tooltip. */
+    verbs: {
+        finished: 'This run has finished.',
+        unsettled: 'A run is run again once it has finished.',
+        paused: 'This run is already paused.',
+        not_paused: 'This run is not paused.',
+    },
+    /** The run screen's status line: the step it ended at, who started it, and what it stored. */
+    line: {
+        at: 'at',
+        by: (who: string) => `by ${who}`,
+        stored: (size: string) => `${size} stored`,
+    },
+    /** The failure under the graph, beside the log. */
+    failure: {
+        heading: (step: string) => `${step} failed`,
+        /** A run that completed with errors: the step carried on past items that failed. */
+        items_heading: (step: string) => `Items of ${step} failed`,
+    },
     // The listing.
 
     /** The button that folds in what arrived while the listing was being read. */
@@ -2165,7 +2175,7 @@ const runs = {
     toggle_terminal: "Show or hide this run's terminal",
     /** What the palette says the terminal holds. */
     terminal_hint: 'Every line this run wrote, in the order it wrote them',
-    copy_trace_action: 'Copy this run trace id',
+    copy_trace_action: "Copy this run's trace id",
     trace_copied: 'trace id copied',
     /** An insecure origin, or a browser that refused: the string is still on screen. */
     clipboard_refused: 'this browser would not write to the clipboard',
@@ -2450,6 +2460,9 @@ const triggers = {
     token: {
         title: (code: string) => `The token for ${code}`,
         secret_title: (code: string) => `The signing secret for ${code}`,
+        /** What the copy button beside a minted token or signing secret names. */
+        token_noun: 'the token',
+        secret_noun: 'the signing secret',
         note: 'This is the only time it can be read. Rotating is how a lost one is replaced.',
         /** Over the path a caller is configured with. */
         url: 'Where to call',
@@ -2967,9 +2980,8 @@ const users = {
     token_scope_for: (username: string) => `This token can do whatever ${username} can.`,
     token_name_placeholder: 'ci-deploy',
     token_name_hint: 'Lower case, digits and single hyphens.',
-    /** Beside the secret, which the server answers once and cannot answer again. */
-    token_once: 'This is the only time this token will be shown.',
-    copy_token: 'Copy the token',
+    /** What the copy button beside a minted token names. */
+    token_noun: 'the token',
 
     new_password: 'New password',
 } as const
@@ -3314,7 +3326,7 @@ const design = {
         key: 'With a document key',
         error: 'With an error',
         notices: 'With and without a mark',
-        well: 'An inset box',
+        well: 'A group that belongs together',
         dialogs: 'Open one',
         asks: 'A dialog that asks',
         tells: 'A dialog that tells',
@@ -3391,7 +3403,7 @@ const design = {
         notice_critical_body: 'Connection refused by 10.0.0.4:5432.',
         notice_warning: 'This document is not the version the instance holds.',
         notice_neutral: 'Runs started before the upgrade keep the version they started on.',
-        well: 'A block that belongs together, such as a sample payload, inset 8px inside its surface.',
+        well: 'A block that belongs together, such as a form opened under its row, on the panel ground.',
         secret: 'dg_live_4f8a2c9e1b7d6053a8e2f4c1b9d7e6a3',
         secret_name: 'ci-deploy',
         dialog_title: 'New token',

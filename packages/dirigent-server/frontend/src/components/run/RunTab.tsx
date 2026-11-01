@@ -50,7 +50,7 @@ export function RunTab({ run }: { run: RunOut }) {
                                 (started.who ?? LABELS.runs.trigger_not_recorded)
                             ) : (
                                 <Link
-                                    className="text-primary-ink hover:underline"
+                                    className="text-foreground underline-offset-2 hover:underline"
                                     to={`/runs/${started.parent}`}
                                     title={started.said ?? undefined}
                                 >
@@ -102,7 +102,7 @@ export function RunTab({ run }: { run: RunOut }) {
                         term={LABELS.word.pipeline.term}
                         detail={
                             <Link
-                                className="text-primary-ink hover:underline"
+                                className="text-foreground underline-offset-2 hover:underline"
                                 to={`/pipelines/${run.pipeline}`}
                             >
                                 {run.pipeline}

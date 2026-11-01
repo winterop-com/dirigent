@@ -172,7 +172,7 @@ export function Login() {
                     }}
                 >
                     <div className="grid gap-2">
-                        <p className="text-sm tracking-[0.18em] text-primary-ink uppercase">
+                        <p className="text-base tracking-[0.18em] text-primary-ink uppercase">
                             {LABELS.login.eyebrow}
                         </p>
                         <h2 className="text-display font-semibold tracking-tight">

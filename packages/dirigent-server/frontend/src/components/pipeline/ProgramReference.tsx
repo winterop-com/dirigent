@@ -198,7 +198,7 @@ export function ProgramReference({ mediaType }: { mediaType: string | null | und
                     href={reference.manual.href}
                     target="_blank"
                     rel="noopener"
-                    className="text-xs text-primary-ink underline-offset-2 hover:underline"
+                    className="text-xs text-foreground underline-offset-2 hover:underline"
                 >
                     {reference.manual.label}
                 </a>

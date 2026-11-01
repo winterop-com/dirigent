@@ -4,13 +4,12 @@ import { LABELS } from '../src/lib/labels.ts'
 import { applyExample, signIn } from './support.ts'
 
 /**
- * The chassis itself: the two rules across the app, and what the corner says it is.
+ * The chassis itself: the top row across the app, the rail that hides whole, and what the corner
+ * says it is.
  *
- * THE SEAMS ARE MEASURED, NOT EYEBALLED. The rail, the content column and the right panel each
- * draw a strip along the top, and a rule that is one pixel out at a column edge reads as a step
- * in the window. So this asks the browser where every strip actually is, in both palettes, with
- * the rail expanded and collapsed and the panel open and closed -- the four ways the columns
- * can be arranged.
+ * THE TOP ROW IS MEASURED, NOT EYEBALLED. The rail's head, the top strip and the right panel's tab
+ * strip are three elements in three columns, and the mark, the crumb and the tabs sit on one line
+ * only when the three are exactly as tall and start at the same y.
  */
 
 /** Every top strip's box, in the order they appear across the width. */
@@ -26,12 +25,8 @@ async function topStrips(page: Page): Promise<{ top: number; height: number }[]>
 test.beforeEach(async ({ page }) => {
     await signIn(page)
     // The measurements below read the chrome's geometry the instant the test body runs; on a
-    // slow runner the shell has not mounted yet and querySelector returns null. Wait for the
-    // strips, the rule and the foot bar to be on the page first, so a seam is measured, never
-    // its absence.
+    // slow runner the shell has not mounted yet and querySelector returns null.
     await expect(page.locator('[data-shell-strip="top"]').first()).toBeVisible()
-    await expect(page.locator('[data-shell-rule="top"]')).toBeVisible()
-    await expect(page.locator('[data-shell-strip="foot"]')).toBeVisible()
 })
 
 test('every strip along the top starts and ends at the same y', async ({ page }) => {
@@ -43,67 +38,27 @@ test('every strip along the top starts and ends at the same y', async ({ page })
     }
 })
 
-test('the rule under them is one line across the whole width', async ({ page }) => {
-    const measured = await page.evaluate(() => {
-        const rule = document.querySelector('[data-shell-rule="top"]')?.getBoundingClientRect()
-        const strip = document.querySelector('[data-shell-strip="top"]')?.getBoundingClientRect()
-        return rule === undefined || strip === undefined
-            ? null
-            : {
-                  ruleTop: Math.round(rule.top),
-                  ruleWidth: Math.round(rule.width),
-                  stripBottom: Math.round(strip.bottom),
-                  windowWidth: window.innerWidth,
-              }
-    })
-    expect(measured).not.toBeNull()
-    expect(measured?.ruleTop).toBe(measured?.stripBottom)
-    expect(measured?.ruleWidth).toBe(measured?.windowWidth)
+test('there is no bar along the foot and no rule across the top', async ({ page }) => {
+    await expect(page.locator('footer')).toHaveCount(0)
+    await expect(page.locator('[data-shell-rule]')).toHaveCount(0)
 })
 
-test('the bar along the foot is one element, and its cells fill it exactly', async ({ page }) => {
-    const measured = await page.evaluate(() => {
-        const bars = document.querySelectorAll('[data-shell-strip="foot"]')
-        const bar = bars[0]?.getBoundingClientRect()
-        const cells = [...document.querySelectorAll('[data-shell-cell]')].map((element) => {
-            const box = element.getBoundingClientRect()
-            return {
-                top: Math.round(box.top),
-                bottom: Math.round(box.bottom),
-                left: Math.round(box.left),
-                right: Math.round(box.right),
-            }
-        })
-        return bar === undefined
-            ? null
-            : {
-                  bars: bars.length,
-                  barTop: Math.round(bar.top),
-                  barBottom: Math.round(bar.bottom),
-                  barWidth: Math.round(bar.width),
-                  windowWidth: window.innerWidth,
-                  cells,
-              }
-    })
-    // ONE bar rather than two side by side, which is what makes the rule uncuttable.
-    expect(measured?.bars).toBe(1)
-    expect(measured?.barWidth).toBe(measured?.windowWidth)
-    expect(measured?.cells).toHaveLength(2)
-    for (const cell of measured?.cells ?? []) {
-        // Inside the bar's own border, and spanning its full height.
-        expect(cell.top).toBe((measured?.barTop ?? 0) + 1)
-        expect(cell.bottom).toBe(measured?.barBottom)
-    }
-    // The account cell ends exactly where the status cell begins: one divider, no gap.
-    expect(measured?.cells[0].right).toBe(measured?.cells[1].left)
+test('the account stands at the foot of the rail', async ({ page }) => {
+    const rail = await page.locator('aside').first().boundingBox()
+    const account = await page.getByRole('button', { name: /^Account: / }).boundingBox()
+    if (rail === null || account === null) throw new Error('no rail or no account')
+    expect(rail.y + rail.height - (account.y + account.height)).toBeLessThan(32)
+    expect(account.x + account.width).toBeLessThanOrEqual(rail.x + rail.width)
 })
 
-test('the seams hold with the rail collapsed', async ({ page }) => {
-    await page.getByRole('button', { name: LABELS.shell.collapse_nav }).click()
-    await expect(page.getByRole('button', { name: LABELS.shell.expand_nav })).toBeVisible()
+test('the rail hides whole and the strip brings it back', async ({ page }) => {
+    // The suite's browser says it is on Windows, so the rail's chord is Control there.
+    await page.keyboard.press('Control+b')
+    await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toHaveCount(0)
+    await page.getByRole('button', { name: LABELS.shell.show_nav }).click()
+    await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toBeVisible()
 
     const strips = await topStrips(page)
-    // Or the loop below runs over nothing and the test passes having measured no seam at all.
     expect(strips.length).toBeGreaterThanOrEqual(2)
     for (const strip of strips) {
         expect(strip.top).toBe(strips[0].top)
@@ -112,19 +67,11 @@ test('the seams hold with the rail collapsed', async ({ page }) => {
 })
 
 test('the seams hold with the right panel open', async ({ page }) => {
-    // The panel exists only when a screen fills it, so apply a document and choose its row.
-    await page.goto('/pipelines')
+    // The panel exists only when a screen fills it, so open a document and choose a box on it.
     await applyExample(page.request, 'examples/transform/jq-reshape.yaml')
-    await page.reload()
-    // On the row itself, away from its title link and its tag chips: both of those do
-    // something else, and what this spec is about is the panel a chosen row opens.
-    await page
-        .getByRole('row')
-        .filter({ hasText: 'jq-reshape' })
-        .first()
-        .getByText('jq-reshape', { exact: true })
-        .click()
-    await expect(page.getByRole('tab', { name: LABELS.word.pipeline.label })).toBeVisible()
+    await page.goto('/pipelines/jq-reshape/edit')
+    await page.locator('.react-flow__node').first().click()
+    await expect(page.getByRole('tab', { name: LABELS.word.step.label })).toBeVisible()
 
     const strips = await topStrips(page)
     expect(strips.length).toBe(3)
@@ -194,31 +141,6 @@ test('an empty listing states the fact and stops', async ({ page }) => {
     await expect(page.getByRole('heading', { name: LABELS.screen.alerting.name })).toBeVisible()
     await expect(page.getByText(/No rules\./)).toBeVisible()
     await expect(page.getByRole('button', { name: LABELS.alerting.new_rule.button })).toBeVisible()
-})
-
-test('a collapsed rail wakes when its edge is dragged outward', async ({ page }) => {
-    await page.getByRole('button', { name: LABELS.shell.collapse_nav }).click()
-    await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).not.toContainText(
-        LABELS.screen.pipelines.name,
-    )
-
-    // The collapse animates; the edge is only draggable once the rail has settled.
-    await page.waitForFunction(() => {
-        const aside = document.querySelector('aside')
-        return aside !== null && aside.getBoundingClientRect().width < 60
-    })
-    const edge = page.getByRole('separator', { name: LABELS.shell.expand_nav })
-    const box = await edge.boundingBox()
-    if (box === null) throw new Error('no edge to drag')
-    await page.mouse.move(box.x + box.width / 2, 400)
-    await page.mouse.down()
-    await page.mouse.move(box.x + 180, 400, { steps: 6 })
-    await page.mouse.up()
-
-    // The rail expanded under the drag and the labels are back.
-    await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toContainText(
-        LABELS.screen.pipelines.name,
-    )
 })
 
 test('the account menu holds the account, the settings, the shortcuts, the way out and the instance', async ({

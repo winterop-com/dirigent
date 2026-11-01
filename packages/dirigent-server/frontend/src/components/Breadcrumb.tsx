@@ -1,88 +1,67 @@
-import { Fragment } from 'react'
+import { Fragment, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router'
 
-import { cn } from '@/lib/utils'
+import { useStore } from '@/hooks/use-store'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
+import { createStore } from '@/lib/store'
+import { cn } from '@/lib/utils'
 
-/** One step of a trail: what it says, where it goes, and whether it wears the mono face. */
+/** One step back: what it says, where it goes, and whether it wears the mono face. */
 export interface Crumb {
     label: string
-    /** Where the crumb goes; a leaf goes nowhere. */
-    to?: string
+    to: string
     mono?: boolean
-    /**
-     * Keep this crumb on screen below the breakpoint.
-     *
-     * The crumb carrying the thing's code, where the leaf is not it: the code is on screen on
-     * every screen, and a trail cut back to its leaf would take it off this one.
-     */
-    keep?: boolean
     /** What the crumb says on hover, where the crumb itself is a rendering of something else. */
     title?: string
 }
 
+/** Where in the top strip a screen's crumb is drawn, which the shell sets once it has mounted. */
+export const crumbSlot = createStore<HTMLElement | null>(null)
+
 /**
- * The trail across the top of a screen that is one thing rather than a listing.
+ * The trail back from a screen that is one thing to the listing it belongs to, drawn into the
+ * shell's top strip rather than onto the page, so the page opens on its heading.
  *
- * BELOW THE BREAKPOINT IT IS ITS LEAF. A trail of three crumbs and two separators wraps a
- * 390px strip onto a second line, so what is drawn there is the leaf -- plus whatever crumb
- * says the code -- and the whole trail is the element's title. The leaf truncates; the strip
- * stays one line.
+ * The crumbs are the places above this one, every one a link. Below the breakpoint the last of
+ * them stands alone, which is the way back, and the whole trail is the element's title. `inPlace`
+ * draws it where it is rendered, which is what the design system's gallery does.
  */
-export function Breadcrumb({ trail, code }: { trail: readonly Crumb[]; code?: string | null }) {
-    return (
+export function Breadcrumb({ trail, inPlace = false }: { trail: readonly Crumb[]; inPlace?: boolean }) {
+    const slot = useStore(crumbSlot)
+    const nav: ReactNode = (
         <nav
             className="flex min-w-0 items-center gap-1.5 text-sm"
             aria-label={LABELS.shell.breadcrumb}
             title={trail.map((crumb) => crumb.label).join(' / ')}
         >
             {trail.map((crumb, index) => {
-                const leaf = index === trail.length - 1
-                const shown = leaf || crumb.keep === true
-                // The separator belongs to the crumbs either side of it: drawn below the
-                // breakpoint only where both of them are.
-                const behind = trail.slice(0, index).some((earlier) => earlier.keep === true)
+                const last = index === trail.length - 1
                 return (
                     <Fragment key={`${crumb.label}-${String(index)}`}>
                         {index > 0 && (
-                            <span
-                                className={cn('text-faint', !(shown && behind) && 'hidden md:inline')}
+                            <ICONS.expand
+                                className="hidden size-3.5 shrink-0 text-faint md:block"
                                 aria-hidden
-                            >
-                                /
-                            </span>
+                            />
                         )}
-                        {crumb.to === undefined ? (
-                            <span
-                                title={crumb.title}
-                                className={cn(
-                                    'min-w-0 truncate',
-                                    leaf && 'font-medium',
-                                    crumb.mono === true && 'font-mono',
-                                    !shown && 'hidden md:inline',
-                                )}
-                            >
-                                {crumb.label}
-                            </span>
-                        ) : (
-                            <Link
-                                to={crumb.to}
-                                title={crumb.title}
-                                className={cn(
-                                    'min-w-0 truncate text-muted-foreground hover:text-foreground',
-                                    crumb.mono === true && 'font-mono',
-                                    !shown && 'hidden md:inline',
-                                )}
-                            >
-                                {crumb.label}
-                            </Link>
-                        )}
+                        <Link
+                            to={crumb.to}
+                            title={crumb.title}
+                            className={cn(
+                                'min-w-0 truncate text-muted-foreground hover:text-foreground',
+                                crumb.mono === true && 'font-mono text-xs',
+                                !last && 'hidden md:inline',
+                            )}
+                        >
+                            {crumb.label}
+                        </Link>
                     </Fragment>
                 )
             })}
-            {code !== undefined && code !== null && (
-                <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">{code}</span>
-            )}
         </nav>
     )
+    if (inPlace) return nav
+    return slot === null ? null : createPortal(nav, slot)
 }

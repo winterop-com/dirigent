@@ -6,25 +6,34 @@ import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /** Where a link sits: in prose, as a value in a table, or out of this app. */
-export type TextLinkVariant = 'inline' | 'data' | 'external'
+export type TextLinkVariant = 'inline' | 'data' | 'aside' | 'external'
 
 const VARIANTS: Record<TextLinkVariant, string> = {
-    inline: 'underline decoration-primary-ink/40 underline-offset-2 hover:decoration-primary-ink',
-    data: 'font-mono tabular-nums hover:underline underline-offset-2',
+    inline: 'text-foreground underline decoration-foreground/35 underline-offset-2 hover:decoration-foreground',
+    data: 'text-foreground font-mono tabular-nums hover:underline underline-offset-2',
+    aside: 'text-muted-foreground hover:text-foreground hover:underline underline-offset-2',
     external:
-        'inline-flex items-center gap-0.5 underline decoration-primary-ink/40 underline-offset-2 hover:decoration-primary-ink',
+        'inline-flex items-center gap-0.5 text-foreground underline decoration-foreground/35 underline-offset-2 hover:decoration-foreground',
 }
 
+type Target =
+    | { to: string; href?: undefined; onPress?: undefined; expanded?: undefined }
+    | { href: string; to?: undefined; onPress?: undefined; expanded?: undefined }
+    | { onPress: () => void; expanded?: boolean; to?: undefined; href?: undefined }
+
 /**
- * A link, in the one amber the app spends on a link and on nothing else that is text.
+ * A link: ink, underlined in prose and on hover, and the muted ink beside a section heading.
  *
  * `to` is a route in this app; `href` is anywhere else, and the `external` variant opens it in
- * a new tab with a trailing mark and says so to a screen reader.
+ * a new tab with a trailing mark and says so to a screen reader. `onPress` is a link that opens
+ * something in place, drawn as a button with the same face and saying whether it is open.
  */
 export function TextLink({
     variant = 'inline',
     to,
     href,
+    onPress,
+    expanded,
     title,
     className,
     children,
@@ -33,12 +42,19 @@ export function TextLink({
     title?: string
     className?: string
     children: ReactNode
-} & ({ to: string; href?: undefined } | { href: string; to?: undefined })) {
+} & Target) {
     const face = cn(
-        'rounded-sm text-primary-ink outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring',
         VARIANTS[variant],
         className,
     )
+    if (onPress !== undefined) {
+        return (
+            <button type="button" title={title} aria-expanded={expanded} className={face} onClick={onPress}>
+                {children}
+            </button>
+        )
+    }
     if (variant === 'external') {
         return (
             <a href={href ?? to} target="_blank" rel="noreferrer" title={title} className={face}>

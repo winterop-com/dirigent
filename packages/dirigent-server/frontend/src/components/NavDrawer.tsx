@@ -1,15 +1,14 @@
-import { Waypoints } from 'lucide-react'
 import { useEffect, useRef } from 'react'
-import { NavLink, useLocation } from 'react-router'
+import { useLocation } from 'react-router'
 
 import { AccountMenu } from '@/components/AccountMenu'
 import { IconButton } from '@/components/ds/IconButton'
-import { RailEntry, SectionLabel } from '@/components/Rail'
+import { BrandLink, RailEntry, SectionLabel } from '@/components/Rail'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import { LABELS } from '@/lib/labels'
 import { ICONS } from '@/lib/icons'
-import { DASHBOARD_PATH, sectionsFor } from '@/lib/nav'
+import { sectionsFor } from '@/lib/nav'
 import { cn } from '@/lib/utils'
 
 export const OPEN_NAV_LABEL = LABELS.shell.open_nav
@@ -30,8 +29,7 @@ const FOCUS_FRAMES = 60
  * THE ENTRIES ARE THE RAIL'S OWN. `RailEntry` draws a row here exactly as it draws one there,
  * so an entry added to `lib/nav` arrives in both without either being told.
  *
- * THE ACCOUNT MENU IS AT THE FOOT, because the status bar's account cell is the rail's width and
- * is not drawn below the breakpoint at all.
+ * The account menu is at its foot, as it is at the foot of the rail.
  */
 export function NavDrawer({
     open,
@@ -102,7 +100,7 @@ export function NavDrawer({
                 onClick={onClose}
                 aria-hidden
                 className={cn(
-                    'fixed inset-0 z-40 bg-black/40 transition-opacity duration-150',
+                    'fixed inset-0 z-40 bg-scrim transition-opacity duration-150',
                     open ? 'opacity-100' : 'pointer-events-none opacity-0',
                 )}
             />
@@ -110,23 +108,12 @@ export function NavDrawer({
                 data-nav-drawer
                 aria-label={LABELS.shell.nav_region}
                 className={cn(
-                    'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border-strong bg-sidebar text-sidebar-foreground transition-[translate] duration-200',
+                    'fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-sidebar text-sidebar-foreground transition-[translate] duration-200',
                     open ? 'translate-x-0' : 'invisible -translate-x-full',
                 )}
             >
-                <div className="flex h-shell-top shrink-0 items-center gap-2 px-3">
-                    <NavLink
-                        to={DASHBOARD_PATH}
-                        aria-label={LABELS.shell.wordmark}
-                        className="control-link flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                    >
-                        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                            <Waypoints className="size-4" aria-hidden />
-                        </span>
-                        <span className="text-base font-semibold tracking-tight">
-                            {LABELS.shell.wordmark}
-                        </span>
-                    </NavLink>
+                <div className="flex h-shell-top shrink-0 items-center gap-2 px-3.5">
+                    <BrandLink />
                     <IconButton
                         ref={close}
                         icon={ICONS.clear}
@@ -136,18 +123,18 @@ export function NavDrawer({
                     />
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto border-t border-border-strong pt-1 pb-2">
+                <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-2">
                     {sections.map((section) => (
-                        <nav key={section.id} className="flex flex-col gap-1 px-2 pb-1">
+                        <nav key={section.id} className="flex flex-col gap-px">
                             {section.label !== null && <SectionLabel section={section} />}
                             {section.entries.map((entry) => (
-                                <RailEntry key={entry.path} entry={entry} collapsed={false} />
+                                <RailEntry key={entry.path} entry={entry} />
                             ))}
                         </nav>
                     ))}
                 </div>
 
-                <div className="shrink-0 border-t border-border-strong p-2">
+                <div className="shrink-0 px-3.5 pt-2 pb-4">
                     <AccountMenu
                         className="w-full"
                         onSettings={() => {

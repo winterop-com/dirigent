@@ -97,7 +97,7 @@ async def backfill(
     resolved = dict(schedule.params) if params is None else dict(params)
     if dry_run:
         return [Filled(window=window) for window in windows]
-    load_definition(version.document).validate_params(resolved, services.format_checker)
+    await load_definition(version.document).check_params(resolved, services.format_checker)
     filled: list[Filled] = []
     for window in windows:
         run = await create_run(

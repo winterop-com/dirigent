@@ -418,7 +418,10 @@ function Firing({ firing }: { firing: FiringOut }) {
                     {LABELS.triggers.schedule.due(formatRelative(firing.scheduled_for))}
                 </span>
                 {view.runId !== null && (
-                    <Link className="font-mono text-primary-ink hover:underline" to={`/runs/${view.runId}`}>
+                    <Link
+                        className="font-mono text-foreground underline-offset-2 hover:underline"
+                        to={`/runs/${view.runId}`}
+                    >
                         {shortId(view.runId)}
                     </Link>
                 )}
@@ -446,7 +449,10 @@ function Received({ input }: { input: SourceInputOut }) {
                     {formatRelative(input.created_at)}
                 </span>
                 {view.runId !== null && (
-                    <Link className="font-mono text-primary-ink hover:underline" to={`/runs/${view.runId}`}>
+                    <Link
+                        className="font-mono text-foreground underline-offset-2 hover:underline"
+                        to={`/runs/${view.runId}`}
+                    >
                         {shortId(view.runId)}
                     </Link>
                 )}

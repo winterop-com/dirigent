@@ -1,15 +1,16 @@
-import { ArrowDown, Copy, Download, PanelBottomClose, SquareTerminal } from 'lucide-react'
+import { ArrowDown } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
+import { IconButton } from '@/components/ds/IconButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useStore } from '@/hooks/use-store'
 import { ApiError } from '@/lib/api'
 import { formatClock } from '@/lib/format'
+import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
 import { followTails } from '@/lib/preferences'
 import { itemLabels, itemOfEntry, type RunDetailState } from '@/lib/run-detail'
@@ -94,10 +95,13 @@ const LEVEL_INK: Record<string, string> = {
 export function RunTerminal({
     state,
     runId,
+    step: chosenStep = null,
     onSelectStep,
 }: {
     state: RunDetailState
     runId: string
+    /** The step chosen on the graph, which narrows the lines to it. */
+    step?: string | null
     /** What a line's step prefix does: select that step and open it in the panel. */
     onSelectStep: (step: string) => void
 }) {
@@ -115,6 +119,11 @@ export function RunTerminal({
     )
 
     const [filters, setFilters] = useState<LineFilters>(EVERY_LINE)
+    useEffect(() => {
+        // The graph is the other place a step is chosen, and the filter follows it.
+        // oxlint-disable-next-line react/set-state-in-effect
+        setFilters((current) => ({ ...current, step: chosenStep ?? '' }))
+    }, [chosenStep])
     // What the reader did to this console, and what they set for every log pane: both follow.
     const [scrolledAway, setScrolledAway] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -220,14 +229,14 @@ export function RunTerminal({
                 ref={drawer}
                 aria-label={LABELS.terminal.name}
                 data-run-terminal="true"
-                className="flex shrink-0 flex-col overflow-hidden rounded-md border border-border-strong"
+                className="dg-panel flex shrink-0 flex-col"
                 style={{ height }}
             >
-                <div className="flex flex-wrap items-center gap-2 border-b border-border bg-sidebar px-3 py-2">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-faint uppercase">
-                        <SquareTerminal className="size-4" aria-hidden />
+                <div data-wraps className="dg-panel-head justify-start max-md:flex-wrap md:flex-nowrap">
+                    <h2 className="mr-1 flex items-center gap-2">
+                        <ICONS.terminal className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                         {LABELS.terminal.heading}
-                    </span>
+                    </h2>
 
                     <Select
                         value={filters.level}
@@ -287,53 +296,26 @@ export function RunTerminal({
 
                     <div className="flex-1" />
 
-                    <Tooltip>
-                        <TooltipTrigger
-                            render={
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={COPY_LINES_LABEL}
-                                    disabled={shown.length === 0}
-                                    onClick={copy}
-                                >
-                                    <Copy className="size-4" aria-hidden />
-                                </Button>
-                            }
-                        />
-                        <TooltipContent side="top">{COPY_LINES_LABEL}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger
-                            render={
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={DOWNLOAD_LOG_LABEL}
-                                    disabled={saving}
-                                    onClick={download}
-                                >
-                                    <Download className="size-4" aria-hidden />
-                                </Button>
-                            }
-                        />
-                        <TooltipContent side="top">{DOWNLOAD_LOG_LABEL}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger
-                            render={
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={HIDE_TERMINAL_LABEL}
-                                    onClick={toggleTerminal}
-                                >
-                                    <PanelBottomClose className="size-4" aria-hidden />
-                                </Button>
-                            }
-                        />
-                        <TooltipContent side="top">{HIDE_TERMINAL_LABEL}</TooltipContent>
-                    </Tooltip>
+                    <IconButton
+                        icon={ICONS.copy}
+                        label={COPY_LINES_LABEL}
+                        size="sm"
+                        disabled={shown.length === 0}
+                        onClick={copy}
+                    />
+                    <IconButton
+                        icon={ICONS.download}
+                        label={DOWNLOAD_LOG_LABEL}
+                        size="sm"
+                        disabled={saving}
+                        onClick={download}
+                    />
+                    <IconButton
+                        icon={ICONS.close_panel}
+                        label={HIDE_TERMINAL_LABEL}
+                        size="sm"
+                        onClick={toggleTerminal}
+                    />
                 </div>
 
                 <div className="relative min-h-0 flex-1">
@@ -418,7 +400,7 @@ function Line({
             ) : (
                 <button
                     type="button"
-                    className="text-terminal-accent hover:underline focus-visible:underline focus-visible:outline-none"
+                    className="font-medium text-terminal-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
                     onClick={() => {
                         onSelectStep(step)
                     }}

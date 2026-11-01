@@ -346,7 +346,10 @@ A SQLite or DuckDB database written with a **relative** path -- `sqlite+aiosqlit
 [work directory](operations.md#scratch-and-work), which is where a database a pipeline builds
 for itself belongs. That directory is local to the worker that made it, so a later step
 reading the database must run on the same worker, and a connection like that cannot be checked
-outside a run because outside a run there is nothing there yet. An absolute path
+outside a run because outside a run there is nothing there yet. The path is followed through
+every link before anything opens it, and one that then lands outside the work directory -- a
+link an earlier step or a `git.checkout` left at `data/`, or a `..` -- is refused
+(`sql.database_outside_the_run`) before any directory is made. An absolute path
 (`sqlite+aiosqlite:////var/lib/data.db`) is used as written.
 
 **A SQLite session reaches the one file its URL names.** A statement cannot `ATTACH` or `DETACH`

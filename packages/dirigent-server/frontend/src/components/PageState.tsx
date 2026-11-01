@@ -1,8 +1,8 @@
-import { Loader2, ServerCrash } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import type { Problem } from '@/lib/api'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { refusalLines } from '@/lib/refusal'
 
@@ -22,13 +22,15 @@ import { refusalLines } from '@/lib/refusal'
  *
  * ALL THREE ARE ONE CARD, SO NONE OF THEM PADS ITSELF. The card's own 16px is the inset every
  * surface in this app holds its content at, and a `py-` laid over it is a second answer to a
- * question the card has already answered.
+ * question the card has already answered. `bare` draws the same three inside a `Panel` whose body
+ * is already the surface, at the same 16px.
  */
 export function PageState({
     loading,
     problem,
     empty,
     emptyMessage,
+    bare = false,
     children,
 }: {
     loading: boolean
@@ -37,24 +39,28 @@ export function PageState({
     empty: boolean
     /** The one line the empty card states. */
     emptyMessage?: ReactNode
+    /** Inside a panel's body rather than on a card of its own. */
+    bare?: boolean
     children: ReactNode
 }) {
+    const Surface = bare ? Inset16 : Card
+    const Content = bare ? Bare : CardContent
     if (loading) {
         return (
-            <Card>
-                <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
+            <Surface>
+                <Content className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <ICONS.loading className="size-4 animate-spin" aria-hidden />
                     {LABELS.shell.reading}
-                </CardContent>
-            </Card>
+                </Content>
+            </Surface>
         )
     }
     if (problem !== null) {
         const lines = refusalLines(problem)
         return (
-            <Card>
-                <CardContent className="flex items-start gap-2">
-                    <ServerCrash className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+            <Surface>
+                <Content className="flex items-start gap-2">
+                    <ICONS.unreachable className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
                     <div className="space-y-1">
                         <p className="text-sm font-medium">{problem.title}</p>
                         {lines.detail !== null && (
@@ -70,16 +76,26 @@ export function PageState({
                             </ul>
                         )}
                     </div>
-                </CardContent>
-            </Card>
+                </Content>
+            </Surface>
         )
     }
     if (empty) {
         return (
-            <Card>
-                <CardContent className="text-sm text-muted-foreground">{emptyMessage}</CardContent>
-            </Card>
+            <Surface>
+                <Content className="text-sm text-muted-foreground">{emptyMessage}</Content>
+            </Surface>
         )
     }
     return <>{children}</>
+}
+
+/** A panel body's own inset, where the card would have stood. */
+function Inset16({ children }: { children: ReactNode }) {
+    return <div className="p-4">{children}</div>
+}
+
+/** What the card's content would have held, with nothing around it. */
+function Bare({ className, children }: { className?: string; children: ReactNode }) {
+    return <div className={className}>{children}</div>
 }

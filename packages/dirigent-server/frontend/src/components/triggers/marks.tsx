@@ -1,5 +1,6 @@
-import type { CSSProperties, ReactNode } from 'react'
+import type { CSSProperties } from 'react'
 
+import { Chip } from '@/components/ds/Chip'
 import { Instant } from '@/components/Instant'
 import { LABELS } from '@/lib/labels'
 import { clockOf, nextFireView, oneTimeView, type OutcomeTone, type ScheduleOut } from '@/lib/triggers'
@@ -28,13 +29,7 @@ export function Dot({ tone }: { tone: OutcomeTone }) {
 }
 
 /** A word a trigger wears: where it came from, and whether it is running. */
-export function Chip({ children }: { children: ReactNode }) {
-    return (
-        <span className="rounded-sm border border-border px-1.5 text-xs text-muted-foreground">
-            {children}
-        </span>
-    )
-}
+export { Chip }
 
 /**
  * Who declared a trigger: the code of the triggers document that owns it, or that the

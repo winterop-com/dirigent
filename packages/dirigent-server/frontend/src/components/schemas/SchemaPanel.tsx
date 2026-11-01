@@ -15,6 +15,7 @@ import { headingOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import { bodyText, deleteSchema, schemaPatch, updateSchema, whyKept, type SchemaOut } from '@/lib/schemas'
+import { Chip } from '@/components/ds/Chip'
 
 /** The media type that asks for the meta-schema of the draft the server validates with. */
 const SCHEMA_MEDIA_TYPE = 'application/schema+json'
@@ -194,7 +195,6 @@ export function SchemaPanel({
                 <Dependants codes={schema.used_by} />
                 <WindowedPane
                     name={LABELS.schemas.body_title(schema.code)}
-                    className="overflow-hidden rounded-md border border-border bg-background"
                     windowed={
                         <CodePane
                             value={text}
@@ -279,12 +279,9 @@ function Dependants({ codes }: { codes: readonly string[] }) {
         >
             <div className="flex flex-wrap items-center gap-1.5">
                 {codes.map((code) => (
-                    <span
-                        key={code}
-                        className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
-                    >
+                    <Chip key={code} tone="mono">
                         {code}
-                    </span>
+                    </Chip>
                 ))}
             </div>
         </Disclosure>

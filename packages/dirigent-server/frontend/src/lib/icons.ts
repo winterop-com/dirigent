@@ -15,6 +15,7 @@
 
 import {
     Activity,
+    Layers2,
     ArrowUpRight,
     Ban,
     Bell,
@@ -84,6 +85,9 @@ import {
     ZoomIn,
     ZoomOut,
     type LucideIcon,
+    Waypoints,
+    SquareTerminal,
+    PanelBottomClose,
 } from 'lucide-react'
 
 /** A mark from the vocabulary, as a component taking a `className`. */
@@ -131,6 +135,9 @@ export const ICONS = {
     expand: ChevronRight,
     drag: GripVertical,
     menu: Menu,
+    brand: Waypoints,
+    terminal: SquareTerminal,
+    close_panel: PanelBottomClose,
     sidebar: PanelLeft,
     panel: PanelRight,
     shortcuts: Keyboard,
@@ -145,6 +152,7 @@ export const ICONS = {
     pipeline: Workflow,
     run_history: Activity,
     step: Box,
+    fan_out: Layers2,
     block: Blocks,
     connection: Plug,
     schema: FileBraces,
@@ -214,6 +222,9 @@ export const ICON_GROUPS = {
         'expand',
         'drag',
         'menu',
+        'brand',
+        'terminal',
+        'close_panel',
         'sidebar',
         'panel',
         'shortcuts',
@@ -228,6 +239,7 @@ export const ICON_GROUPS = {
         'pipeline',
         'run_history',
         'step',
+        'fan_out',
         'block',
         'connection',
         'schema',

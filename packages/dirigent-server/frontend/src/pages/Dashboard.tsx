@@ -1,39 +1,39 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-
-import { useHeartbeat } from '@/hooks/use-heartbeat'
-import { Link, useNavigate } from 'react-router'
+import { RefreshCw } from 'lucide-react'
+import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { RefreshControl } from '@/components/RefreshControl'
-import { RefreshCw } from 'lucide-react'
+import { Code } from '@/components/ds/Code'
+import { PageHeader } from '@/components/ds/PageHeader'
+import { Panel } from '@/components/ds/Panel'
+import { TextLink } from '@/components/ds/TextLink'
+import { MiniGraph } from '@/components/graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { HealthPanel } from '@/components/overview/HealthPanel'
-import { LOOK_COLUMNS } from '@/components/overview/LookRow'
 import { RunsChart } from '@/components/overview/RunsChart'
-import { StatTile, TilePlaceholder } from '@/components/overview/TileCard'
-import { ListTable, type Column } from '@/components/list/ListTable'
-import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
-import { StatusChip } from '@/components/run/StatusChip'
-import { useStore } from '@/hooks/use-store'
-import { refreshSeconds } from '@/lib/refresh'
+import { RefreshControl } from '@/components/RefreshControl'
+import { StatusChip, StatusDot } from '@/components/run/StatusChip'
+import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { useRead } from '@/hooks/use-read'
+import { useStore } from '@/hooks/use-store'
 import { readConnections } from '@/lib/connections'
+import { elapsedBetween, formatDuration } from '@/lib/format'
 import {
     healthNote,
     healthRows,
     hourlyRuns,
     liveRuns,
+    medianDurations,
     nextFires,
     readSchedulesAhead,
-    statTiles,
-    type NextFire,
 } from '@/lib/home'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
-import { DAY, needsALook, TILE_PAGE, withPipelines } from '@/lib/overview'
+import { DAY, needsALook, TILE_PAGE, withPipelines, type LookEntry } from '@/lib/overview'
 import { DASHBOARD_GROUP, registerActions } from '@/lib/palette'
+import { refreshSeconds } from '@/lib/refresh'
 import { EVERY_RUN, readRuns, type RunOut } from '@/lib/runs'
 import { currentOffset } from '@/lib/times'
 import { cn } from '@/lib/utils'
@@ -120,7 +120,6 @@ export function Dashboard() {
         ])
     }, [again])
 
-    const navigate = useNavigate()
     useHeartbeat(again, useStore(refreshSeconds))
 
     const live = liveRuns(running.value?.items ?? [], queued.value?.items ?? [])
@@ -129,13 +128,16 @@ export function Dashboard() {
         ahead.value?.pipelines ?? [],
     )
     const fires = nextFires(ahead.value?.schedules ?? [])
-    const tiles = statTiles(day.value?.page ?? null, running.value, queued.value)
+    const names = new Map((ahead.value?.pipelines ?? []).map((row) => [row.code, row.name]))
+    const dayRuns = day.value?.page.items ?? []
+    const durations = medianDurations(dayRuns)
+    const recent = dayRuns.slice(0, RECENT_ROWS)
 
-    // The chart is the day tile's own rows, bucketed here rather than read a second time -- one
-    // page of at most `TILE_PAGE` runs, which is the largest this API answers in one request. Its
-    // hours end when those rows were read, not when the screen last rendered.
+    // The chart is the day's own rows, bucketed here rather than read a second time -- one page of
+    // at most `TILE_PAGE` runs, which is the largest this API answers in one request. Its hours end
+    // when those rows were read, not when the screen last rendered.
     const now = day.value?.at ?? opened
-    const buckets = hourlyRuns(day.value?.page.items ?? [], now, currentOffset(now))
+    const buckets = hourlyRuns(dayRuns, now, currentOffset(now))
 
     // The panel is drawn where its two listings answered. Both are reads any signed-in account
     // may make, so what decides this is the answer rather than the role -- and an instance that
@@ -154,26 +156,53 @@ export function Dashboard() {
                 }
             />
 
-            <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-                {tiles.map((slot) =>
-                    slot.tile === null ? (
-                        <TilePlaceholder key={slot.id} />
-                    ) : (
-                        <StatTile key={slot.id} tile={slot.tile} />
-                    ),
-                )}
-            </div>
+            {(failed.problem !== null || messy.problem !== null || look.length > 0) && (
+                <Section title={LABELS.dashboard.troubled_runs} to="/runs" count={look.length}>
+                    <PageState
+                        loading={!failed.read || !messy.read}
+                        problem={failed.problem ?? messy.problem}
+                        empty={false}
+                    >
+                        {look.map((entry) => (
+                            <TroubledRow key={entry.run.id} entry={entry} />
+                        ))}
+                    </PageState>
+                </Section>
+            )}
 
-            {/* Three columns only at `xl`: the card taking a third of 1024 is 225px for a
-            code, a reading and an instant, and what fits there is three ellipses. */}
-            <div className="mb-6 grid gap-3 xl:grid-cols-3">
-                <div className={cn(healthReadable ? 'xl:col-span-2' : 'xl:col-span-3')}>
+            <div className="mb-8 grid items-start gap-5 xl:grid-cols-[1.35fr_1fr]">
+                <div className={cn('flex min-w-0 flex-col gap-5', !healthReadable && 'xl:col-span-2')}>
                     {day.problem === null ? (
                         <RunsChart buckets={buckets} reading={!day.read} />
                     ) : (
                         <PageState loading={false} problem={day.problem} empty={false}>
                             {null}
                         </PageState>
+                    )}
+                    {durations.length > 0 && (
+                        <Panel
+                            title={LABELS.dashboard.durations.title}
+                            meta={LABELS.dashboard.durations.median}
+                            bodyClassName="py-1"
+                        >
+                            <div>
+                                {durations.map((row) => (
+                                    <Link
+                                        key={row.pipeline}
+                                        to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
+                                        className="flex items-baseline gap-3 border-t border-border py-2 text-sm first:border-t-0 hover:underline"
+                                    >
+                                        <PipelineTitle
+                                            code={row.pipeline}
+                                            name={names.get(row.pipeline) ?? null}
+                                        />
+                                        <span className="w-16 shrink-0 text-right font-mono text-xs font-medium">
+                                            {formatDuration(row.median_ms)}
+                                        </span>
+                                    </Link>
+                                ))}
+                            </div>
+                        </Panel>
                     )}
                 </div>
                 {healthReadable && (
@@ -185,150 +214,173 @@ export function Dashboard() {
                 )}
             </div>
 
-            <Section title={LABELS.word.in_flight.heading} to="/runs">
-                <PageState
-                    loading={!running.read || !queued.read}
-                    problem={running.problem ?? queued.problem}
-                    empty={live.length === 0}
-                    emptyMessage={LABELS.dashboard.nothing_in_flight}
-                >
-                    <ListTable
-                        chrome={{ footer: false }}
-                        columns={LIVE_COLUMNS}
-                        rows={live}
-                        rowKey={(run) => run.id}
-                        reading={false}
-                        next={null}
-                        onMore={NOTHING_MORE}
-                        noun={LABELS.word.run.count}
-                        onSelect={(run) => void navigate(`/runs/${run.id}`)}
-                    />
-                </PageState>
-            </Section>
+            {live.length > 0 && (
+                <Section title={LABELS.word.in_flight.heading} to="/runs" count={live.length}>
+                    {live.map((run) => (
+                        <RecentRow key={run.id} run={run} name={names.get(run.pipeline) ?? null} />
+                    ))}
+                </Section>
+            )}
 
-            <Section title={LABELS.dashboard.troubled_runs} to="/runs">
-                <PageState
-                    loading={!failed.read || !messy.read}
-                    problem={failed.problem ?? messy.problem}
-                    empty={look.length === 0}
-                    emptyMessage={LABELS.dashboard.nothing_troubled}
-                >
-                    <ListTable
-                        chrome={{ footer: false }}
-                        columns={LOOK_COLUMNS}
-                        rows={look}
-                        rowKey={(entry) => entry.run.id}
-                        reading={false}
-                        next={null}
-                        onMore={NOTHING_MORE}
-                        noun={LABELS.word.run.count}
-                        onSelect={(entry) => void navigate(`/runs/${entry.run.id}`)}
-                    />
-                </PageState>
-            </Section>
+            {recent.length > 0 && (
+                <Section title={LABELS.dashboard.recent_runs} to="/runs" link={LABELS.dashboard.all_runs}>
+                    {recent.map((run) => (
+                        <RecentRow key={run.id} run={run} name={names.get(run.pipeline) ?? null} />
+                    ))}
+                </Section>
+            )}
 
-            <Section title={LABELS.dashboard.next_firings} to="/triggers">
-                <PageState
-                    loading={!ahead.read}
-                    problem={ahead.problem}
-                    empty={fires.length === 0}
-                    emptyMessage={LABELS.dashboard.no_fire_due}
-                >
-                    <ListTable
-                        chrome={{ footer: false }}
-                        columns={FIRE_COLUMNS}
-                        rows={fires}
-                        rowKey={(fire) => `${fire.pipeline}:${fire.schedule.code}`}
-                        reading={false}
-                        next={null}
-                        onMore={NOTHING_MORE}
-                        noun={LABELS.word.firing.count}
-                        onSelect={(fire) => void navigate(`/pipelines/${encodeURIComponent(fire.pipeline)}`)}
-                    />
-                </PageState>
-            </Section>
+            {fires.length > 0 && (
+                <Section title={LABELS.dashboard.next_firings} to="/triggers">
+                    {fires.map((fire) => {
+                        const schedule = headingOf(fire.schedule)
+                        return (
+                            <Link
+                                key={`${fire.pipeline}:${fire.schedule.code}`}
+                                to={`/pipelines/${encodeURIComponent(fire.pipeline)}`}
+                                className="flex items-center gap-4 border-t border-border px-5 py-2.5 first:border-t-0 hover:bg-muted"
+                            >
+                                <PipelineTitle code={fire.pipeline} name={names.get(fire.pipeline) ?? null} />
+                                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                                    {schedule.title}
+                                </span>
+                                <Instant
+                                    className="w-18 shrink-0 text-right text-xs text-muted-foreground"
+                                    at={fire.at}
+                                />
+                            </Link>
+                        )
+                    })}
+                </Section>
+            )}
         </>
     )
 }
 
+/** How many runs the recent-runs list draws; the runs screen holds the rest. */
+const RECENT_ROWS = 6
+
 /**
- * One section: what it is, the screen that owns it, and the one line saying what is in it.
+ * One section: what it is, the screen that owns it, and how many it holds.
  *
  * The heading is the link, because a section of a dashboard is a place a reader is on their way
  * out of and a heading that went nowhere would leave them looking for the way.
  */
-function Section({ title, to, children }: { title: string; to: string; children: ReactNode }) {
+function Section({
+    title,
+    to,
+    count,
+    link,
+    children,
+}: {
+    title: string
+    to: string
+    count?: number
+    link?: string
+    children: ReactNode
+}) {
     return (
-        <section className="mb-6 space-y-2 last:mb-0">
-            <div className="space-y-1">
-                <h2 className="text-sm font-semibold">
-                    <Link to={to} className="hover:text-primary-ink">
-                        {title}
-                    </Link>
-                </h2>
-            </div>
+        <Panel
+            className="mb-6 last:mb-0"
+            inset={false}
+            title={
+                <Link to={to} className="hover:underline">
+                    {title}
+                </Link>
+            }
+            meta={count === undefined ? undefined : String(count)}
+            aside={
+                link === undefined ? undefined : (
+                    <TextLink variant="aside" to={to} className="text-xs font-normal">
+                        {link}
+                    </TextLink>
+                )
+            }
+        >
             {children}
-        </section>
+        </Panel>
     )
 }
 
-/** A load-more that never fires: these tables show what the read answered and no more. */
-const NOTHING_MORE = () => {
-    // The dashboard's tables are windows, not walks; the listing screens page.
+/** A pipeline headed the way every screen heads one, on one line that truncates. */
+function PipelineTitle({ code, name }: { code: string; name: string | null }) {
+    return (
+        <span className="flex min-w-0 flex-1 items-baseline gap-2.5">
+            <span
+                className={cn('min-w-0 truncate', name === null && 'font-mono text-xs')}
+                title={name ?? code}
+            >
+                {name ?? code}
+            </span>
+            {name !== null && <Code value={code} className="shrink" />}
+        </span>
+    )
 }
 
-/** The in-flight table's columns: what it is, where it runs, and since when. */
-const LIVE_COLUMNS: Column<RunOut>[] = [
-    {
-        id: 'status',
-        header: LABELS.word.status,
-        cell: (run) => <StatusChip status={run.status} />,
-    },
-    {
-        id: 'pipeline',
-        header: LABELS.word.pipeline.label,
-        cell: (run) => <span className="font-mono text-sm">{headingOf({ code: run.pipeline }).title}</span>,
-    },
-    {
-        id: 'since',
-        header: LABELS.dashboard.column.since,
-        className: 'text-right',
-        cell: (run) => <Instant className="text-xs text-faint" at={run.started_at ?? run.created_at} />,
-    },
-]
-
-/** The next-fires table's columns: the pipeline, which of its clocks, and when it goes off. */
-const FIRE_COLUMNS: Column<NextFire>[] = [
-    {
-        id: 'pipeline',
-        header: LABELS.word.pipeline.label,
-        cell: (fire) => <span className="font-mono text-sm">{headingOf({ code: fire.pipeline }).title}</span>,
-    },
-    {
-        id: 'schedule',
-        header: LABELS.word.schedule.label,
-        cell: (fire) => {
-            const schedule = headingOf(fire.schedule)
-            return (
-                <span className="flex min-w-0 items-baseline gap-2">
+/** A run that needs a look: its pipeline's shape with the failed step filled, and what it said. */
+function TroubledRow({ entry }: { entry: LookEntry }) {
+    const { run } = entry
+    return (
+        <Link
+            to={`/runs/${run.id}`}
+            className="flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-border px-5 py-4 first:border-t-0 hover:bg-muted"
+        >
+            <div className="flex h-13 w-59 shrink-0 items-center overflow-hidden">
+                <MiniGraph steps={entry.shape} failed={entry.failedStep} width={236} height={52} />
+            </div>
+            <div className="min-w-0 flex-[999_1_320px]">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
                     <span
-                        className={cn('truncate text-xs', schedule.named ? 'text-foreground' : 'font-mono')}
+                        className={cn(
+                            'min-w-0 truncate text-title font-semibold',
+                            entry.name === null && 'font-mono',
+                        )}
                     >
-                        {schedule.title}
+                        {entry.name ?? run.pipeline}
                     </span>
-                    {schedule.code !== null && (
-                        <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                            {schedule.code}
-                        </span>
-                    )}
-                </span>
-            )
-        },
-    },
-    {
-        id: 'fires',
-        header: LABELS.word.next,
-        className: 'text-right',
-        cell: (fire) => <Instant className="text-xs text-faint" at={fire.at} />,
-    },
-]
+                    {entry.name !== null && <Code value={run.pipeline} />}
+                </div>
+                {(entry.failedStep !== null || run.error !== null) && (
+                    <p className="mt-1.5 text-sm break-words">
+                        {entry.failedStep !== null && (
+                            <Code value={entry.failedStep} tone="body" className="font-medium" />
+                        )}
+                        {entry.failedStep !== null && run.error !== null && (
+                            <span className="text-muted-foreground"> · </span>
+                        )}
+                        {run.error}
+                    </p>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs">
+                    <StatusChip status={run.status} />
+                    <Instant
+                        className="text-muted-foreground"
+                        at={run.finished_at ?? run.started_at ?? run.created_at}
+                    />
+                    {run.error_code !== null && <Code value={run.error_code} />}
+                </div>
+            </div>
+        </Link>
+    )
+}
+
+/** A run on one line: its state as a dot, its pipeline, how long it took, and when. */
+function RecentRow({ run, name }: { run: RunOut; name: string | null }) {
+    const took = elapsedBetween(run.started_at, run.finished_at)
+    return (
+        <Link
+            to={`/runs/${run.id}`}
+            className="flex items-center gap-4 border-t border-border px-5 py-2.5 first:border-t-0 hover:bg-muted"
+        >
+            <StatusDot status={run.status} />
+            <PipelineTitle code={run.pipeline} name={name} />
+            <span className="w-16 shrink-0 text-right font-mono text-xs text-muted-foreground">
+                {took === null ? null : formatDuration(took)}
+            </span>
+            <Instant
+                className="w-18 shrink-0 text-right text-xs text-muted-foreground"
+                at={run.started_at ?? run.created_at}
+            />
+        </Link>
+    )
+}

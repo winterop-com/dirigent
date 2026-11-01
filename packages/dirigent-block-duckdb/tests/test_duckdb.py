@@ -651,6 +651,25 @@ async def test_the_database_the_connection_names_opens_wherever_it_is(local_ctx:
     assert (await query(local_ctx, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 1}]
 
 
+@pytest.mark.parametrize("link", ["data", "data/demo.duckdb"], ids=["directory", "file"])
+async def test_a_link_in_the_work_directory_does_not_lead_a_run_relative_database_elsewhere(
+    local_ctx: FakeContext, tmp_path: Path, link: str
+) -> None:
+    other = tmp_path / "elsewhere" / "demo.duckdb"
+    other.parent.mkdir()
+    duck(local_ctx, f"duckdb:///{other}")
+    await execute(local_ctx, "CREATE TABLE reading (id INTEGER)")
+    before = other.read_bytes()
+    planted = local_ctx.work / link
+    planted.parent.mkdir(parents=True, exist_ok=True)
+    planted.symlink_to(other if link.endswith(".duckdb") else other.parent)
+    duck(local_ctx, "duckdb:///data/demo.duckdb")
+    with pytest.raises(BlockFailure) as raised:
+        await execute(local_ctx, "INSERT INTO reading VALUES (1)")
+    assert raised.value.code == "sql.database_outside_the_run"
+    assert other.read_bytes() == before
+
+
 @pytest.mark.skipif(not HAS_HTTPFS, reason="duckdb's httpfs extension is not installed on this worker")
 async def test_a_step_that_addresses_a_bucket_keeps_its_reach_to_it(ducked: FakeContext) -> None:
     """The s3 scheme stays open where the step asked for it: the endpoint answers, not the boundary.
