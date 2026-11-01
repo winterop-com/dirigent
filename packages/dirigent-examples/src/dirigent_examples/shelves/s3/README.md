@@ -6,7 +6,7 @@ and every document here declares `requires: {storage: [s3]}` so an instance with
 backend refuses it before storing it.
 
 All five name one connection, `artifacts`, and it is the code the
-[compose stack](../../docs/operations.md) already bootstraps for its own artifact bucket. So
+[compose stack](https://winterop-com.github.io/dirigent/operations/) already bootstraps for its own artifact bucket. So
 on the stack there is nothing to set up: apply and run, naming the stack's bucket.
 
 ```bash

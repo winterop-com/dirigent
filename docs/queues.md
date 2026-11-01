@@ -154,7 +154,7 @@ ended at, without a gap and without a consumer group. A `group_id` set beside it
 what each batch took; the source's cursor is what the next wait reads from. The usual way to
 make a topic a pipeline's entrance is the held `kafka` source, which keeps a consumer open and
 makes each message its own run:
-[`examples/queues/kafka-source-then-transform.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/queues/kafka-source-then-transform.yaml).
+[`examples/queues/kafka-source-then-transform.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/queues/kafka-source-then-transform.yaml).
 The sensor source is for a batch per run. `rabbitmq.consume` cannot be poked by a source; the
 held `rabbitmq` source is that queue's entrance.
 

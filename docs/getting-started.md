@@ -49,7 +49,7 @@ uvx --from dirigent-cli --with dirigent-dhis2 dg dev
 
 The command is in the `dirigent-cli` package, so `uvx` is always given `--from dirigent-cli`:
 `uvx dirigent` does not resolve to it. A pack pins its dirigent packages at its own version, so
-name one release for both, `--from dirigent-cli==0.27.0 --with dirigent-dhis2==0.27.0`, or
+name one release for both, `--from dirigent-cli==0.29.0 --with dirigent-dhis2==0.29.0`, or
 leave both unpinned and let the resolver match them.
 
 **From source**, which is what a contributor does:
@@ -174,7 +174,7 @@ At a terminal it renders its lines; in a pipe or a container's log it writes NDJ
 it stays quiet until something happens. Detail is what `-v` is for:
 
 ```text
-2026-01-01T18:22:23.069+01:00 [info    ] starting   [process] process=dev api=http://127.0.0.1:3333 docs=http://127.0.0.1:3333/docs admin=dev state=/home/you/my-pipelines/.dirigent/state token=osZDN7zM-DnWPb3rVJHWsxpgkekZylez1MF8E-GpgnI migrated=0001_baseline
+2026-01-01T18:22:23.069+01:00 [info    ] starting   [process] process=dev api=http://127.0.0.1:3333 docs=http://127.0.0.1:3333/docs admin=admin state=/home/you/my-pipelines/.dirigent/state token=osZDN7zM-DnWPb3rVJHWsxpgkekZylez1MF8E-GpgnI migrated=0001_baseline
 2026-01-01T18:22:23.382+01:00 [info    ] ready      [process] process=dev
 ```
 

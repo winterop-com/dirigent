@@ -62,7 +62,7 @@ and `.` or `..` are refused with a `DirigentError` before any request is made.
 | Accessor | What it reaches |
 | --- | --- |
 | `dg.pipelines` | `list`, `get`, `apply`, `prune`, `versions`, `export`, `validate`, `activate`, `deactivate`, `delete`, `run`, `backfill` |
-| `dg.runs` | `list`, `get`, `items`, `attempts`, `artifacts`, `artifact_text`, `cancel`, `retry`, `logs`, `report`, `report_document`, `wait`, `follow_logs`, `events` |
+| `dg.runs` | `list`, `get`, `stats`, `items`, `attempts`, `artifacts`, `artifact_text`, `cancel`, `pause`, `resume`, `rerun`, `retry`, `logs`, `report`, `report_document`, `wait`, `follow_logs`, `events` |
 | `dg.schedules` | `list`, `get`, `create`, `update`, `pause`, `resume`, `firings`, `delete` |
 | `dg.sources` | `list`, `get`, `pause`, `resume`, `rotate_token`, `set_secret`, `inputs` |
 | `dg.trigger_documents` | `list`, `get`, `delete` |

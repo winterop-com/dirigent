@@ -1,6 +1,6 @@
 # Architecture
 
-Dirigent is one `uv` workspace of nineteen packages. This page says what each is for, what may
+Dirigent is one `uv` workspace of twenty packages. This page says what each is for, what may
 depend on what, and **where a new thing goes** -- so the answer is a rule rather than a guess.
 
 How the running pieces fit together -- the server, the scheduler, the workers, the database

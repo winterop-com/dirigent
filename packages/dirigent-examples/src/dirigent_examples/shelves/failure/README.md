@@ -6,7 +6,7 @@ Seeing these settle red is the point; a corpus where everything is green teaches
 about reading a failure.
 
 ```bash
-dg run --local examples/failure/retries.yaml
+dg run --local examples/failure/retries.yaml --enable-unsafe shell.run
 ```
 
 ## Pipelines

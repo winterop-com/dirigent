@@ -1,10 +1,10 @@
 # Queue examples
 
-A queue sensor starts a run from a message instead of a clock or a call. Each poke reads
+A queue sensor waits for a message instead of a clock or a call. Each poke reads
 what has arrived since the last one and succeeds the moment there is enough, so the batch
 becomes ordinary step output and the rest of the DAG never learns where it came from. A publish
 goes the other way: a step puts records on a topic and succeeds once the broker has them.
-[docs/queues.md](../../docs/queues.md) is the family's home.
+[docs/queues.md](https://winterop-com.github.io/dirigent/queues/) is the family's home.
 
 Every block here is **ordinary**: each reaches only the brokers its connection names, so no id
 has to be allowlisted to run one.

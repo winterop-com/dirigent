@@ -30,15 +30,17 @@ dg dev
 ```
 
 ```text
-2026-01-01T18:22:23.069+01:00 [info    ] starting   [process] process=dev api=http://127.0.0.1:3333 docs=http://127.0.0.1:3333/docs admin=dev state=/home/you/my-pipelines/.dirigent/state token=osZDN7zM-DnWPb3rVJHWsxpgkekZylez1MF8E-GpgnI migrated=0001_baseline
+2026-01-01T18:22:23.069+01:00 [info    ] starting   [process] process=dev api=http://127.0.0.1:3333 docs=http://127.0.0.1:3333/docs admin=admin state=/home/you/my-pipelines/.dirigent/state token=osZDN7zM-DnWPb3rVJHWsxpgkekZylez1MF8E-GpgnI migrated=0001_baseline
 2026-01-01T18:22:23.382+01:00 [info    ] ready      [process] process=dev
 ```
 
 The token is a field on the starting record, so a script takes it without reading the rest:
 
 ```bash
+dg dev > dev.ndjson &
+sleep 3
 export DG_URL=http://127.0.0.1:3333
-export DG_TOKEN=$(dg dev | jq -r 'select(.kind == "process" and has("token")) | .token')
+export DG_TOKEN=$(jq -r 'select(.kind == "process" and has("token")) | .token' dev.ndjson)
 ```
 
 `dg dev` starts its own logging at WARNING, and `-v` is what asks for the migration lines, the

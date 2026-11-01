@@ -193,7 +193,7 @@ steps:
 
 Those are the three classes the engine distinguishes and all three are the block's to raise,
 so the contrast that used to need a live endpoint answering 404 is an offline document now:
-[`examples/patterns/retry-only-transient.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/retry-only-transient.yaml)
+[`examples/patterns/retry-only-transient.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/patterns/retry-only-transient.yaml)
 puts one policy on all three and reads the attempt counts back.
 
 Both knobs come back on the output, so an attempt says which window it was inside and what
@@ -203,7 +203,7 @@ never fails, whatever class it names.
 ### The three positions
 
 The node is designed to sit anywhere in a document, and
-[`examples/playground/`](https://github.com/winterop-com/dirigent/tree/main/examples/playground)
+[`examples/playground/`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/playground)
 shows all three:
 
 - **At the start**, with no `input` and no upstream: the lead case, and the reason `input` is
@@ -347,7 +347,7 @@ never runs dry: a worker pokes it outside any run, each batch that arrives becom
 the next wait starts its offsets where this batch's ended. Three runs of three rows carry
 offsets 0 to 8 between them, with nothing to connect to, so the run list filling and the graph
 lighting up batch after batch is what consuming a topic looks like, offline:
-[`examples/sources/sensor-arrivals.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/sources/sensor-arrivals.yaml).
+[`examples/sources/sensor-arrivals.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/sources/sensor-arrivals.yaml).
 
 ### A readiness wait, offline
 
@@ -355,7 +355,7 @@ lighting up batch after batch is what consuming a topic looks like, offline:
 be an offline example and could not be verified by `dg run --local`. `playground.arrive`
 answers "not yet, ask again" against no broker, no URL and no file, so that document can exist
 now:
-[`examples/playground/waiting-for-a-batch.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/playground/waiting-for-a-batch.yaml).
+[`examples/playground/waiting-for-a-batch.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/playground/waiting-for-a-batch.yaml).
 
 ## The routes
 
@@ -506,7 +506,7 @@ until it is whole is not a stream.
 **Inside a DAG a step reads the whole of it.** `http.request` reads a bounded body and hands it
 on, so a step waits for the last line and then gets all of them at once, as text -- NDJSON is
 not JSON. The lines are still the value, and `transform.jq` splits them:
-[`examples/playground/a-stream-to-read.yaml`](https://github.com/winterop-com/dirigent/tree/main/examples/playground/a-stream-to-read.yaml).
+[`examples/playground/a-stream-to-read.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/playground/a-stream-to-read.yaml).
 
 ### Statuses that carry no body
 

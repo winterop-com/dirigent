@@ -2,8 +2,8 @@
 
 The `docker.*` family runs containers on the worker, which is why each block needs its id in
 `DIRIGENT_ENABLED_UNSAFE_BLOCKS` before an instance will run it, and a daemon the worker can
-reach. [docs/docker.md](../../docs/docker.md) is the family's home, and
-[docs/security.md](../../docs/security.md) says what mounting the socket grants.
+reach. [docs/docker.md](https://winterop-com.github.io/dirigent/docker/) is the family's home, and
+[docs/security.md](https://winterop-com.github.io/dirigent/security/) says what mounting the socket grants.
 
 ```bash
 dg run --local examples/docker/docker-hello.yaml --enable-unsafe docker.run

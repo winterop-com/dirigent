@@ -42,7 +42,7 @@ frontend changes.
 | Operators | `spec` (id, group, config/output schemas, idempotency flag) plus `async execute(config, ctx) -> Output \| RemoteHandle`; optional `probe` / `fetch` / `cancel` for async systems | `http.request`, `storage.copy`, `pipeline.run`, `webhook.post`, `shell.run`, `docker.run` |
 | Sensors | `spec` plus `async poke(config, ctx) -> Output \| NotYet`; the engine owns interval, deadline, and timeout outcome | `storage.exists`, `http.ready`, `time.window` |
 | Storage backends | Scheme registration plus `open_read` / `open_write` / `stat` / `list` / `delete` over URIs, streamed | `file://` in core, `s3://` as the first backend package |
-| Notifiers | `config_model` plus `async send(message, config)` | `log`, `webhook`; Slack and email as packages |
+| Notifiers | `config_model` plus `async send(message, config)` | `log`, `webhook`, `slack`, `email` |
 | Connection kinds | `config_model` (secret fields marked) plus `async check(config) -> HealthReport` | generic HTTP connection |
 | Source kinds | `spec` (kind, hosting, whether a reply answers it), `config_model`, `output_model`, plus, for a `ReceivedSource`, `route(config)`, `admit(config, head)` and `async receive(config, request, ctx) -> Output \| Ignore \| Refusal`, for a `PolledSource`, `poll_every(config)` and `async poll(config, cursor, ctx, limit) -> Polled`, or for a `HeldSource`, `listen(config, ctx)` around a consumer's `receive` and `ack` | `endpoint`, `storage`, `sensor`; `kafka` and `rabbitmq` in the queues pack |
 | Formats | A `formats` map of name to `Callable[[object], bool]`, joined into the checker every schema validation asserts `format` against; a format no installed pack contributes passes unchecked | none in core; `dirigent-dhis2` contributes `dhis2-uid`, `dhis2-period` and `dhis2-code` |
@@ -349,7 +349,7 @@ dirigent/
     dirigent-testing/      # test doubles and pytest fixtures for writing blocks
 ```
 
-[The architecture page](architecture.md) draws the same nineteen packages as a dependency
+[The architecture page](architecture.md) draws the same twenty packages as a dependency
 tree, and `packages/dirigent-common/tests/test_dependency_tree.py` asserts every edge in it.
 
 Two of these are contracts, and both must stay small and stable because other people write
@@ -1308,6 +1308,7 @@ triggers:                              # optional, and travels with the document
       name: Nightly, Oslo time         # optional here too, and so is description
       cron: "0 5 * * *"
       timezone: Europe/Oslo
+      params: { day: "2026-01-01" }    # a required parameter is pinned by every schedule
 
 requires:                              # the preflight a shared document declares
   blocks: [http.request, storage.exists]
@@ -1375,7 +1376,7 @@ Reading guide for the choices above:
 somebody is meant to copy, and the copy is the text verbatim with its `code:` rewritten and
 the `starter` tag dropped -- so every teaching comment in it survives and there is no macro
 language. The one transformation is the rule above turned around: `dg pipeline new` and the
-UI's *Use as starter* strip each `connections:` and `schemas:` block the original carried and
+UI's *Use as template* strip each `connections:` and `schemas:` block the original carried and
 name every code it held under the copy's `requires:` instead. What ran alone becomes what says
 what it needs, and the preflight the command prints is the list to work through -- the
 `dg connection create` lines, each with the kind the carried definition named, the schemas to
@@ -1534,33 +1535,33 @@ dg db upgrade | current | history
 
 # projects and definitions
 dg init [DIR] [--template local|compose|documents] [--service S] [--pack P] [--pipeline STARTER]
-dg apply [file|url|-] [--dry-run] [--as NAME] [--paused] [--prune]   # no argument in a project: the whole project
-dg export NAME [-f FILE] [--version N]
+dg apply [file|url|-] [--dry-run] [--as CODE] [--paused] [--prune]   # no argument in a project: the whole project
+dg export CODE [-f FILE] [--version N]
 dg validate [file|url] [--server] [--explain]
-dg pipeline list | show | versions | validate | activate | deactivate | delete NAME
+dg pipeline list | show | versions | validate | activate | deactivate | delete CODE
 dg pipeline new STARTER [--code X] [--dir DIR]        # copy a starter into this project
 dg examples list [--starter] [--shelf S] | show CODE  # the documents every installed plugin ships
 dg schema list | create file|- | show | update CODE [file|-] | delete CODE   # named JSON Schemas
 
 # execution
-dg run NAME|file|url [-p key=value ...] [-P FILE] [--watch] [--local] [--window START..END]
-dg runs list | stats | show | cancel | report | profile | logs [--follow] | retry RUN --step NAME
+dg run CODE|file|url [-p key=value ...] [-P FILE] [--watch] [--local] [--window START..END]
+dg runs list | stats | show | cancel | report | profile | logs [--follow] | retry RUN --step STEP
 dg runs rerun RUN [--current] [--watch]   # a settled run again, a dead letter replayed
 dg backfill PIPELINE --schedule S --from WHEN --to WHEN [--dry-run]   # the windows a cadence went past
-dg format [FILE]                        # render a kept or piped NDJSON stream for reading
+dg format [console|compact] [-f FILE]   # render a kept or piped NDJSON stream for reading
 
 # triggers and alerting
-dg schedule create PIPELINE NAME --cron EXPR | --interval DUR | --at WHEN [--tz ZONE] [-p k=v] [-P FILE]
-dg schedule list | pause | resume | firings | delete PIPELINE NAME
+dg schedule create PIPELINE CODE --cron EXPR | --interval DUR | --at WHEN [--tz ZONE] [-p k=v] [-P FILE]
+dg schedule list | pause | resume | firings | delete PIPELINE CODE
 dg source list | show | pause | resume | rotate-token | set-secret | inputs | call PIPELINE SOURCE
 dg trigger-document list | show | delete CODE         # clocks declared for a pipeline defined elsewhere
-dg alerts rules list | create NAME --event E [--connection C] [--pipeline P] [--importance I]
-                                   [--throttle DUR] | delete NAME
-dg alerts test [--connection NAME] | dg alerts queue | dg alerts retry ID
+dg alerts rules list | create CODE --event E [--connection C] [--pipeline P] [--importance I]
+                                   [--throttle DUR] | delete CODE
+dg alerts test [--connection CODE] | dg alerts queue | dg alerts retry ID
 
 # catalog, connections, operations
 dg blocks list [--kind operator|sensor] | show BLOCK_ID | new           # scaffold a block pack
-dg connection list | create KIND NAME --set field=value | show | check | delete | ensure NAME
+dg connection list | create KIND CODE --set field=value | show | check | delete | ensure KIND CODE
 dg system info | dg system workers
 dg system health | health database | worker | server | scheduler     # one part, or the whole host
 dg config show | dg secret-key | dg prune [--runs DUR] [--logs DUR] [--dry-run] | dg --version
