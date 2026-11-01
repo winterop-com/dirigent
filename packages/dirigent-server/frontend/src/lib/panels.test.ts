@@ -3,7 +3,11 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import {
     PANEL_MAX_WIDTH,
     PANEL_MIN_WIDTH,
+    RAIL_MAX_WIDTH,
+    RAIL_MIN_WIDTH,
+    RAIL_WIDTH,
     clampPanelWidth,
+    clampRailWidth,
     closePanel,
     fillPanel,
     openPanel,
@@ -14,6 +18,9 @@ import {
     panelTab,
     panelTabs,
     railHidden,
+    railWidth,
+    resetRailWidth,
+    setRailWidth,
     togglePanel,
     toggleRail,
     type PanelTab,
@@ -34,6 +41,21 @@ describe('the right panel width', () => {
 
     test('stops before the panel becomes the screen it sits beside', () => {
         expect(clampPanelWidth(4000)).toBe(PANEL_MAX_WIDTH)
+    })
+})
+
+describe('the rail width', () => {
+    test('is held between what its words need and what the screen can spare', () => {
+        expect(clampRailWidth(200.4)).toBe(200)
+        expect(clampRailWidth(40)).toBe(RAIL_MIN_WIDTH)
+        expect(clampRailWidth(4000)).toBe(RAIL_MAX_WIDTH)
+    })
+
+    test('is set clamped, and a reset gives it back the width it opens at', () => {
+        setRailWidth(9000)
+        expect(railWidth.get()).toBe(RAIL_MAX_WIDTH)
+        resetRailWidth()
+        expect(railWidth.get()).toBe(RAIL_WIDTH)
     })
 })
 
