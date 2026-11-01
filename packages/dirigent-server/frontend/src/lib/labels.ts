@@ -746,6 +746,8 @@ const shell = {
     },
 
     resize_panel: 'Resize the side panel',
+    /** The rail's edge: dragged, or moved with the arrow keys; a double-click resets it. */
+    resize_nav: 'Resize navigation',
     /** The tab strip's heading where the screen in front of the panel has filled no tab. */
     panel: 'Panel',
     panel_empty: 'Nothing selected.',

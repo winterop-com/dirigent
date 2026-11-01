@@ -1221,10 +1221,15 @@ one place a real `KeyboardEvent` is read.
 
 ## Panels are sized in pixels
 
-The rail is 168px and is not dragged: its longest word fits with room, and a grip on its edge
-would be chrome the rail has no use for. The right panel's width and whether it stands open, and
-whether the rail is hidden, are what `lib/panels` keeps, each read out of storage as its store is
-built, so the shell renders at its settled size on the first paint rather than snapping into it.
+**The rail is dragged by its right edge, and opens at 168px.** It holds between 152px, where
+its longest word still fits, and 320px. What it was dragged to is kept in pixels per browser, a
+double-click on the edge gives it back its 168px, and the edge is a `separator` like the panel's:
+it takes the arrow keys, Home and End, and says what it resizes. Hiding it whole is still the
+platform's modifier plus B and `Show navigation`; a hidden rail has no edge. Below the
+breakpoint the rail is a drawer and is not dragged. The rail's width and whether it is hidden,
+and the right panel's width and whether it stands open, are what `lib/panels` keeps, each read
+out of storage as its store is built, so the shell renders at its settled size on the first paint
+rather than snapping into it.
 
 **What is in the right panel is the screen's.** The panel itself is drawn once, in
 `components/RightPanel`, and a screen fills it with `fillPanel` from an effect that returns the
@@ -1250,7 +1255,7 @@ window narrower than the stored width clamps for that session and leaves the sto
 so the intent comes back with the window. The drag handle is a `separator` and answers the arrow
 keys, because a panel that can only be sized by pointer is a panel some people cannot size.
 
-**One hook drags both edges.** The right panel's left edge and the run terminal's top edge are the
+**One hook drags every edge.** The rail's right edge, the right panel's left edge and the run terminal's top edge are the
 same sentences with a different coordinate read off the pointer, so `hooks/use-drag-size` takes
 the axis as a parameter rather than being copied per direction. The pointer is followed on the
 document rather than on the handle, and the size is written to the element's own style while the

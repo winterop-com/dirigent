@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
+
 import { applyExample, signIn } from './support.ts'
 
 /**
@@ -64,6 +65,39 @@ test('the rail hides whole and the strip brings it back', async ({ page }) => {
         expect(strip.top).toBe(strips[0].top)
         expect(strip.height).toBe(strips[0].height)
     }
+})
+
+/** The rail's width before anything was dragged, and the widest it goes. */
+const RAIL_WIDTH = 168
+const RAIL_MAX_WIDTH = 320
+
+test('the rail is dragged by its edge, moved by the keys, kept, and reset by a double-click', async ({
+    page,
+}) => {
+    const rail = page.locator('aside').first()
+    const edge = page.getByRole('separator', { name: LABELS.shell.resize_nav })
+    const width = async () => Math.round((await rail.boundingBox())?.width ?? 0)
+    expect(await width()).toBe(RAIL_WIDTH)
+
+    const box = await edge.boundingBox()
+    if (box === null) throw new Error('no rail edge')
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2, { steps: 4 })
+    await page.mouse.up()
+    await expect.poll(width).toBe(RAIL_WIDTH + 60)
+
+    await edge.focus()
+    await page.keyboard.press('ArrowLeft')
+    await expect.poll(width).toBe(RAIL_WIDTH + 44)
+    await page.keyboard.press('End')
+    await expect.poll(width).toBe(RAIL_MAX_WIDTH)
+
+    await page.reload()
+    await expect.poll(width).toBe(RAIL_MAX_WIDTH)
+
+    await page.getByRole('separator', { name: LABELS.shell.resize_nav }).dblclick()
+    await expect.poll(width).toBe(RAIL_WIDTH)
 })
 
 test('the seams hold with the right panel open', async ({ page }) => {

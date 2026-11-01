@@ -15,8 +15,14 @@ import type { ReactNode } from 'react'
 
 import { createStore } from '@/lib/store'
 
-/** The rail's width: its longest word, and room either side of it. */
+/** The rail's width when nobody has dragged it: its longest word, and room either side of it. */
 export const RAIL_WIDTH = 168
+
+/** Narrower than this and the rail's longest word no longer fits, so a drag stops here. */
+export const RAIL_MIN_WIDTH = 152
+
+/** Wider than this and the rail is taking the screen's room for nothing it can show. */
+export const RAIL_MAX_WIDTH = 320
 
 /** Where the right panel opens when nobody has dragged it yet. */
 export const PANEL_DEFAULT_WIDTH = 360
@@ -28,6 +34,7 @@ export const PANEL_MIN_WIDTH = 240
 export const PANEL_MAX_WIDTH = 720
 
 const RAIL_KEY = 'dirigent.railHidden'
+const RAIL_WIDTH_KEY = 'dirigent.railWidth'
 const PANEL_OPEN_KEY = 'dirigent.panelOpen'
 const PANEL_WIDTH_KEY = 'dirigent.panelWidth'
 
@@ -62,8 +69,33 @@ export function clampPanelWidth(width: number): number {
     return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, Math.round(width)))
 }
 
+/** Hold a dragged rail width between what its words need and what the screen can spare. */
+export function clampRailWidth(width: number): number {
+    return Math.min(RAIL_MAX_WIDTH, Math.max(RAIL_MIN_WIDTH, Math.round(width)))
+}
+
 /** Whether the rail is taken off screen, which is the reader's and is kept. */
 export const railHidden = createStore(readFlag(RAIL_KEY, false))
+
+/** The rail's width in pixels, which the reader drags and which is kept. */
+export const railWidth = createStore(readWidth(RAIL_WIDTH_KEY, RAIL_WIDTH, clampRailWidth))
+
+/** Set the rail's width, in pixels, clamped to what it can draw, and keep it. */
+export function setRailWidth(width: number): void {
+    const clamped = clampRailWidth(width)
+    railWidth.set(clamped)
+    write(RAIL_WIDTH_KEY, String(clamped))
+}
+
+/** Give the rail back the width it opens at, and forget the one it was dragged to. */
+export function resetRailWidth(): void {
+    railWidth.set(RAIL_WIDTH)
+    try {
+        localStorage.removeItem(RAIL_WIDTH_KEY)
+    } catch {
+        // Storage denied: the rail is back at its width for as long as this document is open.
+    }
+}
 
 /**
  * Whether the right panel is drawn open.

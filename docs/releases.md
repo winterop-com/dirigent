@@ -36,6 +36,11 @@ a pipeline with a source says it starts from the source's sample and that nobody
 `reply`, as the run graph does, rather than `no block`, and the pipeline page draws no Blocks panel
 for a pipeline whose steps run none.
 
+**The navigation rail resizes again.** Drag its right edge between 152px and 320px, or focus the
+edge and use the arrow keys, Home and End; the width is remembered in each browser, and a
+double-click on the edge gives back the 168px it opens at. Cmd/Ctrl+B and `Show navigation` still
+hide and show it whole.
+
 **`dirigent-contrib` moves with each release.** It relocks at the tagged commit and takes the same
 version as `dirigent-dhis2` and `dirigent-integration`, and the integration `make test` that is run
 before a release is called done covers it.
