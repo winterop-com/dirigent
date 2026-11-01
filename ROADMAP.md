@@ -160,14 +160,15 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
 
    **The engine, as dhis2w-fhir publishes it.** The pack depends on the `dhis2w-fhir`
    engine as published, under its own name and version, and asks nothing of how that
-   repository is split or named. The engine has no DHIS2 in it: FHIRPath, CQL and ELM
+   repository is split or named. What the pack uses of it has no DHIS2 in it: FHIRPath, CQL and ELM
    evaluators, each run against its conformance suite; measure evaluation by the conventional
    population definitions; data sources over memory, a Bundle and one patient's Bundle; CQL
    library resolvers over files, memory and a composite; a terminology service, in memory or
    against a remote FHIR server; UCUM unit conversion; and closed, frozen R4 models for about
    twenty resource types that reproduce the wire document key for key.
-   - The pack takes the engine's DHIS2-free parts only; nothing DHIS2-bound in `dhis2w-fhir`
-     (IG generation from DHIS2 metadata, the facade) is a dependency.
+   - The pack imports only the engine's DHIS2-free parts, and a test holds it to that. The
+     published `dhis2w-fhir-engine` (1.38.2) still requires `dhis2w-client` and `fastapi`, so
+     installing the pack installs them; whether that changes is dhis2w-fhir's to decide.
    - The FHIR REST client the blocks need (search paging, conditional create and update,
      transaction bundles with `urn:uuid` references, `OperationOutcome` parsing, `/metadata`)
      lives in the pack.
