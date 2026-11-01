@@ -935,8 +935,10 @@ A connection's `bearer_token` or `api_token` holding a control character, or a b
 end, is refused when it is stored (`secret.not_sendable`, 422), because no HTTP header can carry
 it and the HTTP library refuses it by quoting the whole header. Whatever such a value already
 stored, or any other secret, makes a library say is scrubbed by what writes it down: a connection
-check's detail, a notification's error, a step's failure and log, and a source's `last_error` hold
-`***` in its place. Rows written before this are not rewritten, so a token that reached them is
+check's detail, a notification's error, a step's failure and log, a remote cancellation's process
+log line, the OpenTelemetry spans of an attempt and of each block call, and a source's
+`last_error` hold `***` in its place. Those spans record a failure by its class and scrubbed
+text, never its traceback. Rows written before this are not rewritten, so a token that reached them is
 rotated.
 
 That is what makes a redacted read editable. `PATCH /api/v1/connections/{code}` replaces the

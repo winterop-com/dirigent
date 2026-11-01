@@ -492,6 +492,9 @@ class Engine:
                     storage=context.uncounted_storage,
                     seconds=time.monotonic() - started,
                 )
+            except Exception as error:
+                telemetry.record_failure(span, error, logger.secrets)
+                raise
             finally:
                 await meter.settle()
 
@@ -549,7 +552,7 @@ class Engine:
         try:
             async with asyncio.timeout(unit.step.timeout.total_seconds() if unit.step.timeout else None):
                 if sensor is not None:
-                    with self._timed(unit.block_id, "poke"):
+                    with self._timed(unit.block_id, "poke", context):
                         return _read_poke(await sensor.poke(config, context))
                 if operator is None:  # pragma: no cover - the host resolved it above
                     return Errored(failure=Failure.rejected(BLOCK_NOT_INSTALLED, block=repr(unit.block_id)))
@@ -578,12 +581,12 @@ class Engine:
         if unit.fetched_output is not None:
             return Produced(output=unit.fetched_output)
         if not unit.is_probe or unit.remote_handle is None:
-            with self._timed(unit.block_id, "execute"):
+            with self._timed(unit.block_id, "execute", context):
                 produced = await operator.execute(config, context)
             if isinstance(produced, RemoteHandle):
                 return Submitted(handle=produced)
             return Produced(output=produced.model_dump(mode="json"))
-        with self._timed(unit.block_id, "probe"):
+        with self._timed(unit.block_id, "probe", context):
             probe = await operator.probe(unit.remote_handle, config, context)
         advanced = None if probe.meta is None else unit.remote_handle.model_copy(update={"meta": probe.meta})
         handle = advanced or unit.remote_handle
@@ -596,7 +599,7 @@ class Engine:
                     handle=advanced,
                 )
             case ProbeStatus.SUCCEEDED:
-                with self._timed(unit.block_id, "fetch"):
+                with self._timed(unit.block_id, "fetch", context):
                     retrieved = await operator.fetch(handle, config, context)
                 return Produced(output=retrieved.model_dump(mode="json"), fetched=True)
             case ProbeStatus.FAILED:
@@ -610,10 +613,13 @@ class Engine:
                 return Vanished(message=probe.message or REMOTE_JOB_GONE.render())
 
     @contextlib.contextmanager
-    def _timed(self, block_id: str, call: str) -> Generator[None]:
-        """Wrap one block call in its own span and record how long it took."""
+    def _timed(self, block_id: str, call: str, context: EngineStepContext) -> Generator[None]:
+        """Wrap one block call in its own span and record how long it took.
+
+        A failure lands on the span with every secret the call opened scrubbed from it.
+        """
         started = time.monotonic()
-        with telemetry.block_span(block_id, call):
+        with telemetry.block_span(block_id, call, context.opened_secrets):
             try:
                 yield
             finally:

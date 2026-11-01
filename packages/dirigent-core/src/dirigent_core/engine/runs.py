@@ -21,7 +21,7 @@ from dirigent_client.enums import (
     RunStatus,
     TriggerKind,
 )
-from dirigent_common import JsonMap, Message
+from dirigent_common import JsonMap, Message, raised_detail
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
@@ -719,7 +719,11 @@ async def cancel_remote(
         config = block.config_model.model_validate((attempt.input or {}).get("config", {}))
         accepted = await block.cancel(RemoteHandle.model_validate(attempt.remote_handle), config, context)
     except Exception as error:  # best effort by contract: a refusal must not block the cancel
-        _logger.warning("remote cancellation failed", attempt_id=str(attempt.id), error=str(error))
+        _logger.warning(
+            "remote cancellation failed",
+            attempt_id=str(attempt.id),
+            error=raised_detail(error, redact=context.opened_secrets),
+        )
         return
     _logger.info("remote cancellation requested", attempt_id=str(attempt.id), accepted=accepted)
 
