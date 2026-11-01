@@ -25,6 +25,17 @@ seconds and "poked again at once after a success" waited out the tick. A worker 
 the earliest polled source falls due, at most `source_poll_tick` and never less than 50
 milliseconds. `source_poll_tick` is now the longest a worker goes without looking.
 
+**A `pipeline.run` step says which step of its child failed.** A child run that failed on a step
+used to surface as `run … failed: no reason was recorded`. A run's snapshot now carries its first
+failed step and that step's error, `step 'load' failed: …` (`run.step_failed`), so the parent's
+step reads `run … failed: step 'load' failed: …`.
+
+**Refusals that name what uses a thing agree with how many there are.** Removing a connection or a
+schema something still names reads `… while it is named by pipeline nightly` or `… by pipelines a,
+b`, in the API and in the browser, instead of `while pipeline nightly name it`. `schema.in_use`
+carries the clause as a new `users` param beside `pipelines` and `count`. A header secret with a
+control character reads `no HTTP header can carry … and one was found in api_key`.
+
 **An endpoint source says where it is called and how.** The pipeline page, the editor's step
 panel and the triggers screen's panel show an endpoint's methods and full URL with a copy button,
 and how a caller authenticates: a bearer token, an HMAC signature, or public. `New token` (`New

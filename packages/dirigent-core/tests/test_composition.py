@@ -6,7 +6,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import RunStatus, TriggerKind
+from dirigent_client.enums import AttemptStatus, RunStatus, TriggerKind
 from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.definition import ConcurrencyPolicy, PipelineDefinition, StepDefinition
@@ -19,7 +19,7 @@ from dirigent_core.engine.runs import (
     save_pipeline,
 )
 from dirigent_core.messages import CANCELLED_BY
-from dirigent_core.models import Pipeline, Run
+from dirigent_core.models import Pipeline, Run, StepAttempt
 from dirigent_plugin import RunRefused, RunState
 
 
@@ -246,6 +246,31 @@ async def test_a_snapshot_counts_the_units_of_work_a_run_still_owes(
     assert snapshot.state is RunState.QUEUED
     assert (snapshot.total_steps, snapshot.finished_steps) == (3, 0)
     assert snapshot.progress == 0.0
+
+
+async def test_a_snapshot_of_a_run_failed_by_a_step_names_the_step_and_what_it_said(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    parent = await a_run(sessions, services, document("parent"))
+    await apply(sessions, document("child", steps=2))
+    runs = facade(services, sessions, parent)
+    started = await runs.start("child", {}, max_depth=5)
+    assert started.run_id is not None
+    async with session_scope(sessions) as session:
+        await session.execute(
+            sa.update(StepAttempt)
+            .where(StepAttempt.run_id == started.run_id, StepAttempt.step_name == "step_1")
+            .values(status=AttemptStatus.FAILED, error="the API answered 500")
+        )
+        await session.execute(sa.update(Run).where(Run.id == started.run_id).values(status=RunStatus.FAILED))
+
+    snapshot = await runs.snapshot(started.run_id)
+
+    assert snapshot is not None
+    assert snapshot.state is RunState.FAILED
+    assert snapshot.error == "step 'step_1' failed: the API answered 500"
+    assert snapshot.error_code == "run.step_failed"
+    assert snapshot.error_params == {"step": "'step_1'", "detail": "the API answered 500"}
 
 
 async def test_a_snapshot_of_a_run_this_instance_does_not_hold_is_none(

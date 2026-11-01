@@ -1103,6 +1103,7 @@ const refused = {
         server_settled: 'Step {step} is a {kind}, which the server settles and no worker claims.',
         source_not_retryable:
             'Step {step} is a source, settled with the input the run was created for. Running that input again is a new run.',
+        step_failed: 'Step {step} failed: {detail}',
         storage_quota:
             'Run {run} and the runs its steps started hold {stored_bytes} bytes of storage, and writing {size_bytes} more would pass the {quota} this instance allows a run (run_storage_quota).',
         unknown_schema:
@@ -1124,7 +1125,7 @@ const refused = {
         unknown_timezone: '{name} is not an IANA timezone this host knows. Try UTC or Europe/Oslo.',
     },
     schema: {
-        in_use: 'Schema {code} cannot be removed while {pipelines} name it. A pipeline must stop naming it first.',
+        in_use: 'Schema {code} cannot be removed while it is named by {users}. Each must stop naming it first.',
         invalid: 'This is not a valid JSON Schema{at}: {detail}',
         no_code:
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
@@ -1135,7 +1136,7 @@ const refused = {
         key_malformed: 'DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken.',
         key_twice: 'Both secret_key and secret_key_file are set. Name the envelope key one way.',
         not_sendable:
-            '{fields} holds a control character or a blank at its end, which no HTTP header can carry.',
+            'No HTTP header can carry a control character or a trailing blank, and one was found in {fields}.',
     },
     server: {
         address_unstorable:
@@ -1145,7 +1146,7 @@ const refused = {
         body_timed_out: 'The whole body did not arrive within {timeout}.',
         connection_exists: 'A connection coded {code} exists.',
         connection_in_use:
-            'Connection {code} cannot be removed while {users} name it. They must stop naming it first.',
+            'Connection {code} cannot be removed while it is named by {users}. Each must stop naming it first.',
         connection_referenced: 'Still in use. Delete what uses it first.',
         /** The same sentence `refusal.shut` says, held to it by `test_shared_words.py`. */
         forbidden: 'Not permitted for your role.',

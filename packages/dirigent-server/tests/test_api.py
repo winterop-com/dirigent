@@ -376,6 +376,9 @@ def test_a_schema_a_pipeline_names_cannot_be_removed_but_can_still_be_corrected(
     assert refused.status_code == 409, refused.text
     assert refused.json()["code"] == "schema.in_use"
     assert refused.json()["params"]["pipelines"] == "gated"
+    assert refused.json()["detail"] == (
+        "schema 'ou-shape' cannot be removed while it is named by pipeline gated; each must stop naming it first"
+    )
     assert client.get(f"{PREFIX}/schemas/ou-shape").status_code == 200, "and the shape is still there"
 
     corrected = client.patch(
@@ -500,7 +503,9 @@ def test_a_connection_a_pipeline_names_may_not_be_deleted(client: TestClient) ->
     assert refused.status_code == 409, refused.text
     problem = refused.json()
     assert problem["code"] == "server.connection_in_use"
-    assert "pipeline nightly" in problem["detail"]
+    assert problem["detail"] == (
+        "connection 'ops-api' cannot be removed while it is named by pipeline nightly; each must stop naming it first"
+    )
     use = {"pipeline": "nightly", "steps": ["fetch"], "sources": []}
     assert problem["params"]["used_by"]["pipelines"] == [use]
     assert client.get(f"{PREFIX}/connections/ops-api").json()["used_by"]["pipelines"] == [use]

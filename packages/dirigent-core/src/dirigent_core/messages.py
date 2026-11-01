@@ -96,7 +96,7 @@ SECRET_KEY_MALFORMED = SECRET.define(
 
 EMPTY_SECRET = SECRET.define("empty", "{fields} cannot be stored empty: a required secret needs a value")
 SECRET_NOT_SENDABLE = SECRET.define(
-    "not_sendable", "{fields} holds a control character or a blank at its end, which no HTTP header can carry"
+    "not_sendable", "no HTTP header can carry a control character or a trailing blank, and one was found in {fields}"
 )
 
 SECRET_KEY_TWICE = SECRET.define(
@@ -191,7 +191,7 @@ SCHEMA_INVALID = SCHEMA.define("invalid", "this is not a valid JSON Schema{at}: 
 
 SCHEMA_IN_USE = SCHEMA.define(
     "in_use",
-    "schema {code} cannot be removed while pipelines name it ({pipelines}); a pipeline must stop naming it first",
+    "schema {code} cannot be removed while it is named by {users}; each must stop naming it first",
 )
 
 PARAMETER = Catalogue("parameter")
@@ -767,6 +767,8 @@ FAN_OUT_NOT_A_LIST = RUN.define(
 )
 
 STEP_REFUSED = RUN.define("step_refused", "step {step}: {detail}")
+
+STEP_FAILED = RUN.define("step_failed", "step {step} failed: {detail}")
 
 NO_ATTEMPT_TO_RETRY = RUN.define("no_attempt_to_retry", "run {run} has no attempt of step {step} to retry")
 
