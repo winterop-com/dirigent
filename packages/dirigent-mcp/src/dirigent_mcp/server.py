@@ -12,6 +12,7 @@ bearer token of the request it arrived on (see :mod:`dirigent_mcp.http`).
 """
 
 import argparse
+import json
 import os
 import sys
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
@@ -22,12 +23,12 @@ from typing import Any, Final, cast
 
 from mcp.server import MCPServer
 from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
-from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.mcpserver.exceptions import ResourceError, ToolError
 from mcp.types import ToolAnnotations
 from pydantic import TypeAdapter
 from starlette.requests import Request
 
-from dirigent_client import BlockKind, Dirigent, DirigentError, RunStatus
+from dirigent_client import BlockEntry, BlockKind, Dirigent, DirigentError, RunStatus
 from dirigent_client.resources.pipelines import parse_document
 from dirigent_common import JsonMap
 from dirigent_common.hosts import is_loopback_host
@@ -50,12 +51,45 @@ DEFAULT_LIMIT: Final = 50
 #: The longest a run started with ``wait`` is waited on before its id is answered instead.
 MAX_WAIT: Final = timedelta(minutes=10)
 
-READS: Final = ToolAnnotations(read_only_hint=True, open_world_hint=False)
-WRITES: Final = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=False)
-APPLIES: Final = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False)
-ANSWER: Final = TypeAdapter[Any](Any)
+#: Reads the instance and changes nothing.
+READS: Final = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False)
 
-STOPS: Final = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=False)
+#: Sets a state the instance holds; asking twice leaves it as asking once did.
+TOGGLES: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=False
+)
+
+#: Changes how a run in flight proceeds; asking twice is refused or does more.
+STEERS: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
+)
+
+#: Starts work, which runs every step of a pipeline against whatever its blocks reach.
+STARTS: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=True
+)
+
+#: Stores a document, retiring what it stops declaring; the same document twice changes nothing more.
+APPLIES: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=False
+)
+
+#: Ends work that cannot be resumed.
+STOPS: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False
+)
+
+#: Replaces a credential, so every caller holding the old one is shut out.
+ROTATES: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False
+)
+
+#: Asks an outside system whether it answers, and records what it said.
+PROBES: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=True
+)
+
+ANSWER: Final = TypeAdapter[Any](Any)
 
 INSTRUCTIONS: Final = """\
 This server operates one dirigent instance: a data pipeline orchestrator whose pipelines are
@@ -65,7 +99,9 @@ get_example); plan_document checks a document against the instance without stori
 lists under sources.removed and triggers.schedules_removed what applying it would retire.
 apply_document retires a source, with its input journal and token, and a schedule when the
 document stops declaring them, so plan first and keep every source and schedule a pipeline has.
-A run is started with run_pipeline, read with get_run, run_logs and run_attempts, and run again with rerun_run."""
+A run is started with run_pipeline, read with get_run, run_logs and run_attempts, and run again with rerun_run.
+The resources dirigent://schema/document and dirigent://blocks are the document format and the
+block catalogue to write against."""
 
 
 #: Opens the client one call is made through, and closes it after when it is that call's own.
@@ -104,9 +140,17 @@ def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
 
     def tool[F: Callable[..., Any]](annotations: ToolAnnotations) -> Callable[[F], F]:
         """Register a tool, unless the server reads only and this tool writes."""
-        if read_only and annotations is not READS:
+        if read_only and not annotations.read_only_hint:
             return lambda function: function
         return server.tool(annotations=annotations)
+
+    async def read_resource[T](work: Callable[[Dirigent], Awaitable[T]]) -> T:
+        """Read what a resource serves, a refusal as a resource error the agent reads."""
+        try:
+            async with connect() as dg:
+                return await work(dg)
+        except DirigentError as error:
+            raise ResourceError(str(error)) from error
 
     async def call[T](work: Callable[[Dirigent], Awaitable[T]]) -> Any:
         """Make one call, answering with its JSON, and a refusal as a tool error the agent reads."""
@@ -172,7 +216,7 @@ def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
         """
         return await call(lambda dg: dg.pipelines.apply(parse_document(document), paused=paused))
 
-    @tool(WRITES)
+    @tool(STARTS)
     async def run_pipeline(
         code: str,
         params: JsonMap | None = None,
@@ -219,8 +263,23 @@ def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
 
     @tool(READS)
     async def get_run(run_id: str) -> Any:
-        """Read one run: its status, every step's state, and its error when it failed."""
-        return await call(lambda dg: dg.runs.get(run_id))
+        """Read one run: its status, every step's state, and its error when it failed.
+
+        `via` says how the input of a run entered at a source arrived: `request` (a caller, whom a
+        reply answers), `poll`, `hold`, `hand` (given by hand, or replayed by a rerun) or `sample`
+        (by hand with the source's own sample); null for a run with no source. `stored_bytes` is
+        what the run's steps have written to artifact storage.
+        """
+
+        async def read(dg: Dirigent) -> Any:
+            detail = await dg.runs.get(run_id)
+            via = None
+            if detail.run.source is not None:
+                entered = await dg.runs.attempts(run_id, step=detail.run.source, limit=1)
+                via = next((attempt.via for attempt in entered.items if attempt.via is not None), None)
+            return {**_json(detail), "via": via, "stored_bytes": detail.run.stored_bytes}
+
+        return await call(read)
 
     @tool(READS)
     async def run_attempts(
@@ -241,7 +300,7 @@ def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
         """Cancel a run: what has not started never does, and running remote work is told to stop."""
         return await call(lambda dg: dg.runs.cancel(run_id))
 
-    @tool(WRITES)
+    @tool(STARTS)
     async def rerun_run(run_id: str, current: bool = False) -> Any:
         """Run a settled run again with its parameters, and for a run entered at a source its input, which replays it.
 
@@ -249,17 +308,17 @@ def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
         """
         return await call(lambda dg: dg.runs.rerun(run_id, current=current))
 
-    @tool(WRITES)
+    @tool(STEERS)
     async def pause_run(run_id: str) -> Any:
         """Pause a queued or running run: nothing more of it starts, and its deadlines stand still."""
         return await call(lambda dg: dg.runs.pause(run_id))
 
-    @tool(WRITES)
+    @tool(STEERS)
     async def resume_run(run_id: str) -> Any:
         """Resume a paused run, its open deadlines moved on by as long as it was paused."""
         return await call(lambda dg: dg.runs.resume(run_id))
 
-    @tool(WRITES)
+    @tool(STARTS)
     async def retry_attempt(attempt_id: str) -> Any:
         """Retry one failed, skipped or cancelled attempt of a run, which reopens the run."""
         return await call(lambda dg: dg.runs.retry(attempt_id))
@@ -270,12 +329,7 @@ def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
 
         async def listed(dg: Dirigent) -> Any:
             catalog = await dg.blocks.catalog(kind=kind)
-            return {
-                "blocks": [
-                    {"id": entry.id, "kind": entry.kind, "group": entry.group, "summary": entry.summary}
-                    for entry in catalog.blocks
-                ]
-            }
+            return {"blocks": [_summary(entry) for entry in catalog.blocks]}
 
         return await call(listed)
 
@@ -306,32 +360,144 @@ def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
         """List what arrived at one source, newest first, each with its outcome and the run it started."""
         return await call(lambda dg: dg.sources.inputs(pipeline, code, after=after, limit=limit))
 
-    @tool(WRITES)
+    @tool(TOGGLES)
     async def pause_source(pipeline: str, code: str) -> Any:
         """Pause a source: it takes no new input, and what is in flight finishes."""
         return await call(lambda dg: dg.sources.pause(pipeline, code))
 
-    @tool(WRITES)
+    @tool(TOGGLES)
     async def resume_source(pipeline: str, code: str) -> Any:
         """Resume a paused source."""
         return await call(lambda dg: dg.sources.resume(pipeline, code))
+
+    @tool(READS)
+    async def get_source(pipeline: str, code: str) -> Any:
+        """Read one source: its state, what it has taken, and for an endpoint where and how it is called.
+
+        `calling.url` is the full URL a caller sends to, with `calling.methods`. `calling.auth` is
+        `token` (a bearer token whose leading characters are `token_prefix`), `hmac` (a signature of
+        the body in `signature_header`, with the secret's `secret_fingerprint`) or `public`. Neither
+        the token nor the secret is ever shown here; rotate_source_token mints a new one.
+        """
+
+        async def read(dg: Dirigent) -> Any:
+            source = await dg.sources.get(pipeline, code)
+            answered = _json(source)
+            if source.url_path is not None:
+                answered["calling"] = {
+                    "url": f"{dg.url.rstrip('/')}{source.url_path}",
+                    "methods": source.methods,
+                    "auth": source.auth,
+                    "token_prefix": source.token_prefix,
+                    "signature_header": source.signature_header,
+                    "secret_fingerprint": source.secret_fingerprint,
+                }
+            return answered
+
+        return await call(read)
+
+    @tool(ROTATES)
+    async def rotate_source_token(pipeline: str, code: str) -> Any:
+        """Mint a new token, or signing secret, for an endpoint source, and forget the old one at once.
+
+        Every caller holding the old one is refused from now on. The answer carries the new one, and
+        it is shown here and nowhere else again.
+        """
+        return await call(lambda dg: dg.sources.rotate_token(pipeline, code))
+
+    @tool(READS)
+    async def list_connections(after: str | None = None, limit: int = DEFAULT_LIMIT) -> Any:
+        """List the connections a document can name, each with its kind and settings; secrets are never shown."""
+        return await call(lambda dg: dg.connections.list(after=after, limit=limit))
+
+    @tool(READS)
+    async def get_connection(code: str) -> Any:
+        """Read one connection: its kind, its settings with every secret redacted, and its last health check."""
+        return await call(lambda dg: dg.connections.get(code))
+
+    @tool(PROBES)
+    async def check_connection(code: str) -> Any:
+        """Ask a connection's outside system whether it answers with the stored credential, and record it.
+
+        The instance allows this to an admin token only.
+        """
+        return await call(lambda dg: dg.connections.check(code))
+
+    @tool(READS)
+    async def list_schemas(after: str | None = None, limit: int = DEFAULT_LIMIT) -> Any:
+        """List the named JSON Schemas a document can reference."""
+        return await call(lambda dg: dg.schemas.list(after=after, limit=limit))
+
+    @tool(READS)
+    async def get_schema(code: str) -> Any:
+        """Read one named JSON Schema, the schema itself included."""
+        return await call(lambda dg: dg.schemas.get(code))
+
+    @tool(READS)
+    async def list_alert_rules(after: str | None = None, limit: int = DEFAULT_LIMIT) -> Any:
+        """List the alert rules: what event each listens for, where it sends, and whether it is paused."""
+        return await call(lambda dg: dg.alerts.rules(after=after, limit=limit))
+
+    @tool(READS)
+    async def get_alert_rule(code: str) -> Any:
+        """Read one alert rule."""
+        return await call(lambda dg: dg.alerts.rule(code))
+
+    @server.resource(
+        "dirigent://schema/document",
+        name="document-schema",
+        title="Document format",
+        description=(
+            "The JSON Schema a pipeline or triggers document is written against, "
+            "every installed block's config included."
+        ),
+        mime_type="application/schema+json",
+    )
+    async def document_schema() -> str:
+        return json.dumps(await read_resource(lambda dg: dg.blocks.document_schema()))
+
+    @server.resource(
+        "dirigent://blocks",
+        name="blocks",
+        title="Block catalogue",
+        description="Every installed block a step can use, with its id, kind, group and one-line summary.",
+        mime_type="application/json",
+    )
+    async def blocks() -> str:
+        catalog = await read_resource(lambda dg: dg.blocks.catalog())
+        return json.dumps({"blocks": [_summary(entry) for entry in catalog.blocks]})
+
+    @server.resource(
+        "dirigent://blocks/{block_id}",
+        name="block",
+        title="Block",
+        description="One block: the schema a step's config is checked against, and the schema of its output.",
+        mime_type="application/json",
+    )
+    async def block(block_id: str) -> str:
+        return json.dumps(_json(await read_resource(lambda dg: dg.blocks.get(block_id))))
 
     @tool(READS)
     async def list_schedules(pipeline: str, after: str | None = None, limit: int = DEFAULT_LIMIT) -> Any:
         """List a pipeline's schedules, each with its clock and when it next fires."""
         return await call(lambda dg: dg.schedules.list(pipeline, after=after, limit=limit))
 
-    @tool(WRITES)
+    @tool(TOGGLES)
     async def pause_schedule(pipeline: str, code: str) -> Any:
         """Pause a schedule, so it fires no more until it is resumed."""
         return await call(lambda dg: dg.schedules.pause(pipeline, code))
 
-    @tool(WRITES)
+    @tool(TOGGLES)
     async def resume_schedule(pipeline: str, code: str) -> Any:
         """Resume a paused schedule from its next firing."""
         return await call(lambda dg: dg.schedules.resume(pipeline, code))
 
     return server
+
+
+def _summary(entry: BlockEntry) -> JsonMap:
+    """One block as a listing shows it."""
+    return {"id": entry.id, "kind": entry.kind, "group": entry.group, "summary": entry.summary}
 
 
 def _json(value: Any) -> Any:

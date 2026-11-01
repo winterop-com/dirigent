@@ -85,6 +85,19 @@ async def rules(
     return Page(items=items, next=following)
 
 
+@router.get(
+    "/alert-rules/{code}",
+    operation_id="getAlertRule",
+    summary="Read an alert rule",
+    response_model=AlertRuleOut,
+    responses={404: {"description": "No alert rule has this code."}},
+)
+async def rule(code: str, session: SessionDep, principal: PrincipalDep) -> AlertRuleOut:
+    """Read one alert rule, with the pipeline it watches when it is scoped and the connection it sends through."""
+    found = await _rule_or_404(session, code)
+    return render(found, await _pipeline_code(session, found), await _connection_code(session, found.connection_id))
+
+
 @router.post(
     "/alert-rules",
     operation_id="createAlertRule",

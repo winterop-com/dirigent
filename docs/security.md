@@ -277,7 +277,8 @@ unmounts it, and `/mcp` then answers 404.
 - **A viewer is offered only the reading tools.** A token whose role may not operate gets a
   server with every tool that writes left out, so a client never offers its model a call the API
   would refuse with 403. The role is the API's `may_operate`, the same rule its routes apply, and
-  whatever a tool calls is still decided by the route it reaches.
+  whatever a tool calls is still decided by the route it reaches: `check_connection` is offered
+  to an operator and refused 403 by the API, which allows it to an admin only.
 - **The origin is checked, as the MCP specification requires against DNS rebinding.** A request a
   browser says another site caused (`Sec-Fetch-Site` other than `same-origin` or `none`) or whose
   `Origin` is not this instance's own scheme, host and port is answered 403

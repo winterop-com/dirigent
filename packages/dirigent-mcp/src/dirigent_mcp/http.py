@@ -53,6 +53,9 @@ class Caller(BaseModel):
 #: Turns a presented bearer token into its caller, or nothing when it does not authenticate.
 Authenticate = Callable[[str], Awaitable[Caller | None]]
 
+#: Opens a client that carries a bearer token, given the token and the request it was presented on.
+OpenClient = Callable[[str, Request], Dirigent]
+
 #: Answers a request that is refused, given the request.
 Refuse = Callable[[Request], Response]
 
@@ -80,16 +83,16 @@ def foreign_origin(request: Request) -> bool:
     return origin.rstrip("/").lower() != f"{request.url.scheme}://{request.url.netloc}".lower()
 
 
-def per_caller(open_client: Callable[[str], Dirigent]) -> Connect:
+def per_caller(open_client: OpenClient) -> Connect:
     """A client of each call's own, carrying the bearer token of the request the call arrived on."""
 
     @asynccontextmanager
     async def connect() -> AsyncGenerator[Dirigent]:
         request = ARRIVED_ON.get()
         secret = bearer(request) if request is not None else None
-        if secret is None:
+        if request is None or secret is None:
             raise ToolError(NO_CREDENTIAL.render())
-        async with open_client(secret) as client:
+        async with open_client(secret, request) as client:
             yield client
 
     return connect
@@ -102,7 +105,7 @@ class McpEndpoint:
         self,
         *,
         authenticate: Authenticate,
-        open_client: Callable[[str], Dirigent],
+        open_client: OpenClient,
         unauthenticated: Refuse,
         cross_origin: Refuse,
         initiated_elsewhere: Callable[[Request], bool] = foreign_origin,
