@@ -203,6 +203,7 @@ class Pack(BaseModel):
 PACKS: Final = (
     Pack(name="dirigent-dhis2", what="DHIS2 blocks and connection kinds"),
     Pack(name="dirigent-contrib", what="Chap and climate service blocks"),
+    Pack(name="dirigent-fhir", what="FHIR R4 connection kind and REST blocks"),
 )
 
 

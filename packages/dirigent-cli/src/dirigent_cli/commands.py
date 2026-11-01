@@ -667,7 +667,8 @@ def init_command(
         bool, typer.Option("--workflow", help="Write a GitHub workflow that applies on merge.")
     ] = False,
     pack: Annotated[
-        list[str] | None, typer.Option("--pack", help="A pack to add: dirigent-dhis2 or dirigent-contrib. Repeatable.")
+        list[str] | None,
+        typer.Option("--pack", help="A pack to add: dirigent-dhis2, dirigent-contrib or dirigent-fhir. Repeatable."),
     ] = None,
     pipeline: Annotated[
         list[str] | None,
