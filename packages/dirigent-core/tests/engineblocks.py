@@ -2,7 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, ClassVar
+from typing import Annotated, Any, ClassVar, Literal, cast
 
 from pydantic import BaseModel, Field, JsonValue
 
@@ -14,6 +14,7 @@ from dirigent_common import (
     BlockModel,
     Duration,
     StorageUri,
+    spellings,
 )
 from dirigent_plugin import (
     BlockFailure,
@@ -247,6 +248,12 @@ class RemoteConfig(BaseModel):
     cursors: list[dict[str, str] | None] = []
     """What each probe in turn returns as the handle's new metadata; past the end is None."""
 
+    quotes: str | None = None
+    """A secret the block opens and then quotes in what it raises, as an HTTP library does."""
+
+    quoted_by: Literal["execute", "cancel"] = "execute"
+    """Which call raises quoting it."""
+
 
 class RemoteOutput(BaseModel):
     """What the remote operator reports once fetched."""
@@ -273,6 +280,8 @@ class RemoteOperator(Operator[RemoteConfig, RemoteOutput]):
 
     async def execute(self, config: RemoteConfig, ctx: StepContext) -> RemoteOutput | RemoteHandle:
         """Submit exactly one unit of remote work and return a claim on it."""
+        if config.quoted_by == "execute":
+            _quote(config, ctx)
         RemoteOperator.submissions.append(config.ref)
         return RemoteHandle(block_id=self.spec.id, ref=config.ref, meta={"result": config.result})
 
@@ -299,8 +308,18 @@ class RemoteOperator(Operator[RemoteConfig, RemoteOutput]):
 
     async def cancel(self, handle: RemoteHandle, config: RemoteConfig, ctx: StepContext) -> bool:
         """Record that the remote was told, which cancellation tests assert on."""
+        if config.quoted_by == "cancel":
+            _quote(config, ctx)
         RemoteOperator.cancellations.append(handle.ref)
         return True
+
+
+def _quote(config: RemoteConfig, ctx: StepContext) -> None:
+    """Open the configured secret, the way a connection is opened, then raise quoting it."""
+    if config.quotes is None:
+        return
+    cast("Any", ctx).opened_secrets.update(spellings(config.quotes))
+    raise RuntimeError(f"Illegal header value b'Bearer {config.quotes}'")
 
 
 class UnsafeConfig(BaseModel):
