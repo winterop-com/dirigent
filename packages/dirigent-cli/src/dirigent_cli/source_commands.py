@@ -159,6 +159,8 @@ def source_call(
     """
     if sum(value is not None for value in (data, text, form)) > 1:
         fail(ONE_INPUT_BODY)
+    if token or signing_secret:
+        refuse_a_server_a_project_named(state_of(ctx))
     with client_for(state_of(ctx)) as dg:
         row = dg.call(dg.sources.get(pipeline, code))
         base = dg.url

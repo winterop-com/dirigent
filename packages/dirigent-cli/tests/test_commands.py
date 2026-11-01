@@ -1759,8 +1759,10 @@ TYPED_SECRETS = [
     ["admin", "user", "password", "ada", "--password", "DUMMY-TYPED-SECRET"],
     ["connection", "create", "http", "c", "--set", "bearer_token=DUMMY-TYPED-SECRET"],
     ["source", "set-secret", "p", "s", "--secret", "DUMMY-TYPED-SECRET"],
+    ["source", "call", "p", "s", "--body", "{}", "--source-token", "DUMMY-TYPED-SECRET"],
+    ["source", "call", "p", "s", "--body", "{}", "--signing-secret", "DUMMY-TYPED-SECRET"],
 ]
-SECRET_IDS = ["login", "password", "user-password", "connection", "source-secret"]
+SECRET_IDS = ["login", "password", "user-password", "connection", "source-secret", "source-token", "source-signing"]
 
 
 def name_the_server_in_a_checkout(tmp_path: Path, listener: Listener, form: str) -> None:
@@ -1784,6 +1786,21 @@ def test_a_typed_secret_is_refused_for_a_server_a_checkout_named(
     name_the_server_in_a_checkout(tmp_path, listener, form)
 
     result = machine(*argv)
+
+    assert result.exit_code == GUARD_EXIT, result.output
+    assert refusal(result.stdout)["code"] == "cli.server_named_by_a_project"
+    assert listener.heard == []
+
+
+@pytest.mark.parametrize("variable", ["DIRIGENT_SOURCE_TOKEN", "DIRIGENT_SOURCE_SECRET"])
+@pytest.mark.parametrize("form", ["profile", "env"])
+def test_a_source_credential_in_the_shell_is_not_sent_to_a_server_a_checkout_named(
+    tmp_path: Path, listener: Listener, monkeypatch: pytest.MonkeyPatch, variable: str, form: str
+) -> None:
+    name_the_server_in_a_checkout(tmp_path, listener, form)
+    monkeypatch.setenv(variable, "DUMMY-SOURCE-CREDENTIAL-FROM-SHELL")
+
+    result = machine("source", "call", "p", "s", "--body", "{}")
 
     assert result.exit_code == GUARD_EXIT, result.output
     assert refusal(result.stdout)["code"] == "cli.server_named_by_a_project"
