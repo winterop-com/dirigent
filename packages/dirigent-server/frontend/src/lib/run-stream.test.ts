@@ -233,6 +233,7 @@ function opened(): RunDetailOut {
             triggered_by_kind: 'user',
             parent_run_id: null,
             triggered_by_label: 'dev',
+            source: null,
             trace_id: null,
             stored_bytes: 0,
             error: null,

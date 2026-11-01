@@ -48,6 +48,21 @@ class AttemptKind(StrEnum):
     """A source node's attempt: written succeeded when the run is created, its output the input."""
 
 
+class EntryVia(StrEnum):
+    """How the input a source's attempt holds arrived."""
+
+    REQUEST = "request"
+    """A caller's request, which a reply of the run answers."""
+
+    POLL = "poll"
+    HOLD = "hold"
+    HAND = "hand"
+    """Given by hand, or the input of the run a rerun replays."""
+
+    SAMPLE = "sample"
+    """By hand with no input given, so the source's own sample."""
+
+
 class StepKind(StrEnum):
     """Which of the three forms a step takes: work on a worker, an entry, or an answer."""
 

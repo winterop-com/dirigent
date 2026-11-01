@@ -14,6 +14,7 @@ import { RunDialog } from '@/components/pipeline/RunDialog'
 import { ShapeGraph } from '@/components/pipeline/ShapeGraph'
 import { TagChips } from '@/components/TagChips'
 import { ToolbarActions } from '@/components/ToolbarActions'
+import { EndpointAddress, NewToken } from '@/components/triggers/Endpoint'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
@@ -24,6 +25,8 @@ import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
 import { applyPipeline, readPipeline, type StepShape } from '@/lib/pipelines'
 import { connectionsNamed } from '@/lib/requirements'
+import { authLine, readPipelineSources, sampleBody, type SourceOut } from '@/lib/sources'
+import type { JsonMap } from '@/lib/api'
 import { sayRefusal } from '@/components/Refusal'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { clockOf, nextFireView, readSchedules, type ScheduleOut } from '@/lib/triggers'
@@ -49,6 +52,9 @@ export function PipelinePage() {
     const detail = useRead(useCallback(() => readPipeline(code), [code]))
     const schedules = useRead(useCallback(() => readSchedules(code, null), [code]))
     const held = useRead(useCallback(() => readConnections(null), []))
+    const listening = useRead(useCallback(() => readPipelineSources(code), [code]))
+    // A verb on a source answers with its row as it now stands, over the page it was read on.
+    const [fresher, setFresher] = useState<Record<string, SourceOut>>({})
     const [selected, setSelected] = useState<string | null>(null)
     const [running, setRunning] = useState(false)
     const [validating, setValidating] = useState(false)
@@ -168,7 +174,15 @@ export function PipelinePage() {
                 </Panel>
                 <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-5">
                     <Panel title={LABELS.pipelines.page.triggers} bodyClassName="py-2">
-                        <Triggers schedules={schedules.value?.items ?? null} steps={steps} />
+                        <Triggers
+                            schedules={schedules.value?.items ?? null}
+                            steps={steps}
+                            sources={(listening.value?.items ?? []).map((row) => fresher[row.code] ?? row)}
+                            document={pipeline.document}
+                            onSourceChanged={(row) => {
+                                setFresher((current) => ({ ...current, [row.code]: row }))
+                            }}
+                        />
                     </Panel>
                     <Panel title={LABELS.pipelines.page.connections} bodyClassName="py-2">
                         <Reaches
@@ -276,8 +290,23 @@ function Blocks({
     )
 }
 
-/** What fires the pipeline: its schedules, and the sources its steps listen on. */
-function Triggers({ schedules, steps }: { schedules: ScheduleOut[] | null; steps: readonly StepShape[] }) {
+/**
+ * What fires the pipeline: its schedules, and the sources its steps listen on. A source a request
+ * reaches says where it is called and how, with the verb that replaces its credential.
+ */
+function Triggers({
+    schedules,
+    steps,
+    sources: held,
+    document,
+    onSourceChanged,
+}: {
+    schedules: ScheduleOut[] | null
+    steps: readonly StepShape[]
+    sources: readonly SourceOut[]
+    document: JsonMap | null
+    onSourceChanged: (row: SourceOut) => void
+}) {
     const sources = steps.filter((step) => step.kind === 'source')
     if (schedules === null) return null
     if (schedules.length === 0 && sources.length === 0)
@@ -312,15 +341,32 @@ function Triggers({ schedules, steps }: { schedules: ScheduleOut[] | null; steps
                     </Link>
                 )
             })}
-            {sources.map((step) => (
-                <div key={step.code} className="flex items-center gap-3 py-2 text-sm">
-                    <ICONS.source className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                    <Code value={step.code} tone="body" />
-                    <span className="min-w-0 truncate text-muted-foreground">
-                        {LABELS.pipelines.page.listens(step.block)}
-                    </span>
-                </div>
-            ))}
+            {sources.map((step) => {
+                const row = held.find((one) => one.code === step.code)
+                const auth = row === undefined ? null : authLine(row)
+                return (
+                    <div key={step.code} className="space-y-1.5 py-2" data-testid="pipeline-source">
+                        <div className="flex items-center gap-3 text-sm">
+                            <ICONS.source className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                            <Code value={step.code} tone="body" />
+                            <span className="min-w-0 truncate text-muted-foreground">
+                                {LABELS.pipelines.page.listens(step.block)}
+                            </span>
+                        </div>
+                        {row !== undefined && <EndpointAddress source={row} />}
+                        {row !== undefined && auth !== null && (
+                            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+                                <span className="min-w-0 text-sm text-muted-foreground">{auth}</span>
+                                <NewToken
+                                    source={row}
+                                    body={sampleBody(document, step.code)}
+                                    onReplaced={onSourceChanged}
+                                />
+                            </div>
+                        )}
+                    </div>
+                )
+            })}
         </div>
     )
 }

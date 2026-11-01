@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from dirigent_client.enums import (
     AttemptKind,
     AttemptStatus,
+    EntryVia,
     LogLevel,
     ProvenanceSource,
     RunItemStatus,
@@ -133,8 +134,8 @@ class Entry(BaseModel):
 
     step: str
     output: JsonMap
-    via: Literal["request", "poll", "hold", "hand"] = "request"
-    """How the input arrived: a request, a worker's poll or held consumer, or by hand."""
+    via: EntryVia = EntryVia.REQUEST
+    """How the input arrived: a request, a worker's poll or held consumer, by hand, or as the sample."""
 
     note: str | None = None
     """The one line the entered source logs, such as ``received POST /endpoints/echo 312 bytes``."""
@@ -447,7 +448,7 @@ async def _write_source(
         session.add(attempt)
         return
     attempt.kind = AttemptKind.RECEIVED
-    attempt.input = {"via": entry.via}
+    attempt.input = {"via": entry.via.value}
     if nests_past(cast("JsonValue", entry.output)):
         refused = Failure.rejected(INPUT_TOO_DEEP, step=repr(name), limit=MAX_STORED_DEPTH)
         attempt.status = AttemptStatus.FAILED
@@ -478,8 +479,8 @@ async def _write_source(
             step_attempt_id=attempt.id,
             step_name=name,
             level=LogLevel.INFO,
-            message=entry.note or ("received by hand" if entry.via == "hand" else "received"),
-            fields={"via": entry.via, "bytes": reference.size_bytes},
+            message=entry.note or ("received by hand" if entry.via is EntryVia.HAND else "received"),
+            fields={"via": entry.via.value, "bytes": reference.size_bytes},
         )
     )
 
@@ -937,7 +938,9 @@ async def _rerun_entry(session: AsyncSession, original: Run) -> Entry | None:
     )
     if received is None:
         raise RunCreationError(RERUN_INPUT_GONE, run=original.id, step=repr(original.source_step))
-    return Entry(step=original.source_step, output=dict(received), via="hand", note=f"replayed from run {original.id}")
+    return Entry(
+        step=original.source_step, output=dict(received), via=EntryVia.HAND, note=f"replayed from run {original.id}"
+    )
 
 
 async def _definition_of(session: AsyncSession, run: Run) -> PipelineDefinition:

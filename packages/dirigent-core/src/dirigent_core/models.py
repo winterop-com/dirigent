@@ -12,6 +12,7 @@ from dirigent_client.enums import (
     AlertScope,
     AttemptKind,
     AttemptStatus,
+    EntryVia,
     FiringOutcome,
     Importance,
     InputOutcome,
@@ -364,6 +365,14 @@ class StepAttempt(Entity):
 
     started_at: Mapped[datetime | None] = mapped_column(Timestamp)
     finished_at: Mapped[datetime | None] = mapped_column(Timestamp)
+
+    @property
+    def via(self) -> EntryVia | None:
+        """How a received attempt's input arrived, or None for any other attempt."""
+        if self.kind is not AttemptKind.RECEIVED:
+            return None
+        said = (self.input or {}).get("via")
+        return EntryVia(said) if isinstance(said, str) and said in EntryVia else None
 
 
 class TriggerDocument(Entity):

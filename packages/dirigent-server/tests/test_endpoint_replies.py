@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from dirigent_client.enums import AttemptStatus
-from dirigent_client.schemas import Page, SourceInputOut
+from dirigent_client.schemas import AttemptOut, Page, SourceInputOut
 from dirigent_core.config import Settings
 from dirigent_core.engine.definition import ReplyNode
 from dirigent_core.engine.executor import Engine
@@ -130,6 +130,17 @@ def test_a_reply_answers_with_the_status_headers_and_text_it_renders(client: Tes
     assert called.text == "made ann"
     [entry] = inputs(client, "now")
     assert (entry.outcome, entry.status) == ("replied", 201)
+
+
+def test_a_called_run_says_its_input_was_a_request_and_its_reply_was_sent(client: TestClient) -> None:
+    apply_document(client, answered_at_once("      body: ${steps.ask.output.body}\n"))
+    called = client.post("/endpoints/now", json={"who": "ann"}, headers={"Authorization": ""})
+    assert called.status_code == 200, called.text
+    [entry] = inputs(client, "now")
+    page = Page[AttemptOut].model_validate(client.get(f"{PREFIX}/runs/{entry.run_id}/attempts").json())
+    by_step = {attempt.step_name: attempt for attempt in page.items}
+    assert by_step["ask"].via == "request"
+    assert (by_step["answer"].output or {}).get("delivered") is True
 
 
 def test_a_reply_streams_the_stored_object_its_body_from_names(client: TestClient, settings: Settings) -> None:

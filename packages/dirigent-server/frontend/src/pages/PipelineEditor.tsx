@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { ApplyDialog } from '@/components/pipeline/ApplyDialog'
-import { MintedToken } from '@/components/triggers/NewTrigger'
+import { MintedToken } from '@/components/triggers/Endpoint'
 import { PipelineTab } from '@/components/pipeline/PipelineTab'
 import { ReportPane } from '@/components/pipeline/ReportPane'
 import { RunDialog } from '@/components/pipeline/RunDialog'
@@ -70,7 +70,13 @@ import {
 import { anythingUnmet, unmetIn, unmetLines } from '@/lib/requirements'
 import { EVERY_RUN, readRuns, type RunOut } from '@/lib/runs'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import type { SourceTokenOut } from '@/lib/sources'
+import {
+    declaredMethods,
+    readPipelineSources,
+    sampleBody,
+    type SourceOut,
+    type SourceTokenOut,
+} from '@/lib/sources'
 
 /**
  * One pipeline: its document as a graph, the step in front of somebody, and what applying does.
@@ -139,6 +145,8 @@ export function PipelineEditor() {
     const [connections, setConnections] = useState<ConnectionOut[] | null>(null)
     const [schemas, setSchemas] = useState<SchemaOut[] | null>(null)
     const [runs, setRuns] = useState<RunOut[]>([])
+    // What the instance holds of the document's sources, which is where a source step's URL is read.
+    const [sources, setSources] = useState<SourceOut[]>([])
     const [blocks, setBlocks] = useState<BlockEntry[]>([])
     const [schema, setSchema] = useState<JsonMap | null>(null)
     const [selected, setSelected] = useState<string | null>(null)
@@ -227,6 +235,9 @@ export function PipelineEditor() {
             })
             settle(readRuns({ ...EVERY_RUN, pipeline: code }, null, RECENT_RUNS), (page) => {
                 setRuns(page.items)
+            })
+            settle(readPipelineSources(code), (page) => {
+                setSources(page.items)
             })
         }
         settle(readConnections(), (page) => {
@@ -470,6 +481,10 @@ export function PipelineEditor() {
                             key={selected}
                             step={selected}
                             document={local}
+                            source={sources.find((row) => row.code === selected) ?? null}
+                            onSourceChanged={(row) => {
+                                setSources((rows) => rows.map((one) => (one.code === row.code ? row : one)))
+                            }}
                             block={stepRead.block}
                             blockProblem={stepRead.problem}
                             schemas={schemas}
@@ -549,6 +564,7 @@ export function PipelineEditor() {
         selected,
         small,
         source,
+        sources,
         state.parseError,
         stepRead,
         unmet,
@@ -741,6 +757,8 @@ export function PipelineEditor() {
                 <MintedToken
                     key={minted.tokens[0].source_id}
                     token={minted.tokens[0]}
+                    methods={declaredMethods(local, minted.tokens[0].code)}
+                    body={sampleBody(local, minted.tokens[0].code)}
                     onClose={() => {
                         const rest = minted.tokens.slice(1)
                         setMinted({ tokens: rest, after: minted.after })
@@ -791,6 +809,14 @@ export function PipelineEditor() {
                             },
                             () => {
                                 // The version row keeps what it had.
+                            },
+                        )
+                        void readPipelineSources(code).then(
+                            (page) => {
+                                setSources(page.items)
+                            },
+                            () => {
+                                // The source rows keep what they had.
                             },
                         )
                     }}

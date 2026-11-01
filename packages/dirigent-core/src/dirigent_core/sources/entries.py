@@ -6,6 +6,7 @@ from typing import cast
 
 from pydantic import JsonValue, ValidationError
 
+from dirigent_client.enums import EntryVia
 from dirigent_common import JsonMap
 from dirigent_core.engine.definition import PipelineDefinition
 from dirigent_core.engine.runs import Entry, RunCreationError
@@ -22,6 +23,9 @@ from dirigent_plugin.sources import AnySource
 
 #: What a hand run's received attempt logs.
 BY_HAND = "received by hand"
+
+#: What a hand run that gave no input, and so entered with the source's sample, logs.
+FROM_THE_SAMPLE = "received by hand, from the sample"
 
 
 class EntryRefused(RunCreationError):
@@ -60,6 +64,7 @@ def hand_entry(
     if node is None or kind is None:
         known = ", ".join(sorted(kinds)) or "none are installed"
         raise EntryRefused(UNKNOWN_KIND, kind=repr(node.kind if node else step), known=known)
+    sampled = given is None and declared.sample is not None
     written = given if given is not None else (declared.sample if declared.sample is not None else {})
     try:
         if not isinstance(written, dict):
@@ -67,7 +72,12 @@ def hand_entry(
         made = kind.complete(source_config(kind, node.config), cast("JsonMap", written), received_at=received_at)
     except (ValueError, ValidationError) as error:
         raise EntryRefused(ENTRY_INPUT_REFUSED, step=repr(step), kind=repr(node.kind), detail=_first(error)) from error
-    return Entry(step=step, output=cast("JsonMap", made.model_dump(mode="json")), via="hand", note=BY_HAND)
+    return Entry(
+        step=step,
+        output=cast("JsonMap", made.model_dump(mode="json")),
+        via=EntryVia.SAMPLE if sampled else EntryVia.HAND,
+        note=FROM_THE_SAMPLE if sampled else BY_HAND,
+    )
 
 
 def _first(error: Exception) -> str:

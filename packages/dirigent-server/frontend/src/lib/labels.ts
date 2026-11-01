@@ -1861,6 +1861,13 @@ const editor = {
         debug_too: 'debug too',
         /** The footnote: who the run is attributed to, and how it was started. */
         runs_as: (who: string) => `runs as ${who} · adhoc`,
+        /** What a run started here enters its source with, around the source's code. */
+        entry: {
+            sample: 'Starts from the sample of ',
+            empty: 'Starts with an empty input at ',
+            no_caller: '; nobody receives the reply',
+            end: '.',
+        },
         /** Who a run is attributed to when nobody is signed in. */
         this_session: 'this session',
     },
@@ -2128,6 +2135,22 @@ const runs = {
         by: (who: string) => `by ${who}`,
         stored: (size: string) => `${size} stored`,
     },
+    /** What a hand run's source was entered with. Keyed by `EntryVia` on the wire. */
+    entered: {
+        sample: 'from the sample',
+        hand: 'with an input given',
+    },
+    /** Who started a run by hand, and what its source was entered with. */
+    who_by_hand: (who: string, how: string) => `${who}, ${how}`,
+    /** A run a caller's request entered, by the source it called. */
+    a_call: (source: string) => `a call to ${source}`,
+    /** Whether a reply reached a caller: on its box after the word reply, and in its panel. */
+    reply: {
+        sent: 'sent',
+        not_sent: 'not sent',
+        sent_fact: 'sent to the caller',
+        not_sent_fact: 'recorded, not sent',
+    },
     /** The failure under the graph, beside the log. */
     failure: {
         heading: (step: string) => `${step} failed`,
@@ -2201,6 +2224,8 @@ const runs = {
      */
     fact: {
         by: 'by',
+        /** Whether a reply reached a caller. */
+        answer: 'answer',
         finished: 'finished',
         trace: 'trace',
         /** When this step becomes ready, over the steps it waits for. Not an alert rule. */
@@ -2391,9 +2416,16 @@ const triggers = {
     managed: 'managed',
     /** The window title over a trigger's pinned parameters. */
     pinned_title: (code: string) => `${code} · pinned parameters`,
-    /** Minting a new token for a source, and what that costs. */
-    rotate: 'Rotate token',
-    rotate_warning: 'The old one stops working at once. Every caller has to be updated.',
+    /** Replacing a source's credential, and the question before it. */
+    replace: {
+        token: 'New token',
+        secret: 'New secret',
+        ask_token: { before: 'Replace the token of ', after: '?' },
+        ask_secret: { before: 'Replace the signing secret of ', after: '?' },
+        note: 'The old one stops working at once.',
+        verb: 'Replace',
+        busy: 'Replacing…',
+    },
 
     /** The clocks. */
     schedule: {
@@ -2463,8 +2495,9 @@ const triggers = {
         /** What the copy button beside a minted token or signing secret names. */
         token_noun: 'the token',
         secret_noun: 'the signing secret',
-        note: 'This is the only time it can be read. Rotating is how a lost one is replaced.',
-        /** Over the path a caller is configured with. */
+        /** How a lost one is replaced, named by the verb that replaces it. */
+        lost: (verb: string) => `A lost one is replaced with ${verb}.`,
+        /** Over the URL a caller is configured with. */
         url: 'Where to call',
         /** Over how a caller presents it. */
         how: 'How a caller presents it',
@@ -2472,6 +2505,10 @@ const triggers = {
         /** The header a signed caller sends, and what its value is. */
         signed_header: (header: string) => `${header}: sha256=<signature>`,
         signed_note: 'The signature is the hex HMAC-SHA256 of the request body, keyed with this secret.',
+        /** Over a curl line that makes one call with the token. */
+        try_it: 'Try it',
+        /** What the copy button beside that line names. */
+        curl_noun: 'the curl line',
     },
 
     /**
@@ -2488,12 +2525,12 @@ const triggers = {
         /** How its caller authenticates. */
         auth: 'Auth',
         /** A token, shown by the prefix that tells one copy from another. */
-        token: (prefix: string) => `token ${prefix}…`,
+        token: (prefix: string) => `bearer token ${prefix}…`,
         /** A signed source: the header its signature arrives in, and which secret signs it. */
-        signed: (header: string, fingerprint: string) =>
-            `signed in ${header}, secret fingerprint ${fingerprint}`,
-        rotate_secret: 'Rotate secret',
+        signed: (header: string, fingerprint: string) => `HMAC in ${header}, secret ${fingerprint}`,
         public: 'public',
+        /** What the copy button beside a source's URL names. */
+        copy_url: 'Copy the URL',
         /** What it has taken: inputs that became runs, and inputs refused. */
         taken: 'Received',
         accepted: (count: string) => `${count} accepted`,
@@ -3371,6 +3408,7 @@ const design = {
         },
         pane: 'the output',
         chord: '⌘K',
+        url: 'https://dirigent.example.org/endpoints/signups',
         why_admin: 'Only an admin may change this.',
         why_paused: 'The pipeline is paused.',
         why_name: 'Give it a name first.',

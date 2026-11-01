@@ -20,6 +20,7 @@ import {
     runSettled,
     type AttemptKind,
     type AttemptStatus,
+    type EntryVia,
     type LogLevel,
     type RunStatus,
     type TriggerKind,
@@ -59,6 +60,8 @@ export interface RunOut {
     /** The run whose step started this one, when a step of another run did. */
     parent_run_id: string | null
     triggered_by_label: string | null
+    /** The source node a run of a pipeline with sources entered at, by its step code. */
+    source: string | null
     trace_id: string | null
     /** What the run and the runs its steps started have written to storage, in bytes. */
     stored_bytes: number
@@ -95,6 +98,8 @@ export interface AttemptOut {
     /** Where the output was written, when it was too large to inline on the artifact. */
     output_uri: string | null
     output_bytes: number | null
+    /** How a source's input arrived, on a received attempt; null on every other attempt. */
+    via: EntryVia | null
     waiting_message: string | null
     waiting_progress: number | null
     /** How many times a probe answered that the work was not done yet. */
@@ -431,6 +436,36 @@ export function triggerSummary(run: RunOut): TriggerSummary {
     // What the server records of a source or a schedule leads with the kind the row already says.
     const who = said !== null && said.startsWith(`${kind} `) ? said.slice(kind.length + 1) : said
     return { kind, who, said, parent: null }
+}
+
+/**
+ * Who started a run, said with how its source was entered: a call to the source, or a person's
+ * hand with an input or with the source's sample. Null where nothing was recorded.
+ */
+export function startedBy(
+    run: RunOut,
+    attempts: readonly Pick<AttemptOut, 'kind' | 'step_name' | 'via'>[],
+): string | null {
+    const who = triggerSummary(run).who
+    const via =
+        run.source === null
+            ? null
+            : (attempts.find((attempt) => attempt.kind === 'received' && attempt.step_name === run.source)
+                  ?.via ?? null)
+    if (via === 'request' && run.source !== null) return LABELS.runs.a_call(run.source)
+    if (via === 'sample' || via === 'hand')
+        return LABELS.runs.who_by_hand(who ?? LABELS.runs.trigger_not_recorded, LABELS.runs.entered[via])
+    return who
+}
+
+/**
+ * Whether a reply reached a caller, from what it rendered: null until it has settled, and for a
+ * step that is not a reply.
+ */
+export function replySent(attempt: Pick<AttemptOut, 'status' | 'output'> | null): boolean | null {
+    if (attempt === null || attempt.status !== 'succeeded') return null
+    const delivered = attempt.output?.delivered
+    return typeof delivered === 'boolean' ? delivered : null
 }
 
 /** Whether anything has been asked of the listing at all. */

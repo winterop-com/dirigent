@@ -38,7 +38,7 @@ import {
     readRun,
     resumeRun,
     runVerbs,
-    triggerSummary,
+    startedBy,
     waitingForWorkers,
     type RunReport,
 } from '@/lib/runs'
@@ -358,7 +358,11 @@ export function RunDetail() {
                         />
                     ),
             },
-            { id: 'run', label: LABELS.word.run.label, render: () => <RunTab run={state.run} /> },
+            {
+                id: 'run',
+                label: LABELS.word.run.label,
+                render: () => <RunTab run={state.run} attempts={Object.values(state.attempts)} />,
+            },
             {
                 id: 'output',
                 label: LABELS.word.output,
@@ -417,8 +421,8 @@ export function RunDetail() {
     )
     const troubled = run.status === 'failed' || run.status === 'completed_with_errors'
     const took = elapsedBetween(run.started_at, run.finished_at)
-    const summary = triggerSummary(run)
-    const trigger = summary.who === null ? null : LABELS.runs.line.by(summary.who)
+    const who = startedBy(run, Object.values(state.attempts))
+    const trigger = who === null ? null : LABELS.runs.line.by(who)
 
     // The page scrolls above the terminal, which stands at the foot of the content area.
     return (

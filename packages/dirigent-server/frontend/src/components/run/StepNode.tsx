@@ -9,6 +9,7 @@ import { headingOf } from '@/lib/identity'
 import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
 import { emptyStripLabel, nodeTone, type StepView } from '@/lib/run-detail'
+import { replySent } from '@/lib/runs'
 import { statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
@@ -66,7 +67,12 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
         view.detail !== null && view.progress !== null
             ? LABELS.runs.node_hint(view.detail, String(Math.round(view.progress * 100)))
             : view.detail
-    const line = heading.code === null ? view.node.block : `${heading.code} · ${view.node.block}`
+    const sent = view.node.kind === 'reply' ? replySent(view.latest) : null
+    const what =
+        sent === null
+            ? view.node.block
+            : `${view.node.block} · ${sent ? LABELS.runs.reply.sent : LABELS.runs.reply.not_sent}`
+    const line = heading.code === null ? what : `${heading.code} · ${what}`
     // What the step is doing has no line on the box, so it goes with whichever word is reached.
     const whole = (text: string) => (hint === null ? text : `${text}\n${hint}`)
 
@@ -106,7 +112,8 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
                 >
                     {line}
                 </span>
-                {view.duration_ms !== null && (
+                {/* A settled reply says whether it was sent where its duration would be. */}
+                {view.duration_ms !== null && sent === null && (
                     <span className="ml-auto shrink-0 font-mono text-faint">
                         {formatDuration(view.duration_ms)}
                     </span>

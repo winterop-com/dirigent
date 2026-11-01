@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { shortId } from '@/lib/format'
+import { LABELS } from '@/lib/labels'
 
 import {
     emptyNote,
@@ -9,8 +10,10 @@ import {
     itemsNote,
     narrowed,
     priorityMark,
+    replySent,
     runsLink,
     runsPath,
+    startedBy,
     triggerSummary,
     waitingForWorkers,
     type RunOut,
@@ -27,6 +30,7 @@ const RUN: RunOut = {
     triggered_by_kind: 'schedule',
     parent_run_id: null,
     triggered_by_label: 'nightly',
+    source: null,
     trace_id: null,
     stored_bytes: 0,
     error: null,
@@ -182,6 +186,47 @@ describe('what started a run', () => {
         expect(started.who).not.toContain(parent)
         expect(started.said).toBe(`a step of run ${parent}`)
         expect(started.parent).toBe(parent)
+    })
+})
+
+describe('who started a run of a pipeline with a source', () => {
+    const byHand = { ...RUN, triggered_by_kind: 'user' as const, triggered_by_label: 'admin', source: 'ask' }
+    const entered = (via: 'request' | 'hand' | 'sample') => [
+        { kind: 'automatic' as const, step_name: 'answer', via: null },
+        { kind: 'received' as const, step_name: 'ask', via },
+    ]
+
+    test('says a hand run started from the sample or with an input given', () => {
+        expect(startedBy(byHand, entered('sample'))).toBe(`admin, ${LABELS.runs.entered.sample}`)
+        expect(startedBy(byHand, entered('hand'))).toBe(`admin, ${LABELS.runs.entered.hand}`)
+    })
+
+    test('says a called run was a call to its source', () => {
+        const called = {
+            ...RUN,
+            triggered_by_kind: 'source' as const,
+            triggered_by_label: 'source ask',
+            source: 'ask',
+        }
+        expect(startedBy(called, entered('request'))).toBe(LABELS.runs.a_call('ask'))
+    })
+
+    test('says only who it was where the run has no source, or its attempts are not read yet', () => {
+        expect(startedBy(RUN, [])).toBe('nightly')
+        expect(startedBy(byHand, [])).toBe('admin')
+    })
+})
+
+describe('whether a reply reached a caller', () => {
+    test('is what the settled reply rendered', () => {
+        expect(replySent({ status: 'succeeded', output: { delivered: true } })).toBe(true)
+        expect(replySent({ status: 'succeeded', output: { delivered: false } })).toBe(false)
+    })
+
+    test('is not known before it settles, or for a step that renders no verdict', () => {
+        expect(replySent(null)).toBeNull()
+        expect(replySent({ status: 'pending', output: null })).toBeNull()
+        expect(replySent({ status: 'succeeded', output: { value: 1 } })).toBeNull()
     })
 })
 

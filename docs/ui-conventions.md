@@ -828,6 +828,37 @@ fixed stage, the drawing is scaled down where it is wider than the page and neve
 size, and a graph too deep for the width is wrapped onto rows the way every canvas wraps one.
 Choosing a box says under the graph which block it runs, what it waits for and what it feeds.
 
+## An endpoint says where it is called, and a run says who it answered
+
+**An endpoint source is drawn as the address a caller is given.** Wherever a source a request
+reaches is described -- its row in the pipeline page's Triggers panel, the editor's step panel
+for it, the triggers screen's panel -- it says its methods and the full URL in mono, wrapped rather than truncated: this
+instance's origin, the endpoint prefix and the path, which is the string a caller pastes, with a
+copy button beside it. Under that, how a caller authenticates, as configured: a bearer token by
+its prefix, an HMAC signature by the header it arrives in, or `public`. `components/triggers/Endpoint`
+is that block, written once, and `lib/sources` is where the URL and the line are decided.
+
+**`New token` is how a source's credential is replaced, and it asks first.** The verb is `New
+token`, or `New secret` on a signed source, on whatever surface describes the source; it raises
+`ConfirmDialog`, `Replace the token of <code>?`, whose one line is that the old one stops working,
+because that is what the verb takes beyond the thing named. The answer is the minted-token dialog
+every source credential is shown in: `SecretReveal`, the URL, how a caller presents it, and for a
+bearer token a `curl` line that makes one call with it -- the first method, and the source's sample
+body where it has one -- because the first thing anybody does with a new token is try it.
+
+**A run says how its source was entered and whether its reply went anywhere.** A run of a pipeline
+with a source was entered one of three ways a reader cares about: by a call, by hand with an input,
+or by hand from the source's sample. The received attempt carries it as `via`, and the run's status
+line says it after who started it: `by admin, from the sample`, `by admin, with an input given`,
+`by a call to ask`. A reply renders whether or not anybody is waiting, and its output carries
+`delivered`: the reply's box says `sent` or `not sent` after the word `reply`, in place of its duration, and its step panel
+says `sent to the caller` or `recorded, not sent`. A hand run is answered nowhere, and the screen
+never lets it look as though it was.
+
+**`Run…` says what a hand run of a pipeline with a source does**, in one line over the footnote:
+that it starts from the source's sample, or with an empty input where there is none, and that
+nobody receives the reply where the pipeline has one.
+
 ## A graph is a shape, and each screen reduces its own to it
 
 `lib/dag-layout` knows nothing about runs or documents. A run's graph is its pinned definition
@@ -2271,6 +2302,7 @@ no frame of its own.
 | `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm, or of `verbs` on a dialog that reads one thing |
 | `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. A refusal off the wire is one short line, with no box and no second naming of the thing. A verb that cannot go without one value holds that one field: a password reset's new password. No such verb is immediate |
 | `SecretReveal` | A secret the server answers with once: the value in mono, a copy button that says it copied and resets, and the line saying it is shown once |
+| `CopyButton` | The icon button beside a string somebody pastes elsewhere -- a secret, a URL, a command line: it puts the string on the clipboard, says it copied, and resets |
 | `PageHeader`, `SplitButton` | A screen's heading, at `text-page`. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `code` under it in mono for a detail screen; a `trail` for a detail screen. No subtitle |
 | `TextLink` | Every link that is text. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table, `aside` in the muted ink beside a section heading, `external` with its mark and a new tab |
 | `Code` | Every code, key, block and kind in mono. One line, truncated with an ellipsis, the whole value on `title`; `tone` is the muted ink beside a title or the body ink where the code is the value |
@@ -2312,7 +2344,7 @@ These do not wear it, and each is a decision:
 - **A create following the `New` rule below.** `New`, `New token` and a palette's `New alert rule` or
   `Create an account` say what they open, and every create is one.
 - **A verb raising `ConfirmDialog`, and an `Apply` opening its plan.** Those ask for a yes and nothing
-  else, so `Delete`, `Deactivate`, `Revoke`, `Rotate token` and `Apply` stay as they are. A confirm's
+  else, so `Delete`, `Deactivate`, `Revoke`, a source's `New token` and `Apply` stay as they are. A confirm's
   own verb is the act. `Reset password…` wears it because that question also needs a new password.
 - **A word whose outcome is the opening.** `Edit` is true the moment it is pressed: you are editing.
   `Add a window` adds the section. `Change…` wears it because nothing has changed yet.

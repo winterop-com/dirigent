@@ -6,6 +6,7 @@ import { DialogShell } from '@/components/ds/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
 import { Fact, FactList } from '@/components/ds/FactList'
 import { describedBy, FormField } from '@/components/ds/FormField'
+import { CopyButton } from '@/components/ds/CopyButton'
 import { IconButton } from '@/components/ds/IconButton'
 import { Notice } from '@/components/ds/Notice'
 import { Breadcrumb } from '@/components/Breadcrumb'
@@ -511,6 +512,7 @@ export function DesignSystem() {
                             />
                             <IconButton icon={ICONS.edit} label={LABELS.action.edit} variant="outline" />
                             <IconButton icon={ICONS.fit_view} label={LABELS.shell.fit_view} />
+                            <CopyButton value={SAMPLE.url} label={LABELS.triggers.source.copy_url} />
                             <IconButton
                                 icon={ICONS.open_in_window}
                                 label={LABELS.shell.open_in_window(SAMPLE.pane)}

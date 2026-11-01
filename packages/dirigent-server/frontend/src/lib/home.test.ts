@@ -36,6 +36,7 @@ function run(status: RunStatus, created: string, id = status + created): RunOut 
         triggered_by_kind: 'schedule',
         parent_run_id: null,
         triggered_by_label: null,
+        source: null,
         trace_id: null,
         stored_bytes: 0,
         error: null,

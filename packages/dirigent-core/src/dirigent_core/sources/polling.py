@@ -25,7 +25,7 @@ from jsonschema import FormatChecker
 from pydantic import BaseModel, ConfigDict, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import InputOutcome, TriggerKind
+from dirigent_client.enums import EntryVia, InputOutcome, TriggerKind
 from dirigent_common import JsonMap, scrub
 from dirigent_core import telemetry
 from dirigent_core.database import session_scope
@@ -212,7 +212,7 @@ async def _settle(
                         row,
                         pipeline,
                         output.model_dump(mode="json"),
-                        via="poll",
+                        via=EntryVia.POLL,
                         label=kind.label_of(output),
                         duration_ms=took,
                     )
@@ -243,7 +243,7 @@ async def enter_input(
     pipeline: Pipeline,
     output: JsonMap,
     *,
-    via: Literal["poll", "hold"],
+    via: Literal[EntryVia.POLL, EntryVia.HOLD],
     label: str | None,
     duration_ms: int,
 ) -> UUID:

@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyDocument, signIn } from './support.ts'
+import { apiPrefix, applyDocument, signIn, startRun } from './support.ts'
 
 /**
  * The sources section of the triggers screen, against a real instance taking real calls.
@@ -64,4 +64,74 @@ test('a source called over the wire is listed with its route, and its panel read
     await expect(row).toContainText(LABELS.state.source.paused)
     await panel.getByRole('button', { name: LABELS.action.resume }).click()
     await expect(row).toContainText(LABELS.state.source.listening)
+})
+
+/** An endpoint with a sample, answered by a reply, under a path of its own. */
+const SAMPLED = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: 'e2e-source-sampled',
+    steps: {
+        ask: {
+            source: { kind: 'endpoint', path: '/e2e-source-sampled' },
+            sample: { body: { said: 'from the sample' } },
+        },
+        answer: { depends_on: ['ask'], reply: { status: 200, body: '${steps.ask.output.body}' } },
+    },
+}
+
+test('a pipeline page says where its endpoint is called, and a new token makes a call that is answered', async ({
+    page,
+}) => {
+    await signIn(page)
+    await applyDocument(page.request, SAMPLED)
+
+    await page.goto(`/pipelines/${SAMPLED.code}`)
+    const address = page.getByTestId('endpoint-address')
+    await expect(address).toContainText('POST')
+    await expect(address).toContainText(`/endpoints/${SAMPLED.code}`)
+
+    await page.getByRole('button', { name: LABELS.triggers.replace.token }).click()
+    await page.getByRole('button', { name: LABELS.triggers.replace.verb }).click()
+    const minted = page.getByRole('dialog')
+    await expect(minted).toContainText(LABELS.triggers.token.try_it)
+    const curl = await minted.locator('code', { hasText: 'curl -X POST' }).textContent()
+    const token = /Bearer ([^']+)'/.exec(curl ?? '')?.[1]
+    expect(token).toBeTruthy()
+    expect(curl).toContain('{"said":"from the sample"}')
+
+    const called = await page.request.post(`/endpoints/${SAMPLED.code}`, {
+        headers: { Authorization: `Bearer ${String(token)}` },
+        data: { said: 'by a caller' },
+    })
+    expect(called.status()).toBe(200)
+    expect(await called.json()).toEqual({ said: 'by a caller' })
+
+    const prefix = await apiPrefix(page.request)
+    const listed = await page.request.get(`${prefix}/runs?pipeline=${SAMPLED.code}`)
+    const runs = (await listed.json()) as { items: { id: string }[] }
+    const [run] = runs.items
+    expect(run).toBeDefined()
+    await page.goto(`/runs/${String(run?.id)}`)
+    await expect(page.getByText(LABELS.runs.line.by(LABELS.runs.a_call('ask')))).toBeVisible()
+    await expect(
+        page.getByTestId('step-line').filter({ hasText: `reply · ${LABELS.runs.reply.sent}` }),
+    ).toBeVisible()
+})
+
+test('a run started by hand says it took the sample and that its reply was not sent', async ({ page }) => {
+    await signIn(page)
+    await applyDocument(page.request, SAMPLED)
+
+    await page.goto(`/pipelines/${SAMPLED.code}`)
+    await page.getByRole('button', { name: LABELS.action.asks(LABELS.action.run) }).click()
+    const entry = page.getByTestId('run-entry')
+    await expect(entry).toContainText(LABELS.editor.run.entry.sample)
+    await expect(entry).toContainText(LABELS.editor.run.entry.no_caller)
+    await page.keyboard.press('Escape')
+
+    const runId = await startRun(page.request, SAMPLED.code)
+    await page.goto(`/runs/${runId}`)
+    await expect(page.getByText(LABELS.runs.entered.sample)).toBeVisible()
+    await expect(page.getByTestId('step-line').filter({ hasText: LABELS.runs.reply.not_sent })).toBeVisible()
 })

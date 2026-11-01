@@ -40,8 +40,11 @@ export type ItemStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipp
 /** What a step as a whole amounts to. `StepOutcome` in dirigent_core.engine.state. */
 export type StepOutcome = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'cancelled'
 
-/** Whether the engine created an attempt or an operator asked for it. `AttemptKind`. */
-export type AttemptKind = 'automatic' | 'manual'
+/** Whether the engine created an attempt, an operator asked for it, or an input arrived as it. `AttemptKind`. */
+export type AttemptKind = 'automatic' | 'manual' | 'received'
+
+/** How the input a source's attempt holds arrived. `EntryVia` in dirigent_client.enums. */
+export type EntryVia = 'request' | 'poll' | 'hold' | 'hand' | 'sample'
 
 /** How severe one product log entry is. `LogLevel` in dirigent_client.enums. */
 export type LogLevel = 'debug' | 'info' | 'warning' | 'error'
