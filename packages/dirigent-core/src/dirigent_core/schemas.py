@@ -45,7 +45,9 @@ class SchemaInUse(DomainError):
 
     def __init__(self, code: str, pipelines: Sequence[str]) -> None:
         """Say which pipelines name it, so what has to change is in the refusal."""
-        super().__init__(code=repr(code), count=len(pipelines), pipelines=", ".join(pipelines))
+        named = ", ".join(pipelines)
+        users = f"pipeline {named}" if len(pipelines) == 1 else f"pipelines {named}"
+        super().__init__(code=repr(code), count=len(pipelines), pipelines=named, users=users)
         self.pipelines = list(pipelines)
 
 
