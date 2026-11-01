@@ -7,7 +7,7 @@ says where to send data.
 
 import os
 import socket
-from collections.abc import Callable, Generator, Iterable, Mapping
+from collections.abc import Callable, Collection, Generator, Iterable, Mapping
 from contextlib import contextmanager
 from typing import Any, Final
 
@@ -17,6 +17,7 @@ from opentelemetry.metrics import CallbackOptions, Observation
 from opentelemetry.trace import Span, SpanKind, Status, StatusCode
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
+from dirigent_common import raised_detail, scrub
 from dirigent_core.config import Settings
 from dirigent_core.logging import get_logger
 
@@ -316,7 +317,9 @@ def attempt_span(*, run_id: str, step: str, block: str, attempt: int, parent: Co
     """Open the span covering one step attempt, from claim to settled outcome.
 
     ``parent`` is the run's own trace context, read back from the run row, which is what
-    puts an attempt run on a worker into the trace of whatever asked for the run.
+    puts an attempt run on a worker into the trace of whatever asked for the run. An
+    exception leaving the span is not recorded on it: the attempt records its failure
+    through :func:`record_failure`, scrubbed.
     """
     with _tracer.start_as_current_span(
         f"step {step}",
@@ -328,28 +331,46 @@ def attempt_span(*, run_id: str, step: str, block: str, attempt: int, parent: Co
             "dirigent.block": block,
             "dirigent.attempt": attempt,
         },
+        record_exception=False,
+        set_status_on_exception=False,
     ) as span:
         yield span
 
 
 @contextmanager
-def block_span(block: str, call: str) -> Generator[Span]:
-    """Open the span covering one block call: execute, probe, fetch, or cancel."""
+def block_span(block: str, call: str, secrets: Collection[str] = ()) -> Generator[Span]:
+    """Open the span covering one block call: execute, probe, fetch, or cancel.
+
+    An exception the call raises is recorded with every one of ``secrets`` scrubbed from it,
+    and raised on unchanged. ``secrets`` is read when the call fails, so a live set the call
+    adds to covers what it opened.
+    """
     with _tracer.start_as_current_span(
         f"{block}.{call}",
         kind=SpanKind.CLIENT,
         attributes={"dirigent.block": block, "dirigent.block.call": call},
+        record_exception=False,
+        set_status_on_exception=False,
     ) as span:
-        yield span
+        try:
+            yield span
+        except Exception as error:
+            record_failure(span, error, secrets)
+            raise
 
 
-def record_failure(span: Span, error: BaseException | str) -> None:
-    """Mark a span as failed, with the message an operator would want in the trace."""
-    if isinstance(error, BaseException):
-        span.record_exception(error)
-        span.set_status(Status(StatusCode.ERROR, str(error)))
+def record_failure(span: Span, error: Exception | str, secrets: Collection[str] = ()) -> None:
+    """Mark a span as failed, with the message an operator would want in the trace.
+
+    Every one of ``secrets`` is scrubbed from what is recorded. An exception is recorded by its
+    class and its scrubbed text, never its traceback.
+    """
+    if isinstance(error, Exception):
+        said = raised_detail(error, redact=secrets)
+        span.add_event("exception", {"exception.type": type(error).__qualname__, "exception.message": said})
+        span.set_status(Status(StatusCode.ERROR, f"{type(error).__name__}: {said}"))
     else:
-        span.set_status(Status(StatusCode.ERROR, error))
+        span.set_status(Status(StatusCode.ERROR, scrub(error, secrets)))
 
 
 def current_traceparent() -> str | None:

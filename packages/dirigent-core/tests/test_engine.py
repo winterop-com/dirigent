@@ -10,9 +10,11 @@ from uuid import UUID
 import pytest
 import sqlalchemy as sa
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 from pydantic import BaseModel
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from structlog.testing import capture_logs
 
 from dirigent_client.enums import (
     AlertEvent,
@@ -23,6 +25,7 @@ from dirigent_client.enums import (
     RunStatus,
     TriggerKind,
 )
+from dirigent_common import spellings
 from dirigent_core.artifacts import canonical_json
 from dirigent_core.config import Settings
 from dirigent_core.database import DEADLOCK, session_scope
@@ -2675,6 +2678,72 @@ async def test_a_run_and_every_attempt_of_it_land_in_one_trace(
         assert span.context.trace_id == root.context.trace_id, f"{span.name} started a trace of its own"
         assert span.parent is not None
         assert span.parent.span_id == root.context.span_id, f"{span.name} hangs from nothing"
+
+
+#: A credential a library quotes back in its error, with a newline only an old seal let through.
+QUOTED = "dummy-SECRET-7f3a9c\n"
+
+
+def exported_text(spans: InMemorySpanExporter) -> str:
+    """Everything an exporter would ship of every finished span, as one string."""
+    parts: list[str] = []
+    for span in spans.get_finished_spans():
+        parts += [span.name, str(span.status.description), repr(dict(span.attributes or {}))]
+        for event in span.events:
+            parts += [event.name, repr(dict(event.attributes or {}))]
+    return "\n".join(parts)
+
+
+async def test_a_secret_a_block_quotes_in_what_it_raises_never_reaches_a_span(
+    engine: Engine, sessions: Any, services: EngineServices, spans: InMemorySpanExporter
+) -> None:
+    definition = PipelineDefinition(
+        code="otel-leak",
+        steps=steps(
+            job=StepDefinition(block="test.remote", config={"quotes": QUOTED}, retry=RetryPolicy(max_attempts=1))
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+
+    assert (await attempts_of(sessions, run.id))[0].status is AttemptStatus.FAILED
+    block = next(span for span in spans.get_finished_spans() if span.name == "test.remote.execute")
+    assert block.status.status_code is StatusCode.ERROR
+    assert "RuntimeError" in str(block.status.description)
+    assert "***" in str(block.status.description)
+    shipped = exported_text(spans)
+    for spelling in spellings(QUOTED):
+        assert spelling not in shipped
+
+
+async def test_a_secret_a_block_quotes_while_cancelling_never_reaches_the_log(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="cancel-leak",
+        steps=steps(
+            job=StepDefinition(
+                block="test.remote",
+                config={"statuses": ["running"], "quotes": QUOTED, "quoted_by": "cancel"},
+                poll=timedelta(minutes=5),
+            )
+        ),
+    )
+    run = await start(sessions, services, definition)
+    unit = await engine.claim()
+    assert unit is not None
+    await engine.run_unit(unit)
+
+    with capture_logs() as logged:
+        async with session_scope(sessions) as session:
+            stored = await session.get(Run, run.id)
+            assert stored is not None
+            await cancel_run(session, services, stored)
+    failed = [entry for entry in logged if entry["event"] == "remote cancellation failed"]
+    assert len(failed) == 1
+    assert "***" in failed[0]["error"]
+    for spelling in spellings(QUOTED):
+        assert spelling not in repr(logged)
 
 
 async def test_a_run_created_with_no_exporter_carries_no_trace_context(sessions: Any, services: EngineServices) -> None:
