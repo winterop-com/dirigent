@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 
 import type { JsonMap } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import {
     applyVariant,
     blockOf,
+    stepRuns,
     changeDocument,
     configOf,
     configSummary,
@@ -638,5 +640,23 @@ describe('the report section', () => {
 
     test('taking one away leaves a document that never had one alone', () => {
         expect(withoutReport({ steps: {} })).toEqual({ steps: {} })
+    })
+})
+
+describe('what a step says where its block would be', () => {
+    const shapes: JsonMap = {
+        steps: {
+            ask: { source: { kind: 'endpoint' } },
+            work: { block: 'transform.jq' },
+            answer: { reply: { status: 200 } },
+            bare: {},
+        },
+    }
+
+    test('is its block, its source kind, or reply, and no block for a step that is none of them', () => {
+        expect(stepRuns(shapes, 'work')).toBe('transform.jq')
+        expect(stepRuns(shapes, 'ask')).toBe('endpoint')
+        expect(stepRuns(shapes, 'answer')).toBe(LABELS.editor.reply)
+        expect(stepRuns(shapes, 'bare')).toBe(LABELS.editor.no_block)
     })
 })

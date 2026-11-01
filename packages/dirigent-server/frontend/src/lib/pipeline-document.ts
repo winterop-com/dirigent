@@ -212,6 +212,24 @@ export function sourceKindOf(document: JsonMap | null, step: string): string | n
     return typeof kind === 'string' ? kind : null
 }
 
+/** Whether one step is a reply, which answers the caller its run's source was entered by. */
+export function isReply(document: JsonMap | null, step: string): boolean {
+    const reply = stepsIn(document)[step]?.reply
+    return reply !== null && typeof reply === 'object' && !Array.isArray(reply)
+}
+
+/**
+ * What a step's second line names: the block it runs, the kind of source it is, or that it is a
+ * reply, and `no block` for a step that is none of the three.
+ */
+export function stepRuns(document: JsonMap | null, step: string): string {
+    return (
+        blockOf(document, step) ??
+        sourceKindOf(document, step) ??
+        (isReply(document, step) ? LABELS.editor.reply : LABELS.editor.no_block)
+    )
+}
+
 /**
  * One step's display name, or null when the document gives it none.
  *

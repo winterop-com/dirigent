@@ -169,9 +169,15 @@ export function PipelinePage() {
             </Panel>
 
             <div className="mt-5 flex flex-wrap items-start gap-5">
-                <Panel title={LABELS.pipelines.page.blocks} className="flex-[1_1_420px]" bodyClassName="py-2">
-                    <Blocks steps={steps} selected={selected} onSelect={setSelected} />
-                </Panel>
+                {steps.some((step) => step.kind === 'block') && (
+                    <Panel
+                        title={LABELS.pipelines.page.blocks}
+                        className="flex-[1_1_420px]"
+                        bodyClassName="py-2"
+                    >
+                        <Blocks steps={steps} selected={selected} onSelect={setSelected} />
+                    </Panel>
+                )}
                 <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-5">
                     <Panel title={LABELS.pipelines.page.triggers} bodyClassName="py-2">
                         <Triggers

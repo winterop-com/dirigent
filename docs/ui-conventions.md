@@ -816,7 +816,7 @@ over what was read, and the counts beside each heading are what is left.
 **A pipeline's page is its graph first.** The title, the code in mono under it, and Edit,
 Validate and `Run…` at the right of the heading; the description; then the graph on the canvas
 ground, then three panels side by side -- Blocks, which block each step runs with the steps as
-chips that choose them on the graph; Triggers, the schedules and sources that fire it; and
+chips that choose them on the graph, drawn only where a step runs one; Triggers, the schedules and sources that fire it; and
 Connections, what it reaches and how each one is. `Edit` opens the editor at
 `/pipelines/<code>/edit`, which is the screen the rest of this page's editing rules are about;
 `Validate` dry-runs the stored version against the instance as it is now and says the answer in
@@ -1867,7 +1867,8 @@ their full value on their own `title`, with what the step is doing after it on a
 its second line is what it listens to and its title leads with `ICONS.source`, on a dashed box. In
 the editor that is the instance's own reading of the source -- `listensTo`, `POST /endpoints/signups`
 or what a polled kind says of itself -- and the document's `kind` until an apply has made one. On a
-run it is the kind, which is what the pinned graph carries. A step with neither says `no block`{ .label }.
+run it is the kind, which is what the pinned graph carries. A reply says `reply`{ .label } there, on the editor's canvas
+and its step panel as on a run. A step that is none of the three says `no block`{ .label }.
 
 
 **A canvas on a page is as tall as its drawing.** The pipeline's page and the run's page draw the
