@@ -259,9 +259,9 @@ holding a generated `DIRIGENT_SECRET_KEY`, database password and bucket secret, 
 the scheduler embedded, object storage for artifacts and a worker, all running the image that
 `Dockerfile` builds on `ghcr.io/winterop-com/dirigent`, pinned to the version of the `dg` that
 wrote the file. `--service docker` adds the workers' own daemon, `--service kafka` and
-`--service rabbitmq` a broker; `--pack dirigent-dhis2` or `--pack dirigent-contrib`
-installs the pack into the image. Adding one later is a line in that `Dockerfile` and
-`docker compose up --build`.
+`--service rabbitmq` a broker; `--pack dirigent-dhis2`, `--pack dirigent-contrib` or
+`--pack dirigent-fhir` installs the pack into the image. Adding one later is a line in that
+`Dockerfile` and `docker compose up --build`.
 
 Nothing is initialised on this machine: no state directory, no migration and no token, because
 the instance is the containers. The first admin is `admin`, created from

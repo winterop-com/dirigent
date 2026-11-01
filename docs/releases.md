@@ -7,17 +7,23 @@ it, or the published one.
 
 Versions before 0.9.0 were developed in private and are listed here for the record.
 
-**How a release is cut.** Every package in this workspace, `dirigent-dhis2`, `dirigent-contrib`
-and `dirigent-integration` move to the same number together, and the sibling pins move with the
+**How a release is cut.** Every package in this workspace, `dirigent-dhis2`, `dirigent-contrib`,
+`dirigent-fhir` and `dirigent-integration` move to the same number together, and the sibling pins move with the
 version: every package requires its dirigent dependencies at `==<version>`, so an installed
 set can never mix two releases. The notes land here first, at the top; the bump merges; the
 merge commit is tagged `vX.Y.Z` and published as a GitHub release with the same notes. The
 tag is what publishes: `.github/workflows/release.yaml` builds every package and uploads it
 to PyPI through trusted publishing and, once the `ghcr` environment allows it, builds the image
-from that commit and pushes it as `<version>` and `latest`. The three sibling repositories then
+from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
 ## Unreleased
+
+**`dirigent-fhir` is on PyPI, and `dg init --pack dirigent-fhir` adds it.** The FHIR pack, a `fhir`
+connection kind and the `fhir.read`, `fhir.search`, `fhir.create`, `fhir.update` and
+`fhir.transaction` blocks for one FHIR R4 server, is published at 0.29.0 and pinned at the
+runtime's version like `dirigent-dhis2` and `dirigent-contrib`, in the flag and the form. It moves
+with each release from now on, and the integration `make test` covers it.
 
 **A polled source keeps a cadence shorter than the poll tick.** A worker used to look for due
 sources only every `source_poll_tick` (5s), so a sensor source with `poll: 1s` ran every five

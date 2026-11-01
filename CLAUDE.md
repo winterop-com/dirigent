@@ -10,19 +10,20 @@
 
 ## Sibling repositories
 
-- `dirigent-dhis2` and `dirigent-contrib` (packs) and `dirigent-integration` (the control center
-  that assembles every pack and runs everyone's tests) live in their own repositories beside
-  this one. The packs pin this repository's packages from PyPI at the released version, so a
-  contract change reaches their own CI at the next release; `dirigent-integration` installs
-  this repository's packages and both packs from git at `main`.
+- `dirigent-dhis2`, `dirigent-contrib` and `dirigent-fhir` (packs) and `dirigent-integration`
+  (the control center that assembles every pack and runs everyone's tests) live in their own
+  repositories beside this one. The packs pin this repository's packages from PyPI at the
+  released version, so a contract change reaches their own CI at the next release;
+  `dirigent-integration` installs this repository's packages and every pack from git at `main`.
 - A change here that touches a contract they consume is not done until it is reflected there:
   the plugin and testing API, the wire schemas, the CLI's flags and record kinds, a block id or
   connection kind, and the version number. Grep every sibling checkout before closing the
   change.
-- A release here is a release there. `dirigent-dhis2` and `dirigent-contrib` each relock their
-  dirigent packages at the tagged commit and move to the same version; `dirigent-integration`
-  moves to the same version and its `make test` is run against the new tips before the release
-  is called done. Its lock is never committed; it resolves `main` fresh. Each of the four then
+- A release here is a release there. `dirigent-dhis2`, `dirigent-contrib` and `dirigent-fhir`
+  each relock their dirigent packages at the tagged commit and move to the same version;
+  `dirigent-integration` moves to the same version and its `make test` is run against the new
+  tips before the release is called done. Its lock is never committed; it resolves `main`
+  fresh. Each of the five then
   gets the same `vX.Y.Z` tag and a GitHub release; here the tag is what publishes the packages
   to PyPI and the image to ghcr, through `.github/workflows/release.yaml`.
 - A pack that is installed into the image declares every dependency it needs in `dependencies`,
