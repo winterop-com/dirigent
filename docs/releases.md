@@ -19,6 +19,12 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**A polled source keeps a cadence shorter than the poll tick.** A worker used to look for due
+sources only every `source_poll_tick` (5s), so a sensor source with `poll: 1s` ran every five
+seconds and "poked again at once after a success" waited out the tick. A worker now sleeps until
+the earliest polled source falls due, at most `source_poll_tick` and never less than 50
+milliseconds. `source_poll_tick` is now the longest a worker goes without looking.
+
 **`dg source list`, `show` and `inputs` render at a terminal.** They wrote NDJSON whatever the
 terminal, `-o console` included. A source now reads as one line: its state, its step, the
 pipeline, what it listens to, and what it has taken, with a warning level when it last failed. An

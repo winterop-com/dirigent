@@ -292,13 +292,17 @@ class Worker:
                 await self._pause(self.settings.claim_idle.total_seconds())
 
     async def _poll_loop(self) -> None:
-        """Poll the polled sources that are due, on their own tick, until the worker halts."""
+        """Poll the polled sources that are due, then sleep until the next falls due or a tick passes."""
+        tick = self.settings.source_poll_tick
         while not self._halting.is_set():
+            wait = tick
             try:
                 await polling.tick(self.sessions, self.services, owner=self.name)
+                async with self.sessions() as session:
+                    wait = await polling.until_due(session, self.services, now=utcnow(), cap=tick)
             except Exception as error:  # a source's own failure is on its row; this is the tick's
                 _logger.warning("source poll tick failed", worker=self.name, error=str(error))
-            await self._pause(self.settings.source_poll_tick.total_seconds())
+            await self._pause(wait.total_seconds())
 
     async def _hold_loop(self) -> None:
         """Take up the held sources nobody holds, on the poll tick, and let every one go when the worker halts."""
