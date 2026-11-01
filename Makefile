@@ -60,6 +60,7 @@ static: ## Read-only gate without the tests: ruff, mypy, pyright, the UI type sc
 	$(UV) run python scripts/check_ui_system.py
 	$(UV) run python scripts/check_refusal_labels.py
 	$(UV) run python scripts/check_docs_labels.py
+	$(UV) run python scripts/check_docs_version.py
 
 check: static ui-gate ## Read-only gate: the static one, the UI's, then the tests
 	$(UV) run pytest -n $(WORKERS)

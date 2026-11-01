@@ -128,7 +128,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      entries. An `OperationOutcome` is classified the way the dhis2 pack classifies an import
      conflict, and the health check reads `/metadata`. The first flagship is FHIR to FHIR on a
      schedule against a public test server (`hapi.fhir.org/baseR4`).
-     **Published.** `dirigent-fhir` 0.29.0 is on PyPI and at
+     **Published.** `dirigent-fhir` is on PyPI and at
      [winterop-com/dirigent-fhir](https://github.com/winterop-com/dirigent-fhir), with its own
      docs site, and moves in lockstep with this repository: the `fhir` connection kind and `fhir.read`, `fhir.search`, `fhir.create`,
      `fhir.update` and `fhir.transaction`, every request held to the origin of `base_url`, and
