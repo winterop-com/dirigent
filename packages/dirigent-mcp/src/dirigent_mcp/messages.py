@@ -26,6 +26,11 @@ CROSS_ORIGIN = MCP.define(
     "this MCP request was caused by a page on another origin, which this server does not answer",
 )
 
+INSTANCE_UNAVAILABLE = MCP.define(
+    "instance_unavailable",
+    "the instance behind this server did not say whose token this is, so nothing was done; send again",
+)
+
 HOST_NOT_LOOPBACK = MCP.define(
     "host_not_loopback",
     "this server is bound to loopback and answers only to a loopback name, not {host}",

@@ -15,6 +15,10 @@ from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent
 from pydantic import SecretStr
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse, RedirectResponse, Response
+from starlette.routing import Route
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from dirigent_client.enums import UserRole
@@ -160,6 +164,44 @@ async def test_a_request_another_origin_caused_is_refused_403(standalone: str, t
         answered = await http.post(f"{standalone}/mcp", json=INITIALIZE, headers=headers)
     assert answered.status_code == 403
     assert answered.json()["code"] == "mcp.cross_origin"
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        PlainTextResponse("no", status_code=500),
+        PlainTextResponse("no", status_code=503),
+        PlainTextResponse("not a dirigent", status_code=200),
+        RedirectResponse("http://elsewhere.example/", status_code=302),
+    ],
+    ids=["500", "503", "not-dirigent", "redirect"],
+)
+async def test_an_instance_that_cannot_say_whose_a_token_is_is_answered_502(answer: Response) -> None:
+    async def me(_: Request) -> Response:
+        return answer
+
+    failing = Starlette(routes=[Route("/api/v1/auth/me", me)])
+    async with (
+        serving(failing) as url,
+        serving(standalone_app(url, loopback=True)) as base,
+        httpx2.AsyncClient(timeout=60) as http,
+    ):
+        answered = await http.post(
+            f"{base}/mcp", json=INITIALIZE, headers={**ACCEPT, "Authorization": "Bearer a-token"}
+        )
+    assert answered.status_code == 502, answered.text
+    assert answered.json()["code"] == "mcp.instance_unavailable"
+
+
+async def test_an_instance_that_is_not_there_is_answered_502() -> None:
+    async with (
+        serving(standalone_app("http://127.0.0.1:1", loopback=True)) as base,
+        httpx2.AsyncClient(timeout=60) as http,
+    ):
+        answered = await http.post(
+            f"{base}/mcp", json=INITIALIZE, headers={**ACCEPT, "Authorization": "Bearer a-token"}
+        )
+    assert answered.status_code == 502, answered.text
 
 
 @pytest.mark.parametrize("host", ["localhost", "localhost:3334", "127.0.0.1:1", "[::1]", "[::1]:3334", "LOCALHOST:1"])
