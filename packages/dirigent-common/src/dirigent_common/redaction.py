@@ -5,8 +5,10 @@ Whatever writes such text beside a viewer's reach scrubs it first, with every sp
 takes once a library has quoted it.
 """
 
+import json
 from collections.abc import Collection
 from typing import Final
+from urllib.parse import quote, quote_plus
 
 from pydantic import BaseModel, JsonValue, SecretStr
 
@@ -15,13 +17,19 @@ REDACTED: Final = "***"
 
 
 def spellings(secret: str) -> set[str]:
-    """Name every way a secret reads in an error: as it is, trimmed, and escaped as ``repr`` escapes it."""
+    """Name every way a secret reads in an error: as it is, trimmed, and as ``repr``, a URL and JSON escape it."""
+    raw = secret.encode("utf-8", "surrogateescape")
     written = {
         secret,
         secret.strip(),
         repr(secret)[1:-1],
         repr(secret.strip())[1:-1],
-        repr(secret.encode("utf-8", "surrogateescape"))[2:-1],
+        repr(raw)[2:-1],
+        quote(raw),
+        quote(raw, safe=""),
+        quote_plus(raw),
+        json.dumps(secret)[1:-1],
+        json.dumps(secret, ensure_ascii=False)[1:-1],
     }
     return {one for one in written if one}
 
