@@ -18,7 +18,16 @@ from dirigent_block_http.messages import (
     STATUS_REFUSED,
     URL_BESIDE_CONNECTION,
 )
-from dirigent_common import BlockModel, Duration, Issue, PlainHeaders, PlainQuery, PlainUrl, Size
+from dirigent_common import (
+    BlockModel,
+    Duration,
+    Issue,
+    PlainHeaders,
+    PlainQuery,
+    PlainUrl,
+    Size,
+    redact_credential_parameters,
+)
 from dirigent_plugin import (
     BlockFailure,
     ConnectionRef,
@@ -133,6 +142,11 @@ def request_url(target: HttpTarget) -> str:
     return target.url or target.path
 
 
+def shown_url(target: HttpTarget) -> str:
+    """Write what one call requests as a log line or a refusal may say it."""
+    return redact_credential_parameters(request_url(target))
+
+
 def on_origin(target: HttpTarget, client: httpx2.AsyncClient, request: httpx2.Request) -> None:
     """Refuse a request that would carry a connection's credentials off the connection's origin.
 
@@ -148,7 +162,7 @@ def on_origin(target: HttpTarget, client: httpx2.AsyncClient, request: httpx2.Re
         raise BlockFailure(
             OFF_ORIGIN,
             error_class=ErrorClass.REJECTED,
-            url=request_url(target),
+            url=shown_url(target),
             origin=_shown(client.base_url),
             connection=repr(target.connection),
         )
@@ -353,7 +367,7 @@ class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
         ctx.log.info(
             "http call",
             method=config.method,
-            url=request_url(config),
+            url=shown_url(config),
             status=response.status_code,
             bytes=len(payload),
             duration_ms=duration,
@@ -363,7 +377,7 @@ class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
                 STATUS_REFUSED,
                 error_class=status_class(response.status_code),
                 method=config.method,
-                url=request_url(config),
+                url=shown_url(config),
                 status=response.status_code,
             )
         return HttpRequestOutput(

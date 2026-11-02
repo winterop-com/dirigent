@@ -48,6 +48,8 @@ class ClaimedUnit(BaseModel):
     previous_status: AttemptStatus
     step: StepDefinition
     config: JsonMap
+    output_urls: frozenset[str] = frozenset()
+    """The config's URL fields an earlier step's output supplied, exempt from the credential-named parameter refusal."""
     params: JsonMap
     log_levels: JsonMap | None = None
     """The run's kept-level map, resolved against the block id when the buffer is built."""

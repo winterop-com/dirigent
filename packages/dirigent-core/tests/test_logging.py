@@ -120,6 +120,11 @@ def test_the_queue_clients_are_floored_because_the_call_reports_their_failure() 
     assert logging.getLogger("aiormq.connection").getEffectiveLevel() == logging.CRITICAL
 
 
+def test_the_http_client_is_floored_because_its_info_line_writes_a_whole_url() -> None:
+    configure_logging("DEBUG", "json")
+    assert logging.getLogger("httpx2").getEffectiveLevel() == logging.WARNING
+
+
 def test_configuring_twice_does_not_stack_handlers() -> None:
     configure_logging("INFO", "json")
     configure_logging("DEBUG", "console")

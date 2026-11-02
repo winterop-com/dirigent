@@ -13,11 +13,12 @@ to be. A query parameter's name is any API's data: ``page_token`` and ``sort_key
 import re
 from collections.abc import Mapping
 from typing import Annotated, Any, Final, cast
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, unquote_plus, urlsplit
 
-from pydantic import AfterValidator, Field, SecretStr
+from pydantic import AfterValidator, Field, SecretStr, ValidationInfo
 
 from dirigent_common.messages import COMMON
+from dirigent_common.redaction import REDACTED
 
 #: What marks a field in a published schema as a header map that refuses a credential.
 PLAIN_HEADERS_KEYWORD: Final = "x-dirigent-plain-headers"
@@ -27,6 +28,12 @@ PLAIN_QUERY_KEYWORD: Final = "x-dirigent-plain-query"
 
 #: What marks a field in a published schema as a URL that refuses a credential.
 PLAIN_URL_KEYWORD: Final = "x-dirigent-plain-url"
+
+#: The validation context key naming the fields whose URL an earlier step's output supplied.
+OUTPUT_URL_FIELDS: Final = "output_url_fields"
+
+#: One ``name=value`` of a query or a fragment, kept apart so a value can be replaced in place.
+QUERY_PAIR: Final = re.compile(r"(^|[&;#])([^=&;#]*)=([^&;#]*)")
 
 #: The header a credential is sent in when a connection names neither a header nor a query parameter.
 DEFAULT_CREDENTIAL_HEADER: Final = "Authorization"
@@ -170,6 +177,13 @@ CREDENTIAL_PARAMETER_REFUSED = COMMON.define(
     "connection's credential field, which is sealed, with its name in credential_query",
 )
 
+OUTPUT_URL_ONLY = COMMON.define(
+    "output_url_only",
+    "the {parameter} query parameter carries a credential, and this URL is not shown to come from an earlier step's "
+    "output, so what names it is stored with the run; put its value in a connection's credential field, which is "
+    "sealed, with its name in credential_query",
+)
+
 URL_USERINFO_REFUSED = COMMON.define(
     "url_userinfo_refused",
     "a URL here cannot carry a user or a password, because it is stored as written; put the credential in a "
@@ -267,11 +281,45 @@ def refuse_credential_parameter(url: str) -> str:
     return url
 
 
-def _refuse_credentials_in_url(url: str) -> str:
-    """Refuse a URL carrying a user, a password, or a credential's name in its query."""
+def credential_parameter_values(url: str) -> list[str]:
+    """Every value a URL's query or fragment gives a name that carries a credential."""
+    try:
+        split = urlsplit(url)
+    except ValueError:
+        return []
+    return [
+        value
+        for part in (split.query, split.fragment)
+        for name, value in parse_qsl(part, keep_blank_values=True)
+        if value and carries_credential_parameter(name)
+    ]
+
+
+def redact_credential_parameters(url: str) -> str:
+    """Write a URL as it may be shown: every value given a name that carries a credential replaced."""
+
+    def shown(pair: re.Match[str]) -> str:
+        lead, name, value = pair.groups()
+        return f"{lead}{name}={REDACTED if carries_credential_parameter(unquote_plus(name)) else value}"
+
+    head, mark, rest = url.partition("?")
+    if not mark:
+        head, mark, rest = url.partition("#")
+    return f"{head}{mark}{QUERY_PAIR.sub(shown, rest)}"
+
+
+def _refuse_credentials_in_url(url: str, info: ValidationInfo) -> str:
+    """Refuse a URL carrying a user or a password, and a credential's name unless an earlier step's output named it."""
     if userinfo_in(url):
         raise ValueError(URL_USERINFO_REFUSED.render())
-    return refuse_credential_parameter(url)
+    if info.context is None:
+        return refuse_credential_parameter(url)
+    if info.field_name in cast("Mapping[str, Any]", info.context).get(OUTPUT_URL_FIELDS, ()):
+        return url
+    parameter = credential_parameter_in(url)
+    if parameter is not None:
+        raise ValueError(OUTPUT_URL_ONLY.render(parameter=parameter))
+    return url
 
 
 def refuse_password_in_url(url: str) -> str:
@@ -391,6 +439,8 @@ __all__ = [
     "CREDENTIAL_PARAMETER_REFUSED",
     "CREDENTIAL_TWO_PLACES",
     "DEFAULT_CREDENTIAL_HEADER",
+    "OUTPUT_URL_FIELDS",
+    "OUTPUT_URL_ONLY",
     "PLAIN_HEADERS_KEYWORD",
     "PLAIN_QUERY_KEYWORD",
     "PLAIN_URL_KEYWORD",
@@ -407,6 +457,8 @@ __all__ = [
     "carries_credential_parameter",
     "credential_header_value",
     "credential_parameter_in",
+    "credential_parameter_values",
+    "redact_credential_parameters",
     "password_in",
     "plain_fields_of",
     "refuse_credential_in_two_places",

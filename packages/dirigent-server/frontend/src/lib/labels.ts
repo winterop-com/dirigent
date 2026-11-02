@@ -1001,6 +1001,8 @@ const refused = {
             'The {parameter} query parameter carries a credential, and a query is stored as written. Put its value in the credential field of a connection, which is sealed, with its name in credential_query.',
         credential_two_places:
             'A credential goes in one place: credential_query sends it as a query parameter, so credential_header and credential_scheme cannot be set beside it.',
+        output_url_only:
+            'The {parameter} query parameter carries a credential, and this URL is not shown to come from an earlier step output, so what names it is stored with the run. Put its value in the credential field of a connection, which is sealed, with its name in credential_query.',
         url_userinfo_refused:
             'A URL here cannot carry a user or a password, because it is stored as written. Put the credential in the sealed fields of a connection.',
         url_password_refused:

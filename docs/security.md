@@ -1144,6 +1144,21 @@ Stated plainly, because a security page that lists only what exists is not much 
   `signature` and a presigned URL's `X-Amz-*` and `X-Goog-*`, which a step often reads back from
   an earlier answer.
 
+  A URL an earlier step's output supplied is exempt from the name rule when the step starts: a
+  download link another service handed over is not this instance's credential to protect, so
+  `url: ${steps.x.output.link}` runs with its `?token=`. The decision reads the unresolved config, not
+  the value. Every reference in the field has to read `steps.<name>.output` or
+  `steps.<name>.item.output`, or `item` under a `for_each` that does, and the document's own text must
+  name no credential parameter. So `?token=${steps.x.output.t}` stays refused, because the document
+  names it, and so does anything through `${params...}`, because a caller's input is stored with the
+  run (`common.output_url_only`). A `query` map is not exempt, whatever fills it, and a user or a
+  password in a URL is refused whatever its source. An exempted value is shown as `***` in the
+  attempt's stored config and in what `http.request` and `webhook.post` log and refuse with, and is
+  scrubbed from the attempt's logs, failures and output, unless it is under four characters. It still
+  sits in plain text in the output of the step that produced it, and in the fan-out item that read it,
+  because the next step has to read it there. A value a step copied from `${params...}` into its output
+  counts as that step's output: the source is judged one hop back.
+
   What a redirect cannot do is carry a connection's credentials somewhere else: the client
   drops the `Authorization` header when the origin changes, a request hook drops a `credential`
   sent in a header of its own the same way, so a service that redirects before authenticating has
