@@ -35,6 +35,8 @@ appeared anywhere in the text, including in a branch not taken, a function, a su
 associative array on a caller's text is refused when the step starts, and takes the value through
 `argv`, which involves no shell.
 
+**One polled source cannot stop the claim for the rest.** A sensor source with no cadence of its own, whose sensor is not installed on the worker, raised while it sat at its `max_in_flight` bound, and every tick on that worker failed until its runs settled, so no polled source on it was looked at. It now waits out a lease and the others are claimed.
+
 **A `read_only` SQLite connection cannot write its file.** `PRAGMA query_only` left two pragmas able
 to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_checkpoint` moved a
 write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.
