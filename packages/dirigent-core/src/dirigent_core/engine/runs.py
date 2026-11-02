@@ -1038,7 +1038,7 @@ async def _admit_retry(
             for other in others:
                 await cancel_run(session, services, other, REPLACED_BY_RETRY, now=moment)
         case _:
-            attempt.remote_cancel_since = moment
+            pass
 
 
 def idempotency_scope(step_name: str, run_item_id: UUID | None, key: str) -> str:
