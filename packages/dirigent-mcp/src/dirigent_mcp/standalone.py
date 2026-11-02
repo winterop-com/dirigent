@@ -20,11 +20,11 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from dirigent_client import Dirigent, Forbidden, Unauthorized, UserRole
+from dirigent_client import Dirigent, DirigentError, Forbidden, Unauthorized, UserRole
 from dirigent_common import Message
 from dirigent_common.hosts import is_loopback_host
 from dirigent_mcp.http import MCP_PATH, METHODS, Caller, McpEndpoint
-from dirigent_mcp.messages import CROSS_ORIGIN, HOST_NOT_LOOPBACK, UNAUTHENTICATED
+from dirigent_mcp.messages import CROSS_ORIGIN, HOST_NOT_LOOPBACK, INSTANCE_UNAVAILABLE, UNAUTHENTICATED
 from dirigent_mcp.server import Offers
 
 #: The tools each role is offered.
@@ -36,6 +36,10 @@ MAX_SESSIONS_PER_TOKEN: Final = 32
 
 #: A ``Host`` value: a bracketed literal or a name, and a port of nothing but digits.
 _AUTHORITY: Final = re.compile(r"(?:\[(?P<literal>[^\]]*)\]|(?P<name>[^:\[\]]*))(?::[0-9]*)?")
+
+
+class _InstanceUnavailable(Exception):
+    """The instance could not say whose a token is, which is no answer that it is nobody's."""
 
 
 def refusal(status: int, message: Message, headers: dict[str, str] | None = None, **params: str) -> Response:
@@ -75,6 +79,21 @@ class LoopbackHostsOnly:
         await refusal(421, HOST_NOT_LOOPBACK, host=stranger)(scope, receive, send)
 
 
+class _AnsweringUnavailable:
+    """Answer 502 when the instance could not say whose a token is, as against that it is nobody's."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        """Wrap the endpoint."""
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Pass one request through, or refuse it having read none of it."""
+        try:
+            await self.app(scope, receive, send)
+        except _InstanceUnavailable:
+            await refusal(502, INSTANCE_UNAVAILABLE)(scope, receive, send)
+
+
 def standalone_app(
     url: str,
     *,
@@ -93,6 +112,8 @@ def standalone_app(
                 identity = await dg.auth.whoami()
             except (Unauthorized, Forbidden):
                 return None
+            except (DirigentError, ValueError) as error:
+                raise _InstanceUnavailable from error
         key = hashlib.sha256(secret.encode()).hexdigest()
         return Caller(key=key, offers=Offers.READING if read_only else OFFERED.get(identity.role, Offers.READING))
 
@@ -112,7 +133,8 @@ def standalone_app(
         async with endpoint.run():
             yield
 
-    app: ASGIApp = Starlette(routes=[Route(MCP_PATH, endpoint, methods=list(METHODS))], lifespan=lifespan)
+    route = Route(MCP_PATH, _AnsweringUnavailable(endpoint), methods=list(METHODS))
+    app: ASGIApp = Starlette(routes=[route], lifespan=lifespan)
     return LoopbackHostsOnly(app) if loopback else app
 
 
