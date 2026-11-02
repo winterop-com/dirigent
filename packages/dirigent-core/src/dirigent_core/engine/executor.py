@@ -31,6 +31,7 @@ from dirigent_common import (
     format_duration,
     raised_detail,
     scrub,
+    scrub_output,
 )
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
@@ -491,7 +492,8 @@ class Engine:
                 stop = asyncio.Event()
                 flusher = asyncio.create_task(self._flush_while_running(logger, stop))
                 try:
-                    result = await self._counted(_bounded(await self._call_block(unit, context)), meter)
+                    called = _bounded(await self._call_block(unit, context))
+                    result = await self._counted(await _without_secrets(called, logger.secrets), meter)
                 finally:
                     stop.set()
                     with contextlib.suppress(asyncio.CancelledError):
@@ -1320,6 +1322,17 @@ async def _pair_refusal(session: AsyncSession, run_id: UUID, parent: str, item_i
         return None
     key = pair[1].item_key if pair is not None else str(item_index)
     return Issue.of(ITEM_UNPAIRED, index=item_index, key=repr(key), step=repr(parent))
+
+
+async def _without_secrets(result: CallResult, secrets: set[str]) -> CallResult:
+    """Take every secret the attempt opened out of what it produced, before it is stored or handed on.
+
+    Walked on a thread, because an output may run to many megabytes and a worker's heartbeat runs on this loop.
+    """
+    if not isinstance(result, Produced) or not secrets:
+        return result
+    output = await asyncio.to_thread(scrub_output, result.output, frozenset(secrets))
+    return result.model_copy(update={"output": output})
 
 
 def _bounded(result: CallResult) -> CallResult:

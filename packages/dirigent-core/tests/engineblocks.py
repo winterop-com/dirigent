@@ -344,6 +344,32 @@ class RemoteOperator(Operator[RemoteConfig, RemoteOutput]):
         return True
 
 
+class QuotingConfig(BaseModel):
+    """A secret to open, and what the block then answers with."""
+
+    opens: str
+    answers: dict[str, JsonValue] = {}
+
+
+class _Answered(BaseModel):
+    """Whatever a service answered with, kept as it came."""
+
+    model_config = ConfigDict(extra="allow")
+
+
+class QuotingOperator(Operator[QuotingConfig, _Answered]):
+    """Opens a secret the way a connection is opened, and answers with what a service said."""
+
+    spec = OperatorSpec(id="test.quoting", summary="Answer quoting a secret.", idempotent=True)
+    config_model = QuotingConfig
+    output_model = _Answered
+
+    async def execute(self, config: QuotingConfig, ctx: StepContext) -> _Answered | RemoteHandle:
+        """Open the secret, then answer with the configured output."""
+        cast("Any", ctx).opened_secrets.update(spellings(config.opens))
+        return _Answered.model_validate(config.answers)
+
+
 def _quote(config: RemoteConfig, ctx: StepContext) -> None:
     """Open the configured secret, the way a connection is opened, then raise quoting it."""
     if config.quotes is None:
@@ -719,6 +745,7 @@ class EngineTestPlugin:
                 NonIdempotentOperator(),
                 RemoteOperator(),
                 ProgramishOperator(),
+                QuotingOperator(),
                 ShellishOperator(),
                 HeaderishOperator(),
                 SqlishOperator(),

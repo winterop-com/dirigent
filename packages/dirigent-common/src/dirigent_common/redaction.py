@@ -7,16 +7,22 @@ takes once a library has quoted it.
 
 import json
 from collections.abc import Collection
-from typing import Final
+from typing import Final, cast
 from urllib.parse import quote, quote_plus
 
 from pydantic import BaseModel, JsonValue, SecretStr
+
+from dirigent_common.types import JsonMap
 
 #: What a scrubbed secret is replaced by, matching the marker the API redacts a connection with.
 REDACTED: Final = "***"
 
 #: What the HTTP client leaves unescaped in a query value beyond the unreserved characters.
 URL_SAFE_IN_A_QUERY: Final = "!$'()*,;:/?@[]"
+
+#: The shortest spelling replaced in an output. An output is data rather than a message about a
+#: failure, and a shorter one would take ordinary text with it wherever those characters occur.
+MIN_OUTPUT_SPELLING: Final = 4
 
 
 def spellings(secret: str) -> set[str]:
@@ -57,20 +63,41 @@ def scrub(text: str, secrets: Collection[str] = ()) -> str:
     message with them still in it. Longest first, so a secret that contains another is
     replaced whole rather than left in pieces.
     """
-    for secret in sorted((one for one in secrets if one), key=len, reverse=True):
+    return _replaced(text, _longest_first(secrets))
+
+
+def scrub_json(value: JsonValue, secrets: Collection[str]) -> JsonValue:
+    """Scrub every string in a JSON value, its keys included, leaving its types and its shape as they are."""
+    return _walked(value, _longest_first(secrets))
+
+
+def scrub_output(output: JsonMap, secrets: Collection[str]) -> JsonMap:
+    """Scrub a step's output of every spelling of a secret long enough not to corrupt ordinary data."""
+    kept = [one for one in secrets if len(one) >= MIN_OUTPUT_SPELLING]
+    return cast("JsonMap", scrub_json(cast("JsonValue", output), kept)) if kept else output
+
+
+def _longest_first(secrets: Collection[str]) -> list[str]:
+    """Order secrets so one containing another is replaced whole rather than left in pieces."""
+    return sorted((one for one in secrets if one), key=len, reverse=True)
+
+
+def _replaced(text: str, ordered: list[str]) -> str:
+    """Replace every occurrence of each secret, in the order given."""
+    for secret in ordered:
         text = text.replace(secret, REDACTED)
     return text
 
 
-def scrub_json(value: JsonValue, secrets: Collection[str]) -> JsonValue:
-    """Scrub every string in a JSON value, its keys included."""
+def _walked(value: JsonValue, ordered: list[str]) -> JsonValue:
+    """Rebuild a JSON value with every string in it replaced."""
     if isinstance(value, str):
-        return scrub(value, secrets)
+        return _replaced(value, ordered)
     if isinstance(value, list):
-        return [scrub_json(element, secrets) for element in value]
+        return [_walked(element, ordered) for element in value]
     if isinstance(value, dict):
-        return {scrub(key, secrets): scrub_json(element, secrets) for key, element in value.items()}
+        return {_replaced(key, ordered): _walked(element, ordered) for key, element in value.items()}
     return value
 
 
-__all__ = ["REDACTED", "scrub", "scrub_json", "secrets_of", "spellings"]
+__all__ = ["MIN_OUTPUT_SPELLING", "REDACTED", "scrub", "scrub_json", "scrub_output", "secrets_of", "spellings"]

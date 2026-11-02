@@ -1,10 +1,13 @@
 """Tests for the engine end to end on SQLite: claim, execute, settle, recover."""
 
 import asyncio
+import json
+import threading
 from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import quote, quote_plus
 from uuid import UUID
 
 import pytest
@@ -30,6 +33,7 @@ from dirigent_core.artifacts import canonical_json
 from dirigent_core.config import Settings
 from dirigent_core.database import DEADLOCK, session_scope
 from dirigent_core.engine import EngineServices, executor
+from dirigent_core.engine import executor as executor_module
 from dirigent_core.engine import runs as engine_runs
 from dirigent_core.engine.context import BufferedLogger
 from dirigent_core.engine.definition import (
@@ -2834,6 +2838,91 @@ def exported_text(spans: InMemorySpanExporter) -> str:
         for event in span.events:
             parts += [event.name, repr(dict(event.attributes or {}))]
     return "\n".join(parts)
+
+
+ECHOED = 'DUMMY/s"cret+1'
+
+
+async def test_a_secret_a_service_echoes_is_scrubbed_from_the_output_and_nothing_else_changes(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    answers: dict[str, Any] = {
+        "status": 302,
+        "ok": True,
+        "nothing": None,
+        "ratio": 1.5,
+        "headers": {"location": f"https://elsewhere.test/x?api_key={quote(ECHOED, safe='')}&page=2"},
+        "body": {"quoted": [f"said {ECHOED}", f"plus {quote_plus(ECHOED)}", json.dumps({"k": ECHOED}), "ordinary"]},
+        f"key {ECHOED}": 7,
+    }
+    definition = PipelineDefinition(
+        code="echoed",
+        steps=steps(only=StepDefinition(block="test.quoting", config={"opens": ECHOED, "answers": answers})),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    attempt = (await attempts_of(sessions, run.id))[0]
+    assert attempt.status is AttemptStatus.SUCCEEDED
+    assert attempt.output == {
+        "status": 302,
+        "ok": True,
+        "nothing": None,
+        "ratio": 1.5,
+        "headers": {"location": "https://elsewhere.test/x?api_key=***&page=2"},
+        "body": {"quoted": ["said ***", "plus ***", '{"k": "***"}', "ordinary"]},
+        "key ***": 7,
+    }
+
+
+async def test_what_a_step_reads_from_an_echoing_step_has_no_secret_in_it(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="handed-on",
+        steps=steps(
+            first=StepDefinition(block="test.quoting", config={"opens": ECHOED, "answers": {"said": ECHOED}}),
+            second=StepDefinition(
+                block="test.echo", depends_on=["first"], config={"value": "${steps.first.output.said}"}
+            ),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    attempts = {attempt.step_name: attempt for attempt in await attempts_of(sessions, run.id)}
+    assert attempts["second"].output == {"value": "***", "length": 3}
+
+
+async def test_a_secret_too_short_to_tell_from_data_leaves_the_output_alone(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="short",
+        steps=steps(only=StepDefinition(block="test.quoting", config={"opens": "abc", "answers": {"said": "abcdef"}})),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    assert (await attempts_of(sessions, run.id))[0].output == {"said": "abcdef"}
+
+
+async def test_an_output_is_scrubbed_off_the_event_loop(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    threads: list[int] = []
+    real = executor_module.scrub_output
+
+    def recorded(output: Any, secrets: Any) -> Any:
+        threads.append(threading.get_ident())
+        return real(output, secrets)
+
+    monkeypatch.setattr(executor_module, "scrub_output", recorded)
+    definition = PipelineDefinition(
+        code="threaded",
+        steps=steps(only=StepDefinition(block="test.quoting", config={"opens": ECHOED, "answers": {"said": ECHOED}})),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    assert (await attempts_of(sessions, run.id))[0].output == {"said": "***"}
+    assert threads and threading.get_ident() not in threads
 
 
 async def test_a_secret_a_block_quotes_in_what_it_raises_never_reaches_a_span(
