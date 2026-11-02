@@ -86,6 +86,14 @@ def test_the_colour_a_console_writes_itself_survives() -> None:
     assert "value[2J" in written.getvalue()
 
 
+def test_a_bidirectional_control_is_not_shown_to_reorder_a_value() -> None:
+    assert printable("safe\u202e.exe\u2066a\u2069\u202a\u202c") == "safe.exea"
+
+
+def test_a_zero_width_joiner_that_a_script_needs_stays() -> None:
+    assert printable("a\u200db") == "a\u200db"
+
+
 def test_tab_and_newline_are_shown_as_a_person_wrote_them() -> None:
     assert printable("a\tb\nc") == "a\tb\nc"
 

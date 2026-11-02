@@ -25,6 +25,8 @@ relock against the tag and bump.
 
 **A signature timestamp no date can hold is refused.** A 12-digit `X-Dirigent-Timestamp` past the year 9999 answered an unauthenticated caller 500 with a logged traceback. It is now refused like any other bad timestamp, `source.signature_timestamp`.
 
+**`dg` removes bidirectional controls before a terminal shows a value.** U+202A to U+202E and U+2066 to U+2069 in server or checkout text could reorder what a terminal displays around them.
+
 **A standalone MCP server reads `Host` strictly.** On a loopback bind, `localhost:evil` and `[::1]evil.example` were read as loopback, and a request with no `Host` passed. All are now refused 421 (`mcp.host_not_loopback`).
 
 **`dg pipeline new` refuses a starter that is no document.** A malformed starter from the instance ended in a traceback, and now ends in a refusal record (`cli.source_refused`).

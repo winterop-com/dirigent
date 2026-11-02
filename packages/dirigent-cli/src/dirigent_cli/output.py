@@ -31,9 +31,10 @@ NO_COLOUR = "NO_COLOR" in os.environ
 
 
 #: The characters a terminal acts on rather than shows: the C0 controls but tab and newline,
-#: DEL, and the C1 controls, some of which open an escape sequence by themselves.
+#: DEL, the C1 controls, some of which open an escape sequence by themselves, and the bidirectional
+#: controls, which reorder what is shown around them. A zero-width joiner stays: scripts need it.
 TERMINAL_CONTROLS: Final = dict.fromkeys(
-    (*range(0x00, 0x09), *range(0x0B, 0x20), 0x7F, *range(0x80, 0xA0)),
+    (*range(0x00, 0x09), *range(0x0B, 0x20), 0x7F, *range(0x80, 0xA0), *range(0x202A, 0x202F), *range(0x2066, 0x206A)),
 )
 
 
