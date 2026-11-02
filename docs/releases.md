@@ -19,6 +19,8 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**A signature timestamp no date can hold is refused.** A 12-digit `X-Dirigent-Timestamp` past the year 9999 answered an unauthenticated caller 500 with a logged traceback. It is now refused like any other bad timestamp, `source.signature_timestamp`.
+
 **`format: uri-template` costs time in step with a caller's text.** The library's check was
 quadratic on a run of `{` and held the interpreter's lock, so 80,000 characters stopped a worker's
 event loop for 2.4 seconds past a 200 ms `validate.schema` timeout. It is now matched by the same
