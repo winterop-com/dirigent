@@ -305,8 +305,9 @@ may, and an operator everything a viewer may.
 
 - A **viewer** may read. Every `GET`, the run event stream, a pipeline export and a run report,
   and the two routes that act on the caller's own credential: `POST /api/v1/auth/logout` and
-  `POST /api/v1/auth/password`. `POST /api/v1/pipelines/{code}/$validate` is a read as well --
-  it reports what a stored version would fail on and writes nothing. Anything else that writes
+  `POST /api/v1/auth/password`. `POST /api/v1/pipelines/{code}/$validate` and
+  `POST /api/v1/schedules/$preview` are reads as well -- they report what a stored version would
+  fail on and when a clock would fire, and write nothing. Anything else that writes
   is a `403`.
 - An **operator** may in addition change pipelines and runs: apply, prune, activate, deactivate,
   run, backfill, cancel, retry, every schedule and source operation, deleting a triggers
@@ -457,7 +458,9 @@ and it is written only for a signature that verified, so it costs a stranger not
 them no way to fill it. A signature is spent by being verified, whatever the call is answered
 afterwards, so a sender retrying a 429 or a 503 signs again; `webhook.post` and `dg source call`
 do. One body signed twice in one second under one secret is one signature, and the second call
-is refused, so a sender that means two calls makes their bodies differ.
+is refused, so a sender that means two calls makes their bodies differ. The record is per source
+and what is signed is the timestamp and the body, so a provider secret set on two sources lets a
+captured call be taken once at each. Give each source a secret of its own.
 
 The comparison is constant-time and operates on bytes rather than strings, because a header is
 attacker-controlled and `hmac.compare_digest` raises on a non-ASCII `str`. The signing secret
@@ -851,8 +854,9 @@ passed over. So `f() { let x=${v}; }` and `2>/dev/null let x=${v}` are held, `ec
 reads like a command.
 
 What the check does not cover is a command that hands a value on: the author's own variable to
-arithmetic, `eval`, `read`, `printf -v`, `getopts` or `${!var}`, a value read from `env`, and a program
-in single quotes given to `bash -c`, none of which is read from the command text. Where the value came
+arithmetic, `eval`, `read`, `printf -v`, `getopts` or `${!var}`, a hook the shell parses again later
+such as a `trap` action, `mapfile -C` or `PROMPT_COMMAND`, a value read from `env`, and a program in
+single quotes given to `bash -c`, none of which is read from the command text. Where the value came
 from a caller and a step needs one of those, use `argv`, which involves no shell, or hold the value to
 a schema first.
 
