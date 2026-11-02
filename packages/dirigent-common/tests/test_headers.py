@@ -5,6 +5,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from dirigent_common import (
+    OUTPUT_URL_FIELDS,
     PLAIN_HEADERS_KEYWORD,
     PLAIN_QUERY_KEYWORD,
     PLAIN_URL_KEYWORD,
@@ -13,7 +14,9 @@ from dirigent_common import (
     PlainUrl,
     carries_credential,
     carries_credential_parameter,
+    credential_parameter_values,
     plain_fields_of,
+    redact_credential_parameters,
     refuse_password_in_url,
     spellings,
 )
@@ -230,3 +233,41 @@ def test_a_user_alone_passes_where_a_user_is_not_a_secret() -> None:
 def test_a_secret_is_named_as_a_url_sends_it(secret: str) -> None:
     sent = str(httpx2.URL("https://host/x").copy_set_param("k", secret).query, "ascii").removeprefix("k=")
     assert sent in spellings(secret)
+
+
+@pytest.mark.parametrize(
+    ("url", "shown"),
+    [
+        ("https://h/x?token=abc&page=2", "https://h/x?token=***&page=2"),
+        ("https://h/x?page_token=abc", "https://h/x?page_token=abc"),
+        ("https://h/x?api%5Fkey=a%2Bb#access_token=c", "https://h/x?api%5Fkey=***#access_token=***"),
+        ("https://h/x#id_token=c", "https://h/x#id_token=***"),
+        ("https://h/token=abc", "https://h/token=abc"),
+        ("/x", "/x"),
+        ("", ""),
+    ],
+)
+def test_a_url_is_shown_with_its_credential_values_replaced(url: str, shown: str) -> None:
+    assert redact_credential_parameters(url) == shown
+
+
+def test_the_values_a_url_gives_credential_names_are_read_decoded() -> None:
+    assert credential_parameter_values("https://h/x?token=a%2Bb&page=2&api_key=") == ["a+b"]
+
+
+class _Target(BaseModel):
+    url: PlainUrl | None = None
+
+
+def test_a_field_an_earlier_step_supplied_passes_and_any_other_is_told_why_not() -> None:
+    link = "https://h/x?token=abc"
+    assert _Target.model_validate({"url": link}, context={OUTPUT_URL_FIELDS: {"url"}}).url == link
+    with pytest.raises(ValidationError, match="not shown to come from an earlier step"):
+        _Target.model_validate({"url": link}, context={OUTPUT_URL_FIELDS: frozenset[str]()})
+    with pytest.raises(ValidationError, match="the token query parameter carries a credential"):
+        _Target.model_validate({"url": link})
+
+
+def test_userinfo_is_refused_even_in_a_field_an_earlier_step_supplied() -> None:
+    with pytest.raises(ValidationError, match="cannot carry a user or a password"):
+        _Target.model_validate({"url": "https://u:p@h/x"}, context={OUTPUT_URL_FIELDS: {"url"}})

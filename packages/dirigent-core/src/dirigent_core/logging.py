@@ -36,11 +36,13 @@ BRIDGED_LOGGERS = (
 #: Libraries floored above DEBUG even when the process runs at DEBUG; the floor is a
 #: parameter rather than a constant so a caller can lift it. The queue clients are floored at
 #: CRITICAL: they log a refused connection as an error of their own, and the check or the step
-#: that made the call reports the same failure.
+#: that made the call reports the same failure. The HTTP client is floored at WARNING because its
+#: INFO line writes each request's whole URL, query included.
 NOISY_LOGGERS: dict[str, int] = {
     "aiosqlite": logging.INFO,
     "asyncio": logging.INFO,
     "httpcore2": logging.INFO,
+    "httpx2": logging.WARNING,
     "aiokafka": logging.CRITICAL,
     "aiormq": logging.CRITICAL,
 }

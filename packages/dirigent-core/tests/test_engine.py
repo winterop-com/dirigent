@@ -2358,6 +2358,152 @@ async def test_a_credential_a_reference_puts_in_a_url_or_a_query_is_refused_when
     assert "DUMMYSECRET" not in attempt.error
 
 
+LINK = "https://files.test/x?token=DUMMYLINKTOKEN&page=2"
+
+
+def _from_a_step(url: str, *, note: str = "", **fields: Any) -> dict[str, StepDefinition]:
+    """A step answering with the link, and one calling the URL it is told to."""
+    return steps(
+        first=StepDefinition(
+            block="test.quoting", config={"opens": "unrelated-secret", "answers": {"link": LINK, "t": "DUMMYLINKTOKEN"}}
+        ),
+        call=StepDefinition(
+            block="test.headerish",
+            depends_on=["first"],
+            config={"url": url, "note": note},
+            retry=RetryPolicy(max_attempts=1),
+            **fields,
+        ),
+    )
+
+
+async def _called(
+    sessions: Any, services: EngineServices, engine: Engine, definition: PipelineDefinition, **params: Any
+) -> Any:
+    run = await start(sessions, services, definition, **params)
+    await drain(engine)
+    attempts = {attempt.step_name: attempt for attempt in await attempts_of(sessions, run.id)}
+    return run, attempts["call"]
+
+
+async def _logged(sessions: Any, run_id: UUID) -> str:
+    async with sessions() as session:
+        rows = (await session.execute(sa.select(LogEntry).where(LogEntry.run_id == run_id))).scalars().all()
+    return " ".join(f"{row.message} {row.fields}" for row in rows)
+
+
+async def test_a_url_from_an_earlier_step_runs_and_its_token_is_kept_out_of_the_record(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(code="link", steps=_from_a_step("${steps.first.output.link}"))
+    run, attempt = await _called(sessions, services, engine, definition)
+    assert attempt.status is AttemptStatus.SUCCEEDED
+    assert attempt.input["config"]["url"] == "https://files.test/x?token=***&page=2"
+    assert "DUMMYLINKTOKEN" not in json.dumps(attempt.output)
+    logged = await _logged(sessions, run.id)
+    assert "token=***" in logged
+    assert "DUMMYLINKTOKEN" not in logged
+
+
+async def test_a_url_from_an_earlier_step_that_fails_does_not_say_its_token(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(code="link", steps=_from_a_step("${steps.first.output.link}", note="raise"))
+    run, attempt = await _called(sessions, services, engine, definition)
+    assert attempt.status is AttemptStatus.FAILED
+    assert "DUMMYLINKTOKEN" not in (attempt.error or "")
+    assert "DUMMYLINKTOKEN" not in json.dumps(attempt.error_params or {})
+    assert "DUMMYLINKTOKEN" not in await _logged(sessions, run.id)
+
+
+async def test_a_url_a_fan_out_over_a_steps_output_reads_runs(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="links",
+        steps=steps(
+            first=StepDefinition(block="test.list", config={"values": [LINK]}),
+            call=StepDefinition(
+                block="test.headerish",
+                depends_on=["first"],
+                for_each="${steps.first.output.values}",
+                config={"url": "${item}"},
+            ),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    attempts = [one for one in await attempts_of(sessions, run.id) if one.step_name == "call"]
+    assert [one.status for one in attempts] == [AttemptStatus.SUCCEEDED]
+    assert (attempts[0].input or {})["config"]["url"] == "https://files.test/x?token=***&page=2"
+
+
+@pytest.mark.parametrize(
+    ("url", "params"),
+    [
+        ("${params.link}", {"link": LINK}),
+        ("https://files.test/x?token=${steps.first.output.t}", {}),
+        ("${steps.first.output.link}&api_key=${params.k}", {"k": "DUMMYPARAM"}),
+        ("${steps.first.output.link}&${params.k}", {"k": "x=1"}),
+    ],
+    ids=["through-params", "the-document-names-it", "the-document-names-another", "mixed-with-params"],
+)
+async def test_a_url_not_named_by_a_step_is_refused_when_the_step_starts_and_not_repeated(
+    engine: Engine, sessions: Any, services: EngineServices, url: str, params: dict[str, str]
+) -> None:
+    definition = PipelineDefinition(code="link", steps=_from_a_step(url))
+    _run, attempt = await _called(sessions, services, engine, definition, **params)
+    assert attempt.status is AttemptStatus.FAILED
+    assert "carries a credential" in (attempt.error or "")
+    assert "DUMMYLINKTOKEN" not in (attempt.error or "")
+    assert "DUMMYPARAM" not in (attempt.error or "")
+
+
+async def test_a_fan_out_over_params_is_refused_and_says_the_url_is_not_shown_to_come_from_a_step(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="links",
+        steps=steps(
+            call=StepDefinition(
+                block="test.headerish",
+                for_each="${params.links}",
+                config={"url": "${item}"},
+                retry=RetryPolicy(max_attempts=1),
+            )
+        ),
+    )
+    run = await start(sessions, services, definition, links=[LINK])
+    await drain(engine)
+    attempt = (await attempts_of(sessions, run.id))[0]
+    assert attempt.status is AttemptStatus.FAILED
+    assert "is not shown to come from an earlier step" in (attempt.error or "")
+
+
+async def test_userinfo_from_an_earlier_step_is_refused_whatever_its_source(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="link",
+        steps=steps(
+            first=StepDefinition(
+                block="test.quoting",
+                config={"opens": "unrelated-secret", "answers": {"link": "https://u:DUMMYPASS@files.test/x"}},
+            ),
+            call=StepDefinition(
+                block="test.headerish",
+                depends_on=["first"],
+                config={"url": "${steps.first.output.link}"},
+                retry=RetryPolicy(max_attempts=1),
+            ),
+        ),
+    )
+    _run, attempt = await _called(sessions, services, engine, definition)
+    assert attempt.status is AttemptStatus.FAILED
+    assert "cannot carry a user or a password" in (attempt.error or "")
+    assert "DUMMYPASS" not in (attempt.error or "")
+
+
 async def test_a_reference_in_a_field_a_block_publishes_as_sql_is_refused_when_the_step_starts(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:

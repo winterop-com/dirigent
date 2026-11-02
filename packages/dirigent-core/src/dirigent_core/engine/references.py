@@ -24,7 +24,7 @@ how a compose file, a shell command or a template reaches a tool with its own br
 
 import json
 import re
-from collections.abc import Callable, Collection, Iterator
+from collections.abc import Callable, Collection, Iterator, Sequence
 from datetime import datetime
 from typing import Any, Final, cast
 from uuid import UUID
@@ -36,10 +36,13 @@ from dirigent_common import (
     CQL_MEDIA_TYPE,
     FHIRPATH_MEDIA_TYPE,
     JQ_MEDIA_TYPE,
+    PLAIN_URL_KEYWORD,
     SHELL_MEDIA_TYPE,
     TEMPLATE_MEDIA_TYPE,
     JsonMap,
     Message,
+    carries_credential_parameter,
+    plain_fields_of,
 )
 from dirigent_core.engine.shell import REFERENCE_MARK, Quoting, Unread, evaluated_in_any_quoting, read_shell
 from dirigent_core.errors import DomainError
@@ -91,6 +94,40 @@ JSON_REFERENCE_PATTERN: Final = r"(^|[^$])(\$\$)*\$\{[^{}]+\}"
 consumes them in pairs and leaves one over, which says the same thing. It is what a published
 schema puts beside a field's own type, so an editor does not squiggle a value an apply defers.
 """
+
+
+#: A step's own output, or the matching item's, which is what another service handed over.
+STEP_OUTPUT_REFERENCE: Final = re.compile(r"steps\.[^.]+\.(?:item\.)?output(?:\.|$)")
+
+#: What names a query parameter in a document's literal text.
+LITERAL_PARAMETER: Final = re.compile(r"(?:^|[?&#;])([^=&?#;]*)=")
+
+
+def output_url_fields(config: JsonMap, schema: JsonMap, for_each: object = None) -> frozenset[str]:
+    """Name the URL fields whose every reference reads an earlier step's output, and whose text names no credential.
+
+    Decided from the unresolved config. ``item`` counts only when the step's ``for_each`` itself reads a step's output.
+    Any other source, ``params`` above all, is stored with the run, and leaves the field judged by its resolved value.
+    """
+    fanned_from_a_step = isinstance(for_each, str) and _all_step_outputs(references_in(for_each))
+    fields: set[str] = set()
+    for field in plain_fields_of(schema, PLAIN_URL_KEYWORD):
+        held = config.get(field)
+        if not isinstance(held, str):
+            continue
+        read = references_in(held)
+        allowed = [one for one in read if not (fanned_from_a_step and (one == "item" or one.startswith("item.")))]
+        if not read or not _all_step_outputs(allowed):
+            continue
+        written = REFERENCE_PATTERN.sub("\0", held).split("\0")
+        if not any(carries_credential_parameter(name) for text in written for name in LITERAL_PARAMETER.findall(text)):
+            fields.add(field)
+    return frozenset(fields)
+
+
+def _all_step_outputs(references: Sequence[str]) -> bool:
+    """Whether references, if there are any to judge, all read an earlier step's output."""
+    return all(STEP_OUTPUT_REFERENCE.match(one) for one in references) if references else True
 
 
 class UnknownReference(DomainError):

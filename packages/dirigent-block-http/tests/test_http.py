@@ -20,6 +20,7 @@ from dirigent_block_http.http import (
     status_class,
 )
 from dirigent_block_http.webhooks import WebhookPostConfig, WebhookPostOperator
+from dirigent_common import OUTPUT_URL_FIELDS
 from dirigent_plugin import BlockFailure, ErrorClass, NotYet
 from dirigent_testing import FakeContext
 
@@ -240,6 +241,19 @@ def test_a_step_refuses_a_credential_in_its_url_without_repeating_it(
     with pytest.raises(ValidationError) as refused:
         model.model_validate(target)
     assert "DUMMYSECRET" not in str(refused.value)
+
+
+async def test_a_failure_and_a_log_line_do_not_say_a_token_an_earlier_step_supplied(ctx: FakeContext) -> None:
+    ctx.handler = Responder(httpx2.Response(500))
+    target = {"connection": "api", "path": "/x?token=DUMMYTOKEN&page=2"}
+    config = HttpRequestConfig.model_validate(target, context={OUTPUT_URL_FIELDS: {"path"}})
+    step = ctx.as_context()
+    with pytest.raises(BlockFailure) as raised:
+        await HttpRequestOperator().execute(config, step)
+    assert "DUMMYTOKEN" not in str(raised.value)
+    assert "token=***" in str(raised.value)
+    assert "token=***" in str(ctx.log.entries)
+    assert "DUMMYTOKEN" not in str(ctx.log.entries)
 
 
 def test_a_step_refuses_a_credential_in_its_query_and_keeps_a_page_token() -> None:

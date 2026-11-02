@@ -24,6 +24,7 @@ from dirigent_block_http.http import (
     read_bounded,
     request_timeout,
     request_url,
+    shown_url,
     status_class,
     target_issues,
 )
@@ -132,7 +133,7 @@ class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):
             raise BlockFailure(
                 WEBHOOK_STATUS_REFUSED,
                 error_class=status_class(response.status_code),
-                url=request_url(config),
+                url=shown_url(config),
                 status=response.status_code,
             )
         parsed, text = decode(response, answered)

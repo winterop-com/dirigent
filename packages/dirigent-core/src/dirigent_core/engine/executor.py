@@ -25,13 +25,19 @@ from dirigent_common import (
     CQL_MEDIA_TYPE,
     FHIRPATH_MEDIA_TYPE,
     JQ_MEDIA_TYPE,
+    MIN_OUTPUT_SPELLING,
+    OUTPUT_URL_FIELDS,
     TEMPLATE_MEDIA_TYPE,
     Issue,
     JsonMap,
+    credential_parameter_values,
     format_duration,
     raised_detail,
+    redact_credential_parameters,
     scrub,
+    scrub_json,
     scrub_output,
+    spellings,
 )
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
@@ -61,7 +67,13 @@ from dirigent_core.engine.expansion import collect_errors, collect_outputs, is_g
 from dirigent_core.engine.failure import Failure, backoff_delay, should_retry
 from dirigent_core.engine.quota import StorageMeter
 from dirigent_core.engine.recovery import overdue_deadlines
-from dirigent_core.engine.references import ReferenceScope, UnknownReference, references_in, resolve_config
+from dirigent_core.engine.references import (
+    ReferenceScope,
+    UnknownReference,
+    output_url_fields,
+    references_in,
+    resolve_config,
+)
 from dirigent_core.engine.runs import (
     EngineRuns,
     cancel_remote,
@@ -357,13 +369,15 @@ class Engine:
                 fhirpath_fields=media_fields(block.config_model, FHIRPATH_MEDIA_TYPE),
                 cql_fields=media_fields(block.config_model, CQL_MEDIA_TYPE),
             )
-            block.config_model.model_validate(config)
+            output_urls = output_url_fields(step.config, published_config_schema(block.config_model), step.for_each)
+            block.config_model.model_validate(config, context={OUTPUT_URL_FIELDS: output_urls})
+            quoted = _handed_over(config, output_urls)
             _logger.debug(
                 "references resolved",
                 step=attempt.step_name,
                 reads=sorted(set(references_in(cast("JsonValue", step.config)))),
                 upstream=sorted(scope.outputs),
-                item=item_value if has_item else None,
+                item=scrub_json(item_value, quoted) if has_item else None,
             )
             deadline = attempt.deadline_at if attempt.deadline_at is not None else self._deadline_for(step, block, now)
             unit = ClaimedUnit(
@@ -378,6 +392,7 @@ class Engine:
                 previous_status=previous,
                 step=step,
                 config=config,
+                output_urls=output_urls,
                 params=dict(run.params),
                 log_levels=dict(run.log_levels) if run.log_levels else None,
                 scratch=scratch,
@@ -427,7 +442,8 @@ class Engine:
         attempt.lease_token = token
         attempt.lease_expires_at = now + self.services.settings.lease
         attempt.heartbeat_at = now
-        attempt.input = {**(attempt.input or {}), "config": config}
+        shown = {field: redact_credential_parameters(config[field]) for field in output_urls if config.get(field)}
+        attempt.input = {**(attempt.input or {}), "config": {**config, **shown}}
         attempt.deadline_at = deadline
         if run.status is RunStatus.QUEUED:
             run.status = RunStatus.RUNNING
@@ -450,7 +466,7 @@ class Engine:
         Raises:
             UnitRaised: Recording it failed, said with every secret the attempt opened taken out.
         """
-        secrets: set[str] = set()
+        secrets = _handed_over(unit.config, unit.output_urls)
         try:
             await self._run_unit(unit, secrets, now=now)
         except Exception as error:
@@ -573,7 +589,7 @@ class Engine:
         operator = self.services.host.operators.get(unit.block_id)
         sensor = self.services.host.sensors.get(unit.block_id)
         block: AnyOperator | AnySensor = operator or self.services.block(unit.block_id)
-        config = block.config_model.model_validate(unit.config)
+        config = block.config_model.model_validate(unit.config, context={OUTPUT_URL_FIELDS: unit.output_urls})
         try:
             async with asyncio.timeout(unit.step.timeout.total_seconds() if unit.step.timeout else None):
                 if sensor is not None:
@@ -1322,6 +1338,20 @@ async def _pair_refusal(session: AsyncSession, run_id: UUID, parent: str, item_i
         return None
     key = pair[1].item_key if pair is not None else str(item_index)
     return Issue.of(ITEM_UNPAIRED, index=item_index, key=repr(key), step=repr(parent))
+
+
+def _handed_over(config: JsonMap, output_urls: frozenset[str]) -> set[str]:
+    """Every spelling of what an exempted URL's credential-named parameters hold, kept out of what the attempt says.
+
+    A value too short to tell from ordinary text is left to the block's own redaction of the URL.
+    """
+    return {
+        spelling
+        for field in output_urls
+        for value in credential_parameter_values(config.get(field) or "")
+        for spelling in spellings(value)
+        if len(spelling) >= MIN_OUTPUT_SPELLING
+    }
 
 
 async def _without_secrets(result: CallResult, secrets: set[str]) -> CallResult:

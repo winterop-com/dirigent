@@ -157,7 +157,10 @@ class HeaderishOperator(Operator[HeaderishConfig, HeaderishConfig]):
     output_model = HeaderishConfig
 
     async def execute(self, config: HeaderishConfig, ctx: StepContext) -> HeaderishConfig | RemoteHandle:
-        """Return the config as it arrived."""
+        """Return the config as it arrived, having logged the URL and raised quoting it when told."""
+        ctx.log.info("calling", url=config.url, said=f"calling {config.url}")
+        if config.note == "raise":
+            raise RuntimeError(f"could not reach {config.url}")
         return config
 
 

@@ -23,7 +23,7 @@ from dirigent_client.enums import (
     TriggerKind,
 )
 from dirigent_client.schemas import StepShape
-from dirigent_common import JsonMap, Message, raised_detail
+from dirigent_common import OUTPUT_URL_FIELDS, PLAIN_URL_KEYWORD, JsonMap, Message, plain_fields_of, raised_detail
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
@@ -91,7 +91,7 @@ from dirigent_core.messages import (
 )
 from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, RunItem, Schema, StepAttempt, utcnow
 from dirigent_core.storage import scratch_prefix
-from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, StartedRun
+from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, StartedRun, published_config_schema
 
 IDEMPOTENCY_KEY = "_idempotency_key"
 
@@ -740,7 +740,11 @@ async def cancel_remote(
         storage_connections=services.settings.storage_connections,
     )
     try:
-        config = block.config_model.model_validate((attempt.input or {}).get("config", {}))
+        # The stored config passed when the attempt was claimed, and a URL's source is not stored beside it.
+        accepted_urls = plain_fields_of(published_config_schema(block.config_model), PLAIN_URL_KEYWORD)
+        config = block.config_model.model_validate(
+            (attempt.input or {}).get("config", {}), context={OUTPUT_URL_FIELDS: accepted_urls}
+        )
         accepted = await block.cancel(RemoteHandle.model_validate(attempt.remote_handle), config, context)
     except Exception as error:  # best effort by contract: a refusal must not block the cancel
         _logger.warning(
