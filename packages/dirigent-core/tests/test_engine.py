@@ -3029,6 +3029,35 @@ async def test_a_waiting_sensor_says_what_it_is_seeing(engine: Engine, sessions:
     assert {entry.step_name for entry in entries} == {"wait"}
 
 
+async def test_a_secret_a_waiting_sensor_quotes_is_neither_kept_nor_logged(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="quoting",
+        steps=steps(
+            wait=StepDefinition(
+                block="test.tick",
+                config={
+                    "ready_after": 1,
+                    "says": [f"refused {QUOTED.strip()} here"],
+                    "opens": QUOTED,
+                    "key": "quoting",
+                },
+                poll=timedelta(seconds=1),
+            )
+        ),
+    )
+    run = await start(sessions, services, definition)
+    first = await engine.claim()
+    assert first is not None
+    await engine.run_unit(first)
+
+    waiting = (await attempts_of(sessions, run.id))[0]
+    assert waiting.waiting_message == "refused *** here"
+    logged = [entry.message for entry in await logs_of(sessions, run.id)]
+    assert logged == ["refused *** here"]
+
+
 async def test_the_same_sight_is_logged_once(engine: Engine, sessions: Any, services: EngineServices) -> None:
     definition = PipelineDefinition(
         code="unchanging",

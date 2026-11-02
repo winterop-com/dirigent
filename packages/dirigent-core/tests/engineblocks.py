@@ -389,6 +389,9 @@ class TickConfig(BaseModel):
     says: list[str] = []
     """What each poke reports it is seeing, the last entry repeating once exhausted."""
 
+    opens: str | None = None
+    """A secret the sensor opens before it pokes, as a connection is opened."""
+
 
 class TickOutput(BaseModel):
     """What the tick sensor observed."""
@@ -414,6 +417,8 @@ class TickSensor(Sensor[TickConfig, TickOutput]):
         """Observe once, read-only, and never sleep."""
         seen = TickSensor.pokes.get(config.key, 0) + 1
         TickSensor.pokes[config.key] = seen
+        if config.opens is not None:
+            cast("Any", ctx).opened_secrets.update(spellings(config.opens))
         if config.raises:
             raise BlockFailure(TEST_REFUSAL, error_class=ErrorClass.TRANSIENT, detail="the world is unreadable")
         if seen <= config.ready_after:
