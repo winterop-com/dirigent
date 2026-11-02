@@ -339,6 +339,9 @@ class StepAttempt(Entity):
 
     remote_handle: Mapped[JsonMap | None] = mapped_column(JsonDocument)
 
+    remote_cancel_since: Mapped[datetime | None] = mapped_column(Timestamp)
+    """When this attempt was cancelled without its remote agreeing, which a worker's sweep retries."""
+
     fetched_output: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     """The result a fetch returned, committed before the outcome so a worker that dies
     between the two settles from it rather than fetching again."""
