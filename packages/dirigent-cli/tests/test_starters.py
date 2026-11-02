@@ -1,6 +1,7 @@
 """Copying a starter: the text rewrite, `dg examples`, and `dg pipeline new`."""
 
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -248,6 +249,19 @@ def test_examples_show_refuses_a_code_nobody_ships() -> None:
     result = machine("examples", "show", "no-such-example", "--local")
     assert result.exit_code == 1
     assert "no example 'no-such-example' is installed" in refusal(result.stdout)["message"]
+
+
+def test_a_starter_that_is_no_document_is_refused_with_a_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def malformed(*_: object, **__: object) -> SimpleNamespace:
+        return SimpleNamespace(starter=True, code="broken", source="code: [\n")
+
+    monkeypatch.setattr(commands, "_example", malformed)
+    result = machine("pipeline", "new", "broken", "--local", "--dir", str(tmp_path / "p"))
+    assert result.exit_code == 1, result.output
+    assert refusal(result.stdout)["code"] == "cli.source_refused"
+    assert not (tmp_path / "p").exists()
 
 
 def test_pipeline_new_writes_the_copy_and_says_what_it_needs(tmp_path: Path) -> None:

@@ -3347,7 +3347,10 @@ def pipeline_new(
         )
         raise typer.Exit(code=1)
     text = starters.instantiate(entry.source, new_code)
-    copied = load_pipeline_text(text).requires
+    try:
+        copied = load_pipeline_text(text).requires
+    except DocumentError as error:
+        fail(SOURCE_REFUSED, detail=str(error))
     directory.mkdir(parents=True, exist_ok=True)
     try:
         with path.open("x", encoding="utf-8") as created:

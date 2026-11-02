@@ -27,6 +27,8 @@ relock against the tag and bump.
 
 **A standalone MCP server reads `Host` strictly.** On a loopback bind, `localhost:evil` and `[::1]evil.example` were read as loopback, and a request with no `Host` passed. All are now refused 421 (`mcp.host_not_loopback`).
 
+**`dg pipeline new` refuses a starter that is no document.** A malformed starter from the instance ended in a traceback, and now ends in a refusal record (`cli.source_refused`).
+
 **`format: uri-template` costs time in step with a caller's text.** The library's check was
 quadratic on a run of `{` and held the interpreter's lock, so 80,000 characters stopped a worker's
 event loop for 2.4 seconds past a 200 ms `validate.schema` timeout. It is now matched by the same
