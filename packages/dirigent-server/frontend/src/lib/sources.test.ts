@@ -49,6 +49,11 @@ describe('where a received source is called', () => {
         )
     })
 
+    test('a method that is not a bare word is quoted for the shell', () => {
+        const line = curlLine({ url: 'u', method: 'get; rm -rf /', token: 't', body: undefined })
+        expect(line).toContain(`-X 'GET; RM -RF /' `)
+    })
+
     test('a curl line sends no body with a method that carries none', () => {
         const line = curlLine({ url: 'http://h/e', method: 'GET', token: 't', body: { a: 1 } })
         expect(line).toBe(`curl -X GET 'http://h/e' -H 'Authorization: Bearer t'`)
