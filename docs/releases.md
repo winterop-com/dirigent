@@ -35,6 +35,8 @@ relock against the tag and bump.
 
 **A signature timestamp no date can hold is refused.** A 12-digit `X-Dirigent-Timestamp` past the year 9999 answered an unauthenticated caller 500 with a logged traceback. It is now refused like any other bad timestamp, `source.signature_timestamp`.
 
+**One address cannot take every playground stream.** One anonymous client could hold all 32 seats for up to 95 seconds and answer every other caller 503. An address now holds at most 8, an IPv6 address counting as its /64.
+
 **`dg` removes bidirectional controls before a terminal shows a value.** U+202A to U+202E and U+2066 to U+2069 in server or checkout text could reorder what a terminal displays around them.
 
 **A standalone MCP server reads `Host` strictly.** On a loopback bind, `localhost:evil` and `[::1]evil.example` were read as loopback, and a request with no `Host` passed. All are now refused 421 (`mcp.host_not_loopback`).
