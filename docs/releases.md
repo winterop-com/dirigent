@@ -19,7 +19,11 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**An MCP token is offered only the tools its role may call.** `plan_document` was offered to a viewer and `check_connection` to an operator, and the API refused both. Each role now has a server of its own: a viewer's leaves out what writes and `plan_document`, whose dry run is an operator's route, and an operator's leaves out `check_connection`. `DG_MCP_READ_ONLY=1` offers what a viewer is offered, so it no longer offers `plan_document`. `mcp_max_sessions` now counts each of the three roles apart. In `dirigent_mcp`, `build()` takes `offers` in place of `read_only`, and `Caller` carries `offers` in place of `may_operate`.
+
 **A signature timestamp no date can hold is refused.** A 12-digit `X-Dirigent-Timestamp` past the year 9999 answered an unauthenticated caller 500 with a logged traceback. It is now refused like any other bad timestamp, `source.signature_timestamp`.
+
+**A standalone MCP server reads `Host` strictly.** On a loopback bind, `localhost:evil` and `[::1]evil.example` were read as loopback, and a request with no `Host` passed. All are now refused 421 (`mcp.host_not_loopback`).
 
 **`format: uri-template` costs time in step with a caller's text.** The library's check was
 quadratic on a run of `{` and held the interpreter's lock, so 80,000 characters stopped a worker's
@@ -28,6 +32,13 @@ engine as `pattern`, accepting what the library accepts, and stops at the bound.
 standard format, and a format a pack contributes, is handed no text longer than 8192 characters; a
 longer text fails the format. `base64`, `humane-duration` and dirigent's other own formats are not
 limited, since they were measured linear.
+
+**A checkout's files cannot write terminal escapes through `dg`.** The text of a
+`.dirigent/profiles.yaml` reached the terminal raw through a profile's refusal, so a repository
+could clear the screen, set the title or write the clipboard of whoever ran `dg` in it. A profile's
+refusal now has every control character removed, and a profile name that is not valid is one of
+those refusals rather than an uncaught error. A malformed `dirigent.yaml`, and a document that is
+not text, are now refused with a record (`cli.source_refused`) rather than a traceback.
 
 **An array's subscript in a shell command is held to an integer, whatever the command declares.**
 A `${...}` in `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}` used to take any value when `declare -A a`
@@ -44,7 +55,11 @@ to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_che
 write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.
 A file it names that does not exist is refused rather than created empty.
 
+**`dg source call` refuses a path that would change the host.** It joined the instance's `url_path` onto the base URL as text, so `@other:port/x` sent the call and its body to another host. A path that does not start with `/` is now refused (`cli.source_path_refused`).
+
 **The playground answers rather than fails on what a caller may send.** A `status` of 100 to 199 dropped the connection and logged a traceback, and a JSON body about 900 levels deep answered 500, both to an anonymous caller. `status` now starts at 200, refused 422 below it, and a JSON body nested past the 128 levels an endpoint takes is reflected as text (`body_kind: text`).
+
+**A reply and the playground refuse what lighttpd and LiteSpeed act on.** `x-sendfile2`, `x-lighttpd-*` and `x-litespeed-*` join `x-accel-*` and `x-sendfile` in what a reply and the playground's `response-headers` refuse.
 
 ## 0.30.0
 

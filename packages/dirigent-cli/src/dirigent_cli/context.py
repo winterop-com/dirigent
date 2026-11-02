@@ -15,6 +15,7 @@ from dirigent_cli.output import (
     FULL_VERBOSITY,
     Detail,
     configure,
+    printable,
     refuse,
     write_refusal,
 )
@@ -103,7 +104,7 @@ class CliState(BaseModel):
         try:
             return resolve_endpoint(url=self.url, token=self.token, profile=self.profile, needs_token=needs_token)
         except ProfileError as error:
-            raise typer.BadParameter(str(error)) from error
+            raise typer.BadParameter(printable(str(error))) from error
 
 
 def state_of(ctx: typer.Context) -> CliState:

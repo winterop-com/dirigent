@@ -15,15 +15,16 @@ from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent
 from pydantic import SecretStr
-from starlette.types import ASGIApp
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from dirigent_client.enums import UserRole
+from dirigent_common.hosts import is_loopback_host
 from dirigent_core.auth import create_user, issue_token
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.models import Base
 from dirigent_mcp import server as mcp_server
-from dirigent_mcp.standalone import standalone_app
+from dirigent_mcp.standalone import LoopbackHostsOnly, _host_name, standalone_app  # pyright: ignore[reportPrivateUsage]
 from dirigent_server import create_app
 
 INITIALIZE: dict[str, Any] = {
@@ -161,7 +162,41 @@ async def test_a_request_another_origin_caused_is_refused_403(standalone: str, t
     assert answered.json()["code"] == "mcp.cross_origin"
 
 
-@pytest.mark.parametrize("host", ["evil.example", "evil.example:3334", "10.0.0.1"])
+@pytest.mark.parametrize("host", ["localhost", "localhost:3334", "127.0.0.1:1", "[::1]", "[::1]:3334", "LOCALHOST:1"])
+def test_a_loopback_authority_reads_as_loopback(host: str) -> None:
+    assert is_loopback_host(_host_name(host.lower()))
+
+
+async def test_a_request_with_no_host_is_refused() -> None:
+    answers: list[Message] = []
+
+    async def app(scope: Scope, receive: Receive, send: Send) -> None:
+        pytest.fail("a request naming no host never reaches the server")
+
+    async def receive() -> Message:
+        return {"type": "http.request", "body": b""}
+
+    async def send(message: Message) -> None:
+        answers.append(message)
+
+    scope: Scope = {"type": "http", "method": "POST", "path": "/mcp", "headers": []}
+    await LoopbackHostsOnly(app)(scope, receive, send)
+    assert answers[0]["status"] == 421
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "evil.example",
+        "evil.example:3334",
+        "10.0.0.1",
+        "localhost:evil",
+        "localhost:3334:1",
+        "[::1]evil.example",
+        "[::1]:evil",
+        "[::1",
+    ],
+)
 async def test_a_loopback_bind_answers_only_a_loopback_host(
     standalone: str, tokens: dict[UserRole, str], host: str
 ) -> None:

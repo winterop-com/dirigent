@@ -355,6 +355,11 @@ ONE_INPUT_BODY = CLI.define("one_input_body", "a call takes one body: --body, --
 
 TAKES_NAME_EQUALS_VALUE = CLI.define("takes_name_equals_value", "{entry} is not name=value")
 
+SOURCE_PATH_REFUSED = CLI.define(
+    "source_path_refused",
+    "the instance gave source {code} the path {path}, which does not start with /, so it is not called",
+)
+
 SOURCE_NOT_CALLABLE = CLI.define(
     "source_not_callable",
     "source {code} of pipeline {pipeline} is of kind {kind}, which this instance does not receive",

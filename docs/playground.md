@@ -449,7 +449,7 @@ for a password, navigate or clear a browser, open this origin to another site, o
 browser enforces here is refused with a 422: `set-cookie`, `www-authenticate`, `refresh`,
 `clear-site-data`, `content-disposition`, `link`, `access-control-*`, `cross-origin-*`,
 `content-security-policy`, `x-content-type-options`, `x-frame-options`, what a proxy acts on
-(`x-accel-*`, `x-sendfile`), and the hop-by-hop headers, among others. `content-type` is one of
+(`x-accel-*`, `x-lighttpd-*`, `x-litespeed-*`, `x-sendfile`), and the hop-by-hop headers, among others. `content-type` is one of
 `application/json`, `application/x-ndjson`, `text/csv`, `text/plain` or
 `text/tab-separated-values`, with at most a `charset` after it, and `location` is a path on this instance or an absolute URL on
 its own origin. Anything else is refused the same way.
