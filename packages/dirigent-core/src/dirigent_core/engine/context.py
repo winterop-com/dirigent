@@ -22,8 +22,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import LogLevel
 from dirigent_common import (
+    DEFAULT_CREDENTIAL_HEADER,
     BaseRedirect,
     CredentialOnOrigin,
+    CredentialParameterOnOrigin,
     JsonMap,
     credential_header_value,
     scrub,
@@ -54,15 +56,13 @@ API_TOKEN_SCHEME_FIELD = "api_token_scheme"
 CREDENTIAL_FIELD = "credential"
 CREDENTIAL_HEADER_FIELD = "credential_header"
 CREDENTIAL_SCHEME_FIELD = "credential_scheme"
+CREDENTIAL_QUERY_FIELD = "credential_query"
 BASIC_USER_FIELD = "basic_username"
 BASIC_PASSWORD_FIELD = "basic_password"
 
 #: The authorization scheme an ``api_token`` is sent under when the config names none, which
 #: is the scheme a personal access token is usually presented with.
 DEFAULT_API_TOKEN_SCHEME = "ApiToken"
-
-#: The header a ``credential`` is sent in when the config names none.
-DEFAULT_CREDENTIAL_HEADER = "Authorization"
 
 DEFAULT_HTTP_TIMEOUT = 30.0
 
@@ -474,7 +474,8 @@ def build_http_client(config: BaseModel) -> httpx2.AsyncClient:
     personal access token usually needs. ``bearer_token`` wins if a config carries both.
     ``credential`` is sent in the header ``credential_header`` names, ``Authorization`` when it
     names none, after ``credential_scheme`` when one is set, and only to the origin of
-    ``base_url``; it wins over either token in the same header.
+    ``base_url``; it wins over either token in the same header. ``credential_query`` sends it as
+    that query parameter instead of a header, on the same terms.
     ``basic_username`` and ``basic_password`` become the client's auth, which httpx applies
     per request, so basic credentials beside a token win over the header.
     """
@@ -492,7 +493,8 @@ def build_http_client(config: BaseModel) -> httpx2.AsyncClient:
         headers["Authorization"] = f"{scheme} {api_token}"
     credential = _text(config, CREDENTIAL_FIELD)
     credential_header = _text(config, CREDENTIAL_HEADER_FIELD) or DEFAULT_CREDENTIAL_HEADER
-    if credential:
+    credential_query = _text(config, CREDENTIAL_QUERY_FIELD)
+    if credential and not credential_query:
         headers[credential_header] = credential_header_value(credential, _text(config, CREDENTIAL_SCHEME_FIELD))
     auth: httpx2.Auth | None = None
     user = _text(config, BASIC_USER_FIELD)
@@ -500,7 +502,9 @@ def build_http_client(config: BaseModel) -> httpx2.AsyncClient:
     if user:
         auth = httpx2.BasicAuth(user, password or "")
     hooks: dict[str, list[Callable[..., Any]]] = {"request": []}
-    if credential:
+    if credential and credential_query:
+        hooks["request"].append(CredentialParameterOnOrigin(base_url, credential_query, credential))
+    elif credential:
         hooks["request"].append(CredentialOnOrigin(base_url, credential_header))
     if base_url and getattr(config, FOLLOW_REDIRECTS_WITH_AUTH_FIELD, False) is True:
         hooks["request"].append(BaseRedirect(base_url, verify=bool(verify)))

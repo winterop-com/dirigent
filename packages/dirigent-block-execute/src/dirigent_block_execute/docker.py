@@ -50,7 +50,7 @@ from dirigent_block_execute.messages import (
     TLS_NEEDS_TCP,
 )
 from dirigent_block_http.http import status_class
-from dirigent_common import BlockModel, Duration, HealthReport, Size
+from dirigent_common import BlockModel, Duration, HealthReport, Size, refuse_password_in_url
 from dirigent_plugin import (
     BlockFailure,
     ByteSink,
@@ -124,6 +124,8 @@ CHECK_TIMEOUT_SECONDS = 60.0
 class DockerConnectionConfig(BlockModel):
     """A daemon to reach, a registry to authenticate to, or both."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     host: str = ""
     """The daemon, as ``tcp://host:2376`` or ``unix:///var/run/docker.sock``.
 
@@ -157,7 +159,8 @@ class DockerConnectionConfig(BlockModel):
 
     @model_validator(mode="after")
     def _check_shape(self) -> "DockerConnectionConfig":
-        """Refuse a daemon URL of an unknown form, half a TLS triple, and half a credential."""
+        """Refuse a daemon URL with a password or of an unknown form, half a TLS triple, and half a credential."""
+        refuse_password_in_url(self.host)
         if self.host and not self.host.startswith(DAEMON_SCHEMES):
             raise ValueError(NOT_A_DAEMON_SCHEME.render(schemes=" or ".join(DAEMON_SCHEMES), host=repr(self.host)))
         pems = [self.tls_ca, self.tls_cert, self.tls_key]

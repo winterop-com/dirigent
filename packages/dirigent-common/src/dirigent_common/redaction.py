@@ -15,6 +15,9 @@ from pydantic import BaseModel, JsonValue, SecretStr
 #: What a scrubbed secret is replaced by, matching the marker the API redacts a connection with.
 REDACTED: Final = "***"
 
+#: What the HTTP client leaves unescaped in a query value beyond the unreserved characters.
+URL_SAFE_IN_A_QUERY: Final = "!$'()*,;:/?@[]"
+
 
 def spellings(secret: str) -> set[str]:
     """Name every way a secret reads in an error: as it is, trimmed, and as ``repr``, a URL and JSON escape it."""
@@ -28,6 +31,7 @@ def spellings(secret: str) -> set[str]:
         quote(raw),
         quote(raw, safe=""),
         quote_plus(raw),
+        quote(raw, safe=URL_SAFE_IN_A_QUERY),
         json.dumps(secret)[1:-1],
         json.dumps(secret, ensure_ascii=False)[1:-1],
     }

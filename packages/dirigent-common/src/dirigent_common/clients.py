@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx2
 
-from dirigent_common.headers import credential_header_value
+from dirigent_common.credentials import DEFAULT_CREDENTIAL_HEADER, credential_header_value
 from dirigent_common.schemas import HttpConnectionConfig
 
 
@@ -18,8 +18,9 @@ def build_client(config: HttpConnectionConfig) -> httpx2.AsyncClient:
     headers: dict[str, str] = {}
     if config.bearer_token is not None:
         headers["Authorization"] = f"Bearer {config.bearer_token.get_secret_value()}"
-    if config.credential is not None:
-        headers[config.credential_header] = credential_header_value(
+    credential_header = config.credential_header or DEFAULT_CREDENTIAL_HEADER
+    if config.credential is not None and config.credential_query is None:
+        headers[credential_header] = credential_header_value(
             config.credential.get_secret_value(), config.credential_scheme
         )
     auth: httpx2.Auth | None = None
@@ -27,8 +28,12 @@ def build_client(config: HttpConnectionConfig) -> httpx2.AsyncClient:
         password = config.basic_password.get_secret_value() if config.basic_password else ""
         auth = httpx2.BasicAuth(config.basic_username, password)
     hooks: dict[str, list[Callable[..., Any]]] = {"request": []}
-    if config.credential is not None:
-        hooks["request"].append(CredentialOnOrigin(config.base_url, config.credential_header))
+    if config.credential is not None and config.credential_query is not None:
+        hooks["request"].append(
+            CredentialParameterOnOrigin(config.base_url, config.credential_query, config.credential.get_secret_value())
+        )
+    elif config.credential is not None:
+        hooks["request"].append(CredentialOnOrigin(config.base_url, credential_header))
     if config.follow_redirects_with_auth:
         hooks["request"].append(BaseRedirect(config.base_url, verify=config.verify_tls))
     return httpx2.AsyncClient(
@@ -57,6 +62,28 @@ class CredentialOnOrigin:
         """Remove the header from a request to any other origin."""
         if _origin_of(request.url) != self._origin:
             request.headers.pop(self._header, None)
+
+
+class CredentialParameterOnOrigin:
+    """A request hook that sets a credential's query parameter on a base URL's origin and removes it elsewhere.
+
+    Set here rather than on the client, so a redirect that stays on the origin keeps it and one that leaves does
+    not carry it, whatever the ``Location`` it was told wrote. Placed before :class:`BaseRedirect`, like
+    :class:`CredentialOnOrigin`.
+    """
+
+    def __init__(self, base_url: str, name: str, value: str) -> None:
+        """Hold the origin the parameter may go to, and what it says there."""
+        self._origin = _origin_of(httpx2.URL(base_url))
+        self._name = name
+        self._value = value
+
+    async def __call__(self, request: httpx2.Request) -> None:
+        """Set the parameter on a request to the origin, and take it off a request to any other."""
+        if _origin_of(request.url) == self._origin:
+            request.url = request.url.copy_set_param(self._name, self._value)
+        else:
+            request.url = request.url.copy_remove_param(self._name)
 
 
 def _origin_of(url: httpx2.URL) -> tuple[str, str, int | None]:

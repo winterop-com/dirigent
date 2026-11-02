@@ -54,7 +54,7 @@ from dirigent_block_sql.engines import (
     under_work,
 )
 from dirigent_block_sql.sql import SqlConnectionConfig
-from dirigent_common import BlockModel, HealthReport, JsonMap
+from dirigent_common import BlockModel, HealthReport, JsonMap, PlainUrl
 from dirigent_plugin import BlockFailure, ErrorClass, StepContext
 
 #: The storage schemes a parameter naming one is refused for: duckdb would open them itself,
@@ -173,7 +173,7 @@ class S3StorageSettings(BlockModel):
     holds for ``storage_connections`` validates against this without a second connection.
     """
 
-    endpoint_url: str | None = None
+    endpoint_url: PlainUrl | None = None
     region: str = "us-east-1"
     access_key_id: str | None = None
     secret_access_key: SecretStr | None = None

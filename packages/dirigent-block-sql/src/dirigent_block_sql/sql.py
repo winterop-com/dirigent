@@ -27,7 +27,7 @@ from typing import Annotated, Any, ClassVar, Final
 
 import sqlalchemy
 import sqlalchemy.exc
-from pydantic import BaseModel, Field, SecretStr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 from sqlalchemy.engine import URL, make_url
 
 from dirigent_block_sql.engines import SqlSession, engine_for
@@ -47,6 +47,7 @@ from dirigent_common import (
     HealthReport,
     JsonList,
     JsonMap,
+    refuse_credential_parameter,
     spelled,
 )
 from dirigent_plugin import (
@@ -84,6 +85,8 @@ UNREACHABLE: Final = (
 class SqlConnectionConfig(BlockModel):
     """One database, the sealed password that opens it, and whether it may be written to."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     url: str = Field(min_length=1)
     """The database as a SQLAlchemy URL, driver included:
     ``postgresql+asyncpg://user@host:5432/db`` or ``sqlite+aiosqlite:///data.db``.
@@ -119,6 +122,7 @@ class SqlConnectionConfig(BlockModel):
         url = _parse(self.url)
         if url.password is not None:
             raise ValueError(INLINE_PASSWORD.render())
+        refuse_credential_parameter(self.url)
         engine_for(url).validate(self, url)
         return self
 

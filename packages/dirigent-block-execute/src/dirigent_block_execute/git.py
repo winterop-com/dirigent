@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import ClassVar
 from urllib.parse import quote, urlsplit, urlunsplit
 
-from pydantic import BaseModel, Field, SecretStr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from dirigent_block_execute import secrets, subprocess
 from dirigent_block_execute.capture import log_stream, scrub, tail
@@ -52,7 +52,14 @@ from dirigent_block_execute.messages import (
     GIT_TOKEN_NEEDS_HTTPS,
     NO_GIT,
 )
-from dirigent_common import BlockModel, Duration, HealthReport
+from dirigent_common import (
+    URL_USERINFO_REFUSED,
+    BlockModel,
+    Duration,
+    HealthReport,
+    refuse_password_in_url,
+    userinfo_in,
+)
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
@@ -120,12 +127,15 @@ esac
 class GitConnectionConfig(BlockModel):
     """One remote repository and the credential, if any, that reaches it."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     url: str = Field(min_length=1)
     """The remote, in https form (``https://host/owner/repo.git``) or ssh form
     (``ssh://git@host/owner/repo.git``, or the scp-like ``git@host:owner/repo.git``).
 
-    Any userinfo written into it is stripped before git is given it, so a credential belongs
-    in ``token`` or ``ssh_key`` rather than in the URL."""
+    A user in an https URL, a password in any URL and a credential in its query are refused, because a
+    plain field is stored as written: a credential belongs in ``token`` or ``ssh_key``. The user of an ssh
+    remote is not a secret, and is stripped before git is given it."""
 
     username: str = "x-access-token"
     """The user half of the token credential. GitHub and GitLab both accept this literal for a
@@ -151,10 +161,13 @@ class GitConnectionConfig(BlockModel):
 
     @model_validator(mode="after")
     def _check_shape(self) -> "GitConnectionConfig":
-        """Refuse two credentials at once, and a credential that does not fit the remote's form."""
+        """Refuse a credential in the URL, two credentials at once, and one that does not fit the remote's form."""
+        refuse_password_in_url(self.url)
+        scheme = urlsplit(self.url).scheme
+        if scheme in HTTP_SCHEMES and userinfo_in(self.url):
+            raise ValueError(URL_USERINFO_REFUSED.render())
         if self.token is not None and self.ssh_key is not None:
             raise ValueError(GIT_ONE_CREDENTIAL.render())
-        scheme = urlsplit(self.url).scheme
         if self.token is not None and scheme not in HTTP_SCHEMES:
             raise ValueError(GIT_TOKEN_NEEDS_HTTPS.render(url=repr(self.url)))
         if self.ssh_key is not None and not _is_ssh(self.url):

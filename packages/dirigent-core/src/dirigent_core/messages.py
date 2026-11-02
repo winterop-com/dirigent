@@ -380,6 +380,18 @@ STEP_CREDENTIAL_HEADER = DOCUMENT.define(
     "field of the connection this step names, with its name in credential_header unless that is Authorization",
 )
 
+STEP_CREDENTIAL_PARAMETER = DOCUMENT.define(
+    "step_credential_parameter",
+    "the {parameter} query parameter carries a credential, and a document is stored as written; put its value in the "
+    "credential field of the connection this step names, with its name in credential_query",
+)
+
+STEP_URL_USERINFO = DOCUMENT.define(
+    "step_url_userinfo",
+    "{field} carries a user or a password, and a document is stored as written; put the credential on the connection "
+    "this step names",
+)
+
 STEP_SHELL_UNREADABLE = DOCUMENT.define(
     "step_shell_unreadable",
     "{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a "

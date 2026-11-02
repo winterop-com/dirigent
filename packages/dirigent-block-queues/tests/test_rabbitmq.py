@@ -500,3 +500,10 @@ async def test_a_publish_nothing_takes_is_refused_rather_than_dropped(ctx: FakeC
     assert raised.value.error_class is ErrorClass.REJECTED
     assert "nobody-listens" in str(raised.value)
     assert broker.published == []
+
+
+def test_a_url_with_a_credential_in_its_query_is_refused_without_repeating_it() -> None:
+    with pytest.raises(ValidationError) as refused:
+        RabbitConnectionConfig(url="amqp://reader@localhost/shop?password=DUMMYSECRET")
+    assert "the password query parameter carries a credential" in str(refused.value)
+    assert "DUMMYSECRET" not in str(refused.value)

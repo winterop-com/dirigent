@@ -7,7 +7,7 @@ import httpx2
 import pytest
 from pydantic import SecretStr, ValidationError
 
-from dirigent_common import CredentialOnOrigin, HttpConnectionConfig, build_client, secrets_of
+from dirigent_common import CredentialOnOrigin, HttpConnectionConfig, build_client, raised_detail, secrets_of
 from dirigent_common.clients import resolve_base
 
 ALIAS = "https://play.dhis2.org/2.43"
@@ -147,3 +147,73 @@ def test_the_client_carries_the_hook_only_with_a_credential() -> None:
     held = build_client(HttpConnectionConfig(base_url="http://x", credential=SecretStr("dummy")))
     assert bare.event_hooks["request"] == []
     assert [type(hook) for hook in held.event_hooks["request"]] == [CredentialOnOrigin]
+
+
+def _as_a_query_parameter(handle: Any) -> httpx2.AsyncClient:
+    built = build_client(
+        HttpConnectionConfig(
+            base_url="http://service.test/api", credential=SecretStr("a+b"), credential_query="api_key"
+        )
+    )
+    return httpx2.AsyncClient(
+        base_url=built.base_url,
+        event_hooks=built.event_hooks,
+        transport=httpx2.MockTransport(handle),
+        follow_redirects=True,
+    )
+
+
+async def test_a_credential_sent_as_a_query_parameter_stays_on_the_origin() -> None:
+    seen: list[httpx2.Request] = []
+
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        if request.url.path == "/api/start":
+            return httpx2.Response(302, headers={"location": "/api/moved"})
+        if request.url.path == "/api/moved":
+            return httpx2.Response(302, headers={"location": "http://elsewhere.test/x?api_key=a%2Bb&keep=1"})
+        return httpx2.Response(200)
+
+    async with _as_a_query_parameter(handle) as client:
+        await client.get("/start", params={"page": 2})
+    first, same_origin, other = seen
+    assert first.url.params["api_key"] == "a+b" and first.url.params["page"] == "2"
+    assert same_origin.url.params["api_key"] == "a+b"
+    assert "api_key" not in other.url.params and other.url.params["keep"] == "1"
+    assert "authorization" not in first.headers
+
+
+def test_a_credential_cannot_go_in_a_query_parameter_and_a_header() -> None:
+    for beside in ({"credential_header": "X-Api-Key"}, {"credential_scheme": "Token"}):
+        with pytest.raises(ValidationError, match="credential goes in one place"):
+            HttpConnectionConfig.model_validate(
+                {"base_url": "http://x", "credential": "dummy", "credential_query": "api_key", **beside}
+            )
+
+
+def test_a_connection_read_back_through_its_dump_still_validates() -> None:
+    config = HttpConnectionConfig(base_url="http://x", credential=SecretStr("dummy"), credential_query="api_key")
+    assert HttpConnectionConfig.model_validate(config.model_dump()).credential_query == "api_key"
+
+
+def test_the_query_parameter_is_scrubbed_from_a_url_a_failure_echoes() -> None:
+    config = HttpConnectionConfig(base_url="http://x", credential=SecretStr("a+b/c"), credential_query="api_key")
+    url = str(httpx2.URL("http://x/y").copy_set_param("api_key", "a+b/c"))
+    assert "a+b" not in raised_detail(RuntimeError(f"could not reach {url}"), redact=secrets_of(config)).replace(
+        "api_key=***", ""
+    )
+    assert "api_key=***" in raised_detail(RuntimeError(f"could not reach {url}"), redact=secrets_of(config))
+
+
+@pytest.mark.parametrize(
+    ("base_url", "said"),
+    [
+        ("https://user:DUMMY@service.test", "cannot carry a user or a password"),
+        ("https://service.test?api_key=DUMMY", "the api_key query parameter"),
+    ],
+)
+def test_a_base_url_refuses_a_credential_without_repeating_it(base_url: str, said: str) -> None:
+    with pytest.raises(ValidationError) as refused:
+        HttpConnectionConfig(base_url=base_url)
+    assert said in str(refused.value)
+    assert "DUMMY" not in str(refused.value)

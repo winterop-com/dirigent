@@ -145,6 +145,41 @@ def test_a_plain_header_cannot_spell_the_name_the_credential_is_sent_in() -> Non
         )
 
 
+async def test_a_credential_is_sent_as_the_query_parameter_the_connection_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responder = Responder(httpx2.Response(200))
+    intercept(monkeypatch, responder)
+    config = WebhookNotifierConfig(
+        url=f"{ENDPOINT}?route=ops", credential=SecretStr("dummy"), credential_query="api_key"
+    )
+    await WebhookNotifier().send(an_alert(), config)
+    sent = responder.requests[0]
+    assert sent.url.params["api_key"] == "dummy" and sent.url.params["route"] == "ops"
+    assert "authorization" not in sent.headers
+
+
+@pytest.mark.parametrize(
+    ("url", "said"),
+    [
+        ("https://user:DUMMYSECRET@hooks.example.org/x", "cannot carry a user or a password"),
+        ("https://hooks.example.org/x?token=DUMMYSECRET", "the token query parameter"),
+    ],
+)
+def test_a_credential_in_the_url_is_refused_without_repeating_it(url: str, said: str) -> None:
+    with pytest.raises(ValidationError) as refused:
+        WebhookNotifierConfig(url=url)
+    assert said in str(refused.value)
+    assert "DUMMYSECRET" not in str(refused.value)
+
+
+def test_a_credential_cannot_go_in_a_query_parameter_and_a_header() -> None:
+    with pytest.raises(ValidationError, match="credential goes in one place"):
+        WebhookNotifierConfig.model_validate(
+            {"url": ENDPOINT, "credential": "dummy", "credential_query": "k", "credential_header": "X-K"}
+        )
+
+
 async def test_no_authorization_header_is_sent_without_a_credential(monkeypatch: pytest.MonkeyPatch) -> None:
     responder = Responder(httpx2.Response(200))
     intercept(monkeypatch, responder)

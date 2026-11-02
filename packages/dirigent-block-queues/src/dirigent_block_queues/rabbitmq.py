@@ -26,7 +26,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, ClassVar, Literal, Protocol, cast
 from urllib.parse import quote, urlsplit, urlunsplit
 
-from pydantic import BaseModel, Field, JsonValue, SecretStr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr, model_validator
 
 from dirigent_block_queues.messages import (
     BATCH_NEVER_TAKEN,
@@ -42,7 +42,7 @@ from dirigent_block_queues.messages import (
     RABBIT_PUBLISH_TIMED_OUT,
     RABBIT_READ_FAILED,
 )
-from dirigent_common import BlockModel, Duration, HealthReport, raised_detail
+from dirigent_common import BlockModel, Duration, HealthReport, raised_detail, refuse_credential_parameter
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
@@ -80,6 +80,8 @@ type Payload = Literal["json", "text", "base64"]
 class RabbitConnectionConfig(BlockModel):
     """One RabbitMQ broker, and the password that reaches it."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     url: str = Field(min_length=1)
     """Where the broker is, as ``amqp://user@host:5672/vhost`` or the ``amqps://`` form.
 
@@ -97,6 +99,7 @@ class RabbitConnectionConfig(BlockModel):
             raise ValueError(NOT_AN_AMQP_URL.render(url=repr(self.url)))
         if split.password is not None:
             raise ValueError(INLINE_PASSWORD.render())
+        refuse_credential_parameter(self.url)
         return self
 
     def dsn(self) -> str:

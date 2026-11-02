@@ -18,7 +18,7 @@ from dirigent_block_http.messages import (
     STATUS_REFUSED,
     URL_BESIDE_CONNECTION,
 )
-from dirigent_common import BlockModel, Duration, Issue, PlainHeaders, Size
+from dirigent_common import BlockModel, Duration, Issue, PlainHeaders, PlainQuery, PlainUrl, Size
 from dirigent_plugin import (
     BlockFailure,
     ConnectionRef,
@@ -74,14 +74,14 @@ class HttpTarget(BlockModel):
     connection: ConnectionRef | None = None
     """The code of the connection whose base URL, auth, TLS, and timeout apply."""
 
-    url: str | None = None
+    url: PlainUrl | None = None
     """An absolute URL, for the case where no connection is configured.
 
     Beside a connection, a literal one is refused at apply, and one a reference resolves to is
     refused at run time unless it is on the connection's own origin.
     """
 
-    path: str = "/"
+    path: PlainUrl = "/"
     """The path resolved against the connection's base URL.
 
     A request is sent with the connection's credentials only to the scheme, host and port of
@@ -249,8 +249,9 @@ class HttpRequestConfig(HttpTarget):
     method: HttpMethod = "GET"
     """The method the request is sent with."""
 
-    query: dict[str, str | int | float | bool] = Field(default_factory=dict[str, str | int | float | bool])
-    """Query parameters appended to the URL, each value written as text."""
+    query: PlainQuery = Field(default_factory=dict[str, str | int | float | bool])
+    """Query parameters appended to the URL, each value written as text; one whose name carries a credential is
+    refused, and goes on the connection."""
 
     headers: PlainHeaders = Field(default_factory=dict[str, str])
     """Headers sent with the request; one whose name carries a credential is refused, and goes on the connection."""

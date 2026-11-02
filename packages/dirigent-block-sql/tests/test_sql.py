@@ -500,3 +500,10 @@ async def test_a_query_cannot_attach_another_database_either(local_ctx: FakeCont
     connect(local_ctx)
     with pytest.raises(Exception, match="not authorized|authorization denied"):
         await query(local_ctx, "ATTACH DATABASE :path AS other", params={"path": str(tmp_path / "other.db")})
+
+
+def test_a_url_with_a_password_in_its_query_is_refused_without_repeating_it() -> None:
+    with pytest.raises(ValidationError) as refused:
+        SqlConnectionConfig(url="postgresql+asyncpg://user@host/db?password=DUMMYSECRET")
+    assert "the password query parameter carries a credential" in str(refused.value)
+    assert "DUMMYSECRET" not in str(refused.value)

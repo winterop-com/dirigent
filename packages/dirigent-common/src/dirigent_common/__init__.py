@@ -6,7 +6,31 @@ name may be, and the small schemas a plugin and the API both name.
 """
 
 from dirigent_common.bounded_yaml import BoundedLoader, YamlExpansionError, bounded_load, bounded_load_all
-from dirigent_common.clients import BaseRedirect, CredentialOnOrigin, build_client
+from dirigent_common.clients import BaseRedirect, CredentialOnOrigin, CredentialParameterOnOrigin, build_client
+from dirigent_common.credentials import (
+    DEFAULT_CREDENTIAL_HEADER,
+    PLAIN_HEADERS_KEYWORD,
+    PLAIN_QUERY_KEYWORD,
+    PLAIN_URL_KEYWORD,
+    URL_USERINFO_REFUSED,
+    CredentialHeader,
+    CredentialQuery,
+    CredentialScheme,
+    CredentialValue,
+    PlainHeaders,
+    PlainQuery,
+    PlainUrl,
+    carries_credential,
+    carries_credential_parameter,
+    credential_header_value,
+    credential_parameter_in,
+    password_in,
+    plain_fields_of,
+    refuse_credential_in_two_places,
+    refuse_credential_parameter,
+    refuse_password_in_url,
+    userinfo_in,
+)
 from dirigent_common.docstrings import as_markdown
 from dirigent_common.durations import (
     DURATION_PATTERN,
@@ -20,16 +44,6 @@ from dirigent_common.durations import (
 )
 from dirigent_common.formats import base_format_checker, format_checker_with
 from dirigent_common.formatters import Formatter
-from dirigent_common.headers import (
-    PLAIN_HEADERS_KEYWORD,
-    CredentialHeader,
-    CredentialScheme,
-    CredentialValue,
-    PlainHeaders,
-    carries_credential,
-    credential_header_value,
-    plain_header_fields_of,
-)
 from dirigent_common.messages import (
     Catalogue,
     Issue,
@@ -117,6 +131,9 @@ __all__ = [
     "BaseRedirect",
     "CredentialHeader",
     "CredentialOnOrigin",
+    "CredentialParameterOnOrigin",
+    "CredentialQuery",
+    "DEFAULT_CREDENTIAL_HEADER",
     "CredentialScheme",
     "CredentialValue",
     "BlockModel",
@@ -128,7 +145,12 @@ __all__ = [
     "Formatter",
     "HealthReport",
     "PLAIN_HEADERS_KEYWORD",
+    "PLAIN_QUERY_KEYWORD",
+    "PLAIN_URL_KEYWORD",
     "PlainHeaders",
+    "PlainQuery",
+    "PlainUrl",
+    "URL_USERINFO_REFUSED",
     "HttpConnectionConfig",
     "HumaneJsonSchema",
     "Issue",
@@ -149,7 +171,14 @@ __all__ = [
     "build_client",
     "carries_credential",
     "credential_header_value",
-    "plain_header_fields_of",
+    "carries_credential_parameter",
+    "credential_parameter_in",
+    "password_in",
+    "plain_fields_of",
+    "refuse_credential_in_two_places",
+    "refuse_credential_parameter",
+    "refuse_password_in_url",
+    "userinfo_in",
     "compile_template",
     "filler",
     "format_duration",
