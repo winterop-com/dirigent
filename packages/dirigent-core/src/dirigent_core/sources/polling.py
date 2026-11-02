@@ -109,6 +109,17 @@ async def tick(
     return outcomes
 
 
+def _cadence(kinds: Any, row: Source, lease: timedelta) -> timedelta:
+    """How long a source at its bound waits: its own cadence, or the lease if this worker cannot read one."""
+    found = polled(kinds, row)
+    if not found:
+        return lease
+    try:
+        return found[0].poll_every(found[1])
+    except Exception:  # noqa: BLE001 - a kind's cadence is the pack's code, and one source stops no other
+        return lease
+
+
 async def claim_due(session: AsyncSession, services: EngineServices, *, owner: str, now: datetime) -> list[Claimed]:
     """Take the lease on each due polled source, and work out how many inputs each may hand over."""
     kinds = services.sources
@@ -140,8 +151,7 @@ async def claim_due(session: AsyncSession, services: EngineServices, *, owner: s
         if bound is not None:
             room = min(room, bound - unsettled.get(row.id, 0))
         if room <= 0:
-            found = polled(kinds, row)
-            row.next_poll_at = _after(now, found[0].poll_every(found[1]) if found else lease, lease)
+            row.next_poll_at = _after(now, _cadence(kinds, row, lease), lease)
             continue
         row.lease_owner = owner
         row.lease_expires_at = now + lease

@@ -6,6 +6,7 @@ answers only to a loopback ``Host``.
 """
 
 import hashlib
+import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -24,12 +25,16 @@ from dirigent_common import Message
 from dirigent_common.hosts import is_loopback_host
 from dirigent_mcp.http import MCP_PATH, METHODS, Caller, McpEndpoint
 from dirigent_mcp.messages import CROSS_ORIGIN, HOST_NOT_LOOPBACK, UNAUTHENTICATED
+from dirigent_mcp.server import Offers
 
-#: The roles whose tokens are offered the tools that write.
-OPERATING_ROLES: Final = frozenset({UserRole.ADMIN, UserRole.OPERATOR})
+#: The tools each role is offered.
+OFFERED: Final = {UserRole.ADMIN: Offers.ADMINISTERING, UserRole.OPERATOR: Offers.OPERATING}
 
 SESSION_IDLE: Final = timedelta(minutes=30)
 MAX_SESSIONS: Final = 256
+
+#: A ``Host`` value: a bracketed literal or a name, and a port of nothing but digits.
+_AUTHORITY: Final = re.compile(r"(?:\[(?P<literal>[^\]]*)\]|(?P<name>[^:\[\]]*))(?::[0-9]*)?")
 
 
 def refusal(status: int, message: Message, headers: dict[str, str] | None = None, **params: str) -> Response:
@@ -42,10 +47,11 @@ def refusal(status: int, message: Message, headers: dict[str, str] | None = None
 
 
 def _host_name(authority: str) -> str:
-    """The name or address a ``Host`` value names, without its port or brackets."""
-    if authority.startswith("["):
-        return authority[1:].partition("]")[0]
-    return authority.rpartition(":")[0] if authority.count(":") == 1 else authority
+    """The name or address a ``Host`` value names, without its port or brackets, or nothing if it is malformed."""
+    found = _AUTHORITY.fullmatch(authority)
+    if found is None:
+        return ""
+    return found.group("literal") or found.group("name") or ""
 
 
 class LoopbackHostsOnly:
@@ -57,7 +63,10 @@ class LoopbackHostsOnly:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Pass one request through, or answer 421 without reading any of it."""
-        hosts = Headers(scope=scope).getlist("host") if scope["type"] == "http" else []
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        hosts = Headers(scope=scope).getlist("host") or [""]
         stranger = next((host for host in hosts if not is_loopback_host(_host_name(host.lower()))), None)
         if stranger is None:
             await self.app(scope, receive, send)
@@ -83,7 +92,7 @@ def standalone_app(
             except (Unauthorized, Forbidden):
                 return None
         key = hashlib.sha256(secret.encode()).hexdigest()
-        return Caller(key=key, may_operate=not read_only and identity.role in OPERATING_ROLES)
+        return Caller(key=key, offers=Offers.READING if read_only else OFFERED.get(identity.role, Offers.READING))
 
     endpoint = McpEndpoint(
         authenticate=authenticate,
