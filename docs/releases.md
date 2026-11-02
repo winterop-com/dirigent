@@ -53,6 +53,8 @@ limited, since they were measured linear.
 
 **A secret a waiting block quotes is scrubbed.** A running probe's or a sensor's message was kept on the attempt and logged as it was written, unlike a failure's. It is now scrubbed the same way.
 
+**A cancel reaches a daemon only the worker can, and the schema changed.** In the shipped stack `$cancel` ran on the server, which has no route to the `docker.*` daemon, so a `docker.run` container kept running after its attempt was marked cancelled. An attempt cancelled without its remote agreeing now stays marked in `step_attempts.remote_cancel_since`, and a worker the run's tags allow tells the remote on its sweep, for ten minutes. The baseline migration is edited in place, so `dg db upgrade` does not carry the column: recreate the database, or add it by hand.
+
 **A checkout's files cannot write terminal escapes through `dg`.** The text of a
 `.dirigent/profiles.yaml` reached the terminal raw through a profile's refusal, so a repository
 could clear the screen, set the title or write the clipboard of whoever ran `dg` in it. A profile's
