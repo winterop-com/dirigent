@@ -19,6 +19,8 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**A source's curl line quotes a method that is not a bare word.** The UI's copyable line left the method unquoted, relying on the server's list of methods.
+
 **An MCP token is offered only the tools its role may call.** `plan_document` was offered to a viewer and `check_connection` to an operator, and the API refused both. Each role now has a server of its own: a viewer's leaves out what writes and `plan_document`, whose dry run is an operator's route, and an operator's leaves out `check_connection`. `DG_MCP_READ_ONLY=1` offers what a viewer is offered, so it no longer offers `plan_document`. `mcp_max_sessions` now counts each of the three roles apart. In `dirigent_mcp`, `build()` takes `offers` in place of `read_only`, and `Caller` carries `offers` in place of `may_operate`.
 
 **A signature timestamp no date can hold is refused.** A 12-digit `X-Dirigent-Timestamp` past the year 9999 answered an unauthenticated caller 500 with a logged traceback. It is now refused like any other bad timestamp, `source.signature_timestamp`.
