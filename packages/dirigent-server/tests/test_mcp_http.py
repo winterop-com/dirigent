@@ -14,7 +14,10 @@ from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent, Tool
 
+from dirigent_client import UserRole
+from dirigent_core.auth import create_user, issue_token
 from dirigent_core.config import Settings
+from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_server import create_app
 from tests_support import PASSWORD, USERNAME
 
@@ -71,6 +74,50 @@ async def base(settings: Settings, admin_token: str) -> AsyncGenerator[str]:
     """The base URL of a running instance."""
     async with serving(settings) as url:
         yield url
+
+
+@pytest.fixture
+def second_operator_token(settings: Settings, operator_token: str) -> str:
+    """Another operator's bearer token, whose sessions the same server holds."""
+
+    async def prepare() -> str:
+        engine = create_engine(settings)
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                user = await create_user(session, "a-second-operator", PASSWORD, role=UserRole.OPERATOR)
+                return (await issue_token(session, user, name="second")).secret.get_secret_value()
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(prepare())
+
+
+async def opened(http: httpx2.AsyncClient, base: str, token: str) -> httpx2.Response:
+    """Ask for a new session with one bearer token."""
+    return await http.post(f"{base}/mcp", json=INITIALIZE, headers={**ACCEPT, "Authorization": f"Bearer {token}"})
+
+
+async def test_one_token_cannot_hold_every_session_its_server_has_room_for(
+    settings: Settings, operator_token: str, second_operator_token: str
+) -> None:
+    capped = settings.model_copy(update={"mcp_max_sessions": 4, "mcp_max_sessions_per_token": 2})
+    async with serving(capped) as url, httpx2.AsyncClient(timeout=30) as http:
+        kept = [await opened(http, url, operator_token) for _ in range(2)]
+        assert [answer.status_code for answer in kept] == [200, 200]
+        assert (await opened(http, url, operator_token)).status_code == 503
+        assert (await opened(http, url, second_operator_token)).status_code == 200, "another token still gets one"
+
+        ended = await http.delete(
+            f"{url}/mcp",
+            headers={
+                **ACCEPT,
+                "Authorization": f"Bearer {operator_token}",
+                "Mcp-Session-Id": kept[0].headers["mcp-session-id"],
+                "Mcp-Protocol-Version": "2025-06-18",
+            },
+        )
+        assert ended.status_code == 200, ended.text
+        assert (await opened(http, url, operator_token)).status_code == 200, "ending a session frees its place"
 
 
 @asynccontextmanager
