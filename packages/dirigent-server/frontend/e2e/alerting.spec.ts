@@ -165,14 +165,20 @@ test.describe('on a phone', () => {
         const events = page.getByRole('group', { name: LABELS.word.event }).getByRole('button')
         await expect(events).toHaveCount(4)
 
-        const boxes = await events.evaluateAll((found) =>
-            found.map((one) => {
-                const box = one.getBoundingClientRect()
-                return { top: Math.round(box.top), height: Math.round(box.height) }
-            }),
-        )
-        expect(new Set(boxes.map((box) => box.top)).size).toBe(2)
-        expect(Math.min(...boxes.map((box) => box.height))).toBeGreaterThanOrEqual(42)
+        const read = () =>
+            events.evaluateAll((found) =>
+                found.map((one) => {
+                    const box = one.getBoundingClientRect()
+                    return { top: Math.round(box.top), height: box.height }
+                }),
+            )
+
+        // The dialog scales in from 95%, so the boxes are read once every animation on it has
+        // finished: a 42px button measures 40 at the start of it.
+        await expect
+            .poll(async () => Math.min(...(await read()).map((box) => box.height)))
+            .toBeGreaterThanOrEqual(42)
+        expect(new Set((await read()).map((box) => box.top)).size).toBe(2)
 
         const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
         expect(sideways).toBeLessThanOrEqual(0)
