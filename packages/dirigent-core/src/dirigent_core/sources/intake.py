@@ -638,7 +638,10 @@ def _signed_at(stamp: str) -> datetime | None:
     """Read a signature's timestamp, whole Unix seconds, or nothing when it is not one."""
     if not stamp.isascii() or not stamp.isdigit() or len(stamp) > 12:
         return None
-    return datetime.fromtimestamp(int(stamp), UTC)
+    try:
+        return datetime.fromtimestamp(int(stamp), UTC)
+    except (ValueError, OverflowError, OSError):
+        return None
 
 
 def _retry_after(per_minute: int) -> dict[str, str]:

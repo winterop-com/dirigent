@@ -406,7 +406,7 @@ on that origin, which is exactly what `httponly` exists to prevent.
 
 ### The routes
 
-Every route takes `status` (the status to answer with, 100 to 599) and `delay` (how long to
+Every route takes `status` (the status to answer with, 200 to 599) and `delay` (how long to
 take first, as `250ms` or `2s`, at most 30 seconds).
 
 A body larger than 1 MiB is refused with a 413, read no further than one byte past that. One that has not arrived whole within 30 seconds is refused with a 408. Every
@@ -510,7 +510,7 @@ not JSON. The lines are still the value, and `transform.jq` splits them:
 
 ### Statuses that carry no body
 
-A 204, a 304 and the 1xx range cannot carry a body, so a call that asks for one of them gets
+A 204 and a 304 cannot carry a body, so a call that asks for one of them gets
 the status and no reflection. Every other status carries the envelope.
 
 ### Reaching it from a pipeline
