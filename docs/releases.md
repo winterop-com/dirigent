@@ -19,6 +19,14 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**`format: uri-template` costs time in step with a caller's text.** The library's check was
+quadratic on a run of `{` and held the interpreter's lock, so 80,000 characters stopped a worker's
+event loop for 2.4 seconds past a 200 ms `validate.schema` timeout. It is now matched by the same
+engine as `pattern`, accepting what the library accepts, and stops at the bound. Every other
+standard format, and a format a pack contributes, is handed no text longer than 8192 characters; a
+longer text fails the format. `base64`, `humane-duration` and dirigent's other own formats are not
+limited, since they were measured linear.
+
 **An array's subscript in a shell command is held to an integer, whatever the command declares.**
 A `${...}` in `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}` used to take any value when `declare -A a`
 appeared anywhere in the text, including in a branch not taken, a function, a subshell, before an
@@ -26,6 +34,11 @@ appeared anywhere in the text, including in a branch not taken, a function, a su
 `$(cmd)` ran. The reference now has to be an integer in every such place. A command keying an
 associative array on a caller's text is refused when the step starts, and takes the value through
 `argv`, which involves no shell.
+
+**A `read_only` SQLite connection cannot write its file.** `PRAGMA query_only` left two pragmas able
+to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_checkpoint` moved a
+write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.
+A file it names that does not exist is refused rather than created empty.
 
 ## 0.30.0
 
