@@ -4,12 +4,14 @@ import os
 import time
 from collections.abc import Iterator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering, only, plain, refusal, rows
+from dirigent_cli import source_commands
 from dirigent_cli.main import app, hoist_globals
 from dirigent_cli.output import alert_event, throttle_note, watching
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
@@ -730,6 +732,39 @@ def test_an_apply_that_creates_a_source_hands_over_its_token_once(tmp_path: Path
     assert "Each token and signing secret is shown once." in text
     again = machine("apply", str(path))
     assert only(again.stdout, "apply")["fields"]["sources"]["tokens"] == [], "a reapply mints nothing"
+
+
+@pytest.mark.parametrize("path", ["@off.example/x", "off.example/x", ".off.example/x"])
+def test_a_source_path_that_would_change_the_host_is_not_called(monkeypatch: pytest.MonkeyPatch, path: str) -> None:
+    """A path with no leading slash joins the base URL into another authority."""
+
+    def row(*_: object) -> SimpleNamespace:
+        return SimpleNamespace(url_path=path, methods=["POST"], kind="endpoint")
+
+    class Instance:
+        url = "http://127.0.0.1:1"
+        sources = SimpleNamespace(get=row)
+
+        def __enter__(self) -> "Instance":
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+        def call(self, answered: object) -> object:
+            return answered
+
+    def no_request(*_: object, **__: object) -> None:
+        pytest.fail("nothing is sent")
+
+    def instance(*_: object, **__: object) -> Instance:
+        return Instance()
+
+    monkeypatch.setattr(source_commands, "client_for", instance)
+    monkeypatch.setattr(source_commands.httpx2.Client, "request", no_request)
+    called = machine("source", "call", "p", "c", "--source-token", "t", "--text", "hi")
+    assert called.exit_code == 1, called.output
+    assert refusal(called.stdout)["code"] == "cli.source_path_refused"
 
 
 def test_a_source_is_called_with_its_token_and_its_journal_read_back(tmp_path: Path, server: str) -> None:

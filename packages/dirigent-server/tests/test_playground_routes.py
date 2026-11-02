@@ -13,6 +13,7 @@ from pydantic import SecretStr
 from starlette.types import Message, Scope
 
 from dirigent_core.config import Settings
+from dirigent_core.sources.endpoint import MAX_BODY_DEPTH
 from dirigent_server import create_app
 from dirigent_server.routes import playground as routes
 
@@ -92,6 +93,27 @@ def test_a_status_that_carries_no_body_carries_none(playground: TestClient) -> N
     response = playground.get(f"{PREFIX}/request", params={"status": 204})
     assert response.status_code == 204
     assert response.content == b""
+
+
+@pytest.mark.parametrize("status", [100, 101, 199, 600])
+def test_a_status_http_cannot_answer_a_request_with_is_refused(playground: TestClient, status: int) -> None:
+    response = playground.get(f"{PREFIX}/request", params={"status": status})
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.parametrize("depth", [MAX_BODY_DEPTH + 1, 900, 3900], ids=["past-the-limit", "past-pydantic", "deepest"])
+def test_a_json_body_nested_too_deep_is_reflected_as_text(playground: TestClient, depth: int) -> None:
+    text = "[" * depth + "]" * depth
+    response = playground.post(f"{PREFIX}/request", content=text, headers={"Content-Type": "application/json"})
+    assert response.status_code == 200, response.text
+    reflected = response.json()["request"]
+    assert reflected["body_kind"] == "text"
+
+
+def test_a_json_body_as_deep_as_an_endpoint_takes_is_reflected_as_json(playground: TestClient) -> None:
+    text = "[" * MAX_BODY_DEPTH + "]" * MAX_BODY_DEPTH
+    response = playground.post(f"{PREFIX}/request", content=text, headers={"Content-Type": "application/json"})
+    assert response.json()["request"]["body_kind"] == "json"
 
 
 def test_a_delay_is_taken_before_the_answer(playground: TestClient) -> None:
@@ -205,6 +227,9 @@ def test_a_header_this_origin_will_not_set_is_refused(playground: TestClient) ->
         "Access-Control-Allow-Origin",
         "Cross-Origin-Resource-Policy",
         "X-Accel-Redirect",
+        "X-Sendfile2",
+        "X-LIGHTTPD-send-file",
+        "X-LiteSpeed-Location",
         "bad name",
     ],
 )

@@ -18,6 +18,7 @@ from dirigent_core.auth import resolve_token
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_mcp.http import MCP_PATH, METHODS, Caller, McpEndpoint
+from dirigent_mcp.server import Offers
 from dirigent_server.errors import answer, render
 from dirigent_server.messages import MCP_CROSS_ORIGIN, UNAUTHENTICATED
 from dirigent_server.security import initiated_elsewhere
@@ -33,7 +34,14 @@ def install_mcp(app: FastAPI, settings: Settings) -> None:
             principal = await resolve_token(session, secret)
         if principal is None:
             return None
-        return Caller(key=str(principal.token_id), may_operate=principal.may_operate)
+        offers = (
+            Offers.ADMINISTERING
+            if principal.is_admin
+            else Offers.OPERATING
+            if principal.may_operate
+            else Offers.READING
+        )
+        return Caller(key=str(principal.token_id), offers=offers)
 
     def open_client(secret: str, request: Request) -> Dirigent:
         return Dirigent(

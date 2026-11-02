@@ -55,7 +55,7 @@ def read_document(reference: str) -> Document:
     path = Path(reference)
     if not path.is_file():
         raise SourceError(f"{reference} is neither a file, a URL, nor '-' for standard input")
-    return Document(text=path.read_text(), source=ProvenanceSource.FILE, ref=str(path))
+    return read_path(path)
 
 
 def fetch(url: str) -> str:
@@ -70,7 +70,10 @@ def fetch(url: str) -> str:
 
 def read_path(path: Path) -> Document:
     """Read a document from a path already known to be one, keeping its provenance."""
-    return Document(text=path.read_text(), source=ProvenanceSource.FILE, ref=str(path))
+    try:
+        return Document(text=path.read_text(), source=ProvenanceSource.FILE, ref=str(path))
+    except (OSError, UnicodeDecodeError) as error:
+        raise SourceError(f"{path} could not be read: {error}") from error
 
 
 def read_directory(directory: Path) -> tuple[list[Document], int]:

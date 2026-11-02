@@ -406,7 +406,7 @@ on that origin, which is exactly what `httponly` exists to prevent.
 
 ### The routes
 
-Every route takes `status` (the status to answer with, 100 to 599) and `delay` (how long to
+Every route takes `status` (the status to answer with, 200 to 599) and `delay` (how long to
 take first, as `250ms` or `2s`, at most 30 seconds).
 
 A body larger than 1 MiB is refused with a 413, read no further than one byte past that. One that has not arrived whole within 30 seconds is refused with a 408. Every
@@ -449,7 +449,7 @@ for a password, navigate or clear a browser, open this origin to another site, o
 browser enforces here is refused with a 422: `set-cookie`, `www-authenticate`, `refresh`,
 `clear-site-data`, `content-disposition`, `link`, `access-control-*`, `cross-origin-*`,
 `content-security-policy`, `x-content-type-options`, `x-frame-options`, what a proxy acts on
-(`x-accel-*`, `x-sendfile`), and the hop-by-hop headers, among others. `content-type` is one of
+(`x-accel-*`, `x-lighttpd-*`, `x-litespeed-*`, `x-sendfile`), and the hop-by-hop headers, among others. `content-type` is one of
 `application/json`, `application/x-ndjson`, `text/csv`, `text/plain` or
 `text/tab-separated-values`, with at most a `charset` after it, and `location` is a path on this instance or an absolute URL on
 its own origin. Anything else is refused the same way.
@@ -510,7 +510,7 @@ not JSON. The lines are still the value, and `transform.jq` splits them:
 
 ### Statuses that carry no body
 
-A 204, a 304 and the 1xx range cannot carry a body, so a call that asks for one of them gets
+A 204 and a 304 cannot carry a body, so a call that asks for one of them gets
 the status and no reflection. Every other status carries the envelope.
 
 ### Reaching it from a pipeline

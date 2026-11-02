@@ -12,7 +12,13 @@ from pydantic import JsonValue
 
 from dirigent_cli.commands import fail, paged, refuse_a_server_a_project_named
 from dirigent_cli.context import client_for, state_of
-from dirigent_cli.messages import ONE_INPUT_BODY, SOURCE_NOT_CALLABLE, SOURCE_UNREACHABLE, TAKES_NAME_EQUALS_VALUE
+from dirigent_cli.messages import (
+    ONE_INPUT_BODY,
+    SOURCE_NOT_CALLABLE,
+    SOURCE_PATH_REFUSED,
+    SOURCE_UNREACHABLE,
+    TAKES_NAME_EQUALS_VALUE,
+)
 from dirigent_cli.output import emit_fact, emit_one, emit_records
 from dirigent_client import DEFAULT_CONNECT_TIMEOUT
 from dirigent_plugin.sources import SIGNATURE_TIMESTAMP_HEADER, Route, sign_body
@@ -166,6 +172,8 @@ def source_call(
         base = dg.url
     if row.url_path is None or not row.methods:
         fail(SOURCE_NOT_CALLABLE, code=repr(code), pipeline=repr(pipeline), kind=repr(row.kind))
+    if not row.url_path.startswith("/"):
+        fail(SOURCE_PATH_REFUSED, code=repr(code), path=repr(row.url_path))
     chosen = (method or row.methods[0]).upper()
     url = base.rstrip("/") + Route(methods=tuple(row.methods), template=row.url_path).fill(_pairs(path_params))
     headers = {"Authorization": f"Bearer {token}"} if token else {}
