@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import SecretStr, ValidationError
-from sqlalchemy.engine import URL
+from sqlalchemy.engine import URL, make_url
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from dirigent_block_sql import engines
@@ -285,11 +285,14 @@ async def test_a_read_only_connection_reads_a_held_file_whose_path_a_uri_would_m
     assert (await query(local_ctx, "SELECT id FROM reading")).rows == [{"id": 1}]
 
 
-async def test_a_read_only_connection_does_not_create_the_file_it_names(local_ctx: FakeContext, tmp_path: Path) -> None:
+def test_a_read_only_connection_does_not_create_the_file_it_names(tmp_path: Path) -> None:
+    """Asked of sqlite directly: aiosqlite leaves a failed open's thread to the collector, past the test's loop."""
     path = tmp_path / "absent.db"
-    local_ctx.connections["db"] = SqlConnectionConfig(url=f"sqlite+aiosqlite:///{path}", read_only=True)
-    with pytest.raises(Exception, match="unable to open"):
-        await query(local_ctx, "SELECT 1")
+    settings = SqlConnectionConfig(url=f"sqlite+aiosqlite:///{path}", read_only=True)
+    opened = engines._opened_as_marked(settings, make_url(settings.url))  # pyright: ignore[reportPrivateUsage]
+    assert opened.query == {"mode": "ro", "uri": "true"}
+    with pytest.raises(sqlite3.OperationalError, match="unable to open"):
+        sqlite3.connect(f"{opened.database}?mode=ro", uri=True)
     assert not path.exists()
 
 
