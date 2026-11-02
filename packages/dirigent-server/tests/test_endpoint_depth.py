@@ -8,10 +8,11 @@ import sqlalchemy as sa
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from dirigent_client.enums import LogLevel
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.messages import CONFIG_FAILED, CONFIG_REFUSED, ENDPOINT_BODY_TOO_DEEP
-from dirigent_core.models import StepAttempt
+from dirigent_core.models import LogEntry, StepAttempt
 from dirigent_core.sources.endpoint import MAX_BODY_DEPTH
 from tests_support import apply_document
 
@@ -98,6 +99,52 @@ def store_at_source(client: TestClient, run_id: str, depth: int) -> None:
 
     assert client.portal is not None
     client.portal.call(write)
+
+
+@pytest.mark.parametrize(("column", "route"), [("error_params", "attempts"), ("output", "attempts")])
+def test_an_attempt_stored_past_what_pydantic_walks_still_reads(client: TestClient, column: str, route: str) -> None:
+    """A row from before the bound, or a value another kind wrote, is shown cut rather than answered 500."""
+    apply_document(client, OTHER)
+    run_id = start(client, "other")
+    app = cast("FastAPI", client.app)
+    deep = {"body": nested_value(PYDANTIC_WALKS + 40)}
+
+    async def write() -> None:
+        async with app.state.session_factory() as session:
+            await session.execute(
+                sa.update(StepAttempt).where(StepAttempt.run_id == UUID(run_id)).values(**{column: deep})
+            )
+            await session.commit()
+
+    assert client.portal is not None
+    client.portal.call(write)
+    answered = client.get(f"{PREFIX}/runs/{run_id}/{route}")
+    assert answered.status_code == 200, answered.text
+    assert answered.json()["items"][0][column] is not None
+
+
+def test_a_log_entry_stored_past_what_pydantic_walks_still_reads(client: TestClient) -> None:
+    apply_document(client, OTHER)
+    run_id = start(client, "other")
+    app = cast("FastAPI", client.app)
+
+    async def write() -> None:
+        async with app.state.session_factory() as session:
+            session.add(
+                LogEntry(
+                    run_id=UUID(run_id),
+                    step_name="one",
+                    level=LogLevel.INFO,
+                    message="deep",
+                    fields={"body": nested_value(PYDANTIC_WALKS + 40)},
+                )
+            )
+            await session.commit()
+
+    assert client.portal is not None
+    client.portal.call(write)
+    answered = client.get(f"{PREFIX}/runs/{run_id}/$logs")
+    assert answered.status_code == 200, answered.text
 
 
 def drain(client: TestClient) -> int:

@@ -41,7 +41,7 @@ from dirigent_core.engine.definition import (
     TimeoutAction,
     TriggerRule,
 )
-from dirigent_core.engine.executor import Engine, probe_interval, timeout_failure
+from dirigent_core.engine.executor import Engine, UnitRaised, probe_interval, timeout_failure
 from dirigent_core.engine.recovery import detect_stuck_runs, sweep_leases
 from dirigent_core.engine.runs import (
     REMOTE_CANCEL_WINDOW,
@@ -3165,6 +3165,32 @@ async def test_a_secret_a_waiting_sensor_quotes_is_neither_kept_nor_logged(
     assert waiting.waiting_message == "refused *** here"
     logged = [entry.message for entry in await logs_of(sessions, run.id)]
     assert logged == ["refused *** here"]
+
+
+async def test_an_error_nothing_recorded_is_raised_without_a_secret_the_attempt_opened(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    definition = PipelineDefinition(
+        code="escaping",
+        steps=steps(
+            wait=StepDefinition(
+                block="test.tick",
+                config={"ready_after": 1, "says": ["waiting"], "opens": QUOTED, "key": "escaping"},
+                poll=timedelta(seconds=1),
+            )
+        ),
+    )
+    await start(sessions, services, definition)
+
+    async def fails(*_: object, **__: object) -> None:
+        raise RuntimeError(f"could not record {QUOTED.strip()}")
+
+    monkeypatch.setattr(engine, "_record", fails)
+    unit = await engine.claim()
+    assert unit is not None
+    with pytest.raises(UnitRaised) as raised:
+        await engine.run_unit(unit)
+    assert str(raised.value) == "could not record ***"
 
 
 async def test_the_same_sight_is_logged_once(engine: Engine, sessions: Any, services: EngineServices) -> None:

@@ -169,6 +169,10 @@ class Vanished(BaseModel):
     message: str
 
 
+class UnitRaised(RuntimeError):
+    """A unit ended in an error nothing recorded, which is the engine's fault and not the block's."""
+
+
 class Errored(BaseModel):
     """The block failed, already classified."""
 
@@ -440,7 +444,19 @@ class Engine:
     # -- execution ---------------------------------------------------------------
 
     async def run_unit(self, unit: ClaimedUnit, *, now: datetime | None = None) -> None:
-        """Call the block for one claimed unit and record whatever it did."""
+        """Call the block for one claimed unit and record whatever it did.
+
+        Raises:
+            UnitRaised: Recording it failed, said with every secret the attempt opened taken out.
+        """
+        secrets: set[str] = set()
+        try:
+            await self._run_unit(unit, secrets, now=now)
+        except Exception as error:
+            raise UnitRaised(scrub(str(error), secrets) or type(error).__name__) from error
+
+    async def _run_unit(self, unit: ClaimedUnit, secrets: set[str], *, now: datetime | None = None) -> None:
+        """Run one unit, gathering what it opens in ``secrets``."""
         with (
             telemetry.attempt_span(
                 run_id=str(unit.run_id),
@@ -467,6 +483,7 @@ class Engine:
                 limit=self.services.settings.log_entries_per_attempt,
                 batch=self.services.settings.log_flush_batch,
             )
+            logger.secrets = secrets
             meter = StorageMeter(self.sessions, unit.run_id, self.services.settings.run_storage_quota)
             try:
                 context = self._context(unit, logger, meter)

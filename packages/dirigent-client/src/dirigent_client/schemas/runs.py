@@ -17,7 +17,7 @@ from dirigent_client.enums import (
     StepKind,
     TriggerKind,
 )
-from dirigent_client.schemas.common import WireModel
+from dirigent_client.schemas.common import StoredJson, WireModel
 from dirigent_common import JsonMap
 
 TERMINAL_RUN_STATUSES: frozenset[RunStatus] = frozenset(
@@ -57,7 +57,7 @@ class RunOut(WireModel):
     """What went wrong: the reason a cancel gave, else what the first failed attempt said."""
     error_code: str | None = None
     """The dotted code of the refusal the error was rendered from."""
-    error_params: JsonMap | None = None
+    error_params: StoredJson = None
     """The specifics the refusal rendered, for a re-render in another language."""
     failed_step: str | None = None
     """The step whose first failed attempt this run holds, when it did not end well."""
@@ -93,10 +93,10 @@ class AttemptOut(WireModel):
     error: str | None = None
     error_code: str | None = None
     """The dotted code of the refusal this attempt failed with."""
-    error_params: JsonMap | None = None
+    error_params: StoredJson = None
     """The specifics the refusal rendered, for a re-render in another language."""
     error_class: str | None = None
-    output: JsonMap | None = None
+    output: StoredJson = None
     output_uri: str | None = None
     """Where the output was written, when it was too large to inline on the artifact."""
 
@@ -145,7 +145,7 @@ class ItemOut(WireModel):
     error: str | None = None
     error_code: str | None = None
     """The dotted code of the refusal the error was rendered from."""
-    error_params: JsonMap | None = None
+    error_params: StoredJson = None
     """The specifics the refusal rendered, for a re-render in another language."""
 
 
@@ -222,13 +222,13 @@ class LogEntryOut(WireModel):
     step_attempt_id: UUID | None = None
     level: LogLevel
     message: str
-    fields: JsonMap | None = None
+    fields: StoredJson = None
     error_code: str | None = None
     """The dotted code of the refusal this line reports, when it reports one.
 
     A log line is an event and carries no code of its own; a line the engine writes about a
     refusal repeats that refusal's code, so a reader can render the line rather than print it."""
-    error_params: JsonMap | None = None
+    error_params: StoredJson = None
     """The specifics that refusal rendered, for a re-render in another language."""
     created_at: datetime
 
@@ -250,7 +250,7 @@ class StepReport(WireModel):
     error: str | None = None
     error_code: str | None = None
     """The dotted code of the refusal this step failed with."""
-    error_params: JsonMap | None = None
+    error_params: StoredJson = None
     """The specifics that refusal rendered, for a re-render in another language."""
 
 
@@ -271,7 +271,7 @@ class RunReport(WireModel):
     error: str | None = None
     error_code: str | None = None
     """The dotted code of the refusal this run ended with."""
-    error_params: JsonMap | None = None
+    error_params: StoredJson = None
     """The specifics that refusal rendered, for a re-render in another language."""
 
 
