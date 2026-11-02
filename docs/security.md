@@ -558,9 +558,11 @@ is cancelled, so nothing runs on behind it. That bound also ends a schema whose 
 than the value, such as `unevaluatedProperties` beside a recursive `$ref`, which evaluates each
 level twice. A `format` a caller's text is checked against costs time in step with that text:
 `regex` reads the text as a pattern without compiling it, and refuses one longer than 8192
-characters, and `uri`, `uri-reference`, `iri` and `iri-reference` are matched by the same engine
-as `pattern`, which stops at the bound. A format a pack contributes runs as the pack wrote it. A
-run's parameters are checked off the event loop, on the server and on a worker whose
+characters, and `uri`, `uri-reference`, `iri`, `iri-reference` and `uri-template` are matched by the
+same engine as `pattern`, which stops at the bound. Every other standard format and a format a pack
+contributes is handed no text longer than 8192 characters, and a longer text fails it. Below that
+limit a pack's format runs as the pack wrote it, and a check of `format` stops at the next value
+once the bound has passed. A run's parameters are checked off the event loop, on the server and on a worker whose
 `pipeline.run` step starts a child, and that check stops after one second, or when its caller is
 cancelled, and refuses the run (`parameter.unchecked`).
 
@@ -825,9 +827,10 @@ resolve to an integer, and anything else fails the step as `rejected` before the
 - anywhere in a command that declares an integer variable, with `declare -i` or the like, because a
   later assignment to it evaluates, or a nameref, with `declare -n`, because reading it does. So one
   such line holds every reference in that command.
-- an indexed array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`, or a compound
-  assignment's, as `a=([${v}]=1)`. An array the same command declares with `declare -A` is not held
-  to it in the first form, and neither is `echo a[${v}]`, which is a glob.
+- an array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`, or a compound assignment's, as
+  `a=([${v}]=1)`. A `declare -A` in the command changes nothing, because whether bash has made the
+  array associative where the subscript runs depends on what it executed. `echo a[${v}]` is a glob
+  and is not held to it.
 - a declaration whose compound assignment is one quoted word, as `declare -a "a=(${v})"`, which bash
   parses again. `declare -a a=("${v}")` is not held to it.
 - `${var:offset}` and `${var:offset:length}`, but not `${var:-default}` and its kin

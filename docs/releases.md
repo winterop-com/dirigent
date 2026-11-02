@@ -19,12 +19,28 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**`format: uri-template` costs time in step with a caller's text.** The library's check was
+quadratic on a run of `{` and held the interpreter's lock, so 80,000 characters stopped a worker's
+event loop for 2.4 seconds past a 200 ms `validate.schema` timeout. It is now matched by the same
+engine as `pattern`, accepting what the library accepts, and stops at the bound. Every other
+standard format, and a format a pack contributes, is handed no text longer than 8192 characters; a
+longer text fails the format. `base64`, `humane-duration` and dirigent's other own formats are not
+limited, since they were measured linear.
+
 **A checkout's files cannot write terminal escapes through `dg`.** The text of a
 `.dirigent/profiles.yaml` reached the terminal raw through a profile's refusal, so a repository
 could clear the screen, set the title or write the clipboard of whoever ran `dg` in it. A profile's
 refusal now has every control character removed, and a profile name that is not valid is one of
 those refusals rather than an uncaught error. A malformed `dirigent.yaml`, and a document that is
 not text, are now refused with a record (`cli.source_refused`) rather than a traceback.
+
+**An array's subscript in a shell command is held to an integer, whatever the command declares.**
+A `${...}` in `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}` used to take any value when `declare -A a`
+appeared anywhere in the text, including in a branch not taken, a function, a subshell, before an
+`unset`, or on an array already indexed, where bash still evaluates the subscript and a caller's
+`$(cmd)` ran. The reference now has to be an integer in every such place. A command keying an
+associative array on a caller's text is refused when the step starts, and takes the value through
+`argv`, which involves no shell.
 
 ## 0.30.0
 
