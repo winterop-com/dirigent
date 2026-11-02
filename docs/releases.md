@@ -19,6 +19,14 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**`format: uri-template` costs time in step with a caller's text.** The library's check was
+quadratic on a run of `{` and held the interpreter's lock, so 80,000 characters stopped a worker's
+event loop for 2.4 seconds past a 200 ms `validate.schema` timeout. It is now matched by the same
+engine as `pattern`, accepting what the library accepts, and stops at the bound. Every other
+standard format, and a format a pack contributes, is handed no text longer than 8192 characters; a
+longer text fails the format. `base64`, `humane-duration` and dirigent's other own formats are not
+limited, since they were measured linear.
+
 **An array's subscript in a shell command is held to an integer, whatever the command declares.**
 A `${...}` in `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}` used to take any value when `declare -A a`
 appeared anywhere in the text, including in a branch not taken, a function, a subshell, before an
