@@ -49,6 +49,8 @@ standard format, and a format a pack contributes, is handed no text longer than 
 longer text fails the format. `base64`, `humane-duration` and dirigent's other own formats are not
 limited, since they were measured linear.
 
+**What a poll or an attempt raises past its block is scrubbed, a stored value too deep still reads, and a NUL in a list of text is refused.** A polled source's `last_error` and the worker's log line for an error nothing recorded carried `str(error)` as it was; both now lose every secret the poll or the attempt opened. A row stored past what pydantic walks answers a read with `error_params`, `output` or `fields` cut at the bound rather than a 500. A NUL in a `list[str]` body field such as `POST /pipelines/$prune`'s `keep`, which PostgreSQL refuses with a 500, is refused 422. `Engine.run_unit` now raises `UnitRaised`.
+
 **A secret a waiting block quotes is scrubbed.** A running probe's or a sensor's message was kept on the attempt and logged as it was written, unlike a failure's. It is now scrubbed the same way.
 
 **A checkout's files cannot write terminal escapes through `dg`.** The text of a
