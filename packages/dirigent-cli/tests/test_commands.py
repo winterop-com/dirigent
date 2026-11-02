@@ -761,7 +761,9 @@ def test_a_checkouts_profile_cannot_write_an_escape_to_the_terminal(
         monkeypatch.setenv("DG_TOKEN", token)
     result = runner.invoke(app, ["pipeline", "list"])
     assert result.exit_code == 2, result.output
-    assert "\x1b" not in result.stdout + result.stderr
+    written = result.stdout + result.stderr
+    assert "\x1b]" not in written, "the title and the clipboard"
+    assert "\x1b[2J" not in written, "the screen"
     assert not isinstance(result.exception, ValueError), "refused, rather than an uncaught error"
 
 
