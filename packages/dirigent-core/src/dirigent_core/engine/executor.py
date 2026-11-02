@@ -169,7 +169,7 @@ class Vanished(BaseModel):
     message: str
 
 
-class UnitRaised(Exception):
+class UnitRaised(RuntimeError):
     """A unit ended in an error nothing recorded, which is the engine's fault and not the block's."""
 
 
