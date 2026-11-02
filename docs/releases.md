@@ -19,6 +19,14 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**An array's subscript in a shell command is held to an integer, whatever the command declares.**
+A `${...}` in `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}` used to take any value when `declare -A a`
+appeared anywhere in the text, including in a branch not taken, a function, a subshell, before an
+`unset`, or on an array already indexed, where bash still evaluates the subscript and a caller's
+`$(cmd)` ran. The reference now has to be an integer in every such place. A command keying an
+associative array on a caller's text is refused when the step starts, and takes the value through
+`argv`, which involves no shell.
+
 **A `read_only` SQLite connection cannot write its file.** `PRAGMA query_only` left two pragmas able
 to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_checkpoint` moved a
 write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.
