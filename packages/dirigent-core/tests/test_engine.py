@@ -2435,7 +2435,7 @@ async def test_a_url_a_fan_out_over_a_steps_output_reads_runs(
     await drain(engine)
     attempts = [one for one in await attempts_of(sessions, run.id) if one.step_name == "call"]
     assert [one.status for one in attempts] == [AttemptStatus.SUCCEEDED]
-    assert attempts[0].input["config"]["url"] == "https://files.test/x?token=***&page=2"
+    assert (attempts[0].input or {})["config"]["url"] == "https://files.test/x?token=***&page=2"
 
 
 @pytest.mark.parametrize(
