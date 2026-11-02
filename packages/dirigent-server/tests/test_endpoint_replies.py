@@ -350,6 +350,9 @@ steps:
         "Strict-Transport-Security",
         "Cross-Origin-Opener-Policy",
         "X-Accel-Redirect",
+        "X-Sendfile2",
+        "X-LIGHTTPD-send-file",
+        "X-LiteSpeed-Location",
         "Transfer-Encoding",
     ],
 )

@@ -199,12 +199,13 @@ REPLY_HEADERS_REFUSED: Final = frozenset(
         "x-content-type-options",
         "x-frame-options",
         "x-sendfile",
+        "x-sendfile2",
         "x-xss-protection",
     }
 )
 
 #: Families refused like the names above.
-REPLY_HEADER_PREFIXES_REFUSED: Final = ("cross-origin-", "x-accel-")
+REPLY_HEADER_PREFIXES_REFUSED: Final = ("cross-origin-", "x-accel-", "x-lighttpd-", "x-litespeed-")
 
 #: What a header name may be spelled with: an RFC 9110 token.
 HEADER_NAME: Final = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
