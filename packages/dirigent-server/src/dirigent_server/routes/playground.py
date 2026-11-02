@@ -30,7 +30,7 @@ import secrets
 import time
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Final, cast
+from typing import Annotated, Any, Final, cast
 from urllib.parse import SplitResult, unquote_plus, urlencode, urlsplit
 
 from fastapi import APIRouter, FastAPI, Query, Request, Response
@@ -41,6 +41,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from dirigent_common import Duration, Size, filler
 from dirigent_common.depth import nests_past
+from dirigent_common.hosts import counted_as
 from dirigent_core.config import Settings
 from dirigent_core.sources.endpoint import MAX_BODY_DEPTH
 from dirigent_server.bodies import read_within_deadline
@@ -185,6 +186,12 @@ STREAM_DEADLINE: Final = timedelta(seconds=30) + MAX_SPAN + timedelta(seconds=5)
 
 #: How many streams one process keeps open at once, which is what one stream's deadline leaves unbounded.
 MAX_STREAMS: Final = 32
+
+#: What a call with no peer address is counted as, which every such call shares.
+NO_PEER: Final = "no peer"
+
+#: The streams one address may hold of those, so one caller cannot take every seat.
+MAX_STREAMS_PER_ADDRESS: Final = 8
 
 #: The most one stream hands the server in one write. A server keeps a write it has accepted until
 #: the client reads it, deadline or not, so this is what a client that stopped reading can still hold.
@@ -676,14 +683,17 @@ async def stream(
         gap_ms=round(every.total_seconds() * 1000),
         payload_bytes=payload,
     )
-    if not _SEATS.take():
+    address = counted_as(request.client.host) if request.client else NO_PEER
+    if not _SEATS.take(address):
         raise Refusal(
             PLAYGROUND_STREAMS_FULL,
             status=http_status.HTTP_503_SERVICE_UNAVAILABLE,
             headers={"Retry-After": str(int(MAX_GAP.total_seconds()))},
             limit=MAX_STREAMS,
+            per_address=MAX_STREAMS_PER_ADDRESS,
         )
     return _SeatedStream(
+        address,
         _lines(opened, every, None if payload is None else filler(payload)),
         media_type=NDJSON,
         # A stream a proxy holds until it is whole is not a stream, and the point of the route
@@ -693,22 +703,30 @@ async def stream(
 
 
 class _Seats:
-    """How many streams this process holds, counted so an anonymous caller cannot open them without end."""
+    """How many streams this process holds, and each address of them, so nobody opens them without end."""
 
     def __init__(self) -> None:
         """Start with every seat free."""
         self.taken = 0
+        self.by_address: dict[str, int] = {}
 
-    def take(self) -> bool:
-        """Take a seat, or say none is free."""
-        if self.taken >= MAX_STREAMS:
+    def take(self, address: str) -> bool:
+        """Take a seat for this address, or say none is free for it."""
+        held = self.by_address.get(address, 0)
+        if self.taken >= MAX_STREAMS or held >= MAX_STREAMS_PER_ADDRESS:
             return False
         self.taken += 1
+        self.by_address[address] = held + 1
         return True
 
-    def give_back(self) -> None:
-        """Free a seat."""
+    def give_back(self, address: str) -> None:
+        """Free a seat this address held."""
         self.taken -= 1
+        held = self.by_address[address] - 1
+        if held:
+            self.by_address[address] = held
+        else:
+            del self.by_address[address]
 
 
 _SEATS: Final = _Seats()
@@ -717,12 +735,17 @@ _SEATS: Final = _Seats()
 class _SeatedStream(StreamingResponse):
     """A stream that gives back the seat the route took for it, however it ended."""
 
+    def __init__(self, address: str, *args: Any, **kwargs: Any) -> None:
+        """Hold which address the seat was taken for."""
+        super().__init__(*args, **kwargs)
+        self.address = address
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Send the stream, and free its seat whether it finished or was cancelled."""
         try:
             await super().__call__(scope, receive, send)
         finally:
-            _SEATS.give_back()
+            _SEATS.give_back(self.address)
 
 
 class StreamDeadline:

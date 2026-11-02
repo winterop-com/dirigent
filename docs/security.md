@@ -497,7 +497,8 @@ nothing and spends nothing from the source's own bucket, so a stranger without t
 the secret, or a caller in a loop, cannot cause writes or starve the source's real callers.
 The first bucket is counted per address, so a stranger elsewhere spends their own count: behind a
 reverse proxy that is the proxy's address unless uvicorn trusts it, so set `FORWARDED_ALLOW_IPS`
-to the proxy's address, or every caller shares one count and a stranger can again spend it.
+to the proxy's address, or every caller shares one count and a stranger can again spend it. A call
+with no peer address at all, over a UNIX socket with nothing forwarding, shares one count too.
 Every spelling of a route and every value of its parameters share one count, and every path no
 route answers shares another, so a caller cannot widen its own count by spelling a path anew.
 The record of a signature taken is the one write ahead of the rate, and only a caller holding
