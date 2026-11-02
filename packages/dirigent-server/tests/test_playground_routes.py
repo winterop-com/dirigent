@@ -643,6 +643,30 @@ async def test_one_process_holds_only_so_many_streams_and_frees_a_seat_at_the_de
         assert answered.status_code == 200, answered.text
 
 
+async def test_one_address_cannot_take_every_seat(
+    settings: Settings, admin_token: str, monkeypatch: pytest.MonkeyPatch, stream_deadlines: list[asyncio.Timeout]
+) -> None:
+    monkeypatch.setattr(routes, "MAX_STREAMS_PER_ADDRESS", 1, raising=False)
+    app = create_app(settings)
+    first = _NotReading()
+    held = asyncio.create_task(app({**_stream_scope(), "client": ("2001:db8:0:1::1", 1)}, first.receive, first.send))
+    await asyncio.wait_for(first.blocked.wait(), timeout=60)
+
+    async def from_address(address: str) -> httpx2.Response:
+        transport = httpx2.ASGITransport(app, client=(address, 1))
+        async with httpx2.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            return await client.get(f"{PREFIX}/stream", params={"messages": 1, "every": "0s"})
+
+    refused = await from_address("2001:db8:0:1::2")
+    assert refused.status_code == 503, "the same /64 is the same address"
+    assert refused.json()["params"]["per_address"] == 1
+    assert (await from_address("203.0.113.9")).status_code == 200, "another address still gets a seat"
+    _reach(stream_deadlines[0])
+    await asyncio.wait_for(held, timeout=60)
+    assert (await from_address("2001:db8:0:1::2")).status_code == 200, "the seat came back"
+    assert routes._SEATS.by_address == {}  # pyright: ignore[reportPrivateUsage]
+
+
 def test_a_stream_needs_no_credential_either(playground: TestClient) -> None:
     assert playground.get(f"{PREFIX}/stream", params={"messages": 1, "every": "0s"}).status_code == 200
 

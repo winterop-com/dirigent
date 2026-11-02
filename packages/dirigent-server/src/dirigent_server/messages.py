@@ -125,7 +125,8 @@ PLAYGROUND_HEADER_REFUSED = SERVER.define(
 )
 
 PLAYGROUND_STREAMS_FULL = SERVER.define(
-    "playground_streams_full", "the playground holds {limit} streams at once, so send again once one ends"
+    "playground_streams_full",
+    "the playground holds {limit} streams at once and {per_address} for one address, so send again once one ends",
 )
 
 HOST_NOT_LOOPBACK = SERVER.define(

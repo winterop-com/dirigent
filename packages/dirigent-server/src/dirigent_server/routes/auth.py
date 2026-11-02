@@ -1,6 +1,5 @@
 """Logging in, logging out, and asking who you are."""
 
-import ipaddress
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Response, status
@@ -15,6 +14,7 @@ from dirigent_client.schemas import (
     TokenOut,
     TokenRequest,
 )
+from dirigent_common.hosts import counted_as
 from dirigent_core.auth import (
     SESSION_LIFETIME,
     Principal,
@@ -92,17 +92,6 @@ async def login(
     return Identity(user_id=user.id, username=user.username, role=user.role, via=TokenKind.SESSION)
 
 
-def _counted_as(host: str) -> str:
-    """What a login count is keyed on: an address, or for IPv6 the /64 one host is usually handed whole."""
-    try:
-        address = ipaddress.ip_address(host)
-    except ValueError:
-        return host
-    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is None:
-        return str(ipaddress.ip_network(f"{address}/64", strict=False))
-    return str(address.ipv4_mapped if isinstance(address, ipaddress.IPv6Address) else address)
-
-
 def _limit_login(request: Request, username: str, *, per_minute: int, address_per_minute: int) -> None:
     """Refuse a caller attempting logins faster than the instance is willing to hash.
 
@@ -111,7 +100,7 @@ def _limit_login(request: Request, username: str, *, per_minute: int, address_pe
     account from this address, which a caller elsewhere cannot spend. Refusal must stay ahead
     of the hash.
     """
-    address = _counted_as(request.client.host) if request.client else "unknown"
+    address = counted_as(request.client.host) if request.client else "unknown"
     checks = (
         ("address", ADDRESS_BUCKETS, address, address_per_minute),
         ("account", LOGIN_BUCKETS, f"{address} {username}", per_minute),

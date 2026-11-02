@@ -488,7 +488,8 @@ connection.
 **A stream is bounded whether or not it is read.** A call ends 95 seconds after it arrives,
 which is the longest `delay` and span it may ask for and a moment to send what is left, and the
 connection is cut without that last line if a client has not read it by then. One process holds 32 streams
-at once and answers any more with a 503 (`server.playground_streams_full`).
+at once, at most 8 for one address, an IPv6 address counting as its /64, and answers any more with a
+503 (`server.playground_streams_full`).
 
 ```console
 $ curl -N 'http://127.0.0.1:3333/api/v1/playground/stream?messages=3&every=100ms'

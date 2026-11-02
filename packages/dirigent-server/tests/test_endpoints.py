@@ -3,7 +3,7 @@
 import hashlib
 import hmac
 import time
-from typing import Any
+from typing import Any, cast
 
 import pytest
 import yaml
@@ -461,6 +461,13 @@ def test_a_form_reaches_a_source_that_takes_one_and_json_does_not(client: TestCl
     assert (entered["body_kind"], entered["body"]) == ("form", {"email": "ada@example.org", "tag": ["a", "b"]})
     refused = client.post("/endpoints/echo/ann", json={"email": "x"}, headers=bearer(token))
     assert refused.status_code == 415, refused.text
+
+
+def test_calls_with_no_peer_address_share_one_count(settings: Settings, admin_token: str) -> None:
+    """A UNIX socket with nothing forwarding gives no address, and a count per connection is no count."""
+    with TestClient(_flood(settings, 1), client=cast("Any", None)) as nobody:
+        assert nobody.post("/endpoints/nowhere", json={}).status_code == 404
+        assert nobody.post("/endpoints/nowhere", json={}).status_code == 429
 
 
 def signed(secret: str, body: bytes, *, at: float | None = None) -> dict[str, str]:

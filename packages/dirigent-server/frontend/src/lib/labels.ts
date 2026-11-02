@@ -1184,7 +1184,7 @@ const refused = {
         playground_off_instance:
             '{to} is not a path on this instance. The playground redirects only to paths on this instance.',
         playground_streams_full:
-            'The playground holds at most {limit} streams at once. Send again once one ends.',
+            'The playground holds {limit} streams at once and {per_address} for one address, so send again once one ends.',
         playground_unauthenticated:
             'This route wants a credential: the basic pair {username}/{username}, or the documented bearer token. Both are public constants.',
         prune_names_nothing:
