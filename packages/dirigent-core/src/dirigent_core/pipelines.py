@@ -542,7 +542,7 @@ async def listing_shapes(session: AsyncSession, pipeline_ids: Sequence[UUID]) ->
     for version in (await session.execute(current)).scalars():
         try:
             definition = load_definition(version.ordered_document)
-        except ValidationError:
+        except (ValidationError, RecursionError):
             continue
         shapes[version.pipeline_id] = [
             StepShape(

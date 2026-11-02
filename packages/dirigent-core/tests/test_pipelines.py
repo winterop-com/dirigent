@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import Importance, ProvenanceSource, RunStatus
+from dirigent_core import pipelines
 from dirigent_core.database import session_scope
 from dirigent_core.documents import load_pipeline_text as load_text
 from dirigent_core.documents import to_yaml
@@ -117,6 +118,25 @@ async def test_a_dry_run_reports_the_plan_and_writes_nothing(
     assert result.dry_run and result.plan.action is PlanAction.CREATE and result.version is None
     async with session_scope(sessions) as session:
         assert await find_pipeline(session, "daily-load") is None
+
+
+async def test_a_stored_document_that_no_longer_loads_is_left_out_of_a_listing(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A template's compile depends on the stack it runs on, which is deeper here than at apply."""
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(DOCUMENT))
+    async with session_scope(sessions) as session:
+        stored = await find_pipeline(session, "daily-load")
+        assert stored is not None
+
+        def fails(_: object) -> None:
+            raise RecursionError
+
+        monkeypatch.setattr(pipelines, "load_definition", fails)
+        assert await pipelines.listing_shapes(session, [stored.id]) == {}
 
 
 async def test_an_invalid_document_is_refused_with_its_issues(
