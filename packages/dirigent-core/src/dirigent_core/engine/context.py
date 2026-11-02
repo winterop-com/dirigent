@@ -21,7 +21,15 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import LogLevel
-from dirigent_common import BaseRedirect, JsonMap, scrub, scrub_json, secrets_of
+from dirigent_common import (
+    BaseRedirect,
+    CredentialOnOrigin,
+    JsonMap,
+    credential_header_value,
+    scrub,
+    scrub_json,
+    secrets_of,
+)
 from dirigent_core.logging import debug_kept, get_logger
 from dirigent_core.messages import (
     CONNECTION_WRONG_KIND,
@@ -43,12 +51,18 @@ TIMEOUT_FIELD = "timeout"
 BEARER_FIELD = "bearer_token"
 API_TOKEN_FIELD = "api_token"
 API_TOKEN_SCHEME_FIELD = "api_token_scheme"
+CREDENTIAL_FIELD = "credential"
+CREDENTIAL_HEADER_FIELD = "credential_header"
+CREDENTIAL_SCHEME_FIELD = "credential_scheme"
 BASIC_USER_FIELD = "basic_username"
 BASIC_PASSWORD_FIELD = "basic_password"
 
 #: The authorization scheme an ``api_token`` is sent under when the config names none, which
 #: is the scheme a personal access token is usually presented with.
 DEFAULT_API_TOKEN_SCHEME = "ApiToken"
+
+#: The header a ``credential`` is sent in when the config names none.
+DEFAULT_CREDENTIAL_HEADER = "Authorization"
 
 DEFAULT_HTTP_TIMEOUT = 30.0
 
@@ -458,6 +472,9 @@ def build_http_client(config: BaseModel) -> httpx2.AsyncClient:
     ``Authorization: Bearer``; ``api_token`` is sent under the scheme the config's
     ``api_token_scheme`` names, and ``ApiToken`` when it names none, which is the scheme a
     personal access token usually needs. ``bearer_token`` wins if a config carries both.
+    ``credential`` is sent in the header ``credential_header`` names, ``Authorization`` when it
+    names none, after ``credential_scheme`` when one is set, and only to the origin of
+    ``base_url``; it wins over either token in the same header.
     ``basic_username`` and ``basic_password`` become the client's auth, which httpx applies
     per request, so basic credentials beside a token win over the header.
     """
@@ -473,16 +490,20 @@ def build_http_client(config: BaseModel) -> httpx2.AsyncClient:
     elif api_token:
         scheme = _text(config, API_TOKEN_SCHEME_FIELD) or DEFAULT_API_TOKEN_SCHEME
         headers["Authorization"] = f"{scheme} {api_token}"
+    credential = _text(config, CREDENTIAL_FIELD)
+    credential_header = _text(config, CREDENTIAL_HEADER_FIELD) or DEFAULT_CREDENTIAL_HEADER
+    if credential:
+        headers[credential_header] = credential_header_value(credential, _text(config, CREDENTIAL_SCHEME_FIELD))
     auth: httpx2.Auth | None = None
     user = _text(config, BASIC_USER_FIELD)
     password = _text(config, BASIC_PASSWORD_FIELD)
     if user:
         auth = httpx2.BasicAuth(user, password or "")
-    hooks: dict[str, list[Callable[..., Any]]] | None = (
-        {"request": [BaseRedirect(base_url, verify=bool(verify))]}
-        if base_url and getattr(config, FOLLOW_REDIRECTS_WITH_AUTH_FIELD, False) is True
-        else None
-    )
+    hooks: dict[str, list[Callable[..., Any]]] = {"request": []}
+    if credential:
+        hooks["request"].append(CredentialOnOrigin(base_url, credential_header))
+    if base_url and getattr(config, FOLLOW_REDIRECTS_WITH_AUTH_FIELD, False) is True:
+        hooks["request"].append(BaseRedirect(base_url, verify=bool(verify)))
     return httpx2.AsyncClient(
         base_url=base_url,
         headers=headers,

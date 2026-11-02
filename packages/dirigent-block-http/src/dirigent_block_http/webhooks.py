@@ -28,7 +28,7 @@ from dirigent_block_http.http import (
     target_issues,
 )
 from dirigent_block_http.messages import WEBHOOK_NO_SECRET, WEBHOOK_STATUS_REFUSED
-from dirigent_common import BlockModel, Issue, Size
+from dirigent_common import BlockModel, Issue, PlainHeaders, Size
 from dirigent_plugin import BlockFailure, ConnectionRef, ErrorClass, Operator, OperatorSpec, RemoteHandle, StepContext
 from dirigent_plugin.sources import SIGNATURE_TIMESTAMP_HEADER, sign_body
 
@@ -47,8 +47,9 @@ class WebhookPostConfig(HttpTarget):
     body: JsonValue = Field(default_factory=dict[str, JsonValue])
     """The JSON payload, usually built from upstream outputs with ``${steps...}`` references."""
 
-    headers: dict[str, str] = Field(default_factory=dict[str, str])
-    """Extra headers the receiver wants, such as a routing key."""
+    headers: PlainHeaders = Field(default_factory=dict[str, str])
+    """Extra headers the receiver wants, such as a routing key; one whose name carries a credential is refused, and
+    goes on the connection."""
 
     max_response: Size = 1024 * 1024
     """How much of the receiver's answer is read, before the step is failed instead.

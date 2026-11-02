@@ -16,6 +16,7 @@ from dirigent_block_http.http import (
     HttpRequestConfig,
     HttpRequestOperator,
     HttpRequestOutput,
+    HttpTarget,
     status_class,
 )
 from dirigent_block_http.webhooks import WebhookPostConfig, WebhookPostOperator
@@ -153,20 +154,79 @@ async def test_following_a_redirect_lands_on_what_it_pointed_at(ctx: FakeContext
     ]
 
 
-async def test_a_redirect_to_another_host_does_not_carry_the_credentials(ctx: FakeContext) -> None:
+async def test_a_redirect_to_another_host_does_not_carry_the_credentials(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Following one is not a way to hand a service's password to a different service."""
     ctx.handler = handler = Responder(
         httpx2.Response(302, headers={"location": "http://elsewhere.test/moved"}),
         json_response(200, {"id": "abc"}),
     )
-    config = HttpRequestConfig(
-        connection="api", path="/start", follow_redirects=True, headers={"Authorization": "Basic c2VjcmV0"}
+    client = httpx2.AsyncClient(
+        base_url="http://service.test",
+        headers={"Authorization": "Basic c2VjcmV0"},
+        transport=httpx2.MockTransport(handler),
     )
+    monkeypatch.setattr(ctx, "http", always(client))
+    config = HttpRequestConfig(connection="api", path="/start", follow_redirects=True)
     await HttpRequestOperator().execute(config, ctx.as_context())
     first, second = handler.requests
     assert first.headers["authorization"] == "Basic c2VjcmV0"
     assert "authorization" not in second.headers, "the credential stayed with the host it was for"
     assert str(second.url) == "http://elsewhere.test/moved"
+
+
+@pytest.mark.parametrize(
+    ("settings", "header", "sent"),
+    [
+        ({"credential_header": "X-Api-Key"}, "x-api-key", "dummy"),
+        ({"credential_scheme": "Token"}, "authorization", "Token dummy"),
+    ],
+    ids=["a-header-of-its-own", "authorization-under-a-scheme"],
+)
+async def test_a_redirect_to_another_host_does_not_carry_the_connections_credential(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch, settings: dict[str, str], header: str, sent: str
+) -> None:
+    ctx.handler = handler = Responder(
+        httpx2.Response(302, headers={"location": "http://elsewhere.test/moved"}),
+        json_response(200, {"id": "abc"}),
+    )
+    built = build_client(
+        HttpConnectionConfig.model_validate({"base_url": "http://service.test", "credential": "dummy", **settings})
+    )
+    client = httpx2.AsyncClient(
+        base_url=built.base_url,
+        headers=built.headers,
+        event_hooks=built.event_hooks,
+        transport=httpx2.MockTransport(handler),
+    )
+    monkeypatch.setattr(ctx, "http", always(client))
+    config = HttpRequestConfig(connection="api", path="/start", follow_redirects=True)
+    await HttpRequestOperator().execute(config, ctx.as_context())
+    first, second = handler.requests
+    assert first.headers[header] == sent
+    assert header not in second.headers, "the credential stayed with the host it was for"
+    assert str(second.url) == "http://elsewhere.test/moved"
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["Authorization", "authorization", "Proxy-Authorization", "Cookie", "X-Api-Key", "x_api_key", "X-Auth-Token"],
+)
+@pytest.mark.parametrize("model", [HttpRequestConfig, WebhookPostConfig])
+def test_a_step_refuses_a_credential_in_its_headers_without_repeating_the_value(
+    model: type[HttpTarget], name: str
+) -> None:
+    with pytest.raises(ValidationError) as refused:
+        model.model_validate({"connection": "api", "headers": {name: "DUMMYSECRET"}})
+    assert "put its value in a connection's credential field" in str(refused.value)
+    assert name in str(refused.value)
+    assert "DUMMYSECRET" not in str(refused.value)
+
+
+@pytest.mark.parametrize("name", ["Accept", "User-Agent", "X-Routing-Key", "Idempotency-Key", "X-GitHub-Api-Version"])
+def test_a_step_keeps_a_header_that_names_no_credential(name: str) -> None:
+    assert HttpRequestConfig(connection="api", headers={name: "v"}).headers == {name: "v"}
 
 
 @pytest.mark.parametrize(

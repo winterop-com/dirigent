@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import ClassVar, Final, Literal
 
 import httpx2
-from pydantic import BaseModel, Field, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 from dirigent_block_http.connections import HttpConnectionConfig
 from dirigent_block_http.messages import (
@@ -18,7 +18,7 @@ from dirigent_block_http.messages import (
     STATUS_REFUSED,
     URL_BESIDE_CONNECTION,
 )
-from dirigent_common import BlockModel, Duration, Issue, Size
+from dirigent_common import BlockModel, Duration, Issue, PlainHeaders, Size
 from dirigent_plugin import (
     BlockFailure,
     ConnectionRef,
@@ -63,7 +63,13 @@ ROUTING_HEADERS: Final = frozenset(
 
 
 class HttpTarget(BlockModel):
-    """The half of an HTTP block's config that says which service to talk to."""
+    """The half of an HTTP block's config that says which service to talk to.
+
+    A refusal does not repeat its input, because a config's values are resolved by then and a
+    reference may have held a credential.
+    """
+
+    model_config = ConfigDict(hide_input_in_errors=True)
 
     connection: ConnectionRef | None = None
     """The code of the connection whose base URL, auth, TLS, and timeout apply."""
@@ -246,8 +252,8 @@ class HttpRequestConfig(HttpTarget):
     query: dict[str, str | int | float | bool] = Field(default_factory=dict[str, str | int | float | bool])
     """Query parameters appended to the URL, each value written as text."""
 
-    headers: dict[str, str] = Field(default_factory=dict[str, str])
-    """Headers sent with the request."""
+    headers: PlainHeaders = Field(default_factory=dict[str, str])
+    """Headers sent with the request; one whose name carries a credential is refused, and goes on the connection."""
 
     body: JsonValue | None = None
     """What the request sends, usually a reference to what an earlier step produced.

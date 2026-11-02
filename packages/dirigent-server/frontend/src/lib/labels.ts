@@ -992,6 +992,11 @@ const refused = {
         wrong_password: 'The current password is not correct.',
     },
     common: {
+        bad_credential:
+            'A credential must be visible ASCII with no whitespace, or it cannot be sent as a header value. A scheme such as Bearer goes in credential_scheme.',
+        bad_credential_word: 'credential_header and credential_scheme must each be one HTTP token.',
+        credential_header_refused:
+            'The {header} header carries a credential, and headers are stored as written. Put its value in the credential field of a connection, which is sealed, with its name in credential_header unless that is Authorization.',
         yaml_alias_cycle: 'This YAML has an alias inside the node it names, so it cannot be written out.',
         yaml_aliases_expand_too_far:
             "This YAML's aliases would add more than {limit} values once written out. Write the repeated parts out, or repeat them less.",
@@ -1018,6 +1023,8 @@ const refused = {
             '${{{reference}}} stands where {field} holds programs, and a value is never a program. Write the programs out, and read the reference in them as the value it is.',
         step_reference_in_cql:
             '{reference} is inside {field}, and a value reaches a CQL library only as a parameter. Give the reference to parameters under the name the library declares it by.',
+        step_credential_header:
+            'The {header} header carries a credential, and a document is stored as written. Put its value in the credential field of the connection this step names, with its name in credential_header unless that is Authorization.',
         step_shell_unreadable:
             '{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a value lands in it is not known. Close it or write it another way, or pass the value through argv.',
         step_reference_in_sql:

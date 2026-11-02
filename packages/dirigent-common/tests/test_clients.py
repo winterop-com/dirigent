@@ -5,9 +5,9 @@ from typing import Any
 
 import httpx2
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
-from dirigent_common import HttpConnectionConfig, build_client
+from dirigent_common import CredentialOnOrigin, HttpConnectionConfig, build_client, secrets_of
 from dirigent_common.clients import resolve_base
 
 ALIAS = "https://play.dhis2.org/2.43"
@@ -81,3 +81,69 @@ async def test_a_connection_without_the_setting_answers_with_the_redirect(monkey
     async with build_client(config) as client:
         response = await client.get("/")
     assert response.status_code == 302
+
+
+@pytest.mark.parametrize(
+    ("settings", "header", "sent"),
+    [
+        ({}, "authorization", "dummy"),
+        ({"credential_scheme": "Token"}, "authorization", "Token dummy"),
+        ({"credential_header": "X-Api-Key"}, "x-api-key", "dummy"),
+    ],
+    ids=["alone", "under-a-scheme", "in-a-header-of-its-own"],
+)
+def test_a_credential_is_sent_in_its_header(settings: dict[str, str], header: str, sent: str) -> None:
+    config = HttpConnectionConfig.model_validate({"base_url": "http://x", "credential": "dummy", **settings})
+    assert build_client(config).headers[header] == sent
+
+
+def test_a_credential_is_sealed_and_named_among_the_secrets() -> None:
+    config = HttpConnectionConfig(base_url="http://x", credential=SecretStr("dummy"))
+    assert "dummy" not in repr(config)
+    assert secrets_of(config) == {"dummy"}
+
+
+def test_an_empty_credential_is_unset() -> None:
+    config = HttpConnectionConfig.model_validate({"base_url": "http://x", "credential": ""})
+    assert config.credential is None
+    assert "authorization" not in build_client(config).headers
+
+
+@pytest.mark.parametrize("value", ["DUMMY\n", "Bearer DUMMY", " DUMMY", "DUMMYé"])
+def test_a_credential_that_cannot_be_sent_is_refused_without_repeating_it(value: str) -> None:
+    with pytest.raises(ValidationError, match="a credential must be visible ASCII") as refused:
+        HttpConnectionConfig.model_validate({"base_url": "http://x", "credential": value})
+    assert "DUMMY" not in str(refused.value)
+
+
+@pytest.mark.parametrize("field", ["credential_header", "credential_scheme"])
+def test_a_credential_word_with_a_space_in_it_is_refused(field: str) -> None:
+    with pytest.raises(ValidationError, match="must each be one HTTP token"):
+        HttpConnectionConfig.model_validate({"base_url": "http://x", field: "two words"})
+
+
+async def test_a_credential_in_a_header_of_its_own_stays_on_the_origin() -> None:
+    seen: list[httpx2.Request] = []
+
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        if request.url.host == "service.test":
+            return httpx2.Response(302, headers={"location": "http://elsewhere.test/moved"})
+        return httpx2.Response(200)
+
+    async with httpx2.AsyncClient(
+        base_url="http://service.test",
+        headers={"X-Api-Key": "dummy"},
+        event_hooks={"request": [CredentialOnOrigin("http://service.test", "X-Api-Key")]},
+        transport=httpx2.MockTransport(handle),
+        follow_redirects=True,
+    ) as client:
+        await client.get("/start")
+    assert [request.headers.get("x-api-key") for request in seen] == ["dummy", None]
+
+
+def test_the_client_carries_the_hook_only_with_a_credential() -> None:
+    bare = build_client(HttpConnectionConfig(base_url="http://x"))
+    held = build_client(HttpConnectionConfig(base_url="http://x", credential=SecretStr("dummy")))
+    assert bare.event_hooks["request"] == []
+    assert [type(hook) for hook in held.event_hooks["request"]] == [CredentialOnOrigin]

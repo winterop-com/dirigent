@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, ClassVar, Literal, cast
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 from dirigent_common import (
     COMPOSE_MEDIA_TYPE,
@@ -15,6 +15,7 @@ from dirigent_common import (
     TEMPLATE_MEDIA_TYPE,
     BlockModel,
     Duration,
+    PlainHeaders,
     StorageUri,
     spellings,
 )
@@ -133,6 +134,27 @@ class ShellishOperator(Operator[ShellishConfig, ShellishOutput]):
     async def execute(self, config: ShellishConfig, ctx: StepContext) -> ShellishOutput | RemoteHandle:
         """Return the command exactly as it arrived, with the variables it now reads."""
         return ShellishOutput(command=config.command, variables=config.shell_variables)
+
+
+class HeaderishConfig(BlockModel):
+    """A config with a header map that refuses a credential, and the refusal that stays quiet about it."""
+
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    headers: PlainHeaders = Field(default_factory=dict[str, str])
+    note: str = ""
+
+
+class HeaderishOperator(Operator[HeaderishConfig, HeaderishConfig]):
+    """Hands back what it was handed."""
+
+    spec = OperatorSpec(id="test.headerish", summary="Report a header map.", idempotent=True)
+    config_model = HeaderishConfig
+    output_model = HeaderishConfig
+
+    async def execute(self, config: HeaderishConfig, ctx: StepContext) -> HeaderishConfig | RemoteHandle:
+        """Return the config as it arrived."""
+        return config
 
 
 class SqlishSource(BaseModel):
@@ -694,6 +716,7 @@ class EngineTestPlugin:
                 RemoteOperator(),
                 ProgramishOperator(),
                 ShellishOperator(),
+                HeaderishOperator(),
                 SqlishOperator(),
                 StoringOperator(),
                 UnsafeOperator(),

@@ -22,8 +22,20 @@ from dirigent_blocks.messages import (
     SLACK_TWO_WAYS,
     SLACK_WEBHOOK_HAS_A_CHANNEL,
     WEBHOOK_HAS_NO_URL,
+    WEBHOOK_HEADER_IS_THE_CREDENTIALS,
 )
-from dirigent_common import BlockModel, Duration, HealthReport, raised_detail, secrets_of
+from dirigent_common import (
+    BlockModel,
+    CredentialHeader,
+    CredentialScheme,
+    CredentialValue,
+    Duration,
+    HealthReport,
+    PlainHeaders,
+    credential_header_value,
+    raised_detail,
+    secrets_of,
+)
 from dirigent_plugin import AlertMessage, ConnectionKind, Notifier
 
 DEFAULT_TIMEOUT = timedelta(seconds=15)
@@ -37,20 +49,40 @@ SERVER_ERROR_STATUS = 500
 class WebhookNotifierConfig(BlockModel):
     """Where to POST an alert, and what to present when getting there."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     url: str = Field(default="", description="The endpoint an alert is POSTed to as JSON.")
     """Where to send it; a connection supplies this, so a rule can name one endpoint per channel."""
 
     bearer_token: SecretStr | None = None
     """A bearer credential, sent as an Authorization header."""
 
-    headers: dict[str, str] = Field(default_factory=dict[str, str])
-    """Extra headers the receiving system wants, such as a routing key."""
+    credential: CredentialValue = None
+    """A credential for a receiver that wants no bearer token: visible ASCII with no whitespace."""
+
+    credential_header: CredentialHeader = "Authorization"
+    """The header `credential` is sent in."""
+
+    credential_scheme: CredentialScheme = None
+    """The word sent before `credential` in its header, such as `Token`; unset sends the credential alone."""
+
+    headers: PlainHeaders = Field(default_factory=dict[str, str])
+    """Extra headers the receiving system wants, such as a routing key; one whose name carries a credential is
+    refused."""
 
     verify_tls: bool = True
     """Whether certificates are verified; turning this off is a per-connection decision."""
 
     timeout: Duration = Field(default=DEFAULT_TIMEOUT, gt=timedelta(0))
     """How long the POST may take before the delivery is retried."""
+
+    @model_validator(mode="after")
+    def _credential_header_is_the_credentials_own(self) -> "WebhookNotifierConfig":
+        """Refuse a plain header spelling the name the credential is sent in."""
+        for name in self.headers:
+            if name.lower() == self.credential_header.lower():
+                raise ValueError(WEBHOOK_HEADER_IS_THE_CREDENTIALS.render(header=name))
+        return self
 
 
 class WebhookNotifier(Notifier):
@@ -94,6 +126,10 @@ def _webhook_headers(settings: WebhookNotifierConfig) -> dict[str, str]:
     token = settings.bearer_token.get_secret_value() if settings.bearer_token is not None else ""
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    if settings.credential is not None:
+        headers[settings.credential_header] = credential_header_value(
+            settings.credential.get_secret_value(), settings.credential_scheme
+        )
     return headers
 
 

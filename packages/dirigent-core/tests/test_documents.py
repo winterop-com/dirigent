@@ -503,6 +503,33 @@ def test_a_shell_string_that_cannot_be_read_is_refused_when_the_document_is_appl
     assert issues[0].params == {"field": "command", "opener": "'", "line": 2}
 
 
+@pytest.mark.parametrize(
+    "value",
+    ["literal", "Token ${params.day}"],
+    ids=["a-literal", "a-reference"],
+)
+def test_a_credential_in_a_header_map_is_refused_when_the_document_is_applied(host: PluginHost, value: str) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: held\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        f"steps:\n  a: {{block: test.headerish, config: {{headers: {{Authorization: '{value}', accept: x}}}}}}\n"
+    )
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [(issue.code, issue.location) for issue in issues] == [
+        ("document.step_credential_header", "steps.a.config.headers.Authorization")
+    ]
+    assert issues[0].params == {"header": "Authorization"}
+    assert "credential field" in issues[0].message
+
+
+def test_a_header_map_holding_no_credential_is_applied(host: PluginHost) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: held\n"
+        "steps:\n  a: {block: test.headerish, config: {headers: {X-Routing-Key: ops}, note: fine}}\n"
+    )
+    assert validate_against_catalog(definition, host.catalog()) == []
+
+
 def test_a_shell_string_with_a_comment_is_applied(host: PluginHost) -> None:
     definition = load_text(
         "format: dirigent/v1\ncode: fine\n"
