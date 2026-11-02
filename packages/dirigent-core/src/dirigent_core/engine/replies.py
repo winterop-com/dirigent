@@ -20,7 +20,7 @@ from dirigent_client.enums import AttemptKind, AttemptStatus
 from dirigent_common import JsonMap
 from dirigent_common.requests import media_type
 from dirigent_core.artifacts import persist_output
-from dirigent_core.engine.definition import PipelineDefinition, ReplyNode, reply_may_set
+from dirigent_core.engine.definition import PipelineDefinition, ReplyNode, reply_may_answer_as, reply_may_set
 from dirigent_core.engine.expansion import collect_errors, collect_outputs
 from dirigent_core.engine.failure import Failure
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, resolve
@@ -155,7 +155,7 @@ async def _render(
             detail = "nothing is stored where its body_from names"
             raise _Unrenderable(Failure.rejected(REPLY_REFUSED, step=repr(name), detail=detail))
         rendered.update(
-            content_type=reply.content_type or stat.content_type or OCTET_STREAM,
+            content_type=reply.content_type or _stored_content_type(stat.content_type),
             body=None,
             body_from=uri,
             body_bytes=stat.size,
@@ -165,6 +165,11 @@ async def _render(
     content_type = reply.content_type or JSON
     rendered.update(content_type=content_type, body=body, body_bytes=len(encode_body(body, content_type)))
     return rendered
+
+
+def _stored_content_type(stored: str | None) -> str:
+    """The content type a stored object answers with, opaque bytes unless a reply may answer with its own."""
+    return stored if stored and reply_may_answer_as(stored) else OCTET_STREAM
 
 
 def _rendered_headers(step: str, headers: Mapping[str, str], scope: ReferenceScope) -> dict[str, str]:

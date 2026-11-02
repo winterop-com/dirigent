@@ -50,6 +50,8 @@ associative array on a caller's text is refused when the step starts, and takes 
 
 **One polled source cannot stop the claim for the rest.** A sensor source with no cadence of its own, whose sensor is not installed on the worker, raised while it sat at its `max_in_flight` bound, and every tick on that worker failed until its runs settled, so no polled source on it was looked at. It now waits out a lease and the others are claimed.
 
+**A reply's `content_type` must be a media type, and not one a browser runs as a script.** A value with a line break was accepted at apply and then failed the reply with an unhandled protocol error. A script type such as `text/javascript` was served on the UI's origin, where the reply's sandbox does not govern a page loading it in a `<script>`. Both are refused at apply (`source.reply_bad_content_type`), and an object `body_from` names that is stored as one of them is sent as `application/octet-stream`. A document with a reply of a script type has to change it.
+
 **A `read_only` SQLite connection cannot write its file.** `PRAGMA query_only` left two pragmas able
 to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_checkpoint` moved a
 write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.

@@ -24,7 +24,7 @@ from dirigent_core.config import Settings
 from dirigent_core.engine.definition import ReplyNode
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.references import ReferenceScope
-from dirigent_core.engine.replies import _rendered_headers, _Unrenderable  # pyright: ignore[reportPrivateUsage]
+from dirigent_core.engine.replies import _rendered_headers, _stored_content_type, _Unrenderable  # pyright: ignore[reportPrivateUsage]
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import LogEntry, StepAttempt
 from dirigent_server import create_app
@@ -359,6 +359,44 @@ steps:
 def test_a_header_a_reply_may_not_set_is_refused_at_apply(header: str) -> None:
     with pytest.raises(ValidationError, match="does not set"):
         ReplyNode(headers={header: "x"})
+
+
+@pytest.mark.parametrize(
+    "content_type",
+    [
+        "text/plain\r\nX-Injected: 1",
+        "text/plain\n",
+        "text/html; charset=utf-8\r\nSet-Cookie: a=b",
+        "not a media type",
+        "${steps.a.output.type}",
+        "text/javascript",
+        "TEXT/JavaScript; charset=utf-8",
+        "application/javascript",
+    ],
+)
+def test_a_content_type_a_reply_may_not_answer_as_is_refused_at_apply(content_type: str) -> None:
+    with pytest.raises(ValidationError, match="does not answer as"):
+        ReplyNode(content_type=content_type)
+
+
+@pytest.mark.parametrize(
+    "content_type", ["application/json", "text/plain; charset=utf-8", "text/html", "application/vnd.api+json"]
+)
+def test_a_reply_may_still_answer_as_an_ordinary_content_type(content_type: str) -> None:
+    assert ReplyNode(content_type=content_type).content_type == content_type
+
+
+@pytest.mark.parametrize(
+    ("stored", "sent"),
+    [
+        ("text/javascript", "application/octet-stream"),
+        ("text/plain\r\nX-Injected: 1", "application/octet-stream"),
+        (None, "application/octet-stream"),
+        ("text/plain", "text/plain"),
+    ],
+)
+def test_a_stored_object_answers_as_its_type_unless_that_could_run(stored: str | None, sent: str) -> None:
+    assert _stored_content_type(stored) == sent
 
 
 def test_a_header_a_reply_may_not_set_is_refused_at_render() -> None:

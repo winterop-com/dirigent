@@ -27,6 +27,7 @@ from dirigent_common import (
 )
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_common.durations import Duration, format_duration
+from dirigent_common.requests import media_type
 from dirigent_core.engine.references import has_reference, references_in
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
@@ -37,6 +38,7 @@ from dirigent_core.messages import (
     PARAMETER_SCHEMA_INVALID,
     PARAMETER_UNCHECKED,
     PARAMETERS_TOO_DEEP,
+    REPLY_BAD_CONTENT_TYPE,
     REPLY_BAD_HEADER,
     REPLY_BAD_STATUS,
     REPLY_BODY_TWICE,
@@ -211,6 +213,41 @@ REPLY_HEADER_PREFIXES_REFUSED: Final = ("cross-origin-", "x-accel-", "x-lighttpd
 HEADER_NAME: Final = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")
 
 
+#: What a reply's content type may be spelled with: a media type, and parameters in visible ASCII.
+REPLY_CONTENT_TYPE: Final = re.compile(
+    r"[!#$%&'*+.^_`|~0-9A-Za-z-]+/[!#$%&'*+.^_`|~0-9A-Za-z-]+(?:[ \t]*;[\x20-\x7e\t]*)?"
+)
+
+#: The media types a browser runs as a script when a page names the URL in a ``<script>``. A reply
+#: is served on the UI's origin, where its sandbox does not govern a script loaded that way.
+SCRIPT_MEDIA_TYPES: Final = frozenset(
+    {
+        "application/ecmascript",
+        "application/javascript",
+        "application/x-ecmascript",
+        "application/x-javascript",
+        "text/ecmascript",
+        "text/javascript",
+        "text/javascript1.0",
+        "text/javascript1.1",
+        "text/javascript1.2",
+        "text/javascript1.3",
+        "text/javascript1.4",
+        "text/javascript1.5",
+        "text/jscript",
+        "text/livescript",
+        "text/x-ecmascript",
+        "text/x-javascript",
+    }
+)
+
+
+def reply_may_answer_as(content_type: str) -> bool:
+    """Whether a reply may answer with this content type."""
+    media = media_type(content_type)[0]
+    return REPLY_CONTENT_TYPE.fullmatch(content_type) is not None and media not in SCRIPT_MEDIA_TYPES
+
+
 def reply_may_set(header: str) -> bool:
     """Whether a reply may answer with a header of this name."""
     lowered = header.lower()
@@ -264,6 +301,8 @@ class ReplyNode(BaseModel):
         for header in self.headers:
             if not reply_may_set(header):
                 raise ValueError(REPLY_BAD_HEADER.render(header=repr(header)))
+        if self.content_type is not None and not reply_may_answer_as(self.content_type):
+            raise ValueError(REPLY_BAD_CONTENT_TYPE.render(content_type=repr(self.content_type)))
         return self
 
 

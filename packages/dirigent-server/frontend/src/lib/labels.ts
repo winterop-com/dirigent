@@ -1230,6 +1230,8 @@ const refused = {
             '{reference} reads a failure, which is written as steps.<name>.error.code, .message, or .params.',
         replace_on_held:
             'Pipeline {code} has a {hosting} source, and concurrency: {policy} would drop an input the source has already taken. Use allow or queue.',
+        reply_bad_content_type:
+            'A reply does not answer as {content_type}, which is no media type or runs as a script.',
         reply_bad_header: 'A reply does not set {header}, which the server writes or enforces itself.',
         reply_bad_status:
             "A reply's status is a whole number from 200 to 599 or a reference to one, not {status}.",
