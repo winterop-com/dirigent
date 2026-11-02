@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Final, cast
 from urllib.parse import urlsplit
 
+import httpx2
 import yaml
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -298,6 +299,10 @@ def resolve_endpoint(
         url_from_project = store.is_project
     else:
         source, url = "default", DEFAULT_URL
+    try:
+        httpx2.URL(url)
+    except (httpx2.InvalidURL, ValueError) as error:
+        raise ProfileError(f"{url!r} from {source} is not a URL: {error}") from error
 
     resolved_token = token or env.get(TOKEN_ENV) or None
     token_from_shell = bool(token or shell.get(TOKEN_ENV))

@@ -1,6 +1,7 @@
 """The command tree, driven against a real server running in this process."""
 
 import asyncio
+import json
 import os
 import threading
 import time
@@ -23,6 +24,7 @@ from dirigent_cli.output import CONNECTION_HEALTH
 from dirigent_cli.profiles import resolve_endpoint
 from dirigent_cli.project import InitChoices, ProjectError, find_project, scaffold
 from dirigent_common import BlockModel, HealthReport
+from dirigent_core import config as core_config
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, get_settings, reset_settings_cache
 from dirigent_plugin import ConnectionKind, Contribution, extension
 
@@ -762,9 +764,53 @@ def test_a_checkouts_profile_cannot_write_an_escape_to_the_terminal(
     result = runner.invoke(app, ["pipeline", "list"])
     assert result.exit_code == 2, result.output
     written = result.stdout + result.stderr
-    assert "\x1b]" not in written, "the title and the clipboard"
-    assert "\x1b[2J" not in written, "the screen"
-    assert not isinstance(result.exception, ValueError), "refused, rather than an uncaught error"
+    assert "\x1b" not in written.replace("\\u001b", ""), "neither raw nor in a record"
+    assert refusal(result.stdout)["code"] == "cli.profile_refused"
+
+
+def test_a_url_holding_a_control_character_is_refused_with_a_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url = "http://127.0.0.1:1/\x1bx"
+    _hostile_checkout(tmp_path, monkeypatch, f"profiles:\n  p:\n    url: {json.dumps(url)}\n    token: t\n")
+    result = runner.invoke(app, ["pipeline", "list"])
+    assert result.exit_code == 2, result.output
+    refused = refusal(result.stdout)
+    assert refused["code"] == "cli.profile_refused"
+    assert "x1b" in refused["message"]
+
+
+def _settings_in_a_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str, text: str) -> None:
+    """Stand in a checkout holding one settings file, with the test's own file out of the way."""
+    checkout = tmp_path / "settings-checkout"
+    checkout.mkdir()
+    written = checkout / name
+    written.write_text(text)
+    written.chmod(0o600)
+    monkeypatch.chdir(checkout)
+    monkeypatch.delenv(CONFIG_FILE_ENV, raising=False)
+    reset_settings_cache()
+
+
+def test_a_malformed_settings_file_is_refused_with_a_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _settings_in_a_checkout(tmp_path, monkeypatch, "dirigent.yaml", 'project:\n  pipelines: "unterminated\n')
+    result = runner.invoke(app, ["config", "show"])
+    assert result.exit_code == 2, result.output
+    assert refusal(result.stdout)["code"] == "cli.settings_refused"
+
+
+def test_a_setting_pydantic_refuses_is_refused_with_a_record_that_leaves_out_its_value(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("DIRIGENT_LOG_LEVEL", raising=False)
+    monkeypatch.setattr(core_config, "ENV_FILE", ".env")
+    _settings_in_a_checkout(tmp_path, monkeypatch, ".env", "DIRIGENT_LOG_LEVEL=hunter2-secret\n")
+    result = runner.invoke(app, ["config", "show"])
+    assert result.exit_code == 2, result.output
+    refused = refusal(result.stdout)
+    assert refused["code"] == "cli.settings_refused"
+    assert "hunter2-secret" not in result.stdout
+    assert "log_level" in result.stdout
 
 
 def test_a_malformed_project_file_is_refused_with_a_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

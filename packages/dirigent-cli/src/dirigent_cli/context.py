@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 import typer
 from pydantic import BaseModel, ConfigDict
 
-from dirigent_cli.messages import CALL_REFUSED
+from dirigent_cli.messages import CALL_REFUSED, PROFILE_REFUSED
 from dirigent_cli.messages import LOCAL_INSTANCE_HINT as LOCAL_INSTANCE_HINT_MESSAGE
 from dirigent_cli.output import (
     FULL_VERBOSITY,
@@ -104,7 +104,8 @@ class CliState(BaseModel):
         try:
             return resolve_endpoint(url=self.url, token=self.token, profile=self.profile, needs_token=needs_token)
         except ProfileError as error:
-            raise typer.BadParameter(printable(str(error))) from error
+            refuse(PROFILE_REFUSED, status=2, detail=printable(str(error)))
+            raise typer.Exit(code=2) from error
 
 
 def state_of(ctx: typer.Context) -> CliState:
