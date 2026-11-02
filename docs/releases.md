@@ -27,6 +27,14 @@ standard format, and a format a pack contributes, is handed no text longer than 
 longer text fails the format. `base64`, `humane-duration` and dirigent's other own formats are not
 limited, since they were measured linear.
 
+**An array's subscript in a shell command is held to an integer, whatever the command declares.**
+A `${...}` in `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}` used to take any value when `declare -A a`
+appeared anywhere in the text, including in a branch not taken, a function, a subshell, before an
+`unset`, or on an array already indexed, where bash still evaluates the subscript and a caller's
+`$(cmd)` ran. The reference now has to be an integer in every such place. A command keying an
+associative array on a caller's text is refused when the step starts, and takes the value through
+`argv`, which involves no shell.
+
 ## 0.30.0
 
 Released 2026-11-01. Every package in the workspace moves to 0.30.0 together, and so do

@@ -827,9 +827,10 @@ resolve to an integer, and anything else fails the step as `rejected` before the
 - anywhere in a command that declares an integer variable, with `declare -i` or the like, because a
   later assignment to it evaluates, or a nameref, with `declare -n`, because reading it does. So one
   such line holds every reference in that command.
-- an indexed array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`, or a compound
-  assignment's, as `a=([${v}]=1)`. An array the same command declares with `declare -A` is not held
-  to it in the first form, and neither is `echo a[${v}]`, which is a glob.
+- an array's subscript, as `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}`, or a compound assignment's, as
+  `a=([${v}]=1)`. A `declare -A` in the command changes nothing, because whether bash has made the
+  array associative where the subscript runs depends on what it executed. `echo a[${v}]` is a glob
+  and is not held to it.
 - a declaration whose compound assignment is one quoted word, as `declare -a "a=(${v})"`, which bash
   parses again. `declare -a a=("${v}")` is not held to it.
 - `${var:offset}` and `${var:offset:length}`, but not `${var:-default}` and its kin

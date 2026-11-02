@@ -524,8 +524,6 @@ def test_an_integer_still_runs_where_bash_evaluates_it(command: str, expected: s
         ("export Y=${params.x}", 'export Y="$DIRIGENT_V0"'),
         ("echo a[${params.x}]", 'echo a["$DIRIGENT_V0"]'),
         ('echo "a[${params.x}]=1"', 'echo "a[$DIRIGENT_V0]=1"'),
-        ("declare -A m; m[${params.x}]=1", 'declare -A m; m["$DIRIGENT_V0"]=1'),
-        ("declare -A m; echo ${m[${params.x}]}", 'declare -A m; echo ${m["$DIRIGENT_V0"]}'),
         ("echo ${s:-${params.x}}", 'echo ${s:-"$DIRIGENT_V0"}'),
         ("echo ${s:=${params.x}}", 'echo ${s:="$DIRIGENT_V0"}'),
         ("echo ${s%${params.x}}", 'echo ${s%"$DIRIGENT_V0"}'),
@@ -537,6 +535,38 @@ def test_a_reference_bash_does_not_evaluate_takes_any_value(command: str, expect
     scope = ReferenceScope(params={"x": "a b"})
     resolved = resolve_config({"command": command}, scope, shell_fields={"command"})
     assert resolved["command"] == expected
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "declare -A m; m[${params.x}]=1",
+        "declare -A m; echo ${m[${params.x}]}",
+        "if false; then declare -A m; fi; m[${params.x}]=1",
+        "if false; then declare -A m; fi; echo ${m[${params.x}]}",
+        'if false; then declare -A m; fi; echo "${m[${params.x}]}"',
+        "if false; then declare -A m; fi; echo ${!m[${params.x}]}",
+        "if false; then declare -A m; fi; echo ${#m[${params.x}]}",
+        "if false; then declare -A m; fi; m[${params.x}]+=1",
+        'if false; then declare -A m; fi; m["${params.x}"]=1',
+        "if false; then typeset -A m; fi; m[${params.x}]=1",
+        "f() { declare -A m; }; f; m[${params.x}]=1",
+        "f() { local -A m; }; f; m[${params.x}]=1",
+        "(declare -A m); m[${params.x}]=1",
+        "declare -A m; unset m; m[${params.x}]=1",
+        "m=(1); declare -A m; m[${params.x}]=1",
+    ],
+)
+def test_a_subscript_is_held_to_an_integer_whatever_the_text_declares(command: str) -> None:
+    scope = ReferenceScope(params={"x": "z[$(touch /tmp/marker)0]"})
+    with pytest.raises(UnknownReference, match="shell arithmetic"):
+        resolve_config({"command": command}, scope, shell_fields={"command"})
+
+
+def test_an_integer_subscript_of_a_declared_associative_array_is_accepted() -> None:
+    command = "declare -A m; m[${params.x}]=z"
+    resolved = resolve_config({"command": command}, ReferenceScope(params={"x": 3}), shell_fields={"command"})
+    assert resolved["command"] == "declare -A m; m[$DIRIGENT_V0]=z"
 
 
 def test_a_reference_in_a_compose_file_is_refused_when_the_step_starts() -> None:
