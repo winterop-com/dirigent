@@ -20,6 +20,7 @@ from dirigent_common import (
     FHIRPATH_MEDIA_TYPE,
     JQ_MEDIA_TYPE,
     LOCAL_REFERENCES,
+    SHELL_MEDIA_TYPE,
     STORAGE_URI_FORMAT,
     TEMPLATE_MEDIA_TYPE,
     BoundedLoader,
@@ -85,6 +86,7 @@ from dirigent_core.messages import (
     STEP_CONFIG_INVALID,
     STEP_CONNECTION_MISSING,
     STEP_PROGRAM_IS_A_REFERENCE,
+    STEP_REFERENCE_FOR_A_PROGRAM,
     STEP_REFERENCE_IN_COMPOSE,
     STEP_REFERENCE_IN_CQL,
     STEP_REFERENCE_IN_FHIRPATH,
@@ -102,7 +104,7 @@ from dirigent_core.messages import (
     WRONG_DOCUMENT_KIND,
     WRONG_FORMAT,
 )
-from dirigent_plugin import media_fields_of, reference_fields, shell_fields_of, sql_values_of
+from dirigent_plugin import MediaPlace, media_places_of, reference_fields, sql_values_of
 
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
@@ -691,34 +693,57 @@ def _sql_reference_issues(step: str, config: JsonMap, schema: JsonMap) -> list[V
 def _program_reference_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
     """Refuse a reference in a template, a compose file, FHIRPath or CQL, and a jq program that is only one."""
     issues = [
-        ValidationIssue.of(refusal, location=f"steps.{step}.config.{field}", reference=reference, field=field)
+        ValidationIssue.of(
+            refusal, location=f"steps.{step}.config.{place.field}", reference=reference, field=place.field
+        )
         for refusal, media_type in (
             (STEP_REFERENCE_IN_TEMPLATE, TEMPLATE_MEDIA_TYPE),
             (STEP_REFERENCE_IN_COMPOSE, COMPOSE_MEDIA_TYPE),
             (STEP_REFERENCE_IN_FHIRPATH, FHIRPATH_MEDIA_TYPE),
             (STEP_REFERENCE_IN_CQL, CQL_MEDIA_TYPE),
         )
-        for field in sorted(media_fields_of(schema, media_type))
-        for reference in references_in(config.get(field))
+        for place in sorted(media_places_of(config, schema, media_type), key=lambda place: place.field)
+        for reference in references_in(place.value)
     ]
-    for field in sorted(media_fields_of(schema, JQ_MEDIA_TYPE)):
-        value = config.get(field)
-        whole = is_whole_program(value) if isinstance(value, str) else None
+    for place in sorted(media_places_of(config, schema, JQ_MEDIA_TYPE), key=lambda place: place.field):
+        if not place.published:
+            issues.extend(_standing_in_issues(step, place))
+            continue
+        whole = is_whole_program(place.value) if isinstance(place.value, str) else None
         if whole is not None:
             issues.append(
                 ValidationIssue.of(
-                    STEP_PROGRAM_IS_A_REFERENCE, location=f"steps.{step}.config.{field}", reference=whole, field=field
+                    STEP_PROGRAM_IS_A_REFERENCE,
+                    location=f"steps.{step}.config.{place.field}",
+                    reference=whole,
+                    field=place.field,
                 )
             )
     return issues
 
 
+def _standing_in_issues(step: str, place: MediaPlace) -> list[ValidationIssue]:
+    """Refuse a reference standing where a config's schema holds programs under it."""
+    return [
+        ValidationIssue.of(
+            STEP_REFERENCE_FOR_A_PROGRAM,
+            location=f"steps.{step}.config.{place.field}",
+            reference=reference,
+            field=place.field,
+        )
+        for reference in references_in(place.value)
+    ]
+
+
 def _shell_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
     """Refuse a reference in a shell string that cannot be read to its end, wherever its value lands."""
     issues: list[ValidationIssue] = []
-    for field in sorted(shell_fields_of(schema)):
-        value = config.get(field)
-        unread = shell_unreadable(value) if isinstance(value, str) else None
+    for place in sorted(media_places_of(config, schema, SHELL_MEDIA_TYPE), key=lambda place: place.field):
+        if not place.published:
+            issues.extend(_standing_in_issues(step, place))
+            continue
+        field = place.field
+        unread = shell_unreadable(place.value) if isinstance(place.value, str) else None
         if unread is not None:
             issues.append(
                 ValidationIssue.of(

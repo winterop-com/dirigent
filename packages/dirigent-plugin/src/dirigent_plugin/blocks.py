@@ -299,50 +299,78 @@ def _publishes_shell(shape: dict[str, Any]) -> bool:
     return shape.get("contentMediaType") == SHELL_MEDIA_TYPE or any(_publishes_shell(option) for option in options)
 
 
-def sql_values_of(config: JsonMap, schema: JsonMap) -> dict[str, JsonValue]:
-    """Find what a config holds where its schema publishes SQL, by dotted location.
+class MediaPlace(BaseModel):
+    """A value in a config at a place its schema publishes a media type, or holds one under it."""
 
-    A reference in one of these is refused, so a value only ever reaches SQL as a bound
-    parameter. The walk follows the config through the schema's objects, lists, maps, unions and
-    named definitions, so a pack's nested field is found wherever it sits. A string standing in
-    for a shape with SQL anywhere under it counts too, because a whole reference there would
-    resolve to the object or the list holding the statement.
+    path: tuple[str | int, ...]
+    """The keys and indexes that lead to the value from the config."""
+
+    value: JsonValue
+    """What the config holds there."""
+
+    published: bool
+    """Whether the schema publishes the media type here, rather than only somewhere under here."""
+
+    @property
+    def field(self) -> str:
+        """The place as a dotted location."""
+        return ".".join(str(part) for part in self.path)
+
+
+def media_places_of(config: JsonMap, schema: JsonMap, media_type: str) -> list[MediaPlace]:
+    """Find what a config holds where its schema publishes a media type, in the order it is written.
+
+    The walk follows the config through the schema's objects, lists, maps, unions and named
+    definitions, so a pack's nested field is found wherever it sits. A string standing in for a
+    shape with the media type anywhere under it counts too, unpublished, because a whole reference
+    there would resolve to the object or the list holding the program.
     """
     held = schema.get("$defs")
     pool = cast("dict[str, Any]", held) if isinstance(held, dict) else {}
-    found: dict[str, JsonValue] = {}
-    _collect_sql(config, schema, pool, "", found)
-    return found
+    found: dict[tuple[str | int, ...], MediaPlace] = {}
+    _collect_media(config, schema, pool, (), media_type, found)
+    return list(found.values())
 
 
-def _collect_sql(value: Any, shape: dict[str, Any], pool: dict[str, Any], where: str, found: dict[str, Any]) -> None:
-    """Record every value under ``value`` at a place ``shape`` publishes as SQL."""
-    published = shape.get("contentMediaType") == SQL_MEDIA_TYPE
-    if where and (published or (isinstance(value, str) and _holds_sql(shape, pool))):
-        found[where] = value
+def sql_values_of(config: JsonMap, schema: JsonMap) -> dict[str, JsonValue]:
+    """Find what a config holds where its schema publishes SQL, by dotted location.
+
+    A reference in one of these is refused, so a value only ever reaches SQL as a bound parameter.
+    """
+    return {place.field: place.value for place in media_places_of(config, schema, SQL_MEDIA_TYPE)}
+
+
+def _collect_media(
+    value: Any,
+    shape: dict[str, Any],
+    pool: dict[str, Any],
+    path: tuple[str | int, ...],
+    media_type: str,
+    found: dict[tuple[str | int, ...], MediaPlace],
+) -> None:
+    """Record every value under ``value`` at a place ``shape`` publishes as the media type."""
+    published = shape.get("contentMediaType") == media_type
+    if path and (published or (isinstance(value, str) and _holds_media(shape, pool, media_type))):
+        was = found.get(path)
+        found[path] = MediaPlace(path=path, value=value, published=published or (was is not None and was.published))
     target = _pointed_at(shape, pool)
     if target is not None:
-        _collect_sql(value, target, pool, where, found)
+        _collect_media(value, target, pool, path, media_type, found)
     for keyword in _UNION_KEYWORDS:
         for option in cast("list[Any]", shape.get(keyword) or []):
             if isinstance(option, dict):
-                _collect_sql(value, cast("dict[str, Any]", option), pool, where, found)
+                _collect_media(value, cast("dict[str, Any]", option), pool, path, media_type, found)
     if isinstance(value, dict):
         for key, element in cast("dict[str, Any]", value).items():
             child = _property_shape(shape, str(key))
             if child is not None:
-                _collect_sql(element, child, pool, _extended(where, str(key)), found)
+                _collect_media(element, child, pool, (*path, str(key)), media_type, found)
     elif isinstance(value, list):
         elements: list[Any] = value  # pyright: ignore[reportUnknownVariableType]
         for index, element in enumerate(elements):
             child = _item_shape(shape, index)
             if child is not None:
-                _collect_sql(element, child, pool, _extended(where, str(index)), found)
-
-
-def _extended(where: str, part: str) -> str:
-    """Add one step to a dotted location."""
-    return f"{where}.{part}" if where else part
+                _collect_media(element, child, pool, (*path, index), media_type, found)
 
 
 def _property_shape(shape: dict[str, Any], key: str) -> dict[str, Any] | None:
@@ -371,11 +399,13 @@ def _item_shape(shape: dict[str, Any], index: int) -> dict[str, Any] | None:
     return cast("dict[str, Any]", items) if isinstance(items, dict) else None
 
 
-def _holds_sql(shape: dict[str, Any], pool: dict[str, Any], seen: frozenset[int] = frozenset()) -> bool:
-    """Whether a shape publishes SQL itself or anywhere under it, across definitions that recurse."""
+def _holds_media(
+    shape: dict[str, Any], pool: dict[str, Any], media_type: str, seen: frozenset[int] = frozenset()
+) -> bool:
+    """Whether a shape publishes a media type itself or anywhere under it, across definitions that recurse."""
     if id(shape) in seen:
         return False
-    if shape.get("contentMediaType") == SQL_MEDIA_TYPE:
+    if shape.get("contentMediaType") == media_type:
         return True
     walked = seen | {id(shape)}
     below: list[Any] = []
@@ -390,7 +420,9 @@ def _holds_sql(shape: dict[str, Any], pool: dict[str, Any], seen: frozenset[int]
             below.extend(cast("dict[str, Any]", held).values())
     for keyword in ("items", "additionalProperties"):
         below.append(shape.get(keyword))
-    return any(isinstance(one, dict) and _holds_sql(cast("dict[str, Any]", one), pool, walked) for one in below)
+    return any(
+        isinstance(one, dict) and _holds_media(cast("dict[str, Any]", one), pool, media_type, walked) for one in below
+    )
 
 
 @functools.cache

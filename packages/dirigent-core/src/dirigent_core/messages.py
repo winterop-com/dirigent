@@ -368,6 +368,12 @@ STEP_REFERENCE_IN_CQL = DOCUMENT.define(
     "give the reference to parameters under the name the library declares it by",
 )
 
+STEP_REFERENCE_FOR_A_PROGRAM = DOCUMENT.define(
+    "step_reference_for_a_program",
+    "${{{reference}}} stands where {field} holds programs, and a value is never a program; "
+    "write the programs out, and read the reference in them as the value it is",
+)
+
 STEP_SHELL_UNREADABLE = DOCUMENT.define(
     "step_shell_unreadable",
     "{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a "
@@ -673,6 +679,12 @@ CQL_REFERENCE = _unresolved(
     "in_cql",
     "it is inside {field}, and a value reaches a CQL library only as a parameter; "
     "give the reference to parameters under the name the library declares it by",
+)
+
+REFERENCE_FOR_A_PROGRAM = _unresolved(
+    "for_a_program",
+    "it stands where {field} holds programs, and a value is never a program; "
+    "write the programs out, and read the reference in them as the value it is",
 )
 
 SHELL_UNREADABLE = _unresolved(
