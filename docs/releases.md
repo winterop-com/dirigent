@@ -19,6 +19,8 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**A name bound outside a program reads as its own colour in the editor.** jq's `$name` and FHIRPath's `%name` and `$this` were a pale violet close to the text colour. They now wear a stronger violet in every palette, dark and light.
+
 **`playground.generate` and `playground.arrive` are bounded, and run off the event loop.** `json`, `pystr_format` and their kin reached names outside the provider allowlist, the class-wide `seed` among them; provider arguments and field counts had no bound, and generation held the worker's loop past a step's timeout. Every dispatch now goes through the allowlist. One generation makes at most 100,000 provider calls and 16 MiB of records in 30 seconds (`playground.generation_past_its_bound`), and an argument saying how much to make asks for at most 10,000 (`playground.provider_refused`).
 
 **A source's curl line quotes a method that is not a bare word.** The UI's copyable line left the method unquoted, relying on the server's list of methods.

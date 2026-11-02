@@ -195,6 +195,9 @@
     --color-kind-violet-ink: var(--kind-violet-ink);
     --color-kind-pink: var(--kind-pink);
     --color-kind-pink-ink: var(--kind-pink-ink);
+
+    /* A name bound outside a program, in an editor. */
+    --color-binding-ink: var(--binding-ink);
 }
 
 /* ---------------------------------------------------------------------------
@@ -302,6 +305,8 @@
     --kind-violet-ink: oklch(0.43 0.1 305);
     --kind-pink: oklch(0.55 0.11 340);
     --kind-pink-ink: oklch(0.43 0.1 340);
+    /* Stronger than the kind ink, which a thin mono glyph cannot tell from the foreground. */
+    --binding-ink: oklch(0.48 0.17 305);
 
     --good: var(--status-succeeded);
     --critical: var(--status-failed);
@@ -455,6 +460,8 @@
     --kind-violet-ink: oklch(0.78 0.11 305);
     --kind-pink: oklch(0.68 0.12 340);
     --kind-pink-ink: oklch(0.78 0.11 340);
+    /* Stronger than the kind ink, which a thin mono glyph cannot tell from the foreground. */
+    --binding-ink: oklch(0.7 0.18 305);
 
     --good: var(--status-succeeded);
     --critical: var(--status-failed);
