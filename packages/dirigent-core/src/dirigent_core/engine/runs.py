@@ -28,6 +28,7 @@ from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
 from dirigent_core.database import session_scope
+from dirigent_core.engine.claim import is_postgres, routable
 from dirigent_core.engine.context import (
     BufferedLogger,
     ConnectionRecord,
@@ -602,8 +603,8 @@ async def cancel_run(
         # A handle is what says remote work exists, and it is committed one transaction
         # before the attempt is parked as waiting. Telling only a waiting attempt's remote
         # leaves a job running whenever the cancel lands inside that window.
-        if attempt.remote_handle:
-            await cancel_remote(session, services, run, attempt, connections)
+        if attempt.remote_handle and not await cancel_remote(session, services, run, attempt, connections):
+            attempt.remote_cancel_since = moment
         attempt.status = AttemptStatus.CANCELLED
         attempt.finished_at = moment
         attempt.lease_owner = None
@@ -688,21 +689,30 @@ async def _cancel_items(session: AsyncSession, run: Run, moment: datetime) -> No
         item.finished_at = moment
 
 
+#: How long the workers go on telling a remote about a cancel it has not agreed to.
+REMOTE_CANCEL_WINDOW: Final = timedelta(minutes=10)
+
+#: The most such attempts one worker tries on one sweep.
+REMOTE_CANCEL_BATCH: Final = 100
+
+
 async def cancel_remote(
     session: AsyncSession,
     services: EngineServices,
     run: Run,
     attempt: StepAttempt,
     connections: Mapping[str, ConnectionRecord],
-) -> None:
-    """Ask an operator to cancel the remote work an attempt holds a handle on.
+) -> bool:
+    """Ask an operator to cancel the remote work an attempt holds a handle on, and say if it did.
 
     The runs facade handed over is bound to the cancelling transaction, so an operator that
     cancels by cancelling another run settles the parent and the child in one commit.
     """
+    if not attempt.remote_handle:
+        return True
     block = services.host.operators.get(attempt.block_id)
-    if block is None or not attempt.remote_handle:
-        return
+    if block is None:
+        return False
     context = EngineStepContext(
         run_id=run.id,
         step=attempt.step_name,
@@ -738,8 +748,47 @@ async def cancel_remote(
             attempt_id=str(attempt.id),
             error=raised_detail(error, redact=context.opened_secrets),
         )
-        return
+        return False
     _logger.info("remote cancellation requested", attempt_id=str(attempt.id), accepted=accepted)
+    return accepted
+
+
+async def retry_remote_cancels(
+    session: AsyncSession, services: EngineServices, tags: Sequence[str], *, now: datetime | None = None
+) -> int:
+    """Tell the remote what a cancel elsewhere could not, from a worker that may reach it, and count them.
+
+    A cancel runs where it was asked, and the server of a stack is often not where a daemon can be
+    reached. So an attempt cancelled without its remote agreeing stays marked, and each worker the
+    run's tags allow tries again on its sweep. A remote that says the work is gone answers no
+    differently from one that did not hear, so the tries stop after ``REMOTE_CANCEL_WINDOW``.
+    """
+    moment = now or utcnow()
+    postgres = is_postgres(session)
+    marked = (
+        sa.select(StepAttempt)
+        .join(Run, Run.id == StepAttempt.run_id)
+        .where(StepAttempt.remote_cancel_since.is_not(None), routable(tags, postgres=postgres))
+        .order_by(StepAttempt.remote_cancel_since)
+        .limit(REMOTE_CANCEL_BATCH)
+    )
+    if postgres:
+        marked = marked.with_for_update(of=StepAttempt, skip_locked=True)
+    attempts = list((await session.execute(marked)).scalars())
+    if not attempts:
+        return 0
+    connections = await load_connections(session)
+    told = 0
+    for attempt in attempts:
+        since = cast("datetime", attempt.remote_cancel_since)
+        run = await session.get(Run, attempt.run_id)
+        if run is None or moment - since > REMOTE_CANCEL_WINDOW:
+            attempt.remote_cancel_since = None
+            continue
+        if await cancel_remote(session, services, run, attempt, connections):
+            attempt.remote_cancel_since = None
+            told += 1
+    return told
 
 
 async def promote_queued_run(session: AsyncSession, services: EngineServices, pipeline_id: UUID) -> Run | None:

@@ -26,6 +26,7 @@ from dirigent_core.database import session_scope
 from dirigent_core.engine.claim import ClaimedUnit
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.recovery import detect_stuck_runs, reap_workers, sweep_leases
+from dirigent_core.engine.runs import retry_remote_cancels
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import StepAttempt, utcnow
@@ -237,6 +238,7 @@ class Worker:
                     stuck = await detect_stuck_runs(session, after=self.settings.stuck_run)
                     await raise_for_stuck(session, self.services, stuck)
                     await recover_notifications(session)
+                    told = await retry_remote_cancels(session, self.services, self.tags)
                     # This worker's own row was refreshed by the heartbeat well inside the
                     # age below, so a sweeper never reaps the process running it.
                     reaped = await reap_workers(session, older_than=self.settings.stale_worker)
@@ -247,6 +249,8 @@ class Worker:
                     _logger.info("settled attempts past their deadline", worker=self.name, count=len(overdue))
                 if reaped:
                     _logger.info("reaped worker registry rows", worker=self.name, count=len(reaped))
+                if told:
+                    _logger.info("told the remote about a cancel", worker=self.name, count=told)
             except Exception as error:  # the sweeper retries on its next tick
                 _logger.warning("sweep failed", worker=self.name, error=str(error))
 

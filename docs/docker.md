@@ -159,6 +159,11 @@ file in a 0700 directory in the system's temporary directory, outside the roots 
 can read -- the TLS triple as `DOCKER_CERT_PATH`, the login as a `DOCKER_CONFIG` of its own -- and both directories are removed when the step
 leaves, on success, on failure and on cancellation.
 
+**A cancel reaches a daemon only the worker can.** `$cancel` runs where it was asked, and in the
+shipped stack the server has no route to the daemon, which shares a network with the worker alone. So
+an attempt cancelled without its remote agreeing stays marked, and a worker the run's tags allow
+tells the daemon on its next sweep, every `DIRIGENT_SWEEP_INTERVAL` for ten minutes.
+
 **Every step of one stack names the same connection.** A stack exists only on the daemon that
 was told to create it, so a `docker.compose.up` on one daemon and a `docker.compose.down` on
 another tear down nothing. The `up`, the `docker.run` that drives it and the `down` all carry
