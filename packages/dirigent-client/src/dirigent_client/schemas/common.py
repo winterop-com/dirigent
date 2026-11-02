@@ -24,6 +24,11 @@ def _shown(value: JsonValue) -> JsonValue:
 StoredJson = Annotated[JsonMap | None, BeforeValidator(_shown)]
 
 
+def _elements(value: object) -> list[object]:
+    """A list's elements, or a value on its own."""
+    return cast("list[object]", value) if isinstance(value, list) else [value]
+
+
 class RequestModel(BaseModel):
     """A body a caller writes, whose text is refused when no database stores it as written."""
 
@@ -31,7 +36,7 @@ class RequestModel(BaseModel):
     @classmethod
     def _storable(cls, value: object) -> object:
         """Refuse a NUL or half a surrogate pair in any text field, or list of text."""
-        for element in cast("list[object]", value) if isinstance(value, list) else [value]:
+        for element in _elements(value):
             refuse_unstorable(element)
         return value
 
