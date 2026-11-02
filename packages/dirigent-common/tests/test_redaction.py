@@ -5,7 +5,16 @@ from urllib.parse import quote, quote_plus
 
 from pydantic import BaseModel, JsonValue, SecretStr
 
-from dirigent_common import REDACTED, raised_detail, scrub, scrub_json, secrets_of, spellings
+from dirigent_common import (
+    MIN_OUTPUT_SPELLING,
+    REDACTED,
+    raised_detail,
+    scrub,
+    scrub_json,
+    scrub_output,
+    secrets_of,
+    spellings,
+)
 
 
 class Holding(BaseModel):
@@ -70,3 +79,31 @@ def test_a_long_secret_is_scrubbed_before_the_detail_is_cut() -> None:
 def test_a_detail_with_nothing_to_redact_is_cut_as_it_was() -> None:
     said = raised_detail(ValueError("x" * 3000))
     assert said.endswith("[truncated, 3000 characters]")
+
+
+def test_an_output_keeps_its_types_and_its_shape() -> None:
+    output: dict[str, JsonValue] = {
+        "a": 1,
+        "b": 1.5,
+        "c": True,
+        "d": None,
+        "e": [1, "x DUMMY-token", {"DUMMY-token": 2}],
+    }
+    assert scrub_output(output, spellings("DUMMY-token")) == {
+        "a": 1,
+        "b": 1.5,
+        "c": True,
+        "d": None,
+        "e": [1, f"x {REDACTED}", {REDACTED: 2}],
+    }
+
+
+def test_an_output_is_not_scrubbed_of_a_spelling_shorter_than_the_minimum() -> None:
+    assert MIN_OUTPUT_SPELLING == 4
+    assert scrub_output({"said": "abc abcd"}, {"abc"}) == {"said": "abc abcd"}
+    assert scrub_output({"said": "abc abcd"}, {"abcd"}) == {"said": f"abc {REDACTED}"}
+
+
+def test_an_output_with_nothing_to_scrub_is_handed_back_as_it_is() -> None:
+    output: dict[str, JsonValue] = {"said": "x"}
+    assert scrub_output(output, ()) is output

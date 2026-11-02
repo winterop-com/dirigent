@@ -77,7 +77,15 @@ from dirigent_common.programs import (
     SQL_MEDIA_TYPE,
     TEMPLATE_MEDIA_TYPE,
 )
-from dirigent_common.redaction import REDACTED, scrub, scrub_json, secrets_of, spellings
+from dirigent_common.redaction import (
+    MIN_OUTPUT_SPELLING,
+    REDACTED,
+    scrub,
+    scrub_json,
+    scrub_output,
+    secrets_of,
+    spellings,
+)
 from dirigent_common.schema_references import LOCAL_REFERENCES, Unresolvable
 from dirigent_common.schema_values import EvaluationOverrun, ValueValidator, bounded_evaluation
 from dirigent_common.schemas import BlockModel, HealthReport, HttpConnectionConfig
@@ -144,6 +152,7 @@ __all__ = [
     "EntityName",
     "Formatter",
     "HealthReport",
+    "MIN_OUTPUT_SPELLING",
     "PLAIN_HEADERS_KEYWORD",
     "PLAIN_QUERY_KEYWORD",
     "PLAIN_URL_KEYWORD",
@@ -190,6 +199,7 @@ __all__ = [
     "render",
     "scrub",
     "scrub_json",
+    "scrub_output",
     "secrets_of",
     "spelled",
     "spellings",

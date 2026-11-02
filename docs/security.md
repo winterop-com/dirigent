@@ -1124,6 +1124,17 @@ Stated plainly, because a security page that lists only what exists is not much 
   sealed, set by a request hook on the connection's own origin, taken off a redirect that leaves
   it, and scrubbed from an error that echoes the URL.
 
+  A sealed value a service echoes into a step's output is scrubbed too. The engine walks what a
+  block returns before it is stored or handed on, on a thread, and replaces inside strings and
+  dict keys every spelling the scrubber knows, percent-encoded and JSON-escaped included, for every
+  secret the attempt opened; types and shape stay as they are, though two keys that differ only by a
+  secret would become one. It reaches a step's output and nothing else: not what a block writes
+  straight to storage, not a capture, not a remote handle, not a source's poll. Binary content in an
+  output is base64 by then and is not recognised, and neither is a basic credential a server quotes
+  from its `Authorization` header in base64. A spelling under four characters is left alone, and a
+  password that is an ordinary word, such as DHIS2's demo `district`, is replaced wherever that word
+  occurs in the output of a step that opened it, so such a credential costs its own data.
+
   The name rule for a query is not the one for a header, because a query is any API's data.
   Refused: a word such as `password`, `secret`, `auth` or `jwt`; a compound such as `api_key` or
   `client_secret`; a `token` unless the word before it says it is a place in a listing (`page_token`,
