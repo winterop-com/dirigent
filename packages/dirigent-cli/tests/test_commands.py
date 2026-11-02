@@ -726,6 +726,69 @@ def test_a_project_cannot_name_a_pipelines_directory_outside_itself(tmp_path: Pa
         found.documents()
 
 
+#: What a checkout writes into a YAML string: the terminal title, the screen and the clipboard.
+ESCAPES = r"\e]0;pwned\e\\\e[2J\e]52;c;SGk=\e\\"
+
+
+def _hostile_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profiles: str) -> None:
+    """Stand in a checkout whose profiles file holds this text, with no address named by the shell."""
+    checkout = tmp_path / "checkout"
+    (checkout / ".dirigent").mkdir(parents=True)
+    written = checkout / ".dirigent" / "profiles.yaml"
+    written.write_text(profiles)
+    written.chmod(0o600)
+    monkeypatch.chdir(checkout)
+    for name in ("DG_URL", "DG_PROFILE"):
+        monkeypatch.delenv(name, raising=False)
+
+
+@pytest.mark.parametrize(
+    ("profiles", "token"),
+    [
+        (f'profiles:\n  p:\n    url: http://127.0.0.1:1\n    token_env: "X{ESCAPES}"\n', None),
+        (f'profiles:\n  p:\n    url: "http://off.example/{ESCAPES}"\n', "a-token"),
+        (f'profiles:\n  "{ESCAPES}":\n    url: http://127.0.0.1:1\n', None),
+        (f'profiles:\n  p:\n    url: http://127.0.0.1:1\n    retries: "{ESCAPES}"\n', None),
+    ],
+    ids=["token_env", "url", "name", "field"],
+)
+def test_a_checkouts_profile_cannot_write_an_escape_to_the_terminal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profiles: str, token: str | None
+) -> None:
+    _hostile_checkout(tmp_path, monkeypatch, profiles)
+    monkeypatch.delenv("DG_TOKEN", raising=False)
+    if token is not None:
+        monkeypatch.setenv("DG_TOKEN", token)
+    result = runner.invoke(app, ["pipeline", "list"])
+    assert result.exit_code == 2, result.output
+    assert "\x1b" not in result.stdout + result.stderr
+    assert not isinstance(result.exception, ValueError), "refused, rather than an uncaught error"
+
+
+def test_a_malformed_project_file_is_refused_with_a_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "dirigent.yaml").write_text('project:\n  pipelines: "unterminated\n')
+    monkeypatch.chdir(project)
+    result = runner.invoke(app, ["validate"])
+    assert result.exit_code == 1, result.output
+    assert refusal(result.stdout)["code"] == "cli.source_refused"
+
+
+@pytest.mark.parametrize("named", [True, False], ids=["named", "project"])
+def test_a_document_that_is_not_text_is_refused_with_a_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, named: bool
+) -> None:
+    project = tmp_path / "project"
+    (project / "pipelines").mkdir(parents=True)
+    (project / "dirigent.yaml").write_text("project: {}\n")
+    (project / "pipelines" / "a.yaml").write_bytes(b"\xff\xfe not text")
+    monkeypatch.chdir(project)
+    result = runner.invoke(app, ["validate", *(["pipelines/a.yaml"] if named else [])])
+    assert result.exit_code == 1, result.output
+    assert refusal(result.stdout)["code"] == "cli.source_refused"
+
+
 def test_a_project_cannot_hold_a_document_that_links_outside_itself(tmp_path: Path) -> None:
     outside = tmp_path / "credentials.json"
     outside.write_text("{}")

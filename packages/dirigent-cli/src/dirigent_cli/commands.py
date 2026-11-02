@@ -463,7 +463,10 @@ def _documents_to_apply(reference: str | None, as_code: str | None) -> list[Docu
             return [read_document(reference)]
         except SourceError as error:
             fail(SOURCE_REFUSED, detail=str(error))
-    project = find_project()
+    try:
+        project = find_project()
+    except ProjectError as error:
+        fail(SOURCE_REFUSED, detail=str(error))
     if project is None:
         fail(NO_DOCUMENT_AND_NO_PROJECT)
     if as_code is not None:
@@ -476,7 +479,10 @@ def _documents_to_apply(reference: str | None, as_code: str | None) -> list[Docu
         fail(PROJECT_IS_EMPTY, directory=cast("Any", project).pipelines_dir)
     # Pipelines go before triggers documents: one that names a pipeline the instance does not
     # hold yet is refused, and applying the pipeline first is what makes it present.
-    return sorted((read_path(path) for path in paths), key=_declares_triggers)
+    try:
+        return sorted((read_path(path) for path in paths), key=_declares_triggers)
+    except SourceError as error:
+        fail(SOURCE_REFUSED, detail=str(error))
 
 
 def _declares_triggers(document: Document) -> bool:
@@ -544,7 +550,10 @@ def validate_command(
     state = state_of(ctx)
     skipped = 0
     if reference is not None and Path(reference).is_dir():
-        documents, skipped = read_directory(Path(reference))
+        try:
+            documents, skipped = read_directory(Path(reference))
+        except SourceError as error:
+            fail(SOURCE_REFUSED, detail=str(error))
         if not documents:
             fail(PROJECT_IS_EMPTY, directory=reference)
     else:

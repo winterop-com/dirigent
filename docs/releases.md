@@ -17,6 +17,15 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**A checkout's files cannot write terminal escapes through `dg`.** The text of a
+`.dirigent/profiles.yaml` reached the terminal raw through a profile's refusal, so a repository
+could clear the screen, set the title or write the clipboard of whoever ran `dg` in it. A profile's
+refusal now has every control character removed, and a profile name that is not valid is one of
+those refusals rather than an uncaught error. A malformed `dirigent.yaml`, and a document that is
+not text, are now refused with a record (`cli.source_refused`) rather than a traceback.
+
 ## 0.30.0
 
 Released 2026-11-01. Every package in the workspace moves to 0.30.0 together, and so do
