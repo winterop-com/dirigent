@@ -229,7 +229,7 @@ export function curlLine(call: { url: string; method: string; token: string; bod
     const parts = [
         'curl',
         '-X',
-        method,
+        /^[A-Z]+$/.test(method) ? method : shellQuoted(method),
         shellQuoted(call.url),
         '-H',
         shellQuoted(`Authorization: Bearer ${call.token}`),
