@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import httpx2
 from pydantic import BaseModel, SecretStr
 
-from dirigent_common import CredentialOnOrigin, base_format_checker
+from dirigent_common import CredentialOnOrigin, CredentialParameterOnOrigin, base_format_checker
 from dirigent_core.engine.context import BufferedLogger, EngineStepContext, build_http_client
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import Storage, build_storage
@@ -181,3 +181,15 @@ def test_a_credential_carries_the_hook_that_keeps_it_on_its_origin() -> None:
     assert "authorization" not in bare.headers
     assert bare.event_hooks["request"] == []
     assert [type(hook) for hook in held.event_hooks["request"]] == [CredentialOnOrigin]
+
+
+class _QueryCredentialConfig(_CredentialConfig):
+    """A connection kind that also names the query parameter."""
+
+    credential_query: str | None = None
+
+
+def test_a_credential_sent_as_a_query_parameter_is_no_header() -> None:
+    held = build_http_client(_QueryCredentialConfig(credential=SecretStr("dummy"), credential_query="api_key"))
+    assert "authorization" not in held.headers
+    assert [type(hook) for hook in held.event_hooks["request"]] == [CredentialParameterOnOrigin]

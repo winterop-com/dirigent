@@ -7,11 +7,19 @@ timeouts into a fourth slightly different form.
 """
 
 from datetime import timedelta
+from typing import Self
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
+from dirigent_common.credentials import (
+    CredentialHeader,
+    CredentialQuery,
+    CredentialScheme,
+    CredentialValue,
+    PlainUrl,
+    refuse_credential_in_two_places,
+)
 from dirigent_common.durations import Duration
-from dirigent_common.headers import CredentialHeader, CredentialScheme, CredentialValue
 
 
 class BlockModel(BaseModel):
@@ -40,8 +48,9 @@ class HttpConnectionConfig(BlockModel):
 
     model_config = ConfigDict(hide_input_in_errors=True)
 
-    base_url: str = Field(min_length=1)
-    """The service root every request path is resolved against."""
+    base_url: PlainUrl = Field(min_length=1)
+    """The service root every request path is resolved against; a user, a password or a credential in its query is
+    refused."""
 
     bearer_token: SecretStr | None = None
     """A bearer credential, sent as an Authorization header."""
@@ -55,8 +64,12 @@ class HttpConnectionConfig(BlockModel):
     credential: CredentialValue = None
     """A credential for a service that wants neither a bearer token nor basic: visible ASCII with no whitespace."""
 
-    credential_header: CredentialHeader = "Authorization"
-    """The header `credential` is sent in, which goes only to the origin of `base_url`."""
+    credential_header: CredentialHeader = None
+    """The header `credential` is sent in, `Authorization` when unset; it goes only to the origin of `base_url`."""
+
+    credential_query: CredentialQuery = None
+    """The query parameter `credential` is sent as instead of a header, for an API that reads no other; it goes only
+    to the origin of `base_url`."""
 
     credential_scheme: CredentialScheme = None
     """The word sent before `credential` in its header, such as `Token`; unset sends the credential alone."""
@@ -80,3 +93,9 @@ class HttpConnectionConfig(BlockModel):
 
     health_path: str = "/"
     """What a connection check requests to decide whether the service is reachable."""
+
+    @model_validator(mode="after")
+    def _credential_goes_in_one_place(self) -> Self:
+        """Refuse a credential told to go in a query parameter and a header."""
+        refuse_credential_in_two_places(self.credential_header, self.credential_query, self.credential_scheme)
+        return self

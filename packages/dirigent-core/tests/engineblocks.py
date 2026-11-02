@@ -16,6 +16,8 @@ from dirigent_common import (
     BlockModel,
     Duration,
     PlainHeaders,
+    PlainQuery,
+    PlainUrl,
     StorageUri,
     spellings,
 )
@@ -142,6 +144,8 @@ class HeaderishConfig(BlockModel):
     model_config = ConfigDict(hide_input_in_errors=True)
 
     headers: PlainHeaders = Field(default_factory=dict[str, str])
+    query: PlainQuery = Field(default_factory=dict[str, str | int | float | bool])
+    url: PlainUrl | None = None
     note: str = ""
 
 

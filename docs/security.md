@@ -1113,6 +1113,26 @@ Stated plainly, because a security page that lists only what exists is not much 
   validation), because a map is stored as written and shown to whoever can read it. It goes in the
   connection's sealed `credential`, sent in `credential_header` after `credential_scheme`.
 
+  Nor in a query or a URL. `http.request`, `webhook.post` and `http.ready` refuse a query parameter
+  whose name carries one, in the map or written in `url` or `path`, and a user or a password in a
+  URL (`document.step_credential_parameter` and `document.step_url_userinfo` at apply,
+  `common.credential_parameter_refused` and `common.url_userinfo_refused` when the step starts).
+  So do the `base_url` of an `http` connection, the `url` of a `webhook` one and an S3
+  `endpoint_url`. A `sql` or `rabbitmq` URL and an ssh git remote keep their user, which is not a
+  secret, and refuse a password and a credential in the query. An https git remote refuses a user
+  too. An API that authenticates by query parameter names it in `credential_query`: the value is
+  sealed, set by a request hook on the connection's own origin, taken off a redirect that leaves
+  it, and scrubbed from an error that echoes the URL.
+
+  The name rule for a query is not the one for a header, because a query is any API's data.
+  Refused: a word such as `password`, `secret`, `auth` or `jwt`; a compound such as `api_key` or
+  `client_secret`; a `token` unless the word before it says it is a place in a listing (`page_token`,
+  `nextToken`, `continuation_token`); a `key` only when the word before it is a credential's
+  (`app_key`, `subscription_key`). Not refused: a bare `key`, which `?key=` on a Google API is a
+  credential and elsewhere is not, so that one has to be caught by review; `session`; and `sig`,
+  `signature` and a presigned URL's `X-Amz-*` and `X-Goog-*`, which a step often reads back from
+  an earlier answer.
+
   What a redirect cannot do is carry a connection's credentials somewhere else: the client
   drops the `Authorization` header when the origin changes, a request hook drops a `credential`
   sent in a header of its own the same way, so a service that redirects before authenticating has

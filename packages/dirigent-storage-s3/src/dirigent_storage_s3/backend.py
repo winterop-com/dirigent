@@ -11,9 +11,9 @@ import aioboto3
 # botocore ships no py.typed, and the workspace mypy config only exempts ``aioboto3.*``.
 from botocore.config import Config  # type: ignore[import-untyped]
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, ConfigDict, SecretStr
 
-from dirigent_common import BlockModel
+from dirigent_common import BlockModel, PlainUrl
 from dirigent_plugin import ByteSink, ContainerResult, StatResult, StorageBackend
 
 SCHEME: Final = "s3"
@@ -66,7 +66,9 @@ class InvalidS3Uri(S3StorageError):
 class S3StorageConfig(BlockModel):
     """Everything the backend needs to reach one S3 or S3-compatible endpoint."""
 
-    endpoint_url: str | None = None
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    endpoint_url: PlainUrl | None = None
     """The service root, set for any S3-compatible endpoint; None means AWS S3 itself."""
 
     region: str = DEFAULT_REGION

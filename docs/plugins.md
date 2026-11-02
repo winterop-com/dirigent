@@ -455,6 +455,7 @@ name rather than by model:
 | `credential` | Sent in `credential_header`, after `credential_scheme` when one is set, and only to the origin of `base_url` |
 | `credential_header` | The header `credential` is sent in instead of `Authorization` |
 | `credential_scheme` | The word sent before `credential` |
+| `credential_query` | The query parameter `credential` is sent as instead of a header, only to the origin of `base_url` |
 | `basic_username`, `basic_password` | The client's HTTP basic auth |
 | `verify_tls` | Whether certificates are verified |
 | `follow_redirects_with_auth` | When `true`, `base_url` is followed through its redirects once, without a credential, and every request is sent to where it lands |
@@ -470,7 +471,12 @@ A free-form header map in a block's config or a connection's is stored as writte
 is validated and, for a block, when the document is applied, whether the value is a literal or a
 reference. Set `hide_input_in_errors` on the model as well, so a refusal at run time cannot repeat a
 value a reference resolved to. A credential goes in a `CredentialValue` field named `credential`,
-with `credential_header` and `credential_scheme` beside it.
+with `credential_header`, `credential_scheme` or `credential_query` beside it.
+
+A free-form query map is typed `PlainQuery`, and a URL a person writes `PlainUrl`, on the same terms:
+the first refuses a name that carries a credential, the second that and a user or a password as well.
+A query name is judged by its own rule, because a query is any API's data: `page_token`, `nextToken`,
+`sort_key` and a bare `key` pass, as do a presigned URL's `X-Amz-*` parameters.
 
 ## A pack in its own repository
 

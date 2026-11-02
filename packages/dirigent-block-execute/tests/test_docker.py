@@ -17,6 +17,7 @@ from dirigent_block_execute.docker import (
     STDERR_FRAME,
     STDOUT_FRAME,
     DaemonEndpoint,
+    DockerConnectionConfig,
     DockerRunConfig,
     DockerRunOperator,
     DockerRunOutput,
@@ -1213,3 +1214,10 @@ async def test_a_frame_split_across_chunks_is_not_lost(daemon: FakeDaemon, local
         found.extend(frames.take(payload[index : index + 3]))
 
     assert found == [(False, b"a message that spans chunks")]
+
+
+def test_a_daemon_url_with_a_password_is_refused_without_repeating_it() -> None:
+    with pytest.raises(ValidationError) as refused:
+        DockerConnectionConfig(host="tcp://user:DUMMYSECRET@host:2376")
+    assert "cannot carry a password" in str(refused.value)
+    assert "DUMMYSECRET" not in str(refused.value)

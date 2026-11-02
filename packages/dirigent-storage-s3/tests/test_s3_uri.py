@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 from pluginkit import PluginManager
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from dirigent_common import API_VERSION
 from dirigent_plugin import ENTRY_POINT_GROUP, PROJECT_NAME, contribute, markers
@@ -254,3 +254,10 @@ async def test_a_check_against_an_unusable_endpoint_reports_rather_than_raises()
 def test_plugin_is_the_singleton_the_entry_point_names() -> None:
     exported: Any = plugin
     assert isinstance(exported, S3StoragePlugin)
+
+
+def test_an_endpoint_carrying_a_credential_is_refused_without_repeating_it() -> None:
+    with pytest.raises(ValidationError) as refused:
+        S3StorageConfig(endpoint_url="https://user:DUMMYSECRET@s3.example.org")
+    assert "cannot carry a user or a password" in str(refused.value)
+    assert "DUMMYSECRET" not in str(refused.value)

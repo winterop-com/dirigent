@@ -25,15 +25,19 @@ from dirigent_blocks.messages import (
     WEBHOOK_HEADER_IS_THE_CREDENTIALS,
 )
 from dirigent_common import (
+    DEFAULT_CREDENTIAL_HEADER,
     BlockModel,
     CredentialHeader,
+    CredentialQuery,
     CredentialScheme,
     CredentialValue,
     Duration,
     HealthReport,
     PlainHeaders,
+    PlainUrl,
     credential_header_value,
     raised_detail,
+    refuse_credential_in_two_places,
     secrets_of,
 )
 from dirigent_plugin import AlertMessage, ConnectionKind, Notifier
@@ -51,7 +55,7 @@ class WebhookNotifierConfig(BlockModel):
 
     model_config = ConfigDict(hide_input_in_errors=True)
 
-    url: str = Field(default="", description="The endpoint an alert is POSTed to as JSON.")
+    url: PlainUrl = Field(default="", description="The endpoint an alert is POSTed to as JSON.")
     """Where to send it; a connection supplies this, so a rule can name one endpoint per channel."""
 
     bearer_token: SecretStr | None = None
@@ -60,8 +64,11 @@ class WebhookNotifierConfig(BlockModel):
     credential: CredentialValue = None
     """A credential for a receiver that wants no bearer token: visible ASCII with no whitespace."""
 
-    credential_header: CredentialHeader = "Authorization"
-    """The header `credential` is sent in."""
+    credential_header: CredentialHeader = None
+    """The header `credential` is sent in, `Authorization` when unset."""
+
+    credential_query: CredentialQuery = None
+    """The query parameter `credential` is sent as instead of a header, for a receiver that reads no other."""
 
     credential_scheme: CredentialScheme = None
     """The word sent before `credential` in its header, such as `Token`; unset sends the credential alone."""
@@ -78,9 +85,10 @@ class WebhookNotifierConfig(BlockModel):
 
     @model_validator(mode="after")
     def _credential_header_is_the_credentials_own(self) -> "WebhookNotifierConfig":
-        """Refuse a plain header spelling the name the credential is sent in."""
+        """Refuse a plain header spelling the name the credential is sent in, and a credential in two places."""
+        refuse_credential_in_two_places(self.credential_header, self.credential_query, self.credential_scheme)
         for name in self.headers:
-            if name.lower() == self.credential_header.lower():
+            if name.lower() == (self.credential_header or DEFAULT_CREDENTIAL_HEADER).lower():
                 raise ValueError(WEBHOOK_HEADER_IS_THE_CREDENTIALS.render(header=name))
         return self
 
@@ -107,7 +115,7 @@ class WebhookNotifier(Notifier):
             verify=settings.verify_tls,
             headers=headers,
         ) as client:
-            response = await client.post(settings.url, json=payload_of(message))
+            response = await client.post(_webhook_url(settings), json=payload_of(message))
         if response.status_code >= FAILED_STATUS:
             raise httpx2.HTTPStatusError(
                 f"the alert endpoint answered HTTP {response.status_code}",
@@ -126,11 +134,19 @@ def _webhook_headers(settings: WebhookNotifierConfig) -> dict[str, str]:
     token = settings.bearer_token.get_secret_value() if settings.bearer_token is not None else ""
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    if settings.credential is not None:
-        headers[settings.credential_header] = credential_header_value(
+    if settings.credential is not None and settings.credential_query is None:
+        headers[settings.credential_header or DEFAULT_CREDENTIAL_HEADER] = credential_header_value(
             settings.credential.get_secret_value(), settings.credential_scheme
         )
     return headers
+
+
+def _webhook_url(settings: WebhookNotifierConfig) -> httpx2.URL:
+    """Render where one call goes, with the credential on it when it is sent as a query parameter."""
+    url = httpx2.URL(settings.url)
+    if settings.credential is None or settings.credential_query is None:
+        return url
+    return url.copy_set_param(settings.credential_query, settings.credential.get_secret_value())
 
 
 class WebhookConnectionKind(ConnectionKind):
@@ -155,7 +171,7 @@ class WebhookConnectionKind(ConnectionKind):
             async with httpx2.AsyncClient(
                 timeout=settings.timeout.total_seconds(), verify=settings.verify_tls, headers=headers
             ) as client:
-                response = await client.head(settings.url)
+                response = await client.head(_webhook_url(settings))
         # Broad on purpose: a health check reports a failure, it never raises one at the caller.
         except Exception as error:
             return HealthReport(healthy=False, detail=raised_detail(error, redact=secrets_of(settings)))

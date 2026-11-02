@@ -659,7 +659,7 @@ def ask(helper: Path, prompt: str) -> std_subprocess.CompletedProcess[str]:
 
 
 def test_the_helper_answers_only_the_two_prompts_for_the_origin() -> None:
-    settings = GitConnectionConfig(url="https://user:old@Host.example:8443/o/r.git", token=SecretStr("ghp_secret"))
+    settings = GitConnectionConfig(url="https://Host.example:8443/o/r.git", token=SecretStr("ghp_secret"))
 
     with credentials(settings) as sealed:
         helper = Path(sealed.environ["GIT_ASKPASS"])
@@ -965,3 +965,23 @@ async def test_a_relative_work_root_lands_one_checkout_and_not_two(
     root = Path.cwd() / "state/work/runs/one"
     assert (root / output.target / "README.md").exists()
     assert not (root / "state").exists(), "the work root was resolved a second time"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://user:DUMMYSECRET@host/o/r.git",
+        "https://DUMMYSECRET@host/o/r.git",
+        "ssh://git:DUMMYSECRET@host/o/r.git",
+        "https://host/o/r.git?access_token=DUMMYSECRET",
+    ],
+)
+def test_a_remote_carrying_a_credential_is_refused_without_repeating_it(url: str) -> None:
+    with pytest.raises(ValidationError) as refused:
+        GitConnectionConfig(url=url)
+    assert "DUMMYSECRET" not in str(refused.value)
+
+
+@pytest.mark.parametrize("url", ["https://host/o/r.git", "ssh://git@host/o/r.git", "git@host:o/r.git"])
+def test_a_remote_holding_no_secret_is_kept(url: str) -> None:
+    assert GitConnectionConfig(url=url).url == url

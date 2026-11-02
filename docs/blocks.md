@@ -335,7 +335,7 @@ Contributed by `block-http`. Not idempotent.
 | `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. |
 | `follow_redirects` | `boolean` |  | `false` | Whether a 3xx is followed rather than returned as the answer. |
 | `method` | `"GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS"` |  | `"GET"` | The method the request is sent with. |
-| `query` | `object of string or integer or number or boolean` |  |  | Query parameters appended to the URL, each value written as text. |
+| `query` | `object of string or integer or number or boolean` |  |  | Query parameters appended to the URL, each value written as text; one whose name carries a credential is refused, and goes on the connection. |
 | `headers` | `object of string` |  |  | Headers sent with the request; one whose name carries a credential is refused, and goes on the connection. |
 | `body` | `any or null` |  | `null` | What the request sends, usually a reference to what an earlier step produced. |
 | `content_type` | `string or null` |  | `null` | The content type the body is sent with, overriding the default for what it carries. |

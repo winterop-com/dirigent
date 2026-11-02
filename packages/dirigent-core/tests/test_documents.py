@@ -522,6 +522,54 @@ def test_a_credential_in_a_header_map_is_refused_when_the_document_is_applied(ho
     assert "credential field" in issues[0].message
 
 
+@pytest.mark.parametrize(
+    ("config", "code", "location"),
+    [
+        ("{query: {api_key: literal}}", "document.step_credential_parameter", "steps.a.config.query.api_key"),
+        (
+            "{query: {access_token: '${params.day}'}}",
+            "document.step_credential_parameter",
+            "steps.a.config.query.access_token",
+        ),
+        ("{url: 'https://host/x?api_key=literal'}", "document.step_credential_parameter", "steps.a.config.url"),
+        ("{url: 'https://host/x?token=${params.day}'}", "document.step_credential_parameter", "steps.a.config.url"),
+        ("{url: '${params.day}/x?token=1'}", "document.step_credential_parameter", "steps.a.config.url"),
+        ("{url: 'https://user:literal@host/x'}", "document.step_url_userinfo", "steps.a.config.url"),
+        ("{url: 'https://${params.day}:${params.day}@host/x'}", "document.step_url_userinfo", "steps.a.config.url"),
+    ],
+)
+def test_a_credential_in_a_query_or_a_url_is_refused_when_the_document_is_applied(
+    host: PluginHost, config: str, code: str, location: str
+) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: held\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        f"steps:\n  a: {{block: test.headerish, config: {config}}}\n"
+    )
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [(issue.code, issue.location) for issue in issues] == [(code, location)]
+    assert "literal" not in issues[0].message
+    assert "literal" not in str(issues[0].params)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        "{query: {page_token: '${params.day}', key: v}}",
+        "{url: 'https://host/x?nextToken=${params.day}&key=v'}",
+        "{url: '${params.day}'}",
+        "{url: 'https://host/${params.day}@x'}",
+    ],
+)
+def test_a_query_or_a_url_holding_no_credential_is_applied(host: PluginHost, config: str) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: held\n"
+        "params: {type: object, properties: {day: {type: string}}}\n"
+        f"steps:\n  a: {{block: test.headerish, config: {config}}}\n"
+    )
+    assert validate_against_catalog(definition, host.catalog()) == []
+
+
 def test_a_header_map_holding_no_credential_is_applied(host: PluginHost) -> None:
     definition = load_text(
         "format: dirigent/v1\ncode: held\n"

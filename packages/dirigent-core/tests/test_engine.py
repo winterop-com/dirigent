@@ -2327,6 +2327,33 @@ async def test_a_credential_a_reference_puts_in_a_header_map_is_refused_when_the
     assert "DUMMYSECRET" not in attempt.error
 
 
+@pytest.mark.parametrize(
+    ("config", "said"),
+    [
+        ({"url": "${params.sent}"}, "the access_token query parameter carries a credential"),
+        ({"query": "${params.map}"}, "the api_key query parameter carries a credential"),
+    ],
+)
+async def test_a_credential_a_reference_puts_in_a_url_or_a_query_is_refused_when_the_step_starts_and_not_repeated(
+    engine: Engine, sessions: Any, services: EngineServices, config: dict[str, str], said: str
+) -> None:
+    definition = PipelineDefinition(
+        code="carried", steps=steps(only=StepDefinition(block="test.headerish", config=config, retry=FAST_RETRY))
+    )
+    run = await start(
+        sessions,
+        services,
+        definition,
+        sent="https://host/x?access_token=DUMMYSECRET",
+        map={"api_key": "DUMMYSECRET"},
+    )
+    await drain(engine)
+    attempt = (await attempts_of(sessions, run.id))[0]
+    assert attempt.status is AttemptStatus.FAILED
+    assert attempt.error is not None and said in attempt.error
+    assert "DUMMYSECRET" not in attempt.error
+
+
 async def test_a_reference_in_a_field_a_block_publishes_as_sql_is_refused_when_the_step_starts(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:

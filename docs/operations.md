@@ -1221,10 +1221,11 @@ dg connection create webhook ops-endpoint --name "Ops endpoint" \
 
 | Field | Default | What it means |
 | --- | --- | --- |
-| `url` | unset | Where the alert is POSTed |
+| `url` | unset | Where the alert is POSTed. A user, a password or a credential in its query is refused |
 | `bearer_token` | unset | Sent as an `Authorization: Bearer` header. Sealed |
 | `credential` | unset | A credential for a receiver that wants no bearer token. Sealed |
 | `credential_header` | `Authorization` | The header `credential` is sent in, such as `X-Api-Key` |
+| `credential_query` | unset | The query parameter `credential` is sent as instead of a header. Not set beside `credential_header` or `credential_scheme` |
 | `credential_scheme` | unset | The word sent before `credential`, such as `Token` |
 | `headers` | none | Extra headers the receiving system wants, such as a routing key. One whose name carries a credential is refused |
 | `verify_tls` | `true` | Whether the certificate is verified |

@@ -224,6 +224,49 @@ def test_a_step_refuses_a_credential_in_its_headers_without_repeating_the_value(
     assert "DUMMYSECRET" not in str(refused.value)
 
 
+@pytest.mark.parametrize("model", [HttpRequestConfig, WebhookPostConfig, HttpReadyConfig])
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"url": "https://user:DUMMYSECRET@host/x"},
+        {"url": "https://host/x?api_key=DUMMYSECRET"},
+        {"connection": "api", "path": "/x?access_token=DUMMYSECRET"},
+    ],
+    ids=["userinfo", "url-query", "path-query"],
+)
+def test_a_step_refuses_a_credential_in_its_url_without_repeating_it(
+    model: type[HttpTarget], target: dict[str, str]
+) -> None:
+    with pytest.raises(ValidationError) as refused:
+        model.model_validate(target)
+    assert "DUMMYSECRET" not in str(refused.value)
+
+
+def test_a_step_refuses_a_credential_in_its_query_and_keeps_a_page_token() -> None:
+    with pytest.raises(ValidationError) as refused:
+        HttpRequestConfig.model_validate({"connection": "api", "query": {"api_key": "DUMMYSECRET"}})
+    assert "the api_key query parameter carries a credential" in str(refused.value)
+    assert "DUMMYSECRET" not in str(refused.value)
+    assert HttpRequestConfig(connection="api", query={"page_token": "abc", "key": "v"}).query
+
+
+async def test_a_step_query_and_a_connections_query_parameter_reach_the_service_together(
+    ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ctx.handler = handler = Responder(json_response(200, {}))
+    built = build_client(
+        HttpConnectionConfig(base_url="http://service.test", credential=SecretStr("dummy"), credential_query="api_key")
+    )
+    client = httpx2.AsyncClient(
+        base_url=built.base_url, event_hooks=built.event_hooks, transport=httpx2.MockTransport(handler)
+    )
+    monkeypatch.setattr(ctx, "http", always(client))
+    config = HttpRequestConfig(connection="api", path="/x?a=1", query={"page": 2})
+    await HttpRequestOperator().execute(config, ctx.as_context())
+    params = handler.requests[0].url.params
+    assert params["api_key"] == "dummy" and params["page"] == "2"
+
+
 @pytest.mark.parametrize("name", ["Accept", "User-Agent", "X-Routing-Key", "Idempotency-Key", "X-GitHub-Api-Version"])
 def test_a_step_keeps_a_header_that_names_no_credential(name: str) -> None:
     assert HttpRequestConfig(connection="api", headers={name: "v"}).headers == {name: "v"}

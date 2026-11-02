@@ -995,6 +995,15 @@ const refused = {
         bad_credential:
             'A credential must be visible ASCII with no whitespace, or it cannot be sent as a header value. A scheme such as Bearer goes in credential_scheme.',
         bad_credential_word: 'credential_header and credential_scheme must each be one HTTP token.',
+        bad_credential_query: 'credential_query must be a query parameter name: letters, digits, and _ . ~ -.',
+        credential_parameter_refused:
+            'The {parameter} query parameter carries a credential, and a query is stored as written. Put its value in the credential field of a connection, which is sealed, with its name in credential_query.',
+        credential_two_places:
+            'A credential goes in one place: credential_query sends it as a query parameter, so credential_header and credential_scheme cannot be set beside it.',
+        url_userinfo_refused:
+            'A URL here cannot carry a user or a password, because it is stored as written. Put the credential in the sealed fields of a connection.',
+        url_password_refused:
+            'A URL here cannot carry a password, because it is stored as written. Put it in the sealed field of the connection.',
         credential_header_refused:
             'The {header} header carries a credential, and headers are stored as written. Put its value in the credential field of a connection, which is sealed, with its name in credential_header unless that is Authorization.',
         yaml_alias_cycle: 'This YAML has an alias inside the node it names, so it cannot be written out.',
@@ -1023,6 +1032,10 @@ const refused = {
             '${{{reference}}} stands where {field} holds programs, and a value is never a program. Write the programs out, and read the reference in them as the value it is.',
         step_reference_in_cql:
             '{reference} is inside {field}, and a value reaches a CQL library only as a parameter. Give the reference to parameters under the name the library declares it by.',
+        step_credential_parameter:
+            'The {parameter} query parameter carries a credential, and a document is stored as written. Put its value in the credential field of the connection this step names, with its name in credential_query.',
+        step_url_userinfo:
+            '{field} carries a user or a password, and a document is stored as written. Put the credential on the connection this step names.',
         step_credential_header:
             'The {header} header carries a credential, and a document is stored as written. Put its value in the credential field of the connection this step names, with its name in credential_header unless that is Authorization.',
         step_shell_unreadable:

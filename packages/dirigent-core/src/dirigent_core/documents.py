@@ -20,6 +20,9 @@ from dirigent_common import (
     FHIRPATH_MEDIA_TYPE,
     JQ_MEDIA_TYPE,
     LOCAL_REFERENCES,
+    PLAIN_HEADERS_KEYWORD,
+    PLAIN_QUERY_KEYWORD,
+    PLAIN_URL_KEYWORD,
     SHELL_MEDIA_TYPE,
     STORAGE_URI_FORMAT,
     TEMPLATE_MEDIA_TYPE,
@@ -30,7 +33,10 @@ from dirigent_common import (
     base_format_checker,
     bounded_load,
     carries_credential,
-    plain_header_fields_of,
+    carries_credential_parameter,
+    credential_parameter_in,
+    plain_fields_of,
+    userinfo_in,
     validation_issue,
 )
 from dirigent_common.messages import TEXT_UNSTORABLE
@@ -45,7 +51,13 @@ from dirigent_core.engine.definition import (
     TriggersDefinition,
     canonical_document,
 )
-from dirigent_core.engine.references import has_reference, is_whole_program, references_in, shell_unreadable
+from dirigent_core.engine.references import (
+    REFERENCE_PATTERN,
+    has_reference,
+    is_whole_program,
+    references_in,
+    shell_unreadable,
+)
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     ADOPTED_NOT_FAN_OUT,
@@ -88,6 +100,7 @@ from dirigent_core.messages import (
     STEP_CONFIG_INVALID,
     STEP_CONNECTION_MISSING,
     STEP_CREDENTIAL_HEADER,
+    STEP_CREDENTIAL_PARAMETER,
     STEP_PROGRAM_IS_A_REFERENCE,
     STEP_REFERENCE_FOR_A_PROGRAM,
     STEP_REFERENCE_IN_COMPOSE,
@@ -99,6 +112,7 @@ from dirigent_core.messages import (
     STEP_SCHEMA_MISSING,
     STEP_SHELL_UNREADABLE,
     STEP_UNSAFE_BLOCK,
+    STEP_URL_USERINFO,
     STORAGE_SCHEME_MISSING,
     TARGET_PIPELINE_INACTIVE,
     TARGET_PIPELINE_MISSING,
@@ -675,6 +689,8 @@ def _step_block_issues(
         issues.extend(_program_reference_issues(name, step.config, entry.config_schema))
         issues.extend(_shell_issues(name, step.config, entry.config_schema))
         issues.extend(_credential_header_issues(name, step.config, entry.config_schema))
+        issues.extend(_credential_query_issues(name, step.config, entry.config_schema))
+        issues.extend(_credential_url_issues(name, step.config, entry.config_schema))
         issues.extend(_allowlist_issues(name, step.block, entry, allowed))
         issues.extend(_scheme_issues(name, step.config, entry.config_schema, schemes))
         if not malformed:
@@ -764,15 +780,52 @@ def _shell_issues(step: str, config: JsonMap, schema: JsonMap) -> list[Validatio
 def _credential_header_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
     """Refuse a credential's name in a header map, whether or not its value is a reference."""
     issues: list[ValidationIssue] = []
-    for field in sorted(plain_header_fields_of(schema)):
+    for field in sorted(plain_fields_of(schema, PLAIN_HEADERS_KEYWORD)):
         held = config.get(field)
         if not isinstance(held, dict):
             continue
         issues.extend(
             ValidationIssue.of(STEP_CREDENTIAL_HEADER, location=f"steps.{step}.config.{field}.{name}", header=name)
             for name in sorted(cast("dict[str, Any]", held))
-            if carries_credential(name)
+            if not has_reference(name) and carries_credential(name)
         )
+    return issues
+
+
+def _credential_query_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
+    """Refuse a credential's name in a query map, whether or not its value is a reference."""
+    issues: list[ValidationIssue] = []
+    for field in sorted(plain_fields_of(schema, PLAIN_QUERY_KEYWORD)):
+        held = config.get(field)
+        if not isinstance(held, dict):
+            continue
+        issues.extend(
+            ValidationIssue.of(
+                STEP_CREDENTIAL_PARAMETER, location=f"steps.{step}.config.{field}.{name}", parameter=name
+            )
+            for name in sorted(cast("dict[str, Any]", held))
+            if not has_reference(name) and carries_credential_parameter(name)
+        )
+    return issues
+
+
+def _credential_url_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
+    """Refuse what a URL writes literally: a user, a password, and a credential's name in its query.
+
+    A reference stands for a value, so it is read as one word; a URL it resolves to is judged when the step starts.
+    """
+    issues: list[ValidationIssue] = []
+    for field in sorted(plain_fields_of(schema, PLAIN_URL_KEYWORD)):
+        held = config.get(field)
+        if not isinstance(held, str):
+            continue
+        location = f"steps.{step}.config.{field}"
+        literal = REFERENCE_PATTERN.sub("x", held)
+        if userinfo_in(literal):
+            issues.append(ValidationIssue.of(STEP_URL_USERINFO, location=location, field=field))
+        parameter = credential_parameter_in(literal)
+        if parameter is not None:
+            issues.append(ValidationIssue.of(STEP_CREDENTIAL_PARAMETER, location=location, parameter=parameter))
     return issues
 
 
