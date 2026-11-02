@@ -19,6 +19,8 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**A name bound outside a program reads as its own colour in the editor.** jq's `$name` and FHIRPath's `%name` and `$this` were a pale violet close to the text colour. They now wear a stronger violet in every palette, dark and light.
+
 **A source's curl line quotes a method that is not a bare word.** The UI's copyable line left the method unquoted, relying on the server's list of methods.
 
 **An open MCP stream does not keep its session past the idle time.** An open `GET` stream counted as a request in flight, so `mcp_session_idle` never closed its session. The stream is now ended after that long, and the session counts from there. A client that still wants one reconnects, which authenticates its token again; the SDK's client does.

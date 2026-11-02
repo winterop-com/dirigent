@@ -151,9 +151,9 @@ function houseTheme(dark: boolean): monaco.editor.IStandaloneThemeData {
         hovered: resolvedColor('var(--color-muted)'),
         raisedInk: resolvedColor('var(--color-popover-foreground)'),
         edge: resolvedColor('var(--color-border)'),
-        // A name bound outside the program, in the kind family's hue, which is neither a
+        // A name bound outside the program, in the kind family's violet, which is neither a
         // state's nor an action's.
-        binding: resolvedColor('var(--color-kind-violet-ink)'),
+        binding: resolvedColor('var(--color-binding-ink)'),
     }
     return {
         base: dark ? 'vs-dark' : 'vs',

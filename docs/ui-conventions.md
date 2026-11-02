@@ -932,8 +932,12 @@ one line, however long a value it holds.
 Each of the seven is highlighted in its own grammar and in the house inks, the same in every one:
 a keyword and a number wear the warning ink, a string the good ink, a function -- and jq's
 `.path` -- the info ink, a comment and the punctuation the muted ink, and a name bound from
-outside the program -- jq's `$name`, FHIRPath's `%name` and `$this` -- the violet kind ink, because
-it is the one thing a reader of an expression has to look for elsewhere. Any other name is
+outside the program -- jq's `$name`, FHIRPath's `%name` and `$this` -- `--binding-ink`, because
+it is the one thing a reader of an expression has to look for elsewhere. It is the kind family's
+hue with more chroma than a kind ink, oklch 0.7/0.18 dark and 0.48/0.17 light, because a thin mono
+glyph at the kind ink's chroma reads as the foreground beside it. Every palette holds it at 6:1 or
+better on the editor's ground and 2:1 or better against the text, so none overrides it. Any other
+name is
 foreground, and so is one written in backticks or in CQL's double quotes, `define "Numerator"`
 included: the quotes are what tell it from a string, which is green.
 
