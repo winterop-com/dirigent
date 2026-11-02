@@ -76,26 +76,28 @@ test('the search glyph, a heading, a row and the footer stand on one left edge',
     const dialog = page.getByRole('dialog')
     await expect(dialog.locator('[cmdk-group-heading]').first()).toBeVisible()
 
-    const lefts = await dialog.evaluate((box) => {
-        const at = (element: Element | null) =>
-            element === null
-                ? null
-                : Math.round(element.getBoundingClientRect().left - box.getBoundingClientRect().left)
-        const heading = box.querySelector('[cmdk-group-heading]')
-        const headingText =
-            heading === null ? null : Number(getComputedStyle(heading).paddingInlineStart.replace('px', ''))
-        return {
-            glyph: at(box.querySelector('[data-slot="input-group-addon"] svg')),
-            heading: (at(heading) ?? 0) + (headingText ?? 0),
-            rowTile: at(box.querySelector('[data-slot="command-item"] span')),
-            footer: at(box.querySelector('[data-slot="palette-footer"] > *')),
-        }
-    })
-
-    expect(lefts.glyph).toBe(16)
-    expect(lefts.heading).toBe(16)
-    expect(lefts.rowTile).toBe(16)
-    expect(lefts.footer).toBe(16)
+    // The dialog scales in, so the insets are read once every animation on it has finished.
+    await expect
+        .poll(() =>
+            dialog.evaluate((box) => {
+                const at = (element: Element | null) =>
+                    element === null
+                        ? null
+                        : Math.round(element.getBoundingClientRect().left - box.getBoundingClientRect().left)
+                const heading = box.querySelector('[cmdk-group-heading]')
+                const headingText =
+                    heading === null
+                        ? null
+                        : Number(getComputedStyle(heading).paddingInlineStart.replace('px', ''))
+                return {
+                    glyph: at(box.querySelector('[data-slot="input-group-addon"] svg')),
+                    heading: (at(heading) ?? 0) + (headingText ?? 0),
+                    rowTile: at(box.querySelector('[data-slot="command-item"] span')),
+                    footer: at(box.querySelector('[data-slot="palette-footer"] > *')),
+                }
+            }),
+        )
+        .toEqual({ glyph: 16, heading: 16, rowTile: 16, footer: 16 })
 })
 
 /** The search row is the inset above and below a line of its text, not a boxed input. */
@@ -104,12 +106,16 @@ test('the search text stands the inset below the top of the dialog', async ({ pa
     const dialog = page.getByRole('dialog')
     await expect(dialog.getByPlaceholder(LABELS.palette.placeholder)).toBeVisible()
 
-    const gap = await dialog.evaluate((box) => {
-        const field = box.querySelector('[data-slot="command-input"]')
-        if (field === null) return null
-        return Math.round(field.getBoundingClientRect().top - box.getBoundingClientRect().top)
-    })
-    expect(gap).toBe(16)
+    // The dialog scales in, so the gap is read once every animation on it has finished.
+    await expect
+        .poll(() =>
+            dialog.evaluate((box) => {
+                const field = box.querySelector('[data-slot="command-input"]')
+                if (field === null) return null
+                return Math.round(field.getBoundingClientRect().top - box.getBoundingClientRect().top)
+            }),
+        )
+        .toBe(16)
 })
 
 test('a query nothing answers says so rather than showing everything', async ({ page }) => {
