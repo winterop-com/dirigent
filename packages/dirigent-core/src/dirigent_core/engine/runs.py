@@ -22,6 +22,7 @@ from dirigent_client.enums import (
     RunStatus,
     TriggerKind,
 )
+from dirigent_client.schemas import StepShape
 from dirigent_common import JsonMap, Message, raised_detail
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
@@ -233,6 +234,17 @@ async def _save_pipeline_once(
         version=next_version,
         document=document,
         step_order=list(definition.steps),
+        shape=[
+            StepShape(
+                code=code,
+                name=step.name,
+                kind=step.kind,
+                block=step.block_id,
+                depends_on=list(step.depends_on),
+                fan_out=step.is_fan_out,
+            ).model_dump(mode="json")
+            for code, step in definition.steps.items()
+        ],
         digest=digest_of(definition),
         provenance_source=recorded.source,
         provenance_ref=recorded.ref,
