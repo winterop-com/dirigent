@@ -20,9 +20,21 @@ REDACTED: Final = "***"
 #: What the HTTP client leaves unescaped in a query value beyond the unreserved characters.
 URL_SAFE_IN_A_QUERY: Final = "!$'()*,;:/?@[]"
 
-#: The shortest spelling replaced in an output. An output is data rather than a message about a
+#: The shortest secret replaced in an output. An output is data rather than a message about a
 #: failure, and a shorter one would take ordinary text with it wherever those characters occur.
 MIN_OUTPUT_SPELLING: Final = 4
+
+
+class Spelling(str):
+    """One way a secret reads, which remembers the secret it spells."""
+
+    of: str
+
+    def __new__(cls, text: str, of: str) -> "Spelling":
+        """Hold the text and the secret behind it."""
+        spelling = super().__new__(cls, text)
+        spelling.of = of
+        return spelling
 
 
 def spellings(secret: str) -> set[str]:
@@ -41,7 +53,13 @@ def spellings(secret: str) -> set[str]:
         json.dumps(secret)[1:-1],
         json.dumps(secret, ensure_ascii=False)[1:-1],
     }
-    return {one for one in written if one}
+    return {Spelling(one, secret) for one in written if one}
+
+
+def could_be_data(secret: str) -> bool:
+    """Whether a secret could as well be ordinary data: too short, or made only of letters or only of digits."""
+    bare = secret.strip()
+    return len(bare) < MIN_OUTPUT_SPELLING or bare.isalpha() or bare.isdigit()
 
 
 def secrets_of(config: BaseModel) -> set[str]:
@@ -72,8 +90,11 @@ def scrub_json(value: JsonValue, secrets: Collection[str]) -> JsonValue:
 
 
 def scrub_output(output: JsonMap, secrets: Collection[str]) -> JsonMap:
-    """Scrub a step's output of every spelling of a secret long enough not to corrupt ordinary data."""
-    kept = [one for one in secrets if len(one) >= MIN_OUTPUT_SPELLING]
+    """Scrub a step's output of every spelling of every secret that could not be ordinary data.
+
+    Judged on the secret rather than the spelling, so an encoded spelling of a word cannot change data either.
+    """
+    kept = [one for one in secrets if not could_be_data(one.of if isinstance(one, Spelling) else one)]
     return cast("JsonMap", scrub_json(cast("JsonValue", output), kept)) if kept else output
 
 
@@ -100,4 +121,13 @@ def _walked(value: JsonValue, ordered: list[str]) -> JsonValue:
     return value
 
 
-__all__ = ["MIN_OUTPUT_SPELLING", "REDACTED", "scrub", "scrub_json", "scrub_output", "secrets_of", "spellings"]
+__all__ = [
+    "MIN_OUTPUT_SPELLING",
+    "REDACTED",
+    "could_be_data",
+    "scrub",
+    "scrub_json",
+    "scrub_output",
+    "secrets_of",
+    "spellings",
+]

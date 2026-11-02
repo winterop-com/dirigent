@@ -1131,9 +1131,12 @@ Stated plainly, because a security page that lists only what exists is not much 
   secret would become one. It reaches a step's output and nothing else: not what a block writes
   straight to storage, not a capture, not a remote handle, not a source's poll. Binary content in an
   output is base64 by then and is not recognised, and neither is a basic credential a server quotes
-  from its `Authorization` header in base64. A spelling under four characters is left alone, and a
-  password that is an ordinary word, such as DHIS2's demo `district`, is replaced wherever that word
-  occurs in the output of a step that opened it, so such a credential costs its own data.
+  from its `Authorization` header in base64. A secret that could be ordinary data is left out of this
+  scrub, in all of its spellings, so it cannot change what a step produced: one under four
+  characters, or made only of letters, or only of digits. So a letters-only or digits-only secret a
+  service echoes, such as DHIS2's demo `district`, stays in the output, in plain text. Logs and
+  failures still scrub it. A mixed secret, such as a token or a generated password, is replaced
+  wherever it occurs in the output, whatever the text around it.
 
   The name rule for a query is not the one for a header, because a query is any API's data.
   Refused: a word such as `password`, `secret`, `auth` or `jwt`; a compound such as `api_key` or
@@ -1154,7 +1157,8 @@ Stated plainly, because a security page that lists only what exists is not much 
   run (`common.output_url_only`). A `query` map is not exempt, whatever fills it, and a user or a
   password in a URL is refused whatever its source. An exempted value is shown as `***` in the
   attempt's stored config and in what `http.request` and `webhook.post` log and refuse with, and is
-  scrubbed from the attempt's logs, failures and output, unless it is under four characters. It still
+  scrubbed from the attempt's logs and failures unless it is under four characters, and from its
+  output unless it is letters-only, digits-only or under four characters. It still
   sits in plain text in the output of the step that produced it, and in the fan-out item that read it,
   because the next step has to read it there. A value a step copied from `${params...}` into its output
   counts as that step's output: the source is judged one hop back.

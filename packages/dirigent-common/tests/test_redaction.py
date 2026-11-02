@@ -3,6 +3,7 @@
 import json
 from urllib.parse import quote, quote_plus
 
+import pytest
 from pydantic import BaseModel, JsonValue, SecretStr
 
 from dirigent_common import (
@@ -100,8 +101,34 @@ def test_an_output_keeps_its_types_and_its_shape() -> None:
 
 def test_an_output_is_not_scrubbed_of_a_spelling_shorter_than_the_minimum() -> None:
     assert MIN_OUTPUT_SPELLING == 4
-    assert scrub_output({"said": "abc abcd"}, {"abc"}) == {"said": "abc abcd"}
-    assert scrub_output({"said": "abc abcd"}, {"abcd"}) == {"said": f"abc {REDACTED}"}
+    assert scrub_output({"said": "a-b a-b-c"}, spellings("a-b")) == {"said": "a-b a-b-c"}
+    assert scrub_output({"said": "a-b a-b-c"}, spellings("a-b-c")) == {"said": f"a-b {REDACTED}"}
+
+
+@pytest.mark.parametrize("word", ["district", "playground", "PlayGround", "blåbær", "123456", " district\n", "a b"])
+def test_a_secret_that_could_be_data_changes_no_spelling_of_itself_in_an_output(word: str) -> None:
+    every = spellings(word)
+    output: dict[str, JsonValue] = {one: [f"said {one}", {one: one}] for one in every}
+    assert scrub_output(output, every) == output
+
+
+@pytest.mark.parametrize("secret", ["district1", "s3cret-Token", "a b c d", "12-34"])
+def test_a_mixed_secret_is_replaced_in_every_spelling(secret: str) -> None:
+    for one in spellings(secret):
+        assert scrub_output({"said": f"x {one} y", f"k{one}": 1}, spellings(secret)) == {
+            "said": f"x {REDACTED} y",
+            f"k{REDACTED}": 1,
+        }
+
+
+def test_a_word_beside_a_mixed_secret_stays_and_the_mixed_one_goes() -> None:
+    held = spellings("district") | spellings("s3cret-Token")
+    assert scrub_output({"said": "district s3cret-Token"}, held) == {"said": f"district {REDACTED}"}
+
+
+def test_a_message_still_loses_a_word_that_is_a_secret() -> None:
+    assert scrub("refused district", spellings("district")) == f"refused {REDACTED}"
+    assert scrub_json({"said": "district"}, spellings("district")) == {"said": REDACTED}
 
 
 def test_an_output_with_nothing_to_scrub_is_handed_back_as_it_is() -> None:
