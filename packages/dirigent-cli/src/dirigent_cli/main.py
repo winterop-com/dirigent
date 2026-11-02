@@ -39,6 +39,7 @@ from dirigent_cli.messages import (
     RUN_DB_UPGRADE,
     SCHEDULER_NEEDS_POSTGRES,
     SERVER_NEEDS_A_LEADER,
+    SETTINGS_REFUSED,
     STATE_WAY_OUT,
     STORE_UNCONFIGURED,
     STORE_UNREACHABLE,
@@ -55,6 +56,7 @@ from dirigent_common import Issue, raised_detail, validation_issues
 from dirigent_common.hosts import is_loopback_host
 from dirigent_core import migrations
 from dirigent_core.config import (
+    UNREADABLE_SETTINGS,
     Settings,
     drop_secret_key_variable,
     get_settings,
@@ -199,6 +201,7 @@ def main_callback(
 
     Precedence is flags, then DG_URL / DG_TOKEN / DIRIGENT_LOG_LEVEL, then the profile.
     """
+    _read_settings()
     ctx.obj = CliState(
         url=url,
         token=token,
@@ -209,6 +212,24 @@ def main_callback(
         output=resolve_output(output, json_output=json_output),
     )
     ctx.obj.configure_output()
+
+
+def _read_settings() -> None:
+    """Read the settings once, refusing with a record when a file or the environment holds a bad one.
+
+    A setting's refusal names its field and leaves out its value, which may be a credential. The
+    output is one of the settings, so this is written in the default one.
+    """
+    try:
+        get_settings()
+    except ValidationError as error:
+        problems = validation_issues(error.errors(include_input=False))
+        emit_problem(SETTINGS_REFUSED, status=2, detail=f"{error.error_count()} refused", problems=problems)
+    except UNREADABLE_SETTINGS as error:
+        emit_problem(SETTINGS_REFUSED, status=2, detail=str(error))
+    else:
+        return
+    raise typer.Exit(code=2)
 
 
 def resolve_output(named: str | None, *, json_output: bool) -> Format:

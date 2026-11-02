@@ -11,8 +11,9 @@ from collections.abc import Mapping
 from datetime import timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Final, Literal
 
+import yaml
 from dotenv import dotenv_values
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic.fields import FieldInfo
@@ -22,6 +23,7 @@ from pydantic_settings import (
     NoDecode,
     PydanticBaseSettingsSource,
     SettingsConfigDict,
+    SettingsError,
     YamlConfigSettingsSource,
 )
 from pydantic_settings.sources.utils import parse_env_vars
@@ -30,6 +32,9 @@ from dirigent_common import Duration, EntityName, Size
 from dirigent_core.messages import POOL_TOO_SMALL, SECRET_KEY_FILE_UNREADABLE, SECRET_KEY_TWICE
 
 logger = logging.getLogger(__name__)
+
+#: What reading a settings file raises when the file is not one, as against a setting refused.
+UNREADABLE_SETTINGS: Final = (SettingsError, yaml.YAMLError)
 
 CONFIG_FILE_ENV = "DIRIGENT_CONFIG_FILE"
 

@@ -216,6 +216,10 @@ SCHEMA_NOTHING_TO_CHANGE = CLI.define(
 # What a profile refuses at validation. Pydantic owns the code a validator's refusal reaches
 # the wire under, so this is rendered into the ``ValueError`` it wraps.
 
+PROFILE_REFUSED = CLI.define("profile_refused", "{detail}")
+
+SETTINGS_REFUSED = CLI.define("settings_refused", "the settings could not be read: {detail}")
+
 PROFILE_NAMES_A_DATABASE = CLI.define(
     "profile_names_a_database",
     "profile {name} names a database URL. Profiles address a server over HTTP; "
