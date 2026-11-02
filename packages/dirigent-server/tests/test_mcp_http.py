@@ -12,7 +12,7 @@ import uvicorn
 from fastapi.testclient import TestClient
 from mcp.client.session import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, TextContent, Tool
 
 from dirigent_core.config import Settings
 from dirigent_server import create_app
@@ -113,11 +113,43 @@ async def test_a_viewer_is_offered_only_the_reading_tools(base: str, viewer_toke
         every = {tool.name: tool for tool in (await session.list_tools()).tools}
     async with connected(base, viewer_token) as session:
         offered = {tool.name for tool in (await session.list_tools()).tools}
-        assert offered == {name for name, tool in every.items() if tool.annotations and tool.annotations.read_only_hint}
+        reads = {name for name, tool in every.items() if tool.annotations and tool.annotations.read_only_hint}
+        assert offered == reads - {"plan_document"}
         assert {"apply_document", "run_pipeline", "cancel_run"}.isdisjoint(offered)
         assert (await called(session, "whoami"))["role"] == "viewer"
         refused = await session.call_tool("apply_document", {"document": DOCUMENT})
         assert refused.is_error
+
+
+def _filled(tool: Tool) -> dict[str, Any]:
+    """The arguments a tool requires, filled with a document or a name no row holds."""
+    schema = tool.input_schema
+    return {name: DOCUMENT if name == "document" else "absent" for name in schema.get("required", [])}
+
+
+async def test_no_tool_a_role_is_offered_is_one_the_api_refuses_it(
+    base: str, viewer_token: str, operator_token: str, admin_token: str
+) -> None:
+    for token in (viewer_token, operator_token, admin_token):
+        async with connected(base, token) as session:
+            for tool in (await session.list_tools()).tools:
+                answered = await session.call_tool(tool.name, _filled(tool))
+                said = " ".join(block.text for block in answered.content if isinstance(block, TextContent))
+                assert "not permitted for your role" not in said, tool.name
+
+
+async def test_each_role_is_offered_the_tools_of_its_own_reach(
+    base: str, viewer_token: str, operator_token: str, admin_token: str
+) -> None:
+    offered: dict[str, set[str]] = {}
+    for role, token in (("viewer", viewer_token), ("operator", operator_token), ("admin", admin_token)):
+        async with connected(base, token) as session:
+            offered[role] = {tool.name for tool in (await session.list_tools()).tools}
+    assert offered["viewer"] < offered["operator"] < offered["admin"]
+    assert "plan_document" not in offered["viewer"]
+    assert "plan_document" in offered["operator"]
+    assert "check_connection" not in offered["operator"]
+    assert "check_connection" in offered["admin"]
 
 
 async def test_two_sessions_act_as_their_own_callers(base: str, admin_token: str, operator_token: str) -> None:
