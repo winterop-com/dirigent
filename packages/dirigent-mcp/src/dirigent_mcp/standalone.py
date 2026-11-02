@@ -32,6 +32,7 @@ OFFERED: Final = {UserRole.ADMIN: Offers.ADMINISTERING, UserRole.OPERATOR: Offer
 
 SESSION_IDLE: Final = timedelta(minutes=30)
 MAX_SESSIONS: Final = 256
+MAX_SESSIONS_PER_TOKEN: Final = 32
 
 #: A ``Host`` value: a bracketed literal or a name, and a port of nothing but digits.
 _AUTHORITY: Final = re.compile(r"(?:\[(?P<literal>[^\]]*)\]|(?P<name>[^:\[\]]*))(?::[0-9]*)?")
@@ -82,6 +83,7 @@ def standalone_app(
     max_body: int = DEFAULT_MAX_REQUEST_BODY_SIZE,
     session_idle: timedelta = SESSION_IDLE,
     max_sessions: int = MAX_SESSIONS,
+    max_sessions_per_token: int = MAX_SESSIONS_PER_TOKEN,
 ) -> ASGIApp:
     """Serve MCP at ``/mcp`` for the instance at ``url``, every call made with the caller's own token."""
 
@@ -102,6 +104,7 @@ def standalone_app(
         max_body=max_body,
         session_idle=session_idle,
         max_sessions=max_sessions,
+        max_sessions_per_token=max_sessions_per_token,
     )
 
     @asynccontextmanager

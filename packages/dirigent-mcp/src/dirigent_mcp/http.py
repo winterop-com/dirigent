@@ -14,9 +14,10 @@ from datetime import timedelta
 from typing import Final
 
 from mcp.server import MCPServer
-from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
+from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser, AuthorizationContext
 from mcp.server.auth.provider import AccessToken
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.streamable_http import StreamableHTTPServerTransport
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict
@@ -98,6 +99,23 @@ def per_caller(open_client: OpenClient) -> Connect:
     return connect
 
 
+def _hold_each_credential_to(manager: StreamableHTTPSessionManager, limit: int) -> None:
+    """Refuse a credential a new session past ``limit`` of its own, as the manager refuses one past its total.
+
+    The manager counts only its total, and admits under its lock, so a count made here cannot be
+    overtaken by a session opening beside it.
+    """
+    admit = manager._admit_session  # pyright: ignore[reportPrivateUsage]
+    owners = manager._session_owners  # pyright: ignore[reportPrivateUsage]
+
+    def admitted(requestor: AuthorizationContext | None) -> StreamableHTTPServerTransport | None:
+        if sum(owner == requestor for owner in owners.values()) >= limit:
+            return None
+        return admit(requestor)
+
+    manager._admit_session = admitted  # type: ignore[method-assign]  # pyright: ignore[reportPrivateUsage,reportAttributeAccessIssue]
+
+
 class McpEndpoint:
     """The ASGI application that answers MCP at one path, for whoever each request authenticates as."""
 
@@ -112,6 +130,7 @@ class McpEndpoint:
         max_body: int,
         session_idle: timedelta,
         max_sessions: int,
+        max_sessions_per_token: int,
     ) -> None:
         """Hold how a caller is authenticated, how a call reaches the instance, and how a refusal is answered."""
         self._authenticate = authenticate
@@ -122,6 +141,7 @@ class McpEndpoint:
         self._max_body = max_body
         self._session_idle = session_idle
         self._max_sessions = max_sessions
+        self._max_sessions_per_token = max_sessions_per_token
         self._managers: dict[Offers, StreamableHTTPSessionManager] = {}
 
     def _manager(self, server: MCPServer) -> StreamableHTTPSessionManager:
@@ -132,7 +152,9 @@ class McpEndpoint:
             max_sessions=self._max_sessions,
             transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         )
-        return server.session_manager
+        manager = server.session_manager
+        _hold_each_credential_to(manager, self._max_sessions_per_token)
+        return manager
 
     @asynccontextmanager
     async def run(self) -> AsyncGenerator[None]:

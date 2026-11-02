@@ -60,6 +60,7 @@ def install_mcp(app: FastAPI, settings: Settings) -> None:
         max_body=settings.mcp_max_body,
         session_idle=settings.mcp_session_idle,
         max_sessions=settings.mcp_max_sessions,
+        max_sessions_per_token=settings.mcp_max_sessions_per_token,
     )
     app.state.mcp = endpoint
     app.router.routes.append(Route(MCP_PATH, endpoint, methods=list(METHODS), include_in_schema=False))

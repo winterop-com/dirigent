@@ -287,7 +287,9 @@ unmounts it, and `/mcp` then answers 404.
   `Host`, as every other path does, and its answers carry the same security headers.
 - **Bounded.** A message is read up to `mcp_max_body` (4 MiB) and a larger one is answered 413. A
   session with no request in flight for `mcp_session_idle` (30 minutes) is closed, and one process
-  holds at most `mcp_max_sessions` (256) sessions for each of the three roles; past that, a new session is answered 503. Like the rest of the
+  holds at most `mcp_max_sessions` (256) sessions for each of the three roles, and at most
+  `mcp_max_sessions_per_token` (32) for one token, so no token can fill its role's room alone; past
+  either, a new session is answered 503. Like the rest of the
   authenticated API, `/mcp` is not rate limited.
 
 There is no OAuth discovery at `/mcp`: no `/.well-known/oauth-protected-resource`, and no

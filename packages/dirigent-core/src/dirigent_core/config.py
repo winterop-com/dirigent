@@ -279,6 +279,9 @@ class Settings(BaseSettings):
     Each role is counted apart, up to this many.
     """
 
+    mcp_max_sessions_per_token: int = Field(default=32, ge=1)
+    """How many of those sessions one API token may hold; a new one past it is answered 503."""
+
     ui_dir: Path | None = None
     """A built web UI bundle to serve, instead of the one installed with the server.
 
