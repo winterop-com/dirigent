@@ -4,6 +4,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import sqlalchemy as sa
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import InputOutcome, SourceState
 from dirigent_client.schemas import PlanAction
+from dirigent_common import spellings
 from dirigent_core.database import session_scope
 from dirigent_core.documents import load_text
 from dirigent_core.engine.definition import LONGEST_CADENCE
@@ -523,6 +525,40 @@ async def test_a_source_at_its_bound_whose_cadence_cannot_be_read_does_not_stop_
     held_back = (await _source(sessions, "aaa")).next_poll_at
     assert held_back is not None
     assert held_back.replace(tzinfo=UTC) > now, "it waits out a lease rather than falling due at once"
+
+
+async def test_what_a_poll_raises_past_its_kind_is_recorded_without_a_secret_it_opened(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "dummy-SECRET-7f3a9c"
+    await two_sources(sessions, services, tmp_path)
+    real = polling.polled
+
+    async def opens(_config: object, _cursor: object, ctx: Any, _room: int) -> object:
+        ctx.opened_secrets.update(spellings(secret))
+        return SimpleNamespace()
+
+    def validated(value: object) -> object:
+        return value
+
+    def opening(kinds: Any, row: Source) -> Any:
+        kind = SimpleNamespace(poll=opens, config_model=SimpleNamespace(model_validate=validated))
+        return (kind, None) if row.code == "aaa" else real(kinds, row)
+
+    async def settles(*_: object, **__: object) -> None:
+        raise RuntimeError(f"could not settle with {secret}")
+
+    monkeypatch.setattr(polling, "polled", opening)
+    monkeypatch.setattr(polling, "_settle", settles)
+    now = utcnow()
+    async with session_scope(sessions) as session:
+        await session.execute(sa.update(Source).values(next_poll_at=now - timedelta(minutes=1)))
+    await polling.tick(sessions, services, owner=WORKER, now=now)
+    recorded = (await _source(sessions, "aaa")).last_error
+    assert recorded == "could not settle with ***"
 
 
 async def test_a_worker_waits_until_the_earliest_source_nobody_holds_falls_due(

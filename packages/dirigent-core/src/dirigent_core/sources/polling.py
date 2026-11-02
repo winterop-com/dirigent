@@ -101,10 +101,11 @@ async def tick(
         claimed = await claim_due(session, services, owner=owner, now=moment)
     outcomes: list[PollOutcome] = []
     for one in claimed:
+        opened: set[str] = set()
         try:
-            outcomes.append(await poll_one(sessions, services, one, owner=owner))
+            outcomes.append(await poll_one(sessions, services, one, owner=owner, opened=opened))
         except Exception as error:
-            said = str(error) or type(error).__name__
+            said = scrub(str(error), opened) or type(error).__name__
             outcomes.append(await _failed(sessions, services, one, owner=owner, error=said))
     return outcomes
 
@@ -190,9 +191,17 @@ def _after(now: datetime, cadence: timedelta, lease: timedelta) -> datetime:
 
 
 async def poll_one(
-    sessions: async_sessionmaker[AsyncSession], services: EngineServices, claimed: Claimed, *, owner: str
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    claimed: Claimed,
+    *,
+    owner: str,
+    opened: set[str] | None = None,
 ) -> PollOutcome:
-    """Poll one leased source outside any transaction, then settle what it found."""
+    """Poll one leased source outside any transaction, then settle what it found.
+
+    ``opened`` gathers every spelling of every secret the poll opens, for whoever reads what it raises.
+    """
     async with sessions() as session:
         row = await session.get(Source, claimed.source_id)
         found = polled(services.sources, row) if row is not None else None
@@ -204,6 +213,8 @@ async def poll_one(
     kind = found[0]
     started = time.monotonic()
     ctx = _PollContext(storage=storage, services=services, step=row.code, connections=connections)
+    if opened is not None:
+        ctx.opened_secrets = opened
     try:
         config = kind.config_model.model_validate(
             resolve(cast("JsonValue", row.config), ReferenceScope(artifacts=services.storage.artifact_root))

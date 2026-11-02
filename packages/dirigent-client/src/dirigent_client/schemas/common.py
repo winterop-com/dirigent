@@ -1,8 +1,11 @@
 """What every other wire model is built out of: the bases themselves, one refusal, and one page."""
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Annotated, cast
+
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, JsonValue, field_validator
 
 from dirigent_common import Issue, JsonMap
+from dirigent_common.depth import shown
 from dirigent_common.storable import refuse_unstorable
 
 
@@ -12,14 +15,25 @@ class WireModel(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
+def _shown(value: JsonValue) -> JsonValue:
+    """A stored value cut where it nests deeper than a run stores, before pydantic walks it."""
+    return shown(value)
+
+
+#: A stored JSON value a read answers with, which a row from before the bound can nest past it.
+StoredJson = Annotated[JsonMap | None, BeforeValidator(_shown)]
+
+
 class RequestModel(BaseModel):
     """A body a caller writes, whose text is refused when no database stores it as written."""
 
     @field_validator("*")
     @classmethod
     def _storable(cls, value: object) -> object:
-        """Refuse a NUL or half a surrogate pair in any text field."""
-        return refuse_unstorable(value)
+        """Refuse a NUL or half a surrogate pair in any text field, or list of text."""
+        for element in cast("list[object]", value) if isinstance(value, list) else [value]:
+            refuse_unstorable(element)
+        return value
 
 
 class Problem(WireModel):

@@ -134,6 +134,12 @@ IDS: Final = [
 ]
 
 
+def test_a_list_of_text_holding_what_no_database_stores_is_refused(client: TestClient) -> None:
+    answered = client.post(f"{PREFIX}/pipelines/$prune", content=json.dumps({"keep": ["fine", "a\x00b"]}), headers=JSON)
+    assert answered.status_code == 422, answered.text
+    assert UNSTORABLE in [issue["code"] for issue in answered.json()["problems"]]
+
+
 def _answer(client: TestClient, method: str, path: str, body: dict[str, Any]) -> tuple[int, bool]:
     """Make one call, and say its status and whether it named the text it could not store."""
     answered = client.request(method, f"{PREFIX}{path}", content=json.dumps(body), headers=JSON)
