@@ -44,6 +44,8 @@ A file it names that does not exist is refused rather than created empty.
 
 **The playground answers rather than fails on what a caller may send.** A `status` of 100 to 199 dropped the connection and logged a traceback, and a JSON body about 900 levels deep answered 500, both to an anonymous caller. `status` now starts at 200, refused 422 below it, and a JSON body nested past the 128 levels an endpoint takes is reflected as text (`body_kind: text`).
 
+**A reply and the playground refuse what lighttpd and LiteSpeed act on.** `x-sendfile2`, `x-lighttpd-*` and `x-litespeed-*` join `x-accel-*` and `x-sendfile` in what a reply and the playground's `response-headers` refuse.
+
 ## 0.30.0
 
 Released 2026-11-01. Every package in the workspace moves to 0.30.0 together, and so do
