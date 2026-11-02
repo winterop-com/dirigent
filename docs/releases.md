@@ -17,7 +17,16 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
-## Unreleased
+## 0.31.0
+
+Released 2026-11-02. Every package in the workspace moves to 0.31.0 together, and so do
+`dirigent-dhis2`, `dirigent-contrib`, `dirigent-fhir` and `dirigent-integration`.
+
+**Before upgrading.** The baseline migration changed (`pipeline_versions.shape`,
+`step_attempts.remote_cancel_since`), so recreate the database or add the two columns by hand. A
+document or connection holding a credential in a header, a query parameter or a URL is refused and
+moves to the connection's sealed `credential`: a stored document fails at its next run, a stored
+connection when it is opened.
 
 **A secret a service echoes does not reach a step's output.** A `Location` on an unfollowed redirect or a body quoting the request put a connection's token in the attempt's output and every step that read it. The engine now walks what a block returns before it is stored or handed on, off the event loop, and replaces every spelling of every secret the attempt opened, inside strings and dict keys, leaving types and shape alone. A mixed secret, such as a token or a generated password, is replaced wherever it occurs in that output. A secret that could be ordinary data is left out of this scrub in all its spellings, so a letters-only or digits-only secret a service echoes, such as DHIS2's demo `district`, or one under four characters, stays in the output in plain text; logs and failures still scrub it. What a block writes straight to storage, a capture, a remote handle and a source's poll are not covered.
 
