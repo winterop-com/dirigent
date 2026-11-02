@@ -42,6 +42,8 @@ to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_che
 write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.
 A file it names that does not exist is refused rather than created empty.
 
+**`dg source call` refuses a path that would change the host.** It joined the instance's `url_path` onto the base URL as text, so `@other:port/x` sent the call and its body to another host. A path that does not start with `/` is now refused (`cli.source_path_refused`).
+
 **The playground answers rather than fails on what a caller may send.** A `status` of 100 to 199 dropped the connection and logged a traceback, and a JSON body about 900 levels deep answered 500, both to an anonymous caller. `status` now starts at 200, refused 422 below it, and a JSON body nested past the 128 levels an endpoint takes is reflected as text (`body_kind: text`).
 
 ## 0.30.0
