@@ -71,6 +71,8 @@ to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_che
 write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.
 A file it names that does not exist is refused rather than created empty.
 
+**The security page names what it left out.** A `trap` action, `mapfile -C` and `PROMPT_COMMAND` hand a value on as `eval` does; a provider secret shared between two sources lets a captured call be taken once at each; and a viewer may call `POST /api/v1/schedules/$preview`.
+
 **`dg source call` refuses a path that would change the host.** It joined the instance's `url_path` onto the base URL as text, so `@other:port/x` sent the call and its body to another host. A path that does not start with `/` is now refused (`cli.source_path_refused`).
 
 **A stored template past a deeper stack does not break a listing.** A template's compile depends on how deep the stack is, so one a read could not compile raised `RecursionError` from every listing of pipelines and `get_pipeline`. That pipeline is now listed without its step shapes, as one that no longer validates is.
