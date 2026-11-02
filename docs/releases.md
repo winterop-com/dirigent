@@ -17,6 +17,16 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**`format: uri-template` costs time in step with a caller's text.** The library's check was
+quadratic on a run of `{` and held the interpreter's lock, so 80,000 characters stopped a worker's
+event loop for 2.4 seconds past a 200 ms `validate.schema` timeout. It is now matched by the same
+engine as `pattern`, accepting what the library accepts, and stops at the bound. Every other
+standard format, and a format a pack contributes, is handed no text longer than 8192 characters; a
+longer text fails the format. `base64`, `humane-duration` and dirigent's other own formats are not
+limited, since they were measured linear.
+
 ## 0.30.0
 
 Released 2026-11-01. Every package in the workspace moves to 0.30.0 together, and so do

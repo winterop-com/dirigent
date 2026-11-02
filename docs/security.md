@@ -558,9 +558,11 @@ is cancelled, so nothing runs on behind it. That bound also ends a schema whose 
 than the value, such as `unevaluatedProperties` beside a recursive `$ref`, which evaluates each
 level twice. A `format` a caller's text is checked against costs time in step with that text:
 `regex` reads the text as a pattern without compiling it, and refuses one longer than 8192
-characters, and `uri`, `uri-reference`, `iri` and `iri-reference` are matched by the same engine
-as `pattern`, which stops at the bound. A format a pack contributes runs as the pack wrote it. A
-run's parameters are checked off the event loop, on the server and on a worker whose
+characters, and `uri`, `uri-reference`, `iri`, `iri-reference` and `uri-template` are matched by the
+same engine as `pattern`, which stops at the bound. Every other standard format and a format a pack
+contributes is handed no text longer than 8192 characters, and a longer text fails it. Below that
+limit a pack's format runs as the pack wrote it, and a check of `format` stops at the next value
+once the bound has passed. A run's parameters are checked off the event loop, on the server and on a worker whose
 `pipeline.run` step starts a child, and that check stops after one second, or when its caller is
 cancelled, and refuses the run (`parameter.unchecked`).
 

@@ -1,13 +1,17 @@
 """The base format checker: standard formats plus dirigent's own."""
 
+import asyncio
+import itertools
+import random
 import time
 import uuid
 from datetime import timedelta
 
 import pytest
+import uri_template
 
 from dirigent_common import base_format_checker, format_checker_with
-from dirigent_common.formats import MAX_FORMAT_REGEX
+from dirigent_common.formats import MAX_FORMAT_TEXT
 from dirigent_common.schema_values import EvaluationOverrun, ValueValidator, bounded_evaluation
 
 # A UUID whose version nibble is 7 and 4 respectively, both with a valid variant.
@@ -118,7 +122,7 @@ def test_regex_reads_a_pattern_without_compiling_it(checker: object) -> None:
 def test_regex_refuses_text_past_its_limit_before_reading_it(checker: object) -> None:
     started = time.monotonic()
     assert not conforms(checker, SLOW_TO_COMPILE, "regex")
-    assert conforms(checker, "a" * MAX_FORMAT_REGEX, "regex")
+    assert conforms(checker, "a" * MAX_FORMAT_TEXT, "regex")
     assert time.monotonic() - started < 0.5, "stdlib re takes seconds over this text"
 
 
@@ -155,6 +159,109 @@ def test_a_long_reference_costs_time_in_step_with_it(checker: object, fmt: str) 
     for text in ("PT1H" * 5000, "//" + "%41" * 7000 + "[", "a:" + "/a" * 10000 + " "):
         conforms(checker, text, fmt)
     assert time.monotonic() - started < 2
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "http://example.com/dictionary/{term:1}/{term}",
+        "dictionary/{term:1}/{term}",
+        "http://example.com/dictionary",
+        "",
+        "{+a}{#a}{.a}{/a}{;a}{?a}{&a}",
+        "{a,b*,c:3}",
+        "{a.b%41}",
+        "a b",
+    ],
+)
+def test_uri_template_accepts_a_template(checker: object, template: str) -> None:
+    assert conforms(checker, template, "uri-template")
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        "http://example.com/dictionary/{term:1}/{term",
+        "{",
+        "}",
+        "{}",
+        "{{a}}",
+        "{a}}",
+        "{=a}",
+        "{!a}",
+        "{a:0}",
+        "{a:1000}",
+        "{a,,b}",
+        "{a-b}",
+    ],
+)
+def test_uri_template_refuses_what_is_not_one(checker: object, template: str) -> None:
+    assert not conforms(checker, template, "uri-template")
+
+
+def test_uri_template_says_what_the_library_says(checker: object) -> None:
+    tokens = [*"{ } a 1 0 + # . / ; ? & , : * [] = %41 %4 ! -".split(), " "]
+    drawn = random.Random(6570)  # noqa: S311 - a fixed sample, not a secret
+    bodies = ["".join(body) for length in range(4) for body in itertools.product(tokens, repeat=length)]
+    bodies += ["".join(drawn.choices(tokens, k=drawn.randint(4, 9))) for _ in range(20_000)]
+    for body in bodies:
+        for template in (body, f"{{{body}}}", f"x{{{body}}}y{{a}}"):
+            assert conforms(checker, template, "uri-template") == uri_template.validate(template), template
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["{" * 200_000, "{a," * 70_000, "{a}" * 70_000, "{a=" * 70_000, "{+" * 100_000, "%" * 200_000, "}" * 200_000],
+    ids=["open", "open-list", "closed", "open-default", "open-operator", "percent", "close"],
+)
+def test_a_long_uri_template_stays_far_from_the_quadratic_library(checker: object, text: str) -> None:
+    started = time.monotonic()
+    conforms(checker, text, "uri-template")
+    assert time.monotonic() - started < 2
+
+
+async def test_a_long_uri_template_leaves_the_event_loop_turning(checker: object) -> None:
+    validator = ValueValidator({"format": "uri-template"}, format_checker=checker)
+
+    def check() -> None:
+        with bounded_evaluation(timedelta(seconds=30)):
+            validator.is_valid("{" * 200_000)
+
+    pauses: list[float] = []
+    work = asyncio.create_task(asyncio.to_thread(check))
+    while not work.done():
+        before = time.monotonic()
+        await asyncio.sleep(0.01)
+        pauses.append(time.monotonic() - before)
+    await work
+    assert max(pauses, default=0) < 2
+
+
+def test_a_standard_format_refuses_text_past_the_limit(checker: object) -> None:
+    assert conforms(checker, "/" * MAX_FORMAT_TEXT, "json-pointer")
+    assert not conforms(checker, "/" * (MAX_FORMAT_TEXT + 1), "json-pointer")
+
+
+def test_a_contributed_format_is_not_handed_text_past_the_limit() -> None:
+    seen: list[int] = []
+
+    def anything(value: object) -> bool:
+        seen.append(len(str(value)))
+        return True
+
+    checker = format_checker_with({"anything": anything})
+    assert checker.conforms("a" * MAX_FORMAT_TEXT, "anything")
+    assert not checker.conforms("a" * (MAX_FORMAT_TEXT + 1), "anything")
+    assert seen == [MAX_FORMAT_TEXT]
+
+
+def test_a_format_check_stops_between_elements_at_the_evaluation_deadline(checker: object) -> None:
+    validator = ValueValidator({"items": {"format": "date"}}, format_checker=checker)
+    started = time.monotonic()
+    with pytest.raises(EvaluationOverrun), bounded_evaluation(timedelta(milliseconds=100)):
+        for _ in validator.iter_errors(["2026-01-01"] * 5_000_000):
+            pass
+    assert time.monotonic() - started < 10
 
 
 def test_a_reference_check_stops_at_the_evaluation_deadline(checker: object) -> None:
