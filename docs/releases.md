@@ -33,6 +33,8 @@ standard format, and a format a pack contributes, is handed no text longer than 
 longer text fails the format. `base64`, `humane-duration` and dirigent's other own formats are not
 limited, since they were measured linear.
 
+**A secret a waiting block quotes is scrubbed.** A running probe's or a sensor's message was kept on the attempt and logged as it was written, unlike a failure's. It is now scrubbed the same way.
+
 **A checkout's files cannot write terminal escapes through `dg`.** The text of a
 `.dirigent/profiles.yaml` reached the terminal raw through a profile's refusal, so a repository
 could clear the screen, set the title or write the clipboard of whoever ran `dg` in it. A profile's

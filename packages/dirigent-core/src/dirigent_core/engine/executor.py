@@ -484,6 +484,8 @@ class Engine:
                     telemetry.record_failure(span, result.failure.message)
                 if isinstance(result, Vanished):
                     result = Vanished(message=scrub(result.message, logger.secrets))
+                if isinstance(result, Waiting) and result.message is not None:
+                    result = result.model_copy(update={"message": scrub(result.message, logger.secrets)})
                 if isinstance(result, Submitted):
                     await self.record_handle(unit, result.handle)
                 if isinstance(result, Produced) and result.fetched:
