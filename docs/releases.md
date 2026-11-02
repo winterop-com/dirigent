@@ -57,6 +57,8 @@ A file it names that does not exist is refused rather than created empty.
 
 **`dg source call` refuses a path that would change the host.** It joined the instance's `url_path` onto the base URL as text, so `@other:port/x` sent the call and its body to another host. A path that does not start with `/` is now refused (`cli.source_path_refused`).
 
+**A stored template past a deeper stack does not break a listing.** A template's compile depends on how deep the stack is, so one a read could not compile raised `RecursionError` from every listing of pipelines and `get_pipeline`. That pipeline is now listed without its step shapes, as one that no longer validates is.
+
 **The playground answers rather than fails on what a caller may send.** A `status` of 100 to 199 dropped the connection and logged a traceback, and a JSON body about 900 levels deep answered 500, both to an anonymous caller. `status` now starts at 200, refused 422 below it, and a JSON body nested past the 128 levels an endpoint takes is reflected as text (`body_kind: text`).
 
 **A reply and the playground refuse what lighttpd and LiteSpeed act on.** `x-sendfile2`, `x-lighttpd-*` and `x-litespeed-*` join `x-accel-*` and `x-sendfile` in what a reply and the playground's `response-headers` refuse.
