@@ -17,6 +17,13 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**A `read_only` SQLite connection cannot write its file.** `PRAGMA query_only` left two pragmas able
+to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_checkpoint` moved a
+write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.
+A file it names that does not exist is refused rather than created empty.
+
 ## 0.30.0
 
 Released 2026-11-01. Every package in the workspace moves to 0.30.0 together, and so do

@@ -1,6 +1,7 @@
 """Tests for the sql family, against a SQLite database in the run's work directory."""
 
 import base64
+import contextlib
 import sqlite3
 from datetime import timedelta
 from pathlib import Path
@@ -8,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import SecretStr, ValidationError
+from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from dirigent_block_sql import engines
@@ -218,6 +220,79 @@ async def test_a_write_through_a_read_only_query_is_refused_by_the_database(loca
         await query(local_ctx, "INSERT INTO site (code) VALUES ('north')")
 
 
+def held_database(path: Path, *, wal: bool = False) -> sqlite3.Connection:
+    """Create a database file at an absolute path, and hand back a connection still holding it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    holder = sqlite3.connect(path)
+    if wal:
+        holder.execute("PRAGMA journal_mode = WAL")
+        holder.execute("PRAGMA wal_autocheckpoint = 0")
+    holder.execute("CREATE TABLE reading (id INTEGER)")
+    holder.execute("INSERT INTO reading VALUES (1)")
+    holder.commit()
+    return holder
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "PRAGMA journal_mode = WAL",
+        "PRAGMA journal_mode = OFF",
+        "PRAGMA user_version = 7",
+        "PRAGMA application_id = 7",
+        "PRAGMA schema_version = 7",
+        "PRAGMA incremental_vacuum",
+        "PRAGMA optimize",
+        "ANALYZE",
+        "INSERT INTO reading VALUES (2)",
+    ],
+)
+async def test_nothing_a_read_only_connection_runs_changes_the_file(
+    local_ctx: FakeContext, tmp_path: Path, statement: str
+) -> None:
+    path = tmp_path / "held" / "warehouse.db"
+    held_database(path).close()
+    before = path.read_bytes()
+    local_ctx.connections["db"] = SqlConnectionConfig(url=f"sqlite+aiosqlite:///{path}", read_only=True)
+    with contextlib.suppress(Exception):
+        await query(local_ctx, statement)
+    assert path.read_bytes() == before
+    assert sorted(entry.name for entry in path.parent.iterdir()) == ["warehouse.db"]
+
+
+async def test_a_read_only_connection_does_not_checkpoint_a_write_ahead_log(
+    local_ctx: FakeContext, tmp_path: Path
+) -> None:
+    path = tmp_path / "held" / "warehouse.db"
+    holder = held_database(path, wal=True)
+    before = path.read_bytes()
+    local_ctx.connections["db"] = SqlConnectionConfig(url=f"sqlite+aiosqlite:///{path}", read_only=True)
+    try:
+        with contextlib.suppress(Exception):
+            await query(local_ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
+        assert path.read_bytes() == before
+    finally:
+        holder.close()
+
+
+async def test_a_read_only_connection_reads_a_held_file_whose_path_a_uri_would_misread(
+    local_ctx: FakeContext, tmp_path: Path
+) -> None:
+    path = tmp_path / "held" / "ware#house 100%?.db"
+    held_database(path).close()
+    url = URL.create("sqlite+aiosqlite", database=str(path))
+    local_ctx.connections["db"] = SqlConnectionConfig(url=url.render_as_string(hide_password=False), read_only=True)
+    assert (await query(local_ctx, "SELECT id FROM reading")).rows == [{"id": 1}]
+
+
+async def test_a_read_only_connection_does_not_create_the_file_it_names(local_ctx: FakeContext, tmp_path: Path) -> None:
+    path = tmp_path / "absent.db"
+    local_ctx.connections["db"] = SqlConnectionConfig(url=f"sqlite+aiosqlite:///{path}", read_only=True)
+    with pytest.raises(Exception, match="unable to open"):
+        await query(local_ctx, "SELECT 1")
+    assert not path.exists()
+
+
 async def test_a_read_only_connection_still_reads(seeded: FakeContext) -> None:
     connect(seeded, read_only=True)
     assert (await query(seeded, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 2}]
@@ -234,6 +309,8 @@ async def test_a_read_only_statement_that_fails_closes_the_connection_and_the_en
         disposed.append(engine)
         await dispose(engine, close)
 
+    connect(local_ctx)
+    await execute(local_ctx, "CREATE TABLE site (code TEXT PRIMARY KEY)")
     monkeypatch.setattr(AsyncEngine, "dispose", recorded)
     monkeypatch.setitem(engines.READ_ONLY, "sqlite", "PRAGMA no such pragma")
     connect(local_ctx, read_only=True)
