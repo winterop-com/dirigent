@@ -144,8 +144,8 @@ claude mcp add --transport http dirigent http://127.0.0.1:3334/mcp \
 It listens on `127.0.0.1` and answers only to a loopback `Host`, and refuses a request another
 origin's page caused. An address other machines can reach, such as `--host 0.0.0.0`, is refused
 unless `--allow-remote` is given, and is then served with a warning: put TLS in front of it,
-since every request carries a token. `DG_MCP_READ_ONLY=1` offers every caller only the tools that
-read.
+since every request carries a token. `DG_MCP_READ_ONLY=1` offers every caller what a viewer is
+offered.
 
 **What applying and running reaches.** An agent that may apply a document and run it may write
 a pipeline that runs with any connection the instance holds and sends what it reads anywhere an

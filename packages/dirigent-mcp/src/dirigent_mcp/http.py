@@ -1,7 +1,7 @@
 """MCP over Streamable HTTP: every request authenticated as its caller, and every call made as them.
 
-One endpoint serves two MCP servers built from the same tools: the whole set for a caller who may
-operate, and the reading tools alone for one who may only read. A request is checked for the page
+One endpoint serves three MCP servers built from the same tools, one per role, each offering what
+the API allows that role. A request is checked for the page
 that caused it, then for its bearer token, before either server sees it, and a session answers
 only the credential that opened it. A tool calls the instance with the bearer token of the request
 it arrived on, never with one the server holds.
@@ -27,7 +27,7 @@ from starlette.types import Receive, Scope, Send
 
 from dirigent_client import Dirigent
 from dirigent_mcp.messages import NO_CREDENTIAL
-from dirigent_mcp.server import ARRIVED_ON, Connect, build
+from dirigent_mcp.server import ARRIVED_ON, Connect, Offers, build
 
 #: Where the endpoint is served.
 MCP_PATH: Final = "/mcp"
@@ -42,12 +42,12 @@ SAME_SITE_FETCH: Final = frozenset({"same-origin", "none"})
 
 
 class Caller(BaseModel):
-    """Who presented a bearer token: the credential's own key, and whether its role may change anything."""
+    """Who presented a bearer token: the credential's own key, and the tools its role is offered."""
 
     model_config = ConfigDict(frozen=True)
 
     key: str
-    may_operate: bool
+    offers: Offers
 
 
 #: Turns a presented bearer token into its caller, or nothing when it does not authenticate.
@@ -122,8 +122,7 @@ class McpEndpoint:
         self._max_body = max_body
         self._session_idle = session_idle
         self._max_sessions = max_sessions
-        self._operating: StreamableHTTPSessionManager | None = None
-        self._reading: StreamableHTTPSessionManager | None = None
+        self._managers: dict[Offers, StreamableHTTPSessionManager] = {}
 
     def _manager(self, server: MCPServer) -> StreamableHTTPSessionManager:
         """Give a server its session manager, with the checks this endpoint makes itself left out of it."""
@@ -137,7 +136,7 @@ class McpEndpoint:
 
     @asynccontextmanager
     async def run(self) -> AsyncGenerator[None]:
-        """Serve sessions while this is open, on a fresh pair of servers each time it is entered.
+        """Serve sessions while this is open, on fresh servers each time it is entered.
 
         The sessions live in a task of their own, so this may be entered in one task and left in another.
         """
@@ -145,17 +144,16 @@ class McpEndpoint:
         stopping = asyncio.Event()
 
         async def serve() -> None:
-            operating = self._manager(build(self._connect))
-            reading = self._manager(build(self._connect, read_only=True))
+            managers = {offers: self._manager(build(self._connect, offers=offers)) for offers in Offers}
             async with AsyncExitStack() as stack:
-                await stack.enter_async_context(operating.run())
-                await stack.enter_async_context(reading.run())
-                self._operating, self._reading = operating, reading
+                for manager in managers.values():
+                    await stack.enter_async_context(manager.run())
+                self._managers = managers
                 started.set()
                 try:
                     await stopping.wait()
                 finally:
-                    self._operating = self._reading = None
+                    self._managers = {}
 
         sessions = asyncio.create_task(serve())
         waiting = asyncio.create_task(started.wait())
@@ -180,7 +178,7 @@ class McpEndpoint:
         if secret is None or caller is None:
             await self._unauthenticated(request)(scope, receive, send)
             return
-        manager = self._operating if caller.may_operate else self._reading
+        manager = self._managers.get(caller.offers)
         if manager is None:
             raise RuntimeError("the MCP endpoint is not running: enter McpEndpoint.run() first")
         user = AuthenticatedUser(AccessToken(token=secret, client_id=caller.key, scopes=[]))

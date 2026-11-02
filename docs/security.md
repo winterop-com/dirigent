@@ -274,11 +274,11 @@ unmounts it, and `/mcp` then answers 404.
   call, mid-session.
 - **A session answers only the token that opened it.** A request naming another credential's
   `Mcp-Session-Id` is answered 404, as if the session did not exist.
-- **A viewer is offered only the reading tools.** A token whose role may not operate gets a
-  server with every tool that writes left out, so a client never offers its model a call the API
-  would refuse with 403. The role is the API's `may_operate`, the same rule its routes apply, and
-  whatever a tool calls is still decided by the route it reaches: `check_connection` is offered
-  to an operator and refused 403 by the API, which allows it to an admin only.
+- **A token is offered what its role may call.** Each role gets a server of its own, so a client
+  never offers its model a call the API would refuse with 403: a viewer's leaves out every tool
+  that writes and `plan_document`, whose dry run is an operator's route, and an operator's leaves
+  out `check_connection`, which is an admin's. Whatever a tool calls is still decided by the route
+  it reaches. `DG_MCP_READ_ONLY=1` over stdio offers what a viewer is offered.
 - **The origin is checked, as the MCP specification requires against DNS rebinding.** A request a
   browser says another site caused (`Sec-Fetch-Site` other than `same-origin` or `none`) or whose
   `Origin` is not this instance's own scheme, host and port is answered 403
@@ -287,8 +287,7 @@ unmounts it, and `/mcp` then answers 404.
   `Host`, as every other path does, and its answers carry the same security headers.
 - **Bounded.** A message is read up to `mcp_max_body` (4 MiB) and a larger one is answered 413. A
   session with no request in flight for `mcp_session_idle` (30 minutes) is closed, and one process
-  holds at most `mcp_max_sessions` (256) sessions for callers who may operate and as many for
-  callers who may only read; past that, a new session is answered 503. Like the rest of the
+  holds at most `mcp_max_sessions` (256) sessions for each of the three roles; past that, a new session is answered 503. Like the rest of the
   authenticated API, `/mcp` is not rate limited.
 
 There is no OAuth discovery at `/mcp`: no `/.well-known/oauth-protected-resource`, and no
