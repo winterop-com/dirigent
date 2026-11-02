@@ -107,8 +107,8 @@ and the lookup happens on every single request.
 and is counted per address, so a stranger failing logins against a named account spends their
 own count and not its owner's. The second bounds what one machine can spend, because Argon2id
 at 64 MiB is expensive by design, and an unauthenticated caller who could invoke it freely could
-turn a few hundred requests a second into the memory and CPU of the whole instance. No count
-spans addresses, so guessing spread across many addresses is limited only per address: a strong
+turn a few hundred requests a second into the memory and CPU of the whole instance. An IPv6
+address counts as its /64, which one host is usually handed whole. No count spans addresses, so guessing spread across many addresses is limited only per address: a strong
 password is what stops that.
 
 Both counts read the address the server sees. Behind a reverse proxy that is the proxy's own
