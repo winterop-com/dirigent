@@ -7,9 +7,11 @@ the seam a plugin pack later adds its own formats to, which is why it lives in t
 leaf rather than in any one package.
 
 It seeds from the library's standard formats (the non-GPL extra provides their validators)
-and adds dirigent's own. ``regex`` is read without being compiled, and ``uri``, ``iri`` and their
-references are matched by the ``regex`` package under the evaluation's deadline, so a check over
-text a caller chose costs time in step with it and stops with the evaluation.
+and adds dirigent's own. ``regex`` is read without being compiled, and ``uri``, ``iri``, their
+references and ``uri-template`` are matched by the ``regex`` package under the evaluation's
+deadline, so a check over text a caller chose costs time in step with it and stops with the
+evaluation. A predicate that does not run under the deadline, the library's or a pack's, is handed
+no text longer than ``MAX_FORMAT_TEXT``, and a longer text fails it.
 
 None of dirigent's own are standard JSON Schema formats, so a tool that does not know them
 treats them as annotations and passes anything -- the graceful degradation every non-core
@@ -44,8 +46,23 @@ _ULID = re.compile(r"[0-7][0-9A-HJKMNP-TV-Z]{25}")
 #: Hex digests, by their fixed nibble length; a digest is hex of either case.
 _HEX = {"md5": 32, "sha1": 40, "sha256": 64, "sha512": 128}
 
-#: The longest text ``format: regex`` reads as a pattern; anything longer is not one.
-MAX_FORMAT_REGEX: Final = 8192
+#: The longest text ``format: regex`` reads as a pattern, or a predicate that does not run under
+#: the evaluation's deadline is handed. A longer text fails the format.
+MAX_FORMAT_TEXT: Final = 8192
+
+_URI_TEMPLATE_VARIABLE: Final = (
+    r"[a-zA-Z0-9_](?:[a-zA-Z0-9_./]|%[0-9A-Fa-f]{2})*+"
+    r"(?::(?=0{0,2}[1-9])[0-9]{1,3}+|\*|\[\])?"
+    r"(?:=[^,}]*+)?"
+)
+
+#: What the library's ``uri-template`` check takes: RFC 6570's expressions, with its own extensions
+#: of a default, a comma operator, a trailing joiner and a ``name/key``, between literals that hold
+#: no brace. Every repetition is possessive, so the match costs time in step with the text.
+_URI_TEMPLATE: Final = regex.compile(
+    rf"[^{{}}]*+(?:\{{(?:[+#./;?&]|,\+?)?{_URI_TEMPLATE_VARIABLE}(?:,{_URI_TEMPLATE_VARIABLE})*+[,./;&]?\}}[^{{}}]*+)*+",
+    regex.VERSION0,
+)
 
 #: RFC 3987's ``ucschar``: the characters past ASCII an IRI may hold unescaped.
 _UCSCHAR: Final = "\u00a0-\ud7ff\uf900-\ufdcf\ufdf0-\uffef" + "".join(
@@ -106,7 +123,7 @@ def _is_pattern(value: str) -> bool:
     The parse costs time in step with the text. A look-behind must have one width, which
     ``re`` checks only when it compiles.
     """
-    if len(value) > MAX_FORMAT_REGEX:
+    if len(value) > MAX_FORMAT_TEXT:
         return False
     try:
         pending: list[Any] = [_regex_syntax.parse(value)]
@@ -153,13 +170,27 @@ def _is_base64(value: object) -> bool:
     return True
 
 
+def _within_the_limit(predicate: Callable[[object], bool]) -> Callable[[object], bool]:
+    """Fail a text longer than ``MAX_FORMAT_TEXT`` without handing it to ``predicate``."""
+
+    def check(value: object) -> bool:
+        if isinstance(value, str) and len(value) > MAX_FORMAT_TEXT:
+            return False
+        return predicate(value)
+
+    return check
+
+
 def base_format_checker() -> FormatChecker:
     """Build the format checker dirigent validates values against, standard formats plus its own."""
     checker = FormatChecker()
+    checker.checkers = {
+        name: (_within_the_limit(predicate), raises) for name, (predicate, raises) in checker.checkers.items()
+    }
 
     @checker.checks("regex")
     def _regex(value: object) -> bool:  # pyright: ignore[reportUnusedFunction] - the decorator registers it
-        """A pattern Python's ``re`` takes, at most ``MAX_FORMAT_REGEX`` characters long."""
+        """A pattern Python's ``re`` takes, at most ``MAX_FORMAT_TEXT`` characters long."""
         return not isinstance(value, str) or _is_pattern(value)
 
     for _name, _reference in {
@@ -167,11 +198,12 @@ def base_format_checker() -> FormatChecker:
         "uri-reference": _URI_REFERENCE,
         "iri": _IRI,
         "iri-reference": _IRI_REFERENCE,
+        "uri-template": _URI_TEMPLATE,
     }.items():
 
         @checker.checks(_name)
         def _is_reference(value: object, pattern: "regex.Pattern[str]" = _reference) -> bool:  # pyright: ignore[reportUnusedFunction] - the decorator registers it
-            """An RFC 3986 URI or RFC 3987 IRI, matched within the evaluation's deadline."""
+            """An RFC 3986 URI, an RFC 3987 IRI or a URI template, matched within the evaluation's deadline."""
             return not isinstance(value, str) or matches_whole(pattern, value)
 
     @checker.checks("ulid")
@@ -215,9 +247,10 @@ def format_checker_with(contributed: Mapping[str, Callable[[object], bool]]) -> 
     A pack contributes a predicate per format name; a value is invalid when the predicate
     returns False or raises, which is the whole shape of a jsonschema format check. The base
     checker is copied rather than added to, so each host's assembly is its own and the shared
-    base stays exactly the standard-plus-dirigent set every call builds.
+    base stays exactly the standard-plus-dirigent set every call builds. A text longer than
+    ``MAX_FORMAT_TEXT`` fails a contributed format without reaching its predicate.
     """
     checker = base_format_checker()
     for name, predicate in contributed.items():
-        checker.checks(name, raises=(Exception,))(predicate)
+        checker.checks(name, raises=(Exception,))(_within_the_limit(predicate))
     return checker
