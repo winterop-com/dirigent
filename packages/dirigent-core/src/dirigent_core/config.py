@@ -276,7 +276,7 @@ class Settings(BaseSettings):
     mcp_max_sessions: int = Field(default=256, ge=1)
     """How many MCP sessions one server process holds open at once; a new one past it is answered 503.
 
-    Callers who may operate and callers who may only read are counted apart, each up to this many.
+    Each role is counted apart, up to this many.
     """
 
     ui_dir: Path | None = None

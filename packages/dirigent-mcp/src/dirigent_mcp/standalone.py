@@ -24,9 +24,10 @@ from dirigent_common import Message
 from dirigent_common.hosts import is_loopback_host
 from dirigent_mcp.http import MCP_PATH, METHODS, Caller, McpEndpoint
 from dirigent_mcp.messages import CROSS_ORIGIN, HOST_NOT_LOOPBACK, UNAUTHENTICATED
+from dirigent_mcp.server import Offers
 
-#: The roles whose tokens are offered the tools that write.
-OPERATING_ROLES: Final = frozenset({UserRole.ADMIN, UserRole.OPERATOR})
+#: The tools each role is offered.
+OFFERED: Final = {UserRole.ADMIN: Offers.ADMINISTERING, UserRole.OPERATOR: Offers.OPERATING}
 
 SESSION_IDLE: Final = timedelta(minutes=30)
 MAX_SESSIONS: Final = 256
@@ -83,7 +84,7 @@ def standalone_app(
             except (Unauthorized, Forbidden):
                 return None
         key = hashlib.sha256(secret.encode()).hexdigest()
-        return Caller(key=key, may_operate=not read_only and identity.role in OPERATING_ROLES)
+        return Caller(key=key, offers=Offers.READING if read_only else OFFERED.get(identity.role, Offers.READING))
 
     endpoint = McpEndpoint(
         authenticate=authenticate,
