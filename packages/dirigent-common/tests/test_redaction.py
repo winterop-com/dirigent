@@ -1,5 +1,8 @@
 """What a secret looks like once a library has quoted it, and scrubbing it out of the text."""
 
+import json
+from urllib.parse import quote, quote_plus
+
 from pydantic import BaseModel, JsonValue, SecretStr
 
 from dirigent_common import REDACTED, raised_detail, scrub, scrub_json, secrets_of, spellings
@@ -20,6 +23,25 @@ def test_every_spelling_a_library_quotes_is_scrubbed() -> None:
         f"Illegal header value {repr(('Bearer ' + secret).encode())}",
     ):
         assert "DUMMY-token" not in scrub(said, spellings(secret)), said
+
+
+def test_a_secret_percent_encoded_or_json_escaped_is_scrubbed() -> None:
+    secret = 'pa ss/wörd"\n'
+    for said in (
+        f"amqp://user:{quote(secret)}@broker/",
+        f"amqp://user:{quote(secret, safe='')}@broker/",
+        f"https://host/?token={quote_plus(secret)}",
+        f"body was {json.dumps({'value': secret})}",
+        f"body was {json.dumps({'value': secret}, ensure_ascii=False)}",
+    ):
+        scrubbed = scrub(said, spellings(secret))
+        assert REDACTED in scrubbed, said
+        assert "ss" not in scrubbed, said
+
+
+def test_a_secret_no_encoder_can_spell_is_still_scrubbed_as_written() -> None:
+    secret = "broken\udcff"
+    assert scrub(f"value {secret}", spellings(secret)) == f"value {REDACTED}"
 
 
 def test_a_config_names_the_secrets_it_holds_and_nothing_else() -> None:
