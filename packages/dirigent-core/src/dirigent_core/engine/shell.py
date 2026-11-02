@@ -138,7 +138,6 @@ class _Frame(BaseModel):
     in_word: bool = False
     expect_command: bool = True
     command: str = ""
-    associative: bool = False
     case_depth: int = 0
     clause: list[int] = Field(default_factory=list[int])
     clause_evaluates: bool = False
@@ -170,7 +169,6 @@ class _Reader:
         self.index = 0
         self.stack = [_Frame(kind=_TOP)]
         self.pending: list[_HereDocument] = []
-        self.associative: set[str] = set()
         self.declares_integer = False
         self.places: dict[int, Placed] = {}
         self.unread: Unread | None = None
@@ -351,8 +349,7 @@ class _Reader:
         if self.text[self.index + 1 : self.index + 3] in ("@]", "*]"):
             self.index += 3
             return
-        evaluated = name.group().lstrip("#!") not in self.associative
-        self._push(_SUBSCRIPT, "[", 1, arithmetic=evaluated)
+        self._push(_SUBSCRIPT, "[", 1, arithmetic=True)
 
     def _brace(self, top: _Frame) -> None:
         character = self.text[self.index]
@@ -482,11 +479,13 @@ class _Reader:
         return top.expect_command and not top.in_word and ahead[:1] == "[" and ahead[1:] in (" ", "\t", "\n")
 
     def _subscript_is_evaluated(self, top: _Frame) -> bool:
-        """Whether a ``[`` opens an indexed array's subscript that an assignment evaluates.
+        """Whether a ``[`` opens an array's subscript that an assignment evaluates.
 
-        ``echo a[1]`` is a glob and ``a[1]=x`` is an assignment, which only the end says.
+        ``echo a[1]`` is a glob and ``a[1]=x`` is an assignment, which only the end says. A
+        ``declare -A`` in the text exempts nothing: whether it is in effect where the subscript
+        runs depends on what the shell executes, which this reader does not follow.
         """
-        if _NAME.fullmatch(top.word) is None or top.word in self.associative:
+        if _NAME.fullmatch(top.word) is None:
             return False
         depth = 0
         for index in range(self.index, len(self.text)):
@@ -685,17 +684,11 @@ class _Reader:
     def _declared_word(self, frame: _Frame, word: str) -> None:
         if word.startswith("-"):
             self.declares_integer = self.declares_integer or "i" in word
-            frame.associative = frame.associative or "A" in word
-        elif frame.associative:
-            name = _NAME.match(word)
-            if name is not None:
-                self.associative.add(name.group())
 
     def _reset_command(self, frame: _Frame) -> None:
         frame.expect_command = True
         frame.command = ""
         frame.arithmetic = False
-        frame.associative = False
         frame.prefixed = False
 
 
