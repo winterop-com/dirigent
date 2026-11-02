@@ -576,7 +576,11 @@ instance's cookies or storage. A reply may not set `set-cookie`, `www-authentica
 `x-sendfile`), among others. That is refused at apply (`source.reply_bad_header`) and again when
 the reply renders, where a value a reference resolved to that holds a line break is refused too
 (`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
-pipeline's to set, so a reply can redirect, name a download or answer a browser caller.
+pipeline's to set, so a reply can redirect, name a download or answer a browser caller. A reply's
+`content_type` must be a media type and must not be one a browser runs as a script, such as
+`text/javascript`, which the sandbox does not govern when a page loads the URL in a `<script>`. That
+is refused at apply (`source.reply_bad_content_type`), and an object `body_from` names that is stored
+as one is sent as `application/octet-stream`.
 
 **A failed step's text stays on the run.** A held caller whose run fails before a reply answers is
 told the run and the step, and nothing the step said: that text can hold the artifact root, an

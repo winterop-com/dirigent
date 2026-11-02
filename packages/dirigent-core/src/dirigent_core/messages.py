@@ -954,6 +954,10 @@ REPLY_BAD_HEADER = SOURCE.define(
     "reply_bad_header", "a reply does not set {header}, which the server writes or enforces itself"
 )
 
+REPLY_BAD_CONTENT_TYPE = SOURCE.define(
+    "reply_bad_content_type", "a reply does not answer as {content_type}, which is no media type or runs as a script"
+)
+
 UNKNOWN_KIND = SOURCE.define("unknown_kind", "no source kind {kind} is available on this instance ({known})")
 
 SAMPLE_INVALID = SOURCE.define(
