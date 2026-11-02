@@ -205,6 +205,9 @@ def test_a_header_this_origin_will_not_set_is_refused(playground: TestClient) ->
         "Access-Control-Allow-Origin",
         "Cross-Origin-Resource-Policy",
         "X-Accel-Redirect",
+        "X-Sendfile2",
+        "X-LIGHTTPD-send-file",
+        "X-LiteSpeed-Location",
         "bad name",
     ],
 )

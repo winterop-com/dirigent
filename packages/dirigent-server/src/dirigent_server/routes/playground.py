@@ -112,13 +112,14 @@ FORBIDDEN_HEADERS: Final = frozenset(
         "x-content-type-options",
         "x-frame-options",
         "x-sendfile",
+        "x-sendfile2",
         "x-xss-protection",
     }
 )
 
 #: Families of response header refused like the names above: the CORS and cross-origin
 #: policies, and what a proxy in front of this instance acts on.
-FORBIDDEN_HEADER_PREFIXES: Final = ("access-control-", "cross-origin-", "x-accel-")
+FORBIDDEN_HEADER_PREFIXES: Final = ("access-control-", "cross-origin-", "x-accel-", "x-lighttpd-", "x-litespeed-")
 
 #: What a header name may be spelled with: an RFC 9110 token.
 HEADER_NAME: Final = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+")

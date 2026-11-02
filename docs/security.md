@@ -572,7 +572,7 @@ UI's origin, so it answers with `X-Content-Type-Options: nosniff` and
 rendered. A `text/html` reply is displayed but runs no script, and has no access to the
 instance's cookies or storage. A reply may not set `set-cookie`, `www-authenticate`, `refresh`,
 `clear-site-data`, `content-security-policy`, `x-content-type-options`, `x-frame-options`,
-`strict-transport-security`, `cross-origin-*`, or what a proxy acts on (`x-accel-*`,
+`strict-transport-security`, `cross-origin-*`, or what a proxy acts on (`x-accel-*`, `x-lighttpd-*`, `x-litespeed-*`,
 `x-sendfile`), among others. That is refused at apply (`source.reply_bad_header`) and again when
 the reply renders, where a value a reference resolved to that holds a line break is refused too
 (`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
