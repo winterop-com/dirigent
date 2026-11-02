@@ -90,7 +90,12 @@ row and answers at once, and a document only sets the knob it is teaching.
 ### All of Faker, through the field map
 
 `fields` maps an output field name to the Faker provider that fills it. Every provider the
-installed Faker offers is reachable, and nothing has to be added here for a new one to work:
+installed Faker offers is reachable, and nothing has to be added here for a new one to work.
+A provider that names further providers from its arguments, as `json` and `pystr_format` do, is
+held to the same list. One generation makes at most 100,000 provider calls and 16 MiB of records in
+30 seconds, off the event loop, and an argument saying how much to make, such as `max_chars` or
+`num_rows`, asks for at most 10,000 (`playground.generation_past_its_bound`,
+`playground.provider_refused`):
 
 ```yaml
       fields:
