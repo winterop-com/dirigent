@@ -220,11 +220,14 @@ def _parse_store(path: Path, text: str) -> ProfileStore:
             except ValueError as error:
                 raise ProfileError(f"{path}: {error}") from error
     default = raw.get("default")
-    return ProfileStore(
-        default=default if isinstance(default, str) else None,
-        profiles=profiles,
-        path=path,
-    )
+    try:
+        return ProfileStore(
+            default=default if isinstance(default, str) else None,
+            profiles=profiles,
+            path=path,
+        )
+    except ValueError as error:
+        raise ProfileError(f"{path}: {error}") from error
 
 
 def find_store(start: Path | None = None) -> ProfileStore:

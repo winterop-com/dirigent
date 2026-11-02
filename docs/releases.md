@@ -19,6 +19,8 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**A signature timestamp no date can hold is refused.** A 12-digit `X-Dirigent-Timestamp` past the year 9999 answered an unauthenticated caller 500 with a logged traceback. It is now refused like any other bad timestamp, `source.signature_timestamp`.
+
 **`format: uri-template` costs time in step with a caller's text.** The library's check was
 quadratic on a run of `{` and held the interpreter's lock, so 80,000 characters stopped a worker's
 event loop for 2.4 seconds past a 200 ms `validate.schema` timeout. It is now matched by the same
@@ -26,6 +28,13 @@ engine as `pattern`, accepting what the library accepts, and stops at the bound.
 standard format, and a format a pack contributes, is handed no text longer than 8192 characters; a
 longer text fails the format. `base64`, `humane-duration` and dirigent's other own formats are not
 limited, since they were measured linear.
+
+**A checkout's files cannot write terminal escapes through `dg`.** The text of a
+`.dirigent/profiles.yaml` reached the terminal raw through a profile's refusal, so a repository
+could clear the screen, set the title or write the clipboard of whoever ran `dg` in it. A profile's
+refusal now has every control character removed, and a profile name that is not valid is one of
+those refusals rather than an uncaught error. A malformed `dirigent.yaml`, and a document that is
+not text, are now refused with a record (`cli.source_refused`) rather than a traceback.
 
 **An array's subscript in a shell command is held to an integer, whatever the command declares.**
 A `${...}` in `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}` used to take any value when `declare -A a`
@@ -35,10 +44,14 @@ appeared anywhere in the text, including in a branch not taken, a function, a su
 associative array on a caller's text is refused when the step starts, and takes the value through
 `argv`, which involves no shell.
 
+**One polled source cannot stop the claim for the rest.** A sensor source with no cadence of its own, whose sensor is not installed on the worker, raised while it sat at its `max_in_flight` bound, and every tick on that worker failed until its runs settled, so no polled source on it was looked at. It now waits out a lease and the others are claimed.
+
 **A `read_only` SQLite connection cannot write its file.** `PRAGMA query_only` left two pragmas able
 to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_checkpoint` moved a
 write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.
 A file it names that does not exist is refused rather than created empty.
+
+**The playground answers rather than fails on what a caller may send.** A `status` of 100 to 199 dropped the connection and logged a traceback, and a JSON body about 900 levels deep answered 500, both to an anonymous caller. `status` now starts at 200, refused 422 below it, and a JSON body nested past the 128 levels an endpoint takes is reflected as text (`body_kind: text`).
 
 ## 0.30.0
 
