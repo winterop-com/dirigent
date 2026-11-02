@@ -167,7 +167,7 @@ def test_the_contributed_wording_is_served_for_the_codes_a_pack_refuses_under(cl
 
 def test_the_catalog_names_the_secret_fields_of_a_connection_kind(client: TestClient) -> None:
     kinds = {kind["id"]: kind for kind in client.get(f"{PREFIX}/blocks").json()["connection_kinds"]}
-    assert kinds["http"]["secret_fields"] == ["bearer_token", "basic_password", "hmac_secret"]
+    assert kinds["http"]["secret_fields"] == ["bearer_token", "basic_password", "credential", "hmac_secret"]
     assert kinds["slack"]["secret_fields"] == ["webhook_url", "bot_token"]
     assert kinds["email"]["secret_fields"] == ["password"]
     assert kinds["kafka"]["secret_fields"] == ["password"]
@@ -235,7 +235,7 @@ def test_a_connection_round_trips_with_its_secret_redacted(client: TestClient) -
     body = created.json()
     assert body["config"]["base_url"] == "https://ops.example.org"
     assert body["config"]["bearer_token"] == "***"
-    assert body["secret_fields"] == ["bearer_token", "basic_password", "hmac_secret"]
+    assert body["secret_fields"] == ["bearer_token", "basic_password", "credential", "hmac_secret"]
     assert "super-secret" not in created.text
 
     listed = client.get(f"{PREFIX}/connections").json()["items"]

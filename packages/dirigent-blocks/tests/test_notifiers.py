@@ -112,6 +112,39 @@ async def test_a_bearer_credential_is_presented_when_one_is_configured(monkeypat
     assert responder.requests[0].headers["authorization"] == "Bearer t0ken"
 
 
+@pytest.mark.parametrize(
+    ("settings", "header", "sent"),
+    [
+        ({"credential_header": "X-Api-Key"}, "x-api-key", "dummy"),
+        ({"credential_scheme": "Token"}, "authorization", "Token dummy"),
+    ],
+    ids=["a-header-of-its-own", "under-a-scheme"],
+)
+async def test_a_credential_is_sent_in_the_header_the_connection_names(
+    monkeypatch: pytest.MonkeyPatch, settings: dict[str, str], header: str, sent: str
+) -> None:
+    responder = Responder(httpx2.Response(200))
+    intercept(monkeypatch, responder)
+    config = WebhookNotifierConfig.model_validate({"url": ENDPOINT, "credential": "dummy", **settings})
+    await WebhookNotifier().send(an_alert(), config)
+    assert responder.requests[0].headers[header] == sent
+
+
+@pytest.mark.parametrize("name", ["Authorization", "cookie", "X-Api-Key", "x_api_key"])
+def test_a_credential_in_the_headers_is_refused_without_repeating_it(name: str) -> None:
+    with pytest.raises(ValidationError) as refused:
+        WebhookNotifierConfig.model_validate({"url": ENDPOINT, "headers": {name: "DUMMYSECRET"}})
+    assert "put its value in a connection's credential field" in str(refused.value)
+    assert "DUMMYSECRET" not in str(refused.value)
+
+
+def test_a_plain_header_cannot_spell_the_name_the_credential_is_sent_in() -> None:
+    with pytest.raises(ValidationError, match="the x-tenant header is the one credential_header names"):
+        WebhookNotifierConfig.model_validate(
+            {"url": ENDPOINT, "headers": {"x-tenant": "v"}, "credential_header": "X-Tenant"}
+        )
+
+
 async def test_no_authorization_header_is_sent_without_a_credential(monkeypatch: pytest.MonkeyPatch) -> None:
     responder = Responder(httpx2.Response(200))
     intercept(monkeypatch, responder)

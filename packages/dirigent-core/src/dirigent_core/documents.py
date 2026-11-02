@@ -29,6 +29,8 @@ from dirigent_common import (
     Message,
     base_format_checker,
     bounded_load,
+    carries_credential,
+    plain_header_fields_of,
     validation_issue,
 )
 from dirigent_common.messages import TEXT_UNSTORABLE
@@ -85,6 +87,7 @@ from dirigent_core.messages import (
     STEP_BLOCK_MISSING,
     STEP_CONFIG_INVALID,
     STEP_CONNECTION_MISSING,
+    STEP_CREDENTIAL_HEADER,
     STEP_PROGRAM_IS_A_REFERENCE,
     STEP_REFERENCE_FOR_A_PROGRAM,
     STEP_REFERENCE_IN_COMPOSE,
@@ -671,6 +674,7 @@ def _step_block_issues(
         issues.extend(_sql_reference_issues(name, step.config, entry.config_schema))
         issues.extend(_program_reference_issues(name, step.config, entry.config_schema))
         issues.extend(_shell_issues(name, step.config, entry.config_schema))
+        issues.extend(_credential_header_issues(name, step.config, entry.config_schema))
         issues.extend(_allowlist_issues(name, step.block, entry, allowed))
         issues.extend(_scheme_issues(name, step.config, entry.config_schema, schemes))
         if not malformed:
@@ -754,6 +758,21 @@ def _shell_issues(step: str, config: JsonMap, schema: JsonMap) -> list[Validatio
                     line=unread.line,
                 )
             )
+    return issues
+
+
+def _credential_header_issues(step: str, config: JsonMap, schema: JsonMap) -> list[ValidationIssue]:
+    """Refuse a credential's name in a header map, whether or not its value is a reference."""
+    issues: list[ValidationIssue] = []
+    for field in sorted(plain_header_fields_of(schema)):
+        held = config.get(field)
+        if not isinstance(held, dict):
+            continue
+        issues.extend(
+            ValidationIssue.of(STEP_CREDENTIAL_HEADER, location=f"steps.{step}.config.{field}.{name}", header=name)
+            for name in sorted(cast("dict[str, Any]", held))
+            if carries_credential(name)
+        )
     return issues
 
 

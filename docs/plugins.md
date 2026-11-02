@@ -452,14 +452,25 @@ name rather than by model:
 | `bearer_token` | Sent as `Authorization: Bearer <token>` |
 | `api_token` | Sent as `Authorization: ApiToken <token>`, the scheme a personal access token usually needs |
 | `api_token_scheme` | The scheme `api_token` is sent under instead of `ApiToken` |
+| `credential` | Sent in `credential_header`, after `credential_scheme` when one is set, and only to the origin of `base_url` |
+| `credential_header` | The header `credential` is sent in instead of `Authorization` |
+| `credential_scheme` | The word sent before `credential` |
 | `basic_username`, `basic_password` | The client's HTTP basic auth |
 | `verify_tls` | Whether certificates are verified |
 | `follow_redirects_with_auth` | When `true`, `base_url` is followed through its redirects once, without a credential, and every request is sent to where it lands |
 | `timeout` | The timeout applied to every request |
 
-`bearer_token` wins over `api_token` when a config carries both, and basic credentials win over
-either, because httpx applies auth per request and the token is a client header. A connection
+`bearer_token` wins over `api_token` when a config carries both, `credential` wins over either in
+the same header, and basic credentials win over all of them, because httpx applies auth per request
+and the token is a client header. A connection
 kind that names none of these fields still gets a client, with no base URL and no credential.
+
+A free-form header map in a block's config or a connection's is stored as written, so it is typed
+`PlainHeaders` from `dirigent_common`. That refuses a name that carries a credential when the config
+is validated and, for a block, when the document is applied, whether the value is a literal or a
+reference. Set `hide_input_in_errors` on the model as well, so a refusal at run time cannot repeat a
+value a reference resolved to. A credential goes in a `CredentialValue` field named `credential`,
+with `credential_header` and `credential_scheme` beside it.
 
 ## A pack in its own repository
 

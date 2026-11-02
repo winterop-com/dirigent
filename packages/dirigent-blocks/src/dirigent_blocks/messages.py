@@ -4,6 +4,11 @@ from dirigent_common import Catalogue
 
 NOTIFY = Catalogue("notify")
 
+WEBHOOK_HEADER_IS_THE_CREDENTIALS = NOTIFY.define(
+    "webhook_header_is_the_credentials",
+    "the {header} header is the one credential_header names, and it carries the credential; remove it from headers",
+)
+
 WEBHOOK_HAS_NO_URL = NOTIFY.define(
     "webhook.no_url",
     "the webhook notifier has no url; set one on the connection this rule delivers through",

@@ -42,8 +42,10 @@
 #                     may override for one call.
 #
 # headers is for what the receiver wants that is not a credential: a routing key, an API
-# version, a correlation id. A token in there is a token in the document, which is the
-# mistake this whole surface exists to prevent.
+# version, a correlation id. A token in there would be a token in the document, so a header
+# whose name carries one is refused when the document is applied. A service that wants a scheme
+# or a header of its own, such as X-Api-Key, is served by the connection's credential,
+# credential_scheme and credential_header.
 #
 # To change it: -p path=/request calls a route that takes no credentials at all and reflects
 # the headers it saw -- including the Authorization the connection added, whose presence is

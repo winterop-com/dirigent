@@ -6,7 +6,7 @@ stand up. `dg run --local examples/open-data/<file>.yaml` reaches the internet a
 with today's data.
 
 The two exceptions say so in their headers and in the table below. `kobo-submissions-to-csv`
-needs an account token, because the submissions are somebody's household survey and there is no
+needs a connection holding an account token, because the submissions are somebody's household survey and there is no
 anonymous read; `odk-central-submissions` needs a server and an account for the same reason.
 They are here because a shelf of only-open sources would never show where a credential belongs
 -- in a connection the instance holds, not in the document.

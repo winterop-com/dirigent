@@ -1106,9 +1106,16 @@ Stated plainly, because a security page that lists only what exists is not much 
 - **Egress control.** No allowlist on outbound requests. A pipeline can call any URL the worker
   can reach, which for a worker inside your network means your network.
 
+  A credential cannot sit in a header map either. `http.request`, `webhook.post` and the `webhook`
+  connection refuse a header whose name carries one, such as `Authorization`, `Cookie` or
+  `X-Api-Key` (`document.step_credential_header` at apply, `common.credential_header_refused` at
+  validation), because a map is stored as written and shown to whoever can read it. It goes in the
+  connection's sealed `credential`, sent in `credential_header` after `credential_scheme`.
+
   What a redirect cannot do is carry a connection's credentials somewhere else: the client
-  drops the `Authorization` header when the origin changes, so a service that redirects
-  before authenticating has to be configured with the URL it redirects to. `follow_redirects`
+  drops the `Authorization` header when the origin changes, a request hook drops a `credential`
+  sent in a header of its own the same way, so a service that redirects before authenticating has
+  to be configured with the URL it redirects to. `follow_redirects`
   is off by default in any case. The one exception is a connection that sets
   `follow_redirects_with_auth`: its `base_url` is followed once, without the credential, and
   every request then goes, credential and all, to wherever it landed. Set it only on a

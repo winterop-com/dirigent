@@ -11,6 +11,7 @@ from datetime import timedelta
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from dirigent_common.durations import Duration
+from dirigent_common.headers import CredentialHeader, CredentialScheme, CredentialValue
 
 
 class BlockModel(BaseModel):
@@ -37,6 +38,8 @@ class HealthReport(BaseModel):
 class HttpConnectionConfig(BlockModel):
     """Everything needed to talk to one HTTP service, credentials included."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     base_url: str = Field(min_length=1)
     """The service root every request path is resolved against."""
 
@@ -48,6 +51,15 @@ class HttpConnectionConfig(BlockModel):
 
     basic_password: SecretStr | None = None
     """The secret half of HTTP basic authentication."""
+
+    credential: CredentialValue = None
+    """A credential for a service that wants neither a bearer token nor basic: visible ASCII with no whitespace."""
+
+    credential_header: CredentialHeader = "Authorization"
+    """The header `credential` is sent in, which goes only to the origin of `base_url`."""
+
+    credential_scheme: CredentialScheme = None
+    """The word sent before `credential` in its header, such as `Token`; unset sends the credential alone."""
 
     hmac_secret: SecretStr | None = None
     """A shared secret an outbound POST is signed with, mirroring an inbound webhook's.

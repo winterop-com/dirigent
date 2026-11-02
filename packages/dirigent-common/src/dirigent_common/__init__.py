@@ -6,7 +6,7 @@ name may be, and the small schemas a plugin and the API both name.
 """
 
 from dirigent_common.bounded_yaml import BoundedLoader, YamlExpansionError, bounded_load, bounded_load_all
-from dirigent_common.clients import BaseRedirect, build_client
+from dirigent_common.clients import BaseRedirect, CredentialOnOrigin, build_client
 from dirigent_common.docstrings import as_markdown
 from dirigent_common.durations import (
     DURATION_PATTERN,
@@ -20,6 +20,16 @@ from dirigent_common.durations import (
 )
 from dirigent_common.formats import base_format_checker, format_checker_with
 from dirigent_common.formatters import Formatter
+from dirigent_common.headers import (
+    PLAIN_HEADERS_KEYWORD,
+    CredentialHeader,
+    CredentialScheme,
+    CredentialValue,
+    PlainHeaders,
+    carries_credential,
+    credential_header_value,
+    plain_header_fields_of,
+)
 from dirigent_common.messages import (
     Catalogue,
     Issue,
@@ -105,6 +115,10 @@ __all__ = [
     "STEP_NAME_MAX_LENGTH",
     "STEP_NAME_PATTERN",
     "BaseRedirect",
+    "CredentialHeader",
+    "CredentialOnOrigin",
+    "CredentialScheme",
+    "CredentialValue",
     "BlockModel",
     "Catalogue",
     "Duration",
@@ -113,6 +127,8 @@ __all__ = [
     "EntityName",
     "Formatter",
     "HealthReport",
+    "PLAIN_HEADERS_KEYWORD",
+    "PlainHeaders",
     "HttpConnectionConfig",
     "HumaneJsonSchema",
     "Issue",
@@ -131,6 +147,9 @@ __all__ = [
     "as_markdown",
     "entity_name_error",
     "build_client",
+    "carries_credential",
+    "credential_header_value",
+    "plain_header_fields_of",
     "compile_template",
     "filler",
     "format_duration",

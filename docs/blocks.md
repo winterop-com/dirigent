@@ -336,7 +336,7 @@ Contributed by `block-http`. Not idempotent.
 | `follow_redirects` | `boolean` |  | `false` | Whether a 3xx is followed rather than returned as the answer. |
 | `method` | `"GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS"` |  | `"GET"` | The method the request is sent with. |
 | `query` | `object of string or integer or number or boolean` |  |  | Query parameters appended to the URL, each value written as text. |
-| `headers` | `object of string` |  |  | Headers sent with the request. |
+| `headers` | `object of string` |  |  | Headers sent with the request; one whose name carries a credential is refused, and goes on the connection. |
 | `body` | `any or null` |  | `null` | What the request sends, usually a reference to what an earlier step produced. |
 | `content_type` | `string or null` |  | `null` | The content type the body is sent with, overriding the default for what it carries. |
 | `success_status` | `integer[]` |  |  | Status codes that count as success; empty means any 2xx. |
@@ -752,7 +752,7 @@ Contributed by `block-http`. Not idempotent.
 | `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. |
 | `follow_redirects` | `boolean` |  | `false` | Whether a 3xx is followed rather than returned as the answer. |
 | `body` | `any` |  |  | The JSON payload, usually built from upstream outputs with `${steps...}` references. |
-| `headers` | `object of string` |  |  | Extra headers the receiver wants, such as a routing key. |
+| `headers` | `object of string` |  |  | Extra headers the receiver wants, such as a routing key; one whose name carries a credential is refused, and goes on the connection. |
 | `max_response` | `string or integer` |  | `"1mb"` | How much of the receiver's answer is read, before the step is failed instead. |
 | `sign_with` | `string or null` |  | `null` | The connection whose `hmac_secret` signs the body; unset means the POST is unsigned. |
 | `success_status` | `integer[]` |  |  | Status codes that count as delivered; empty means any 2xx. |

@@ -374,6 +374,12 @@ STEP_REFERENCE_FOR_A_PROGRAM = DOCUMENT.define(
     "write the programs out, and read the reference in them as the value it is",
 )
 
+STEP_CREDENTIAL_HEADER = DOCUMENT.define(
+    "step_credential_header",
+    "the {header} header carries a credential, and a document is stored as written; put its value in the credential "
+    "field of the connection this step names, with its name in credential_header unless that is Authorization",
+)
+
 STEP_SHELL_UNREADABLE = DOCUMENT.define(
     "step_shell_unreadable",
     "{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a "

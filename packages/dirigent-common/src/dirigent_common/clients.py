@@ -9,6 +9,7 @@ from typing import Any
 
 import httpx2
 
+from dirigent_common.headers import credential_header_value
 from dirigent_common.schemas import HttpConnectionConfig
 
 
@@ -17,15 +18,19 @@ def build_client(config: HttpConnectionConfig) -> httpx2.AsyncClient:
     headers: dict[str, str] = {}
     if config.bearer_token is not None:
         headers["Authorization"] = f"Bearer {config.bearer_token.get_secret_value()}"
+    if config.credential is not None:
+        headers[config.credential_header] = credential_header_value(
+            config.credential.get_secret_value(), config.credential_scheme
+        )
     auth: httpx2.Auth | None = None
     if config.basic_username:
         password = config.basic_password.get_secret_value() if config.basic_password else ""
         auth = httpx2.BasicAuth(config.basic_username, password)
-    hooks: dict[str, list[Callable[..., Any]]] | None = (
-        {"request": [BaseRedirect(config.base_url, verify=config.verify_tls)]}
-        if config.follow_redirects_with_auth
-        else None
-    )
+    hooks: dict[str, list[Callable[..., Any]]] = {"request": []}
+    if config.credential is not None:
+        hooks["request"].append(CredentialOnOrigin(config.base_url, config.credential_header))
+    if config.follow_redirects_with_auth:
+        hooks["request"].append(BaseRedirect(config.base_url, verify=config.verify_tls))
     return httpx2.AsyncClient(
         base_url=config.base_url,
         headers=headers,
@@ -34,6 +39,29 @@ def build_client(config: HttpConnectionConfig) -> httpx2.AsyncClient:
         timeout=config.timeout.total_seconds(),
         event_hooks=hooks,
     )
+
+
+class CredentialOnOrigin:
+    """A request hook that takes a credential's header off a request leaving a base URL's origin.
+
+    A client drops ``Authorization`` itself when a redirect changes the origin, and no other header.
+    Placed before :class:`BaseRedirect`, it judges a request by the base it was addressed under.
+    """
+
+    def __init__(self, base_url: str, header: str) -> None:
+        """Hold the origin the header may go to."""
+        self._origin = _origin_of(httpx2.URL(base_url))
+        self._header = header
+
+    async def __call__(self, request: httpx2.Request) -> None:
+        """Remove the header from a request to any other origin."""
+        if _origin_of(request.url) != self._origin:
+            request.headers.pop(self._header, None)
+
+
+def _origin_of(url: httpx2.URL) -> tuple[str, str, int | None]:
+    """The scheme, host and port a URL is sent to; a default port reads as ``None``."""
+    return url.scheme, url.host, url.port
 
 
 class BaseRedirect:

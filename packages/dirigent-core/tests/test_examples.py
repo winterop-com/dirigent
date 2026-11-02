@@ -17,6 +17,7 @@ EXAMPLE_CONNECTIONS = (
     "playground",
     "modelling-api",
     "odk-central",
+    "kobo",
     "ops-webhook",
     "artifacts",
     "warehouse-read",

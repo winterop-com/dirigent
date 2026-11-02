@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import httpx2
 from pydantic import BaseModel, SecretStr
 
-from dirigent_common import base_format_checker
+from dirigent_common import CredentialOnOrigin, base_format_checker
 from dirigent_core.engine.context import BufferedLogger, EngineStepContext, build_http_client
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import Storage, build_storage
@@ -154,3 +154,30 @@ async def test_a_fan_out_item_captures_under_its_own_path(tmp_path: Path) -> Non
         await sink.write(b"one item")
 
     assert sink.uri == f"{scratch}/load/{item}/attempt-1-err"
+
+
+class _CredentialConfig(BaseModel):
+    """A connection kind that names the credential fields, and a base it may be sent to."""
+
+    base_url: str = "http://service.test"
+    credential: SecretStr | None = None
+    credential_header: str = "Authorization"
+    credential_scheme: str | None = None
+
+
+def test_a_credential_is_sent_in_the_header_the_config_names() -> None:
+    config = _CredentialConfig(credential=SecretStr("dummy"), credential_header="X-Api-Key")
+    assert build_http_client(config).headers["x-api-key"] == "dummy"
+
+
+def test_a_credential_is_sent_under_the_scheme_the_config_names() -> None:
+    config = _CredentialConfig(credential=SecretStr("dummy"), credential_scheme="Token")
+    assert build_http_client(config).headers["authorization"] == "Token dummy"
+
+
+def test_a_credential_carries_the_hook_that_keeps_it_on_its_origin() -> None:
+    bare = build_http_client(_CredentialConfig())
+    held = build_http_client(_CredentialConfig(credential=SecretStr("dummy")))
+    assert "authorization" not in bare.headers
+    assert bare.event_hooks["request"] == []
+    assert [type(hook) for hook in held.event_hooks["request"]] == [CredentialOnOrigin]
