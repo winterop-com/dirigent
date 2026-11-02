@@ -2967,6 +2967,27 @@ def test_a_caller_elsewhere_cannot_lock_an_account_out_of_login(settings: Settin
     ADDRESS_BUCKETS.buckets.clear()
 
 
+def test_one_ipv6_network_is_capped_as_one_address(settings: Settings, admin_token: str) -> None:
+    """A host with a /64 holds more addresses than a count could ever hold apart."""
+    from dirigent_server import create_app
+
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+    tuned = settings.model_copy(update={"login_address_rate_per_minute": 3})
+    app = create_app(tuned)
+    login = {"username": "junk", "password": "wrong-password"}
+
+    def attempt(address: str) -> int:
+        with TestClient(app, client=(address, 50000)) as caller:
+            return caller.post(f"{PREFIX}/auth/login", json=login).status_code
+
+    answered = [attempt(f"2001:db8:0:1::{index + 1:x}") for index in range(4)]
+    assert answered == [401, 401, 401, 429]
+    assert attempt("2001:db8:0:2::1") == 401, "another network has its own count"
+    LOGIN_BUCKETS.buckets.clear()
+    ADDRESS_BUCKETS.buckets.clear()
+
+
 def test_one_address_is_capped_across_every_username(settings: Settings, admin_token: str) -> None:
     """Spreading attempts over junk usernames does not get a machine past its own cap."""
     from dirigent_server import create_app

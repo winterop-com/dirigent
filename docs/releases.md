@@ -42,6 +42,8 @@ refusal now has every control character removed, and a profile name that is not 
 those refusals rather than an uncaught error. A malformed `dirigent.yaml`, and a document that is
 not text, are now refused with a record (`cli.source_refused`) rather than a traceback.
 
+**Login counts an IPv6 address by its /64.** One host is usually handed a whole /64, so keying on the full address did not bound what it could spend on Argon2.
+
 **An array's subscript in a shell command is held to an integer, whatever the command declares.**
 A `${...}` in `a[${v}]=1`, `a[${v}]+=1` or `${a[${v}]}` used to take any value when `declare -A a`
 appeared anywhere in the text, including in a branch not taken, a function, a subshell, before an
