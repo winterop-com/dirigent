@@ -23,6 +23,8 @@ relock against the tag and bump.
 
 **A source's curl line quotes a method that is not a bare word.** The UI's copyable line left the method unquoted, relying on the server's list of methods.
 
+**A listing reads a shape stored at apply, and the schema changed.** `pipeline_versions` gains `shape`, written when a version is stored, so `GET /pipelines`, `GET /pipelines/{code}` and the MCP tools that call them no longer revalidate each document, every template in it included, on the event loop on every read. The baseline migration is edited in place, so `dg db upgrade` does not carry the column: recreate the database, or add `shape` by hand with each version's step shape, as an existing row with an empty list draws no miniature.
+
 **An open MCP stream does not keep its session past the idle time.** An open `GET` stream counted as a request in flight, so `mcp_session_idle` never closed its session. The stream is now ended after that long, and the session counts from there. A client that still wants one reconnects, which authenticates its token again; the SDK's client does.
 
 **An MCP token is offered only the tools its role may call.** `plan_document` was offered to a viewer and `check_connection` to an operator, and the API refused both. Each role now has a server of its own: a viewer's leaves out what writes and `plan_document`, whose dry run is an operator's route, and an operator's leaves out `check_connection`. `DG_MCP_READ_ONLY=1` offers what a viewer is offered, so it no longer offers `plan_document`. `mcp_max_sessions` now counts each of the three roles apart. In `dirigent_mcp`, `build()` takes `offers` in place of `read_only`, and `Caller` carries `offers` in place of `may_operate`.

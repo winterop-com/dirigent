@@ -128,6 +128,11 @@ class PipelineVersion(Entity):
     The stored document is canonical, and PostgreSQL normalises jsonb key order besides, so
     the order a person reads their pipeline in survives nowhere else."""
 
+    shape: Mapped[list[JsonMap]] = mapped_column(JsonDocument, nullable=False, default=list[JsonMap])
+    """Each step's code, name, kind, block, dependencies and fan-out, in the order written.
+
+    A listing reads this rather than the document, whose every template it would have to compile."""
+
     digest: Mapped[str] = mapped_column(sa.String(71), nullable=False, index=True)
     provenance_source: Mapped[ProvenanceSource] = mapped_column(
         string_enum(ProvenanceSource, "provenance_source"), nullable=False, default=ProvenanceSource.API

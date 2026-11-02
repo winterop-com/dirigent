@@ -120,12 +120,12 @@ async def test_a_dry_run_reports_the_plan_and_writes_nothing(
         assert await find_pipeline(session, "daily-load") is None
 
 
-async def test_a_stored_document_that_no_longer_loads_is_left_out_of_a_listing(
+async def test_a_listing_reads_the_shape_stored_at_apply_and_loads_no_document(
     sessions: async_sessionmaker[AsyncSession],
     services: EngineServices,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A template's compile depends on the stack it runs on, which is deeper here than at apply."""
+    """Loading a document compiles every template it holds, per pipeline per read, on the loop."""
     async with session_scope(sessions) as session:
         await apply_document(session, services, load_text(DOCUMENT))
     async with session_scope(sessions) as session:
@@ -133,10 +133,28 @@ async def test_a_stored_document_that_no_longer_loads_is_left_out_of_a_listing(
         assert stored is not None
 
         def fails(_: object) -> None:
-            raise RecursionError
+            pytest.fail("a listing loads no document")
 
         monkeypatch.setattr(pipelines, "load_definition", fails)
-        assert await pipelines.listing_shapes(session, [stored.id]) == {}
+        shapes = await pipelines.listing_shapes(session, [stored.id])
+    assert [(step.code, step.block, step.depends_on) for step in shapes[stored.id]] == [
+        ("first", "test.echo", []),
+        ("second", "test.echo", ["first"]),
+    ]
+
+
+async def test_a_new_version_stores_its_own_shape(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(DOCUMENT))
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(DOCUMENT.replace("second:", "fetch:")))
+    async with session_scope(sessions) as session:
+        stored = await find_pipeline(session, "daily-load")
+        assert stored is not None
+        shapes = await pipelines.listing_shapes(session, [stored.id])
+    assert "fetch" in [step.code for step in shapes[stored.id]]
 
 
 async def test_an_invalid_document_is_refused_with_its_issues(
