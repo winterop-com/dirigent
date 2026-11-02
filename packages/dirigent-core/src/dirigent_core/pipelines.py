@@ -539,7 +539,7 @@ async def listing_shapes(session: AsyncSession, pipeline_ids: Sequence[UUID]) ->
     )
     return {
         pipeline_id: [StepShape.model_validate(step) for step in shape]
-        for pipeline_id, shape in (await session.execute(current)).tuples()
+        for pipeline_id, shape in (await session.execute(current)).all()
     }
 
 
