@@ -475,6 +475,16 @@ def signed(secret: str, body: bytes, *, at: float | None = None) -> dict[str, st
     }
 
 
+@pytest.mark.parametrize("stamp", ["999999999999", "253402300800", "000000000000"])
+def test_a_timestamp_no_date_can_hold_is_refused_as_a_timestamp(client: TestClient, stamp: str) -> None:
+    secret = apply_document(client, held("      auth: {kind: hmac}"))["sources"]["tokens"][0]["token"]
+    body = b'{"order": 1}'
+    headers = {**signed(secret, body), "X-Dirigent-Timestamp": stamp}
+    answered = client.post("/endpoints/held", content=body, headers=headers)
+    assert answered.status_code == 401, answered.text
+    assert answered.json()["code"] == "source.signature_timestamp"
+
+
 def test_a_signed_source_takes_a_body_signed_with_its_secret_and_refuses_any_other(client: TestClient) -> None:
     applied = apply_document(client, held("      auth: {kind: hmac}"))
     [minted] = applied["sources"]["tokens"]
