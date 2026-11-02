@@ -3,6 +3,7 @@
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import sqlalchemy as sa
@@ -487,6 +488,41 @@ async def test_a_source_at_its_bound_with_a_cadence_past_a_date_does_not_stop_th
 
     assert len(claimed) == 1
     assert (await _source(sessions, "bbb")).lease_owner == WORKER
+
+
+async def test_a_source_at_its_bound_whose_cadence_cannot_be_read_does_not_stop_the_claim(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A sensor source with no cadence of its own, whose sensor is not installed on this worker."""
+    await two_sources(sessions, services, tmp_path)
+    real = polling.polled
+
+    def uninstalled(_config: object) -> timedelta:
+        raise LookupError("not a sensor a source pokes outside a run")
+
+    def absent_for_aaa(kinds: object, row: Source) -> object:
+        return (SimpleNamespace(poll_every=uninstalled), None) if row.code == "aaa" else real(kinds, row)  # type: ignore[arg-type]
+
+    def at_its_bound(_kinds: object, row: Source) -> int | None:
+        return 0 if row.code == "aaa" else None
+
+    monkeypatch.setattr(polling, "polled", absent_for_aaa)
+    monkeypatch.setattr(polling, "max_in_flight", at_its_bound)
+    now = utcnow()
+
+    async with session_scope(sessions) as session:
+        await session.execute(sa.update(Source).values(next_poll_at=now - timedelta(minutes=1)))
+    async with session_scope(sessions) as session:
+        claimed = await polling.claim_due(session, services, owner=WORKER, now=now)
+
+    assert len(claimed) == 1
+    assert (await _source(sessions, "bbb")).lease_owner == WORKER
+    held_back = (await _source(sessions, "aaa")).next_poll_at
+    assert held_back is not None
+    assert held_back.replace(tzinfo=UTC) > now, "it waits out a lease rather than falling due at once"
 
 
 async def test_a_worker_waits_until_the_earliest_source_nobody_holds_falls_due(
