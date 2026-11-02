@@ -1585,7 +1585,7 @@ def test_a_bare_create_at_a_terminal_offers_every_secret_the_kind_declares(
     monkeypatch.setattr(typer, "prompt", prompting(asked, {"base_url": "https://ops.example.org"}))
     created = invoke("connection", "create", "http", "ops-api")
     assert created.exit_code == 0, created.output
-    assert asked == ["base_url", "bearer_token", "basic_password", "hmac_secret"]
+    assert asked == ["base_url", "bearer_token", "basic_password", "credential", "hmac_secret"]
 
 
 @pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)

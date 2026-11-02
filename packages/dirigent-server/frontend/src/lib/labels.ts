@@ -992,6 +992,11 @@ const refused = {
         wrong_password: 'The current password is not correct.',
     },
     common: {
+        bad_credential:
+            'A credential must be visible ASCII with no whitespace, or it cannot be sent as a header value. A scheme such as Bearer goes in credential_scheme.',
+        bad_credential_word: 'credential_header and credential_scheme must each be one HTTP token.',
+        credential_header_refused:
+            'The {header} header carries a credential, and headers are stored as written. Put its value in the credential field of a connection, which is sealed, with its name in credential_header unless that is Authorization.',
         yaml_alias_cycle: 'This YAML has an alias inside the node it names, so it cannot be written out.',
         yaml_aliases_expand_too_far:
             "This YAML's aliases would add more than {limit} values once written out. Write the repeated parts out, or repeat them less.",
