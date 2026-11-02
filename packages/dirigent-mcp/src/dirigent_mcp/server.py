@@ -19,6 +19,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from contextvars import ContextVar
 from datetime import timedelta
+from enum import IntEnum
 from typing import Any, Final, cast
 
 from mcp.server import MCPServer
@@ -134,13 +135,22 @@ async def remember_request(ctx: ServerRequestContext[Any, Any], call_next: CallN
         ARRIVED_ON.reset(held)
 
 
-def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
-    """Build the server whose tools call the instance through ``connect``, or only its reading ones."""
+class Offers(IntEnum):
+    """Which tools a server offers: those the API allows to a role, each including the one before."""
+
+    READING = 0
+    OPERATING = 1
+    ADMINISTERING = 2
+
+
+def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServer:
+    """Build the server whose tools call the instance through ``connect``, the ones ``offers`` reaches."""
     server = MCPServer(name="dirigent", instructions=INSTRUCTIONS, log_level="WARNING", middleware=[remember_request])
 
-    def tool[F: Callable[..., Any]](annotations: ToolAnnotations) -> Callable[[F], F]:
-        """Register a tool, unless the server reads only and this tool writes."""
-        if read_only and not annotations.read_only_hint:
+    def tool[F: Callable[..., Any]](annotations: ToolAnnotations, needs: Offers | None = None) -> Callable[[F], F]:
+        """Register a tool the server offers: ``needs`` says who, or else whether the tool writes."""
+        least = needs if needs is not None else Offers.READING if annotations.read_only_hint else Offers.OPERATING
+        if least > offers:
             return lambda function: function
         return server.tool(annotations=annotations)
 
@@ -197,7 +207,7 @@ def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
 
         return await call(checked)
 
-    @tool(READS)
+    @tool(READS, needs=Offers.OPERATING)
     async def plan_document(document: str) -> Any:
         """Check a YAML pipeline or triggers document against the instance without storing it.
 
@@ -415,12 +425,9 @@ def build(connect: Connect, *, read_only: bool = False) -> MCPServer:
         """Read one connection: its kind, its settings with every secret redacted, and its last health check."""
         return await call(lambda dg: dg.connections.get(code))
 
-    @tool(PROBES)
+    @tool(PROBES, needs=Offers.ADMINISTERING)
     async def check_connection(code: str) -> Any:
-        """Ask a connection's outside system whether it answers with the stored credential, and record it.
-
-        The instance allows this to an admin token only.
-        """
+        """Ask a connection's outside system whether it answers with the stored credential, and record it."""
         return await call(lambda dg: dg.connections.check(code))
 
     @tool(READS)
@@ -525,7 +532,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             sys.stderr.write(f"dirigent-mcp: {NO_INSTANCE.render(url_env=URL_ENV, token_env=TOKEN_ENV)}\n")
             raise SystemExit(2)
         token = os.environ.get(TOKEN_ENV)
-        build(shared(lambda: Dirigent(url=url, token=token)), read_only=read_only).run("stdio")
+        offers = Offers.READING if read_only else Offers.ADMINISTERING
+        build(shared(lambda: Dirigent(url=url, token=token)), offers=offers).run("stdio")
         return
     if not url:
         sys.stderr.write(f"dirigent-mcp: {NO_HTTP_INSTANCE.render(url_env=URL_ENV)}\n")

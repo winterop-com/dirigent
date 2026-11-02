@@ -30,7 +30,7 @@ import secrets
 import time
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Final
+from typing import Annotated, Final, cast
 from urllib.parse import SplitResult, unquote_plus, urlencode, urlsplit
 
 from fastapi import APIRouter, FastAPI, Query, Request, Response
@@ -40,7 +40,9 @@ from pydantic import BaseModel, JsonValue
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from dirigent_common import Duration, Size, filler
+from dirigent_common.depth import nests_past
 from dirigent_core.config import Settings
+from dirigent_core.sources.endpoint import MAX_BODY_DEPTH
 from dirigent_server.bodies import read_within_deadline
 from dirigent_server.errors import Refusal
 from dirigent_server.logging import get_logger
@@ -68,6 +70,9 @@ SECRET_HEADERS: Final = frozenset({"authorization", "cookie", "proxy-authorizati
 
 #: Statuses that carry no body, so the reflection has nowhere to go.
 BODYLESS: Final = frozenset({204, 304})
+
+#: The lowest status a request can be answered with: a 1xx is interim, and no final answer.
+MIN_STATUS: Final = 200
 
 #: The redirect statuses the playground will issue. A 304 is not a redirect and carries no
 #: body, and no other 3xx is one a client follows.
@@ -374,9 +379,10 @@ def _body(raw: bytes, content_type: str | None) -> tuple[JsonValue, str]:
     text = raw.decode("utf-8", errors="replace")
     if media == "application/json":
         try:
-            return json.loads(text), "json"
-        except json.JSONDecodeError:
+            parsed = cast("JsonValue", json.loads(text))
+        except (json.JSONDecodeError, RecursionError):
             return text, "text"
+        return (text, "text") if nests_past(parsed, MAX_BODY_DEPTH) else (parsed, "json")
     if media == "application/x-www-form-urlencoded":
         gathered: dict[str, JsonValue] = {}
         for pair in text.split("&"):
@@ -415,7 +421,7 @@ async def _facts(request: Request) -> RequestFacts:
 def _answer(model: BaseModel, code: int, headers: dict[str, str] | None = None) -> Response:
     """Send one answer, contained, leaving out the body where the status cannot carry one."""
     contained = {**(headers or {}), **CONTAINED}
-    if code in BODYLESS or code < 200:
+    if code in BODYLESS:
         return Response(status_code=code, headers=contained)
     return JSONResponse(model.model_dump(mode="json"), status_code=code, headers=contained)
 
@@ -433,7 +439,7 @@ async def _delayed(delay: timedelta) -> None:
         await asyncio.sleep(delay.total_seconds())
 
 
-StatusArg = Annotated[int, Query(ge=100, le=599, description="The status to answer with.")]
+StatusArg = Annotated[int, Query(ge=MIN_STATUS, le=599, description="The status to answer with.")]
 DelayArg = Annotated[Duration, Query(description="How long to take before answering, as `250ms` or `2s`.")]
 
 
@@ -596,7 +602,7 @@ async def unreliable(
     request: Request,
     attempt: Annotated[int, Query(ge=1, description="Which attempt the caller says this is.")] = 1,
     fail_until: Annotated[int, Query(ge=0, description="How many attempts fail before one succeeds.")] = 1,
-    status: Annotated[int, Query(ge=100, le=599, description="The status answered while failing.")] = 503,
+    status: Annotated[int, Query(ge=MIN_STATUS, le=599, description="The status answered while failing.")] = 503,
     delay: DelayArg = timedelta(0),
 ) -> Response:
     """Answer the failing status while the attempt is inside the window, and 200 after it.
