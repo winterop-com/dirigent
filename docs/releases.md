@@ -19,6 +19,8 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**A signature timestamp no date can hold is refused.** A 12-digit `X-Dirigent-Timestamp` past the year 9999 answered an unauthenticated caller 500 with a logged traceback. It is now refused like any other bad timestamp, `source.signature_timestamp`.
+
 **`format: uri-template` costs time in step with a caller's text.** The library's check was
 quadratic on a run of `{` and held the interpreter's lock, so 80,000 characters stopped a worker's
 event loop for 2.4 seconds past a 200 ms `validate.schema` timeout. It is now matched by the same
@@ -35,10 +37,14 @@ appeared anywhere in the text, including in a branch not taken, a function, a su
 associative array on a caller's text is refused when the step starts, and takes the value through
 `argv`, which involves no shell.
 
+**One polled source cannot stop the claim for the rest.** A sensor source with no cadence of its own, whose sensor is not installed on the worker, raised while it sat at its `max_in_flight` bound, and every tick on that worker failed until its runs settled, so no polled source on it was looked at. It now waits out a lease and the others are claimed.
+
 **A `read_only` SQLite connection cannot write its file.** `PRAGMA query_only` left two pragmas able
 to: `PRAGMA journal_mode = WAL` rewrote the database header, and `PRAGMA wal_checkpoint` moved a
 write-ahead log into the file. A `read_only` connection now opens its file with `mode=ro` as well.
 A file it names that does not exist is refused rather than created empty.
+
+**The playground answers rather than fails on what a caller may send.** A `status` of 100 to 199 dropped the connection and logged a traceback, and a JSON body about 900 levels deep answered 500, both to an anonymous caller. `status` now starts at 200, refused 422 below it, and a JSON body nested past the 128 levels an endpoint takes is reflected as text (`body_kind: text`).
 
 ## 0.30.0
 
