@@ -995,7 +995,8 @@ const refused = {
         bad_credential:
             'A credential must be visible ASCII with no whitespace, or it cannot be sent as a header value. A scheme such as Bearer goes in credential_scheme.',
         bad_credential_word: 'credential_header and credential_scheme must each be one HTTP token.',
-        bad_credential_query: 'credential_query must be a query parameter name: letters, digits, and _ . ~ -.',
+        bad_credential_query:
+            'credential_query must be a query parameter name: letters, digits, and _ . ~ -.',
         credential_parameter_refused:
             'The {parameter} query parameter carries a credential, and a query is stored as written. Put its value in the credential field of a connection, which is sealed, with its name in credential_query.',
         credential_two_places:
