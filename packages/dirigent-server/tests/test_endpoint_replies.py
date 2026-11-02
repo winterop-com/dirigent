@@ -188,7 +188,7 @@ def test_anything_a_reply_cannot_render_settles_it_as_rejected(client: TestClien
 
 
 #: What no held caller is told, whichever step failed.
-NEVER_SAID = ("artifacts", "kept/nope", "api_key", "DUMMY-API-KEY", "/internal/report", "127.0.0.1", "answered 500")
+NEVER_SAID = ("artifacts", "kept/nope", "tenant", "DUMMY-TENANT", "/internal/report", "127.0.0.1", "answered 500")
 
 
 def failing_on_the_way(step: str) -> str:
@@ -246,7 +246,7 @@ def internal_url() -> "Iterator[str]":
             "source.reply_rejected",
         ),
         (
-            "    block: http.request\n    config: {url: '{internal}/internal/report?api_key=DUMMY-API-KEY&q=x'}",
+            "    block: http.request\n    config: {url: '{internal}/internal/report?tenant=DUMMY-TENANT&q=x'}",
             502,
             "source.reply_failed",
         ),
