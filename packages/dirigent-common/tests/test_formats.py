@@ -200,7 +200,7 @@ def test_uri_template_refuses_what_is_not_one(checker: object, template: str) ->
 
 
 def test_uri_template_says_what_the_library_says(checker: object) -> None:
-    tokens = [*"{ } a 1 0 + # . / ; ? & , : * [] = %41 %4 ! -".split(), " "]
+    tokens = list("{}a10+#./;?&,:*=! -") + ["[]", "%41", "%4"]
     drawn = random.Random(6570)  # noqa: S311 - a fixed sample, not a secret
     bodies = ["".join(body) for length in range(4) for body in itertools.product(tokens, repeat=length)]
     bodies += ["".join(drawn.choices(tokens, k=drawn.randint(4, 9))) for _ in range(20_000)]
