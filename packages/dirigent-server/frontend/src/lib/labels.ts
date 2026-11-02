@@ -1014,6 +1014,8 @@ const refused = {
             '{reference} is inside {field}, and a value spliced into a compose file can add keys to it. Write $${NAME} in the file and give the reference to env under NAME.',
         step_reference_in_fhirpath:
             '{reference} is inside {field}, and a value reaches a FHIRPath expression only as a variable. Give the reference to variables under a name, and read it in the expression as %name.',
+        step_reference_for_a_program:
+            '${{{reference}}} stands where {field} holds programs, and a value is never a program. Write the programs out, and read the reference in them as the value it is.',
         step_reference_in_cql:
             '{reference} is inside {field}, and a value reaches a CQL library only as a parameter. Give the reference to parameters under the name the library declares it by.',
         step_shell_unreadable:
@@ -1065,6 +1067,8 @@ const refused = {
             '{reference} is inside {field}, and a value reaches a template only through values. Give the reference to values under a name, and read that name in the template.',
         in_fhirpath:
             '{reference} is inside {field}, and a value reaches a FHIRPath expression only as a variable. Give the reference to variables under a name, and read it in the expression as %name.',
+        for_a_program:
+            '{reference} stands where {field} holds programs, and a value is never a program. Write the programs out, and read the reference in them as the value it is.',
         in_cql: '{reference} is inside {field}, and a value reaches a CQL library only as a parameter. Give the reference to parameters under the name the library declares it by.',
         jq_whole_program:
             '{reference} is the whole of {field}, and a value is never a program. Write the program, and read the reference in it as the value it is.',

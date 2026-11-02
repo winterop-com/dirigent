@@ -24,14 +24,23 @@ how a compose file, a shell command or a template reaches a tool with its own br
 
 import json
 import re
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Iterator
 from datetime import datetime
 from typing import Any, Final, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, SkipValidation
 
-from dirigent_common import JsonMap, Message
+from dirigent_common import (
+    COMPOSE_MEDIA_TYPE,
+    CQL_MEDIA_TYPE,
+    FHIRPATH_MEDIA_TYPE,
+    JQ_MEDIA_TYPE,
+    SHELL_MEDIA_TYPE,
+    TEMPLATE_MEDIA_TYPE,
+    JsonMap,
+    Message,
+)
 from dirigent_core.engine.shell import REFERENCE_MARK, Quoting, Unread, evaluated_in_any_quoting, read_shell
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
@@ -51,13 +60,14 @@ from dirigent_core.messages import (
     NO_WINDOW,
     NOT_FAILED,
     NOT_PAIRED,
+    REFERENCE_FOR_A_PROGRAM,
     SHELL_ARITHMETIC,
     SHELL_UNREADABLE,
     SQL_REFERENCE,
     TEMPLATE_REFERENCE,
     UNKNOWN_NAMESPACE,
 )
-from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD, sql_values_of
+from dirigent_plugin import SHELL_VARIABLE_PREFIX, SHELL_VARIABLES_FIELD, MediaPlace, media_places_of, sql_values_of
 
 REFERENCE_PATTERN: Final = re.compile(r"(\$+)\{([^{}]+)\}")
 """A run of dollars before a braced name.
@@ -153,6 +163,15 @@ def resolve(value: JsonValue, scope: ReferenceScope) -> JsonValue:
             return value
 
 
+#: The media types a reference is refused in wherever a config holds them, and how each refuses it.
+_REFERENCE_REFUSED_IN: Final[tuple[tuple[Message, str], ...]] = (
+    (TEMPLATE_REFERENCE, TEMPLATE_MEDIA_TYPE),
+    (COMPOSE_REFERENCE, COMPOSE_MEDIA_TYPE),
+    (FHIRPATH_REFERENCE, FHIRPATH_MEDIA_TYPE),
+    (CQL_REFERENCE, CQL_MEDIA_TYPE),
+)
+
+
 def resolve_config(
     config: JsonMap,
     scope: ReferenceScope,
@@ -177,7 +196,8 @@ def resolve_config(
 
     ``config_schema`` is what the block publishes for this config. A reference anywhere it
     publishes SQL is refused rather than resolved, because a value reaches SQL only as a bound
-    parameter.
+    parameter. A template, a compose file, FHIRPath and CQL are found the same way, however deep a
+    pack nests them, and a nested jq program or shell string is rewritten as a top-level one is.
 
     ``template_fields`` names the keys a block publishes as a template, refused the same way,
     because a value reaches a template only through what it renders against.
@@ -198,6 +218,10 @@ def resolve_config(
         for field, held in sql_values_of(config, config_schema).items():
             for reference in references_in(held):
                 raise UnknownReference(SQL_REFERENCE, reference=reference, field=field)
+        for refusal, media_type in _REFERENCE_REFUSED_IN:
+            for place in media_places_of(config, config_schema, media_type):
+                for reference in references_in(place.value):
+                    raise UnknownReference(refusal, reference=reference, field=place.field)
     for key in template_fields:
         for reference in references_in(config.get(key)):
             raise UnknownReference(TEMPLATE_REFERENCE, reference=reference, field=key)
@@ -219,9 +243,42 @@ def resolve_config(
             resolved[key] = _resolve_jq(key, value, scope)
         else:
             resolved[key] = resolve(value, scope)
-    if shell_fields:
+    nested_shell = False
+    if config_schema is not None:
+        for place in _rewritten_places(config, config_schema, JQ_MEDIA_TYPE, jq_fields):
+            _put(resolved, place.path, _resolve_jq(place.field, cast("str", place.value), scope))
+        for place in _rewritten_places(config, config_schema, SHELL_MEDIA_TYPE, shell_fields):
+            nested_shell = True
+            _put(resolved, place.path, _resolve_shell(place.value, scope, variables))
+    if shell_fields or nested_shell:
         resolved[SHELL_VARIABLES_FIELD] = cast("JsonValue", variables)
     return resolved
+
+
+def _rewritten_places(
+    config: JsonMap, schema: JsonMap, media_type: str, top_level: Collection[str]
+) -> Iterator[MediaPlace]:
+    """The nested programs a reference is rewritten in, refusing one that stands in for programs.
+
+    A top-level field is resolved with the rest of the config, and rewriting it takes the same
+    text there. A place the schema only holds programs under has no text to rewrite.
+    """
+    for place in media_places_of(config, schema, media_type):
+        if place.path[0] in top_level and len(place.path) == 1:
+            continue
+        if place.published and isinstance(place.value, str):
+            yield place
+            continue
+        for reference in references_in(place.value):
+            raise UnknownReference(REFERENCE_FOR_A_PROGRAM, reference=reference, field=place.field)
+
+
+def _put(config: JsonMap, path: tuple[str | int, ...], value: JsonValue) -> None:
+    """Replace what a resolved config holds at a path whose containers a document wrote out."""
+    held: Any = config
+    for part in path[:-1]:
+        held = held[part]
+    held[path[-1]] = value
 
 
 def has_reference(value: str) -> bool:

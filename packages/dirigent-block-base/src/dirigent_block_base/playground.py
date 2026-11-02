@@ -13,7 +13,11 @@ The whole of Faker is reachable through the field map, which names a provider pe
 provider name is therefore a string from a document that selects an attribute on a library
 object, so it is never looked up directly: :func:`providers` builds the set of names the
 installed Faker actually offers for a locale, and a name outside that set is refused before
-anything is called. Nothing with a leading underscore is ever in the set.
+anything is called, a name a provider dispatches to from its arguments included. Nothing with a
+leading underscore is ever in the set.
+
+One generation is bounded by the provider calls it makes, the text it makes and the time it
+takes, and it runs off the event loop.
 
 Seeding is per instance, never the class-wide ``Faker.seed``: two steps generating at once
 must not be able to reach into each other's sequence.
@@ -22,6 +26,10 @@ must not be able to reach into each other's sequence.
 import asyncio
 import math
 import random
+import re
+import threading
+import time
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from functools import lru_cache
@@ -30,15 +38,16 @@ from typing import Annotated, Any, ClassVar, Final, cast
 from faker import Faker
 from faker.config import AVAILABLE_LOCALES
 from pydantic import BaseModel, Field, JsonValue
-from pydantic_core import to_jsonable_python
+from pydantic_core import to_json, to_jsonable_python
 
 from dirigent_block_base.messages import (
     FAILED_ON_PURPOSE,
+    GENERATION_PAST_ITS_BOUND,
     PROVIDER_REFUSED,
     UNKNOWN_LOCALE,
     UNKNOWN_PROVIDER,
 )
-from dirigent_common import BlockModel, Duration, JsonMap, Size, filler
+from dirigent_common import BlockModel, Duration, JsonMap, Size, filler, format_duration
 from dirigent_plugin import (
     BlockFailure,
     ErrorClass,
@@ -53,6 +62,21 @@ from dirigent_plugin import (
 #: The most records one call may generate. A field map costs a line to write and a provider
 #: call per field per row to honour, so the count is bounded rather than left to the document.
 MAX_ROWS: Final = 1000
+
+#: The most provider calls one generation may make, those a provider makes itself included.
+MAX_PROVIDER_CALLS: Final = 100_000
+
+#: The most generated text one generation may make, as JSON.
+MAX_GENERATED_BYTES: Final = 16 * 1024 * 1024
+
+#: The longest one generation may take, whatever its step's timeout.
+GENERATION_DEADLINE: Final = timedelta(seconds=30)
+
+#: The largest number an argument saying how much to make may ask for.
+MAX_SIZE_ARGUMENT: Final = 10_000
+
+#: What the names of those arguments hold, as ``max_chars``, ``nb_elements`` and ``num_rows`` do.
+SIZE_ARGUMENT: Final = re.compile(r"nb|num|length|size|count|chars|digits|elements|rows|files|words|sentences|width")
 
 #: The most records one page may carry.
 MAX_PAGE_SIZE: Final = 500
@@ -321,23 +345,87 @@ def _jsonable(value: Any) -> JsonValue:
     return cast("JsonValue", to_jsonable_python(value, fallback=str))
 
 
-def _call(fake: Faker, spec: FieldSpec, locale: str) -> JsonValue:
-    """Fill one field, having first checked that its provider is one this locale offers."""
+def _past(bound: str) -> PlaygroundRefusal:
+    """Refuse a generation that went past one of what it may spend."""
+    return PlaygroundRefusal(GENERATION_PAST_ITS_BOUND, bound=bound)
+
+
+class _Budget:
+    """What one generation has left to spend, checked at every provider call however deep."""
+
+    def __init__(self, stopped: threading.Event | None) -> None:
+        self.calls = 0
+        self.written = 0
+        self.deadline = time.monotonic() + GENERATION_DEADLINE.total_seconds()
+        self.stopped = stopped
+
+    def call(self) -> None:
+        """Spend one provider call, or refuse once the calls, the time or the caller have run out."""
+        self.calls += 1
+        if self.calls > MAX_PROVIDER_CALLS:
+            raise _past(f"{MAX_PROVIDER_CALLS} provider calls")
+        if time.monotonic() >= self.deadline:
+            raise _past(f"{format_duration(GENERATION_DEADLINE)} of time")
+        if self.stopped is not None and self.stopped.is_set():
+            raise _past("the time its step gave it")
+
+    def write(self, value: JsonValue) -> None:
+        """Count a generated value against what one generation may make."""
+        self.written += len(to_json(value))
+        if self.written > MAX_GENERATED_BYTES:
+            raise _past(f"{MAX_GENERATED_BYTES} bytes of records")
+
+
+def _check_sizes(provider: str, args: Any, *, size: bool = False) -> None:
+    """Refuse an integer past ``MAX_SIZE_ARGUMENT`` under a name that says how much to make."""
+    if isinstance(args, dict):
+        for name, value in cast("dict[str, Any]", args).items():
+            _check_sizes(provider, value, size=size or SIZE_ARGUMENT.search(name) is not None)
+    elif isinstance(args, list | tuple):
+        for value in cast("list[Any]", args):
+            _check_sizes(provider, value, size=size)
+    elif size and isinstance(args, int) and args > MAX_SIZE_ARGUMENT:
+        detail = f"{args} is past the {MAX_SIZE_ARGUMENT} a size argument may ask for"
+        raise PlaygroundRefusal(PROVIDER_REFUSED, provider=provider, detail=detail)
+
+
+def _held_to_the_catalogue(fake: Faker, locale: str, budget: _Budget) -> None:
+    """Send every dispatch through the allowlist and the budget, a provider's own included.
+
+    ``json``, ``pystr_format`` and their kin name further providers from their arguments and
+    reach them through ``Generator.format``, so this is where such a name is checked.
+    """
+    catalogue = _catalogue(locale)
+    for generator in fake.factories:
+        dispatch = generator.format
+
+        def checked(formatter: str, *args: Any, _dispatch: Any = dispatch, **kwargs: Any) -> Any:
+            if formatter not in catalogue:
+                raise PlaygroundRefusal(UNKNOWN_PROVIDER, provider=formatter, locale=locale)
+            budget.call()
+            _check_sizes(formatter, kwargs)
+            return _dispatch(formatter, *args, **kwargs)
+
+        generator.format = checked  # pyright: ignore[reportAttributeAccessIssue]
+
+
+def _call(fake: Faker, spec: FieldSpec, budget: _Budget) -> JsonValue:
+    """Fill one field, through the dispatch that checks its provider and spends the budget."""
     provider = spec.provider if isinstance(spec, ProviderCall) else spec
     args = dict(spec.args) if isinstance(spec, ProviderCall) else {}
-    if provider not in _catalogue(locale):
-        raise PlaygroundRefusal(UNKNOWN_PROVIDER, provider=provider, locale=locale)
     try:
-        return _jsonable(fake.format(provider, **args))
+        value = _jsonable(fake.format(provider, **args))
     except PlaygroundRefusal:
         raise
     except Exception as error:
         raise PlaygroundRefusal(PROVIDER_REFUSED, provider=provider, detail=str(error)) from error
+    budget.write(value)
+    return value
 
 
-def _record(fake: Faker, fields: dict[str, FieldSpec], locale: str) -> dict[str, JsonValue]:
+def _record(fake: Faker, fields: dict[str, FieldSpec], budget: _Budget) -> dict[str, JsonValue]:
     """One generated record, in the field map's own order."""
-    return {name: _call(fake, spec, locale) for name, spec in fields.items()}
+    return {name: _call(fake, spec, budget) for name, spec in fields.items()}
 
 
 def _stringify(value: JsonValue) -> JsonValue:
@@ -368,23 +456,23 @@ def _drifted(record: JsonValue, drift: Drift, first: str | None) -> JsonValue:
             return record
 
 
-def _base(knobs: Generation, fake: Faker, supplied: JsonValue | None, extend: bool) -> list[JsonValue]:
+def _base(knobs: Generation, fake: Faker, supplied: JsonValue | None, extend: bool, budget: _Budget) -> list[JsonValue]:
     """The records before drift and paging: generated from the knobs, or built from an input.
 
     An input is the data, so it decides how many records there are and ``rows`` is not
     consulted. Generated fields are added to each element only when the caller named them.
     """
     if supplied is None:
-        return [_record(fake, knobs.fields, knobs.locale) for _ in range(knobs.rows)]
+        return [_record(fake, knobs.fields, budget) for _ in range(knobs.rows)]
     elements = supplied if isinstance(supplied, list) else [supplied]
     if not extend:
         return list(elements)
-    return [_extended(fake, knobs, element) for element in elements]
+    return [_extended(fake, knobs, element, budget) for element in elements]
 
 
-def _extended(fake: Faker, knobs: Generation, element: JsonValue) -> JsonValue:
+def _extended(fake: Faker, knobs: Generation, element: JsonValue, budget: _Budget) -> JsonValue:
     """One element of a supplied input, with the named fields generated onto it."""
-    generated = _record(fake, knobs.fields, knobs.locale)
+    generated = _record(fake, knobs.fields, budget)
     if isinstance(element, dict):
         return {**element, **generated}
     return {"value": element, **generated}
@@ -401,25 +489,48 @@ def generate(
     *,
     supplied: JsonValue | None = None,
     extend: bool = False,
+    stopped: threading.Event | None = None,
 ) -> list[JsonValue]:
     """The records one set of generation knobs makes, seeded and drifted.
 
     ``extend`` says whether a supplied input has generated fields added to it, which is what
     distinguishes a caller that named a field map from one that only passed a value through.
+    A generation stops at its next provider call once ``stopped`` is set.
     """
     locale = _checked(knobs.locale)
     fake = _build(locale)
     fake.seed_instance(seed)
-    records = _base(knobs, fake, supplied, extend)
+    budget = _Budget(stopped)
+    _held_to_the_catalogue(fake, locale, budget)
+    records = _base(knobs, fake, supplied, extend, budget)
     first = next(iter(knobs.fields), None)
     return [_drifted(record, knobs.drift, first) for record in records]
 
 
-def build(knobs: Knobs, *, supplied: JsonValue | None = None, extend: bool = False, attempt: int = 1) -> Generated:
+async def off_the_loop[T](work: Callable[[threading.Event], T]) -> T:
+    """Run a generation on a thread, telling it to stop if whoever awaits it is cancelled.
+
+    A provider is Python, so the interpreter's lock changes hands while it runs.
+    """
+    stopped = threading.Event()
+    try:
+        return await asyncio.to_thread(work, stopped)
+    finally:
+        stopped.set()
+
+
+def build(
+    knobs: Knobs,
+    *,
+    supplied: JsonValue | None = None,
+    extend: bool = False,
+    attempt: int = 1,
+    stopped: threading.Event | None = None,
+) -> Generated:
     """Generate one answer from one set of knobs, and say which knobs produced it."""
     locale = _checked(knobs.locale)
     seed = drawn_seed(knobs.seed)
-    records = generate(knobs, seed, supplied=supplied, extend=extend)
+    records = generate(knobs, seed, supplied=supplied, extend=extend, stopped=stopped)
     rows = len(records)
 
     page, size, pages = _paging(knobs, rows)
@@ -532,11 +643,14 @@ class PlaygroundOperator(Operator[PlaygroundConfig, PlaygroundOutput]):
         """Wait, decide whether this attempt is one of the failing ones, and then generate."""
         await wait(config)
         check_attempt(config, ctx.attempt)
-        generated = build(
-            config,
-            supplied=config.input,
-            extend="fields" in config.model_fields_set,
-            attempt=ctx.attempt,
+        generated = await off_the_loop(
+            lambda stopped: build(
+                config,
+                supplied=config.input,
+                extend="fields" in config.model_fields_set,
+                attempt=ctx.attempt,
+                stopped=stopped,
+            )
         )
         ctx.log.info(
             "playground generated",
@@ -683,7 +797,7 @@ class PlaygroundArriveSensor(Sensor[ArriveConfig, ArriveOutput]):
                 message=waiting,
             )
         seed = drawn_seed(config.seed)
-        records = generate(config, seed)
+        records = await off_the_loop(lambda stopped: generate(config, seed, stopped=stopped))
         payload = filler(config.payload) if config.payload is not None else None
         ctx.log.info("a batch arrived", count=len(records), pokes=poke, seed=seed)
         return ArriveOutput(

@@ -185,6 +185,11 @@ PROVIDER_REFUSED = PLAYGROUND.define(
     "the provider {provider!r} refused the arguments it was given: {detail}",
 )
 
+GENERATION_PAST_ITS_BOUND = PLAYGROUND.define(
+    "generation_past_its_bound",
+    "the generation went past {bound}; ask for fewer rows or fields, or smaller ones",
+)
+
 FAILED_ON_PURPOSE = PLAYGROUND.define(
     "failed_on_purpose",
     "the playground failed attempt {attempt} on purpose as {fail_as}, because fail_until is {fail_until}; "

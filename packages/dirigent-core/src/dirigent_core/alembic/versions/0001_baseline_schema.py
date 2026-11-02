@@ -298,6 +298,7 @@ def upgrade() -> None:
         sa.Column(
             "step_order", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False
         ),
+        sa.Column("shape", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False),
         sa.Column("digest", sa.String(length=71), nullable=False),
         sa.Column(
             "provenance_source",
