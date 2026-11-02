@@ -4,6 +4,7 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import Any
 
 import httpx2
@@ -118,6 +119,34 @@ async def test_one_token_cannot_hold_every_session_its_server_has_room_for(
         )
         assert ended.status_code == 200, ended.text
         assert (await opened(http, url, operator_token)).status_code == 200, "ending a session frees its place"
+
+
+async def test_an_open_stream_does_not_keep_a_session_past_its_idle_time(settings: Settings, admin_token: str) -> None:
+    quick = settings.model_copy(update={"mcp_session_idle": timedelta(milliseconds=300)})
+    async with serving(quick) as url, httpx2.AsyncClient(timeout=30) as http:
+        session = (await opened(http, url, admin_token)).headers["mcp-session-id"]
+        headers = {
+            "Accept": "text/event-stream",
+            "Authorization": f"Bearer {admin_token}",
+            "Mcp-Session-Id": session,
+            "Mcp-Protocol-Version": "2025-06-18",
+        }
+        async with http.stream("GET", f"{url}/mcp", headers=headers) as stream:
+            assert stream.status_code == 200
+            async with asyncio.timeout(10):
+                async for _ in stream.aiter_raw():
+                    pass
+
+        async def gone() -> bool:
+            asked = await http.post(
+                f"{url}/mcp", json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, headers={**ACCEPT, **headers}
+            )
+            return asked.status_code == 404
+
+        async with asyncio.timeout(10):
+            await asyncio.sleep(0.6)
+            while not await gone():
+                await asyncio.sleep(0.6)
 
 
 @asynccontextmanager

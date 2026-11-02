@@ -286,7 +286,8 @@ unmounts it, and `/mcp` then answers 404.
   not a web page sends, passes. On a loopback `dg dev`, `/mcp` also answers only to a loopback
   `Host`, as every other path does, and its answers carry the same security headers.
 - **Bounded.** A message is read up to `mcp_max_body` (4 MiB) and a larger one is answered 413. A
-  session with no request in flight for `mcp_session_idle` (30 minutes) is closed, and one process
+  session with no request in flight for `mcp_session_idle` (30 minutes) is closed, an open `GET`
+  stream counts as a request for that long and is then ended, and one process
   holds at most `mcp_max_sessions` (256) sessions for each of the three roles, and at most
   `mcp_max_sessions_per_token` (32) for one token, so no token can fill its role's room alone; past
   either, a new session is answered 503. Like the rest of the

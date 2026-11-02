@@ -17,7 +17,7 @@ from mcp.server import MCPServer
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser, AuthorizationContext
 from mcp.server.auth.provider import AccessToken
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.server.streamable_http import StreamableHTTPServerTransport
+from mcp.server.streamable_http import MCP_SESSION_ID_HEADER, StreamableHTTPServerTransport
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, ConfigDict
@@ -205,4 +205,24 @@ class McpEndpoint:
             raise RuntimeError("the MCP endpoint is not running: enter McpEndpoint.run() first")
         user = AuthenticatedUser(AccessToken(token=secret, client_id=caller.key, scopes=[]))
         scope["user"], scope["auth"] = user, AuthCredentials([])
-        await manager.handle_request(scope, receive, send)
+        if request.method != "GET":
+            await manager.handle_request(scope, receive, send)
+            return
+        closing = asyncio.create_task(
+            self._close_stream_after_idle(manager, request.headers.get(MCP_SESSION_ID_HEADER))
+        )
+        try:
+            await manager.handle_request(scope, receive, send)
+        finally:
+            closing.cancel()
+
+    async def _close_stream_after_idle(self, manager: StreamableHTTPSessionManager, session: str | None) -> None:
+        """End a session's open GET stream after the idle period, which the session then starts to count.
+
+        An open stream keeps a session in flight, and so from ever going idle. A client that still
+        wants one reconnects, which authenticates it again.
+        """
+        await asyncio.sleep(self._session_idle.total_seconds())
+        transport = manager._server_instances.get(session or "")  # pyright: ignore[reportPrivateUsage]
+        if transport is not None:
+            transport.close_standalone_sse_stream()
