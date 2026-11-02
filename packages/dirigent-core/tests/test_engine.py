@@ -2358,14 +2358,15 @@ async def test_a_credential_a_reference_puts_in_a_url_or_a_query_is_refused_when
     assert "DUMMYSECRET" not in attempt.error
 
 
-LINK = "https://files.test/x?token=DUMMYLINKTOKEN&page=2"
+LINK = "https://files.test/x?token=DUMMY-LINK-TOKEN-1&page=2"
 
 
 def _from_a_step(url: str, *, note: str = "", **fields: Any) -> dict[str, StepDefinition]:
     """A step answering with the link, and one calling the URL it is told to."""
     return steps(
         first=StepDefinition(
-            block="test.quoting", config={"opens": "unrelated-secret", "answers": {"link": LINK, "t": "DUMMYLINKTOKEN"}}
+            block="test.quoting",
+            config={"opens": "unrelated-secret", "answers": {"link": LINK, "t": "DUMMY-LINK-TOKEN-1"}},
         ),
         call=StepDefinition(
             block="test.headerish",
@@ -2399,10 +2400,10 @@ async def test_a_url_from_an_earlier_step_runs_and_its_token_is_kept_out_of_the_
     run, attempt = await _called(sessions, services, engine, definition)
     assert attempt.status is AttemptStatus.SUCCEEDED
     assert attempt.input["config"]["url"] == "https://files.test/x?token=***&page=2"
-    assert "DUMMYLINKTOKEN" not in json.dumps(attempt.output)
+    assert "DUMMY-LINK-TOKEN-1" not in json.dumps(attempt.output)
     logged = await _logged(sessions, run.id)
     assert "token=***" in logged
-    assert "DUMMYLINKTOKEN" not in logged
+    assert "DUMMY-LINK-TOKEN-1" not in logged
 
 
 async def test_a_url_from_an_earlier_step_that_fails_does_not_say_its_token(
@@ -2411,9 +2412,9 @@ async def test_a_url_from_an_earlier_step_that_fails_does_not_say_its_token(
     definition = PipelineDefinition(code="link", steps=_from_a_step("${steps.first.output.link}", note="raise"))
     run, attempt = await _called(sessions, services, engine, definition)
     assert attempt.status is AttemptStatus.FAILED
-    assert "DUMMYLINKTOKEN" not in (attempt.error or "")
-    assert "DUMMYLINKTOKEN" not in json.dumps(attempt.error_params or {})
-    assert "DUMMYLINKTOKEN" not in await _logged(sessions, run.id)
+    assert "DUMMY-LINK-TOKEN-1" not in (attempt.error or "")
+    assert "DUMMY-LINK-TOKEN-1" not in json.dumps(attempt.error_params or {})
+    assert "DUMMY-LINK-TOKEN-1" not in await _logged(sessions, run.id)
 
 
 async def test_a_url_a_fan_out_over_a_steps_output_reads_runs(
@@ -2455,7 +2456,7 @@ async def test_a_url_not_named_by_a_step_is_refused_when_the_step_starts_and_not
     _run, attempt = await _called(sessions, services, engine, definition, **params)
     assert attempt.status is AttemptStatus.FAILED
     assert "carries a credential" in (attempt.error or "")
-    assert "DUMMYLINKTOKEN" not in (attempt.error or "")
+    assert "DUMMY-LINK-TOKEN-1" not in (attempt.error or "")
     assert "DUMMYPARAM" not in (attempt.error or "")
 
 
@@ -3036,6 +3037,29 @@ async def test_what_a_step_reads_from_an_echoing_step_has_no_secret_in_it(
     await drain(engine)
     attempts = {attempt.step_name: attempt for attempt in await attempts_of(sessions, run.id)}
     assert attempts["second"].output == {"value": "***", "length": 3}
+
+
+@pytest.mark.parametrize("word", ["district", "playground", "123456"])
+async def test_a_word_that_is_a_secret_stays_in_an_output_and_leaves_logs_and_failures(
+    engine: Engine, sessions: Any, services: EngineServices, word: str
+) -> None:
+    answers = {"level": word, word: {"name": f"a {word} name"}}
+    definition = PipelineDefinition(
+        code="worded",
+        steps=steps(
+            first=StepDefinition(block="test.quoting", config={"opens": word, "answers": answers}),
+            failing=StepDefinition(block="test.remote", config={"quotes": word}, retry=RetryPolicy(max_attempts=1)),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    attempts = {attempt.step_name: attempt for attempt in await attempts_of(sessions, run.id)}
+    assert attempts["first"].output == answers
+    assert attempts["failing"].status is AttemptStatus.FAILED
+    assert word not in (attempts["failing"].error or "")
+    async with sessions() as session:
+        logged = (await session.execute(sa.select(LogEntry).where(LogEntry.run_id == run.id))).scalars().all()
+    assert all(word not in f"{row.message} {row.fields}" for row in logged if row.step_name == "failing")
 
 
 async def test_a_secret_too_short_to_tell_from_data_leaves_the_output_alone(
