@@ -19,6 +19,8 @@ relock against the tag and bump.
 
 ## Unreleased
 
+**`playground.generate` and `playground.arrive` are bounded, and run off the event loop.** `json`, `pystr_format` and their kin reached names outside the provider allowlist, the class-wide `seed` among them; provider arguments and field counts had no bound, and generation held the worker's loop past a step's timeout. Every dispatch now goes through the allowlist. One generation makes at most 100,000 provider calls and 16 MiB of records in 30 seconds (`playground.generation_past_its_bound`), and an argument saying how much to make asks for at most 10,000 (`playground.provider_refused`).
+
 **A source's curl line quotes a method that is not a bare word.** The UI's copyable line left the method unquoted, relying on the server's list of methods.
 
 **An open MCP stream does not keep its session past the idle time.** An open `GET` stream counted as a request in flight, so `mcp_session_idle` never closed its session. The stream is now ended after that long, and the session counts from there. A client that still wants one reconnects, which authenticates its token again; the SDK's client does.
