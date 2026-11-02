@@ -19,6 +19,7 @@ from collections.abc import Awaitable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from functools import cache
 from typing import TYPE_CHECKING, Any, ClassVar, Final, Protocol
+from urllib.parse import quote
 
 import sqlalchemy
 import sqlalchemy.exc
@@ -177,7 +178,7 @@ class SqlAlchemyEngine(SqlEngine):
         if _is_run_relative(url):
             return HealthReport(healthy=False, detail=OUTSIDE_A_RUN)
         try:
-            engine = _engine(url)
+            engine = _engine(_opened_as_marked(settings, url))
         except BlockFailure as error:
             return HealthReport(healthy=False, detail=str(error))
         try:
@@ -321,6 +322,19 @@ def _refuse_attach(action: int, *_arguments: object) -> int:
     return sqlite3.SQLITE_OK
 
 
+def _opened_as_marked(settings: "SqlConnectionConfig", url: URL) -> URL:
+    """The URL a connection opens with: a ``read_only`` sqlite file through a ``mode=ro`` file URI.
+
+    ``query_only`` leaves ``PRAGMA journal_mode`` and ``PRAGMA wal_checkpoint`` able to write the
+    file, and a read-only open refuses them both, and refuses to create a file that is not there.
+    An in-memory database has no file to open this way.
+    """
+    if not settings.read_only or url.get_backend_name() != "sqlite" or not (url.database or "").startswith("/"):
+        return url
+    location = f"file:{quote(str(url.database))}"
+    return url.set(database=location, query={**url.query, "uri": "true", "mode": "ro"})
+
+
 class _Session:
     """One connection, opened under the connection's timeout and read-only where it says so."""
 
@@ -328,7 +342,7 @@ class _Session:
         """Hold what opening this step's connection needs."""
         self.settings = settings
         self.url = url
-        self.engine = _engine(url)
+        self.engine = _engine(_opened_as_marked(settings, url))
         self.connection: AsyncConnection | None = None
 
     async def __aenter__(self) -> AsyncConnection:

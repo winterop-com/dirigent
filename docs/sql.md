@@ -286,7 +286,10 @@ as well:
 
 - **PostgreSQL** runs every session as `SET TRANSACTION READ ONLY`, so a write is refused by
   the server with `cannot execute ... in a read-only transaction`.
-- **SQLite** sets `PRAGMA query_only = 1`, which does the same for that file.
+- **SQLite** opens a database file read-only (`mode=ro`), and sets `PRAGMA query_only = 1` as well,
+  so nothing a statement or a pragma does reaches that file. A file that does not exist is refused
+  rather than created. A database written as a relative path is the run's own file, and the same
+  holds for it.
 - **DuckDB** opens the database file itself read-only, and runs only a statement that parses
   as `SELECT` (`sql.duckdb.read_only_runs_select`), because a read-only open covers the catalog
   and not file output: `COPY ... TO` could otherwise replace the database file. That refuses
