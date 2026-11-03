@@ -14,7 +14,6 @@ only a caller holding the secret causes.
 
 import asyncio
 import hmac
-import math
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from datetime import UTC, datetime, timedelta
@@ -69,7 +68,7 @@ from dirigent_core.models import (
     SourceSignature,
     utcnow,
 )
-from dirigent_core.ratelimit import TokenBucket
+from dirigent_core.ratelimit import TokenBucket, retry_after
 from dirigent_core.sources.rows import AnyReceived, endpoint_path, in_flight, open_signing_secret, received
 from dirigent_core.sources.rules import source_config
 from dirigent_core.sources.waiter import Hold, Seating, Waiter
@@ -232,7 +231,7 @@ class Intake:
         found = (await self.routes(session)).find(call.method, call.path)
         route = found.route.template if isinstance(found, Matched) else ""
         if not self.instance_bucket.allow(f"{call.caller} {call.method} {route}", per_minute=limit):
-            return _counted(Refusal.of(INTAKE_RATE, status=429, headers=_retry_after(limit), per_minute=limit))
+            return _counted(Refusal.of(INTAKE_RATE, status=429, headers=retry_after(limit), per_minute=limit))
         called = endpoint_path(settings, call.path)
         if found is None:
             return _counted(Refusal.of(NO_ROUTE, status=404, method=call.method, path=called))
@@ -281,7 +280,7 @@ class Intake:
             str(row.id), per_minute=rate.per_minute, capacity=rate.burst
         ):
             return _counted(
-                Refusal.of(SOURCE_RATE, status=429, headers=_retry_after(rate.per_minute), per_minute=rate.per_minute)
+                Refusal.of(SOURCE_RATE, status=429, headers=retry_after(rate.per_minute), per_minute=rate.per_minute)
             )
         journal = _Journal(session, row, call, started)
         stopped = _not_taking(row, pipeline)
@@ -642,11 +641,6 @@ def _signed_at(stamp: str) -> datetime | None:
         return datetime.fromtimestamp(int(stamp), UTC)
     except (ValueError, OverflowError, OSError):
         return None
-
-
-def _retry_after(per_minute: int) -> dict[str, str]:
-    """Say how long until a bucket refilled at this rate holds one call again."""
-    return {"Retry-After": str(max(1, math.ceil(60 / per_minute)))}
 
 
 def lowered(headers: Iterable[tuple[str, str]]) -> dict[str, str]:

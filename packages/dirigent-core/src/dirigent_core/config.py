@@ -287,6 +287,12 @@ class Settings(BaseSettings):
     mcp_max_sessions_per_token: int = Field(default=32, ge=1)
     """How many of those sessions one API token may hold; a new one past it is answered 503."""
 
+    mcp_rate_per_minute: int = Field(default=300, ge=1)
+    """How many requests one API token may make to ``/mcp`` a minute, across all its sessions.
+
+    A full bucket takes a burst of a minute's worth at once. A request past it is answered 429
+    with ``Retry-After``, after its token is authenticated and before any session reads it."""
+
     ui_dir: Path | None = None
     """A built web UI bundle to serve, instead of the one installed with the server.
 

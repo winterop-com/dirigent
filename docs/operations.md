@@ -1475,8 +1475,8 @@ See [security](security.md#rotation-honestly).
 the whole instance, so any operator can run any pipeline and read any run.
 See [security](security.md#what-authorizes).
 
-**Rate limiter buckets are per process.** Both the endpoint intake limits and the login limit
-live in process memory, so behind N API replicas the effective limit is N times the configured
+**Rate limiter buckets are per process.** The endpoint intake limits, the login limit and the
+`/mcp` limit live in process memory, so behind N API replicas the effective limit is N times the configured
 one. This is a deliberate trade -- the alternative is a database write per refusal, which is
 what a caller hammering the endpoint would be trying to cause -- but size your limits knowing
 it.

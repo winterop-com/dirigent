@@ -17,11 +17,15 @@ from dirigent_client import Dirigent
 from dirigent_core.auth import resolve_token
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
+from dirigent_core.ratelimit import TokenBucket, retry_after
 from dirigent_mcp.http import MCP_PATH, METHODS, Caller, McpEndpoint
 from dirigent_mcp.server import Offers
 from dirigent_server.errors import answer, render
-from dirigent_server.messages import MCP_CROSS_ORIGIN, UNAUTHENTICATED
+from dirigent_server.logging import get_logger
+from dirigent_server.messages import MCP_CROSS_ORIGIN, MCP_RATE, UNAUTHENTICATED
 from dirigent_server.security import initiated_elsewhere
+
+_logger = get_logger("mcp")
 
 
 def install_mcp(app: FastAPI, settings: Settings) -> None:
@@ -51,6 +55,15 @@ def install_mcp(app: FastAPI, settings: Settings) -> None:
             api_prefix=settings.api_prefix,
         )
 
+    buckets = TokenBucket()
+    per_minute = settings.mcp_rate_per_minute
+
+    def throttle(caller: Caller, request: Request) -> Response | None:
+        if buckets.allow(caller.key, per_minute=per_minute):
+            return None
+        _logger.warning("mcp rate limited", token_id=caller.key, limit=per_minute)
+        return _too_fast(request, per_minute)
+
     endpoint = McpEndpoint(
         authenticate=authenticate,
         open_client=open_client,
@@ -61,6 +74,7 @@ def install_mcp(app: FastAPI, settings: Settings) -> None:
         session_idle=settings.mcp_session_idle,
         max_sessions=settings.mcp_max_sessions,
         max_sessions_per_token=settings.mcp_max_sessions_per_token,
+        throttle=throttle,
     )
     app.state.mcp = endpoint
     app.router.routes.append(Route(MCP_PATH, endpoint, methods=list(METHODS), include_in_schema=False))
@@ -88,3 +102,18 @@ def _cross_origin(request: Request) -> Response:
         status.HTTP_403_FORBIDDEN, MCP_CROSS_ORIGIN.render(), code=MCP_CROSS_ORIGIN.code, instance=request.url.path
     )
     return answer(problem)
+
+
+def _too_fast(request: Request, per_minute: int) -> Response:
+    """Answer a request its token sent past the instance's MCP rate."""
+    params = {"per_minute": per_minute}
+    problem = render(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        MCP_RATE.render(**params),
+        code=MCP_RATE.code,
+        params=params,
+        instance=request.url.path,
+    )
+    response = answer(problem)
+    response.headers.update(retry_after(per_minute))
+    return response
