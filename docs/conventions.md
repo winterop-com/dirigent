@@ -31,6 +31,11 @@ at the catalog boundary: `dirigent_common.docstrings.as_markdown` rewrites RST i
 as markdown inline code on every `description` in a contributed model's schema. Write code in
 double backticks and it arrives as inline code everywhere.
 
+A reference entry says what a thing is and stops. The generators behind `blocks.md` and
+`settings.md` render the first paragraph of a description and nothing after it, so tuning
+advice and the arithmetic behind a default belong in [operations](operations.md), not in the
+docstring's opening.
+
 A **constant docstring** is a comment beginning `#:` on the line before a module constant:
 
 ```python
