@@ -3,7 +3,7 @@
 from datetime import timedelta
 from uuid import UUID
 
-from dirigent_client.enums import AlertEvent, AlertScope, Importance
+from dirigent_client.enums import AlertEvent, AlertScope, Importance, NotificationStatus
 from dirigent_client.resources.base import Resource, query, request_body, segment
 from dirigent_client.schemas import (
     AlertRuleIn,
@@ -109,12 +109,22 @@ class Alerts(Resource):
         return await self._one(NotificationOut, "POST", f"/notifications/{segment(notification_id)}/$retry")
 
     async def notifications(
-        self, *, run_id: UUID | str | None = None, after: str | None = None, limit: int | None = None
+        self,
+        *,
+        run_id: UUID | str | None = None,
+        status: NotificationStatus | None = None,
+        after: str | None = None,
+        limit: int | None = None,
     ) -> Page[NotificationOut]:
-        """Read the alert queue newest first, which is where an undelivered alert is visible."""
+        """Read the alert queue newest first, narrowed to a run or a state; an undelivered alert shows here."""
         return await self._many(
             NotificationOut,
             "GET",
             "/notifications",
-            params=query(run_id=str(run_id) if run_id else None, after=after, limit=limit),
+            params=query(
+                run_id=str(run_id) if run_id else None,
+                status=status.value if status else None,
+                after=after,
+                limit=limit,
+            ),
         )

@@ -278,9 +278,13 @@ unmounts it, and `/mcp` then answers 404.
 - **A token is offered what its role may call.** Each role gets a server of its own, so a client
   never offers its model a call the API would refuse with 403: a viewer's leaves out every tool
   that writes and `plan_document`, whose dry run is an operator's route, and an operator's leaves
-  out `check_connection`, which is an admin's. Whatever a tool calls is still decided by the route
-  it reaches. `DG_MCP_READ_ONLY=1` over stdio offers what a viewer is
-  offered.
+  out `check_connection`, `create_schema`, `update_schema` and `delete_schema`, which are an
+  admin's. An operator's does carry the alert-rule writes and `delete_alert_rule`, as the API
+  allows. Whatever a tool calls is still decided by the route it reaches. `DG_MCP_READ_ONLY=1` over
+  stdio offers what a viewer is offered.
+- **An answer is bounded too.** Every tool's answer is held under 48 KB of JSON, cut with a note
+  saying how to ask for less, so one call cannot hand a model an output, a document or a listing
+  larger than it can read.
 - **No secret passes through it.** What an agent is given lands in its transcript, so no tool
   takes or shows a credential. `create_connection` sends `awaiting_secrets`, and the API then
   refuses any field the kind declares secret (`SecretStr`) by name and never by value

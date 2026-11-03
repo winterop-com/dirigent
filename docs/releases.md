@@ -23,6 +23,14 @@ relock against the tag and bump.
 
 **The schema changed, and `dg db upgrade` does not carry it.** `connections` gains `awaiting_secrets`, a boolean defaulting to false. The baseline migration is edited in place: recreate the database, or add the column by hand (`ALTER TABLE connections ADD COLUMN awaiting_secrets BOOLEAN NOT NULL DEFAULT false`).
 
+**An agent over MCP reaches what it had to ask a person for.** `get_run_report` reads the markdown report document a run rendered, and whether it rendered one, as `dg runs report RUN --markdown` does. `get_run_profile` is `dg runs profile`: the critical path and its queued, running and waiting time. `list_schedule_firings` is `dg schedule firings`, and `list_alert_deliveries` is `dg alerts queue`, narrowed to a run or a `status`. Alert rules are written with `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`, `resume_alert_rule` and `delete_alert_rule`, which an operator is offered, and named schemas with `create_schema`, `update_schema` and `delete_schema`, which only an admin is, as the API allows. `dirigent-client`'s `alerts.notifications` takes `status`, and the run-timing model `dg runs profile` computes moved from `dirigent_cli.timing` to `dirigent_client.timing`.
+
+**`edit_pipeline` changes a pipeline without sending it whole.** It takes the current version's text exactly as `export_pipeline` answers it, makes each `{old, new}` replacement in turn, each `old` occurring exactly once, and plans the result, applying it unless `plan_only`. An edit that misses, or matches more than once, refuses every edit, names each one, and stores nothing.
+
+**Every MCP answer is bounded.** An answer is held under 48 KB of JSON: a listing too large keeps the rows that fit, drops its `next` and says which `limit` asks for exactly those, and anything else is cut to the start of its JSON with a note saying how to ask for less. Listings answer 20 rows by default, not 50. `list_examples` lists each example's code, name, shelf, tags and blocks, with `summary=false` for the whole row; `get_example`, `export_pipeline` and `get_run_report` answer a long text a stretch at a time from `offset`, with `next_offset`, and `export_pipeline` now answers an object carrying the text rather than the bare text. `run_attempts` shows each output as `output_bytes` and an `output_preview` unless `include_output`, and `get_attempt_output` reads one, inline or from storage, or with `path` the part a JSON pointer names.
+
+Alert rules stay out of pipeline documents. A rule's code is the instance's rather than a pipeline's, a `global` rule watches every pipeline, and deleting a rule deletes the deliveries it raised, so a document that stopped declaring one would erase the queue's record of what it sent.
+
 ## 0.32.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.32.0 together, and so do

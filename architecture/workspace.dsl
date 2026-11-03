@@ -93,7 +93,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
 
             cli = container "dg CLI" "Applies documents, starts and watches runs, and starts the server, worker and scheduler processes." "Typer (Python)"
 
-            mcp = container "dirigent-mcp" "MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; nothing deletes." "MCP over stdio or Streamable HTTP (Python)"
+            mcp = container "dirigent-mcp" "MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; only an alert rule and a named schema are deleted." "MCP over stdio or Streamable HTTP (Python)"
 
             db = container "Database" "Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry." "PostgreSQL 17; SQLite under dg dev" {
                 tags "Database" "PostgreSQL"
