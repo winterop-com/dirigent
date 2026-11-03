@@ -17,7 +17,19 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
-## Unreleased
+## 0.32.0
+
+Released 2026-11-03. Every package in the workspace moves to 0.32.0 together, and so do
+`dirigent-dhis2`, `dirigent-contrib`, `dirigent-fhir` and `dirigent-integration`. The schema is
+unchanged, so a 0.31.0 state opens as it is.
+
+**A graph is looked at, not only shown.** On the run's screen and the pipeline's page, dragging the ground pans, and a pinch or Ctrl/Cmd and the wheel zooms about the pointer while a plain wheel still scrolls the page. A `Layout` control sets direction, stepped, orthogonal or curved edges, and spacing for the visit; nothing is stored, and the next screen opens on the default. The graph opens in a window, where the wheel zooms, and a box chosen there is chosen on the page. On the run's screen the graph fills the room above the docked terminal and refits when the seam is dragged. A box is as wide as its step's code, measured before layout, so `data_elements_by_domain` is no longer cut, and a fan-out's item keys wrap.
+
+**A chosen step is in the address.** `/runs/<id>/<step>` and `/pipelines/<code>/<step>` open with that step chosen and its panel open, with `?item=` and `?attempt=` for one element or one try; choosing the ground goes back to the run's or the pipeline's own address. A step panel shows each attempt's id and each fan-out item's id, copyable. A settled run's header carries Rerun alone.
+
+**A pipeline's page shows what it did.** A Recent runs panel lists the newest runs, each a link, with All runs opening the Runs list filtered to the pipeline. A pipeline whose document declares a `report:` shows the latest settled run's report, the way the run's Report tab draws it, with the runs before it a link away. `GET /runs` takes `settled=true|false`, and `dirigent-client`'s `runs.list` takes `settled`. A markdown table whose header cells are all empty draws no header row, and the window button on a long report stays in reach wherever it is scrolled.
+
+**A local instance's first admin is admin / admin.** `dg init --template local` with no password from the flag, `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` or the form creates `admin` / `admin`, as `dg dev` seeds on an empty state. Any other password is still at least 8 characters, and `--template compose` refuses `admin`. The `AGENTS.md` it writes names the MCP tools the same loop runs through when the instance's `/mcp` is connected.
 
 **`/mcp` is rate limited per token.** A new setting, `mcp_rate_per_minute` (300), bounds how many requests one API token makes to `/mcp` a minute across all its sessions, with a minute's worth allowed as one burst. A request past it is answered 429 with `Retry-After` (`server.mcp_rate`). The count is per token, not per address, and per server process.
 
