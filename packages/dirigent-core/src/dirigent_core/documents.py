@@ -15,7 +15,7 @@ from jsonschema.exceptions import SchemaError
 from jsonschema.validators import extend as extend_validator  # pyright: ignore[reportUnknownVariableType]
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 
-from dirigent_client.schemas import Catalog, ValidationIssue
+from dirigent_client.schemas import Catalog, ConnectionKindEntry, ValidationIssue
 from dirigent_common import (
     COMPOSE_MEDIA_TYPE,
     CQL_MEDIA_TYPE,
@@ -1061,8 +1061,7 @@ def _connection_kind_issues(
     if not kinds:
         return []
     fields = {
-        entry.id: set(cast("dict[str, Any]", entry.config_schema.get("properties") or {}))
-        for entry in catalog.connection_kinds
+        entry.id: {field.name for field in ConnectionKindEntry.of(entry).fields} for entry in catalog.connection_kinds
     }
     alerting = {entry.id for entry in catalog.notifiers}
     issues: list[ValidationIssue] = []
