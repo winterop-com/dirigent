@@ -213,7 +213,9 @@ headers, content type and body, or the object `body_from` names, streamed. When 
 answer any more, the run's failure is the answer, as a problem naming the run and the step: 422
 when a step on the way to a reply refused the input as `rejected`, 502 otherwise. What the step
 failed with stays on the run, for whoever may read it, and a reply on a failure path that means a
-caller to see it says so with `${steps.<name>.error.message}`. A caller still held when
+caller to see it says so with `${steps.<name>.error.message}` (`.code` and `.params` beside it);
+`examples/sources/reply-with-the-error.yaml` answers 201 on success and 422 with the check's own
+message on a `one_failed` reply. A caller still held when
 its timeout passes is answered 504, and the run carries on. Each server process holds its
 callers on one reader, woken when a run settles, and a held input's journal row ends
 `replied` or `timed_out`.

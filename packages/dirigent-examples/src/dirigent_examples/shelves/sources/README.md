@@ -9,6 +9,7 @@ renders from the run's outputs to answer whoever sent it.
 | [`echo-by-hand.yaml`](echo-by-hand.yaml) | The smallest pipeline with a source: the input answered straight back. |
 | [`greet-by-hand.yaml`](greet-by-hand.yaml) | A path parameter, a jq step between the source and the reply, and a status of its own. |
 | [`signed-nested-payload.yaml`](signed-nested-payload.yaml) | A body signed with HMAC-SHA256 instead of a token, and a jq step that takes only the fields it names from a nested payload. |
+| [`reply-with-the-error.yaml`](reply-with-the-error.yaml) | Two replies, one per outcome: 201 with the order when a check passes, 422 with `${steps.check.error.message}` when it refuses. |
 | [`signup-form.yaml`](signup-form.yaml) | A urlencoded form taken, and its caller answered 202 the moment the run exists. |
 | [`landing-files.yaml`](landing-files.yaml) | A storage source a worker polls: each CSV landing under a prefix becomes one run, two in flight at most. |
 | [`sensor-arrivals.yaml`](sensor-arrivals.yaml) | A sensor source: `playground.arrive` poked outside any run, each batch it arrives with one run, the offsets carrying on from batch to batch. |

@@ -1,0 +1,90 @@
+# A request is checked, and the caller is answered either way: with what was taken, or with
+# why it was not.
+#
+# TWO REPLIES, ONE PER OUTCOME. `taken` waits on the default rule, so it answers only when the
+# check passed. `refused` waits on `one_failed`, so it answers only when the check failed. A
+# run settles exactly one of them; the other is skipped, and the first reply to settle is what
+# the held caller gets.
+#
+# A FAILED STEP HAS NO OUTPUT, BUT IT HAS AN ERROR. `${steps.check.output...}` is refused at
+# apply in a reply on a failure path, because there is no output to read. What the step failed
+# with is readable instead, as `${steps.check.error.code}`, `.message` and `.params`: the code
+# is the stable name a client branches on, `base.value_refused` here, and the message is the
+# sentence naming the path into the body that is wrong: `at $: 'quantity' is a required
+# property`. Without a reply like `refused`, the
+# caller would still be answered -- with the server's own 422 problem -- but this one chooses
+# its own status and shape.
+#
+# The run still ends `failed` when the check refuses: answering the caller is not the same as
+# not having had a failure, and the run's page says what went wrong.
+#
+# RUN IT BY HAND. The sample is a good order, so the first answers 201; the second leaves out
+# `quantity` and answers 422 with the reason:
+#
+#   dg run --local examples/sources/reply-with-the-error.yaml
+#   dg run --local examples/sources/reply-with-the-error.yaml --input '{body: {sku: A-1}}'
+#
+# ON A SERVER, apply it and call it with the token the apply printed:
+#
+#   dg apply examples/sources/reply-with-the-error.yaml
+#   dg source call reply-with-the-error order --json '{"sku": "A-1"}' --source-token "$TOKEN"
+#
+# EXPECT THE SAMPLE TO SUCCEED, answering 201; the --input without a quantity fails on purpose,
+# answering 422 with the check's own message.
+
+format: dirigent/v1
+kind: pipeline
+code: reply-with-the-error
+name: Reply with the error
+description: |
+  Answer a request with what was taken, or with the reason a check refused it.
+
+  An endpoint's body is checked against a schema the document carries. A reply on the success
+  path answers 201 with the order; a reply on `one_failed` answers 422 with the check's error
+  code and message, read as `${steps.check.error.message}`.
+
+tags: [sources, validate, failure, references]
+
+schemas:
+  order:
+    title: Order
+    description: An order line, as a caller posts it.
+    type: object
+    required: [sku, quantity]
+    properties:
+      sku: { type: string, minLength: 1 }
+      quantity: { type: integer, minimum: 1 }
+
+steps:
+  order:
+    source:
+      kind: endpoint
+      path: /orders
+      methods: [POST]
+    sample:
+      body: { sku: A-1, quantity: 2 }
+
+  check:
+    block: validate.schema
+    depends_on: [order]
+    config:
+      input: ${steps.order.output.body}
+      schema: order
+
+  taken:
+    depends_on: [check]
+    reply:
+      status: 201
+      body:
+        taken: ${steps.check.output.value}
+
+  refused:
+    depends_on: [check]
+    # Only a failed check reaches here, which is what makes its error readable.
+    rule: one_failed
+    reply:
+      status: 422
+      body:
+        # A whole reference keeps its type; the code and the message are strings.
+        error: ${steps.check.error.code}
+        detail: ${steps.check.error.message}
