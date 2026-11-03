@@ -86,6 +86,22 @@ def test_the_blocks_installed_beside_dg_are_listed_and_shown_without_a_server() 
     assert "value" in only(shown.stdout, "block")["fields"]["config_schema"]["properties"]
 
 
+def test_the_connection_kinds_installed_beside_dg_are_listed_field_by_field() -> None:
+    listed = invoke("connection", "kinds", "--local")
+    assert listed.exit_code == 0, listed.output
+    kinds = {row["id"]: row for row in rows(listed.stdout, "connection_kind")}
+    assert {"http", "sql", "email", "webhook"} <= set(kinds)
+    shown = invoke("connection", "kinds", "sql", "--local")
+    assert shown.exit_code == 0, shown.output
+    fields = {field["name"]: field for field in only(shown.stdout, "connection_kind")["fields"]["fields"]}
+    assert (fields["url"]["required"], fields["url"]["secret"]) == (True, False)
+    assert (fields["password"]["secret"], fields["password"]["required"]) == (True, False)
+    assert (fields["connect_timeout"]["type"], fields["connect_timeout"]["default"]) == ("duration", "10s")
+    refused = invoke("connection", "kinds", "nope", "--local")
+    assert refused.exit_code == 1
+    assert refusal(refused.stdout)["code"] == "cli.unknown_connection_kind"
+
+
 def test_a_block_nobody_installed_is_refused_by_name() -> None:
     result = invoke("blocks", "show", "no.such", "--local")
     assert result.exit_code == 1

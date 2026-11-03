@@ -36,6 +36,14 @@ carried the playground's demo credentials (`http-headers-and-auth-connection`,
 gets from `--connections examples/connections.yaml`; `connections-referenced-vs-carried` carries
 its connection without one.
 
+**A connection kind's fields are discoverable.** `dg connection kinds` lists every kind with its
+required fields, its secret ones and its credential forms, and `dg connection kinds KIND` (or
+`--local`) describes one field by field: type, required, secret, default, credential form. The API
+serves them at `GET /api/v1/connection-kinds` and `GET /api/v1/connection-kinds/{kind}`, MCP adds
+`list_connection_kinds` and `get_connection_kind`, and `dg connection create --help` points at
+them. **Breaking:** the `connection_kind` records `dg blocks list` writes carry the same shape,
+`fields[]` in place of `config_schema` and `secret_fields`.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

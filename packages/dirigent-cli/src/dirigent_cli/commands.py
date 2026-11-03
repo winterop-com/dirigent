@@ -183,7 +183,7 @@ from dirigent_client import (
     ValidationIssue,
     declared_label,
 )
-from dirigent_client.schemas import SurfaceEntry, TokenLifetime
+from dirigent_client.schemas import ConnectionKindEntry, SurfaceEntry, TokenLifetime
 from dirigent_client.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_common import Issue, JsonMap, Message, bounded_load, is_entity_name
 from dirigent_core import migrations
@@ -2631,7 +2631,7 @@ def blocks_list(
     if state_of(ctx).json_output:
         emit_records("block", catalog.blocks)
         emit_records("storage_scheme", catalog.storage_schemes)
-        emit_records("connection_kind", catalog.connection_kinds)
+        emit_records("connection_kind", [ConnectionKindEntry.of(entry) for entry in catalog.connection_kinds])
         return
     table(
         "blocks",
@@ -2719,16 +2719,101 @@ def connection_list(
     )
 
 
+@connection_app.command("kinds")
+def connection_kinds(
+    ctx: typer.Context,
+    kind_id: Annotated[
+        str | None, typer.Argument(metavar="[KIND]", help="One kind to describe field by field; every kind if omitted.")
+    ] = None,
+    local: Annotated[
+        bool, typer.Option("--local", help="Read the kinds installed beside dg, not the instance's.")
+    ] = False,
+) -> None:
+    """List the connection kinds, or one kind's fields: secret, required, defaults, credential forms.
+
+    What `dg connection create KIND CODE --set field=value` takes is read here. A secret field
+    is asked for at a terminal, never passed by an agent.
+    """
+    if local:
+        kinds = [ConnectionKindEntry.of(entry) for entry in installed_catalog().connection_kinds]
+        if kind_id is not None:
+            found = [entry for entry in kinds if entry.id == kind_id]
+            if not found:
+                fail(
+                    UNKNOWN_CONNECTION_KIND, kind=repr(kind_id), known=", ".join(entry.id for entry in kinds) or "none"
+                )
+            kinds = found
+    else:
+        with client_for(state_of(ctx)) as dg:
+            kinds = [dg.call(dg.blocks.connection_kind(kind_id))] if kind_id else dg.call(dg.blocks.connection_kinds())
+    if state_of(ctx).json_output:
+        return emit_records("connection_kind", kinds)
+    if kind_id is None:
+        table(
+            "connection kinds",
+            ["kind", "plugin", "required", "secret", "credential forms"],
+            [
+                [
+                    escape(entry.id),
+                    escape(entry.plugin),
+                    escape(", ".join(field.name for field in entry.fields if field.required) or "-"),
+                    escape(", ".join(field.name for field in entry.fields if field.secret) or "-"),
+                    escape(_forms_said(entry)),
+                ]
+                for entry in kinds
+            ],
+        )
+        return
+    entry = kinds[0]
+    fields(
+        f"connection kind {escape(entry.id)}",
+        {
+            "plugin": entry.plugin,
+            "description": entry.description or "-",
+            "credential forms": _forms_said(entry),
+            "credential required": "yes" if entry.credential_required else "no",
+        },
+    )
+    table(
+        "fields",
+        ["field", "type", "required", "secret", "default", "form"],
+        [
+            [
+                escape(field.name),
+                escape(field.type + (f" ({', '.join(str(one) for one in field.choices)})" if field.choices else "")),
+                "yes" if field.required else "-",
+                "[yellow]secret[/]" if field.secret else "-",
+                escape(field.default if isinstance(field.default, str) else json.dumps(field.default))
+                if field.has_default and field.default not in (None, "")
+                else "-",
+                escape(field.credential_form or "-"),
+            ]
+            for field in entry.fields
+        ],
+    )
+
+
+def _forms_said(entry: ConnectionKindEntry) -> str:
+    """Say a kind's credential forms, each with the fields it sets."""
+    return "; ".join(f"{form.code}: {', '.join(form.fields)}" for form in entry.credential_forms) or "-"
+
+
 @connection_app.command("create")
 def connection_create(
     ctx: typer.Context,
     kind_id: Annotated[str, typer.Argument(metavar="KIND", help="The connection kind, such as http.")],
     code: Annotated[str, typer.Argument(help="What to call it; documents reference this code.")],
     name: Annotated[str | None, typer.Option(help="A human title for this connection.")] = None,
-    set_value: Annotated[list[str] | None, typer.Option("--set", help="field=value, repeatable.")] = None,
+    set_value: Annotated[
+        list[str] | None,
+        typer.Option("--set", help="field=value, repeatable; `dg connection kinds KIND` lists the fields."),
+    ] = None,
     description: Annotated[str | None, typer.Option(help="What this credential is for.")] = None,
 ) -> None:
     """Create a connection, prompting for the secret fields without echoing them.
+
+    `dg connection kinds` lists every kind, and `dg connection kinds KIND` the fields one
+    takes: which are secret, which required, their defaults, and its credential forms.
 
     Prompting happens only on a terminal; in a script every value must arrive via ``--set``.
     An invocation carrying ``--set`` is prompted only for what it cannot do without: a

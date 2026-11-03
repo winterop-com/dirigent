@@ -49,6 +49,7 @@ from dirigent_client import (
     SourceEntry,
 )
 from dirigent_client.resources.pipelines import parse_document
+from dirigent_client.schemas import ConnectionKindEntry
 from dirigent_client.timing import profile
 from dirigent_common import JsonMap, Message
 from dirigent_common.hosts import is_loopback_host
@@ -648,6 +649,24 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         """Read one connection: its kind, its settings with every secret redacted, and its last health check."""
         return await call(lambda dg: dg.connections.get(code))
 
+    @tool(READS)
+    async def list_connection_kinds() -> Any:
+        """List the connection kinds this instance holds: each one's required, secret and plain fields by name.
+
+        Each also names its credential forms. get_connection_kind reads one kind field by field.
+        A secret field is never passed here or to create_connection: a person supplies it.
+        """
+
+        async def listed(dg: Dirigent) -> Any:
+            return {"items": [_kind_summary(entry) for entry in await dg.blocks.connection_kinds()]}
+
+        return await call(listed)
+
+    @tool(READS)
+    async def get_connection_kind(kind: str) -> Any:
+        """Read one connection kind field by field: type, secret, required, default and credential form."""
+        return await call(lambda dg: dg.blocks.connection_kind(kind))
+
     @tool(PROBES, needs=Offers.ADMINISTERING)
     async def check_connection(code: str) -> Any:
         """Ask a connection's outside system whether it answers with the stored credential, and record it."""
@@ -962,6 +981,19 @@ async def _stored_output(dg: Dirigent, run_id: str, uri: str) -> str:
         if page.next is None:
             raise ToolError(NO_STORED_OUTPUT.render(run_id=run_id, uri=uri))
         after = page.next
+
+
+def _kind_summary(entry: ConnectionKindEntry) -> JsonMap:
+    """One connection kind as a listing shows it: the fields that matter for creating one, by name."""
+    return {
+        "id": entry.id,
+        "description": entry.description,
+        "required": [field.name for field in entry.fields if field.required],
+        "secret": [field.name for field in entry.fields if field.secret],
+        "settings": [field.name for field in entry.fields if not field.secret],
+        "credential_forms": [form.model_dump(mode="json") for form in entry.credential_forms],
+        "credential_required": entry.credential_required,
+    }
 
 
 def _source_summary(entry: SourceEntry) -> JsonMap:

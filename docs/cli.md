@@ -1295,6 +1295,7 @@ dg schema update CODE [FILE|-] [--name TEXT] [--description TEXT]   # a label gi
 
 # Connect
 dg connection list | show CODE | check CODE | delete CODE
+dg connection kinds [KIND] [--local]   # every kind's fields: secret, required, defaults, credential forms
 dg connection create KIND CODE [--name TEXT] [--set field=value] [--description TEXT]
 dg connection set-secret CODE [FIELD]...
 dg connection ensure KIND CODE [--name TEXT] [--set field=value] [--description TEXT]
@@ -1404,6 +1405,21 @@ should be here, so a worker that is simply not there fails `dg system health wor
 not fail `dg system health`; containers' HEALTHCHECKs use the named forms. Every form writes
 one `check` record per check and exits 0 or 1; the bare form adds a closing `health` verdict,
 because it is the one that checked more than one thing.
+
+### `dg connection kinds`
+
+`dg connection kinds` lists every connection kind the instance holds, each with its required
+fields, its secret ones and its credential forms; `dg connection kinds KIND` describes one field
+by field: its type (`duration` and `size` for a humane value), whether it is required or secret,
+its default, and the credential form it belongs to. That is what `dg connection create KIND CODE
+--set field=value` takes. `--local` reads the kinds installed beside `dg` instead of an
+instance's. Each kind is a `connection_kind` record, read from `GET /api/v1/connection-kinds` and
+`GET /api/v1/connection-kinds/{kind}`; MCP's `list_connection_kinds` and `get_connection_kind`
+answer the same.
+
+```bash
+dg connection kinds sql
+```
 
 ### `dg connection create`
 

@@ -1104,6 +1104,7 @@ GET/POST      /api/v1/users                  # + PATCH, /{username}/$deactivate,
 GET/POST      /api/v1/connections            # + /{code}, PATCH, DELETE, /{code}/$check
 GET           /api/v1/blocks                 # catalog: operators, sensors, schemes, notifiers
 GET           /api/v1/blocks/{id}            # one block's published schemas
+GET           /api/v1/connection-kinds       # every connection kind's fields; + /{kind}
 GET/POST      /api/v1/schemas                # named JSON Schemas; + /{code}, PATCH, DELETE
 GET           /api/v1/examples               # the installed corpus; filters: tag, shelf, plugin, starter
 GET           /api/v1/examples/{code}        # one document, with its source text

@@ -215,6 +215,7 @@ text that is not a document, and the file is not opened.
 | `list_sources`, `get_source`, `source_inputs`, `pause_source`, `resume_source` | The input sources and what arrived; `get_source` gives an endpoint's full URL and how a caller authenticates, never its token |
 | `rotate_source_token` | Mint an endpoint source a new token or signing secret, shown once, shutting out every caller of the old one |
 | `list_connections`, `get_connection`, `check_connection` | The connections a document can name, every secret redacted, and whether one's system answers (admin only) |
+| `list_connection_kinds`, `get_connection_kind` | The connection kinds the instance holds, each one's required, secret and plain fields and its credential forms; `get_connection_kind` reads one field by field, with its type, default and credential form |
 | `create_connection` | Create a connection with its settings alone, awaiting the secrets an admin supplies, and answer which they are and the `dg connection set-secret` command that sets them (operator or admin) |
 | `list_schemas`, `get_schema` | The named JSON Schemas a document can reference |
 | `create_schema`, `update_schema`, `delete_schema` | Store, rewrite or remove a named schema (admin only); one a pipeline references is not removed |

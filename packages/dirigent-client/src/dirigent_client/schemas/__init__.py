@@ -25,7 +25,15 @@ from dirigent_client.schemas.auth import (
     UserOut,
     UserUpdate,
 )
-from dirigent_client.schemas.catalog import BlockEntry, BlockKind, Catalog, SourceEntry, SurfaceEntry
+from dirigent_client.schemas.catalog import (
+    BlockEntry,
+    BlockKind,
+    Catalog,
+    ConnectionKindEntry,
+    ConnectionKindField,
+    SourceEntry,
+    SurfaceEntry,
+)
 from dirigent_client.schemas.common import Page, Problem
 from dirigent_client.schemas.connections import (
     ConnectionDetail,
@@ -137,6 +145,8 @@ __all__ = [
     "ConnectionDetail",
     "ConnectionHealth",
     "ConnectionIn",
+    "ConnectionKindEntry",
+    "ConnectionKindField",
     "ConnectionOut",
     "ConnectionUpdate",
     "ConnectionUsers",
