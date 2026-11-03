@@ -1391,12 +1391,9 @@ html.dark[data-theme='contrast'],
     --xy-selection-background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
     --xy-selection-border: 1px dashed var(--foreground);
 }
-/* A canvas fitted to its drawing has nothing to pan to and gives the page its wheel back. */
+/* A canvas on a page stands on its panel's ground, with no dot grid of its own. */
 .react-flow.dg-graph.dg-fitted {
     --xy-background-color: transparent;
-}
-.react-flow.dg-graph.dg-fitted .react-flow__pane {
-    cursor: default;
 }
 /* The zoom controls carry this app's own icons, which are drawn as strokes; the library's
    button rule fills whatever svg is inside one. */

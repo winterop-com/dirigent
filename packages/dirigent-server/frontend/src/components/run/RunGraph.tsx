@@ -1,12 +1,20 @@
 import { type Edge } from '@xyflow/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { GraphCanvas } from '@/components/graph/GraphCanvas'
+import { GraphCanvas, LayoutControl, type CanvasFrame } from '@/components/graph/GraphCanvas'
+import { GraphPanel } from '@/components/graph/GraphPanel'
+import { useMeasure } from '@/components/graph/measure'
 import { usePlacedGraph } from '@/components/graph/use-placed'
 import { StepNode, type StepNode as StepNodeKind } from '@/components/run/StepNode'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
-import { drawnSize, heightOf, nodeWidth, type LayoutShape } from '@/lib/dag-layout'
-import { LABELS } from '@/lib/labels'
+import {
+    DEFAULT_LAYOUT,
+    drawnSize,
+    type LayoutChoice,
+    type LayoutShape,
+    type Measure,
+} from '@/lib/dag-layout'
+import { runNodeSize } from '@/lib/node-size'
 import { drawnStates, edgeClasses, handovers, type StepView } from '@/lib/run-detail'
 import type { AnyStatus } from '@/lib/status'
 import type { DagView } from '@/lib/runs'
@@ -80,42 +88,40 @@ function useHandovers(views: readonly StepView[]): ReadonlySet<string> {
     return handing
 }
 
-/** What a step's duration takes at the end of its second line. */
-const DURATION_ROOM = 48
-
 /** The run's graph reduced to what elk needs: an id, a width and a height per step, and the pairs. */
-function shapeOf(dag: DagView): LayoutShape {
+function shapeOf(dag: DagView, views: readonly StepView[], measure: Measure): LayoutShape {
+    const byCode = new Map(views.map((view) => [view.node.code, view]))
     return {
-        nodes: dag.nodes.map((node) => {
-            // A reply's box is sized for the longer of what it says once settled.
-            const what = node.kind === 'reply' ? `${node.block} · ${LABELS.runs.reply.not_sent}` : node.block
-            const line = node.name === null ? what : `${node.code} · ${what}`
-            return {
-                id: node.code,
-                width: nodeWidth(node.name ?? node.code, line, DURATION_ROOM),
-                height: heightOf(node.fan_out),
-            }
+        nodes: dag.nodes.flatMap((node) => {
+            const view = byCode.get(node.code)
+            return view === undefined ? [] : [{ id: node.code, ...runNodeSize(view, measure) }]
         }),
         edges: dag.edges,
     }
 }
 
+/**
+ * The run's graph in its panel on the run's page, filling the room the page leaves it, with the
+ * same graph in a window. The layout a reader chooses lasts as long as this run's screen does.
+ */
 export function RunGraph({
+    name,
     dag,
     views,
     selected,
     onSelect,
-    fitted = false,
 }: {
+    /** The pipeline's code, which the window is titled by. */
+    name: string
     dag: DagView
     views: StepView[]
     selected: string | null
     onSelect: (step: string | null) => void
-    /** Drawn on a page as tall as the graph, rather than in a stage. */
-    fitted?: boolean
 }) {
-    const shape = useMemo(() => shapeOf(dag), [dag])
-    const placed = usePlacedGraph(shape)
+    const [layout, setLayout] = useState<LayoutChoice>(DEFAULT_LAYOUT)
+    const measure = useMeasure()
+    const shape = useMemo(() => shapeOf(dag, views, measure), [dag, views, measure])
+    const placed = usePlacedGraph(shape, layout)
     const byCode = useMemo(() => new Map(views.map((view) => [view.node.code, view])), [views])
 
     const nodes = useMemo<StepNodeKind[]>(() => {
@@ -147,10 +153,20 @@ export function RunGraph({
             source: edge.source,
             target: edge.target,
             className: edgeClasses(byCode.get(edge.source), byCode.get(edge.target), { handing, reduced }),
+            data: { points: edge.points },
         }))
     }, [byCode, handing, placed, reduced])
 
-    return (
-        <GraphCanvas nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onSelect={onSelect} fitted={fitted} />
+    const canvas = (frame: CanvasFrame) => (
+        <GraphCanvas
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={NODE_TYPES}
+            onSelect={onSelect}
+            frame={frame}
+            layout={layout}
+            control={frame === 'window' ? <LayoutControl layout={layout} onLayout={setLayout} /> : undefined}
+        />
     )
+    return <GraphPanel name={name} frame="filled" layout={layout} onLayout={setLayout} canvas={canvas} />
 }

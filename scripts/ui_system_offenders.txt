@@ -9,7 +9,6 @@ lucide-import	packages/dirigent-server/frontend/src/components/ApiChip.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/CommandPalette.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/RefreshControl.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/alerting/ChannelStrip.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/graph/GraphCanvas.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/list/Choice.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/list/TagFilter.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/login/BrandPane.tsx	1

@@ -6,6 +6,7 @@ import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageHead } from '@/components/PageHead'
 import { HealthSaid } from '@/components/connections/Health'
 import { Code } from '@/components/ds/Code'
+import { Notice } from '@/components/ds/Notice'
 import { Panel } from '@/components/ds/Panel'
 import { Instant } from '@/components/Instant'
 import { Markdown } from '@/components/Markdown'
@@ -32,6 +33,7 @@ import { authLine, readPipelineSources, sampleBody, type SourceOut } from '@/lib
 import type { JsonMap } from '@/lib/api'
 import { sayRefusal } from '@/components/Refusal'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
+import { chosenStep, pipelineStepPath } from '@/lib/step-address'
 import { clockOf, nextFireView, readSchedules, type ScheduleOut } from '@/lib/triggers'
 import { cn } from '@/lib/utils'
 
@@ -50,7 +52,7 @@ export function editorPath(code: string): string {
  * as it is now, and `Run…` asks for what a run needs. Nothing on this page writes the document.
  */
 export function PipelinePage() {
-    const { code = '' } = useParams()
+    const { code = '', step: addressed } = useParams()
     const navigate = useNavigate()
     const auth = useStore(authStore)
     const write = useMayWrite()
@@ -70,11 +72,19 @@ export function PipelinePage() {
     )
     // A verb on a source answers with its row as it now stands, over the page it was read on.
     const [fresher, setFresher] = useState<Record<string, SourceOut>>({})
-    const [selected, setSelected] = useState<string | null>(null)
     const [running, setRunning] = useState(false)
     const [validating, setValidating] = useState(false)
 
     const pipeline = detail.value
+    // The chosen step is the address, replaced rather than added to, so Back leaves the page.
+    const chosenAt = chosenStep(addressed, pipeline === null ? null : pipeline.shape.map((step) => step.code))
+    const selected = chosenAt.kind === 'step' ? chosenAt.code : null
+    const select = useCallback(
+        (step: string | null) => {
+            void navigate(pipelineStepPath(code, step), { replace: true })
+        },
+        [code, navigate],
+    )
     const version = pipeline === null ? null : pipeline.current_version
     useEffect(() => {
         setScreenStatus({
@@ -173,16 +183,29 @@ export function PipelinePage() {
                 </div>
             )}
 
-            <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false} className="mt-6">
-                {steps.length === 0 ? (
+            {chosenAt.kind === 'unknown' && (
+                <Notice tone="warning" className="mt-6">
+                    {LABELS.pipelines.page.no_such_step(chosenAt.code)}
+                </Notice>
+            )}
+
+            {steps.length === 0 ? (
+                <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false} className="mt-6">
                     <p className="p-4 text-sm text-muted-foreground">
                         {LABELS.editor.canvas.nothing_to_draw}
                     </p>
-                ) : (
-                    <ShapeGraph steps={steps} selected={selected} onSelect={setSelected} />
-                )}
-                {selected !== null && <ChosenStep steps={steps} code={selected} />}
-            </Panel>
+                </Panel>
+            ) : (
+                <ShapeGraph
+                    key={pipeline.code}
+                    name={pipeline.code}
+                    steps={steps}
+                    selected={selected}
+                    onSelect={select}
+                >
+                    {selected !== null && <ChosenStep steps={steps} code={selected} />}
+                </ShapeGraph>
+            )}
 
             <div className="mt-5 flex flex-wrap items-start gap-5">
                 <RecentRuns
@@ -202,7 +225,7 @@ export function PipelinePage() {
                         className="flex-[1_1_420px]"
                         bodyClassName="py-2"
                     >
-                        <Blocks steps={steps} selected={selected} onSelect={setSelected} />
+                        <Blocks steps={steps} selected={selected} onSelect={select} />
                     </Panel>
                 )}
                 <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-5">

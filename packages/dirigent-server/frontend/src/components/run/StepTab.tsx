@@ -1,12 +1,12 @@
 import { ChevronRight } from 'lucide-react'
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import { Instant } from '@/components/Instant'
 import { JsonBlock } from '@/components/JsonBlock'
 import { KindChip } from '@/components/KindChip'
 import { LogPane } from '@/components/run/LogPane'
 import { ProgressLine } from '@/components/run/ProgressLine'
-import { Fact, Section } from '@/components/run/Panel'
+import { Copyable, Fact, Section } from '@/components/run/Panel'
 import { StatusChip } from '@/components/run/StatusChip'
 import { asJson, countedHeading, elapsedBetween, formatBytes, formatDuration, shortenUri } from '@/lib/format'
 import {
@@ -51,6 +51,10 @@ export function StepTab({
     view,
     config,
     configVersion,
+    chosenItem = null,
+    chosenAttempt = null,
+    onItem,
+    onAttempt,
 }: {
     state: RunDetailState
     view: StepView
@@ -58,6 +62,12 @@ export function StepTab({
     config: JsonMap | null
     /** Which pipeline version the config above came from, and which the run pinned. */
     configVersion: { shown: number | null; pinned: number }
+    /** The fan-out element and the try the address names, which are drawn open and marked. */
+    chosenItem?: string | null
+    chosenAttempt?: string | null
+    /** An element was opened or shut, or a try put in the address or taken out of it. */
+    onItem?: (item: string | null) => void
+    onAttempt?: (attempt: string | null) => void
 }) {
     const entries = logsForStep(state.logs, view.node.code)
     const labels = useMemo(() => itemLabels(state), [state])
@@ -120,7 +130,14 @@ export function StepTab({
                 ) : (
                     <ul className="space-y-2">
                         {tries.map((attempt) => (
-                            <AttemptRow key={attempt.id} attempt={attempt} />
+                            <AttemptRow
+                                key={attempt.id}
+                                attempt={attempt}
+                                chosen={attempt.id === chosenAttempt}
+                                onChoose={(chosen) => {
+                                    onAttempt?.(chosen ? attempt.id : null)
+                                }}
+                            />
                         ))}
                     </ul>
                 )}
@@ -128,7 +145,14 @@ export function StepTab({
 
             <Section title={LABELS.word.output}>
                 {view.node.fan_out ? (
-                    <FanOutOutput step={view.node.code} attempts={view.attempts} />
+                    <FanOutOutput
+                        step={view.node.code}
+                        attempts={view.attempts}
+                        chosen={chosenItem}
+                        onChoose={(item) => {
+                            onItem?.(item)
+                        }}
+                    />
                 ) : (
                     <StepOutput step={view.node.code} attempts={view.attempts} />
                 )}
@@ -201,7 +225,17 @@ function StoredOutput({ uri, bytes, className }: { uri: string; bytes: number | 
  * EACH ELEMENT IS FOLDED. A fan-out of sixty is sixty outputs, and the question is usually which
  * elements are in the list at all; the value itself is one click under the label it is keyed by.
  */
-function FanOutOutput({ step, attempts }: { step: string; attempts: readonly AttemptEvent[] }) {
+function FanOutOutput({
+    step,
+    attempts,
+    chosen,
+    onChoose,
+}: {
+    step: string
+    attempts: readonly AttemptEvent[]
+    chosen: string | null
+    onChoose: (item: string | null) => void
+}) {
     const items = itemOutputs(attempts)
     if (items.length === 0) {
         return <p className="text-xs text-muted-foreground">{LABELS.runs.no_items}</p>
@@ -211,11 +245,29 @@ function FanOutOutput({ step, attempts }: { step: string; attempts: readonly Att
             <p className="text-xs text-muted-foreground">{LABELS.runs.fan_out_note}</p>
             <ul>
                 {items.map((item) => (
-                    <ItemOutputRow key={item.id} step={step} item={item} />
+                    <ItemOutputRow
+                        key={item.id}
+                        step={step}
+                        item={item}
+                        chosen={item.id === chosen}
+                        onChoose={(open) => {
+                            if (open) onChoose(item.id)
+                            else if (item.id === chosen) onChoose(null)
+                        }}
+                    />
                 ))}
             </ul>
         </>
     )
+}
+
+/** Bring a row the address names into view, once, when it is first drawn as chosen. */
+function useRevealed<T extends HTMLElement>(chosen: boolean) {
+    const row = useRef<T | null>(null)
+    useEffect(() => {
+        if (chosen) row.current?.scrollIntoView({ block: 'nearest' })
+    }, [chosen])
+    return row
 }
 
 /** Why an element is not in the step's list, said as the state that kept it out. */
@@ -227,43 +279,69 @@ function absenceNote(status: AttemptStatus): string {
 }
 
 /** One element's output, keyed by the label the element is known by and folded until asked for. */
-function ItemOutputRow({ step, item }: { step: string; item: ItemOutput }) {
-    const [open, setOpen] = useState(false)
+function ItemOutputRow({
+    step,
+    item,
+    chosen,
+    onChoose,
+}: {
+    step: string
+    item: ItemOutput
+    /** Whether the address names this element, which draws it open. */
+    chosen: boolean
+    onChoose: (open: boolean) => void
+}) {
+    const [open, setOpen] = useState(chosen)
+    const [wasChosen, setWasChosen] = useState(chosen)
+    if (wasChosen !== chosen) {
+        setWasChosen(chosen)
+        if (chosen) setOpen(true)
+    }
+    const row = useRevealed<HTMLLIElement>(chosen)
     const produced = item.produced
     const reading = produced === null ? null : outputReading(produced)
-    if (produced === null || reading === null) {
-        return (
-            <li className="flex items-baseline gap-2 py-1">
-                <span className="font-mono text-xs">{item.key}</span>
-                <span className="text-xs text-muted-foreground">{absenceNote(item.status)}</span>
-            </li>
-        )
-    }
     return (
-        <li>
+        <li ref={row} data-item={item.id} data-chosen={chosen || undefined}>
             <button
                 type="button"
                 aria-expanded={open}
                 onClick={() => {
                     setOpen(!open)
+                    onChoose(!open)
                 }}
-                className="row-hover flex w-full items-center gap-2 rounded-sm py-1 text-left"
+                className={cn(
+                    'row-hover flex w-full items-center gap-2 rounded-sm py-1 text-left',
+                    chosen && 'bg-secondary',
+                )}
             >
                 <ChevronRight className={cn('size-3 shrink-0', open && 'rotate-90')} aria-hidden />
                 <span className="truncate font-mono text-xs">{item.key}</span>
-                {reading.bytes !== null && (
-                    <span className="ml-auto shrink-0 text-xs text-faint">{formatBytes(reading.bytes)}</span>
+                {reading === null ? (
+                    <span className="text-xs text-muted-foreground">{absenceNote(item.status)}</span>
+                ) : (
+                    reading.bytes !== null && (
+                        <span className="ml-auto shrink-0 text-xs text-faint">
+                            {formatBytes(reading.bytes)}
+                        </span>
+                    )
                 )}
             </button>
-            {open &&
-                (reading.uri !== null ? (
-                    <StoredOutput uri={reading.uri} bytes={reading.bytes} className="pl-5" />
-                ) : (
-                    <JsonBlock
-                        title={LABELS.runs.item_output_title(step, item.key)}
-                        text={asJson(reading.value)}
-                    />
-                ))}
+            {open && (
+                <div className="space-y-1.5 pb-1.5 pl-5">
+                    <p className="text-xs">
+                        <Copyable value={item.id} label={LABELS.runs.copy_item_id} />
+                    </p>
+                    {reading !== null &&
+                        (reading.uri !== null ? (
+                            <StoredOutput uri={reading.uri} bytes={reading.bytes} />
+                        ) : (
+                            <JsonBlock
+                                title={LABELS.runs.item_output_title(step, item.key)}
+                                text={asJson(reading.value)}
+                            />
+                        ))}
+                </div>
+            )}
         </li>
     )
 }
@@ -274,22 +352,50 @@ function classOf(attempt: AttemptEvent): string | null {
     return named === null || named === 'unknown' ? null : named
 }
 
-/** One try, on a rail in its own state's hue. */
-function AttemptRow({ attempt }: { attempt: AttemptEvent }) {
+/**
+ * One try, on a rail in its own state's hue, with its id.
+ *
+ * Its number is the control that puts it in the run's address, and a try the address names is
+ * marked and brought into view.
+ */
+function AttemptRow({
+    attempt,
+    chosen,
+    onChoose,
+}: {
+    attempt: AttemptEvent
+    chosen: boolean
+    onChoose: (chosen: boolean) => void
+}) {
     const classified = classOf(attempt)
     const took = elapsedBetween(attempt.started_at, attempt.finished_at)
+    const row = useRevealed<HTMLLIElement>(chosen)
     return (
         <li
-            className="status-rail row-hover rounded-r-sm"
+            ref={row}
+            data-attempt={attempt.id}
+            data-chosen={chosen || undefined}
+            className={cn('status-rail row-hover rounded-r-sm', chosen && 'bg-secondary')}
             style={statusTokens(attempt.status) as CSSProperties}
         >
             <div className="flex items-center gap-2">
                 <StatusChip status={attempt.status} />
-                <span className="text-xs text-muted-foreground">
+                <button
+                    type="button"
+                    aria-pressed={chosen}
+                    title={LABELS.runs.link_attempt}
+                    onClick={() => {
+                        onChoose(!chosen)
+                    }}
+                    className="rounded-sm text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                >
                     {LABELS.runs.attempt_number(String(attempt.attempt))}
                     {attempt.kind === 'manual' && LABELS.runs.attempt_asked_for}
-                </span>
+                </button>
                 {took !== null && <span className="ml-auto text-xs text-faint">{formatDuration(took)}</span>}
+            </div>
+            <div className="text-xs">
+                <Copyable value={attempt.id} label={LABELS.runs.copy_attempt_id} />
             </div>
             {attempt.item !== null && (
                 <p className="font-mono text-xs text-muted-foreground">

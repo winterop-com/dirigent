@@ -128,24 +128,36 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
 /** The elements of a fan-out step: named while they fit, counted once they do not. */
 function ItemStrip({ view }: { view: StepView }) {
     if (view.strip.kind === 'empty') {
-        return <span className="truncate text-faint">{emptyStripLabel(view)}</span>
-    }
-    if (view.strip.kind === 'counts') {
+        const words = emptyStripLabel(view)
         return (
-            <span className="truncate text-muted-foreground">
-                {view.strip.counts
-                    .map((count) => LABELS.runs.node_item_count(String(count.count), count.status))
-                    .join(' · ')}
+            <span className="truncate text-faint" title={words}>
+                {words}
             </span>
         )
     }
+    if (view.strip.kind === 'counts') {
+        const words = view.strip.counts
+            .map((count) => LABELS.runs.node_item_count(String(count.count), count.status))
+            .join(' · ')
+        return (
+            <span className="truncate text-muted-foreground" title={words}>
+                {words}
+            </span>
+        )
+    }
+    // The chips wrap onto as many lines as the box was sized for; a key cuts only past the cap.
     return (
-        <div className="flex h-4 flex-wrap items-center gap-x-2 overflow-hidden">
+        <div data-testid="step-strip" className="flex flex-wrap items-center gap-x-2">
             {view.strip.items.map((item) => (
-                <span key={item.id} className="flex items-center gap-1 text-muted-foreground">
+                <span
+                    key={item.id}
+                    className="flex h-4 max-w-full min-w-0 items-center gap-1 text-muted-foreground"
+                >
                     <StatusDot status={item.status} />
-                    <span className="max-w-20 truncate font-mono">{item.key}</span>
-                    {item.retry !== null && <span className="text-faint">{item.retry}</span>}
+                    <span className="min-w-0 truncate font-mono" title={item.key}>
+                        {item.key}
+                    </span>
+                    {item.retry !== null && <span className="shrink-0 text-faint">{item.retry}</span>}
                 </span>
             ))}
         </div>

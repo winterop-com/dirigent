@@ -1,13 +1,16 @@
 import { type Edge, type Node, type NodeProps } from '@xyflow/react'
-import { useMemo } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 
-import { GraphCanvas } from '@/components/graph/GraphCanvas'
+import { GraphCanvas, LayoutControl, type CanvasFrame } from '@/components/graph/GraphCanvas'
+import { GraphPanel } from '@/components/graph/GraphPanel'
+import { useMeasure } from '@/components/graph/measure'
 import { StepPorts } from '@/components/graph/StepPorts'
 import { usePlacedGraph } from '@/components/graph/use-placed'
-import { drawnSize, NODE_HEIGHT, nodeWidth, type LayoutShape } from '@/lib/dag-layout'
+import { DEFAULT_LAYOUT, drawnSize, NODE_HEIGHT, type LayoutChoice, type LayoutShape } from '@/lib/dag-layout'
 import { headingOf } from '@/lib/identity'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
+import { shapeNodeWidth } from '@/lib/node-size'
 import type { StepShape } from '@/lib/pipelines'
 import { cn } from '@/lib/utils'
 
@@ -60,33 +63,44 @@ function ShapeNode({ data, selected }: NodeProps<ShapeNodeKind>) {
 const NODE_TYPES = { step: ShapeNode }
 
 /**
- * A pipeline's graph on its own page: every step and every dependency, fitted to the page.
+ * A pipeline's graph on its own page: every step and every dependency, as tall as its drawing,
+ * with the same graph in a window.
  *
  * It draws the current version's shape and nothing that happened to it, so a box carries no
- * state; choosing one is the page's to answer.
+ * state; choosing one is the page's to answer. The layout a reader chooses lasts as long as the
+ * page does.
  */
 export function ShapeGraph({
+    name,
     steps,
     selected,
     onSelect,
+    children,
 }: {
+    /** The pipeline's code, which the window is titled by. */
+    name: string
     steps: readonly StepShape[]
     selected: string | null
     onSelect: (step: string | null) => void
+    /** What stands under the graph in its panel. */
+    children?: ReactNode
 }) {
+    const [layout, setLayout] = useState<LayoutChoice>(DEFAULT_LAYOUT)
+    const measure = useMeasure()
     const shape = useMemo<LayoutShape>(
         () => ({
-            nodes: steps.map((step) => {
-                const words = wordsOf(step)
-                return { id: step.code, width: nodeWidth(words.title, words.line), height: NODE_HEIGHT }
-            }),
+            nodes: steps.map((step) => ({
+                id: step.code,
+                width: shapeNodeWidth(wordsOf(step), step.kind === 'source', step.fan_out, measure),
+                height: NODE_HEIGHT,
+            })),
             edges: steps.flatMap((step) =>
                 step.depends_on.map((from): [string, string] => [from, step.code]),
             ),
         }),
-        [steps],
+        [measure, steps],
     )
-    const placed = usePlacedGraph(shape)
+    const placed = usePlacedGraph(shape, layout)
     const byCode = useMemo(() => new Map(steps.map((step) => [step.code, step])), [steps])
 
     const nodes = useMemo<ShapeNodeKind[]>(
@@ -111,8 +125,36 @@ export function ShapeGraph({
         [byCode, placed, selected],
     )
     const edges = useMemo<Edge[]>(
-        () => placed.edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target })),
+        () =>
+            placed.edges.map((edge) => ({
+                id: edge.id,
+                source: edge.source,
+                target: edge.target,
+                data: { points: edge.points },
+            })),
         [placed],
     )
-    return <GraphCanvas nodes={nodes} edges={edges} nodeTypes={NODE_TYPES} onSelect={onSelect} fitted />
+    const canvas = (frame: CanvasFrame) => (
+        <GraphCanvas
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={NODE_TYPES}
+            onSelect={onSelect}
+            frame={frame}
+            layout={layout}
+            control={frame === 'window' ? <LayoutControl layout={layout} onLayout={setLayout} /> : undefined}
+        />
+    )
+    return (
+        <GraphPanel
+            name={name}
+            frame="fitted"
+            layout={layout}
+            onLayout={setLayout}
+            canvas={canvas}
+            className="mt-6"
+        >
+            {children}
+        </GraphPanel>
+    )
 }

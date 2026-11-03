@@ -34,34 +34,109 @@ export const NODE_WIDTH = 160
 /** The narrowest a node is drawn, however short its words. */
 export const NODE_MIN_WIDTH = 96
 
-/** How wide one mono character is in a title, at 12px, and on the line under it, at 11px. */
-const TITLE_CHAR = 7.2
-const LINE_CHAR = 6.6
-
-/** A node's padding and border, and the room its state's dot takes beside the title. */
-const NODE_CHROME = 20
-const DOT_ROOM = 14
+/** The widest a node is drawn; past it a word truncates and carries its whole value on hover. */
+export const NODE_MAX_WIDTH = 360
 
 /**
- * How wide a node has to be for none of its words to be cut.
- *
- * Both lines are mono, so a width is arithmetic over their characters: the longer of the title
- * with its dot and the line under it with whatever stands at its end, plus the box's padding.
+ * The four faces a node's words are set in: the title at 12px and every other word at 11px, each
+ * in mono where it is a key and in the sans where it is prose.
  */
-export function nodeWidth(title: string, line: string, lineExtra = 0): number {
-    const words = Math.max(title.length * TITLE_CHAR + DOT_ROOM, line.length * LINE_CHAR + lineExtra)
-    return Math.max(NODE_MIN_WIDTH, Math.ceil(words + NODE_CHROME))
+export type TextFace = 'title-mono' | 'title-sans' | 'small-mono' | 'small-sans'
+
+/** How wide a run of text is drawn in one face, in pixels. */
+export type Measure = (text: string, face: TextFace) => number
+
+/** The pixel size of each face. */
+export const FACE_SIZE: Record<TextFace, number> = {
+    'title-mono': 12,
+    'title-sans': 12,
+    'small-mono': 11,
+    'small-sans': 11,
+}
+
+/**
+ * A width read off the characters, for where no font can be measured.
+ *
+ * JetBrains Mono advances 0.6em per character, so a mono width is exact; the sans is given the
+ * width of its wider letters, so a width read in Node is never narrower than the page's.
+ */
+export const measureByCharacters: Measure = (text, face) =>
+    text.length * FACE_SIZE[face] * (face.endsWith('mono') ? 0.6 : 0.62)
+
+/** A node's padding and border, with room for the 1.5px edge a failed box wears. */
+export const NODE_CHROME = 22
+
+/** The gap between two things on one line of a node. */
+export const NODE_GAP = 6
+
+/** What a state's dot takes. */
+export const DOT_WIDTH = 8
+
+/** What a 12px glyph takes. */
+export const GLYPH_WIDTH = 12
+
+/**
+ * How wide a node is drawn for none of its lines to be cut: the widest line plus the box's chrome,
+ * held between the floor and the cap.
+ */
+export function boxWidth(lines: readonly number[]): number {
+    const widest = lines.reduce((most, line) => Math.max(most, line), 0)
+    return Math.min(NODE_MAX_WIDTH, Math.max(NODE_MIN_WIDTH, Math.ceil(widest + NODE_CHROME)))
+}
+
+/**
+ * How wide a node has to be for none of its words to be cut: the longer of the title with its dot
+ * and the line under it with whatever stands at its end.
+ */
+export function nodeWidth(
+    title: string,
+    line: string,
+    lineExtra = 0,
+    measure: Measure = measureByCharacters,
+): number {
+    return boxWidth([
+        measure(title, 'title-mono') + NODE_GAP + DOT_WIDTH,
+        measure(line, 'small-mono') + lineExtra,
+    ])
 }
 
 /** What a fan-out marker at the end of a node's line takes: the gap, its glyph, and its word. */
-export function fanOutRoom(word: string): number {
-    return Math.ceil(24 + word.length * LINE_CHAR)
+export function fanOutRoom(word: string, measure: Measure = measureByCharacters): number {
+    return Math.ceil(NODE_GAP + GLYPH_WIDTH + 4 + measure(word, 'small-mono'))
+}
+
+/** The gap between two chips of a fan-out's strip, side by side. */
+export const CHIP_GAP = 8
+
+/**
+ * How many lines a fan-out's chips take in the room a box has, wrapped the way the strip wraps
+ * them: as many to a line as fit, and never fewer than one.
+ */
+export function stripLines(chips: readonly number[], room: number): number {
+    let lines = 1
+    let used = 0
+    for (const chip of chips) {
+        const next = used === 0 ? chip : used + CHIP_GAP + chip
+        if (used > 0 && next > room) {
+            lines += 1
+            used = chip
+        } else {
+            used = next
+        }
+    }
+    return lines
+}
+
+/** How wide a strip's chips are on one line, which is the most a strip asks of a box. */
+export function stripWidth(chips: readonly number[]): number {
+    if (chips.length === 0) return 0
+    return chips.reduce((sum, chip) => sum + chip, 0) + (chips.length - 1) * CHIP_GAP
 }
 
 /** How tall an ordinary node is: its title, one line under it, and its padding. */
 export const NODE_HEIGHT = 44
 
-/** What a fan-out node's item strip adds to its height: one line of 11px text. */
+/** What each line of a fan-out node's item strip adds to its height: one line of 11px text. */
 export const STRIP_HEIGHT = 16
 
 /** One node to place: what it is called, and how wide and how tall it will be drawn. */
@@ -92,9 +167,17 @@ export interface ElkGraph {
     edges: { id: string; sources: string[]; targets: string[] }[]
 }
 
+/** One stretch of a routed edge, as elk answers it. */
+export interface ElkSection {
+    startPoint: GraphPoint
+    endPoint: GraphPoint
+    bendPoints?: GraphPoint[]
+}
+
 /** The subset of elk's answer this module reads. */
 export interface ElkLaidOut {
     children?: { id: string; x?: number; y?: number; width?: number; height?: number }[]
+    edges?: { id: string; sections?: ElkSection[] }[]
 }
 
 /** What `layoutDag` needs an elk to be. */
@@ -111,11 +194,19 @@ export interface PlacedNode {
     height: number
 }
 
-/** One edge, named by the pair it joins. */
+/** A point in the graph's own coordinates. */
+export interface GraphPoint {
+    x: number
+    y: number
+}
+
+/** One edge, named by the pair it joins, with the route elk drew for it once it has. */
 export interface PlacedEdge {
     id: string
     source: string
     target: string
+    /** Where the edge starts, bends and ends, in the graph's coordinates. */
+    points?: GraphPoint[]
 }
 
 /** A whole graph, placed. */
@@ -208,20 +299,92 @@ function rankWidths(shape: LayoutShape, ranks: Map<string, number>): number[] {
 }
 
 /** How wide a shape would be drawn in one left-to-right row. */
-export function unwrappedWidth(shape: LayoutShape): number {
+export function unwrappedWidth(shape: LayoutShape, rankGap: number = RANK_SPACING): number {
     const widths = rankWidths(shape, ranksOf(shape))
     if (widths.length === 0) return 0
-    return widths.reduce((sum, width) => sum + width, 0) + (widths.length - 1) * RANK_SPACING
+    return widths.reduce((sum, width) => sum + width, 0) + (widths.length - 1) * rankGap
 }
 
-/** The options one shape is placed with: the layered ones, plus wrapping when it is too wide. */
-export function layoutOptionsFor(shape: LayoutShape): Record<string, string> {
-    return unwrappedWidth(shape) > WRAP_WIDTH ? { ...LAYOUT_OPTIONS, ...WRAP_OPTIONS } : LAYOUT_OPTIONS
+/** Which way the ranks run: left to right, or top to bottom. */
+export type LayoutDirection = 'right' | 'down'
+
+/** How an edge is drawn: the canvas's own stepped line, routed around the boxes, or curved. */
+export type EdgeRouting = 'default' | 'orthogonal' | 'splines'
+
+/** How much room is left between boxes and between ranks. */
+export type LayoutSpacing = 'default' | 'compact' | 'roomy'
+
+/** How a view lays its graph out, which a reader may change for the visit. */
+export interface LayoutChoice {
+    direction: LayoutDirection
+    routing: EdgeRouting
+    spacing: LayoutSpacing
 }
 
-/** How tall one node is drawn, which depends on whether it carries an item strip. */
-export function heightOf(fanOut: boolean): number {
-    return fanOut ? NODE_HEIGHT + STRIP_HEIGHT : NODE_HEIGHT
+/** What every view opens on. */
+export const DEFAULT_LAYOUT: LayoutChoice = { direction: 'right', routing: 'default', spacing: 'default' }
+
+/** The gaps each spacing asks for: between two boxes of a rank, and between two ranks. */
+export const SPACINGS: Record<LayoutSpacing, { node: number; rank: number }> = {
+    compact: { node: 12, rank: 20 },
+    default: { node: NODE_SPACING, rank: RANK_SPACING },
+    roomy: { node: 36, rank: 64 },
+}
+
+/** How far apart two routed edges run, and how far one keeps from a box it passes. */
+export const EDGE_SPACING = 10
+export const EDGE_NODE_SPACING = 14
+
+/** Whether a choice is the one every view opens on. */
+export function isDefaultLayout(choice: LayoutChoice): boolean {
+    return (
+        choice.direction === DEFAULT_LAYOUT.direction &&
+        choice.routing === DEFAULT_LAYOUT.routing &&
+        choice.spacing === DEFAULT_LAYOUT.spacing
+    )
+}
+
+/** What elk is told about where every edge leaves, bends and arrives. */
+function routingOptions(routing: EdgeRouting): Record<string, string> {
+    if (routing === 'default') return { 'elk.edgeRouting': 'POLYLINE' }
+    return {
+        'elk.edgeRouting': routing === 'orthogonal' ? 'ORTHOGONAL' : 'SPLINES',
+        // Merged, five edges into one step are drawn as one trunk.
+        'elk.layered.mergeEdges': 'false',
+        'elk.spacing.edgeEdge': String(EDGE_SPACING),
+        'elk.spacing.edgeNode': String(EDGE_NODE_SPACING),
+        'elk.layered.spacing.edgeEdgeBetweenLayers': String(EDGE_SPACING),
+        'elk.layered.spacing.edgeNodeBetweenLayers': String(EDGE_NODE_SPACING),
+        ...(routing === 'splines' ? { 'elk.layered.edgeRouting.splines.mode': 'CONSERVATIVE' } : {}),
+    }
+}
+
+/**
+ * The options one shape is placed with: the layered ones, plus wrapping when it is too wide.
+ *
+ * The default choice is exactly the layout every canvas opens on. A graph drawn top to bottom is
+ * never wrapped: its depth runs down the page, which is the way a page scrolls.
+ */
+export function layoutOptionsFor(
+    shape: LayoutShape,
+    choice: LayoutChoice = DEFAULT_LAYOUT,
+): Record<string, string> {
+    const gaps = SPACINGS[choice.spacing]
+    const wraps = choice.direction === 'right' && unwrappedWidth(shape, gaps.rank) > WRAP_WIDTH
+    if (isDefaultLayout(choice)) return wraps ? { ...LAYOUT_OPTIONS, ...WRAP_OPTIONS } : LAYOUT_OPTIONS
+    return {
+        ...LAYOUT_OPTIONS,
+        'elk.direction': choice.direction === 'right' ? 'RIGHT' : 'DOWN',
+        'elk.layered.spacing.nodeNodeBetweenLayers': String(gaps.rank),
+        'elk.spacing.nodeNode': String(gaps.node),
+        ...routingOptions(choice.routing),
+        ...(wraps ? WRAP_OPTIONS : {}),
+    }
+}
+
+/** How tall one node is drawn: whether it carries an item strip, and how many lines that wraps to. */
+export function heightOf(fanOut: boolean, lines = 1): number {
+    return fanOut ? NODE_HEIGHT + STRIP_HEIGHT * Math.max(1, lines) : NODE_HEIGHT
 }
 
 /**
@@ -230,19 +393,20 @@ export function heightOf(fanOut: boolean): number {
  * A graph is re-placed when this string changes and not when anything else does, so a step
  * going from running to succeeded, or a config field being typed into, moves no box.
  */
-export function signatureOf(shape: LayoutShape): string {
+export function signatureOf(shape: LayoutShape, choice: LayoutChoice = DEFAULT_LAYOUT): string {
     return [
         shape.nodes.map((node) => `${node.id}:${String(widthOf(node))}x${String(node.height)}`).join(','),
         shape.edges.map(([from, to]) => `${from}>${to}`).join(','),
+        `${choice.direction}/${choice.routing}/${choice.spacing}`,
     ].join('|')
 }
 
 /** The graph elk is handed: one child per node, one edge per dependency. */
-export function toElkGraph(shape: LayoutShape): ElkGraph {
+export function toElkGraph(shape: LayoutShape, choice: LayoutChoice = DEFAULT_LAYOUT): ElkGraph {
     const known = new Set(shape.nodes.map((node) => node.id))
     return {
         id: 'dag',
-        layoutOptions: layoutOptionsFor(shape),
+        layoutOptions: layoutOptionsFor(shape, choice),
         children: shape.nodes.map((node) => ({ id: node.id, width: widthOf(node), height: node.height })),
         // An edge to or from a node the shape does not carry would be an edge elk cannot place.
         edges: shape.edges
@@ -267,6 +431,7 @@ function placedEdges(shape: LayoutShape): PlacedEdge[] {
  */
 export function fromElkGraph(shape: LayoutShape, laid: ElkLaidOut): PlacedGraph {
     const placed = new Map((laid.children ?? []).map((child) => [child.id, child]))
+    const routes = new Map((laid.edges ?? []).map((edge) => [edge.id, routeOf(edge.sections ?? [])]))
     return {
         nodes: shape.nodes.map((node) => {
             const child = placed.get(node.id)
@@ -278,8 +443,21 @@ export function fromElkGraph(shape: LayoutShape, laid: ElkLaidOut): PlacedGraph 
                 height: child?.height ?? node.height,
             }
         }),
-        edges: placedEdges(shape),
+        edges: placedEdges(shape).map((edge) => {
+            const points = routes.get(edge.id)
+            if (points !== undefined && points.length >= 2) edge.points = points
+            return edge
+        }),
     }
+}
+
+/** An edge's sections joined into one run of points, start to end. */
+function routeOf(sections: readonly ElkSection[]): GraphPoint[] {
+    return sections.flatMap((section, index) => [
+        ...(index === 0 ? [section.startPoint] : []),
+        ...(section.bendPoints ?? []),
+        section.endPoint,
+    ])
 }
 
 /**
@@ -316,7 +494,8 @@ function rankColumns(widths: readonly number[], wrapping: boolean): { row: numbe
  * elk is handed -- a graph that would be fitted at a zoom its text cannot be read at is not one
  * to open on.
  */
-export function placedByRank(shape: LayoutShape): PlacedGraph {
+export function placedByRank(shape: LayoutShape, choice: LayoutChoice = DEFAULT_LAYOUT): PlacedGraph {
+    if (choice.direction === 'down') return placedDownByRank(shape, SPACINGS[choice.spacing])
     const ranks = ranksOf(shape)
     const wrapping = unwrappedWidth(shape) > WRAP_WIDTH
     const columns = rankColumns(rankWidths(shape, ranks), wrapping)
@@ -355,10 +534,91 @@ export function placedByRank(shape: LayoutShape): PlacedGraph {
     }
 }
 
+/** The same shape placed without elk, top to bottom: one row per rank, side by side within it. */
+function placedDownByRank(shape: LayoutShape, gaps: { node: number; rank: number }): PlacedGraph {
+    const ranks = ranksOf(shape)
+    const rowHeights: number[] = []
+    for (const node of shape.nodes) {
+        const rank = ranks.get(node.id) ?? 0
+        rowHeights[rank] = Math.max(rowHeights[rank] ?? 0, node.height)
+    }
+    const rowTops: number[] = []
+    let above = 0
+    for (const [rank, tallest] of Array.from(rowHeights, (row) => row ?? 0).entries()) {
+        rowTops[rank] = above
+        above += tallest + gaps.rank
+    }
+    const nextLeft = new Map<number, number>()
+    return {
+        nodes: shape.nodes.map((node) => {
+            const rank = ranks.get(node.id) ?? 0
+            const left = nextLeft.get(rank) ?? 0
+            nextLeft.set(rank, left + widthOf(node) + gaps.node)
+            return { id: node.id, x: left, y: rowTops[rank] ?? 0, width: widthOf(node), height: node.height }
+        }),
+        edges: placedEdges(shape),
+    }
+}
+
 /** Place a graph. */
-export async function layoutDag(shape: LayoutShape, elk: ElkEngine): Promise<PlacedGraph> {
+export async function layoutDag(
+    shape: LayoutShape,
+    elk: ElkEngine,
+    choice: LayoutChoice = DEFAULT_LAYOUT,
+): Promise<PlacedGraph> {
     if (shape.nodes.length === 0) return { nodes: [], edges: [] }
-    return fromElkGraph(shape, await elk.layout(toElkGraph(shape)))
+    return fromElkGraph(shape, await elk.layout(toElkGraph(shape, choice)))
+}
+
+/**
+ * The path an edge elk routed is drawn along.
+ *
+ * A routed edge is straight runs turned on a small radius at each bend. A curved one is what elk
+ * answers for splines: the start, then every further three points one cubic segment. A curve whose
+ * points are not in threes is drawn as a routed one.
+ */
+export function routedPath(points: readonly GraphPoint[], curved: boolean, radius = 6): string {
+    const first = points[0]
+    const last = points[points.length - 1]
+    if (first === undefined || last === undefined || points.length < 2) return ''
+    if (curved && (points.length - 1) % 3 === 0) {
+        const segments: string[] = []
+        for (let index = 1; index + 2 < points.length; index += 3) {
+            const [one, two, end] = points.slice(index, index + 3) as [GraphPoint, GraphPoint, GraphPoint]
+            segments.push(`C ${pointOf(one)}, ${pointOf(two)}, ${pointOf(end)}`)
+        }
+        return `M ${pointOf(first)} ${segments.join(' ')}`
+    }
+    const parts = [`M ${pointOf(first)}`]
+    for (let index = 1; index < points.length - 1; index += 1) {
+        const [before, corner, after] = points.slice(index - 1, index + 2) as [
+            GraphPoint,
+            GraphPoint,
+            GraphPoint,
+        ]
+        const inward = Math.min(radius, distance(before, corner) / 2, distance(corner, after) / 2)
+        parts.push(`L ${pointOf(toward(corner, before, inward))}`)
+        parts.push(`Q ${pointOf(corner)} ${pointOf(toward(corner, after, inward))}`)
+    }
+    parts.push(`L ${pointOf(last)}`)
+    return parts.join(' ')
+}
+
+/** How far apart two points are. */
+function distance(one: GraphPoint, other: GraphPoint): number {
+    return Math.hypot(other.x - one.x, other.y - one.y)
+}
+
+/** The point `by` along the way from one point towards another. */
+function toward(from: GraphPoint, to: GraphPoint, by: number): GraphPoint {
+    const length = distance(from, to)
+    if (length === 0) return from
+    return { x: from.x + ((to.x - from.x) * by) / length, y: from.y + ((to.y - from.y) * by) / length }
+}
+
+/** A point as a path writes it, to a tenth of a pixel. */
+function pointOf(point: GraphPoint): string {
+    return `${String(Math.round(point.x * 10) / 10)} ${String(Math.round(point.y * 10) / 10)}`
 }
 
 /**
@@ -475,6 +735,22 @@ export function startOfOverflow(view: GraphView, bounds: GraphBounds): GraphView
         y: place(view.y, bounds.y, bounds.height),
         zoom: view.zoom,
     }
+}
+
+/** The most one wheel event zooms a canvas on a page by, either way. */
+export const WHEEL_ZOOM_LIMIT = 1.15
+
+/**
+ * The factor one modified wheel event zooms a canvas on a page by.
+ *
+ * A pinch arrives as many events of a few pixels and a mouse wheel as notches of a hundred, so the
+ * delta is read in pixels and each event is held to `WHEEL_ZOOM_LIMIT`: a notch is one step, and a
+ * pinch follows the fingers.
+ */
+export function wheelZoomFactor(deltaY: number, deltaMode = 0): number {
+    const pixels = deltaMode === 1 ? deltaY * 16 : deltaMode === 2 ? deltaY * 400 : deltaY
+    const factor = Math.exp(-pixels * 0.01)
+    return Math.min(WHEEL_ZOOM_LIMIT, Math.max(1 / WHEEL_ZOOM_LIMIT, factor))
 }
 
 /** Where one press of a zoom control lands, held inside what the canvas allows. */

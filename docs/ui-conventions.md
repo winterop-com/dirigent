@@ -835,8 +835,10 @@ one line.
 **The graph is fitted, never scrolled.** At 1440 wide a pipeline's graph is drawn whole on the
 page with no scrollbar of its own: the canvas is as tall as the drawing it holds rather than a
 fixed stage, the drawing is scaled down where it is wider than the page and never up past its own
-size, and a graph too deep for the width is wrapped onto rows the way every canvas wraps one.
-Choosing a box says under the graph which block it runs, what it waits for and what it feeds.
+size, and a graph too deep for the width is wrapped onto rows the way every canvas wraps one. It
+pans, zooms, lays out and opens in a window as every view of a graph does.
+Choosing a box says under the graph which block it runs, what it waits for and what it feeds, and
+puts it in the address as `/pipelines/<code>/<step>`, replaced rather than added to.
 
 ## An endpoint says where it is called, and a run says who it answered
 
@@ -960,8 +962,8 @@ uri and two panes sharing a name would share a document.
 corner of the pane.** `components/WindowedPane` is where that gesture is written once -- the
 button, its corner, and the window, which is the viewport less a gutter -- and every pane that
 offers one comes through it: a config field carrying a program, a value edited as JSON, a
-report document, an alert body, an example's source, and the block of produced JSON on a run's
-step and a schema's page. The button stands in a strip of its own under the pane, inside the
+report document, an alert body, an example's source, the block of produced JSON on a run's
+step and a schema's page, and the graph on a run's page and a pipeline's. The button stands in a strip of its own under the pane, inside the
 box, and the pane scrolls above it: a line that runs to the right edge, wherever the pane is
 scrolled to, ends before the button rather than under it. **A pane that grows with what it holds
 rather than scrolling -- a report document -- holds its strip to the foot of the scroller it sits
@@ -1794,9 +1796,9 @@ created: in each the apply cannot proceed, so the button is absent and the sente
 rows is what says why. **The exception is a control shut by who somebody is**, which stays drawn
 and shut with its reason, because that is a courtesy about the account rather than a claim about
 the document -- and it is how somebody learns the verb exists and is not theirs. **A run's verbs
-are the second exception**: what a run allows changes under the reader as it moves, so Pause,
-Resume, Cancel and Rerun keep their places and are shut there with the reason, as the run screen
-says below.
+are the second exception** while the run is unsettled: what it allows changes under the reader as
+it moves, so Pause, Resume, Cancel and Rerun keep their places and are shut there with the reason.
+A settled run has stopped moving, and draws Rerun alone, as the run screen says below.
 
 **A shut control looks shut.** It drops its fill for a hairline ring on no ground, its word goes to
 the muted ink at weight 400, and the pointer over it is `not-allowed` -- so a shut verb beside an
@@ -1873,10 +1875,12 @@ them is said in `index.css` against their slots, never by editing them.
 
 **A node is 44 tall, two lines, and as wide as its words, on every canvas.** The title in mono, and
 under it the block it runs, with the key in front where the title is a name. **No key is ever
-cut**: a node's width is read off the longer of its two lines -- both are mono, so a width is
-arithmetic over their characters -- plus its padding and its dot, with a floor of 96px, and elk is
-handed that width for each box so the layout leaves room for it. A name, which is free text, is
-the one word that may truncate, with the whole of it on hover. A box is filled in `--node`, edged
+cut**: before elk sees a box, `lib/node-size` measures each of its lines in the face the node sets
+it in -- on a canvas of its own, in the loaded font, read off the characters until the faces have
+loaded -- with every glyph, mark, count and dot that stands on that line, and elk is handed the
+widest plus the box's chrome, between a floor of 96px and a cap of `NODE_MAX_WIDTH`. Only past
+the cap does a word truncate, and it carries its whole value on hover. The editor's box holds the
+room of its `edited` mark before it is edited, so the first keystroke into a step moves no box. A box is filled in `--node`, edged
 in a line a step above the canvas, and lifted by a shadow of its own; a status is the only colour
 on it -- a succeeded box takes the succeeded edge, a failed one the failed edge at 1.5px over a
 wash of the same hue, a skipped one a dashed edge on no fill -- and a chosen box is ringed in the
@@ -1888,10 +1892,13 @@ because a status is the only colour a node carries. On a run the state's dot sta
 the title line, and the duration at the end of the second. **What a step is doing -- what it waits
 for, how a retry went, why it failed -- is the box's tooltip and the panel's, not a third line**,
 because a line nobody can read at 11px across 138 pixels says less than the colour of the box. A
-run's fan-out holds its elements in one strip beneath the two lines, one line tall; before a grid read
-from a step's output has expanded, that strip is the faint words `waits for <step>`, so the box keeps
-its height when the elements arrive. Elk is told the height each is actually drawn at, or the rows
-come out spaced for a box that is not there.
+run's fan-out holds its elements in a strip beneath the two lines, and **an element's key wraps
+rather than truncates**: the chips widen the box up to `STRIP_ROOM` and then wrap onto as many
+16px lines as they need, and the box is that much taller. A retry's countdown is given its widest
+room, so a box does not move every second. Past `ITEM_STRIP_LIMIT` elements the strip counts them
+on one line. Before a grid read from a step's output has expanded, that strip is the faint words
+`waits for <step>`. Elk is told the height each is actually drawn at, or the rows come out spaced
+for a box that is not there.
 
 **Every word on a box carries its whole value on hover.** A title, a key and a block each carry
 their full value on their own `title`, with what the step is doing after it on a run.
@@ -1904,10 +1911,37 @@ run it is the kind, which is what the pinned graph carries. A reply says `reply`
 and its step panel as on a run. A step that is none of the three says `no block`{ .label }.
 
 
-**A canvas on a page is as tall as its drawing.** The pipeline's page and the run's page draw the
-graph in a box whose height follows the layout's own proportions at the zoom the width allows, so
-a five-step chain is a strip and not a stage with a strip floating in it. The editor is the one
-canvas that keeps a stage, because it is a workspace somebody adds to.
+**A canvas on a page is as tall as its drawing, or as tall as the room the run screen leaves it.**
+The pipeline's page draws the graph in a box whose height follows the layout's own proportions at
+the zoom the width allows, so a five-step chain is a strip and not a stage with a strip floating in
+it. The run's page is a column whose graph takes every pixel between the heading and the docked
+terminal -- less the failure panel, where there is one -- so there is no dead ground under a small
+graph, and dragging the terminal's seam is a resize the canvas refits to. It is never shorter than
+its drawing or 240px, whichever is less, and a drawing taller than that is fitted at the floor and
+panned. The editor keeps a stage, because it is a workspace somebody adds to.
+
+**A canvas on a page pans and zooms, and a plain wheel is the page's.** Dragging the ground pans
+every canvas. A pinch, and a wheel with Ctrl or the platform's modifier held, zooms a canvas on a
+page about the pointer, each event held to one `WHEEL_ZOOM_LIMIT` step, so a mouse wheel's notch is
+a step and a pinch follows the fingers; a wheel with neither scrolls the page, so a long run never
+traps it. Below the breakpoint a finger on a page's canvas scrolls the page, and the graph's window
+is where it is panned. The zoom controls say how else to zoom on their tooltips, and nothing is
+drawn over the graph to say it.
+
+**A view's layout is the reader's for the visit.** The run's graph and the pipeline page's carry a
+`Layout`{ .label } control: the direction (left to right, or top to bottom), the edges (the
+canvas's own stepped line, elk's orthogonal routes around the boxes, or elk's splines) and the
+spacing (normal, compact, roomy). The default is exactly the layout every canvas opens on; a routed
+or curved edge is drawn along the points elk answered, with each edge into a step arriving on its
+own rather than merged into a trunk. The choice is held by the screen and nowhere else -- not in
+storage, not in the address -- so the next screen, and the next visit, open on the default. The
+editor has no such control, because a document's arrangement there is the author's.
+
+**A view opens in a window.** Under a canvas on a page stands `WindowedPane`'s strip with the
+window's button. The window is a stage: the wheel zooms, the ground pans, and its corner carries
+the zoom, the fit and the layout, which is the same choice as the page's. A box chosen in the
+window is chosen on the page -- the address and the panel follow it -- and the window stays open
+until it is dismissed.
 
 Every canvas opens with the whole DAG in view: `fitView` with padding, held between the two
 bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` is 1, so a fit never draws a box above its own size and a pipeline of two boxes is
@@ -1917,9 +1951,10 @@ hangs off the canvas, and is panned.** A view too wide or too tall for the canva
 start of the graph at the top left and the rest off the far edges, because a graph is read from its
 first steps and a centred one has both ends cut, and dragging the ground is how the rest is reached.
 Zooming further out is still there by hand, down to `MIN_ZOOM`, and that view is the reader's. It
-re-fits when the node set changes and when the canvas is resized -- the right
-panel opening is a resize -- and stops the moment the reader pans, zooms or drags a box: after
-that the view is theirs, and Re-layout is how they hand it back. A press that moves nothing, on
+re-fits when the node set changes, when the reader changes the layout, and when the canvas is
+resized -- the right panel opening and the terminal's seam moving are resizes, a page scrolling is
+not -- and stops the moment the reader pans, zooms or drags a box: after that the view is theirs,
+and the fit control, or Re-layout in the editor, is how they hand it back. A press that moves nothing, on
 the ground or on a run's box, is not a pan. A resize of a view the reader took over only brings
 the chosen box back onto the canvas, at their zoom, if the resize cut it. The browser suite
 asserts every node's box lies inside the canvas for a graph that fits at the floor.
@@ -1934,7 +1969,9 @@ to right, and the height nothing was using carries the rest.
 graph read at half size is four presses to nothing, and its fit button fits with the library's
 options rather than the ones both canvases share. `ZOOM_STEP` is one press either way, and the
 fit button is `fitCapped`, the same one every other fit goes through. A canvas with nothing on it
-has nothing to zoom, so it draws none of them, only the control the screen adds.
+has nothing to zoom, so it draws none of them, only the control the screen adds. **On a page they
+stand in the graph panel's bar** -- zoom out, zoom in, fit, layout -- rather than over a drawing
+that is only as tall as itself; a stage carries them in its corner.
 
 ## The canvas edits
 
@@ -1996,7 +2033,7 @@ step's own pane is where it is renamed -- alongside everything else about it.
 
 **What failed, why, and in which step lands above the fold.** The heading is the pipeline's title
 with its code and the run's instant in mono under it; one line under that says the status word,
-the step it ended at, how long it took and who started it; then the graph, as tall as its drawing.
+the step it ended at, how long it took and who started it; then the graph, filling the room down to the terminal.
 Under the graph a run that did not end well stands its failure panel across the width -- the step
 in mono, the block, the catalogued code, the sentence the step failed with, the connection the step
 named with its health where it named one, and the parameters the run was given -- and the terminal
@@ -2004,12 +2041,27 @@ opens at the foot with every line the run wrote. At 1440 by 900 the failure star
 A run that ended well has no failure to stand. Choosing a box on the graph narrows the terminal to
 that step and opens it in the panel.
 
-**A run's verbs stand in one place whatever the run is doing.** Pause, Resume, Cancel and Rerun are
-always drawn at the right of the heading, in that order, and a verb the run's state does not allow
--- Pause on a paused run, Resume on a running one, any of the first three on a run that has
-finished -- is shut in place with `aria-disabled` and its reason on hover and on focus. A row of
-verbs that grew and shrank with the run's state is a row nobody can learn where Rerun is in.
-Rerun is the primary while the run is settled, and Cancel takes the critical wash while it is not.
+**A run's verbs stand in one place while the run can still move.** While a run is unsettled, Pause,
+Resume, Cancel and Rerun are drawn at the right of the heading, in that order, and a verb the run's
+state does not allow -- Pause on a paused run, Resume on a running one, Rerun on either -- is shut
+in place with `aria-disabled` and its reason on hover and on focus, because the run's state changes
+under the reader and a row that grew and shrank with it is a row nobody can learn. **A settled run
+draws Rerun alone**, as the primary: it will never be paused, resumed or cancelled again, and three
+shut verbs that no state of it will ever open are controls claiming what it cannot give. Cancel
+takes the critical wash while it is open.
+
+**The chosen step is the address.** Choosing a box sets the address to `/runs/<run id>/<step>`,
+and that address loaded chooses the step and opens its panel; the ground, or closing the panel,
+puts it down and the address goes back to `/runs/<run id>`. A fan-out's element and a try of the
+chosen step ride in the query as `?item=<run item id>` and `?attempt=<attempt id>`, drawn open and
+marked and brought into view, and they are dropped when another step is chosen; `?tab=` is kept.
+Every move between steps replaces the address rather than adding one, so Back leaves the run. An
+address naming a step the run does not have opens the run with nothing chosen and one line saying
+so. `lib/step-address` is that, for the run and for the pipeline's page alike.
+
+**A try and an element carry their ids.** Each attempt row in the step panel draws its attempt id,
+and each element of a fan-out's output its run item id, in mono with the copy button the run id
+has. The step's code is the panel's heading and is not drawn again on either.
 
 **A run is named by when it started.** A run has no name of its own and its id is a handle for
 machines, so what heads one is its pipeline's code and the instant it began, spelled the house way

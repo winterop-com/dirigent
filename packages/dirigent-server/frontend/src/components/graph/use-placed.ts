@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { elkEngine } from '@/components/graph/elk'
-import { layoutDag, placedByRank, signatureOf, type LayoutShape, type PlacedGraph } from '@/lib/dag-layout'
+import {
+    DEFAULT_LAYOUT,
+    layoutDag,
+    placedByRank,
+    signatureOf,
+    type LayoutChoice,
+    type LayoutShape,
+    type PlacedGraph,
+} from '@/lib/dag-layout'
 
 /**
  * The one place a canvas asks elk for geometry.
@@ -14,16 +22,17 @@ import { layoutDag, placedByRank, signatureOf, type LayoutShape, type PlacedGrap
  * LAYOUT IS RECOMPUTED ON THE SHAPE, NOT ON THE STATE. A step going from running to succeeded
  * moves nothing, and neither does typing into its config, so the elk call is keyed on the
  * signature of the shape rather than on the object -- otherwise every frame of a live run, and
- * every keystroke in the editor, would re-place the whole canvas.
+ * every keystroke in the editor, would re-place the whole canvas. A view's layout choice is part
+ * of that signature.
  */
-export function usePlacedGraph(shape: LayoutShape): PlacedGraph {
+export function usePlacedGraph(shape: LayoutShape, choice: LayoutChoice = DEFAULT_LAYOUT): PlacedGraph {
     const [placed, setPlaced] = useState<PlacedGraph | null>(null)
-    const signature = signatureOf(shape)
+    const signature = signatureOf(shape, choice)
 
     useEffect(() => {
         let current = true
         void elkEngine()
-            .then((elk) => layoutDag(shape, elk))
+            .then((elk) => layoutDag(shape, elk, choice))
             .then(
                 (result) => {
                     if (current) setPlaced(result)
@@ -36,13 +45,13 @@ export function usePlacedGraph(shape: LayoutShape): PlacedGraph {
         return () => {
             current = false
         }
-        // The geometry is a function of the shape alone, which is what `signature` states.
+        // The geometry is a function of the shape and the choice alone, which is what `signature` states.
         // oxlint-disable-next-line react/exhaustive-deps
     }, [signature])
 
     // One signature, one rough placement: what it is placed from is the shape alone.
     // oxlint-disable-next-line react/exhaustive-deps
-    const rough = useMemo(() => placedByRank(shape), [signature])
+    const rough = useMemo(() => placedByRank(shape, choice), [signature])
 
     return placed ?? rough
 }
