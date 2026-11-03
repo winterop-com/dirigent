@@ -238,7 +238,8 @@ and description, commented out and never loaded; `.dirigent/profiles.yaml`, sayi
 server to talk to; an empty `pipelines/`, or the starters `--pipeline` named; `.dirigent/.gitignore`,
 which keeps `.dirigent/state/` out of the repository while the profiles beside it stay
 committable; `pyproject.toml`, which pins the dirigent runtime the project runs on; a
-`README.md` with the commands for the template; and a root `.gitignore` for `.venv/` and
+`README.md` that goes from here to a running instance, a connection, a first pipeline and a
+coding agent over MCP, for the template and the packs chosen; and a root `.gitignore` for `.venv/` and
 `__pycache__/`. A directory that already has a `pyproject.toml` or a `README.md` keeps its
 own: `dg init` says which files it left alone, and adding `dirigent-cli` to that
 `pyproject.toml` is then yours to do.

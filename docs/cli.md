@@ -361,8 +361,14 @@ stack's `Dockerfile`, or a dependency in `pyproject.toml` for the other two temp
 
 What it writes is a uv project. `pyproject.toml` depends on `dirigent-cli` at the version of
 the `dg` that scaffolded it, so `uv sync` builds the project's own environment and `uv run dg`
-is that pinned runtime rather than whatever is on the path. A `README.md` carries the
-template's commands, `AGENTS.md` the loop a person or a coding agent works in -- find, validate,
+is that pinned runtime rather than whatever is on the path. A `README.md` walks someone who
+has never used dirigent from the scaffold to a working setup, in `uv run dg` throughout: starting
+the template's instance and signing in (admin / admin on a local one, and `--wipe-state` to start
+again), creating a connection, a first starter validated, run with `--local`, applied and run on
+the instance, an `operator` account and token for a coding agent with the project-scope
+`.mcp.json` that reads `${DG_MCP_TOKEN}`, and a table of what goes wrong; a project opened with
+`--pack` gets each pack's connection kinds and the fields they need. It holds no secret.
+`AGENTS.md` the loop a person or a coding agent works in -- find, validate,
 run locally, apply -- with `CLAUDE.md` pointing at it, and a root `.gitignore` covers `.venv/`,
 `__pycache__/` and `.env`. See [working with a coding agent](agents.md). A directory that already
 has a `pyproject.toml`, a `README.md` or either agent file keeps its own -- the record lists those

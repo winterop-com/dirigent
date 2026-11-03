@@ -399,6 +399,64 @@ def test_the_readme_names_the_pinned_runtime_and_the_first_command(tmp_path: Pat
     assert readme.splitlines()[0] == "# read"
 
 
+@pytest.mark.parametrize(
+    ("template", "starts"),
+    [("local", "uv run dg dev"), ("documents", "uv run dg dev"), ("compose", "docker compose up -d --build")],
+)
+def test_the_readme_goes_from_the_scaffold_to_an_agent(tmp_path: Path, template: str, starts: str) -> None:
+    """Every template's README starts its instance, signs in, connects, runs a pipeline and connects an agent."""
+    scaffold(tmp_path / "read", InitChoices(template=template, password="a-long-enough-password"), version="1.2.3")
+    readme = (tmp_path / "read" / "README.md").read_text()
+    for step in (
+        starts,
+        "uv run dg connection create",
+        "authenticate with",
+        "uv run dg pipeline new report-to-file",
+        "uv run dg validate pipelines/report-to-file.yaml",
+        "uv run dg run --local pipelines/report-to-file.yaml",
+        "uv run dg apply",
+        "uv run dg run report-to-file --watch",
+        "--role operator",
+        "at least 8 characters",
+        "uv run dg admin token create mcp --user agent",
+        '"Authorization": "Bearer ${DG_MCP_TOKEN}"',
+        "http://127.0.0.1:3333/mcp",
+        "claude",
+        "database.schema_stale",
+        "address already in use",
+        "401",
+        ".dirigent/profiles.yaml",
+        "cli.version_mismatch",
+    ):
+        assert step in readme, f"the {template} README never says {step!r}"
+    assert "a-long-enough-password" not in readme, "a password the person chose never lands in a file"
+    assert "Connections for the packs you chose" not in readme
+
+
+def test_the_local_readme_names_the_fixed_sign_in_and_the_wipe(tmp_path: Path) -> None:
+    scaffold(tmp_path / "read", InitChoices(template="local", password="admin"), version="1.2.3")
+    readme = (tmp_path / "read" / "README.md").read_text()
+    assert "**admin / admin**" in readme
+    assert "uv run dg dev --wipe-state" in readme
+
+
+def test_the_compose_readme_creates_the_agent_inside_the_stack(tmp_path: Path) -> None:
+    scaffold(tmp_path / "read", InitChoices(template="compose", password="a-long-enough-password"), version="1.2.3")
+    readme = (tmp_path / "read" / "README.md").read_text()
+    assert "docker compose exec server dg admin user create agent --role operator" in readme
+    assert "docker compose down -v" in readme
+
+
+def test_the_readme_names_each_chosen_packs_connection_kinds(tmp_path: Path) -> None:
+    packs = ("dirigent-dhis2", "dirigent-fhir", "dirigent-contrib")
+    scaffold(tmp_path / "read", InitChoices(template="documents", packs=packs), version="1.2.3")
+    readme = (tmp_path / "read" / "README.md").read_text()
+    assert "Connections for the packs you chose" in readme
+    for kind in ("`dhis2`", "`fhir`", "`chap`", "`climate`"):
+        assert kind in readme
+    assert "uv run dg connection create dhis2 dhis2 --set base_url=" in readme
+
+
 def test_the_root_ignore_covers_the_environment_uv_builds_and_the_env_file(tmp_path: Path) -> None:
     scaffold(tmp_path / "plain", InitChoices(), version="1.2.3")
     lines = (tmp_path / "plain" / ".gitignore").read_text().splitlines()
