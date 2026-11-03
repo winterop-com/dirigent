@@ -17,6 +17,10 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**A basic credential a service echoes does not reach a step's output either.** A server quoting the request's `Authorization: Basic ...` header put `user:password` in base64 in the output, which the scrub did not recognise. A connection holding a `password` beside a `username`, or `<prefix>_password` beside `<prefix>_username` such as `basic_password` and `basic_username`, now adds that pair in standard and URL-safe base64, padded or not, to what the scrub replaces, so the header reads `Basic ***`. The encoding is judged on its own, so a basic credential whose password is a word, such as DHIS2's demo `admin` / `district`, is scrubbed in its base64 form while the bare word stays.
+
 ## 0.31.0
 
 Released 2026-11-02. Every package in the workspace moves to 0.31.0 together, and so do

@@ -1130,8 +1130,10 @@ Stated plainly, because a security page that lists only what exists is not much 
   secret the attempt opened; types and shape stay as they are, though two keys that differ only by a
   secret would become one. It reaches a step's output and nothing else: not what a block writes
   straight to storage, not a capture, not a remote handle, not a source's poll. Binary content in an
-  output is base64 by then and is not recognised, and neither is a basic credential a server quotes
-  from its `Authorization` header in base64. A secret that could be ordinary data is left out of this
+  output is base64 by then and is not recognised. A basic credential a server quotes from its
+  `Authorization` header is: a `password` beside a `username`, or `<prefix>_password` beside
+  `<prefix>_username`, adds `user:password` in standard and URL-safe base64, padded or not, judged
+  as the encoding rather than the password, so `Basic ***` is what stays. A secret that could be ordinary data is left out of this
   scrub, in all of its spellings, so it cannot change what a step produced: one under four
   characters, or made only of letters, or only of digits. So a letters-only or digits-only secret a
   service echoes, such as DHIS2's demo `district`, stays in the output, in plain text. Logs and

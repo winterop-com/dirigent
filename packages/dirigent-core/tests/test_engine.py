@@ -1,6 +1,7 @@
 """Tests for the engine end to end on SQLite: claim, execute, settle, recover."""
 
 import asyncio
+import base64
 import json
 import threading
 from contextlib import AbstractAsyncContextManager
@@ -3037,6 +3038,30 @@ async def test_what_a_step_reads_from_an_echoing_step_has_no_secret_in_it(
     await drain(engine)
     attempts = {attempt.step_name: attempt for attempt in await attempts_of(sessions, run.id)}
     assert attempts["second"].output == {"value": "***", "length": 3}
+
+
+async def test_a_basic_credential_a_service_echoes_from_its_authorization_header_is_scrubbed(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    wire = base64.b64encode(b"admin:district").decode()
+    answers: dict[str, Any] = {
+        "headers": {"Authorization": f"Basic {wire}"},
+        "body": json.dumps({"auth": f"Basic {wire}"}),
+        "level": "district",
+    }
+    definition = PipelineDefinition(
+        code="basic-echoed",
+        steps=steps(
+            only=StepDefinition(block="test.quoting", config={"opens": "district", "user": "admin", "answers": answers})
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    assert (await attempts_of(sessions, run.id))[0].output == {
+        "headers": {"Authorization": "Basic ***"},
+        "body": '{"auth": "Basic ***"}',
+        "level": "district",
+    }
 
 
 @pytest.mark.parametrize("word", ["district", "playground", "123456"])

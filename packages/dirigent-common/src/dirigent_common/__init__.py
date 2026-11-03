@@ -83,6 +83,7 @@ from dirigent_common.programs import (
 from dirigent_common.redaction import (
     MIN_OUTPUT_SPELLING,
     REDACTED,
+    basic_spellings,
     scrub,
     scrub_json,
     scrub_output,
@@ -206,6 +207,7 @@ __all__ = [
     "scrub",
     "scrub_json",
     "scrub_output",
+    "basic_spellings",
     "secrets_of",
     "spelled",
     "spellings",

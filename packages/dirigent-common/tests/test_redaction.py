@@ -1,5 +1,6 @@
 """What a secret looks like once a library has quoted it, and scrubbing it out of the text."""
 
+import base64
 import json
 from urllib.parse import quote, quote_plus
 
@@ -9,6 +10,8 @@ from pydantic import BaseModel, JsonValue, SecretStr
 from dirigent_common import (
     MIN_OUTPUT_SPELLING,
     REDACTED,
+    HttpConnectionConfig,
+    basic_spellings,
     raised_detail,
     scrub,
     scrub_json,
@@ -134,3 +137,52 @@ def test_a_message_still_loses_a_word_that_is_a_secret() -> None:
 def test_an_output_with_nothing_to_scrub_is_handed_back_as_it_is() -> None:
     output: dict[str, JsonValue] = {"said": "x"}
     assert scrub_output(output, ()) is output
+
+
+class Logins(BaseModel):
+    username: str = "admin"
+    password: SecretStr = SecretStr("district")
+    other_username: str = "ignored"
+    other_password: SecretStr | None = None
+
+
+def _basic(username: str, password: str, *, urlsafe: bool = False) -> str:
+    pair = f"{username}:{password}".encode()
+    return (base64.urlsafe_b64encode(pair) if urlsafe else base64.b64encode(pair)).decode()
+
+
+def test_a_basic_credential_echoed_as_its_header_is_scrubbed_from_an_output() -> None:
+    config = HttpConnectionConfig(
+        base_url="https://x.test", basic_username="admin", basic_password=SecretStr("district")
+    )
+    wire = _basic("admin", "district")
+    output: dict[str, JsonValue] = {
+        "headers": {"Authorization": f"Basic {wire}"},
+        "bare": wire,
+        "quoted": quote(wire, safe=""),
+    }
+    assert scrub_output(output, secrets_of(config)) == {
+        "headers": {"Authorization": f"Basic {REDACTED}"},
+        "bare": REDACTED,
+        "quoted": REDACTED,
+    }
+
+
+@pytest.mark.parametrize("password", ["dist>>ri?ct", "dist>>ri?c", "s3cret-Token"])
+def test_a_basic_credential_is_scrubbed_in_url_safe_and_unpadded_base64(password: str) -> None:
+    held = basic_spellings("admin", password)
+    for wire in (_basic("admin", password), _basic("admin", password, urlsafe=True)):
+        assert scrub_output({"said": f"Basic {wire}"}, held) == {"said": f"Basic {REDACTED}"}
+        assert scrub_output({"said": f"x {wire.rstrip('=')} y"}, held) == {"said": f"x {REDACTED} y"}
+
+
+def test_a_password_pairs_with_the_username_its_name_shares_a_prefix_with() -> None:
+    found = secrets_of(Logins(other_password=SecretStr("s3cret")))
+    assert _basic("admin", "district") in found
+    assert _basic("ignored", "s3cret") in found
+    assert _basic("admin", "s3cret") not in found
+
+
+def test_a_password_with_no_username_adds_no_basic_spelling() -> None:
+    config = HttpConnectionConfig(base_url="https://x.test", basic_password=SecretStr("s3cret-Token"))
+    assert secrets_of(config) == spellings("s3cret-Token")
