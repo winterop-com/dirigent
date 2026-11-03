@@ -743,8 +743,12 @@ const shell = {
     account: {
         /** The control's name, which carries the username the avatar stands for. */
         label: (username: string) => `Account: ${username}`,
-        /** The menu's foot: the instance's own line, and its version. */
+        /** The menu's head, under the username: the instance's own line, and its version. */
         instance: (line: string, version: string) => `${line} · ${version}`,
+        /** The row that opens the shortcuts dialog. */
+        shortcuts: 'Keyboard shortcuts',
+        /** The submenu that sets the mode. */
+        appearance: 'Appearance',
     },
 
     resize_panel: 'Resize the side panel',
@@ -758,10 +762,7 @@ const shell = {
     /** The menu a screen's verbs fold into where the strip cannot hold them all. */
     more_actions: 'More actions',
 
-    /** The corner toggle, which names the mode a click would put the app in. */
-    switch_to_light: 'Switch to light',
-    switch_to_dark: 'Switch to dark',
-    /** The mode axis: the Theme pane's control, and the palette's appearance rows. */
+    /** The mode axis: the Theme pane's control, the account menu's submenu, and the palette's rows. */
     mode: {
         light: 'Light',
         dark: 'Dark',

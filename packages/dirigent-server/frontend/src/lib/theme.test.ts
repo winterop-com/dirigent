@@ -10,6 +10,10 @@ import {
     PALETTE_STORAGE_KEY,
     PALETTES,
     isPaletteName,
+    MODE_ICONS,
+    MODE_LABELS,
+    MODES,
+    modeOf,
     paletteAfter,
 } from '@/lib/theme'
 
@@ -87,5 +91,21 @@ describe('the arrows over the swatch cards', () => {
         for (const key of [' ', 'Enter', 'Tab', 'Escape', 'a']) {
             expect(paletteAfter('dirigent', key)).toBeNull()
         }
+    })
+})
+
+describe('the mode axis', () => {
+    test('reads each stored setting as itself', () => {
+        for (const mode of MODES) expect(modeOf(mode)).toBe(mode)
+    })
+
+    test('reads nothing stored, or a value it does not know, as System', () => {
+        expect(modeOf(undefined)).toBe('system')
+        expect(modeOf('sepia')).toBe('system')
+    })
+
+    test('names and marks every setting, each with its own mark', () => {
+        expect(Object.keys(MODE_LABELS).toSorted()).toEqual([...MODES].toSorted())
+        expect(new Set(MODES.map((mode) => MODE_ICONS[mode])).size).toBe(MODES.length)
     })
 })

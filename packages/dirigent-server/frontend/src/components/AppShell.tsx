@@ -16,7 +16,6 @@ import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { ServerStatusButton } from '@/components/ServerStatusButton'
 import { useTheme } from 'next-themes'
 
-import { MODES, MODE_LABELS, ThemeToggle } from '@/components/ThemeToggle'
 import { Code } from '@/components/ds/Code'
 import { IconButton } from '@/components/ds/IconButton'
 
@@ -41,6 +40,7 @@ import {
 import { railHidden, toggleRail, togglePanel } from '@/lib/panels'
 import { screenStatus, type StatusTone } from '@/lib/screen-status'
 import { modifierLabel, applePlatform } from '@/lib/shortcuts'
+import { MODE_ICONS, MODES, MODE_LABELS } from '@/lib/theme'
 import { cn } from '@/lib/utils'
 
 export const SIGN_OUT_LABEL = LABELS.action.sign_out
@@ -235,7 +235,7 @@ export function AppShell() {
                 id: `appearance:${mode}`,
                 title: MODE_LABELS[mode],
                 group: APPEARANCE_GROUP,
-                icon: mode === 'light' ? ICONS.light : mode === 'dark' ? ICONS.dark : ICONS.system,
+                icon: MODE_ICONS[mode],
                 keywords: ['theme', 'appearance', mode],
                 run: () => {
                     setTheme(mode)
@@ -319,7 +319,6 @@ export function AppShell() {
                         />
                     )}
                     <ServerStatusButton onOpen={openServerPane} />
-                    <ThemeToggle />
                 </header>
 
                 <main className="flex min-h-0 w-full flex-1 flex-col">

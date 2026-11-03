@@ -8,7 +8,6 @@ import { Refusal } from '@/components/Refusal'
 import { SEARCH_PLACEHOLDER } from '@/components/ds/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { Dot, TONE } from '@/components/ServerStatusButton'
-import { MODE_LABELS, MODES, type Mode } from '@/components/ThemeToggle'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -37,7 +36,16 @@ import {
 } from '@/lib/settings'
 import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { readSystemInfo, type SystemInfo } from '@/lib/system'
-import { choosePalette, paletteAfter, PALETTES, paletteStore, type PaletteName } from '@/lib/theme'
+import {
+    choosePalette,
+    MODE_LABELS,
+    MODES,
+    paletteAfter,
+    PALETTES,
+    paletteStore,
+    type Mode,
+    type PaletteName,
+} from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
 import { TextLink } from '@/components/ds/TextLink'

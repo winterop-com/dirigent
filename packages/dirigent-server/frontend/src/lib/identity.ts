@@ -65,3 +65,9 @@ export function oneLine(description: string): string {
     const sentence = /^.*?[.!?](?=\s|$)/.exec(flat)
     return sentence === null ? flat : sentence[0]
 }
+
+/** The letter an avatar stands for an account with: the username's first, upper case. */
+export function initialOf(username: string): string {
+    const first = [...username.trim()][0]
+    return first === undefined ? '' : first.toLocaleUpperCase()
+}
