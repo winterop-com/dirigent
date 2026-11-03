@@ -164,6 +164,7 @@ def test_an_interrupted_runner_exits_without_a_traceback() -> None:
 
     assert started.returncode == 130
     assert b"Traceback" not in err
+    assert b"KeyboardInterrupt" not in err
 
 
 async def test_every_runner_a_worker_started_is_stopped_when_it_exits(

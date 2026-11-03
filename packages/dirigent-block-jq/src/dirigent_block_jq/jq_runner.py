@@ -16,12 +16,29 @@ nothing else to start. Importing it as part of its package would load the
 whole plugin in order to evaluate ``.name``.
 """
 
-import json
 import os
-import sys
-from typing import Any
+import signal
+from types import FrameType
 
-import jq
+
+def interrupted(_signal: int, _frame: FrameType | None) -> None:
+    """End with the interrupt's status and no traceback, wherever the process is.
+
+    An interrupt that lands between two requests is acted on only once the next read returns,
+    which may be after the read loop has ended, so it ends the process rather than raising.
+    """
+    os._exit(130)
+
+
+# Only a process started by path ends this way; a test importing the module keeps its own Ctrl-C.
+if __name__ == "__main__":
+    signal.signal(signal.SIGINT, interrupted)
+
+import json  # noqa: E402
+import sys  # noqa: E402
+from typing import Any  # noqa: E402
+
+import jq  # noqa: E402
 
 #: Typed ``Any`` because the jq binding is a C extension that ships no type information.
 libjq: Any = jq
@@ -63,11 +80,9 @@ def answer(programs: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
 
 
 def quietly() -> None:
-    """Serve until the pipe closes, ending without a traceback when interrupted or when the parent stops reading."""
+    """Serve until the pipe closes, ending without a traceback when the parent stops reading."""
     try:
         main()
-    except KeyboardInterrupt:
-        sys.exit(130)
     except BrokenPipeError:
         # Pointed at the void, so the flush at interpreter exit has nothing left to fail on.
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
