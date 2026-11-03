@@ -41,6 +41,8 @@ export interface ConnectionOut {
     config: JsonMap
     /** Which fields the kind declares secret, so a form knows what to render as a password. */
     secret_fields: string[]
+    /** Created with its settings alone; nothing uses it until a person sets its secrets. */
+    awaiting_secrets: boolean
     last_check_at: string | null
     last_check_healthy: boolean | null
     last_check_detail: string | null
@@ -312,8 +314,8 @@ function short(value: unknown): string {
     return text.length <= VALUE_BUDGET ? text : `${text.slice(0, VALUE_BUDGET - 1)}…`
 }
 
-/** Whether a connection answered, refused, could not be verified, or has never been asked. */
-export type HealthState = 'healthy' | 'failed' | 'unverified' | 'unchecked'
+/** Whether a connection answered, refused, could not be verified, has never been asked, or awaits its secrets. */
+export type HealthState = 'healthy' | 'failed' | 'unverified' | 'unchecked' | 'awaiting'
 
 /** The words a connection's health is said in, wherever one is drawn. */
 export type HealthLabel =
@@ -321,6 +323,7 @@ export type HealthLabel =
     | typeof LABELS.state.health.failed.word
     | typeof LABELS.state.health.unverified
     | typeof LABELS.state.health.unchecked
+    | typeof LABELS.state.health.awaiting
 
 /** How a connection's health reads in the listing. */
 export interface HealthView {
@@ -342,9 +345,16 @@ export interface HealthView {
  * checked, and a check that ran and could not verify what it was asked about -- a Slack
  * incoming webhook, which only a real post would prove. Neither earns a colour.
  */
-export function healthOf(
-    row: Pick<ConnectionOut, 'last_check_at' | 'last_check_healthy' | 'last_check_detail'>,
-): HealthView {
+export function healthOf(row: Checked): HealthView {
+    if (row.awaiting_secrets === true) {
+        return {
+            state: 'awaiting',
+            tone: null,
+            label: LABELS.state.health.awaiting,
+            detail: null,
+            checkedAt: null,
+        }
+    }
     if (row.last_check_at === null) {
         return {
             state: 'unchecked',
@@ -390,10 +400,13 @@ export interface ConnectionsHealth {
     unverified: number
     /** How many nothing has ever asked, which is none of the other three. */
     unchecked: number
+    /** How many hold their settings alone, which nothing can ask until their secrets are set. */
+    awaiting: number
 }
 
-/** A row this app reads a connection's health off, which is the three fields a check writes. */
-export type Checked = Pick<ConnectionOut, 'last_check_at' | 'last_check_healthy' | 'last_check_detail'>
+/** A row this app reads a connection's health off: the three fields a check writes, and whether it awaits its secrets. */
+export type Checked = Pick<ConnectionOut, 'last_check_at' | 'last_check_healthy' | 'last_check_detail'> &
+    Partial<Pick<ConnectionOut, 'awaiting_secrets'>>
 
 /** How a set of connections came out the last time anything asked each of them. */
 export function connectionsHealth(rows: readonly Checked[]): ConnectionsHealth {
@@ -404,6 +417,7 @@ export function connectionsHealth(rows: readonly Checked[]): ConnectionsHealth {
         failed: states.filter((state) => state === 'failed').length,
         unverified: states.filter((state) => state === 'unverified').length,
         unchecked: states.filter((state) => state === 'unchecked').length,
+        awaiting: states.filter((state) => state === 'awaiting').length,
     }
 }
 
@@ -425,13 +439,14 @@ export function connectionsNote(
     noun: Counted<string> | null = null,
 ): string | null {
     if (rows.length === 0) return null
-    const { total, healthy, unverified, unchecked } = connectionsHealth(rows)
+    const { total, healthy, unverified, unchecked, awaiting } = connectionsHealth(rows)
     const named = noun === null ? '' : ` ${counted(total, noun)}`
     const said = [LABELS.connections.note.healthy(String(healthy), String(total), named)]
     if (unverified > 0) said.push(LABELS.connections.note.unverified(String(unverified)))
     if (unchecked > 0) {
         said.push(counted(unchecked, LABELS.connections.note.never_checked)(String(unchecked)))
     }
+    if (awaiting > 0) said.push(LABELS.connections.note.awaiting(String(awaiting)))
     return said.join(' · ')
 }
 

@@ -99,6 +99,15 @@ CANNOT_PROMPT = CLI.define("cannot_prompt", "--json cannot prompt for {label}; p
 
 CANNOT_PROMPT_SET = CLI.define("cannot_prompt_set", "--json cannot prompt for {field}; pass it as --set {field}=...")
 
+CANNOT_PROMPT_SECRET = CLI.define(
+    "cannot_prompt_secret",
+    "dg connection set-secret asks for each secret at a terminal, without echoing it, and nobody is at one here",
+)
+
+NOT_A_SECRET_FIELD = CLI.define(
+    "not_a_secret_field", "{field} is not a secret field of connection {code}, whose secret fields are {fields}"
+)
+
 PARAMS_REFUSED = CLI.define("params_refused", "{detail}")
 
 INPUT_REFUSED = CLI.define("input_refused", "--input is not JSON or YAML: {detail}")

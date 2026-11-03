@@ -1848,6 +1848,64 @@ def test_a_required_secret_given_empty_is_refused(server: str) -> None:
     assert "cannot prompt for api_token" in refusal(refused.stdout)["message"]
 
 
+def create_awaiting(server: str, code: str, kind: str, config: dict[str, Any]) -> None:
+    """Create a connection with its settings alone, as an agent's create_connection does."""
+    import httpx2
+
+    created = httpx2.post(
+        f"{os.environ['DG_URL']}/api/v1/connections",
+        json={"code": code, "kind": kind, "config": config, "awaiting_secrets": True},
+        headers={"Authorization": f"Bearer {server}"},
+    )
+    assert created.status_code == 201, created.text
+
+
+@pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
+def test_set_secret_prompts_for_each_secret_and_completes_a_connection_awaiting_them(
+    server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    create_awaiting(server, "vault", "secretful", {"endpoint": "https://vault.example.org"})
+    assert only(machine("connection", "show", "vault").stdout, "connection")["fields"]["awaiting_secrets"] is True
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    monkeypatch.setattr(typer, "prompt", prompting(asked, {"api_token": "t0ken"}))
+
+    completed = invoke("connection", "set-secret", "vault")
+
+    assert completed.exit_code == 0, completed.output
+    assert asked == ["api_token", "spare_token"]
+    assert "t0ken" not in completed.output
+    stored = only(machine("connection", "show", "vault").stdout, "connection")["fields"]
+    assert stored["awaiting_secrets"] is False
+    assert (stored["config"]["endpoint"], stored["config"]["api_token"], stored["config"]["spare_token"]) == (
+        "https://vault.example.org",
+        "***",
+        None,
+    )
+
+
+@pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
+def test_set_secret_asks_only_for_the_fields_named_and_refuses_one_that_is_not_secret(
+    server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    create_awaiting(server, "vault", "secretful", {"endpoint": "https://vault.example.org"})
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    monkeypatch.setattr(typer, "prompt", prompting(asked, {"api_token": "t0ken"}))
+
+    assert invoke("connection", "set-secret", "vault", "endpoint").exit_code == 1
+    assert asked == [], "nothing is asked before every field named is known to be secret"
+    assert invoke("connection", "set-secret", "vault", "api_token").exit_code == 0
+    assert asked == ["api_token"]
+
+
+def test_set_secret_with_nobody_at_a_terminal_is_refused(server: str) -> None:
+    machine("connection", "create", "http", "ops-api", "--set", "base_url=https://ops.example.org")
+    refused = machine("connection", "set-secret", "ops-api")
+    assert refused.exit_code == 1
+    assert "asks for each secret at a terminal" in refusal(refused.stdout)["message"]
+
+
 def test_system_info_and_the_worker_registry(server: str) -> None:
     info = invoke("system", "info")
     assert "sqlite" in info.output

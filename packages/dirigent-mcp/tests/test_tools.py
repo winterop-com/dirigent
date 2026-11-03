@@ -1,10 +1,10 @@
-"""The tools and resources that read connections, schemas, alert rules and sources, and rotate a source's token."""
+"""The tools and resources for connections, schemas, alert rules and sources, and a source's token."""
 
 import asyncio
 import json
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import httpx2
 import pytest
@@ -12,15 +12,18 @@ from cryptography.fernet import Fernet
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr, model_validator
 
 from dirigent_client import AlertEvent, Dirigent
 from dirigent_client.enums import UserRole
+from dirigent_common import BlockModel, HealthReport
 from dirigent_core.auth import create_user, issue_token
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.models import Base
+from dirigent_core.plugins import load_plugin_host
 from dirigent_mcp import server as mcp_server
+from dirigent_plugin import ConnectionKind, Contribution, extension
 from dirigent_server import create_app
 
 #: A secret no answer may carry.
@@ -41,6 +44,33 @@ steps:
     config:
       value: hello
 """
+
+
+class VaultConfig(BlockModel):
+    """A kind the model refuses without a credential, as a DHIS2 connection is."""
+
+    endpoint: str
+    api_token: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def _a_credential(self) -> "VaultConfig":
+        if self.api_token is None:
+            raise ValueError("a vault connection needs an api_token")
+        return self
+
+
+class VaultKind(ConnectionKind):
+    id: ClassVar[str] = "vault"
+    config_model: ClassVar[type[BaseModel]] = VaultConfig
+
+    async def check(self, config: BaseModel) -> HealthReport:
+        return HealthReport(healthy=True)
+
+
+class VaultPlugin:
+    @extension
+    def contribute(self) -> Contribution:
+        return Contribution(connection_kinds=[VaultKind()])
 
 
 @pytest.fixture
@@ -78,7 +108,8 @@ def tokens(settings: Settings) -> dict[UserRole, str]:
 @pytest.fixture
 async def clients(settings: Settings, tokens: dict[UserRole, str]) -> AsyncGenerator[dict[UserRole, Dirigent]]:
     """A client per role, each reaching the real application without a socket in between."""
-    app = create_app(settings.model_copy(update={"mcp_enabled": False}), scheduler=False)
+    host = load_plugin_host(extra={"vault": VaultPlugin()})
+    app = create_app(settings.model_copy(update={"mcp_enabled": False}), scheduler=False, host=host)
     async with httpx2.ASGITransport(app) as transport, app.router.lifespan_context(app):
         opened = {
             role: Dirigent(url="http://testserver", token=token, http_transport=transport)
@@ -145,6 +176,50 @@ async def test_checking_a_connection_is_the_apis_to_refuse_to_an_operator(
     with pytest.raises(ToolError, match="not permitted for your role"):
         await operator.call_tool("check_connection", {"code": "warehouse"})
     assert (await call(operator, "get_connection", code="warehouse"))["code"] == "warehouse"
+
+
+async def test_a_connection_is_created_awaiting_the_secrets_a_person_supplies(admin: MCPServer) -> None:
+    created = await call(
+        admin, "create_connection", kind="vault", code="vault", settings={"endpoint": "https://vault.invalid"}
+    )
+
+    assert created["connection"]["awaiting_secrets"] is True
+    assert created["secrets_to_supply"] == ["api_token"]
+    assert created["supply_with"] == {
+        "command": "dg --url http://testserver connection set-secret vault",
+        "screen": "http://testserver/connections/vault",
+    }
+    assert (await call(admin, "get_connection", code="vault"))["awaiting_secrets"] is True
+    with pytest.raises(ToolError, match="awaits its secrets"):
+        await admin.call_tool("check_connection", {"code": "vault"})
+
+
+async def test_a_connection_whose_secrets_are_optional_says_which_are_unset(admin: MCPServer) -> None:
+    created = await call(
+        admin, "create_connection", kind="http", code="api", name="The API", settings={"base_url": "https://x.invalid"}
+    )
+
+    assert (created["connection"]["name"], created["connection"]["awaiting_secrets"]) == ("The API", True)
+    assert {"bearer_token", "basic_password"} <= set(created["secrets_to_supply"])
+
+
+async def test_a_secret_handed_to_create_connection_is_refused_by_name_and_never_repeated(
+    admin: MCPServer,
+) -> None:
+    with pytest.raises(ToolError) as refused:
+        await admin.call_tool(
+            "create_connection",
+            {"kind": "http", "code": "api", "settings": {"base_url": "https://x.invalid", "bearer_token": SECRET}},
+        )
+
+    assert "bearer_token" in str(refused.value)
+    assert SECRET not in str(refused.value)
+    assert (await call(admin, "list_connections"))["items"] == []
+
+
+async def test_creating_a_connection_is_the_apis_to_refuse_to_an_operator(operator: MCPServer) -> None:
+    with pytest.raises(ToolError, match="not permitted for your role"):
+        await operator.call_tool("create_connection", {"kind": "http", "code": "api", "settings": {}})
 
 
 async def test_a_schema_is_listed_and_read(operator: MCPServer, clients: dict[UserRole, Dirigent]) -> None:
@@ -214,6 +289,7 @@ async def test_every_tool_says_whether_it_writes_destroys_or_repeats(operator: M
     assert hints["apply_document"][:3] == (False, True, True)
     assert hints["cancel_run"][:3] == (False, True, False)
     assert hints["check_connection"] == (False, False, True, True)
+    assert hints["create_connection"] == (False, False, False, False)
     assert hints["run_pipeline"] == (False, False, False, True)
     assert hints["pause_source"][:3] == (False, False, True)
     assert not {name for name in tools if name.startswith("delete")}

@@ -45,6 +45,7 @@ def upgrade() -> None:
         sa.Column("config", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False),
         sa.Column("secret_envelope", sa.LargeBinary(), nullable=True),
         sa.Column("secret_key_id", sa.String(length=100), nullable=True),
+        sa.Column("awaiting_secrets", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("last_check_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("last_check_healthy", sa.Boolean(), nullable=True),
         sa.Column("last_check_detail", sa.Text(), nullable=True),

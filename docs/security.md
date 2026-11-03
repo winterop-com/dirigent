@@ -278,8 +278,17 @@ unmounts it, and `/mcp` then answers 404.
 - **A token is offered what its role may call.** Each role gets a server of its own, so a client
   never offers its model a call the API would refuse with 403: a viewer's leaves out every tool
   that writes and `plan_document`, whose dry run is an operator's route, and an operator's leaves
-  out `check_connection`, which is an admin's. Whatever a tool calls is still decided by the route
-  it reaches. `DG_MCP_READ_ONLY=1` over stdio offers what a viewer is offered.
+  out `check_connection` and `create_connection`, which are an admin's. Whatever a tool calls is
+  still decided by the route it reaches. `DG_MCP_READ_ONLY=1` over stdio offers what a viewer is
+  offered.
+- **No secret passes through it.** What an agent is given lands in its transcript, so no tool
+  takes or shows a credential. `create_connection` sends `awaiting_secrets`, and the API then
+  refuses any field the kind declares secret (`SecretStr`) by name and never by value
+  (`server.secrets_withheld`), stores the settings alone, and waives the kind's validation only
+  where a missing secret is the cause. Such a connection is refused by a step, a source, an alert
+  and a check (`secret.connection_awaiting_secrets`) until a person supplies its secrets with
+  `dg connection set-secret` or the Connections screen, an update whose config the kind's model
+  accepts whole.
 - **The origin is checked, as the MCP specification requires against DNS rebinding.** A request a
   browser says another site caused (`Sec-Fetch-Site` other than `same-origin` or `none`) or whose
   `Origin` is not this instance's own scheme, host and port is answered 403

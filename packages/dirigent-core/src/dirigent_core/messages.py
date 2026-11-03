@@ -120,6 +120,13 @@ CONNECTION_UNREADABLE = SECRET.define(
     "a stored connection does not fit the configuration read from it: {detail}",
 )
 
+CONNECTION_AWAITING_SECRETS = SECRET.define(
+    "connection_awaiting_secrets",
+    "connection {connection} holds its settings and awaits its secrets ({fields}): a person supplies them "
+    "with `dg connection set-secret {connection}` or in its dialog on the Connections screen, "
+    "and nothing uses it until then",
+)
+
 ARTIFACTS = Catalogue("artifacts")
 
 NOT_A_URI = ARTIFACTS.define("not_a_uri", "{uri} is not a URI: it names no scheme")

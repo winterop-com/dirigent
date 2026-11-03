@@ -39,6 +39,7 @@ from dirigent_cli.messages import (
     ALREADY_THERE,
     AS_IS_ONE_DOCUMENT,
     CANNOT_PROMPT,
+    CANNOT_PROMPT_SECRET,
     CANNOT_PROMPT_SET,
     CONCURRENCY_REFUSED,
     DOCUMENT_INVALID,
@@ -68,6 +69,7 @@ from dirigent_cli.messages import (
     NOT_A_PIPELINE_CODE,
     NOT_A_PRIORITY,
     NOT_A_RUN_STATUS,
+    NOT_A_SECRET_FIELD,
     NOT_A_STARTER,
     NOT_A_WINDOW,
     NOT_AN_IMPORTANCE,
@@ -2638,7 +2640,9 @@ def connection_list(
                 escape(row.name or "-"),
                 escape(row.kind),
                 moment(row.last_check_at),
-                render_check(row.last_check_at, row.last_check_healthy),
+                "[yellow]awaiting secrets[/]"
+                if row.awaiting_secrets
+                else render_check(row.last_check_at, row.last_check_healthy),
                 escape(row.description or "-"),
             ]
             for row in rows
@@ -2721,6 +2725,51 @@ def _connection_entry(catalog: Catalog, kind_id: str) -> SurfaceEntry:
     fail(UNKNOWN_CONNECTION_KIND, kind=repr(kind_id), known=known)
 
 
+@connection_app.command("set-secret")
+def connection_set_secret(
+    ctx: typer.Context,
+    code: Annotated[str, typer.Argument(help="The connection whose secrets to set.")],
+    field_names: Annotated[
+        list[str] | None,
+        typer.Argument(metavar="[FIELD]...", help="The secret fields to set; every one the kind declares if none."),
+    ] = None,
+) -> None:
+    """Set a connection's secrets, prompting for each without echoing it.
+
+    A prompt answered blank keeps what is stored. The connection's settings are sent back with
+    the secrets, so the server validates them whole, and that completes a connection created
+    awaiting its secrets.
+    """
+    if not at_a_terminal() or json_mode():
+        fail(CANNOT_PROMPT_SECRET)
+    refuse_a_server_a_project_named(state_of(ctx))
+    with client_for(state_of(ctx)) as dg:
+        row = dg.call(dg.connections.get(code))
+        asked = field_names or row.secret_fields
+        for field in asked:
+            if field not in row.secret_fields:
+                fail(NOT_A_SECRET_FIELD, field=field, code=code, fields=", ".join(row.secret_fields) or "none")
+        config = dict(row.config)
+        typed: list[str] = []
+        for field in asked:
+            value = typer.prompt(field, hide_input=True, default="", show_default=False)
+            if value:
+                config[field] = value
+                typed.append(field)
+        updated = dg.call(dg.connections.update(code, config=config))
+    emit_fact(
+        "connection.updated",
+        message="updated",
+        code=updated.code,
+        connection_kind=updated.kind,
+        name=updated.name,
+        description=updated.description,
+        config=updated.config,
+        awaiting_secrets=updated.awaiting_secrets,
+        set=typed,
+    )
+
+
 @connection_app.command("show")
 def connection_show(
     ctx: typer.Context,
@@ -2738,6 +2787,7 @@ def connection_show(
             "kind": row.kind,
             "description": row.description or "-",
             **row.config,
+            **({"awaiting secrets": f"dg connection set-secret {code}"} if row.awaiting_secrets else {}),
             "used by": said(row.used_by) or "-",
         },
     )

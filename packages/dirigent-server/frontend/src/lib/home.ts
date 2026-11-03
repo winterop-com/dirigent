@@ -335,6 +335,8 @@ function detailOf(view: HealthView): string {
             return ''
         case 'failed':
             return view.detail ?? LABELS.state.health.failed.sentence
+        case 'awaiting':
+            return LABELS.state.health.awaiting
     }
 }
 

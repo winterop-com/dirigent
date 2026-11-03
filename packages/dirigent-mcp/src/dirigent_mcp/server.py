@@ -80,6 +80,11 @@ STOPS: Final = ToolAnnotations(
     read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False
 )
 
+#: Stores something new under a code; asking twice is refused, since the code is taken.
+CREATES: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
+)
+
 #: Replaces a credential, so every caller holding the old one is shut out.
 ROTATES: Final = ToolAnnotations(
     read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False
@@ -101,6 +106,8 @@ lists under sources.removed and triggers.schedules_removed what applying it woul
 apply_document retires a source, with its input journal and token, and a schedule when the
 document stops declaring them, so plan first and keep every source and schedule a pipeline has.
 A run is started with run_pipeline, read with get_run, run_logs and run_attempts, and run again with rerun_run.
+A secret never passes through this server: create_connection stores a connection's settings
+alone, and a person supplies its secrets with the command it answers before anything uses it.
 The resources dirigent://schema/document and dirigent://blocks are the document format and the
 block catalogue to write against."""
 
@@ -429,6 +436,41 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
     async def check_connection(code: str) -> Any:
         """Ask a connection's outside system whether it answers with the stored credential, and record it."""
         return await call(lambda dg: dg.connections.check(code))
+
+    @tool(CREATES, needs=Offers.ADMINISTERING)
+    async def create_connection(
+        kind: str,
+        code: str,
+        name: str | None = None,
+        description: str | None = None,
+        settings: JsonMap | None = None,
+    ) -> Any:
+        """Create a connection with its settings alone, for a person to supply its secrets.
+
+        `settings` holds the kind's non-secret fields. A secret field of the kind (a connection's
+        `secret_fields`) is refused by name, so no credential belongs here or anywhere in this
+        conversation. Nothing uses the connection until a person has supplied its secrets.
+        Answers the connection, `secrets_to_supply`, and `supply_with`: the command a person
+        runs, or the screen they open, to set them.
+        """
+
+        async def created(dg: Dirigent) -> Any:
+            made = await dg.connections.create(
+                code, kind=kind, config=settings or {}, name=name, description=description, awaiting_secrets=True
+            )
+            if not made.awaiting_secrets:
+                return {"connection": _json(made), "secrets_to_supply": [], "supply_with": None}
+            origin = dg.url.rstrip("/")
+            return {
+                "connection": _json(made),
+                "secrets_to_supply": [field for field in made.secret_fields if made.config.get(field) is None],
+                "supply_with": {
+                    "command": f"dg --url {origin} connection set-secret {made.code}",
+                    "screen": f"{origin}/connections/{made.code}",
+                },
+            }
+
+        return await call(created)
 
     @tool(READS)
     async def list_schemas(after: str | None = None, limit: int = DEFAULT_LIMIT) -> Any:

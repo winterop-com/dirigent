@@ -23,6 +23,7 @@ const CONNECTION: ConnectionOut = {
     description: null,
     config: { base_url: 'https://play.example' },
     secret_fields: ['password'],
+    awaiting_secrets: false,
     last_check_at: null,
     last_check_healthy: null,
     last_check_detail: null,

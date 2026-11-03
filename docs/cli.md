@@ -1036,7 +1036,7 @@ verb and whose fields are the identity of what changed:
 | `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
 | `notification.retried` | `dg alerts retry` | `notification_id`, `notifier`, `subject`, `attempt`, `available_at` |
-| `connection.created` / `.updated` | `dg connection create`, `dg connection ensure` | `code`, `connection_kind`, `name`, `description`, and the `config` with every secret field redacted |
+| `connection.created` / `.updated` | `dg connection create`, `dg connection ensure`, `dg connection set-secret` | `code`, `connection_kind`, `name`, `description`, and the `config` with every secret field redacted; from `set-secret`, also `awaiting_secrets` and the fields it `set` |
 | `connection.checked` | `dg connection check` | `code`, `healthy` -- `true`, `false`, or `null` where the check ran and could not verify -- `detail`, `version` |
 | `connection.deleted` | `dg connection delete` | `code` |
 | `run.cancelled` | `dg runs cancel` | `run_id`, `status` |
@@ -1238,6 +1238,7 @@ dg schema update CODE [FILE|-] [--name TEXT] [--description TEXT]   # a label gi
 # Connect
 dg connection list | show CODE | check CODE | delete CODE
 dg connection create KIND CODE [--name TEXT] [--set field=value] [--description TEXT]
+dg connection set-secret CODE [FIELD]...
 dg connection ensure KIND CODE [--name TEXT] [--set field=value] [--description TEXT]
 
 # Triggers
@@ -1376,6 +1377,19 @@ a dhis2 connection needs one of these credentials, and none was given: api_token
 An empty value is not a credential: `--set bearer_token=` leaves the field unset rather than
 sealing an empty string, so every read afterwards says `null` rather than `***`. A required
 secret given empty is refused exactly as one left out is.
+
+### `dg connection set-secret`
+
+`dg connection set-secret CODE` asks for each secret field the connection's kind declares, or
+only the `FIELD`s named, hiding the answer as it is typed; Enter keeps what is stored. It sends
+the connection's settings back with what was typed, so the kind validates the whole config, and
+that completes a connection an agent created with its settings alone (`create_connection` over
+MCP): until then it is listed as awaiting secrets and nothing uses it. It only prompts, so it
+runs at a terminal and is refused in a script.
+
+```bash
+dg connection set-secret dhis2-play basic_password
+```
 
 ### `dg connection ensure`
 

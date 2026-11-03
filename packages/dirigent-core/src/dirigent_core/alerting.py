@@ -66,6 +66,7 @@ from dirigent_core.models import (
     Run,
     utcnow,
 )
+from dirigent_core.secrets import ConnectionAwaitingSecrets, unset_secrets
 from dirigent_plugin import AlertMessage, Notifier
 
 if TYPE_CHECKING:
@@ -763,6 +764,13 @@ def notifier_config(services: EngineServices, notifier: Notifier, connection: Co
     """Open the connection a notifier delivers through, validated against its own model."""
     if connection is None:
         return notifier.config_model()
+    if connection.awaiting_secrets:
+        raise ConnectionAwaitingSecrets(
+            connection.code,
+            unset_secrets(
+                notifier.config_model, dict(connection.config), sealed=connection.secret_envelope is not None
+            ),
+        )
     return services.secrets.decrypt_config(
         notifier.config_model, connection.config, connection.secret_envelope, key_id=connection.secret_key_id
     )

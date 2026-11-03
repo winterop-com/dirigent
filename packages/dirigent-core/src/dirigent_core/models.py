@@ -166,6 +166,8 @@ class Connection(Entity):
     config: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
     secret_envelope: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
     secret_key_id: Mapped[str | None] = mapped_column(sa.String(100))
+    awaiting_secrets: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    """Holds its settings alone until a person supplies its secrets; nothing uses it until then."""
     last_check_at: Mapped[datetime | None] = mapped_column(Timestamp)
     last_check_healthy: Mapped[bool | None] = mapped_column(sa.Boolean)
     last_check_detail: Mapped[str | None] = mapped_column(SaidText)
