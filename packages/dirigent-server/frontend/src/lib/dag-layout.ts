@@ -741,7 +741,7 @@ export function startOfOverflow(view: GraphView, bounds: GraphBounds): GraphView
 export const WHEEL_ZOOM_LIMIT = 1.15
 
 /**
- * The factor one modified wheel event zooms a canvas on a page by.
+ * The factor one wheel event zooms a canvas on a page by, where a wheel zooms it.
  *
  * A pinch arrives as many events of a few pixels and a mouse wheel as notches of a hundred, so the
  * delta is read in pixels and each event is held to `WHEEL_ZOOM_LIMIT`: a notch is one step, and a

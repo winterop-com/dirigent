@@ -840,6 +840,9 @@ const shell = {
     /** The same three on a canvas on a page, where a plain wheel scrolls the page. */
     zoom_in_on_page: (modifier: string) => `Zoom in, or pinch, or hold ${modifier} and scroll`,
     zoom_out_on_page: (modifier: string) => `Zoom out, or pinch, or hold ${modifier} and scroll`,
+    /** The same two on a canvas that fills its screen, where a plain wheel zooms. */
+    zoom_in_filled: 'Zoom in, or scroll or pinch over the graph',
+    zoom_out_filled: 'Zoom out, or scroll or pinch over the graph',
     /** What the graph is called where it opens in a window. */
     graph_window: (code: string) => `${code} · graph`,
     /** The control that changes how a view of a graph is laid out, for this visit. */

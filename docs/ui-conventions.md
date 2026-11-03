@@ -1920,13 +1920,19 @@ graph, and dragging the terminal's seam is a resize the canvas refits to. It is 
 its drawing or 240px, whichever is less, and a drawing taller than that is fitted at the floor and
 panned. The editor keeps a stage, because it is a workspace somebody adds to.
 
-**A canvas on a page pans and zooms, and a plain wheel is the page's.** Dragging the ground pans
-every canvas. A pinch, and a wheel with Ctrl or the platform's modifier held, zooms a canvas on a
-page about the pointer, each event held to one `WHEEL_ZOOM_LIMIT` step, so a mouse wheel's notch is
-a step and a pinch follows the fingers; a wheel with neither scrolls the page, so a long run never
-traps it. Below the breakpoint a finger on a page's canvas scrolls the page, and the graph's window
-is where it is panned. The zoom controls say how else to zoom on their tooltips, and nothing is
-drawn over the graph to say it.
+**A canvas on a page pans and zooms; a plain wheel is the page's unless the canvas is the
+screen.** Dragging the ground pans every canvas. A pinch, and a wheel with Ctrl or the platform's
+modifier held, zooms a canvas on a page about the pointer, each event held to one
+`WHEEL_ZOOM_LIMIT` step, so a mouse wheel's notch is a step and a pinch follows the fingers. On the
+pipeline's page, whose canvas is as tall as its drawing and has panels under it, a wheel with
+neither scrolls the page, so a long page never traps it. On the run's page the filled canvas is the
+screen and there is nothing to scroll past it, so a plain wheel zooms it the same way, one
+`WHEEL_ZOOM_LIMIT` step per event about the pointer, and the page under it never scrolls. A
+trackpad's two-finger scroll is a plain wheel to the browser and cannot be told reliably from a
+mouse's, so on the run's canvas it zooms too, as it does on React Flow's own default canvas; the
+ground is dragged to pan. Below the breakpoint a finger on a page's canvas scrolls the page, and the
+graph's window is where it is panned. The zoom controls say how else to zoom on their tooltips, by
+the screen they stand on, and nothing is drawn over the graph to say it.
 
 **A view's layout is the reader's for the visit.** The run's graph and the pipeline page's carry a
 `Layout`{ .label } control: the direction (left to right, or top to bottom), the edges (the
