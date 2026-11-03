@@ -2,7 +2,7 @@
 
 import os
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -58,7 +58,7 @@ from dirigent_cli.pin import ALLOW_ENV, find_pin
 from dirigent_client.enums import UserRole
 from dirigent_common import Issue, raised_detail, validation_issues
 from dirigent_common.hosts import is_loopback_host
-from dirigent_core import migrations
+from dirigent_core import __version__, migrations
 from dirigent_core.config import (
     UNREADABLE_SETTINGS,
     Settings,
@@ -850,14 +850,84 @@ def server(
     except StateRefused as error:
         refuse_state(error)
     guard_schema(settings)
+    address, listening = host or settings.host, port or settings.port
+    bound = f"http://{address}:{listening}"
+    emit(server_started(settings, bound=bound))
+    _announce_once_answering(
+        local_host(address),
+        listening,
+        server_facts(settings, bound=bound),
+        reload=reload,
+    )
     uvicorn.run(
         "dirigent_cli.main:build_app",
         factory=True,
-        host=host or settings.host,
-        port=port or settings.port,
+        host=address,
+        port=listening,
         reload=reload,
         log_level=settings.log_level.lower(),
     )
+
+
+def server_started(settings: Settings, *, bound: str) -> Record:
+    """Build the record saying a server is starting: its version and where it is about to answer."""
+    from dirigent_cli.instance import addresses
+
+    return make(
+        "process",
+        at=datetime.now(UTC),
+        message="starting",
+        process="server",
+        version=__version__,
+        **addresses(settings, bound),
+    )
+
+
+def server_facts(settings: Settings, *, bound: str) -> dict[str, Any]:
+    """Gather what a server's ``ready`` record carries, from the plugins installed beside it."""
+    from dirigent_cli.instance import facts
+    from dirigent_core.plugins import load_plugin_host
+
+    return facts(settings, load_plugin_host(), process="server", bound=bound)
+
+
+#: How often a starting server's own address is asked whether it answers yet.
+READY_POLL_SECONDS = 0.1
+
+
+def _announce_once_answering(
+    host: str, port: int, said: Mapping[str, Any], *, reload: bool, every: float = READY_POLL_SECONDS
+) -> None:
+    """Say ready, from a thread, once the server answers.
+
+    Uvicorn binds its port only once the application has started, so a connection that is
+    accepted is the answer. Under --reload the supervisor binds it before the child has
+    started anything, and only the liveness route is.
+    """
+    import socket
+    import threading
+    import time
+
+    import httpx2
+
+    def answers() -> bool:
+        if reload:
+            try:
+                return httpx2.get(f"http://{host}:{port}/health", timeout=1.0, trust_env=False).is_success
+            except httpx2.HTTPError:
+                return False
+        try:
+            with socket.create_connection((host, port), timeout=1.0):
+                return True
+        except OSError:
+            return False
+
+    def wait() -> None:
+        while not answers():
+            time.sleep(every)
+        emit(ready_record(said))
+
+    threading.Thread(target=wait, name="announce-ready", daemon=True).start()
 
 
 @docker_app.command("reap")
@@ -1086,10 +1156,21 @@ def dev(
     admin, token = asyncio.run(dev_admin(settings, exposed_on=address if exposed else None))
     listening = port or settings.port
     bound = f"http://{address}:{listening}"
+    signs_in = admin is not None and asyncio.run(fixture_signs_in(settings, admin))
     emit(dev_started(settings, bound=bound, admin=admin, token=token, migrated=migrated))
     directories = seed or []
     bearer = token or (asyncio.run(seed_token(settings)) if directories or seed_installed else None)
-    asyncio.run(_dev(settings, address, listening, seed=directories, installed=seed_installed, bearer=bearer))
+    asyncio.run(
+        _dev(
+            settings,
+            address,
+            listening,
+            seed=directories,
+            installed=seed_installed,
+            bearer=bearer,
+            announced=dev_facts(settings, admin=admin, password=DEV_PASSWORD if signs_in else None),
+        )
+    )
 
 
 def clear_state(settings: Settings) -> Path | None:
@@ -1192,15 +1273,48 @@ def dev_started(
     The token is minted once and never shown again, so it is a field on this record rather
     than something only a rendering ever held.
     """
-    state = settings.sqlite_path
-    fields: dict[str, Any] = {"process": "dev", "api": bound, "docs": f"{bound}/docs", "admin": admin}
-    if state is not None:
-        fields["state"] = str(state.parent.resolve())
+    from dirigent_cli.instance import addresses
+
+    fields: dict[str, Any] = {
+        "process": "dev",
+        "version": __version__,
+        **addresses(settings, bound),
+        **dev_facts(settings, admin=admin),
+    }
     if token is not None:
         fields["token"] = token
     if migrated is not None:
         fields["migrated"] = migrated
     return make("process", at=datetime.now(UTC), message="starting", **fields)
+
+
+def dev_facts(settings: Settings, *, admin: str | None, password: str | None = None) -> dict[str, Any]:
+    """Gather what only a dev instance announces: who to sign in as, and where its state lives.
+
+    ``password`` is the fixed development password, given only while the admin still signs
+    in with it.
+    """
+    fields: dict[str, Any] = {"admin": admin}
+    if password is not None:
+        fields["password"] = password
+    state = settings.sqlite_path
+    if state is not None:
+        fields["state"] = str(state.parent.resolve())
+    return fields
+
+
+async def fixture_signs_in(settings: Settings, username: str) -> bool:
+    """Report whether this account still signs in with the fixed development password."""
+    from dirigent_core.auth import find_user, verify_password
+    from dirigent_core.database import create_engine, create_session_factory, session_scope
+
+    engine = create_engine(settings)
+    try:
+        async with session_scope(create_session_factory(engine)) as session:
+            user = await find_user(session, username)
+            return user is not None and verify_password(user.password_hash, DEV_PASSWORD)
+    finally:
+        await engine.dispose()
 
 
 def emit(record: Record) -> None:
@@ -1334,15 +1448,19 @@ async def _dev(
     seed: Sequence[Path] = (),
     installed: bool = False,
     bearer: str | None = None,
+    announced: Mapping[str, Any] | None = None,
 ) -> None:
     """Run the API, the scheduler, a worker, and any seeding as tasks in one event loop.
 
     The scheduler is started by the application's own lifespan, not here. The seeding is a
     task rather than a step before the loop, because it talks to the API this loop serves.
+    ``announced`` is what the ``ready`` record carries beyond what every instance says.
     """
     import asyncio
 
     import uvicorn
+
+    from dirigent_cli.instance import facts
 
     worker, engine = build_worker(settings, concurrency=None, tags=None, name=None)
     server_config = uvicorn.Config(build_dev_app(settings, host), host=host, port=port, log_config=None)
@@ -1350,8 +1468,9 @@ async def _dev(
     stopping = DevShutdown(worker, api)
     stopping.install()
 
+    said = {**facts(settings, worker.services.host, process="dev", bound=f"http://{host}:{port}"), **(announced or {})}
     worker_task = asyncio.create_task(worker.run())
-    ready = asyncio.create_task(_announce_ready(api))
+    ready = asyncio.create_task(_announce_ready(api, said))
     orphaned = asyncio.create_task(watch_parent(os.getppid, lambda: stopping.ask("parent gone")))
     streams = asyncio.create_task(_close_streams_once_drained(api, worker_task))
     seeding = (
@@ -1521,19 +1640,29 @@ class DevShutdown:
         self.leave(code)
 
 
+def local_host(host: str) -> str:
+    """Name the host this process reaches its own instance on, however widely it is bound."""
+    wildcards = {"0.0.0.0", "::", ""}  # noqa: S104 - naming the bind-all addresses, not binding one
+    return "127.0.0.1" if host in wildcards else host
+
+
 def local_url(host: str, port: int) -> str:
     """Address the instance this process serves, however widely it is bound."""
-    wildcards = {"0.0.0.0", "::", ""}  # noqa: S104 - naming the bind-all addresses, not binding one
-    return f"http://{'127.0.0.1' if host in wildcards else host}:{port}"
+    return f"http://{local_host(host)}:{port}"
 
 
-async def _announce_ready(api: "uvicorn.Server") -> None:
-    """Say ready once the port is actually accepting, and not a moment before."""
+async def _announce_ready(api: "uvicorn.Server", said: Mapping[str, Any]) -> None:
+    """Say ready once the port is actually accepting, and not a moment before, with what the instance is."""
     import asyncio
 
     while not api.started:
         await asyncio.sleep(0.05)
-    emit(make("process", at=datetime.now(UTC), message="ready", process="dev"))
+    emit(ready_record(said))
+
+
+def ready_record(said: Mapping[str, Any]) -> Record:
+    """Build the record saying an instance answers, carrying its version, its addresses and what it loaded."""
+    return make("process", at=datetime.now(UTC), message="ready", **said)
 
 
 #: How often the instance looks at whether the process that started it is still there.

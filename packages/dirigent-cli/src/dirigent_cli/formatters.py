@@ -14,7 +14,7 @@ from pluginkit import PluginManager
 from rich.console import Group, RenderableType
 from rich.markup import escape
 
-from dirigent_cli import summaries
+from dirigent_cli import banner, summaries
 from dirigent_cli.stream import paint, shorten, use_scratch_prefix
 from dirigent_common import Formatter
 from dirigent_core.protocol import Record, console, parse
@@ -54,7 +54,14 @@ class Console:
     version = "1"
 
     def render(self, record: Record) -> RenderableType:
-        """Render one record as a padded line, plus whatever its kind renders beneath."""
+        """Render one record as a padded line, plus whatever its kind renders beneath.
+
+        A serving process's ``starting`` and ``ready`` are the exception: the pair is drawn
+        as one banner, once the instance answers.
+        """
+        announced = banner.render(record)
+        if announced is not None:
+            return announced
         return _with_summary(record, console(shorten(summaries.line(record)), paint=paint))
 
 
