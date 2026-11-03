@@ -41,6 +41,7 @@ from dirigent_common import (
     TEMPLATE_MEDIA_TYPE,
     JsonMap,
     Message,
+    as_text,
     carries_credential_parameter,
     plain_fields_of,
 )
@@ -366,7 +367,7 @@ def _resolve_string(value: str, scope: ReferenceScope) -> JsonValue:
     whole = WHOLE_REFERENCE.match(value)
     if whole is not None:
         return lookup(whole.group(1).strip(), scope)
-    return substitute(value, lambda reference: _as_text(lookup(reference.strip(), scope)))
+    return substitute(value, lambda reference: as_text(lookup(reference.strip(), scope)))
 
 
 def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str, str]) -> JsonValue:
@@ -409,7 +410,7 @@ def _resolve_shell(value: JsonValue, scope: ReferenceScope, variables: dict[str,
         if resolves:
             reference = match.group(2).strip()
             last_reference = reference
-            text = _as_text(lookup(reference, scope))
+            text = as_text(lookup(reference, scope))
             offset = offsets[match.start()]
             place = reading.places[offset]
             integer = (
@@ -590,15 +591,6 @@ class _JqText:
             self.escaped = True
         elif character == '"':
             self.in_string = False
-
-
-def _as_text(value: JsonValue) -> str:
-    """Render a resolved value for interpolation into a larger string."""
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
 
 
 def lookup(reference: str, scope: ReferenceScope) -> JsonValue:

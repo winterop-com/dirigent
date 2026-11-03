@@ -53,6 +53,7 @@ from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import (
+    ALREADY_SETTLED,
     BACKWARDS_WINDOW,
     CANCELLED,
     CHAIN_CYCLE,
@@ -568,9 +569,13 @@ async def cancel_run(
     /,
     *,
     now: datetime | None = None,
+    refuse_settled: bool = False,
     **params: Any,
 ) -> Run:
     """Cancel a run: stop what has not started, and tell the remote about what has.
+
+    A run that already settled is left as it is; ``refuse_settled`` raises ``RunStateError``
+    for it instead, which is what a person asking to cancel one is answered with.
 
     Cancelling a remote is best effort by contract, so a refusal is logged rather than
     raised and the attempt reaches its terminal state either way.
@@ -588,6 +593,8 @@ async def cancel_run(
     await lock_run(session, run.id)
     await session.refresh(run)
     if run.status in (RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.COMPLETED_WITH_ERRORS, RunStatus.CANCELLED):
+        if refuse_settled:
+            raise RunStateError(ALREADY_SETTLED, run=str(run.id), status=run.status.value)
         return run
     rows = await session.execute(
         sa.select(StepAttempt).where(

@@ -1911,6 +1911,17 @@ def test_a_run_can_be_cancelled(client: TestClient) -> None:
     assert "tester" in cancelled.json()["error"]
 
 
+def test_cancelling_a_settled_run_is_refused_with_its_state(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    run_id = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"]
+    assert client.post(f"{PREFIX}/runs/{run_id}/$cancel").status_code == 200
+
+    refused = client.post(f"{PREFIX}/runs/{run_id}/$cancel")
+    assert refused.status_code == 409
+    assert refused.json()["code"] == "run.already_settled"
+    assert refused.json()["params"] == {"run": run_id, "status": "cancelled"}
+
+
 def test_a_settled_run_is_rerun_and_one_in_flight_is_refused(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     run_id = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {"greeting": "hei"}}).json()["run_id"]

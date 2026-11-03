@@ -47,7 +47,7 @@ from dirigent_block_base.messages import (
     UNKNOWN_LOCALE,
     UNKNOWN_PROVIDER,
 )
-from dirigent_common import BlockModel, Duration, JsonMap, Size, filler, format_duration
+from dirigent_common import BlockModel, Duration, Issue, JsonMap, Size, filler, format_duration
 from dirigent_plugin import (
     BlockFailure,
     ErrorClass,
@@ -389,6 +389,28 @@ def _check_sizes(provider: str, args: Any, *, size: bool = False) -> None:
         raise PlaygroundRefusal(PROVIDER_REFUSED, provider=provider, detail=detail)
 
 
+def generation_issues(config: BaseModel) -> list[Issue]:
+    """Refuse at apply what a generation would refuse at run: the locale, a provider, a size argument."""
+    if not isinstance(config, Generation):
+        return []
+    if config.locale not in AVAILABLE_LOCALES:
+        return [Issue.of(UNKNOWN_LOCALE, location="locale", locale=config.locale)]
+    catalogue = _catalogue(config.locale)
+    issues: list[Issue] = []
+    for name, spec in config.fields.items():
+        provider = spec.provider if isinstance(spec, ProviderCall) else spec
+        if provider not in catalogue:
+            issues.append(
+                Issue.of(UNKNOWN_PROVIDER, location=f"fields.{name}", provider=provider, locale=config.locale)
+            )
+            continue
+        try:
+            _check_sizes(provider, dict(spec.args) if isinstance(spec, ProviderCall) else {})
+        except PlaygroundRefusal as refusal:
+            issues.append(Issue.of(refusal.catalogued, location=f"fields.{name}.args", **refusal.params))
+    return issues
+
+
 def _held_to_the_catalogue(fake: Faker, locale: str, budget: _Budget) -> None:
     """Send every dispatch through the allowlist and the budget, a provider's own included.
 
@@ -639,6 +661,10 @@ class PlaygroundOperator(Operator[PlaygroundConfig, PlaygroundOutput]):
     config_model: ClassVar[type[BaseModel]] = PlaygroundConfig
     output_model: ClassVar[type[BaseModel]] = PlaygroundOutput
 
+    def check_config(self, config: BaseModel) -> list[Issue]:
+        """Refuse a locale, a provider or a size argument at apply rather than at the run."""
+        return generation_issues(config)
+
     async def execute(self, config: PlaygroundConfig, ctx: StepContext) -> PlaygroundOutput:
         """Wait, decide whether this attempt is one of the failing ones, and then generate."""
         await wait(config)
@@ -779,6 +805,10 @@ class PlaygroundArriveSensor(Sensor[ArriveConfig, ArriveOutput]):
     )
     config_model: ClassVar[type[BaseModel]] = ArriveConfig
     output_model: ClassVar[type[BaseModel]] = ArriveOutput
+
+    def check_config(self, config: BaseModel) -> list[Issue]:
+        """Refuse a locale, a provider or a size argument at apply rather than at the run."""
+        return generation_issues(config)
 
     async def poke(self, config: ArriveConfig, ctx: StepContext) -> ArriveOutput | NotYet:
         """Count this poke, then either park or generate the batch the wait was for."""

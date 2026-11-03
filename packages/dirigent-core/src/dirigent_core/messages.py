@@ -898,6 +898,8 @@ NOT_PAUSABLE = RUN.define("not_pausable", "run {run} is {status}, and only a que
 
 NOT_PAUSED = RUN.define("not_paused", "run {run} is {status}, and only a paused run resumes")
 
+ALREADY_SETTLED = RUN.define("already_settled", "run {run} already settled as {status}, so there is nothing to cancel")
+
 CANCELLED_BY = RUN.define("cancelled_by", "cancelled by {principal}")
 
 REPLACED_BY_NEWER_RUN = RUN.define("replaced_by_newer_run", "replaced by a newer run")

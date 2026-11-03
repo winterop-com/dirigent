@@ -1417,6 +1417,11 @@ def test_a_run_can_be_listed_cancelled_and_reported(tmp_path: Path, server: str)
     cancelled = only(machine("runs", "cancel", run_id).stdout, "run.cancelled")
     assert cancelled["run_id"] == run_id
     assert cancelled["status"] == "cancelled"
+    again = machine("runs", "cancel", run_id)
+    assert again.exit_code == 1
+    refused = only(again.stdout, "error")
+    assert refused["code"] == "run.already_settled"
+    assert refused["params"]["status"] == "cancelled"
     report = invoke("runs", "report", run_id)
     assert "cli-demo" in report.output
     assert invoke("runs", "logs", run_id).exit_code == 0

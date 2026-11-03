@@ -676,6 +676,13 @@ The new run is attributed to the original: its `triggered_by_kind` is `rerun` an
 was skipped. The command needs an operator, as `dg runs cancel` does; the same call is
 `POST /api/v1/runs/{id}/$rerun`, `dg.runs.rerun()` in the Python client, and `rerun_run` over MCP.
 
+`dg runs cancel RUN_ID` on a run that already settled changes nothing and says so: the API
+answers 409 `run.already_settled` with the run's `status` in the params, the command writes
+that refusal as an `error` record and exits 1, `dg.runs.cancel()` raises it, and `cancel_run`
+over MCP fails with the sentence and `[run.already_settled]` after it. `dg runs pause` and
+`dg runs resume` refuse a run they do not apply to the same way, as `run.not_pausable` and
+`run.not_paused`.
+
 ### The report a run wrote for itself
 
 `dg runs report RUN_ID` summarises a run from live queries: what each step amounted to, and

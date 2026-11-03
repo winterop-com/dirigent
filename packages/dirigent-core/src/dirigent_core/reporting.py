@@ -117,6 +117,9 @@ class RunFacts(BaseModel):
 
     run: JsonMap
     pipeline: PipelineFacts
+    params: JsonMap = Field(default_factory=dict)
+    """The parameters the run resolved to, the same as ``run.params``."""
+
     steps: list[StepFacts] = Field(default_factory=list[StepFacts])
     step: dict[str, StepFacts] = Field(default_factory=dict[str, StepFacts])
     """The same steps by name, so a template reads one step without filtering the list."""
@@ -236,6 +239,7 @@ async def run_facts(
     return RunFacts(
         run=_run_namespace(run, pipeline, base_url=base_url),
         pipeline=PipelineFacts(code=pipeline.code, name=pipeline.name, version=version.version),
+        params=shown(dict(run.params)),
         steps=steps,
         step={step.step: step for step in steps},
         items=[

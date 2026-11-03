@@ -208,7 +208,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `cleanup` | `boolean` |  | `true` | On a bring-up that does not succeed, best-effort `down` the same project before leaving. |
 | `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this stack runs on. |
 | `socket_path` | `string or null` |  | `null` | The daemon socket the status read speaks to, when neither the default nor `DOCKER_HOST` is right. |
-| `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long one call to the daemon for the status read may take. |
+| `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long one call to the daemon for the status read may take. More than `0s`. |
 | `timeout` | `string (humane-duration)` |  | `"10m"` | The overall deadline on the CLI invocation, after which it is killed as transient. |
 
 **Output**
@@ -246,14 +246,14 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `outputs_path` | `string` |  | `"/dirigent/outputs"` | Where the container is expected to write its declared outputs. |
 | `network` | `string` |  | `"none"` | The daemon's network mode. It defaults to `none`: an image the pipeline named should not reach the worker's network, or anything the worker can reach, unless the step says so. |
 | `pull` | `boolean` |  | `false` | Pull the image before creating the container, rather than requiring it to be present. |
-| `memory` | `string or integer or null` |  | `null` | A hard memory limit, such as `64mb`; the container is OOM-killed rather than the worker. |
+| `memory` | `string or integer or null` |  | `null` | A hard memory limit, such as `64mb`; the container is OOM-killed rather than the worker. At least `6mb`. |
 | `cpus` | `number or null` |  | `null` | A CPU quota expressed the way `docker run --cpus` expresses it. |
 | `nano_cpus` | `integer or null` |  | `null` | The same quota expressed the way the daemon counts it, for a config that prefers exactness. |
 | `pids_limit` | `integer or null` |  | `null` | A cap on how many processes the container may create. |
 | `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this container runs on. |
 | `socket_path` | `string or null` |  | `null` | The daemon socket, when neither the default nor `DOCKER_HOST` is right. |
-| `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long one call to the daemon may take. This is not the container's runtime: the container runs under the step's deadline, which the engine owns and this block never waits on. |
-| `pull_timeout` | `string (humane-duration)` |  | `"10m"` | How long a pull may take, which is a different order of magnitude from an API call. |
+| `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long one call to the daemon may take. This is not the container's runtime: the container runs under the step's deadline, which the engine owns and this block never waits on. More than `0s`. |
+| `pull_timeout` | `string (humane-duration)` |  | `"10m"` | How long a pull may take, which is a different order of magnitude from an API call. More than `0s`. |
 
 **Output**
 
@@ -332,7 +332,7 @@ Contributed by `block-http`. Not idempotent.
 | `connection` | `string or null` |  | `null` | The code of the connection whose base URL, auth, TLS, and timeout apply. |
 | `url` | `string or null` |  | `null` | An absolute URL, for the case where no connection is configured. |
 | `path` | `string` |  | `"/"` | The path resolved against the connection's base URL. |
-| `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. |
+| `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. More than `0s`. |
 | `follow_redirects` | `boolean` |  | `false` | Whether a 3xx is followed rather than returned as the answer. |
 | `method` | `"GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS"` |  | `"GET"` | The method the request is sent with. |
 | `query` | `object of string or integer or number or boolean` |  |  | Query parameters appended to the URL, each value written as text; one whose name carries a credential is refused, and goes on the connection. |
@@ -457,10 +457,10 @@ Contributed by `block-base`. Not idempotent.
 | `locale` | `string` |  | `"en_US"` | The Faker locale the providers generate in. |
 | `seed` | `integer or null` |  | `null` | Makes the answer reproducible. Unset draws one, and the answer says which it drew. |
 | `drift` | `"none" or "strings" or "missing" or "extra"` |  | `"none"` | How the records depart from the field map, for a document teaching a schema gate. |
-| `payload` | `string or integer or null` |  | `null` | Return filler of this size beside the records, to push an output over a threshold. |
+| `payload` | `string or integer or null` |  | `null` | Return filler of this size beside the records, to push an output over a threshold. At most `1mb`. |
 | `page` | `integer or null` |  | `null` | Which page of the records to answer with, counting from one; unset answers all of them. |
 | `size` | `integer or null` |  | `null` | How many records a page holds. Unset with a page set means ten. |
-| `delay` | `string (humane-duration)` |  | `"0s"` | How long to take before answering, for a document teaching a timeout or a deadline. |
+| `delay` | `string (humane-duration)` |  | `"0s"` | How long to take before answering, for a document teaching a timeout or a deadline. At most `30s`. |
 | `fail_until` | `integer` |  | `0` | Fail this many attempts before succeeding, for a document teaching a retry. |
 | `fail_as` | `"transient" or "rejected" or "unknown"` |  | `"transient"` | Which class those failures carry, which is what decides whether they are retried. |
 | `input` | `any` |  | `null` | The value to work on, written inline or referenced from an earlier step's output. |
@@ -549,7 +549,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `cwd` | `string or null` |  | `null` | A directory relative to the run's work directory; never an absolute path. |
 | `env` | `object of string` |  |  | Variables set explicitly for this command. |
 | `env_allowlist` | `string[]` |  |  | Worker environment variables this command is allowed to inherit. |
-| `timeout` | `string (humane-duration)` |  | `"5m"` | How long the process may run before it is killed as a transient failure. |
+| `timeout` | `string (humane-duration)` |  | `"5m"` | How long the process may run before it is killed as a transient failure. More than `0s`. |
 
 **Output**
 
@@ -710,7 +710,7 @@ Contributed by `block-base`. Idempotent.
 | --- | --- | --- | --- | --- |
 | `input` | `any` |  | `null` | The value to check, normally a `${steps....}` reference to what an upstream step produced. An explicit null is a value like any other and is checked as one. |
 | `schema` | `string` | yes |  | The code of the schema the value must satisfy: one the instance holds, or one the document carries in its top-level `schemas` section. The named schema was validated when it was stored or applied, so nothing rechecks it here; a code no instance holds fails the run at the gate. |
-| `timeout` | `string (humane-duration)` |  | `"10s"` | How long checking the value may take. Past it the step fails, refused rather than retried, and the check stops: a pattern that backtracks, or a schema whose cost grows faster than the value, ends here. |
+| `timeout` | `string (humane-duration)` |  | `"10s"` | How long checking the value may take. Past it the step fails, refused rather than retried, and the check stops: a pattern that backtracks, or a schema whose cost grows faster than the value, ends here. More than `0s`. |
 
 **Output**
 
@@ -749,7 +749,7 @@ Contributed by `block-http`. Not idempotent.
 | `connection` | `string or null` |  | `null` | The code of the connection whose base URL, auth, TLS, and timeout apply. |
 | `url` | `string or null` |  | `null` | An absolute URL, for the case where no connection is configured. |
 | `path` | `string` |  | `"/"` | The path resolved against the connection's base URL. |
-| `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. |
+| `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. More than `0s`. |
 | `follow_redirects` | `boolean` |  | `false` | Whether a 3xx is followed rather than returned as the answer. |
 | `body` | `any` |  |  | The JSON payload, usually built from upstream outputs with `${steps...}` references. |
 | `headers` | `object of string` |  |  | Extra headers the receiver wants, such as a routing key; one whose name carries a credential is refused, and goes on the connection. |
@@ -782,7 +782,7 @@ Contributed by `block-http`. Not idempotent. Polls every 1m unless the step says
 | `connection` | `string or null` |  | `null` | The code of the connection whose base URL, auth, TLS, and timeout apply. |
 | `url` | `string or null` |  | `null` | An absolute URL, for the case where no connection is configured. |
 | `path` | `string` |  | `"/"` | The path resolved against the connection's base URL. |
-| `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. |
+| `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. More than `0s`. |
 | `follow_redirects` | `boolean` |  | `false` | Whether a 3xx is followed rather than returned as the answer. |
 | `expect_status` | `integer[]` |  |  | Status codes that mean ready; empty means any 2xx. |
 | `contains` | `string or null` |  | `null` | Optional body matcher; readiness also requires the response to contain this text. |
@@ -840,7 +840,7 @@ Contributed by `block-base`. Not idempotent. Polls every 2s unless the step says
 | `locale` | `string` |  | `"en_US"` | The Faker locale the providers generate in. |
 | `seed` | `integer or null` |  | `null` | Makes the answer reproducible. Unset draws one, and the answer says which it drew. |
 | `drift` | `"none" or "strings" or "missing" or "extra"` |  | `"none"` | How the records depart from the field map, for a document teaching a schema gate. |
-| `payload` | `string or integer or null` |  | `null` | Return filler of this size beside the records, to push an output over a threshold. |
+| `payload` | `string or integer or null` |  | `null` | Return filler of this size beside the records, to push an output over a threshold. At most `1mb`. |
 | `after_pokes` | `integer` |  | `1` | How many pokes park before the batch arrives; zero lets the first poke carry it. |
 | `after` | `string (humane-duration)` |  | `"0s"` | How long the wait lasts, such as `10s`: from the attempt's start, or under a `sensor` source from its last success. |
 

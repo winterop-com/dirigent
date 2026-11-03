@@ -1,8 +1,9 @@
 """Rendering text from a Jinja template, sandboxed and bounded."""
 
+import json
 from collections.abc import Mapping
 from datetime import datetime, timedelta
-from typing import Any, Final
+from typing import Any, Final, cast
 
 import jinja2
 import jinja2.sandbox
@@ -82,6 +83,28 @@ class SilentUndefined(jinja2.ChainableUndefined):
     __int__ = __float__ = _zero  # type: ignore[assignment]
 
 
+def as_text(value: object) -> str:
+    """Render a JSON value as the text it reads as inside a larger string.
+
+    A list or an object is its compact JSON, in the order it was written; a boolean is
+    ``true`` or ``false``; null is nothing; anything else is its plain text.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, dict | list):
+        return json.dumps(value, separators=(",", ":"), ensure_ascii=False, default=str)
+    return str(value)
+
+
+def _finalize(value: object) -> object:
+    """Render what a ``{{ ... }}`` prints: JSON values as ``as_text`` reads them, the rest as Jinja does."""
+    if value is None or isinstance(value, bool | dict | list):
+        return as_text(cast("object", value))
+    return value
+
+
 def duration_filter(value: object) -> str:
     """Render a count of milliseconds as a humane duration."""
     if not isinstance(value, int | float) or isinstance(value, bool):
@@ -115,6 +138,7 @@ ENVIRONMENT: Final = jinja2.sandbox.ImmutableSandboxedEnvironment(
     trim_blocks=True,
     lstrip_blocks=True,
     keep_trailing_newline=True,
+    finalize=_finalize,
 )
 ENVIRONMENT.filters["duration"] = duration_filter
 ENVIRONMENT.filters["bytes"] = bytes_filter

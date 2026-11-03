@@ -218,12 +218,16 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
             raise ResourceError(str(error)) from error
 
     async def call[T](work: Callable[[Dirigent], Awaitable[T]], *, narrow: Message | None = None) -> Any:
-        """Make one call, answering with its JSON under the size bound, and a refusal as a tool error."""
+        """Make one call, answering with its JSON under the size bound, and a refusal as a tool error.
+
+        The error is the refusal's sentence with its code after it in brackets, so an agent can
+        tell ``run.already_settled`` from any other 409 without parsing the sentence.
+        """
         try:
             async with connect() as dg:
                 answer = await work(dg)
         except DirigentError as error:
-            raise ToolError(str(error)) from error
+            raise ToolError(f"{error} [{error.code}]" if error.code else str(error)) from error
         return bounded(_json(answer), narrow=narrow)
 
     @tool(READS)
@@ -481,7 +485,10 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
     @tool(STOPS)
     async def cancel_run(run_id: str) -> Any:
-        """Cancel a run: what has not started never does, and running remote work is told to stop."""
+        """Cancel a run: what has not started never does, and running remote work is told to stop.
+
+        A run that already settled is refused as `run.already_settled`, naming the status it settled as.
+        """
         return await call(lambda dg: dg.runs.cancel(run_id))
 
     @tool(STARTS)

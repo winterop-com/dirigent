@@ -9,6 +9,7 @@ from typing import Final, cast
 
 from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SourceEntry, SurfaceEntry
 from dirigent_common import JsonMap
+from dirigent_common.bounds import BOUNDS_KEYWORD
 from dirigent_core.configdocs import first_paragraph, one_line
 
 #: Relative to the repository root.
@@ -190,9 +191,37 @@ def _description_of(field: JsonMap) -> str:
     three blocks renders three times, and a paragraph of rationale renders three times with it.
     """
     text = field.get("description")
-    if not isinstance(text, str) or not text.strip():
-        return NO_DESCRIPTION
-    return one_line(first_paragraph(text)).replace("|", "\\|")
+    described = (
+        one_line(first_paragraph(text)).replace("|", "\\|")
+        if isinstance(text, str) and text.strip()
+        else NO_DESCRIPTION
+    )
+    bounds = _bounds_of(field)
+    return f"{described} {bounds}" if bounds else described
+
+
+#: How each published bound on a duration or a size reads in a sentence.
+_BOUND_WORDS: Final = (
+    ("minimum", "at least"),
+    ("exclusiveMinimum", "more than"),
+    ("maximum", "at most"),
+    ("exclusiveMaximum", "less than"),
+)
+
+
+def _bounds_of(field: JsonMap) -> str:
+    """Say the bounds a duration or size field publishes, the zero floor every one of them has aside."""
+    branches = [field, *(_mapping(branch) for branch in _sequence(field.get("anyOf")))]
+    for branch in branches:
+        bounds = _mapping(branch.get(BOUNDS_KEYWORD))
+        said = [
+            f"{words} `{bounds[name]}`"
+            for name, words in _BOUND_WORDS
+            if name in bounds and not (name == "minimum" and bounds[name] in ("0s", "0b"))
+        ]
+        if said:
+            return " and ".join(said).capitalize() + "."
+    return ""
 
 
 def _surfaces(title: str, label: str, entries: list[SurfaceEntry]) -> str:

@@ -116,6 +116,36 @@ async def test_the_run_namespace_says_what_the_run_was(engine: Engine, sessions:
     assert facts.items_failed == 0
 
 
+PARAMETERISED = CHAIN.model_copy(
+    update={
+        "code": "reported-params",
+        "params": {"type": "object", "properties": {"period": {"type": "string", "default": "202601"}}},
+    }
+)
+
+
+async def test_a_template_reads_the_runs_params_at_the_top_level(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    run = await start(sessions, services, PARAMETERISED, period="202603")
+    await drain(engine)
+    facts = await facts_of(sessions, run, PARAMETERISED)
+
+    assert facts.params == {"period": "202603"}
+    assert facts.params == facts.run["params"]
+    assert render("{{ params.period }}", as_context(facts), max_bytes=1_000) == "202603"
+
+
+async def test_a_param_left_to_its_default_is_in_the_context(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    run = await start(sessions, services, PARAMETERISED)
+    await drain(engine)
+    facts = await facts_of(sessions, run, PARAMETERISED)
+
+    assert render("{{ params.period }}", as_context(facts), max_bytes=1_000) == "202601"
+
+
 async def test_a_run_has_a_url_only_when_the_instance_names_one(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:

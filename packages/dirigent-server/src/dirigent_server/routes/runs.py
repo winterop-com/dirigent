@@ -481,12 +481,16 @@ def _shown_output(attempt: StepAttempt) -> JsonMap | None:
 
 @router.post("/runs/{run_id}/$cancel", operation_id="cancelRun", summary="Cancel a run", response_model=RunOut)
 async def cancel(run_id: UUID, session: SessionDep, services: ServicesDep, principal: OperatorDep) -> RunOut:
-    """Stop what has not started, and tell the remote about what has."""
+    """Stop what has not started, and tell the remote about what has.
+
+    A run that already settled is refused with 409 ``run.already_settled``, its status in the
+    params, rather than answered as though the cancel had done something.
+    """
 
     async def cancel_once() -> RunOut:
         run = await _run_row(session, run_id)
         pipeline, version, _ = await _context(session, run)
-        await cancel_run(session, services, run, CANCELLED_BY, principal=principal.label)
+        await cancel_run(session, services, run, CANCELLED_BY, refuse_settled=True, principal=principal.label)
         return _render_run(run, pipeline, version)
 
     return await retried_on_deadlock(session, cancel_once)

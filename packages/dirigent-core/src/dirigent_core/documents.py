@@ -40,6 +40,7 @@ from dirigent_common import (
     validation_issue,
     validation_issues,
 )
+from dirigent_common.bounds import BOUNDS_KEYWORD, bounds_keyword
 from dirigent_common.messages import TEXT_UNSTORABLE
 from dirigent_common.storable import unstorable_at
 from dirigent_core.engine.definition import (
@@ -371,7 +372,10 @@ def _skip_deferred(keyword: Any) -> Any:
 #: A validator that checks everything a document states literally and defers the rest.
 ConfigValidator: Any = extend_validator(  # pyright: ignore[reportUnknownVariableType]
     Draft202012Validator,
-    {name: _skip_deferred(keyword) for name, keyword in Draft202012Validator.VALIDATORS.items()},
+    {
+        name: _skip_deferred(keyword)
+        for name, keyword in {**Draft202012Validator.VALIDATORS, BOUNDS_KEYWORD: bounds_keyword}.items()
+    },
 )
 
 
@@ -833,24 +837,45 @@ def _credential_url_issues(step: str, config: JsonMap, schema: JsonMap) -> list[
 def _block_refusals(
     step: str, block_id: str, config: JsonMap, blocks: Mapping[str, Any] | None
 ) -> list[ValidationIssue]:
-    """Ask the live block what else it refuses, once its config is known to fit the schema.
+    """Validate a config against the live block's model, then ask the block what else it refuses.
 
-    A bound the published schema cannot state, such as a longest duration, is refused here by
-    the block's own model, in the words a run would fail with.
-
-    A config still carrying a ``${...}`` is not known yet, so it is left to the run: a block
-    asked to compile a program that is a reference would refuse the reference rather than
-    the program.
+    The model holds limits and cross-field rules a schema cannot state, so a literal config the
+    model refuses is refused here rather than at the run. An error at or under a ``${...}`` is
+    not known yet and is left to the run, and so is an error about the config as a whole when
+    any part of it is a reference. A config still carrying a reference is not handed to the
+    block's own check: a block asked to compile a program that is a reference would refuse
+    the reference rather than the program.
     """
     block = None if blocks is None else blocks.get(block_id)
-    if block is None or references_in(cast("JsonValue", config)):
+    if block is None:
         return []
     try:
         validated = block.config_model.model_validate(config)
     except ValidationError as error:
-        problems = validation_issues(error.errors(include_url=False), model=block.config_model)
-        return [_at(f"steps.{step}.config", problem) for problem in problems]
+        known = [detail for detail in error.errors(include_url=False) if not _deferred_at(config, detail["loc"])]
+        return [_at(f"steps.{step}.config", problem) for problem in validation_issues(known, model=block.config_model)]
+    if references_in(cast("JsonValue", config)):
+        return []
     return [_at(f"steps.{step}.config", issue) for issue in cast("list[Issue]", block.check_config(validated))]
+
+
+def _deferred_at(config: JsonMap, loc: Iterable[object]) -> bool:
+    """Say whether a model error lands on a value a run has yet to resolve.
+
+    The walk stops where the error's path leaves the config -- a union's member name, a
+    missing field -- and the value it reached decides.
+    """
+    current: object = config
+    for part in loc:
+        if isinstance(current, str):
+            break
+        if isinstance(current, dict) and part in current:
+            current = cast("dict[object, object]", current)[part]
+        elif isinstance(current, list) and isinstance(part, int) and 0 <= part < len(cast("list[object]", current)):
+            current = cast("list[object]", current)[part]
+        else:
+            break
+    return bool(references_in(cast("JsonValue", current)))
 
 
 def _at(location: str, issue: Issue) -> ValidationIssue:

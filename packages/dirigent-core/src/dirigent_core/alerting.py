@@ -34,6 +34,7 @@ from dirigent_common import (
     JsonMap,
     RenderTooLarge,
     TemplateError,
+    as_text,
     compile_template,
     format_duration,
     render,
@@ -141,13 +142,6 @@ class AlertRuleRequest(BaseModel):
     throttle: timedelta = timedelta(0)
 
 
-def _as_text(value: JsonValue) -> str:
-    """Render a resolved value the way a message wants to read it."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return "" if value is None else str(value)
-
-
 def build_context(
     run: Run, pipeline: Pipeline, *, base_url: str | None = None, report_url: str | None = None
 ) -> JsonMap:
@@ -158,6 +152,7 @@ def build_context(
     """
     duration = (run.finished_at - run.started_at).total_seconds() if run.finished_at and run.started_at else None
     return {
+        "params": shown(dict(run.params)),
         "run": {
             "id": str(run.id),
             "status": run.status.value,
@@ -172,7 +167,7 @@ def build_context(
             "duration_ms": round(duration * 1000) if duration is not None else None,
             "url": f"{base_url.rstrip('/')}/runs/{run.id}" if base_url else None,
             "report_url": report_url,
-        }
+        },
     }
 
 
@@ -697,19 +692,19 @@ def _body(context: JsonMap) -> str:
     Short lines a person reads in a mail or a chat message, with the parameters as JSON.
     """
     run = cast("JsonMap", context.get("run", {}))
-    status = _as_text(run.get("status"))
+    status = as_text(run.get("status"))
     where = ", ".join(
         part
         for part in (
-            f"at step {_as_text(context.get('failing_step'))}" if context.get("failing_step") else "",
-            f"item {_as_text(context.get('failing_item'))}" if context.get("failing_item") else "",
+            f"at step {as_text(context.get('failing_step'))}" if context.get("failing_step") else "",
+            f"item {as_text(context.get('failing_item'))}" if context.get("failing_item") else "",
         )
         if part
     )
     opening = " ".join(part for part in (OPENING.get(status, status.replace("_", " ").capitalize()), where) if part)
     error = context.get("error")
-    lines = [f"{opening}: {_as_text(error)}" if error else f"{opening}."]
-    started = f"Triggered by {_as_text(run.get('trigger'))}" if run.get("trigger") else "Started"
+    lines = [f"{opening}: {as_text(error)}" if error else f"{opening}."]
+    started = f"Triggered by {as_text(run.get('trigger'))}" if run.get("trigger") else "Started"
     duration = run.get("duration_ms")
     if isinstance(duration, int) and duration > 0:
         started += f", ran for {format_duration(timedelta(milliseconds=duration))}"
@@ -718,15 +713,15 @@ def _body(context: JsonMap) -> str:
     if params:
         lines.append(f"Params: {json.dumps(params, ensure_ascii=False, sort_keys=True, default=str)}")
     if run.get("window_start") or run.get("window_end"):
-        lines.append(f"Window: {_as_text(run.get('window_start'))} to {_as_text(run.get('window_end'))}.")
+        lines.append(f"Window: {as_text(run.get('window_start'))} to {as_text(run.get('window_end'))}.")
     if run.get("started_at"):
-        moments = f"Started {_as_text(run.get('started_at'))}"
+        moments = f"Started {as_text(run.get('started_at'))}"
         if run.get("finished_at"):
-            moments += f", finished {_as_text(run.get('finished_at'))}"
+            moments += f", finished {as_text(run.get('finished_at'))}"
         lines.append(f"{moments}.")
-    lines.append(f"Run: {_as_text(run.get('url') or run.get('id'))}")
+    lines.append(f"Run: {as_text(run.get('url') or run.get('id'))}")
     if run.get("report_url"):
-        lines.append(f"Report: {_as_text(run.get('report_url'))}")
+        lines.append(f"Report: {as_text(run.get('report_url'))}")
     return "\n".join(lines)
 
 

@@ -142,10 +142,6 @@ type Duration = Annotated[
     WithJsonSchema({"type": "string", "pattern": DURATION_JSON_PATTERN, "format": "humane-duration"}),
 ]
 
-#: Bounds pydantic leaves on a field it could not express in JSON Schema, which is every
-#: bound on a duration: JSON Schema has no keyword for one.
-_UNEXPRESSED_BOUNDS: Final = ("gt", "ge", "lt", "le")
-
 
 class HumaneJsonSchema(GenerateJsonSchema):
     """The schema generator every schema dirigent publishes is built with.
@@ -162,17 +158,8 @@ class HumaneJsonSchema(GenerateJsonSchema):
         return super().encode_default(dft)
 
     def generate(self, schema: CoreSchema, mode: JsonSchemaMode = "validation") -> JsonSchemaValue:
-        """Generate the schema, dropping the bounds JSON Schema has no keyword for."""
-        return cast("JsonSchemaValue", _without_unexpressed_bounds(super().generate(schema, mode=mode)))
+        """Generate the schema, publishing the bounds JSON Schema has no keyword for as ``x-dirigent-bounds``."""
+        # Imported here: the bounds module reads durations and sizes both.
+        from dirigent_common.bounds import publish_bounds
 
-
-def _without_unexpressed_bounds(node: object) -> object:
-    """Walk a schema, dropping every bound pydantic could not express as a keyword."""
-    if isinstance(node, dict):
-        entries = cast("dict[str, object]", node)
-        return {
-            key: _without_unexpressed_bounds(value) for key, value in entries.items() if key not in _UNEXPRESSED_BOUNDS
-        }
-    if isinstance(node, list):
-        return [_without_unexpressed_bounds(item) for item in cast("list[object]", node)]
-    return node
+        return cast("JsonSchemaValue", publish_bounds(super().generate(schema, mode=mode)))
