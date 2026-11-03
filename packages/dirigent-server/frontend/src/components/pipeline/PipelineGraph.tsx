@@ -2,6 +2,7 @@ import { ReactFlowProvider, useReactFlow, type Edge } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 
 import { fitCapped, GraphCanvas, type CanvasEditing } from '@/components/graph/GraphCanvas'
+import { useMeasure } from '@/components/graph/measure'
 import { usePlacedGraph } from '@/components/graph/use-placed'
 import { AddStepButton, AddStepMenuAt } from '@/components/pipeline/AddStepMenu'
 import {
@@ -27,14 +28,8 @@ import {
     type Placement,
     type Placements,
 } from '@/lib/canvas-layout'
-import {
-    drawnSize,
-    fanOutRoom,
-    NODE_HEIGHT,
-    nodeWidth,
-    RANK_SPACING,
-    type LayoutShape,
-} from '@/lib/dag-layout'
+import { drawnSize, NODE_HEIGHT, RANK_SPACING, type LayoutShape } from '@/lib/dag-layout'
+import { documentNodeWidth } from '@/lib/node-size'
 import {
     stepRuns,
     edgesIn,
@@ -184,28 +179,6 @@ function EditableGraph({
         void fitCapped(flow)
     }, [tidy, flow])
 
-    const shape = useMemo<LayoutShape>(
-        () => ({
-            nodes: stepNames(document).map((name) => {
-                const heading = stepHeading(document, name)
-                const block = stepRuns(document, name)
-                const line = heading.code === null ? block : `${heading.code} · ${block}`
-                const fan = fanOutOf(document, name)
-                const marker = !fan.fanOut
-                    ? 0
-                    : fanOutRoom(
-                          fan.items === null
-                              ? LABELS.editor.canvas.fan_out_each
-                              : LABELS.editor.canvas.fan_out_count(String(fan.items)),
-                      )
-                return { id: name, width: nodeWidth(heading.title, line, marker), height: NODE_HEIGHT }
-            }),
-            edges: edgesIn(document),
-        }),
-        [document],
-    )
-    const placed = usePlacedGraph(shape)
-
     // What this instance says each source listens to, which is asked only of a document with one.
     // A pipeline nothing has applied answers 404, and its boxes say their kind.
     const hasSource = stepNames(document).some((name) => sourceKindOf(document, name) !== null)
@@ -216,6 +189,39 @@ function EditableGraph({
         ),
     )
     const sources = held.value?.items ?? NO_SOURCES
+
+    const measure = useMeasure()
+    const shape = useMemo<LayoutShape>(
+        () => ({
+            nodes: stepNames(document).map((name) => {
+                const heading = stepHeading(document, name)
+                const kind = sourceKindOf(document, name)
+                const said = kind === null ? stepRuns(document, name) : listeningLine(sources, name, kind)
+                const fan = fanOutOf(document, name)
+                const width = documentNodeWidth(
+                    {
+                        title: heading.title,
+                        named: heading.named,
+                        line: heading.code === null ? said : `${heading.code} · ${said}`,
+                    },
+                    {
+                        source: kind !== null,
+                        missing: stepMissing(unmet, name),
+                        fanOut: !fan.fanOut
+                            ? null
+                            : fan.items === null
+                              ? LABELS.editor.canvas.fan_out_each
+                              : LABELS.editor.canvas.fan_out_count(String(fan.items)),
+                    },
+                    measure,
+                )
+                return { id: name, width, height: NODE_HEIGHT }
+            }),
+            edges: edgesIn(document),
+        }),
+        [document, measure, sources, unmet],
+    )
+    const placed = usePlacedGraph(shape)
 
     // An arrangement is one pipeline's, so another pipeline's is nothing until its own is read.
     const placements = layout.pipeline === pipeline ? layout.placements : NO_PLACEMENTS

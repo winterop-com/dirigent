@@ -11,6 +11,7 @@ import { StepTab } from '@/components/run/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { Code } from '@/components/ds/Code'
 import { IconButton } from '@/components/ds/IconButton'
+import { Notice } from '@/components/ds/Notice'
 import { Panel } from '@/components/ds/Panel'
 import { connectionOf, RunFailure } from '@/components/run/RunFailure'
 import { PageHead } from '@/components/PageHead'
@@ -19,13 +20,14 @@ import { ToolbarActions } from '@/components/ToolbarActions'
 import { sayRefusal } from '@/components/Refusal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
+import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
 import { readConnections } from '@/lib/connections'
 import { ICONS } from '@/lib/icons'
 import { ApiError, type JsonMap, type Problem } from '@/lib/api'
 import { elapsedBetween, formatBytes, formatDuration, formatInstant } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import { fillPanel, openPanel, openPanelTab, type PanelTab } from '@/lib/panels'
+import { fillPanel, openPanel, openPanelTab, panelOpen, panelSheet, type PanelTab } from '@/lib/panels'
 import { RUN_GROUP, registerActions } from '@/lib/palette'
 import { readPipeline, startRun, stepsOf } from '@/lib/pipelines'
 import { decodeFrame, reduce, resumeCursor, stepViews, type RunDetailState } from '@/lib/run-detail'
@@ -45,6 +47,14 @@ import {
 } from '@/lib/runs'
 import { clearScreenStatus, setScreenStatus, streamNote } from '@/lib/screen-status'
 import { runSettled } from '@/lib/status'
+import {
+    ATTEMPT_PARAM,
+    chosenStep,
+    ITEM_PARAM,
+    queryForStep,
+    queryWith,
+    runStepPath,
+} from '@/lib/step-address'
 import { openTerminal, terminalOpen, toggleTerminal } from '@/lib/terminal'
 import { cn } from '@/lib/utils'
 
@@ -75,16 +85,23 @@ const TICK_MS = 1000
  * the pinned definition folded into nodes and edges, which is the only place that shape comes
  * from; the stream never re-sends it, so a step that appears mid-run does not exist.
  *
- * THE CANVAS AND THE TERMINAL STACK. The content area is a column -- the graph above, the
- * console below at the height somebody dragged it to -- and the right panel is untouched by
- * either, because what is beside a run is a different question from what is under it.
+ * THE CANVAS AND THE TERMINAL STACK. The content area is a column -- the graph above, filling
+ * what the page leaves it, the console below at the height somebody dragged it to -- and the
+ * right panel is untouched by either, because what is beside a run is a different question from
+ * what is under it.
+ *
+ * THE CHOSEN STEP IS THE ADDRESS. `/runs/<id>/<step>` is the run with that step chosen and its
+ * panel open; choosing another replaces the address rather than adding one, so Back leaves the run.
  */
 export function RunDetail() {
-    const { id = '' } = useParams()
+    const { id = '', step: addressed } = useParams()
     const navigate = useNavigate()
     const [state, dispatch] = useReducer(reduce, null)
     const [problem, setProblem] = useState<Problem | null>(null)
-    const [selected, setSelected] = useState<string | null>(null)
+    const [query] = useSearchParams()
+    const search = query.toString()
+    const chosenAt = chosenStep(addressed, state === null ? null : state.dag.nodes.map((node) => node.code))
+    const selected = chosenAt.kind === 'step' ? chosenAt.code : null
     const [document, setDocument] = useState<{
         version: number | null
         name: string | null
@@ -218,11 +235,45 @@ export function RunDetail() {
     const terminal = useStore(terminalOpen)
     const write = useMayWrite()
 
+    // Choosing a step replaces the address, so Back leaves the run rather than walking its steps.
+    const select = useCallback(
+        (step: string | null) => {
+            void navigate(`${runStepPath(id, step)}${queryForStep(search)}`, { replace: true })
+        },
+        [id, navigate, search],
+    )
+    // An element or a try of the chosen step is named in the query, the same way.
+    const nameInQuery = useCallback(
+        (name: string, value: string | null) => {
+            void navigate(`${runStepPath(id, addressed ?? null)}${queryWith(search, name, value)}`, {
+                replace: true,
+            })
+        },
+        [addressed, id, navigate, search],
+    )
+    const chosenItem = selected === null ? null : query.get(ITEM_PARAM)
+    const chosenAttempt = selected === null ? null : query.get(ATTEMPT_PARAM)
+
+    // A step the address chose opens the panel for this visit.
+    useEffect(() => {
+        if (selected !== null) openPanel()
+    }, [selected])
+
+    // Closing the panel puts the step down, so the address says what the screen shows.
+    const small = useSmallScreen()
+    const standing = useStore(small ? panelSheet : panelOpen)
+    const stood = useRef(standing)
+    useEffect(() => {
+        const was = stood.current
+        stood.current = standing
+        if (was && !standing && selected !== null) select(null)
+    }, [select, selected, standing])
+
     // A line's step prefix and a node on the graph ask the same thing: read this step. The
     // prefix names the tab as well, because somebody clicking one is not asking for whichever
     // tab they last had open.
     const readStep = (step: string) => {
-        setSelected(step)
+        select(step)
         openPanelTab('step')
     }
 
@@ -356,6 +407,14 @@ export function RunDetail() {
                                 shown: document?.version ?? null,
                                 pinned: state.run.pipeline_version,
                             }}
+                            chosenItem={chosenItem}
+                            chosenAttempt={chosenAttempt}
+                            onItem={(item) => {
+                                nameInQuery(ITEM_PARAM, item)
+                            }}
+                            onAttempt={(attempt) => {
+                                nameInQuery(ATTEMPT_PARAM, attempt)
+                            }}
                         />
                     ),
             },
@@ -382,11 +441,10 @@ export function RunDetail() {
                 ),
             },
         ]
-    }, [chosen, document, id, report, reportProblem, state])
+    }, [chosen, chosenAttempt, chosenItem, document, id, nameInQuery, report, reportProblem, state])
 
     // An address naming a tab opens the panel on it for this visit, before the first fill.
-    const [asked] = useSearchParams()
-    const askedTab = tabFromQuery(asked)
+    const askedTab = tabFromQuery(query)
     useEffect(() => {
         if (askedTab !== null) openPanel()
     }, [askedTab])
@@ -431,10 +489,11 @@ export function RunDetail() {
     const who = startedBy(run, Object.values(state.attempts))
     const trigger = who === null ? null : LABELS.runs.line.by(who)
 
-    // The page scrolls above the terminal, which stands at the foot of the content area.
+    // The page scrolls above the terminal, which stands at the foot of the content area. The graph
+    // takes whatever height the column has left over, and never less than its drawing needs.
     return (
         <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex-1 pb-6">
+            <div className="flex flex-1 flex-col pb-6">
                 <PageHead>
                     <Breadcrumb
                         trail={[
@@ -471,33 +530,40 @@ export function RunDetail() {
                             />
                             <ToolbarActions
                                 actions={[
-                                    {
-                                        id: 'pause',
-                                        label: LABELS.action.pause,
-                                        icon: ICONS.pause,
-                                        disabled: !write.may || !verbs.pause.open,
-                                        why: write.why ?? verbs.pause.why ?? undefined,
-                                        onClick: pause,
-                                    },
-                                    {
-                                        id: 'resume',
-                                        label: LABELS.action.resume,
-                                        icon: ICONS.resume,
-                                        disabled: !write.may || !verbs.resume.open,
-                                        why: write.why ?? verbs.resume.why ?? undefined,
-                                        onClick: resume,
-                                    },
-                                    {
-                                        id: 'cancel',
-                                        label: LABELS.action.cancel_run,
-                                        icon: ICONS.cancel,
-                                        destructive: verbs.cancel.open,
-                                        disabled: !write.may || !verbs.cancel.open || cancel === null,
-                                        why: write.why ?? verbs.cancel.why ?? undefined,
-                                        onClick: () => {
-                                            cancel?.()
-                                        },
-                                    },
+                                    // A settled run will never be paused, resumed or cancelled, so
+                                    // those three are not drawn on one; Rerun stands alone.
+                                    ...(settled
+                                        ? []
+                                        : [
+                                              {
+                                                  id: 'pause',
+                                                  label: LABELS.action.pause,
+                                                  icon: ICONS.pause,
+                                                  disabled: !write.may || !verbs.pause.open,
+                                                  why: write.why ?? verbs.pause.why ?? undefined,
+                                                  onClick: pause,
+                                              },
+                                              {
+                                                  id: 'resume',
+                                                  label: LABELS.action.resume,
+                                                  icon: ICONS.resume,
+                                                  disabled: !write.may || !verbs.resume.open,
+                                                  why: write.why ?? verbs.resume.why ?? undefined,
+                                                  onClick: resume,
+                                              },
+                                              {
+                                                  id: 'cancel',
+                                                  label: LABELS.action.cancel_run,
+                                                  icon: ICONS.cancel,
+                                                  destructive: verbs.cancel.open,
+                                                  disabled:
+                                                      !write.may || !verbs.cancel.open || cancel === null,
+                                                  why: write.why ?? verbs.cancel.why ?? undefined,
+                                                  onClick: () => {
+                                                      cancel?.()
+                                                  },
+                                              },
+                                          ]),
                                     {
                                         id: 'rerun',
                                         label: LABELS.action.rerun,
@@ -541,30 +607,38 @@ export function RunDetail() {
                     </div>
                 </PageHead>
 
-                <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false} className="mt-3.5">
+                {chosenAt.kind === 'unknown' && (
+                    <Notice tone="warning" className="mt-3.5">
+                        {LABELS.runs.no_such_step(chosenAt.code)}
+                    </Notice>
+                )}
+
+                <div className="mt-3.5 flex flex-1 flex-col">
                     {state.dag.nodes.length === 0 ? (
-                        <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.graph_empty}</p>
+                        <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false}>
+                            <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.graph_empty}</p>
+                        </Panel>
                     ) : (
                         <Suspense
                             fallback={
-                                <PageState loading problem={null} empty={false}>
-                                    {null}
-                                </PageState>
+                                <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false}>
+                                    <PageState loading problem={null} empty={false}>
+                                        {null}
+                                    </PageState>
+                                </Panel>
                             }
                         >
                             <RunGraph
+                                key={id}
+                                name={run.pipeline}
                                 dag={state.dag}
                                 views={views}
                                 selected={selected}
-                                fitted
-                                onSelect={(step) => {
-                                    setSelected(step)
-                                    if (step !== null) openPanel()
-                                }}
+                                onSelect={select}
                             />
                         </Suspense>
                     )}
-                </Panel>
+                </div>
 
                 {troubled && (
                     <div className="mt-5">

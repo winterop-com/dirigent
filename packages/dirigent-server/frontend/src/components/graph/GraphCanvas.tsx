@@ -5,17 +5,26 @@ import {
     Controls,
     ReactFlow,
     useReactFlow,
+    useUpdateNodeInternals,
     type Edge,
+    type EdgeTypes,
     type Node,
     type NodeTypes,
     type XYPosition,
 } from '@xyflow/react'
-import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
+import { IconButton } from '@/components/ds/IconButton'
+import { LayoutMenu } from '@/components/graph/LayoutMenu'
+import { DirectionContext, RoutedEdge } from '@/components/graph/RoutedEdge'
+import { useSmallScreen } from '@/hooks/use-small-screen'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
+import { applePlatform, modifierLabel } from '@/lib/shortcuts'
+import { cn } from '@/lib/utils'
 
 import {
+    DEFAULT_LAYOUT,
     fittedHeight,
     fittedZoom,
     fitOptionsFor,
@@ -26,11 +35,13 @@ import {
     steppedZoom,
     viewMoved,
     viewportSignature,
+    wheelZoomFactor,
     type CanvasView,
+    type LayoutChoice,
 } from '@/lib/dag-layout'
 
 /**
- * The canvas both graph screens draw on.
+ * The canvas every graph screen draws on.
  *
  * A VIEW SELECTS AND NOTHING ELSE. Without `editing` a node is selectable and no more: not
  * draggable, not connectable, not deletable, and an edge is none of those either. That is the
@@ -42,21 +53,23 @@ import {
  * pane and the source pane edit. Nothing is written here: this component reports the gesture and
  * the screen decides what it means.
  *
+ * WHERE IT STANDS DECIDES WHAT THE WHEEL DOES. A stage -- the editor's, or a graph opened in a
+ * window -- takes the wheel and zooms on it. A canvas on a page, sized to its drawing or to the room
+ * the page leaves it, gives a plain wheel back to the page and zooms on a pinch or on the platform's
+ * modifier held over the wheel. Every canvas pans when its ground is dragged.
+ *
  * THE WHOLE GRAPH IS VISIBLE UNTIL SOMEBODY MOVES IT. A pipeline is a shape, and a reader
  * opening one is asking what shape it is -- so the view is fitted to every node, at a zoom held
- * between two bounds: a graph of two boxes sits modestly in the canvas rather than being blown
- * up to fill it, and a graph too big for the canvas is shown at a size its text can be read at
- * and panned to rather than shrunk past legibility. It is fitted again whenever the set of nodes
- * changes or the canvas is resized, and never again once the reader has panned, zoomed or dragged
- * a box: after that the view is theirs, and laying out again is how they give it back.
- *
- * THE ZOOM CONTROLS ARE THIS APP'S. React Flow's own move by a fixed twenty percent, which on a
- * graph read at half size is four presses to nothing, and its fit button fits with the library's
- * options rather than the ones both canvases share.
+ * between two bounds. It is fitted again whenever the set of nodes changes, the canvas is resized
+ * or the reader changes the layout, and never again once the reader has panned, zoomed or dragged
+ * a box: after that the view is theirs, and the fit control is how they give it back.
  *
  * Everything the library paints is re-pointed at this app's tokens by `.dg-graph` in index.css,
  * so a graph is the same surfaces and the same hues as the table beside it.
  */
+
+/** Where a canvas stands: a stage of its own, a window, or a page sized to its drawing or its room. */
+export type CanvasFrame = 'stage' | 'window' | 'fitted' | 'filled'
 
 /** What a gesture on the canvas does, on a canvas that edits one. */
 export interface CanvasEditing {
@@ -81,6 +94,12 @@ export interface CanvasEditing {
 /** The attribution corner is licensing chrome, not the graph's; MIT permits removing it. */
 const PRO_OPTIONS = { hideAttribution: true }
 
+/** A view on a page or in a window draws its edges as right-angled steps. */
+const VIEW_EDGES = { type: 'smoothstep' as const }
+
+/** The edge kinds a canvas draws beyond the library's own. Built once. */
+const EDGE_TYPES: EdgeTypes = { routed: RoutedEdge }
+
 export function GraphCanvas({
     nodes,
     edges,
@@ -88,7 +107,8 @@ export function GraphCanvas({
     editing = null,
     onSelect,
     control = null,
-    fitted = false,
+    frame = 'stage',
+    layout = DEFAULT_LAYOUT,
     children,
 }: {
     nodes: Node[]
@@ -98,52 +118,50 @@ export function GraphCanvas({
     editing?: CanvasEditing | null
     /** Called with the node chosen, or null when the ground under them was clicked. */
     onSelect: (id: string | null) => void
-    /** One more button for the control cluster, above the zoom and fit this canvas always has. */
+    /** One more control for the cluster in a stage's corner, above the zoom and fit it always has. */
     control?: ReactNode
     /** What the canvas holds over the graph, such as an affordance in a corner. */
     children?: ReactNode
-    /**
-     * A canvas on a page, as tall as its drawing: no zoom controls, no pan, and the page keeps the
-     * wheel, because a drawing fitted to its box has nothing to move to.
-     */
-    fitted?: boolean
+    frame?: CanvasFrame
+    /** How the graph was laid out, which decides the side an edge meets a box and how it is drawn. */
+    layout?: LayoutChoice
 }) {
-    if (fitted) {
-        return (
-            <FittedBox nodes={nodes}>
-                <Canvas
-                    nodes={nodes}
-                    edges={edges}
-                    nodeTypes={nodeTypes}
-                    editing={null}
-                    onSelect={onSelect}
-                    fitted
-                >
-                    {children}
-                </Canvas>
-            </FittedBox>
-        )
-    }
-    return (
+    const canvas = (
         <Canvas
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
-            editing={editing}
+            editing={frame === 'stage' ? editing : null}
             onSelect={onSelect}
             control={control}
-            fitted={false}
+            frame={frame}
+            layout={layout}
         >
             {children}
         </Canvas>
     )
+    return (
+        <DirectionContext value={layout.direction}>
+            {frame === 'fitted' || frame === 'filled' ? (
+                <PageBox nodes={nodes} filled={frame === 'filled'}>
+                    {canvas}
+                </PageBox>
+            ) : (
+                canvas
+            )}
+        </DirectionContext>
+    )
 }
 
-/** A fitted canvas routes its edges orthogonally, the way a diagram on a page is drawn. */
-const FITTED_EDGES = { type: 'smoothstep' as const }
+/** The shortest a filled canvas is drawn, however little room the page leaves it. */
+const FILLED_MIN_HEIGHT = 240
 
-/** The box a fitted canvas stands in, whose height follows the drawing at the width it has. */
-function FittedBox({ nodes, children }: { nodes: Node[]; children: ReactNode }) {
+/**
+ * The box a canvas on a page stands in. Fitted, its height follows the drawing at the width it has;
+ * filled, it takes the room its page gives it -- down to the drawing's height or `FILLED_MIN_HEIGHT`,
+ * whichever is less -- and a drawing taller than that is fitted at the floor and panned.
+ */
+function PageBox({ nodes, filled, children }: { nodes: Node[]; filled: boolean; children: ReactNode }) {
     const box = useRef<HTMLDivElement | null>(null)
     const [width, setWidth] = useState(0)
     useEffect(() => {
@@ -157,15 +175,20 @@ function FittedBox({ nodes, children }: { nodes: Node[]; children: ReactNode }) 
             observer.disconnect()
         }
     }, [])
-    const drawing = boundsOf(nodes)
+    const height = fittedHeight(boundsOf(nodes), width)
     return (
-        <div ref={box} className="w-full" style={{ height: fittedHeight(drawing, width) }}>
+        <div
+            ref={box}
+            data-canvas-box={filled ? 'filled' : 'fitted'}
+            className={cn('w-full', filled && 'flex-1')}
+            style={filled ? { minHeight: Math.min(height, FILLED_MIN_HEIGHT) } : { height }}
+        >
             {children}
         </div>
     )
 }
 
-/** The extent of a set of placed nodes, which is what a fitted canvas is sized to. */
+/** The extent of a set of placed nodes, which is what a canvas on a page is sized to. */
 function boundsOf(nodes: readonly Node[]): { width: number; height: number } {
     if (nodes.length === 0) return { width: 0, height: 0 }
     const left = Math.min(...nodes.map((node) => node.position.x))
@@ -175,6 +198,11 @@ function boundsOf(nodes: readonly Node[]): { width: number; height: number } {
     return { width: right - left, height: bottom - top }
 }
 
+/** A layout choice as one string, which is what a re-fit is keyed on. */
+function layoutKey(layout: LayoutChoice): string {
+    return `${layout.direction}/${layout.routing}/${layout.spacing}`
+}
+
 function Canvas({
     nodes,
     edges,
@@ -182,7 +210,8 @@ function Canvas({
     editing,
     onSelect,
     control = null,
-    fitted,
+    frame,
+    layout,
     children,
 }: {
     nodes: Node[]
@@ -191,28 +220,52 @@ function Canvas({
     editing: CanvasEditing | null
     onSelect: (id: string | null) => void
     control?: ReactNode
-    fitted: boolean
+    frame: CanvasFrame
+    layout: LayoutChoice
     children?: ReactNode
 }) {
     // A pan, a zoom or a drag the reader made, which is what stops the canvas re-deciding the view.
     const [moved, setMoved] = useState(false)
+    // A new layout is a new drawing, and the view is fitted to it again.
+    const key = layoutKey(layout)
+    const [laidOut, setLaidOut] = useState(key)
+    if (laidOut !== key) {
+        setLaidOut(key)
+        setMoved(false)
+    }
     // Where the view stood when the reader's current pan or zoom began.
     const gesture = useRef<CanvasView | null>(null)
     // A connection being drawn, which is what lights every port on the canvas at once.
     const [connecting, setConnecting] = useState(false)
 
+    const onPage = frame === 'fitted' || frame === 'filled'
+    const small = useSmallScreen()
+
+    const drawn = useMemo<Edge[]>(() => {
+        if (layout.routing === 'default') return edges
+        const curved = layout.routing === 'splines'
+        return edges.map((edge) => ({ ...edge, type: 'routed', data: { ...edge.data, curved } }))
+    }, [edges, layout.routing])
+
     return (
         <ReactFlow
             proOptions={PRO_OPTIONS}
-            className={`dg-graph${editing === null ? '' : ' dg-editable'}${connecting ? ' dg-connecting' : ''}${fitted ? ' dg-fitted' : ''}`}
-            panOnDrag={!fitted}
-            zoomOnScroll={!fitted}
-            zoomOnPinch={!fitted}
-            zoomOnDoubleClick={!fitted}
-            preventScrolling={!fitted}
+            className={cn(
+                'dg-graph',
+                editing !== null && 'dg-editable',
+                connecting && 'dg-connecting',
+                onPage && 'dg-fitted',
+            )}
+            // A finger on a phone scrolls the page; the graph's window is where it is panned.
+            panOnDrag={!(onPage && small)}
+            zoomOnScroll={!onPage}
+            zoomOnPinch
+            zoomOnDoubleClick={!onPage}
+            preventScrolling={!onPage}
             nodes={nodes}
-            edges={edges}
-            defaultEdgeOptions={fitted ? FITTED_EDGES : undefined}
+            edges={drawn}
+            edgeTypes={EDGE_TYPES}
+            defaultEdgeOptions={frame === 'stage' ? undefined : VIEW_EDGES}
             nodeTypes={nodeTypes}
             fitView
             fitViewOptions={fitOptionsFor()}
@@ -307,9 +360,16 @@ function Canvas({
                 editing.onDropped(from, { clientX: at.clientX, clientY: at.clientY })
             }}
         >
-            <FitToGraph nodes={nodes} moved={moved} />
-            {!fitted && <Background variant={BackgroundVariant.Dots} gap={18} size={1} />}
-            {!fitted && <ZoomControls control={control} empty={nodes.length === 0} />}
+            <FitToGraph nodes={nodes} moved={moved} direction={layout.direction} />
+            {onPage && (
+                <ModifiedWheel
+                    onZoomed={() => {
+                        setMoved(true)
+                    }}
+                />
+            )}
+            {!onPage && <Background variant={BackgroundVariant.Dots} gap={18} size={1} />}
+            {!onPage && <ZoomControls control={control} empty={nodes.length === 0} />}
             {children}
         </ReactFlow>
     )
@@ -318,10 +378,11 @@ function Canvas({
 export const ZOOM_IN_LABEL = LABELS.shell.zoom_in
 export const ZOOM_OUT_LABEL = LABELS.shell.zoom_out
 export const FIT_VIEW_LABEL = LABELS.shell.fit_view
+export const LAYOUT_LABEL = LABELS.shell.layout.menu
 
 /**
- * What the canvas offers in its corner: a zoom step worth pressing either way, the shared fit,
- * and whatever one control the screen adds above them. A canvas with nothing on it has nothing to
+ * What a stage offers in its corner: a zoom step worth pressing either way, the shared fit, and
+ * whatever one control the screen adds above them. A canvas with nothing on it has nothing to
  * zoom, so it offers the screen's control alone.
  */
 function ZoomControls({ control, empty }: { control: ReactNode; empty: boolean }) {
@@ -336,10 +397,10 @@ function ZoomControls({ control, empty }: { control: ReactNode; empty: boolean }
             {!empty && (
                 <>
                     <ControlButton onClick={step('in')} title={ZOOM_IN_LABEL} aria-label={ZOOM_IN_LABEL}>
-                        <ZoomIn />
+                        <ICONS.zoom_in />
                     </ControlButton>
                     <ControlButton onClick={step('out')} title={ZOOM_OUT_LABEL} aria-label={ZOOM_OUT_LABEL}>
-                        <ZoomOut />
+                        <ICONS.zoom_out />
                     </ControlButton>
                     <ControlButton
                         onClick={() => {
@@ -348,12 +409,141 @@ function ZoomControls({ control, empty }: { control: ReactNode; empty: boolean }
                         title={FIT_VIEW_LABEL}
                         aria-label={FIT_VIEW_LABEL}
                     >
-                        <Maximize2 />
+                        <ICONS.fit_view />
                     </ControlButton>
                 </>
             )}
         </Controls>
     )
+}
+
+/** The layout control a stage carries in its corner, among the zoom controls. */
+export function LayoutControl({
+    layout,
+    onLayout,
+}: {
+    layout: LayoutChoice
+    onLayout: (layout: LayoutChoice) => void
+}) {
+    return (
+        <LayoutMenu
+            choice={layout}
+            onChoose={onLayout}
+            trigger={
+                <ControlButton title={LAYOUT_LABEL} aria-label={LAYOUT_LABEL}>
+                    <ICONS.graph_layout />
+                </ControlButton>
+            }
+        />
+    )
+}
+
+/**
+ * What a canvas on a page offers in its panel's bar rather than over its drawing: the two zoom
+ * steps, which say how else the canvas zooms, the shared fit, and the layout.
+ *
+ * It reads the canvas through the provider the page wraps both in.
+ */
+export function PageCanvasTools({
+    layout,
+    onLayout,
+}: {
+    layout: LayoutChoice
+    onLayout: (layout: LayoutChoice) => void
+}) {
+    const flow = useReactFlow()
+    const modifier = modifierLabel(applePlatform(navigator.userAgent))
+    const step = (direction: 'in' | 'out') => () => {
+        void flow.zoomTo(steppedZoom(flow.getZoom(), direction), { duration: 120 })
+    }
+    return (
+        <span className="flex items-center gap-0.5 font-normal">
+            <IconButton
+                icon={ICONS.zoom_out}
+                label={ZOOM_OUT_LABEL}
+                tooltip={LABELS.shell.zoom_out_on_page(modifier)}
+                size="sm"
+                className="text-muted-foreground"
+                onClick={step('out')}
+            />
+            <IconButton
+                icon={ICONS.zoom_in}
+                label={ZOOM_IN_LABEL}
+                tooltip={LABELS.shell.zoom_in_on_page(modifier)}
+                size="sm"
+                className="text-muted-foreground"
+                onClick={step('in')}
+            />
+            <IconButton
+                icon={ICONS.fit_view}
+                label={FIT_VIEW_LABEL}
+                size="sm"
+                className="text-muted-foreground"
+                onClick={() => {
+                    void fitCapped(flow)
+                }}
+            />
+            <LayoutMenu
+                choice={layout}
+                onChoose={onLayout}
+                trigger={
+                    <IconButton
+                        icon={ICONS.graph_layout}
+                        label={LAYOUT_LABEL}
+                        size="sm"
+                        className="text-muted-foreground"
+                    />
+                }
+            />
+        </span>
+    )
+}
+
+/**
+ * A wheel over a canvas on a page zooms it only with Ctrl or the platform's modifier held, or as a
+ * trackpad pinch, which browsers send as a wheel with Ctrl. Every other wheel scrolls the page.
+ *
+ * The zoom is anchored on the pointer and moves by `wheelZoomFactor` per event, so a pinch's run
+ * of small deltas and a mouse wheel's notches both zoom at a pace that can be followed.
+ */
+function ModifiedWheel({ onZoomed }: { onZoomed: () => void }) {
+    const flow = useReactFlow()
+    const marker = useRef<HTMLDivElement | null>(null)
+    const zoomed = useRef(onZoomed)
+    useEffect(() => {
+        zoomed.current = onZoomed
+    }, [onZoomed])
+    useEffect(() => {
+        const element = marker.current?.closest('.react-flow')
+        if (!(element instanceof HTMLElement)) return
+        const onWheel = (event: WheelEvent) => {
+            if (!event.ctrlKey && !event.metaKey) return
+            event.preventDefault()
+            event.stopPropagation()
+            const view = flow.getViewport()
+            const zoom = Math.min(
+                MAX_ZOOM,
+                Math.max(MIN_ZOOM, view.zoom * wheelZoomFactor(event.deltaY, event.deltaMode)),
+            )
+            if (zoom === view.zoom) return
+            const box = element.getBoundingClientRect()
+            const at = { x: event.clientX - box.left, y: event.clientY - box.top }
+            void flow.setViewport(
+                {
+                    x: at.x - ((at.x - view.x) * zoom) / view.zoom,
+                    y: at.y - ((at.y - view.y) * zoom) / view.zoom,
+                    zoom,
+                },
+                { duration: 0 },
+            )
+            zoomed.current()
+        }
+        element.addEventListener('wheel', onWheel, { capture: true, passive: false })
+        return () => {
+            element.removeEventListener('wheel', onWheel, { capture: true })
+        }
+    }, [flow])
+    return <div ref={marker} className="hidden" aria-hidden />
 }
 
 /**
@@ -363,10 +553,29 @@ function ZoomControls({ control, empty }: { control: ReactNode; empty: boolean }
  * the instance exists only inside `ReactFlow`. `fitView` on the component alone is not enough:
  * a graph is placed by elk after the first render, so what that would fit is no nodes at all.
  */
-function FitToGraph({ nodes, moved }: { nodes: Node[]; moved: boolean }) {
+function FitToGraph({ nodes, moved, direction }: { nodes: Node[]; moved: boolean; direction: string }) {
     const flow = useReactFlow()
+    const updateInternals = useUpdateNodeInternals()
     const wrapper = useRef<HTMLDivElement | null>(null)
     const signature = viewportSignature(nodes)
+
+    // A box's anchors move to other sides when the direction changes, and the library reads
+    // where they are only when it is told to.
+    const ids = useRef<string[]>([])
+    useEffect(() => {
+        ids.current = nodes.map((node) => node.id)
+    }, [nodes])
+    const anchored = useRef(direction)
+    useEffect(() => {
+        if (anchored.current === direction) return
+        anchored.current = direction
+        const frame = requestAnimationFrame(() => {
+            updateInternals(ids.current)
+        })
+        return () => {
+            cancelAnimationFrame(frame)
+        }
+    }, [direction, updateInternals])
 
     useEffect(() => {
         if (moved || signature === '') return

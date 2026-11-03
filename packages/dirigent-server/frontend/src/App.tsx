@@ -154,7 +154,7 @@ export default function App() {
                     }
                 />
                 <Route
-                    path="pipelines/:code"
+                    path="pipelines/:code/:step?"
                     element={
                         <Suspense fallback={<Loading />}>
                             <PipelinePage />
@@ -179,7 +179,7 @@ export default function App() {
                     }
                 />
                 <Route
-                    path="runs/:id"
+                    path="runs/:id/:step?"
                     element={
                         <Suspense fallback={<Loading />}>
                             <RunDetail />

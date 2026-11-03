@@ -837,6 +837,26 @@ const shell = {
     zoom_in: 'Zoom in',
     zoom_out: 'Zoom out',
     fit_view: 'Fit view',
+    /** The same three on a canvas on a page, where a plain wheel scrolls the page. */
+    zoom_in_on_page: (modifier: string) => `Zoom in, or pinch, or hold ${modifier} and scroll`,
+    zoom_out_on_page: (modifier: string) => `Zoom out, or pinch, or hold ${modifier} and scroll`,
+    /** What the graph is called where it opens in a window. */
+    graph_window: (code: string) => `${code} · graph`,
+    /** The control that changes how a view of a graph is laid out, for this visit. */
+    layout: {
+        menu: 'Layout',
+        direction: 'Direction',
+        right: 'Left to right',
+        down: 'Top to bottom',
+        edges: 'Edges',
+        stepped: 'Stepped',
+        orthogonal: 'Orthogonal',
+        splines: 'Splines',
+        spacing: 'Spacing',
+        normal: 'Normal',
+        compact: 'Compact',
+        roomy: 'Roomy',
+    },
 
     /** The search box's own button, which empties it. */
     clear_search: 'Clear the search',
@@ -1463,6 +1483,8 @@ const pipelines = {
         earlier_reports: 'Earlier',
         /** A step chip under a block, which chooses that step on the graph. */
         choose_step: (step: string) => `Select ${step} in the graph`,
+        /** An address naming a step the pipeline does not have. */
+        no_such_step: (step: string) => `This pipeline has no step ${step}.`,
         /** The strip under the graph about the chosen box. */
         after: 'after',
         feeds: 'feeds',
@@ -2262,7 +2284,14 @@ const runs = {
     nothing_started: (status: string) => `nothing started: ${status}`,
     /** The Step tab, before a node has been chosen on the graph. */
     no_step_chosen: 'No step chosen.',
+    /** An address naming a step the run does not have. */
+    no_such_step: (step: string) => `This run has no step ${step}.`,
     graph_empty: "This run's pinned definition has no steps to draw.",
+    /** The buttons beside a try's id and a fan-out element's id, naming what they copy. */
+    copy_attempt_id: 'Copy the attempt id',
+    copy_item_id: 'Copy the item id',
+    /** The control that puts one try in the run's address. */
+    link_attempt: 'Put this attempt in the address',
 
     // The Run tab.
 
