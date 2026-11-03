@@ -25,8 +25,13 @@ RABBIT_BODY_NOT_JSON = QUEUES.define(
 
 RABBIT_NOTHING_BOUND = QUEUES.define(
     "rabbit.nothing_bound",
-    "nothing on exchange {exchange} takes routing key {routing_key}: "
-    "declare the queue, or name an exchange it is bound to",
+    "nothing on exchange {exchange} takes routing key {routing_key}, so the broker returned the message: "
+    "declare the queue, bind one to the exchange, or set require_route: false to let it be dropped",
+)
+
+RABBIT_PUBLISH_NACKED = QUEUES.define(
+    "rabbit.publish_nacked",
+    "the broker did not take the message for {routing_key}: it answered the publish with a nack",
 )
 
 RABBIT_PUBLISH_TIMED_OUT = QUEUES.define(

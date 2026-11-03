@@ -40,6 +40,7 @@ from dirigent_block_execute.docker import (
     DAEMON_ENV,
     ContainerInspect,
     DockerConnectionConfig,
+    DockerConnectionRef,
     DockerDaemon,
     daemon_environment,
     open_client,
@@ -183,7 +184,7 @@ class DockerComposeUpConfig(BlockModel):
     started. This never tears down a *successful* ``up`` -- that persists for the run by
     design."""
 
-    connection: ConnectionRef | None = None
+    connection: DockerConnectionRef | None = None
     """A ``docker`` connection naming the daemon this stack runs on.
 
     Absent, the stack runs on whatever daemon the worker's own environment names. The ``up``,
@@ -252,7 +253,7 @@ class DockerComposeDownConfig(BlockModel):
     remove_orphans: bool = True
     """Remove containers for services no longer in the compose file (``--remove-orphans``)."""
 
-    connection: ConnectionRef | None = None
+    connection: DockerConnectionRef | None = None
     """A ``docker`` connection naming the daemon this stack runs on.
 
     Absent, the stack runs on whatever daemon the worker's own environment names. The ``up``,

@@ -10,7 +10,7 @@ that verifies nowhere.
 
 import json
 import time
-from typing import ClassVar, Final
+from typing import Annotated, ClassVar, Final
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
@@ -30,7 +30,7 @@ from dirigent_block_http.http import (
 )
 from dirigent_block_http.messages import WEBHOOK_NO_SECRET, WEBHOOK_STATUS_REFUSED
 from dirigent_common import BlockModel, Issue, PlainHeaders, Size
-from dirigent_plugin import BlockFailure, ConnectionRef, ErrorClass, Operator, OperatorSpec, RemoteHandle, StepContext
+from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, Reference, RemoteHandle, StepContext
 from dirigent_plugin.sources import SIGNATURE_TIMESTAMP_HEADER, sign_body
 
 SIGNATURE_HEADER: Final = "X-Dirigent-Signature"
@@ -38,6 +38,9 @@ SIGNATURE_HEADER: Final = "X-Dirigent-Signature"
 JSON_CONTENT_TYPE: Final = "application/json"
 
 JSON_SEPARATORS: Final = (",", ":")
+
+#: A config field naming the ``http`` connection whose ``hmac_secret`` signs a body.
+type SigningConnectionRef = Annotated[str, Reference("connection", kinds=("http",))]
 
 
 class WebhookPostConfig(HttpTarget):
@@ -60,7 +63,7 @@ class WebhookPostConfig(HttpTarget):
     a step said it would hold is a receiver to find out about rather than to read.
     """
 
-    sign_with: ConnectionRef | None = None
+    sign_with: SigningConnectionRef | None = None
     """The connection whose ``hmac_secret`` signs the body; unset means the POST is unsigned.
 
     Named separately from ``connection`` so a POST to an absolute URL can still be signed

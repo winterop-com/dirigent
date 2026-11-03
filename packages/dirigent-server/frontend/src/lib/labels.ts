@@ -1074,6 +1074,9 @@ const refused = {
         carried_schemas:
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
+        step_connection_wrong_kind: '{block} needs {wanted}, and connection {code} is of kind {kind}.',
+        step_connection_for_alerts:
+            '{block} needs {wanted}, and connection {code} is of kind {kind}, which is for alert delivery.',
         step_program_is_a_reference:
             '{reference} is the whole of {field}, and a value is never a program. Write the program, and read the reference in it as the value it is.',
         step_reference_in_template:

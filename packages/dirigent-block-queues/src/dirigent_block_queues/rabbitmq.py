@@ -23,7 +23,7 @@ import base64
 import json
 import time
 from datetime import UTC, datetime, timedelta
-from typing import Any, ClassVar, Literal, Protocol, cast
+from typing import Annotated, Any, ClassVar, Literal, Protocol, cast
 from urllib.parse import quote, urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr, model_validator
@@ -39,6 +39,7 @@ from dirigent_block_queues.messages import (
     RABBIT_NO_QUEUE,
     RABBIT_NOTHING_BOUND,
     RABBIT_PUBLISH_FAILED,
+    RABBIT_PUBLISH_NACKED,
     RABBIT_PUBLISH_TIMED_OUT,
     RABBIT_READ_FAILED,
 )
@@ -46,11 +47,11 @@ from dirigent_common import BlockModel, Duration, HealthReport, raised_detail, r
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
-    ConnectionRef,
     ErrorClass,
     NotYet,
     Operator,
     OperatorSpec,
+    Reference,
     Sensor,
     SensorSpec,
     StepContext,
@@ -167,8 +168,8 @@ class Channel(Protocol):
 class Connection(Protocol):
     """The part of a connection this block uses."""
 
-    async def channel(self) -> Channel:
-        """Open a channel on the connection."""
+    async def channel(self, *, publisher_confirms: bool = True, on_return_raises: bool = False) -> Channel:
+        """Open a channel on the connection, raising on a returned message when ``on_return_raises``."""
         ...
 
     async def close(self) -> None:
@@ -181,6 +182,10 @@ async def connect(settings: RabbitConnectionConfig) -> Connection:
     import aio_pika
 
     return cast("Connection", await aio_pika.connect(settings.dsn()))
+
+
+#: A config field naming a ``rabbitmq`` connection; plan and apply refuse one of another kind.
+type RabbitConnectionRef = Annotated[str, Reference("connection", kinds=("rabbitmq",))]
 
 
 class RabbitConnectionKind(ConnectionKind):
@@ -206,7 +211,7 @@ class RabbitConnectionKind(ConnectionKind):
 class RabbitConsumeConfig(BlockModel):
     """Which queue to wait on, how much to take, and when to acknowledge it."""
 
-    connection: ConnectionRef
+    connection: RabbitConnectionRef
     """The ``rabbitmq`` connection naming the broker and holding its password."""
 
     queue: str = Field(min_length=1)
@@ -443,7 +448,7 @@ def decode(raw: bytes, form: Payload) -> JsonValue:
 class RabbitPublishConfig(BlockModel):
     """What to publish, where to put it, and how durably."""
 
-    connection: ConnectionRef
+    connection: RabbitConnectionRef
     """The ``rabbitmq`` connection naming the broker and holding its password."""
 
     exchange: str = ""
@@ -463,6 +468,14 @@ class RabbitPublishConfig(BlockModel):
 
     persistent: bool = True
     """Whether the broker writes the message to disk, so a durable queue keeps it across a restart."""
+
+    require_route: bool = True
+    """Whether a message no queue takes fails the step.
+
+    On, the message is published ``mandatory``: a routing key nothing on the exchange is bound
+    to, which on the default exchange is a queue that does not exist, comes back from the broker
+    and the step is refused. Off, the broker drops such a message and the step succeeds, which
+    suits a fanout of events that nobody may be subscribed to yet."""
 
     timeout: Duration = timedelta(seconds=30)
     """How long the whole publish may take, such as ``30s``."""
@@ -485,7 +498,10 @@ class RabbitPublishOutput(BlockModel):
     """What one publish put on the broker."""
 
     published: int
-    """How many messages the broker took, which is one."""
+    """How many messages the broker confirmed, which is one.
+
+    Under ``require_route`` a confirmed message reached a queue; without it, the broker may have
+    confirmed a message it then dropped for want of one."""
 
     message_bytes: int
     """How many bytes of body were handed to the broker."""
@@ -508,7 +524,7 @@ class RabbitPublishOperator(Operator[RabbitPublishConfig, RabbitPublishOutput]):
 
     async def execute(self, config: RabbitPublishConfig, ctx: StepContext) -> RabbitPublishOutput:
         """Open a channel, put one message on the exchange, and wait for the broker to take it."""
-        from aio_pika.exceptions import DeliveryError
+        from aio_pika.exceptions import DeliveryError, PublishError
 
         settings = ctx.connection(config.connection, RabbitConnectionConfig)
         try:
@@ -519,21 +535,27 @@ class RabbitPublishOperator(Operator[RabbitPublishConfig, RabbitPublishOutput]):
         content_type = config.declared_content_type()
         try:
             async with asyncio.timeout(config.timeout.total_seconds()):
-                channel = await connection.channel()
+                # Confirms make the publish wait for the broker's answer, and a mandatory message
+                # nothing routes comes back as that answer, raised rather than returned.
+                channel = await connection.channel(publisher_confirms=True, on_return_raises=config.require_route)
                 exchange = await _exchange(channel, config)
-                # Mandatory: a routing key no queue answers to is refused by the broker rather
-                # than dropped, which on the default exchange is a queue that does not exist.
                 await exchange.publish(
-                    _message(body, content_type, persistent=config.persistent), config.routing_key, mandatory=True
+                    _message(body, content_type, persistent=config.persistent),
+                    config.routing_key,
+                    mandatory=config.require_route,
                 )
         except BlockFailure:
             raise
-        except DeliveryError as error:
+        except PublishError as error:
             raise BlockFailure(
                 RABBIT_NOTHING_BOUND,
                 error_class=ErrorClass.REJECTED,
                 exchange=repr(config.exchange),
                 routing_key=repr(config.routing_key),
+            ) from error
+        except DeliveryError as error:
+            raise BlockFailure(
+                RABBIT_PUBLISH_NACKED, error_class=ErrorClass.TRANSIENT, routing_key=repr(config.routing_key)
             ) from error
         except TimeoutError as error:
             raise BlockFailure(
@@ -557,6 +579,7 @@ class RabbitPublishOperator(Operator[RabbitPublishConfig, RabbitPublishOutput]):
             routing_key=config.routing_key,
             message_bytes=len(body),
             content_type=content_type,
+            require_route=config.require_route,
         )
         return RabbitPublishOutput(published=1, message_bytes=len(body))
 

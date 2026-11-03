@@ -53,10 +53,10 @@ from dirigent_common import (
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
-    ConnectionRef,
     ErrorClass,
     Operator,
     OperatorSpec,
+    Reference,
     RemoteHandle,
     StepContext,
 )
@@ -127,6 +127,10 @@ class SqlConnectionConfig(BlockModel):
         return self
 
 
+#: A config field naming a ``sql`` connection; plan and apply refuse one of another kind.
+type SqlConnectionRef = Annotated[str, Reference("connection", kinds=("sql",))]
+
+
 class SqlConnectionKind(ConnectionKind):
     """The connection kind the ``sql.*`` blocks resolve their database through."""
 
@@ -143,7 +147,7 @@ class SqlConnectionKind(ConnectionKind):
 class SqlQueryConfig(BlockModel):
     """One statement, and the values bound into it."""
 
-    connection: ConnectionRef
+    connection: SqlConnectionRef
     """The ``sql`` connection naming the database and holding its password."""
 
     sql: Annotated[str, Field(min_length=1, json_schema_extra={"contentMediaType": SQL_MEDIA_TYPE})]
@@ -245,7 +249,7 @@ class SqlQueryOperator(Operator[SqlQueryConfig, SqlQueryOutput]):
 class SqlExecuteConfig(BlockModel):
     """The statements one transaction runs, and the values bound into all of them."""
 
-    connection: ConnectionRef
+    connection: SqlConnectionRef
     """The ``sql`` connection naming the database and holding its password. A connection
     marked ``read_only`` is refused: this block writes."""
 

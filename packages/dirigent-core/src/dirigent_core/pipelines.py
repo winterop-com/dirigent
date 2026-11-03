@@ -99,10 +99,10 @@ class PipelineInUse(PipelineError):
         self.runs = runs
 
 
-async def connection_codes(session: AsyncSession) -> list[str]:
-    """List the connections this instance holds."""
-    rows = await session.execute(sa.select(Connection.code).order_by(Connection.code))
-    return list(rows.scalars())
+async def connection_kinds(session: AsyncSession) -> dict[str, str]:
+    """List the connections this instance holds, each code with its kind."""
+    rows = await session.execute(sa.select(Connection.code, Connection.kind).order_by(Connection.code))
+    return {code: kind for code, kind in rows}
 
 
 async def pipeline_codes(session: AsyncSession) -> list[str]:
@@ -237,7 +237,7 @@ async def plan_apply(
     issues = validate_against_catalog(
         definition,
         services.host.catalog(),
-        connections=await connection_codes(session),
+        connections=await connection_kinds(session),
         pipelines=await pipeline_codes(session),
         unsafe_allowed=services.settings.enabled_unsafe_blocks,
         storage_schemes=services.storage.schemes,
@@ -401,7 +401,7 @@ async def revalidate(
     return validate_against_catalog(
         load_definition(stored.document),
         services.host.catalog(),
-        connections=await connection_codes(session),
+        connections=await connection_kinds(session),
         pipelines=await pipeline_codes(session),
         unsafe_allowed=services.settings.enabled_unsafe_blocks,
         storage_schemes=services.storage.schemes,

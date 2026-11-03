@@ -11,6 +11,7 @@ from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SourceEntry,
 from dirigent_common import JsonMap
 from dirigent_common.bounds import BOUNDS_KEYWORD
 from dirigent_core.configdocs import first_paragraph, one_line
+from dirigent_plugin import Accepts, accepted_connections
 
 #: Relative to the repository root.
 PAGE_PATH: Final = "docs/blocks.md"
@@ -126,12 +127,16 @@ def _schema_table(schema: JsonMap) -> str:
         return "_No fields._"
     required = {name for name in _sequence(schema.get("required")) if isinstance(name, str)}
     definitions = _mapping(schema.get("$defs"))
+    accepting = accepted_connections(schema)
     rows: list[str] = []
     for name, raw in properties.items():
         field = _mapping(raw)
+        described = _description_of(field)
+        if name in accepting:
+            described = f"{described} {_accepts_of(accepting[name])}"
         rows.append(
             f"| `{name}` | `{_type_of(field, definitions)}` | {'yes' if name in required else ''} "
-            f"| {_default_of(field, name in required)} | {_description_of(field)} |"
+            f"| {_default_of(field, name in required)} | {described} |"
         )
     return "\n".join(["| Field | Type | Required | Default | Description |", "| --- | --- | --- | --- | --- |", *rows])
 
@@ -222,6 +227,17 @@ def _bounds_of(field: JsonMap) -> str:
         if said:
             return " and ".join(said).capitalize() + "."
     return ""
+
+
+def _accepts_of(accepts: Accepts) -> str:
+    """Say which connections a connection field takes, as plan and apply hold it to."""
+    kinds = " or ".join(f"`{kind}`" for kind in accepts.kinds)
+    fields = ", ".join(f"`{field}`" for field in accepts.carrying)
+    if kinds and fields:
+        return f"Takes a connection of kind {kinds}, or of any kind carrying {fields}."
+    if fields:
+        return f"Takes a connection of any kind carrying {fields}."
+    return f"Takes a connection of kind {kinds}."
 
 
 def _surfaces(title: str, label: str, entries: list[SurfaceEntry]) -> str:

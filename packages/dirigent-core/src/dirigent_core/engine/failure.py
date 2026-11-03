@@ -51,10 +51,10 @@ def backoff_delay(policy: RetryPolicy, attempt: int, rng: random.Random | None =
 
 
 def raised_params(block_id: str, error: Exception, *, redact: Collection[str] = ()) -> JsonMap:
-    """Name an unanticipated exception for an operator, beside the sentence a person reads.
+    """Name an unanticipated exception, for the sentence a person reads and for an operator.
 
-    ``block`` is what the template renders; the class and the exception's own text are an
-    operator's, so they ride here and in the step's log instead of in that sentence.
+    The template renders ``block`` and the exception's own text, scrubbed; the class is an
+    operator's, so it rides here and in the step's log instead of in that sentence.
     """
     return {
         "block": repr(block_id),
@@ -79,10 +79,11 @@ class Failure(BaseModel):
         error_class = classify(block, error)
         if isinstance(error, BlockFailure):
             return cls(code=error.code, message=error.message, params=error.params, error_class=error_class)
+        params = raised_params(block.spec.id, error, redact=redact)
         return cls(
             code=BLOCK_RAISED.code,
-            message=BLOCK_RAISED.render(block=repr(block.spec.id)),
-            params=raised_params(block.spec.id, error, redact=redact),
+            message=BLOCK_RAISED.render(**params),
+            params=params,
             error_class=error_class,
         )
 

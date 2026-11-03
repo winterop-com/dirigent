@@ -27,7 +27,7 @@ import ssl
 import time
 from collections.abc import Awaitable, Iterator
 from datetime import UTC, datetime, timedelta
-from typing import Any, ClassVar, Literal, Protocol, cast
+from typing import Annotated, Any, ClassVar, Literal, Protocol, cast
 
 from pydantic import BaseModel, Field, JsonValue, SecretStr, ValidationError, model_validator
 
@@ -49,11 +49,11 @@ from dirigent_common import BlockModel, Duration, HealthReport, JsonMap, raised_
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
-    ConnectionRef,
     ErrorClass,
     NotYet,
     Operator,
     OperatorSpec,
+    Reference,
     Sensor,
     SensorSpec,
     StepContext,
@@ -226,6 +226,10 @@ def consumer_for(settings: KafkaConnectionConfig, *, group_id: str | None, start
     return cast("Consumer", PrimedConsumer(AIOKafkaConsumer(**keywords)))
 
 
+#: A config field naming a ``kafka`` connection; plan and apply refuse one of another kind.
+type KafkaConnectionRef = Annotated[str, Reference("connection", kinds=("kafka",))]
+
+
 class KafkaConnectionKind(ConnectionKind):
     """The connection kind ``kafka.consume`` resolves its cluster and credential through."""
 
@@ -251,7 +255,7 @@ class KafkaConnectionKind(ConnectionKind):
 class KafkaConsumeConfig(BlockModel):
     """Which topic to wait on, how much to take, and how to read what is in it."""
 
-    connection: ConnectionRef
+    connection: KafkaConnectionRef
     """The ``kafka`` connection naming the cluster and holding its credential."""
 
     topic: str = Field(min_length=1)
@@ -511,7 +515,7 @@ class OutgoingRecord(BlockModel):
 class KafkaProduceConfig(BlockModel):
     """What to publish to which topic, and how sure to be that the broker took it."""
 
-    connection: ConnectionRef
+    connection: KafkaConnectionRef
     """The ``kafka`` connection naming the cluster and holding its credential."""
 
     topic: str = Field(min_length=1)
@@ -554,7 +558,7 @@ class KafkaProduceOutput(BlockModel):
     """What one publish put on the topic, and where the broker put it."""
 
     produced: int
-    """How many records the broker acknowledged."""
+    """How many records the broker acknowledged; under ``acks: 0``, how many were sent unconfirmed."""
 
     topic: str
     """The topic the records were published to."""

@@ -67,8 +67,11 @@ class FakeBroker:
         self.closed = False
         self.dsn: str | None = None
         self.fail_on_connect: Exception | None = None
+        self.on_return_raises = False
+        self.nack = False
 
-    async def channel(self) -> "FakeBroker":
+    async def channel(self, *, publisher_confirms: bool = True, on_return_raises: bool = False) -> "FakeBroker":
+        self.on_return_raises = on_return_raises
         return self
 
     async def close(self) -> None:
@@ -88,10 +91,16 @@ class FakeBroker:
             raise RuntimeError(f"NOT_FOUND - no exchange '{name}'")
         return self
 
-    async def publish(self, message: Any, routing_key: str, *, mandatory: bool = False) -> None:
-        if mandatory and self.routes is not None and routing_key not in self.routes:
-            raise aio_pika.exceptions.DeliveryError(message, cast("Any", None))
+    async def publish(self, message: Any, routing_key: str, *, mandatory: bool = False) -> object:
+        """Answer the way aio-pika does: a returned message raises only on a channel opened to raise."""
+        if self.nack:
+            raise aio_pika.exceptions.DeliveryError(None, cast("Any", None))
+        if self.routes is not None and routing_key not in self.routes:
+            if mandatory and self.on_return_raises:
+                raise aio_pika.exceptions.PublishError.__new__(aio_pika.exceptions.PublishError)
+            return "returned" if mandatory else "acked"
         self.published.append((routing_key, message))
+        return "acked"
 
     async def get(self, *, fail: bool = False, no_ack: bool = False) -> FakeDelivery | None:
         if not self.queued:
@@ -498,8 +507,36 @@ async def test_a_publish_nothing_takes_is_refused_rather_than_dropped(ctx: FakeC
         )
 
     assert raised.value.error_class is ErrorClass.REJECTED
+    assert raised.value.code == "queues.rabbit.nothing_bound"
     assert "nobody-listens" in str(raised.value)
     assert broker.published == []
+
+
+async def test_a_publish_that_need_not_be_routed_succeeds_when_nothing_takes_it(
+    ctx: FakeContext, broker: FakeBroker
+) -> None:
+    broker.routes = {"shop-reports"}
+
+    output = await RabbitPublishOperator().execute(
+        RabbitPublishConfig(connection="broker", routing_key="nobody-listens", message="hello", require_route=False),
+        connected(ctx).as_context(),
+    )
+
+    assert output.published == 1
+    assert broker.published == []
+
+
+async def test_a_publish_the_broker_nacks_is_transient(ctx: FakeContext, broker: FakeBroker) -> None:
+    broker.nack = True
+
+    with pytest.raises(BlockFailure) as raised:
+        await RabbitPublishOperator().execute(
+            RabbitPublishConfig(connection="broker", routing_key="shop-orders", message="hello"),
+            connected(ctx).as_context(),
+        )
+
+    assert raised.value.code == "queues.rabbit.publish_nacked"
+    assert raised.value.error_class is ErrorClass.TRANSIENT
 
 
 def test_a_url_with_a_credential_in_its_query_is_refused_without_repeating_it() -> None:

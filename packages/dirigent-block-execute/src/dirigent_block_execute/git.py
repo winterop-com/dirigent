@@ -35,7 +35,7 @@ import tempfile
 from collections.abc import Generator
 from datetime import timedelta
 from pathlib import Path
-from typing import ClassVar
+from typing import Annotated, ClassVar
 from urllib.parse import quote, urlsplit, urlunsplit
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -63,10 +63,10 @@ from dirigent_common import (
 from dirigent_plugin import (
     BlockFailure,
     ConnectionKind,
-    ConnectionRef,
     ErrorClass,
     Operator,
     OperatorSpec,
+    Reference,
     RemoteHandle,
     StepContext,
 )
@@ -175,6 +175,10 @@ class GitConnectionConfig(BlockModel):
         return self
 
 
+#: A config field naming a ``git`` connection; plan and apply refuse one of another kind.
+type GitConnectionRef = Annotated[str, Reference("connection", kinds=("git",))]
+
+
 class GitConnectionKind(ConnectionKind):
     """The connection kind ``git.checkout`` resolves its remote and credential through."""
 
@@ -210,7 +214,7 @@ class GitConnectionKind(ConnectionKind):
 class GitCheckoutConfig(BlockModel):
     """Which repository to put where, at what ref, and how much of its history."""
 
-    connection: ConnectionRef
+    connection: GitConnectionRef
     """The ``git`` connection naming the remote and holding its credential."""
 
     ref: str | None = None

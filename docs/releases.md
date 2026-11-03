@@ -82,6 +82,38 @@ name, description, tags and concurrency. The API's plan, `dg apply`'s records an
 lines, MCP's `plan_document`, the editor's plan and the audit trail's changed parts all carry
 them.
 
+**Breaking: a step's connection must be of a kind its block takes, and plan and apply refuse one
+that is not.** A connection field declares the kinds it accepts with
+`Reference("connection", kinds=(...), carrying=(...))`, published as `x-dirigent-accepts` beside
+`x-dirigent-ref`: one of the named kinds, or one of any kind whose config carries every named
+field. `sql.query` and `sql.execute` take `sql`, `kafka.*` `kafka`, `rabbitmq.*` `rabbitmq`,
+`git.checkout` `git`, the docker blocks `docker`, `webhook.post`'s `sign_with` `http`, and
+`http.request`, `http.ready` and `webhook.post` an `http` connection or one of any kind carrying
+`base_url`, so a pack's `dhis2`, `fhir`, `climate` or `chap` connection still fits them. The
+refusal is `document.step_connection_wrong_kind`, or `document.step_connection_for_alerts` for a
+kind an alert channel delivers through: a `webhook` connection named by `webhook.post` used to
+pass plan and apply and then fail the run on a URL with no scheme. `webhook.post` does not take a
+`webhook` connection: that kind is one `url` for alert delivery, and the block posts to an `http`
+connection's `base_url` plus `path`. `dg validate` checks a connection the document carries
+offline, and against the server checks every one. A document already stored that names a
+connection of the wrong kind is refused at its next apply; it would have failed at run time.
+A plain `ConnectionRef` still takes every kind, so a pack's blocks are unchanged until they say
+which. `validate_against_catalog` now takes `connections` as a mapping of code to kind, where None is a
+connection held whose kind the caller does not know and is not checked.
+
+**A block's unanticipated failure says what went wrong.** `run.block_raised` names the block and
+then the exception's own text, scrubbed of the step's secrets, where it used to say only that the
+step's log had the cause.
+
+**Breaking: `rabbitmq.publish` fails a message no queue takes.** The publish was already
+`mandatory`, but the channel answered a returned message with success, so a routing key that named
+no queue on the default exchange reported `published: 1` for a message the broker dropped. The
+channel now raises on a return, and the step fails as rejected with `queues.rabbit.nothing_bound`.
+`require_route: false` publishes without `mandatory`, for a fanout nobody may be subscribed to
+yet. A broker's nack fails the step as transient with `queues.rabbit.publish_nacked`, where it was
+reported as nothing bound. `kafka.produce` already refused a topic the cluster lacks and waits for
+every in-sync replica under its default `acks: all`, and is unchanged.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

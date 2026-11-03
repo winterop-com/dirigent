@@ -512,6 +512,16 @@ as secret are encrypted at rest and redacted in every API response.
 An alert channel is one of these too: a `slack` or an `email` connection is what an alert rule
 delivers through, minted and sealed exactly like the credential a block uses.
 
+**A step's connection must be of a kind its block takes.** Each block says so for each of its
+connection fields, and [the block reference](blocks.md) lists it: `sql.query` takes a `sql`
+connection, and `http.request`, `http.ready` and `webhook.post` take an `http` one or one of any
+kind carrying a `base_url`, such as a pack's `dhis2` or `fhir`. Plan and apply refuse any other,
+naming the kinds the field takes, and `dg validate` does the same offline for a connection the
+document carries. A `webhook` connection is the one that trips people up: it is the alert
+channel's, a single `url` an alert is POSTed to, and `webhook.post` refuses it with
+`document.step_connection_for_alerts`. The block POSTs to an `http` connection's `base_url` plus
+the step's `path`, or to an absolute `url` with no connection at all.
+
 **A connection something uses cannot be deleted.** `DELETE /connections/{code}` and `dg connection
 delete` answer 409 `server.connection_in_use` while a pipeline's current version names the code -- in a
 step, in a source, or under `requires.connections` -- while an alert rule delivers through it, or

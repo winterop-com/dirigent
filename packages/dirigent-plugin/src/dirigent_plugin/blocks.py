@@ -3,7 +3,7 @@
 import functools
 import re
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Collection, Mapping
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -150,6 +150,9 @@ class ShellString:
 #: What :class:`Reference` publishes, and what reading one back looks for.
 REFERENCE_KEYWORD: Final = "x-dirigent-ref"
 
+#: What a connection :class:`Reference` publishes beside it: which connections the field accepts.
+ACCEPTS_KEYWORD: Final = "x-dirigent-accepts"
+
 #: The only pointer shape a block's own config schema writes, which pydantic emits for a
 #: field whose type is a named alias.
 _LOCAL_DEFS: Final = "#/$defs/"
@@ -162,17 +165,35 @@ class Reference:
     schema draws that thing under the field. It is a bare class rather than a model: annotation
     metadata pydantic recognises as a model would be read as the field's schema, and a marker
     must stay invisible to validation.
+
+    A connection reference may say which connections it accepts, published as
+    ``x-dirigent-accepts``: one of the ``kinds`` it names, or one of any kind whose config
+    carries every field in ``carrying``. Plan and apply refuse a named connection that is
+    neither. A connection reference that says neither accepts every kind.
     """
 
-    __slots__ = ("kind",)
+    __slots__ = ("carrying", "kind", "kinds")
 
-    def __init__(self, kind: Literal["connection", "schema"]) -> None:
-        """Record what a value of the marked field names."""
+    def __init__(
+        self,
+        kind: Literal["connection", "schema"],
+        *,
+        kinds: tuple[str, ...] = (),
+        carrying: tuple[str, ...] = (),
+    ) -> None:
+        """Record what a value of the marked field names, and which connections it accepts."""
+        if kind != "connection" and (kinds or carrying):
+            raise ValueError("only a connection reference says which kinds it accepts")
         self.kind = kind
+        self.kinds = kinds
+        self.carrying = carrying
 
     def __repr__(self) -> str:
         """Render the marker the way it is written."""
-        return f"Reference({self.kind!r})"
+        accepts = "".join(
+            f", {name}={value!r}" for name, value in (("kinds", self.kinds), ("carrying", self.carrying)) if value
+        )
+        return f"Reference({self.kind!r}{accepts})"
 
     def __get_pydantic_json_schema__(
         self,
@@ -182,7 +203,32 @@ class Reference:
         """Publish what the marked field's code names, leaving what it validates untouched."""
         published = handler(schema)
         published[REFERENCE_KEYWORD] = self.kind
+        if self.kinds or self.carrying:
+            published[ACCEPTS_KEYWORD] = {"kinds": list(self.kinds), "carrying": list(self.carrying)}
         return published
+
+
+class Accepts(BaseModel):
+    """Which connections one connection field accepts, as its :class:`Reference` published it."""
+
+    model_config = ConfigDict(frozen=True)
+
+    kinds: tuple[str, ...] = ()
+    """The connection kinds accepted by id."""
+
+    carrying: tuple[str, ...] = ()
+    """The config fields a connection of any other kind must carry to be accepted."""
+
+    def fits(self, kind: str, fields: Collection[str] | None) -> bool:
+        """Whether a connection of ``kind``, whose config has ``fields``, is one this field accepts.
+
+        ``fields`` is None where the kind is not installed, and then only its id is compared.
+        """
+        if kind in self.kinds:
+            return True
+        if not self.carrying or fields is None:
+            return False
+        return all(field in fields for field in self.carrying)
 
 
 #: A connection is referenced by code, never by id, so documents stay portable.
@@ -239,6 +285,28 @@ def reference_fields(schema: JsonMap, kind: str) -> set[str]:
         if any(one.get(REFERENCE_KEYWORD) == kind for one in shapes):
             named.add(str(field))
     return named
+
+
+def accepted_connections(schema: JsonMap) -> dict[str, Accepts]:
+    """Name the connection fields a block's schema publishes, with which connections each accepts.
+
+    A field that says nothing about the kinds it accepts is left out, because it accepts every kind.
+    """
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return {}
+    held = schema.get("$defs")
+    pool = cast("dict[str, Any]", held) if isinstance(held, dict) else {}
+    found: dict[str, Accepts] = {}
+    for field, declared in cast("dict[str, Any]", properties).items():
+        if not isinstance(declared, dict):
+            continue
+        for shape in _shapes(cast("dict[str, Any]", declared), pool):
+            accepts = shape.get(ACCEPTS_KEYWORD)
+            if isinstance(accepts, dict):
+                found[str(field)] = Accepts.model_validate(accepts)
+                break
+    return found
 
 
 #: The schema keywords that say a value takes one or all of several shapes.

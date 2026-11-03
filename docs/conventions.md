@@ -207,9 +207,9 @@ fact alone is still better than an instruction its reader cannot follow.
 A refusal is written for the person reading it, so a Python class name is never the sentence.
 What an exception said about itself is an operator's detail: it rides in the params, in the
 step's log and in the record, behind a sentence somebody wrote. A block that fails in a way
-nobody anticipated is refused with `run.block_raised`, which names the block and points at the
-log, and `dirigent_common.raised_detail` puts the class and the exception's own text where an
-operator reads them. That helper is what a `HealthReport.detail` uses too, so an instance's
+nobody anticipated is refused with `run.block_raised`, which names the block and says, after it,
+what the exception said about itself, scrubbed of the step's secrets; `dirigent_common.raised_detail`
+writes that text, and the class rides in the params and the step's log where an operator reads it. That helper is what a `HealthReport.detail` uses too, so an instance's
 own words come first and the class is the last thing left to say.
 
 A prefix has exactly one owner. A runtime package owns its own name (`common`, `plugin`,

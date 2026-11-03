@@ -113,15 +113,22 @@ def test_a_failure_carries_the_message_a_block_meant_to_send() -> None:
 
 
 def test_an_unanticipated_exception_is_not_read_to_a_person_as_a_python_class() -> None:
-    """The sentence names the block and sends the reader to the log; the class is a param."""
+    """The sentence names the block and says what the exception said; the class is a param."""
     failure = Failure.of(HonestOperator(), ValueError("nonsense"))
 
     assert failure.code == "run.block_raised"
     assert "ValueError" not in failure.message
-    assert "nonsense" not in failure.message
+    assert failure.message.endswith(": nonsense")
     assert "test.honest" in failure.message
     assert failure.params["raised_kind"] == "ValueError"
     assert failure.params["raised_detail"] == "nonsense"
+
+
+def test_what_an_unanticipated_exception_said_is_scrubbed_of_the_steps_secrets() -> None:
+    failure = Failure.of(HonestOperator(), ValueError("login DUMMY-secret refused"), redact={"DUMMY-secret"})
+
+    assert "DUMMY-secret" not in failure.message
+    assert failure.message.endswith(": login *** refused")
 
 
 def test_an_exception_that_said_nothing_still_leaves_an_operator_something() -> None:

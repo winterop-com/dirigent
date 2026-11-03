@@ -5,6 +5,7 @@ import hashlib
 import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Final, cast, get_args, get_origin
 
 import yaml
@@ -104,7 +105,9 @@ from dirigent_core.messages import (
     SCHEDULE_REFUSED,
     STEP_BLOCK_MISSING,
     STEP_CONFIG_INVALID,
+    STEP_CONNECTION_FOR_ALERTS,
     STEP_CONNECTION_MISSING,
+    STEP_CONNECTION_WRONG_KIND,
     STEP_CREDENTIAL_HEADER,
     STEP_CREDENTIAL_PARAMETER,
     STEP_PROGRAM_IS_A_REFERENCE,
@@ -127,7 +130,10 @@ from dirigent_core.messages import (
     WRONG_DOCUMENT_KIND,
     WRONG_FORMAT,
 )
-from dirigent_plugin import MediaPlace, media_places_of, reference_fields, sql_values_of
+from dirigent_plugin import MediaPlace, accepted_connections, media_places_of, reference_fields, sql_values_of
+
+#: What a caller that names no connections holds: none.
+NO_CONNECTIONS: Final[Mapping[str, str | None]] = MappingProxyType({})
 
 #: High enough that the canonical dump never folds a line, which would shift the digest.
 YAML_WIDTH: Final = 10_000
@@ -415,7 +421,7 @@ def validate_against_catalog(
     definition: Document,
     catalog: Catalog,
     *,
-    connections: Iterable[str] | None = (),
+    connections: Mapping[str, str | None] | None = NO_CONNECTIONS,
     pipelines: Iterable[str] | None = (),
     check_blocks: bool = True,
     unsafe_allowed: Iterable[str] | None = None,
@@ -429,8 +435,11 @@ def validate_against_catalog(
     """Check a document against what this instance actually has, reporting everything at once.
 
     ``check_blocks`` is off where no catalog is available to check against. ``connections`` and
-    ``pipelines`` are what the instance holds; None means the caller does not know, as on the
-    offline path, and then neither a step's connection nor the ones ``requires`` names is checked.
+    ``pipelines`` are what the instance holds, ``connections`` each code with its kind, or None
+    for a kind the caller does not know; None for the whole means the caller does not know, as on
+    the offline path, and then neither a step's connection nor the ones ``requires`` names is
+    checked. The kind of a connection a step names is checked wherever it is known, which offline
+    is a connection the document carries.
     ``unsafe_allowed`` and ``storage_schemes`` are what the instance permits and what its
     backends claim; left unset, neither is checked, because a caller that does not know them
     would otherwise refuse a document the instance would have run. ``blocks`` is the live
@@ -455,6 +464,10 @@ def validate_against_catalog(
         )
     # A document that brings its own connections or schemas satisfies its own references to them.
     known = None if connections is None else {name for name in connections} | set(definition.connections)
+    connection_kinds = {
+        **(connections or {}),
+        **{code: carried.kind for code, carried in definition.connections.items()},
+    }
     known_schemas = None if schemas is None else {name for name in schemas} | set(definition.schemas)
     held = None if pipelines is None else {name for name in pipelines}
     issues: list[ValidationIssue] = []
@@ -487,6 +500,7 @@ def validate_against_catalog(
                 None if storage_schemes is None else set(storage_schemes),
                 blocks,
                 known_schemas,
+                connection_kinds,
             )
         )
     return issues
@@ -704,6 +718,7 @@ def _step_block_issues(
     schemes: set[str] | None = None,
     blocks: Mapping[str, Any] | None = None,
     schemas: set[str] | None = None,
+    connection_kinds: Mapping[str, str | None] | None = None,
 ) -> list[ValidationIssue]:
     """Check every step against the catalog: the block exists, and its config fits the schema."""
     issues: list[ValidationIssue] = []
@@ -720,6 +735,9 @@ def _step_block_issues(
         malformed = _config_issues(name, step.config, entry.config_schema)
         issues.extend(malformed)
         issues.extend(_connection_issues(name, step.config, connections))
+        issues.extend(
+            _connection_kind_issues(name, step.block, step.config, entry.config_schema, connection_kinds, catalog)
+        )
         issues.extend(_schema_issues(name, step.config, entry.config_schema, schemas))
         issues.extend(_sql_reference_issues(name, step.config, entry.config_schema))
         issues.extend(_program_reference_issues(name, step.config, entry.config_schema))
@@ -1025,6 +1043,60 @@ def _connection_issues(step: str, config: JsonMap, connections: set[str] | None)
             available=available,
         )
     ]
+
+
+def _connection_kind_issues(
+    step: str,
+    block: str,
+    config: JsonMap,
+    schema: JsonMap,
+    kinds: Mapping[str, str | None] | None,
+    catalog: Catalog,
+) -> list[ValidationIssue]:
+    """Refuse a step naming a connection of a kind its block does not accept, where that kind is known.
+
+    Which kinds a field accepts is the block's own declaration; a field that declares none
+    accepts every kind. A refused kind that also delivers alerts is said to be for that.
+    """
+    if not kinds:
+        return []
+    fields = {
+        entry.id: set(cast("dict[str, Any]", entry.config_schema.get("properties") or {}))
+        for entry in catalog.connection_kinds
+    }
+    alerting = {entry.id for entry in catalog.notifiers}
+    issues: list[ValidationIssue] = []
+    for key, accepts in sorted(accepted_connections(schema).items()):
+        named = config.get(key)
+        if not isinstance(named, str) or has_reference(named):
+            continue
+        kind = kinds.get(named)
+        if kind is None or accepts.fits(kind, fields.get(kind)):
+            continue
+        issues.append(
+            ValidationIssue.of(
+                STEP_CONNECTION_FOR_ALERTS if kind in alerting else STEP_CONNECTION_WRONG_KIND,
+                location=f"steps.{step}.config.{key}",
+                block=block,
+                code=repr(named),
+                kind=kind,
+                wanted=_wanted(accepts.kinds, accepts.carrying),
+                kinds=list(accepts.kinds),
+                carrying=list(accepts.carrying),
+            )
+        )
+    return issues
+
+
+def _wanted(kinds: Iterable[str], carrying: Iterable[str]) -> str:
+    """Say which connections a field accepts, as the phrase a refusal names them by."""
+    named = " or ".join(kinds)
+    fields = ", ".join(carrying)
+    if named and fields:
+        return f"a connection of kind {named}, or of any kind carrying {fields}"
+    if fields:
+        return f"a connection of a kind carrying {fields}"
+    return f"a connection of kind {named}"
 
 
 def _schema_issues(step: str, config: JsonMap, schema: JsonMap, schemas: set[str] | None) -> list[ValidationIssue]:

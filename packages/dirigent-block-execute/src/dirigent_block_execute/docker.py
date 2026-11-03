@@ -55,12 +55,12 @@ from dirigent_plugin import (
     BlockFailure,
     ByteSink,
     ConnectionKind,
-    ConnectionRef,
     ErrorClass,
     Operator,
     OperatorSpec,
     ProbeResult,
     ProbeStatus,
+    Reference,
     RemoteHandle,
     ShellString,
     ShellVariables,
@@ -190,6 +190,10 @@ class DockerConnectionConfig(BlockModel):
     def registry_name(self) -> str:
         """The registry a login addresses, named even where the config left it to the default."""
         return self.registry or DOCKER_HUB
+
+
+#: A config field naming a ``docker`` connection; plan and apply refuse one of another kind.
+type DockerConnectionRef = Annotated[str, Reference("connection", kinds=("docker",))]
 
 
 class DockerConnectionKind(ConnectionKind):
@@ -455,7 +459,7 @@ class DockerRunConfig(ShellVariables):
     pids_limit: int | None = Field(default=None, gt=0)
     """A cap on how many processes the container may create."""
 
-    connection: ConnectionRef | None = None
+    connection: DockerConnectionRef | None = None
     """A ``docker`` connection naming the daemon this container runs on.
 
     Absent, the container runs on whatever daemon the worker's own environment names. A

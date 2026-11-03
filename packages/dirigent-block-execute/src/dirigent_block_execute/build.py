@@ -27,6 +27,7 @@ from dirigent_block_execute.capture import log_stream, scrub, tail
 from dirigent_block_execute.docker import (
     DAEMON_ENV,
     DockerConnectionConfig,
+    DockerConnectionRef,
     Sealed,
     daemon_environment,
     login,
@@ -47,7 +48,6 @@ from dirigent_block_execute.messages import (
 from dirigent_common import BlockModel, Duration
 from dirigent_plugin import (
     BlockFailure,
-    ConnectionRef,
     ErrorClass,
     Operator,
     OperatorSpec,
@@ -99,7 +99,7 @@ class DockerBuildConfig(BlockModel):
     Needs a ``connection`` carrying a registry username and password: an anonymous push is
     refused rather than attempted."""
 
-    connection: ConnectionRef | None = None
+    connection: DockerConnectionRef | None = None
     """A ``docker`` connection naming the daemon to build on, the registry to push to, or both.
 
     Absent, the build runs against whatever daemon the worker's own environment names and

@@ -12,20 +12,21 @@ from dirigent_core.plugins import load_plugin_host
 #: The examples directory lives at the repository root, above every package.
 EXAMPLES = Path(__file__).resolve().parents[3] / "examples"
 
-#: Connections the examples reference by name; examples/connections.yaml defines them.
-EXAMPLE_CONNECTIONS = (
-    "playground",
-    "modelling-api",
-    "odk-central",
-    "kobo",
-    "ops-webhook",
-    "artifacts",
-    "warehouse-read",
-    "orders-topic",
-    "shop-queue",
-    "build-daemon",
-    "ghcr",
-)
+#: Connections the examples reference by name, with their kinds; examples/connections.yaml
+#: defines some of them, and the documents that name the others say how to create them.
+EXAMPLE_CONNECTIONS = {
+    "playground": "http",
+    "modelling-api": "http",
+    "odk-central": "http",
+    "kobo": "http",
+    "ops-webhook": "http",
+    "artifacts": "s3",
+    "warehouse-read": "sql",
+    "orders-topic": "kafka",
+    "shop-queue": "rabbitmq",
+    "build-daemon": "docker",
+    "ghcr": "docker",
+}
 
 #: Pipelines the examples compose with, which a composing document requires by name.
 EXAMPLE_PIPELINES = (
