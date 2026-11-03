@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { FilterX, RefreshCw } from 'lucide-react'
-
 import { ApiChip } from '@/components/ApiChip'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { Code } from '@/components/ds/Code'
@@ -24,6 +22,7 @@ import {
     type AuditEntryOut,
     type AuditFilters,
 } from '@/lib/audit'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -85,7 +84,7 @@ function Audit() {
                 title: LABELS.audit.filter_clear,
                 group: ADMIN_GROUP,
                 screen: true,
-                icon: FilterX,
+                icon: ICONS.clear_filter,
                 keywords: ['reset', 'all'],
                 run: () => {
                     setActor('')
@@ -98,7 +97,7 @@ function Audit() {
                 title: LABELS.audit.reload_action,
                 group: ADMIN_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.refresh,
                 keywords: ['refresh', 'reload'],
                 run: reload,
             },

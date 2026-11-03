@@ -654,7 +654,14 @@ def test_dg_dev_announces_itself_as_records_and_not_a_schema_history(tmp_path: P
             process.stdout.close()
 
     assert emitted, "dg dev wrote nothing to its stream"
-    assert all(record.get("v") == 1 for record in emitted), "every line is a record of this protocol"
+    # stderr is merged in, and at INFO it carries the log: the audited changes dg dev makes for itself.
+    logged = [record for record in emitted if "event" in record and "logger" in record]
+    emitted = [record for record in emitted if record not in logged]
+    assert all(record.get("v") == 1 for record in emitted), "every line of the stream is a record of this protocol"
+    audited = [
+        (line["action"], line["subject_kind"], line["actor"]) for line in logged if line["logger"] == "dirigent.audit"
+    ]
+    assert ("created", "user", "dg dev") in audited, "the admin dg dev makes for itself is an audited change"
     started = next(r for r in emitted if r.get("kind") == "process" and r.get("message") == "starting")
     assert started["api"] == f"http://127.0.0.1:{port}", "the URL it names is the one it bound"
     assert started["state"] == str((tmp_path / ".dirigent" / "state").resolve()), "and the state it is using"
@@ -669,8 +676,9 @@ def test_dg_dev_announces_itself_as_records_and_not_a_schema_history(tmp_path: P
     assert ready["blocks"] > 0
     assert "token" not in ready, "the token is handed over once, on the starting record"
     messages = [str(record.get("message", "")) for record in emitted]
-    for noise in ("Running upgrade", "user created", "token issued", "Application startup complete"):
-        assert noise not in messages, f"{noise!r} is detail, and detail is what -v is for"
+    said = messages + [str(line["event"]) for line in logged]
+    for noise in ("Running upgrade", "Application startup complete"):
+        assert noise not in said, f"{noise!r} is detail, and detail is what -v is for"
 
 
 def hostile_checkout(tmp_path: Path, planted: Path) -> Path:
