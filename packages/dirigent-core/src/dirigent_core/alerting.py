@@ -577,6 +577,9 @@ def failure_of(run: Run, facts: "RunFacts") -> JsonMap:
         ),
         None,
     )
+    error: str | None
+    code: str | None
+    params: Mapping[str, JsonValue] | None
     if item is not None and item.error:
         error, code, params = item.error, item.error_code, item.error_params
     elif step is not None and step.error:
