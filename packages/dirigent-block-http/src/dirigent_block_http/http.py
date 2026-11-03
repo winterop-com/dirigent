@@ -3,7 +3,7 @@
 import json
 import time
 from datetime import timedelta
-from typing import ClassVar, Final, Literal
+from typing import Annotated, ClassVar, Final, Literal
 
 import httpx2
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
@@ -30,11 +30,11 @@ from dirigent_common import (
 )
 from dirigent_plugin import (
     BlockFailure,
-    ConnectionRef,
     ErrorClass,
     NotYet,
     Operator,
     OperatorSpec,
+    Reference,
     RemoteHandle,
     Sensor,
     SensorSpec,
@@ -42,6 +42,10 @@ from dirigent_plugin import (
 )
 
 type HttpMethod = Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+
+#: A config field naming the connection an HTTP block calls through: an ``http`` one, or one of
+#: any kind whose config carries a ``base_url``; plan and apply refuse any other.
+type HttpConnectionRef = Annotated[str, Reference("connection", kinds=("http",), carrying=("base_url",))]
 
 DEFAULT_TEXT_CONTENT_TYPE = "text/plain; charset=utf-8"
 
@@ -80,7 +84,7 @@ class HttpTarget(BlockModel):
 
     model_config = ConfigDict(hide_input_in_errors=True)
 
-    connection: ConnectionRef | None = None
+    connection: HttpConnectionRef | None = None
     """The code of the connection whose base URL, auth, TLS, and timeout apply."""
 
     url: PlainUrl | None = None

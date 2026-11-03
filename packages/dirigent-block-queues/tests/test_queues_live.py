@@ -32,6 +32,8 @@ from dirigent_block_queues.rabbitmq import (
     RabbitConnectionKind,
     RabbitConsumeConfig,
     RabbitConsumeSensor,
+    RabbitPublishConfig,
+    RabbitPublishOperator,
 )
 from dirigent_block_queues.sources import KafkaSource, KafkaSourceConfig, RabbitSource, RabbitSourceConfig
 from dirigent_block_storage.storage import StorageReadConfig, StorageReadOperator, StorageReadOutput
@@ -406,6 +408,45 @@ async def test_a_rabbitmq_health_check_opens_a_channel() -> None:
     report = await RabbitConnectionKind().check(rabbit_connection())
 
     assert report.healthy is True
+
+
+# -- rabbitmq.publish ------------------------------------------------------------
+
+
+async def test_what_a_publish_put_on_the_queue_is_what_the_sensor_reads_back(ctx: FakeContext, queue: str) -> None:
+    published = await RabbitPublishOperator().execute(
+        RabbitPublishConfig(connection="broker", routing_key=queue, message={"id": 1}),
+        rabbit_ctx(ctx).as_context(),
+    )
+
+    assert published.published == 1
+    output = await RabbitConsumeSensor().poke(
+        RabbitConsumeConfig(connection="broker", queue=queue, poll_timeout=timedelta(seconds=5)),
+        rabbit_ctx(ctx).as_context(),
+    )
+    assert not isinstance(output, NotYet)
+    assert [message.body for message in output.messages] == [{"id": 1}]
+
+
+async def test_a_publish_no_queue_takes_is_refused_rather_than_reported_published(ctx: FakeContext, queue: str) -> None:
+    """The default exchange drops a message whose routing key names no queue; the broker's return says so."""
+    config = RabbitPublishConfig(connection="broker", routing_key=f"{queue}-absent", message={"id": 1})
+
+    with pytest.raises(BlockFailure) as raised:
+        await RabbitPublishOperator().execute(config, rabbit_ctx(ctx).as_context())
+
+    assert raised.value.code == "queues.rabbit.nothing_bound"
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
+async def test_a_publish_that_need_not_be_routed_is_confirmed_and_dropped(ctx: FakeContext, queue: str) -> None:
+    config = RabbitPublishConfig(
+        connection="broker", routing_key=f"{queue}-absent", message={"id": 1}, require_route=False
+    )
+
+    published = await RabbitPublishOperator().execute(config, rabbit_ctx(ctx).as_context())
+
+    assert published.published == 1
 
 
 # -- the held source kinds -----------------------------------------------------

@@ -592,17 +592,17 @@ def validate_command(
     catalog = host.catalog()
     blocks: Mapping[str, Any] | None = host.blocks
     checker = format_checker_with(host.formats)
-    connections: list[str] | None = None
+    connections: dict[str, str] | None = None
     pipelines: list[str] | None = None
     targets: dict[str, TriggerTarget] = {}
     if server:
         blocks = None
         with client_for(state) as dg:
             catalog = dg.call(dg.blocks.catalog())
-            connections = [
-                row.code
+            connections = {
+                row.code: row.kind
                 for row in paged(lambda after, size: dg.call(dg.connections.list(after=after, limit=size)), None)
-            ]
+            }
             pipelines = [
                 row.code for row in paged(lambda after, size: dg.call(dg.pipelines.list(after=after, limit=size)), None)
             ]

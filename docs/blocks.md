@@ -134,7 +134,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `pull` | `boolean` |  | `false` | Always attempt to pull a newer version of the base image (`--pull`). |
 | `no_cache` | `boolean` |  | `false` | Build every layer from scratch, ignoring the cache (`--no-cache`). |
 | `push` | `boolean` |  | `false` | Push every tag the build produced to the registry the connection names. |
-| `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon to build on, the registry to push to, or both. |
+| `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon to build on, the registry to push to, or both. Takes a connection of kind `docker`. |
 | `env` | `object of string` |  |  | Variables set for the CLI itself, such as BuildKit's own toggles; never one that chooses what the CLI runs or trusts, such as `PATH` or `DOCKER_CONFIG`. |
 | `env_allowlist` | `string[]` |  |  | Worker environment variables the CLI is allowed to inherit; never the instance's `DIRIGENT_*`. |
 | `timeout` | `string (humane-duration)` |  | `"30m"` | The overall deadline on the build, after which it is killed as transient. |
@@ -172,7 +172,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `down_timeout` | `string (humane-duration)` |  | `"10s"` | How long to wait for a container to stop before killing it (`--timeout`). |
 | `down_remove_images` | `"none" or "local" or "all"` |  | `"none"` | Which images to remove: `none`, `local` (only untagged), or `all` (`--rmi`). |
 | `remove_orphans` | `boolean` |  | `true` | Remove containers for services no longer in the compose file (`--remove-orphans`). |
-| `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this stack runs on. |
+| `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this stack runs on. Takes a connection of kind `docker`. |
 | `timeout` | `string (humane-duration)` |  | `"10m"` | The overall deadline on the CLI invocation, after which it is killed as transient. |
 
 **Output**
@@ -206,7 +206,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `remove_orphans` | `boolean` |  | `true` | Remove containers for services no longer in the compose file (`--remove-orphans`). |
 | `pull` | `"always" or "missing" or "never"` |  | `"missing"` | When to pull images: `missing` pulls only what is absent, the compose default. |
 | `cleanup` | `boolean` |  | `true` | On a bring-up that does not succeed, best-effort `down` the same project before leaving. |
-| `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this stack runs on. |
+| `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this stack runs on. Takes a connection of kind `docker`. |
 | `socket_path` | `string or null` |  | `null` | The daemon socket the status read speaks to, when neither the default nor `DOCKER_HOST` is right. |
 | `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long one call to the daemon for the status read may take. More than `0s`. |
 | `timeout` | `string (humane-duration)` |  | `"10m"` | The overall deadline on the CLI invocation, after which it is killed as transient. |
@@ -250,7 +250,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `cpus` | `number or null` |  | `null` | A CPU quota expressed the way `docker run --cpus` expresses it. |
 | `nano_cpus` | `integer or null` |  | `null` | The same quota expressed the way the daemon counts it, for a config that prefers exactness. |
 | `pids_limit` | `integer or null` |  | `null` | A cap on how many processes the container may create. |
-| `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this container runs on. |
+| `connection` | `string or null` |  | `null` | A `docker` connection naming the daemon this container runs on. Takes a connection of kind `docker`. |
 | `socket_path` | `string or null` |  | `null` | The daemon socket, when neither the default nor `DOCKER_HOST` is right. |
 | `api_timeout` | `string (humane-duration)` |  | `"1m"` | How long one call to the daemon may take. This is not the container's runtime: the container runs under the step's deadline, which the engine owns and this block never waits on. More than `0s`. |
 | `pull_timeout` | `string (humane-duration)` |  | `"10m"` | How long a pull may take, which is a different order of magnitude from an API call. More than `0s`. |
@@ -301,7 +301,7 @@ Contributed by `block-execute`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string` | yes |  | The `git` connection naming the remote and holding its credential. |
+| `connection` | `string` | yes |  | The `git` connection naming the remote and holding its credential. Takes a connection of kind `git`. |
 | `ref` | `string or null` |  | `null` | The branch, tag or full commit sha to land on. Unset takes the remote's default branch. |
 | `target` | `string` |  | `""` | The directory the checkout lands in, inside the run's work directory; never absolute, never climbing out. Empty takes the step's own name, so a step named `checkout` writes `checkout/` and a downstream `docker.build` names `checkout` as its context. |
 | `depth` | `integer` |  | `1` | How many commits of history to fetch. `1` is a shallow checkout of the ref alone, which is what a build wants; `0` fetches the whole history, which a step reading the log or describing a tag needs. |
@@ -329,7 +329,7 @@ Contributed by `block-http`. Not idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string or null` |  | `null` | The code of the connection whose base URL, auth, TLS, and timeout apply. |
+| `connection` | `string or null` |  | `null` | The code of the connection whose base URL, auth, TLS, and timeout apply. Takes a connection of kind `http`, or of any kind carrying `base_url`. |
 | `url` | `string or null` |  | `null` | An absolute URL, for the case where no connection is configured. |
 | `path` | `string` |  | `"/"` | The path resolved against the connection's base URL. |
 | `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. More than `0s`. |
@@ -362,7 +362,7 @@ Contributed by `block-queues`. Not idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string` | yes |  | The `kafka` connection naming the cluster and holding its credential. |
+| `connection` | `string` | yes |  | The `kafka` connection naming the cluster and holding its credential. Takes a connection of kind `kafka`. |
 | `topic` | `string` | yes |  | The topic to publish to, which must already exist. |
 | `records` | `any[]` | yes |  | The records to publish, written inline or referenced from an earlier step's output. |
 | `key` | `string or null` |  | `null` | The name of a field of each record's value whose content becomes the message key. |
@@ -373,7 +373,7 @@ Contributed by `block-queues`. Not idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `produced` | `integer` | yes |  | How many records the broker acknowledged. |
+| `produced` | `integer` | yes |  | How many records the broker acknowledged; under `acks: 0`, how many were sent unconfirmed. |
 | `topic` | `string` | yes |  | The topic the records were published to. |
 | `offsets` | `object of integer` | yes |  | The offset of the last record written to each partition, keyed by partition number as a string. A partition this publish did not write to is not in the map. |
 | `duration_ms` | `integer` | yes |  | How long the publish took. |
@@ -496,19 +496,20 @@ Contributed by `block-queues`. Not idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string` | yes |  | The `rabbitmq` connection naming the broker and holding its password. |
+| `connection` | `string` | yes |  | The `rabbitmq` connection naming the broker and holding its password. Takes a connection of kind `rabbitmq`. |
 | `exchange` | `string` |  | `""` | The exchange to publish to; empty is the default exchange, where a routing key is a queue. |
 | `routing_key` | `string` | yes |  | What the broker routes the message by, which on the default exchange is a queue name. |
 | `message` | `any` | yes |  | The body: a string is sent as UTF-8 text, anything else as canonical JSON. |
 | `content_type` | `string or null` |  | `null` | What the body is, sent with the message. |
 | `persistent` | `boolean` |  | `true` | Whether the broker writes the message to disk, so a durable queue keeps it across a restart. |
+| `require_route` | `boolean` |  | `true` | Whether a message no queue takes fails the step. |
 | `timeout` | `string (humane-duration)` |  | `"30s"` | How long the whole publish may take, such as `30s`. |
 
 **Output**
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `published` | `integer` | yes |  | How many messages the broker took, which is one. |
+| `published` | `integer` | yes |  | How many messages the broker confirmed, which is one. |
 | `message_bytes` | `integer` | yes |  | How many bytes of body were handed to the broker. |
 
 ### `report.render`
@@ -575,7 +576,7 @@ Contributed by `block-sql`. Not idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string` | yes |  | The `sql` connection naming the database and holding its password. A connection marked `read_only` is refused: this block writes. |
+| `connection` | `string` | yes |  | The `sql` connection naming the database and holding its password. A connection marked `read_only` is refused: this block writes. Takes a connection of kind `sql`. |
 | `statements` | `string[]` | yes |  | The statements, run in order inside one transaction. They all commit or none of them does, so a migration, an insert and the index it needs are one step and not three. A reference here is refused: it belongs in `params`. |
 | `params` | `object` |  |  | Values bound by name, written `:name`, and shared by every statement. |
 | `timeout` | `string (humane-duration)` |  | `"5m"` | How long the whole transaction may run. |
@@ -597,7 +598,7 @@ Contributed by `block-sql`. Idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string` | yes |  | The `sql` connection naming the database and holding its password. |
+| `connection` | `string` | yes |  | The `sql` connection naming the database and holding its password. Takes a connection of kind `sql`. |
 | `sql` | `string` | yes |  | One statement, and one only. A document that needs two writes two steps, or uses `sql.execute`, which is the block that runs several as one transaction. |
 | `params` | `object` |  |  | Values bound by name, written `:name` in the statement. |
 | `max_rows` | `integer` |  | `1000` | How many rows may be carried inline in the step's output. |
@@ -746,7 +747,7 @@ Contributed by `block-http`. Not idempotent.
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string or null` |  | `null` | The code of the connection whose base URL, auth, TLS, and timeout apply. |
+| `connection` | `string or null` |  | `null` | The code of the connection whose base URL, auth, TLS, and timeout apply. Takes a connection of kind `http`, or of any kind carrying `base_url`. |
 | `url` | `string or null` |  | `null` | An absolute URL, for the case where no connection is configured. |
 | `path` | `string` |  | `"/"` | The path resolved against the connection's base URL. |
 | `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. More than `0s`. |
@@ -754,7 +755,7 @@ Contributed by `block-http`. Not idempotent.
 | `body` | `any` |  |  | The JSON payload, usually built from upstream outputs with `${steps...}` references. |
 | `headers` | `object of string` |  |  | Extra headers the receiver wants, such as a routing key; one whose name carries a credential is refused, and goes on the connection. |
 | `max_response` | `string or integer` |  | `"1mb"` | How much of the receiver's answer is read, before the step is failed instead. |
-| `sign_with` | `string or null` |  | `null` | The connection whose `hmac_secret` signs the body; unset means the POST is unsigned. |
+| `sign_with` | `string or null` |  | `null` | The connection whose `hmac_secret` signs the body; unset means the POST is unsigned. Takes a connection of kind `http`. |
 | `success_status` | `integer[]` |  |  | Status codes that count as delivered; empty means any 2xx. |
 
 **Output**
@@ -779,7 +780,7 @@ Contributed by `block-http`. Not idempotent. Polls every 1m unless the step says
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string or null` |  | `null` | The code of the connection whose base URL, auth, TLS, and timeout apply. |
+| `connection` | `string or null` |  | `null` | The code of the connection whose base URL, auth, TLS, and timeout apply. Takes a connection of kind `http`, or of any kind carrying `base_url`. |
 | `url` | `string or null` |  | `null` | An absolute URL, for the case where no connection is configured. |
 | `path` | `string` |  | `"/"` | The path resolved against the connection's base URL. |
 | `timeout` | `string (humane-duration) or null` |  | `null` | Overrides the connection's timeout for this call alone. More than `0s`. |
@@ -806,7 +807,7 @@ Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step s
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string` | yes |  | The `kafka` connection naming the cluster and holding its credential. |
+| `connection` | `string` | yes |  | The `kafka` connection naming the cluster and holding its credential. Takes a connection of kind `kafka`. |
 | `topic` | `string` | yes |  | The topic to read. |
 | `group_id` | `string or null` |  | `null` | The consumer group to commit through, or unset to track offsets in the cursor alone. |
 | `start` | `"latest" or "earliest"` |  | `"latest"` | Where a poke with no cursor begins: at whatever arrives next, or at the oldest record the broker still holds. It applies to the first poke of an attempt only, and under a `sensor` source to its first poke only; after that the cursor says where to read from. |
@@ -870,7 +871,7 @@ Contributed by `block-queues`. Not idempotent. Polls every 30s unless the step s
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `connection` | `string` | yes |  | The `rabbitmq` connection naming the broker and holding its password. |
+| `connection` | `string` | yes |  | The `rabbitmq` connection naming the broker and holding its password. Takes a connection of kind `rabbitmq`. |
 | `queue` | `string` | yes |  | The queue to read. It must already exist: this block declares nothing. |
 | `min_messages` | `integer` |  | `1` | How many messages a batch needs before the sensor succeeds. |
 | `max_messages` | `integer` |  | `100` | The most messages one poke takes, which bounds the output a step carries. |

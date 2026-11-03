@@ -137,6 +137,37 @@ serves. What reads it is the step form: a field typed either way is drawn with t
 under it -- the connection's settings and health, or the schema's body -- and a link to that
 thing's own screen.
 
+### A connection field says which kinds it takes
+
+A field that reads a connection through its own model takes one kind, and says which, so a
+step naming a connection of another kind is refused at plan and apply rather than failing
+mid-run:
+
+```python
+type GitConnectionRef = Annotated[str, Reference("connection", kinds=("git",))]
+
+
+class CheckoutConfig(BlockModel):
+    connection: GitConnectionRef
+    """The ``git`` connection naming the remote and holding its credential."""
+```
+
+A field that reads a connection by its fields, as `ctx.http` does, says which fields instead,
+and then takes a connection of any kind that carries them. The built-in HTTP blocks take an
+`http` connection or one of any kind carrying a `base_url`, which is how a pack's own
+HTTP-backed kind fits `http.request` with nothing to register:
+
+```python
+type HttpConnectionRef = Annotated[str, Reference("connection", kinds=("http",), carrying=("base_url",))]
+```
+
+Either publishes `x-dirigent-accepts` beside `x-dirigent-ref`. The kind checked is the one the
+instance holds the connection under, or, for `dg validate` with no server, the one a document
+that carries its own connection declares; a code written as a `${...}` reference is left to the
+run. A refusal is `document.step_connection_wrong_kind`, or `document.step_connection_for_alerts`
+when the connection's kind is one an alert channel delivers through, such as a `webhook`
+connection named by `webhook.post`. A plain `ConnectionRef` takes every kind.
+
 ### A refusal a block makes carries a code
 
 A block never refuses with a free string. Every refusal it can make is a catalogued

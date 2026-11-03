@@ -49,11 +49,37 @@ async def admin(app: FastAPI, admin_token: str) -> AsyncIterator[httpx2.AsyncCli
         yield client
 
 
-async def _run_one_step(app: FastAPI, client: httpx2.AsyncClient, code: str, step: dict[str, Any]) -> dict[str, Any]:
-    """Run one document of a single step on the engine, and return its attempt."""
+async def _stored_kind(app: FastAPI, code: str, kind: str) -> None:
+    """Rewrite the kind a stored connection is held under, as a connection changed after an apply."""
+    async with app.state.session_factory() as session:
+        await session.execute(sa.update(Connection).where(Connection.code == code).values(kind=kind))
+        await session.commit()
+
+
+async def _run_one_step(
+    app: FastAPI, client: httpx2.AsyncClient, code: str, step: dict[str, Any], *, named: str, kind_at_apply: str
+) -> dict[str, Any]:
+    """Run one document of a single step on the engine, and return its attempt.
+
+    The step's connection ``named`` is held under ``kind_at_apply`` while the document is applied
+    and under its own kind when the run reads it, which is the one way a step still reaches a
+    connection of a kind its block does not take now that apply refuses one.
+    """
     document = {"format": "dirigent/v1", "code": code, "steps": {"only": step}}
+    refused = await client.post(f"{PREFIX}/pipelines/$apply", json={"document": document, "paused": False})
+    assert refused.status_code == 200, refused.text
+    plan = refused.json()["plan"]
+    assert plan["action"] == "invalid"
+    assert [issue["code"] for issue in plan["issues"]] == ["document.step_connection_wrong_kind"]
+    assert not _carries_a_secret(refused.text)
+
+    held = (await client.get(f"{PREFIX}/connections/{named}")).json()["kind"]
+    await _stored_kind(app, named, kind_at_apply)
     applied = await client.post(f"{PREFIX}/pipelines/$apply", json={"document": document, "paused": False})
     assert applied.status_code == 200, applied.text
+    assert applied.json()["plan"]["action"] == "create", applied.text
+    await _stored_kind(app, named, held)
+
     run_id = (await client.post(f"{PREFIX}/pipelines/{code}/$run", json={"params": {}})).json()["run_id"]
     engine = Engine(app.state.session_factory, app.state.services, owner="worker")
     while unit := await engine.claim():
@@ -70,7 +96,12 @@ async def test_a_step_naming_another_kind_is_refused_without_its_secret(
     app: FastAPI, admin: httpx2.AsyncClient
 ) -> None:
     attempt = await _run_one_step(
-        app, admin, "wrong-sql", {"block": "sql.query", "config": {"connection": "web", "sql": "select 1"}}
+        app,
+        admin,
+        "wrong-sql",
+        {"block": "sql.query", "config": {"connection": "web", "sql": "select 1"}},
+        named="web",
+        kind_at_apply="sql",
     )
     assert attempt["status"] == "failed"
     assert attempt["error_code"] == "run.connection_wrong_kind"
@@ -83,6 +114,8 @@ async def test_signing_with_another_kind_is_refused_without_its_secret(app: Fast
         admin,
         "wrong-sign",
         {"block": "webhook.post", "config": {"url": "http://127.0.0.1:9/x", "body": {}, "sign_with": "db"}},
+        named="db",
+        kind_at_apply="http",
     )
     assert attempt["error_code"] == "run.connection_wrong_kind"
     assert attempt["error_params"] == {"ref": "'db'", "kind": "'sql'", "wanted": "'http'"}

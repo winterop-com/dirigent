@@ -26,6 +26,7 @@ from dirigent_common import (
 )
 from dirigent_plugin import (
     MARK_LIMIT,
+    Accepts,
     ByteSink,
     Capture,
     ConnectionRef,
@@ -50,6 +51,7 @@ from dirigent_plugin import (
     StatResult,
     StepContext,
     Storage,
+    accepted_connections,
     classify_default,
     contribute,
     markers,
@@ -606,6 +608,25 @@ def test_a_referenced_code_publishes_what_it_names() -> None:
     assert defs[_referenced(string_branch)] == {"type": "string", "x-dirigent-ref": "connection"}
     assert Gate(schema_code="ou-record").connection is None
     assert repr(Reference("schema")) == "Reference('schema')"
+
+
+type _WebConnectionRef = Annotated[str, Reference("connection", kinds=("http",), carrying=("base_url",))]
+
+
+def test_a_connection_reference_publishes_the_kinds_it_accepts() -> None:
+    class Call(BaseModel):
+        connection: _WebConnectionRef | None = None
+        other: ConnectionRef
+
+    accepts = accepted_connections(Call.model_json_schema())
+
+    assert accepts == {"connection": Accepts(kinds=("http",), carrying=("base_url",))}
+    assert accepts["connection"].fits("http", None)
+    assert accepts["connection"].fits("dhis2", {"base_url", "username"})
+    assert not accepts["connection"].fits("webhook", {"url"})
+    assert not accepts["connection"].fits("unknown", None)
+    with pytest.raises(ValueError, match="only a connection reference"):
+        Reference("schema", kinds=("http",))
 
 
 def _referenced(node: JsonMap) -> str:

@@ -795,7 +795,7 @@ def test_a_step_naming_a_connection_this_instance_lacks_is_refused(host: PluginH
     assert [issue.location for issue in validate_against_catalog(definition, host.catalog())] == [
         "steps.a.config.connection"
     ]
-    assert validate_against_catalog(definition, host.catalog(), connections=["warehouse"]) == []
+    assert validate_against_catalog(definition, host.catalog(), connections={"warehouse": "http"}) == []
 
 
 def test_a_reference_to_a_step_that_is_not_upstream_is_refused(host: PluginHost) -> None:

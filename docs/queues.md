@@ -227,6 +227,26 @@ The queue must already exist. Neither block declares one -- a queue a pipeline i
 typo that reads as a working pipeline, so a name nobody created is **rejected** with the name in
 the message rather than waiting forever on nothing.
 
+## `rabbitmq.publish`: a message nothing takes is a failure
+
+A publish waits for the broker's confirm, so `published: 1` means the broker took the message.
+On the default exchange a routing key is a queue name, and a broker drops a message whose key
+names no queue -- or, on a named exchange, one nothing is bound to take -- and still confirms it.
+So the publish is `mandatory` by default: the broker hands such a message back, and the step
+fails as **rejected** with `queues.rabbit.nothing_bound`, naming the exchange and the key.
+A typo in a queue name is then a failed run, not a run that succeeded and delivered nothing.
+
+`require_route: false` turns that off, for a fanout of events nobody may be subscribed to yet:
+the message is published without `mandatory`, a broker with nowhere to put it drops it, and the
+step succeeds.
+A broker that answers the publish with a nack -- a queue at its length limit that rejects new
+messages, say -- fails the step as **transient** with `queues.rabbit.publish_nacked`.
+
+`kafka.produce` has no such gap: the topic is checked against the cluster's metadata before a
+record is sent, and under the default `acks: all` a record counts once every in-sync replica
+holds it. `acks: 0` is the one setting that waits for nothing, and a step that chooses it gives
+up knowing whether anything arrived.
+
 ## A topic or a queue as a pipeline's source
 
 A `kafka` or `rabbitmq` source makes each message its own run, where `kafka.consume` and
@@ -250,6 +270,8 @@ back while that many of its runs are unsettled. See
 | A value is not the JSON it was promised | rejected | Not retried. |
 | A record has no field to take its key from | rejected | Not retried. |
 | A publish ran past its `timeout` | transient | Retried, and every record goes again. |
+| A RabbitMQ message no queue takes, under `require_route` | rejected | Not retried; the exchange and the key are in the message. |
+| The broker nacked a RabbitMQ publish | transient | Retried under the step's policy. |
 | Nothing has arrived yet | not a failure | The attempt parks and is poked again. |
 
 ## The limits

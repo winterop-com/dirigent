@@ -452,6 +452,15 @@ STEP_CONFIG_INVALID = DOCUMENT.define("step_config_invalid", "{detail}")
 
 STEP_CONNECTION_MISSING = DOCUMENT.define("step_connection_missing", "no connection coded {code} exists ({available})")
 
+STEP_CONNECTION_WRONG_KIND = DOCUMENT.define(
+    "step_connection_wrong_kind", "{block} needs {wanted}, and connection {code} is of kind {kind}"
+)
+
+STEP_CONNECTION_FOR_ALERTS = DOCUMENT.define(
+    "step_connection_for_alerts",
+    "{block} needs {wanted}, and connection {code} is of kind {kind}, which is for alert delivery",
+)
+
 STEP_SCHEMA_MISSING = DOCUMENT.define("step_schema_missing", "no schema coded {code} exists ({available})")
 
 # A run holds the bodies of the schemas its document names, read when it is created, so a
@@ -813,7 +822,7 @@ BLOCK_NOT_INSTALLED = RUN.define("block_not_installed", "block {block} is not in
 
 BLOCK_RAISED = RUN.define(
     "block_raised",
-    "the {block} block failed with an error it does not explain; the step's log carries what it raised",
+    "the {block} block failed with an error it does not explain: {raised_detail}",
 )
 
 GONE_PROBES = RUN.define("gone_probes", "{detail} (after {probes} consecutive GONE probes)")
