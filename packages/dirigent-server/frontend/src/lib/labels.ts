@@ -1936,7 +1936,9 @@ const editor = {
         },
         params_changed: 'the parameter schema changed',
         triggers_changed: 'the triggers changed',
-        settings_changed: 'the name, description, or concurrency policy changed',
+        requires_changed: 'what it requires of the instance changed',
+        report_changed: 'the report changed',
+        settings_changed: 'the name, description, tags, concurrency, priority or importance changed',
         /** A plan that would write a version, and change nothing a reader would scan for. */
         no_changes: 'No changes from the stored version.',
         /** What the instance refuses about the document, counted. */

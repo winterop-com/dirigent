@@ -343,8 +343,14 @@ class DiffSummary(WireModel):
     steps_changed: list[str] = Field(default_factory=list[str])
     params_changed: bool = False
     triggers_changed: bool = False
+    requires_changed: bool = False
+    """What the document says it needs of an instance differs: blocks, connections, schemas, workers."""
+
+    report_changed: bool = False
+    """The ``report:`` section differs, the template or the step its text comes from."""
+
     settings_changed: bool = False
-    """Name, description, or concurrency policy differs."""
+    """Name, description, tags, concurrency policy, priority or importance differs."""
 
     @property
     def empty(self) -> bool:
@@ -355,6 +361,8 @@ class DiffSummary(WireModel):
             or self.steps_changed
             or self.params_changed
             or self.triggers_changed
+            or self.requires_changed
+            or self.report_changed
             or self.settings_changed
         )
 

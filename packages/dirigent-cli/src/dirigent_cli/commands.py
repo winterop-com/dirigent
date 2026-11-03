@@ -326,7 +326,13 @@ def _print_plan(result: ApplyResult, origin: str) -> bool:
         ):
             if changed:
                 console.print(f"  [dim]steps {label}:[/] {escape(', '.join(changed))}")
-        for label, flag in (("params", diff.params_changed), ("triggers", diff.triggers_changed)):
+        for label, flag in (
+            ("params", diff.params_changed),
+            ("triggers", diff.triggers_changed),
+            ("requires", diff.requires_changed),
+            ("report", diff.report_changed),
+            ("settings", diff.settings_changed),
+        ):
             if flag:
                 console.print(f"  [dim]{label} changed[/]")
     for label, removed in (("sources", result.sources.removed), ("schedules", result.triggers.schedules_removed)):

@@ -68,6 +68,13 @@ passed plan and failed at run time; a reference reads an element as a dotted seg
 now refuses brackets with `document.reference_bracket_index`, naming the dotted form to write,
 `${steps.x.output.value.0}`.
 
+**A plan's diff names every top-level section that changed.** A document whose only change was its
+`report:` used to plan as an update with every flag false. `DiffSummary` gains `report_changed`
+and `requires_changed`, and `settings_changed` now covers `priority` and `importance` beside the
+name, description, tags and concurrency. The API's plan, `dg apply`'s records and its console
+lines, MCP's `plan_document`, the editor's plan and the audit trail's changed parts all carry
+them.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

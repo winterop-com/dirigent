@@ -18,6 +18,8 @@ function diff(over: Partial<DiffSummary> = {}): DiffSummary {
         steps_changed: [],
         params_changed: false,
         triggers_changed: false,
+        requires_changed: false,
+        report_changed: false,
         settings_changed: false,
         ...over,
     }
@@ -122,7 +124,14 @@ describe('what a diff amounts to', () => {
     test('names the settings change in the terms the server summarises it in', () => {
         expect(changesIn(diff({ settings_changed: true, triggers_changed: true }))).toEqual([
             'the triggers changed',
-            'the name, description, or concurrency policy changed',
+            'the name, description, tags, concurrency, priority or importance changed',
+        ])
+    })
+
+    test('names a report and a requirement that changed', () => {
+        expect(changesIn(diff({ report_changed: true, requires_changed: true }))).toEqual([
+            'what it requires of the instance changed',
+            'the report changed',
         ])
     })
 })
