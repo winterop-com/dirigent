@@ -634,7 +634,10 @@ apply, across pipelines, and a unique constraint holds it when two applies race.
 Some blocks execute code on the worker. `shell.run` runs a process; `docker.run` talks to the
 Docker daemon, and reaching the Docker socket is reaching root on the host. A block declares
 this about itself by setting `local_execution` in its spec, and the engine refuses to run any
-such block unless the instance names its id in `DIRIGENT_ENABLED_UNSAFE_BLOCKS`.
+such block unless the instance names its id in `DIRIGENT_ENABLED_UNSAFE_BLOCKS`. The catalog
+says so of each one: its entry carries `unsafe: true` and `unsafe_enabled`, whether this
+instance names it, in the API, `dg blocks list` and `show`, MCP's `list_blocks` and `get_block`,
+and the Blocks screen's `unsafe` chip.
 
 The reason is one sentence: **"can edit a pipeline" must not silently mean "can run code on a
 worker."** Any operator can apply a pipeline. If applying one were enough to

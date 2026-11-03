@@ -20,8 +20,11 @@ async def get_catalog(
     principal: PrincipalDep,
     kind: Annotated[BlockKind | None, Query(description="Return only operators, or only sensors.")] = None,
 ) -> Catalog:
-    """Serve every contributed operator, sensor, storage scheme, notifier, and connection kind."""
-    catalog = services.host.catalog()
+    """Serve every contributed operator, sensor, storage scheme, notifier, and connection kind.
+
+    Each unsafe block says whether this instance enables it.
+    """
+    catalog = services.host.catalog().enabled_by(services.settings.enabled_unsafe_blocks)
     if kind is None:
         return catalog
     return catalog.model_copy(update={"blocks": [block for block in catalog.blocks if block.kind is kind]})
@@ -34,11 +37,11 @@ async def get_catalog(
     response_model=BlockEntry,
 )
 async def get_block(block_id: str, services: ServicesDep, principal: PrincipalDep) -> BlockEntry:
-    """Serve one catalog entry."""
+    """Serve one catalog entry, saying for an unsafe block whether this instance enables it."""
     entry = services.host.catalog().block(block_id)
     if entry is None:
         raise Refusal(NO_BLOCK, status=status.HTTP_404_NOT_FOUND, block_id=repr(block_id))
-    return entry
+    return entry.enabled_by(services.settings.enabled_unsafe_blocks)
 
 
 @router.get(

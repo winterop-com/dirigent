@@ -86,6 +86,20 @@ def test_the_blocks_installed_beside_dg_are_listed_and_shown_without_a_server() 
     assert "value" in only(shown.stdout, "block")["fields"]["config_schema"]["properties"]
 
 
+def test_an_unsafe_block_says_whether_the_settings_dg_reads_enable_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    from dirigent_core.config import reset_settings_cache
+
+    monkeypatch.setenv("DIRIGENT_ENABLED_UNSAFE_BLOCKS", "shell.run")
+    reset_settings_cache()
+    try:
+        listed = {row["id"]: row for row in rows(invoke("blocks", "list", "--local").stdout, "block")}
+    finally:
+        reset_settings_cache()
+    assert (listed["shell.run"]["unsafe"], listed["shell.run"]["unsafe_enabled"]) == (True, True)
+    assert (listed["docker.run"]["unsafe"], listed["docker.run"]["unsafe_enabled"]) == (True, False)
+    assert listed["value.const"]["unsafe"] is False
+
+
 def test_the_connection_kinds_installed_beside_dg_are_listed_field_by_field() -> None:
     listed = invoke("connection", "kinds", "--local")
     assert listed.exit_code == 0, listed.output

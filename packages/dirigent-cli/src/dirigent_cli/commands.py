@@ -160,6 +160,7 @@ from dirigent_client import (
     AttemptOut,
     AttemptStatus,
     BackfillAccepted,
+    BlockEntry,
     BlockKind,
     Catalog,
     Clear,
@@ -2610,10 +2611,26 @@ LOCAL_BLOCKS = "Read the blocks installed beside dg, instead of the instance's o
 
 
 def installed_catalog() -> Catalog:
-    """Read the catalog every plugin installed beside this `dg` contributes, without addressing any server."""
+    """Read the catalog every plugin installed beside this `dg` contributes, without addressing any server.
+
+    An unsafe block says whether the settings this `dg` reads enable it, as a local run would.
+    """
+    from dirigent_core.config import get_settings
     from dirigent_core.plugins import load_plugin_host
 
-    return load_plugin_host().catalog()
+    return load_plugin_host().catalog().enabled_by(get_settings().enabled_unsafe_blocks)
+
+
+def unsafe_said(entry: BlockEntry) -> str:
+    """Say whether a block is unsafe and, where that is known, whether it is enabled, as table markup."""
+    return f"[yellow]{_unsafe_words(entry)}[/]" if entry.unsafe else "-"
+
+
+def _unsafe_words(entry: BlockEntry) -> str:
+    """Say an unsafe block's state in words: enabled here, not enabled, or unknown."""
+    if entry.unsafe_enabled is None:
+        return "unsafe"
+    return "unsafe, enabled" if entry.unsafe_enabled else "unsafe, not enabled"
 
 
 @blocks_app.command("list")
@@ -2641,8 +2658,11 @@ def blocks_list(
         return
     table(
         "blocks",
-        ["id", "kind", "plugin", "summary"],
-        [[escape(block.id), block.kind.value, escape(block.plugin), escape(block.summary)] for block in catalog.blocks],
+        ["id", "kind", "plugin", "unsafe", "summary"],
+        [
+            [escape(block.id), block.kind.value, escape(block.plugin), unsafe_said(block), escape(block.summary)]
+            for block in catalog.blocks
+        ],
     )
     console.print(
         f"[dim]storage schemes:[/] {escape(', '.join(entry.id for entry in catalog.storage_schemes)) or '-'}   "
@@ -2675,6 +2695,7 @@ def blocks_show(
             "summary": entry.summary,
             "idempotent": "yes" if entry.idempotent else "no",
             "runs code on the worker": "yes" if entry.local_execution else "no",
+            "unsafe": _unsafe_words(entry) if entry.unsafe else "no",
         },
     )
     console.print("\n[bold]config[/]")

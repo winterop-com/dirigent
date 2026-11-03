@@ -36,6 +36,10 @@ export interface BlockEntry {
     idempotent: boolean
     /** The block executes code on the worker, so an instance must allowlist its id to run it. */
     local_execution: boolean
+    /** Runs code on the worker, so an instance runs it only where `enabled_unsafe_blocks` names it. */
+    unsafe: boolean
+    /** Whether this instance enables the unsafe block; absent or null for a safe one. */
+    unsafe_enabled?: boolean | null
     default_poll_seconds: number | null
     default_deadline_seconds: number | null
     config_schema: JsonMap
@@ -183,6 +187,37 @@ export interface BlockFact {
  * pipeline naming this block will run at all, and a row that appeared only when the answer was
  * yes would leave its absence meaning either no or not-read.
  */
+/** What the `unsafe` fact says: no, or yes and whether this instance enables it. */
+function unsafeFact(entry: BlockEntry): string {
+    if (!entry.unsafe) return LABELS.blocks.fact.unsafe.no
+    if (entry.unsafe_enabled === true) return LABELS.blocks.fact.unsafe.enabled
+    if (entry.unsafe_enabled === false) return LABELS.blocks.fact.unsafe.not_enabled
+    return LABELS.blocks.fact.unsafe.yes
+}
+
+/** The chip an unsafe block wears beside its id. */
+export interface UnsafeMark {
+    label: string
+    title: string
+    tone: 'critical' | 'dashed' | 'neutral'
+}
+
+/** The chip an unsafe block wears, its tone saying whether this instance enables it; null for a safe one. */
+export function unsafeChip(entry: BlockEntry): UnsafeMark | null {
+    if (!entry.unsafe) return null
+    if (entry.unsafe_enabled === true) {
+        return { label: LABELS.blocks.unsafe.label, title: LABELS.blocks.unsafe.enabled, tone: 'critical' }
+    }
+    if (entry.unsafe_enabled === false) {
+        return {
+            label: LABELS.blocks.unsafe.not_enabled_label,
+            title: LABELS.blocks.unsafe.not_enabled,
+            tone: 'dashed',
+        }
+    }
+    return { label: LABELS.blocks.unsafe.label, title: LABELS.blocks.unsafe.unknown, tone: 'neutral' }
+}
+
 export function factsOf(entry: BlockEntry): BlockFact[] {
     const facts: BlockFact[] = [
         { term: LABELS.blocks.fact.term.plugin, detail: entry.plugin },
@@ -196,6 +231,7 @@ export function factsOf(entry: BlockEntry): BlockFact[] {
                 ? LABELS.blocks.fact.local_execution.required
                 : LABELS.blocks.fact.local_execution.absent,
         },
+        { term: LABELS.blocks.fact.term.unsafe, detail: unsafeFact(entry) },
     ]
     if (entry.default_poll_seconds !== null) {
         facts.push({

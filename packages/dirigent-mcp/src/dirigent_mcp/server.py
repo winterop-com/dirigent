@@ -935,8 +935,11 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
 
 def _summary(entry: BlockEntry) -> JsonMap:
-    """One block as a listing shows it."""
-    return {"id": entry.id, "kind": entry.kind, "group": entry.group, "summary": entry.summary}
+    """One block as a listing shows it, an unsafe one saying whether this instance enables it."""
+    shown: JsonMap = {"id": entry.id, "kind": entry.kind, "group": entry.group, "summary": entry.summary}
+    if entry.unsafe:
+        shown |= {"unsafe": True, "unsafe_enabled": entry.unsafe_enabled}
+    return shown
 
 
 def _example_summary(example: ExampleOut) -> JsonMap:

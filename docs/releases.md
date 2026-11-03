@@ -68,6 +68,13 @@ passed plan and failed at run time; a reference reads an element as a dotted seg
 now refuses brackets with `document.reference_bracket_index`, naming the dotted form to write,
 `${steps.x.output.value.0}`.
 
+**The block catalog marks unsafe blocks.** A catalog entry carries `unsafe` (a block that runs
+code on the worker, such as `docker.run` and `shell.run`) and `unsafe_enabled`, whether this
+instance's `enabled_unsafe_blocks` names it, in `GET /api/v1/blocks` and `/blocks/{id}`, the
+`block` records of `dg blocks list` and `dg blocks show` (with `--local`, against the settings
+`dg` reads), MCP's `list_blocks` and `get_block`, and the Blocks screen, where the row and the
+panel wear an `unsafe` chip and the facts say whether it is enabled.
+
 **A plan's diff names every top-level section that changed.** A document whose only change was its
 `report:` used to plan as an update with every flag false. `DiffSummary` gains `report_changed`
 and `requires_changed`, and `settings_changed` now covers `priority` and `importance` beside the

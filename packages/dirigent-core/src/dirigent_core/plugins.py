@@ -279,6 +279,7 @@ class PluginHost:
                     plugin=self.owner_of("block id", block_id),
                     idempotent=operator.spec.idempotent,
                     local_execution=operator.spec.local_execution,
+                    unsafe=operator.spec.local_execution,
                     default_poll_seconds=(
                         operator.spec.default_poll.total_seconds() if operator.spec.default_poll else None
                     ),

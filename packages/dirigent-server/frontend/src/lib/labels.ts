@@ -2886,6 +2886,7 @@ const blocks = {
             plugin: 'plugin',
             idempotent: 'idempotent',
             local_execution: 'local_execution',
+            unsafe: 'unsafe',
             default_poll_seconds: 'default_poll_seconds',
             default_deadline_seconds: 'default_deadline_seconds',
         },
@@ -2898,6 +2899,24 @@ const blocks = {
             required: 'requires allowlisting',
             absent: 'no allowlist entry',
         },
+        /** Whether the block is unsafe and, where the answer knows, whether this instance enables it. */
+        unsafe: {
+            no: 'no',
+            yes: 'yes',
+            enabled: 'yes, enabled on this instance',
+            not_enabled: 'yes, not enabled on this instance',
+        },
+    },
+
+    /** The chip an unsafe block wears beside its id, and what hovering it says. */
+    unsafe: {
+        label: 'unsafe',
+        not_enabled_label: 'unsafe, not enabled',
+        enabled: 'Runs code on the worker, and this instance enables it.',
+        not_enabled:
+            'Runs code on the worker, and this instance does not enable it: a step naming it is refused at plan until DIRIGENT_ENABLED_UNSAFE_BLOCKS names it.',
+        unknown:
+            'Runs code on the worker, so an instance runs it only where DIRIGENT_ENABLED_UNSAFE_BLOCKS names it.',
     },
 
     /**

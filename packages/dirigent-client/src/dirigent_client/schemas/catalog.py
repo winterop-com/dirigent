@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Collection
 from enum import StrEnum
 from typing import cast
 
@@ -33,10 +34,22 @@ class BlockEntry(BaseModel):
     plugin: str
     idempotent: bool = False
     local_execution: bool = False
+    unsafe: bool = False
+    """Runs code on the worker, so an instance runs it only where ``enabled_unsafe_blocks`` names it."""
+
+    unsafe_enabled: bool | None = None
+    """Whether this instance enables the unsafe block; null for a safe one, or where the answer cannot know."""
+
     default_poll_seconds: float | None = None
     default_deadline_seconds: float | None = None
     config_schema: JsonMap = Field(default_factory=dict)
     output_schema: JsonMap = Field(default_factory=dict)
+
+    def enabled_by(self, allowed: Collection[str]) -> "BlockEntry":
+        """Say whether an instance enabling ``allowed`` enables this block, where it is unsafe."""
+        if not self.unsafe:
+            return self
+        return self.model_copy(update={"unsafe_enabled": self.id in allowed})
 
 
 class SurfaceEntry(BaseModel):
@@ -212,6 +225,10 @@ class Catalog(BaseModel):
     connection_kinds: list[SurfaceEntry] = Field(default_factory=list[SurfaceEntry])
     sources: list[SourceEntry] = Field(default_factory=list[SourceEntry])
     """The source kinds a source node may write."""
+
+    def enabled_by(self, allowed: Collection[str]) -> "Catalog":
+        """Mark each unsafe block with whether an instance enabling ``allowed`` enables it."""
+        return self.model_copy(update={"blocks": [block.enabled_by(allowed) for block in self.blocks]})
 
     def block(self, block_id: str) -> BlockEntry | None:
         """Find one catalog entry by block id."""

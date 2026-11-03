@@ -13,6 +13,7 @@ function block(id: string, kind: BlockEntry['kind'], summary: string, group?: st
         plugin: 'builtin',
         idempotent: true,
         local_execution: false,
+        unsafe: false,
         default_poll_seconds: null,
         default_deadline_seconds: null,
         config_schema: {},
