@@ -968,6 +968,73 @@ def test_a_dev_instance_keeps_running_while_the_process_that_started_it_is_there
     assert stopped == []
 
 
+class StoppingWorker:
+    """The part of a worker a dev shutdown drains: one attempt that never finishes on its own."""
+
+    def __init__(self) -> None:
+        """Hold one attempt, not yet asked to stop."""
+        self.in_flight = {"attempt": None}
+        self.asked_to_stop = False
+        self.running: list[asyncio.Task[None]] = []
+
+    def request_stop(self) -> None:
+        self.asked_to_stop = True
+
+    def cancel_in_flight(self) -> list[asyncio.Task[None]]:
+        for task in self.running:
+            task.cancel()
+        return self.running
+
+
+class StoppingApi:
+    """The part of the API server a dev shutdown asks to exit, with one connection still open."""
+
+    def __init__(self) -> None:
+        """Serve, with one connection open."""
+        self.should_exit = False
+        self.server_state = type("State", (), {"connections": {object()}})()
+
+
+async def _shut_down(asks: list[str], *, grace: float) -> tuple[list[int], StoppingWorker, StoppingApi]:
+    """Drive a dev shutdown through the asks, and wait until it leaves or a second has passed."""
+    worker, api = StoppingWorker(), StoppingApi()
+    worker.running.append(asyncio.create_task(asyncio.sleep(3600)))
+    left: list[int] = []
+    stopping = main.DevShutdown(cast("Any", worker), cast("Any", api), grace=grace, leave=left.append)
+    for reason in asks:
+        stopping.ask(reason)
+    for _ in range(100):
+        if left:
+            break
+        await asyncio.sleep(0.01)
+    return left, worker, api
+
+
+def test_a_dev_stop_drains_and_then_gives_up_once_its_grace_has_passed(capsys: pytest.CaptureFixture[str]) -> None:
+    """An attempt that never finishes, or a stream that never closes, does not hold the process forever."""
+    left, worker, api = asyncio.run(_shut_down(["SIGINT"], grace=0.05))
+
+    assert worker.asked_to_stop
+    assert api.should_exit
+    assert left == [1]
+    said = of_kind(records(capsys.readouterr().out), "process")
+    assert [record["message"] for record in said] == ["stopping", "gave up waiting"]
+    assert said[0]["grace_ms"] == 50
+    assert said[1]["in_flight"] == ["attempt"]
+    assert said[1]["connections"] == 1
+    assert worker.running[0].cancelled(), "the step left behind is cancelled, so what it started ends with it"
+
+
+def test_a_second_signal_ends_a_dev_stop_at_once(capsys: pytest.CaptureFixture[str]) -> None:
+    left, worker, _api = asyncio.run(_shut_down(["SIGINT", "SIGINT"], grace=3600))
+
+    assert left == [130]
+    said = of_kind(records(capsys.readouterr().out), "process")
+    assert [record["message"] for record in said] == ["stopping", "stopping now"]
+    assert said[1]["reason"] == "SIGINT"
+    assert worker.running[0].cancelled()
+
+
 def test_dev_names_the_admin_that_exists_rather_than_the_one_it_would_have_made(tmp_path: Path) -> None:
     """After dg init the instance has its own admin, and dev must not name one that is absent."""
     import asyncio

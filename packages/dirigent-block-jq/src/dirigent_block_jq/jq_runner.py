@@ -17,6 +17,7 @@ whole plugin in order to evaluate ``.name``.
 """
 
 import json
+import os
 import sys
 from typing import Any
 
@@ -61,5 +62,17 @@ def answer(programs: dict[str, Any], request: dict[str, Any]) -> dict[str, Any]:
     return {"error": f"{kind} is not a request kind: compile, run, or forget"}
 
 
+def quietly() -> None:
+    """Serve until the pipe closes, ending without a traceback when interrupted or when the parent stops reading."""
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except BrokenPipeError:
+        # Pointed at the void, so the flush at interpreter exit has nothing left to fail on.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    main()
+    quietly()

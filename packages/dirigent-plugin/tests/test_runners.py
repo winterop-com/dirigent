@@ -137,6 +137,46 @@ def test_a_runner_starts_without_the_workers_environment(monkeypatch: pytest.Mon
     assert environment["PATH"] == "/usr/bin:/bin"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="process groups are POSIX")
+def test_a_runner_starts_in_a_process_group_of_its_own(runner: ProgramRunner) -> None:
+    """A terminal's Ctrl-C goes to the worker's group, and the worker is what stops a runner."""
+    import os
+
+    assert os.getpgid(runner.process.pid) == runner.process.pid
+    assert os.getpgid(runner.process.pid) != os.getpgrp()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="SIGINT is POSIX")
+def test_an_interrupted_runner_exits_without_a_traceback() -> None:
+    import signal
+    import subprocess
+
+    started = subprocess.Popen(  # noqa: S603 - the argv is this test's own
+        COMMAND, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
+    assert started.stdin is not None
+    assert started.stdout is not None
+    started.stdin.write(b'{"kind": "forget", "id": "x"}\n')
+    started.stdin.flush()
+    assert started.stdout.readline(), "the runner answered, so it is inside its read loop"
+    started.send_signal(signal.SIGINT)
+    _out, err = started.communicate(timeout=10)
+
+    assert started.returncode == 130
+    assert b"Traceback" not in err
+
+
+async def test_every_runner_a_worker_started_is_stopped_when_it_exits(
+    block_ctx: FakeContext, taken: list[ProgramRunner]
+) -> None:
+    """A runner no longer hears the terminal's interrupt, so the worker stopping is what ends it."""
+    await call_block(EchoTransformer(), {"input": "ada", "program": "echo"}, block_ctx)
+    runners.stop_runners()
+
+    assert len(taken) == 1
+    assert not taken[0].alive
+
+
 async def test_a_step_sends_its_program_once_however_many_elements_it_runs(
     block_ctx: FakeContext, sent: list[dict[str, Any]]
 ) -> None:

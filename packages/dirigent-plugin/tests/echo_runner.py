@@ -5,6 +5,7 @@ one reply per line, exactly as a runner for a language dirigent does not ship wo
 """
 
 import json
+import os
 import sys
 import time
 from typing import Any
@@ -65,5 +66,17 @@ def main() -> None:
         out.flush()
 
 
+def quietly() -> None:
+    """Serve until the pipe closes, ending without a traceback when interrupted or when the parent stops reading."""
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except BrokenPipeError:
+        # Pointed at the void, so the flush at interpreter exit has nothing left to fail on.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    main()
+    quietly()
