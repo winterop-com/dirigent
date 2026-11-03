@@ -95,11 +95,26 @@ instance that is running -- apply a document, start a run, read its logs, pause 
 give it the MCP server, `dirigent-mcp`. Its tools are calls the API already answers, so what
 the agent may do is what its token's role may do.
 
-No tool is a delete, but `apply_document` retires what a document stops declaring: a source, with
-its input journal and its token, and a schedule the document managed. Runs and pipeline versions
-stay. `plan_document` lists what would go under `sources.removed` and
-`triggers.schedules_removed`, and `apply_document` carries the destructive hint, so a client that
-asks before such a call asks here.
+The only deletes are `delete_alert_rule` and `delete_schema`, but `apply_document` and
+`edit_pipeline` retire what a document stops declaring: a source, with its input journal and its
+token, and a schedule the document managed. Runs and pipeline versions stay. `plan_document` and
+`edit_pipeline` with `plan_only` list what would go under `sources.removed` and
+`triggers.schedules_removed`, and every tool that removes or rewrites carries the destructive
+hint, so a client that asks before such a call asks here.
+
+Every answer is bounded, at 48 KB of JSON, so a large one never overflows what an agent can
+read. A listing answers 20 rows unless given a `limit`; one whose rows would not fit is cut to the
+rows that do, without its `next`, and its `truncated` note names the `limit` that asks for exactly
+those. Any other answer too large is cut to the start of its JSON, with a note saying how to ask
+for less. A long text -- `export_pipeline`'s document, an example's, a run's report -- is answered
+a stretch at a time from `offset`, with `next_offset` while more remains. `run_attempts` shows each
+output as its size and opening characters; `get_attempt_output` reads one, or with `path`, a JSON
+pointer such as `/rows/0`, one part of it.
+
+`edit_pipeline` changes a stored pipeline without sending the whole document again: it takes the
+current version's text exactly as `export_pipeline` answers it, makes each `{old, new}`
+replacement in turn, each `old` occurring exactly once, then plans and applies the result. One
+edit that misses, or matches more than once, refuses them all and nothing is stored.
 
 Mint the agent a token of its own first; it is shown once:
 
@@ -185,10 +200,14 @@ text that is not a document, and the file is not opened.
 
 | Tools | What they do |
 | --- | --- |
-| `list_blocks`, `get_block`, `list_examples`, `get_example` | The catalog and the shipped examples, to write a document from |
+| `list_blocks`, `get_block`, `list_examples`, `get_example` | The catalog and the shipped examples, to write a document from; a listed example is its code, name, shelf, tags and blocks, and `get_example` reads its document |
 | `plan_document`, `apply_document` | Check a document against the instance, then store it |
+| `edit_pipeline` | Change a stored pipeline by exact replacements in its exported text, then plan it, and apply it unless `plan_only` |
 | `list_pipelines`, `get_pipeline`, `export_pipeline`, `validate_pipeline` | What the instance holds |
 | `run_pipeline`, `list_runs`, `get_run`, `run_attempts`, `run_logs` | Start a run, optionally waiting for it, and read how it went; `get_run` says how a source's input arrived (`via`) and what the run stored (`stored_bytes`) |
+| `get_attempt_output` | One attempt's output, inline or from storage, or the part a JSON pointer names |
+| `get_run_report` | The markdown report document a run rendered when it settled, and whether it rendered one |
+| `get_run_profile` | Where a run's wall clock went: the critical path, and its queued, running and waiting time |
 | `run_stats` | How the runs of a window went: per day, each pipeline's p50, p95 and max duration, and what failed most |
 | `cancel_run`, `pause_run`, `resume_run`, `retry_attempt`, `rerun_run` | Stop a run, pause or resume one, retry one attempt, or run a settled run again with its parameters and source input |
 | `list_sources`, `get_source`, `source_inputs`, `pause_source`, `resume_source` | The input sources and what arrived; `get_source` gives an endpoint's full URL and how a caller authenticates, never its token |
@@ -196,14 +215,25 @@ text that is not a document, and the file is not opened.
 | `list_connections`, `get_connection`, `check_connection` | The connections a document can name, every secret redacted, and whether one's system answers (admin only) |
 | `create_connection` | Create a connection with its settings alone, awaiting the secrets an admin supplies, and answer which they are and the `dg connection set-secret` command that sets them (operator or admin) |
 | `list_schemas`, `get_schema` | The named JSON Schemas a document can reference |
+| `create_schema`, `update_schema`, `delete_schema` | Store, rewrite or remove a named schema (admin only); one a pipeline references is not removed |
 | `list_alert_rules`, `get_alert_rule` | What alerts on what, and where it sends |
+| `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`, `resume_alert_rule`, `delete_alert_rule` | Declare an alert rule, change what it says or where it sends, hold or release its deliveries, remove it |
+| `list_alert_deliveries` | The alert queue, newest first, narrowed to a run or a `status`, as `dg alerts queue` shows it |
 | `list_schedules`, `pause_schedule`, `resume_schedule` | The clocks |
+| `list_schedule_firings` | What a schedule actually did, newest first, including the firings it skipped |
 | `instance_info`, `whoami` | The instance's version and what it has installed, and who the calls act as |
 
+A `viewer` is offered the reading tools alone; an `operator` every tool but `check_connection`
+and the three that write a schema, which the API allows only an admin.
+
+Alert rules are created through these tools, `dg alerts rules` and the API, not declared in a
+pipeline document: a rule's code is the instance's, not a pipeline's, a `global` rule watches
+every pipeline rather than one, and removing a rule removes the deliveries it raised.
+
 Every tool carries the MCP hints a client asks by: `readOnlyHint` on every read,
-`destructiveHint` on `apply_document`, `cancel_run` and `rotate_source_token`, `idempotentHint`
-where asking twice does no more than asking once, and `openWorldHint` on what starts a run or
-reaches a connection's system.
+`destructiveHint` on what removes or rewrites -- `apply_document`, `edit_pipeline`, `cancel_run`,
+`rotate_source_token`, the deletes and the updates -- `idempotentHint` where asking twice does no
+more than asking once, and `openWorldHint` on what starts a run or reaches a connection's system.
 
 Two resources hold what a document is written against, read from the instance so they match
 what it has installed: `dirigent://schema/document`, the JSON Schema of the format with every

@@ -917,15 +917,25 @@ Every command goes through `uv run dg`, so it runs the dirigent version `pyproje
 When the instance's dirigent MCP server (`/mcp`) is connected, the same loop goes through its
 tools rather than `uv run dg`. A document is passed as its text.
 
-- Find: `list_blocks`, `get_block`, `list_examples`, `get_example`.
+- Find: `list_blocks`, `get_block`, `list_examples` (each example's code and blocks),
+  `get_example` (its document).
 - Check: `plan_document` checks a document against the instance; `validate_pipeline`
   checks one it already holds, by its code.
-- Apply: `apply_document`.
+- Apply: `apply_document`. To change a stored pipeline, `edit_pipeline` makes exact `{old, new}`
+  replacements in the text `export_pipeline` answers, each `old` once, then plans and applies;
+  `plan_only` stops at the plan.
 - Run and read runs: `run_pipeline`, `list_runs`, `get_run`, `run_attempts`, `run_logs`.
+  `run_attempts` shows outputs as their size and start; `get_attempt_output` reads one, with
+  `path` a JSON pointer into it. `get_run_report` reads a run's report document,
+  `get_run_profile` where its time went.
 - Connections: `list_connections`, `get_connection`, and `create_connection`, which stores
   a connection's settings alone and refuses every secret field. Never ask for or pass a
   secret: tell the person that an admin runs the `supply_with` command it answers,
   `dg connection set-secret CODE`, which prompts for each secret at their terminal.
+- Alerts and schedules: `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`,
+  `resume_alert_rule`, `delete_alert_rule`, `list_alert_deliveries`, `list_schedule_firings`.
+- Every answer is bounded in size. A cut one carries a `truncated` note saying how to ask for
+  less, and a long text is read on from `next_offset`.
 
 ## Reading what dg says
 

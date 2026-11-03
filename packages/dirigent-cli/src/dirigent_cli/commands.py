@@ -152,7 +152,6 @@ from dirigent_cli.sources import (
 )
 from dirigent_cli.stream import Sink, track_steps, use_scratch_prefix
 from dirigent_cli.summaries import credential_line
-from dirigent_cli.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_client import (
     CLEAR,
     ApplyResult,
@@ -184,6 +183,7 @@ from dirigent_client import (
     declared_label,
 )
 from dirigent_client.schemas import SurfaceEntry, TokenLifetime
+from dirigent_client.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_common import Issue, JsonMap, Message, bounded_load, is_entity_name
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings

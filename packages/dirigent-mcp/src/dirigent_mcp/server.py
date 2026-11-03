@@ -1,11 +1,14 @@
 """The MCP server: one dirigent instance, operated by an agent through the instance's own API.
 
 Every tool is a call the Python client already makes, so what an agent may do is bounded by
-the role of the token it was given. No tool is a delete, but ``apply_document`` retires what a
-document stops declaring: a source, with its input journal and its token, and a schedule the
-document managed. Applying and running a document is still the whole of the instance's reach: a
-pipeline the agent writes runs with every connection the instance holds. Read-only, the server
-offers the reading tools alone.
+the role of the token it was given. The only deletes are of an alert rule and a named schema,
+but ``apply_document`` and ``edit_pipeline`` retire what a document stops declaring: a source,
+with its input journal and its token, and a schedule the document managed. Applying and running
+a document is still the whole of the instance's reach: a pipeline the agent writes runs with
+every connection the instance holds. Read-only, the server offers the reading tools alone.
+
+Every answer is held under :data:`dirigent_mcp.answers.MAX_ANSWER_BYTES`, cut with a note that
+says how to ask for less when it would be larger.
 
 Over stdio one client carries the token the environment names; over HTTP each call carries the
 bearer token of the request it arrived on (see :mod:`dirigent_mcp.http`).
@@ -18,7 +21,7 @@ import sys
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from contextvars import ContextVar
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from enum import IntEnum
 from typing import Any, Final, cast
 
@@ -29,11 +32,33 @@ from mcp.types import ToolAnnotations
 from pydantic import TypeAdapter
 from starlette.requests import Request
 
-from dirigent_client import BlockEntry, BlockKind, Dirigent, DirigentError, RunStatus
+from dirigent_client import (
+    AlertEvent,
+    AlertScope,
+    AttemptOut,
+    BlockEntry,
+    BlockKind,
+    Dirigent,
+    DirigentError,
+    ExampleOut,
+    Importance,
+    NotificationStatus,
+    RunStatus,
+)
 from dirigent_client.resources.pipelines import parse_document
-from dirigent_common import JsonMap
+from dirigent_client.timing import profile
+from dirigent_common import JsonMap, Message
 from dirigent_common.hosts import is_loopback_host
-from dirigent_mcp.messages import NO_HTTP_INSTANCE, NO_INSTANCE, REMOTE_BIND, REMOTE_BIND_REFUSED
+from dirigent_mcp.answers import Edit, attempt_row, bounded, edited, pointed, window
+from dirigent_mcp.messages import (
+    NARROW_AN_OUTPUT,
+    NO_ATTEMPT,
+    NO_HTTP_INSTANCE,
+    NO_INSTANCE,
+    NO_STORED_OUTPUT,
+    REMOTE_BIND,
+    REMOTE_BIND_REFUSED,
+)
 
 #: Where the server finds its instance and its token, the names `dg` reads them from.
 URL_ENV: Final = "DG_URL"
@@ -47,7 +72,10 @@ DEFAULT_HOST: Final = "127.0.0.1"
 DEFAULT_PORT: Final = 3334
 
 #: How many rows a listing answers with when the agent names no limit.
-DEFAULT_LIMIT: Final = 50
+DEFAULT_LIMIT: Final = 20
+
+#: How many attempts one read of a run's attempts asks the instance for while it walks them all.
+ATTEMPT_PAGE: Final = 500
 
 #: The longest a run started with ``wait`` is waited on before its id is answered instead.
 MAX_WAIT: Final = timedelta(minutes=10)
@@ -85,6 +113,16 @@ CREATES: Final = ToolAnnotations(
     read_only_hint=False, destructive_hint=False, idempotent_hint=False, open_world_hint=False
 )
 
+#: Rewrites what something says, losing what it said before; the same change twice changes nothing more.
+REPLACES: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=False
+)
+
+#: Removes something for good; asking twice is refused, since it is gone.
+REMOVES: Final = ToolAnnotations(
+    read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False
+)
+
 #: Replaces a credential, so every caller holding the old one is shut out.
 ROTATES: Final = ToolAnnotations(
     read_only_hint=False, destructive_hint=True, idempotent_hint=False, open_world_hint=False
@@ -105,9 +143,16 @@ get_example); plan_document checks a document against the instance without stori
 lists under sources.removed and triggers.schedules_removed what applying it would retire.
 apply_document retires a source, with its input journal and token, and a schedule when the
 document stops declaring them, so plan first and keep every source and schedule a pipeline has.
+edit_pipeline changes a stored pipeline by exact replacements in the text export_pipeline answers,
+without sending the whole document again.
 A run is started with run_pipeline, read with get_run, run_logs and run_attempts, and run again with rerun_run.
 A secret never passes through this server: create_connection stores a connection's settings
 alone, and an admin supplies its secrets with the command it answers before anything uses it.
+run_attempts shows each output's size and opening characters; get_attempt_output reads one output,
+or one part of it by JSON pointer. get_run_report reads the report document a run rendered, and
+get_run_profile where its wall clock went. Every answer is bounded in size: one that would be
+larger is cut, with a `truncated` note saying how to ask for less, and a long text is answered a
+stretch at a time from `offset`, with `next_offset` while more remains.
 The resources dirigent://schema/document and dirigent://blocks are the document format and the
 block catalogue to write against."""
 
@@ -169,14 +214,14 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         except DirigentError as error:
             raise ResourceError(str(error)) from error
 
-    async def call[T](work: Callable[[Dirigent], Awaitable[T]]) -> Any:
-        """Make one call, answering with its JSON, and a refusal as a tool error the agent reads."""
+    async def call[T](work: Callable[[Dirigent], Awaitable[T]], *, narrow: Message | None = None) -> Any:
+        """Make one call, answering with its JSON under the size bound, and a refusal as a tool error."""
         try:
             async with connect() as dg:
                 answer = await work(dg)
         except DirigentError as error:
             raise ToolError(str(error)) from error
-        return _json(answer)
+        return bounded(_json(answer), narrow=narrow)
 
     @tool(READS)
     async def instance_info() -> Any:
@@ -201,9 +246,34 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         return await call(lambda dg: dg.pipelines.get(code))
 
     @tool(READS)
-    async def export_pipeline(code: str, version: int | None = None) -> Any:
-        """Render a stored pipeline as the YAML document it was applied as, the current version unless one is named."""
-        return await call(lambda dg: dg.pipelines.export(code, version=version))
+    async def export_pipeline(code: str, version: int | None = None, offset: int = 0) -> Any:
+        """Render a stored pipeline as its canonical YAML document, the current version unless one is named.
+
+        The current version's text is exactly what edit_pipeline matches its edits in. A long
+        document is answered from `offset`, with `next_offset` while more remains.
+        """
+
+        async def exported(dg: Dirigent) -> Any:
+            return window(await dg.pipelines.export(code, version=version), offset)
+
+        return await call(exported)
+
+    @tool(APPLIES)
+    async def edit_pipeline(code: str, edits: list[Edit], plan_only: bool = False) -> Any:
+        """Change a stored pipeline by exact replacements, then plan it and, unless `plan_only`, apply it.
+
+        Each edit's `old` must occur exactly once in the current version's text as export_pipeline
+        answers it, after the edits before it have been made. If any edit misses, or matches more
+        than once, nothing is planned or applied and every such edit is named. The result is
+        stored under `code` whatever its own `code:` line says. Answers what
+        apply_document answers: the plan, the new `version`, and what the apply retired.
+        """
+
+        async def changed(dg: Dirigent) -> Any:
+            document = edited(await dg.pipelines.export(code), edits)
+            return await dg.pipelines.apply(parse_document(document), code=code, dry_run=plan_only)
+
+        return await call(changed)
 
     @tool(READS)
     async def validate_pipeline(code: str) -> Any:
@@ -300,10 +370,77 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
     @tool(READS)
     async def run_attempts(
-        run_id: str, step: str | None = None, after: str | None = None, limit: int = DEFAULT_LIMIT
+        run_id: str,
+        step: str | None = None,
+        include_output: bool = False,
+        after: str | None = None,
+        limit: int = DEFAULT_LIMIT,
     ) -> Any:
-        """List a run's attempts, one per try of a step, with each one's output, error and timing."""
-        return await call(lambda dg: dg.runs.attempts(run_id, step=step, after=after, limit=limit))
+        """List a run's attempts, one per try of a step, with each one's error and timing.
+
+        An output is shown as its `output_bytes` and its opening `output_preview`; get_attempt_output
+        reads one whole, or `include_output` puts every one in this listing. An output too large
+        to keep on its attempt names its `output_uri` instead.
+        """
+
+        async def listed(dg: Dirigent) -> Any:
+            page = _json(await dg.runs.attempts(run_id, step=step, after=after, limit=limit))
+            page["items"] = [attempt_row(row, include_output=include_output) for row in page["items"]]
+            return page
+
+        return await call(listed)
+
+    @tool(READS)
+    async def get_attempt_output(run_id: str, attempt_id: str, path: str = "") -> Any:
+        """Read one attempt's output, inline or written to storage, or with `path` the part a JSON pointer names.
+
+        `path` is an RFC 6901 pointer such as `/rows/0/name`; empty reads the whole output. An
+        output over the size bound is cut, and a pointer reads a part of it that fits.
+        """
+
+        async def read(dg: Dirigent) -> Any:
+            attempt = await _attempt(dg, run_id, attempt_id)
+            output: Any = attempt.output
+            if output is None and attempt.output_uri is not None:
+                output = json.loads(await _stored_output(dg, run_id, attempt.output_uri))
+            return {
+                "attempt_id": str(attempt.id),
+                "step": attempt.step_name,
+                "path": path,
+                "output": pointed(output, path),
+            }
+
+        return await call(read, narrow=NARROW_AN_OUTPUT)
+
+    @tool(READS)
+    async def get_run_report(run_id: str, offset: int = 0) -> Any:
+        """Read the markdown report document a run rendered when it settled, and whether it rendered one.
+
+        A run renders one only when its pipeline document declares a `report:` section. A long
+        document is answered from `offset`, with `next_offset` while more remains.
+        """
+
+        async def read(dg: Dirigent) -> Any:
+            document = await dg.runs.report_document(run_id)
+            if document is None:
+                return {"run_id": run_id, "exists": False}
+            return {"run_id": run_id, "exists": True, **window(document, offset)}
+
+        return await call(read)
+
+    @tool(READS)
+    async def get_run_profile(run_id: str) -> Any:
+        """Break a run into where its wall clock went: the critical path, and its queued, running and waiting time.
+
+        The critical path is the chain of steps that decided when the run ended; the times along
+        it add up to the run, and the warnings name only what the timestamps prove.
+        """
+
+        async def measured(dg: Dirigent) -> Any:
+            detail = await dg.runs.get(run_id)
+            return profile(detail, await _every_attempt(dg, run_id), at=datetime.now(UTC))
+
+        return await call(measured)
 
     @tool(READS)
     async def run_logs(
@@ -357,15 +494,39 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
     @tool(READS)
     async def list_examples(
-        shelf: str | None = None, tags: list[str] | None = None, after: str | None = None, limit: int = DEFAULT_LIMIT
+        shelf: str | None = None,
+        tags: list[str] | None = None,
+        summary: bool = True,
+        after: str | None = None,
+        limit: int = DEFAULT_LIMIT,
     ) -> Any:
-        """List the example documents the instance ships, optionally one shelf's or those with every tag given."""
-        return await call(lambda dg: dg.examples.list(shelf=shelf, tags=tags or (), after=after, limit=limit))
+        """List the example documents the instance ships, optionally one shelf's or those with every tag given.
+
+        Each row is its code, name, shelf, tags and the blocks it uses; `summary=false` adds its
+        description and everything else it requires. get_example reads one's document.
+        """
+
+        async def listed(dg: Dirigent) -> Any:
+            page = await dg.examples.list(shelf=shelf, tags=tags or (), after=after, limit=limit)
+            if not summary:
+                return page
+            return {**_json(page), "items": [_example_summary(row) for row in page.items]}
+
+        return await call(listed)
 
     @tool(READS)
-    async def get_example(code: str) -> Any:
-        """Read one example, its document included, which is a working starting point for a new one."""
-        return await call(lambda dg: dg.examples.get(code))
+    async def get_example(code: str, offset: int = 0) -> Any:
+        """Read one example, its document under `source`, which is a working starting point for a new one.
+
+        A long document is answered from `offset`, with `next_offset` while more remains.
+        """
+
+        async def read(dg: Dirigent) -> Any:
+            example = _json(await dg.examples.get(code))
+            shown = window(example.pop("source"), offset)
+            return {**example, "source": shown.pop("text"), **shown}
+
+        return await call(read)
 
     @tool(READS)
     async def list_sources(pipeline: str | None = None, after: str | None = None, limit: int = DEFAULT_LIMIT) -> Any:
@@ -486,6 +647,36 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         """Read one named JSON Schema, the schema itself included."""
         return await call(lambda dg: dg.schemas.get(code))
 
+    @tool(CREATES, needs=Offers.ADMINISTERING)
+    async def create_schema(
+        body: JsonMap, code: str | None = None, name: str | None = None, description: str | None = None
+    ) -> Any:
+        """Store a named JSON Schema a document can reference; without `code`, its code comes from the schema's `$id`.
+
+        Its `title` and `description` keywords name and describe it unless `name` or `description` is given.
+        """
+        return await call(lambda dg: dg.schemas.create(body, code=code, name=name, description=description))
+
+    @tool(REPLACES, needs=Offers.ADMINISTERING)
+    async def update_schema(
+        code: str, body: JsonMap | None = None, name: str | None = None, description: str | None = None
+    ) -> Any:
+        """Replace a named schema's body, its name or its description; what is not given is left as it is.
+
+        The answer names the pipelines that reference it, which validate against the new body from now on.
+        """
+        return await call(lambda dg: dg.schemas.update(code, body=body, name=name, description=description))
+
+    @tool(REMOVES, needs=Offers.ADMINISTERING)
+    async def delete_schema(code: str) -> Any:
+        """Remove a named schema; one a stored pipeline still references is refused, naming them."""
+
+        async def removed(dg: Dirigent) -> Any:
+            await dg.schemas.delete(code)
+            return {"deleted": code}
+
+        return await call(removed)
+
     @tool(READS)
     async def list_alert_rules(after: str | None = None, limit: int = DEFAULT_LIMIT) -> Any:
         """List the alert rules: what event each listens for, where it sends, and whether it is paused."""
@@ -495,6 +686,92 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
     async def get_alert_rule(code: str) -> Any:
         """Read one alert rule."""
         return await call(lambda dg: dg.alerts.rule(code))
+
+    @tool(CREATES)
+    async def create_alert_rule(
+        code: str,
+        event: AlertEvent,
+        scope: AlertScope = AlertScope.GLOBAL,
+        pipeline: str | None = None,
+        importance: Importance | None = None,
+        connection: str | None = None,
+        template: str | None = None,
+        body: str | None = None,
+        throttle: str = "0s",
+        name: str | None = None,
+        description: str | None = None,
+    ) -> Any:
+        """Declare an alert rule: the event it listens for, which pipelines, and where it sends.
+
+        `scope` is `global` (every pipeline whose importance reaches `importance`, or every one)
+        or `pipeline` (the one `pipeline` names). `connection` is the slack, email or webhook
+        connection it delivers through; without one it writes to the process log. `template`
+        is the subject and `body` the body, Jinja over the run's facts. `throttle`, such as `15m`,
+        is the least time between two of its messages.
+        """
+        return await call(
+            lambda dg: dg.alerts.create_rule(
+                code,
+                name=name,
+                description=description,
+                event=event,
+                scope=scope,
+                pipeline=pipeline,
+                importance=importance,
+                connection=connection,
+                template=template,
+                body=body,
+                throttle=throttle,
+            )
+        )
+
+    @tool(REPLACES)
+    async def update_alert_rule(
+        code: str,
+        template: str | None = None,
+        body: str | None = None,
+        importance: Importance | None = None,
+        connection: str | None = None,
+    ) -> Any:
+        """Rewrite what an alert rule says or re-point where it delivers; what is not given is left as it is."""
+        return await call(
+            lambda dg: dg.alerts.update_rule(
+                code, template=template, body=body, importance=importance, connection=connection
+            )
+        )
+
+    @tool(TOGGLES)
+    async def pause_alert_rule(code: str) -> Any:
+        """Hold an alert rule's deliveries until it is resumed."""
+        return await call(lambda dg: dg.alerts.set_rule_paused(code, paused=True))
+
+    @tool(TOGGLES)
+    async def resume_alert_rule(code: str) -> Any:
+        """Let a paused alert rule deliver again."""
+        return await call(lambda dg: dg.alerts.set_rule_paused(code, paused=False))
+
+    @tool(REMOVES)
+    async def delete_alert_rule(code: str) -> Any:
+        """Remove an alert rule, so it raises nothing more."""
+
+        async def removed(dg: Dirigent) -> Any:
+            await dg.alerts.delete_rule(code)
+            return {"deleted": code}
+
+        return await call(removed)
+
+    @tool(READS)
+    async def list_alert_deliveries(
+        run_id: str | None = None,
+        status: NotificationStatus | None = None,
+        after: str | None = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Any:
+        """List the alert queue newest first: each message, the rule that raised it, and whether it was delivered.
+
+        Narrow it to one run's, or to one `status`: `pending`, `sending`, `sent` or `failed`.
+        """
+        return await call(lambda dg: dg.alerts.notifications(run_id=run_id, status=status, after=after, limit=limit))
 
     @server.resource(
         "dirigent://schema/document",
@@ -535,6 +812,13 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         """List a pipeline's schedules, each with its clock and when it next fires."""
         return await call(lambda dg: dg.schedules.list(pipeline, after=after, limit=limit))
 
+    @tool(READS)
+    async def list_schedule_firings(
+        pipeline: str, code: str, after: str | None = None, limit: int = DEFAULT_LIMIT
+    ) -> Any:
+        """List what a schedule has actually done, newest first: each firing's outcome, run, and the ones it skipped."""
+        return await call(lambda dg: dg.schedules.firings(pipeline, code, after=after, limit=limit))
+
     @tool(TOGGLES)
     async def pause_schedule(pipeline: str, code: str) -> Any:
         """Pause a schedule, so it fires no more until it is resumed."""
@@ -551,6 +835,50 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 def _summary(entry: BlockEntry) -> JsonMap:
     """One block as a listing shows it."""
     return {"id": entry.id, "kind": entry.kind, "group": entry.group, "summary": entry.summary}
+
+
+def _example_summary(example: ExampleOut) -> JsonMap:
+    """One example as a summary listing shows it."""
+    return {
+        "code": example.code,
+        "name": example.name,
+        "shelf": example.shelf,
+        "tags": example.tags,
+        "blocks": example.requires.blocks,
+    }
+
+
+async def _every_attempt(dg: Dirigent, run_id: str) -> list[AttemptOut]:
+    """Walk every attempt of a run, a page at a time."""
+    walked: list[AttemptOut] = []
+    after: str | None = None
+    while True:
+        page = await dg.runs.attempts(run_id, after=after, limit=ATTEMPT_PAGE)
+        walked += page.items
+        if page.next is None:
+            return walked
+        after = page.next
+
+
+async def _attempt(dg: Dirigent, run_id: str, attempt_id: str) -> AttemptOut:
+    """Find one attempt of a run, refusing an id the run does not have."""
+    found = next((row for row in await _every_attempt(dg, run_id) if str(row.id) == attempt_id.strip()), None)
+    if found is None:
+        raise ToolError(NO_ATTEMPT.render(run_id=run_id, attempt_id=attempt_id))
+    return found
+
+
+async def _stored_output(dg: Dirigent, run_id: str, uri: str) -> str:
+    """Read the text of the artifact an attempt's output was written to."""
+    after: str | None = None
+    while True:
+        page = await dg.runs.artifacts(run_id, after=after, limit=ATTEMPT_PAGE)
+        found = next((row for row in page.items if row.uri == uri), None)
+        if found is not None:
+            return await dg.runs.artifact_text(found.id)
+        if page.next is None:
+            raise ToolError(NO_STORED_OUTPUT.render(run_id=run_id, uri=uri))
+        after = page.next
 
 
 def _json(value: Any) -> Any:

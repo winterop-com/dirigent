@@ -88,7 +88,7 @@ async def call(server: MCPServer, tool: str, **arguments: Any) -> Any:
 async def test_every_tool_says_whether_it_writes(server: MCPServer) -> None:
     tools = {tool.name: tool for tool in await server.list_tools()}
     assert {"plan_document", "apply_document", "run_pipeline", "get_run", "run_logs", "get_block"} <= set(tools)
-    assert not {name for name in tools if name.startswith("delete")}, "nothing an agent calls deletes"
+    assert {name for name in tools if name.startswith("delete")} == {"delete_alert_rule", "delete_schema"}
     reads = {name for name, tool in tools.items() if tool.annotations and tool.annotations.read_only_hint}
     assert {"list_pipelines", "get_run", "plan_document", "get_block"} <= reads
     assert not {"apply_document", "run_pipeline", "cancel_run"} & reads

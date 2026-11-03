@@ -3,9 +3,9 @@
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from dirigent_cli.timing import attempt_timing, by_step, critical_path, profile, step_timing
 from dirigent_client import AttemptKind, AttemptStatus, DagNode, DagView, RunDetail, RunOut, RunStatus, TriggerKind
 from dirigent_client.schemas import AttemptOut
+from dirigent_client.timing import attempt_timing, by_step, critical_path, profile, step_timing
 
 START = datetime(2026, 9, 7, 12, 0, tzinfo=UTC)
 

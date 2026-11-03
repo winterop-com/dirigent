@@ -74,7 +74,7 @@ graph TB
       27["Scheduler<br/>[Container: asyncio (Python)]<br/>dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time."]
       28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
       42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
-      43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; nothing deletes."]
+      43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; only an alert rule and a named schema are deleted."]
       44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
       45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
@@ -126,7 +126,7 @@ graph TB
 
       18["Web UI<br/>[Container: React SPA]<br/>Pipeline builder, run grid and logs, connections, schedules, sources and alerts. Built from the block catalog."]
       42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
-      43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; nothing deletes."]
+      43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; only an alert rule and a named schema are deleted."]
       44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
       45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
