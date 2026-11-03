@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 def addresses(settings: Settings, bound: str) -> dict[str, Any]:
     """Name every address the instance answers on: the API, the UI when served, the docs, and MCP when enabled."""
-    from dirigent_mcp.http import MCP_PATH
+    from dirigent_server import MCP_PATH
 
     fields: dict[str, Any] = {"api": bound}
     if settings.ui_enabled:
