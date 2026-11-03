@@ -3,77 +3,6 @@
 What is left to do. The design specification is [docs/design.md](docs/design.md); what
 already works is documented in [docs/](docs/index.md).
 
-## Settled
-
-Decisions that still constrain the code. What each one replaced is in the commit that made
-it; what it forbids is here, because that is what somebody is liable to undo.
-
-- **The terminal decides the output.** At a terminal a command renders; anywhere else it
-  writes NDJSON, one record per line. `--json`, `-o console` and `DIRIGENT_LOG_FORMAT`
-  override, and `dg format` renders a kept stream. `dg --version` and `dg secret-key` answer
-  with one plain line everywhere, because the value is the whole output.
-- **A table is a rendering of a record, keyed by its `kind`.** `dirigent_cli/summaries.py`
-  maps a kind to what it draws beneath its line; a kind with no entry renders as its line
-  alone, which is what keeps a record from a plugin or a newer dirigent readable. No command
-  renders; the formatter does, so the live stream and `dg format` are one path.
-- **Verbosity decides which records exist; the output does not.** `dg run -v | dg format` is
-  `dg run -v -o console`. Tying detail to the output would make every default run verbose.
-- **`kind` is the discriminator, and adding one is compatible.** Removing or repurposing one
-  is not. A formatter renders an unrecognised kind rather than failing.
-- **A formatter is a name, a version and one render method**, registered through the
-  `dirigent.formatters` entry point group. `console` and `compact` are built in.
-- **One format language.** `dg format` takes a formatter name, never a template. `jq` selects
-  by `kind` over the NDJSON; a template would be a second way to say the same thing.
-- **Telemetry is OTLP push and nothing else; there is no `/metrics` and nothing scrapes
-  dirigent.** A collector is what a backend scrapes. `infra/compose.otel.yaml` is the worked
-  example, and an instrument that only a scrape could serve does not get added.
-- **A command's story is stdout and its diagnostics stderr, in one grammar.** `2>/dev/null`
-  leaves a clean story and `--json | jq` cannot be polluted. A process is the exception: its
-  stdout is its log. A logging event renders as a record, the logger naming the source column
-  when no step claims it.
-- **The claim locks the attempt then the run; an outcome locks the run then the attempts.**
-  Two workers can close that into a deadlock, so both transactions re-read everything they
-  decide on and the aborted one is run again. A buffered log is drained before the retry, not
-  inside it: draining empties it, and a second run would commit an outcome with no log.
-- **Nothing is pruned until an age is set.** Each family has its own, a run is pruned only
-  once settled, and a pruned run's artifacts go before its rows -- a row deleted first leaves
-  bytes nothing points at. `retention_scratch` is how an instance whose bucket somebody else
-  reaps says not to.
-- **A row's age is `created_at`, on every table.** Every table carries `created_at`, so
-  anything asking how old a row is asks one question. An entity carries `updated_at` besides;
-  a journal row, which is written once and never touched again, does not.
-- **There is one migration, before 1.0.** The baseline is edited in place, because an amendment
-  is where an ALTER behaves differently from the CREATE that would say the same thing, and a
-  state an older dirigent wrote is refused at boot rather than migrated. What proves the baseline
-  faithful is the two drift tests, on SQLite and PostgreSQL.
-- **`common` holds what more than one package needs.** A thing two packages need belongs
-  below both. `status_class`, `is_success` and `ErrorClass` are deliberately not there: lift
-  a plugin helper when a second adapter pack duplicates it, not before.
-- **A reference entry says what a thing is and stops.** Both generators render the first
-  paragraph of a description; tuning advice lives in operations, beside the arithmetic.
-- **A request's transaction commits before its response is sent.** The exit of a dependency
-  that yields runs after the response has gone out, so committing there told a client its
-  write had happened before it had: a client reading straight back could miss what it just
-  wrote, and a commit that failed did so after a 2xx. `Transactional` commits while the
-  response can still become the error instead.
-- **A step is exactly one of `block`, `source` or `reply`.** Sources are roots, and in a pipeline
-  with sources every other step descends from one: a root beside them would run on every input
-  from every source. A step joining two sources' branches says `all_done` or `always`, since
-  under `all_success` it could never run. Such a pipeline carries no schedules, because what they
-  started would enter no source.
-- **Neither a source nor a reply is retried.** Running an input again is a new run. A reply
-  settles once, rendered by the server when the steps it answers from have settled, and no worker
-  claims it, so a reply costs no queue hop.
-- **Nothing before an endpoint source's own bucket writes a journal row or spends from it.** A
-  caller without the token or the secret, or in a loop, cannot cause writes; those are counted in
-  telemetry instead. The one write ahead of the bucket is the record of a signature taken, which
-  only a caller holding the secret causes. An endpoint takes no files: a caller with a file posts
-  a URI and the pipeline fetches it.
-- **A source kind is hosted one of three ways, and its contract says which.** The server receives
-  it, with no connection and no secret in reach while a request becomes an input; a worker polls
-  it; or a worker holds it open through a lease. A pack contributes a kind through
-  `Contribution.sources`, and never a fourth way of being hosted.
-
 ## Next up
 
 Ordered. Each is one working chunk. Working rules for any session picking these up: read
@@ -81,140 +10,50 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
 `make check` and `make test-postgres` stay green, coverage stays at or above 90,
 `mkdocs build --strict` stays clean, and every example stays executable.
 
-1. **A full UI redesign.** The fonts, the corners and many of the components are not good enough,
-   and the screens say less about a pipeline than they should. The order is fixed: Codex first,
-   for directions; then a Claude Design canvas, to choose among them and work the choice out;
-   then `docs/ui-conventions.md`, which stays binding and changes before the code does; then the
-   code across every screen, reviewed with the `ui-review` skill in both palettes. What it has to
-   settle:
-   - **The type.** The faces, their sizes and weights, and where mono is used.
-   - **Corners.** The 1/2/2 radius ladder reads as square, which is not what was wanted, so the
-     radius is open again.
-   - **The components that read weakest.** Which ones is listed as part of the directions.
-   - **The pipelines list and its panel show what a pipeline does,** a graph first.
-   - **Examples are separated from a person's own pipelines.**
-   - **No column that says nothing.**
-
-   Where it stands: Codex drafted three directions as live HTML with real data, in
-   `redesign-directions/` beside this repository (A operator console, B flow first, C quiet
-   document), with a board of five corner ladders on the same components. None is chosen yet, and
-   nothing in `docs/ui-conventions.md` or the code has changed for it. The choice comes next, then
-   the chosen direction on a canvas, then the conventions, then the code.
-2. **What the third security review left open.** The review and the sibling packs' first reviews
-   are fixed and merged; these are what they did not settle, each its own slice:
+1. **What the security reviews left open.** Each its own slice:
    - **The units the reviews never reached.** Step deadline arithmetic, gate expansion and the
-     lease sweep, attempt reads at the depth limit, retention sweeps, alert queueing,
-     `dg pipeline new` writing to a name the instance chooses, storage blocks across runs, tokens
-     refused by header on step paths, and connection fields a reference chooses. In the packs: the
-     `analytics_run` probe and retry logic, what the shipped schema gates admit, a credential a
-     service echoes back, a job's end of life, and `capture`'s unbounded read of an error answer.
+     lease sweep, retention sweeps, alert queueing, storage blocks across runs, tokens refused by
+     header on step paths, and connection fields a reference chooses. In the packs: the
+     `analytics_run` probe and retry logic, what the shipped schema gates admit, and a job's end
+     of life.
    - **Leads that need a real service to settle.** Which of a data value set's own `dryRun` and
      `strategy` and the step's query DHIS2 obeys, which decides whether a document's body can turn
-     a dry run into a write; a broker message stalling polled sources on PostgreSQL; a checked-out
-     symlink redirecting a run-relative SQLite file.
-3. **dirigent-fhir: FHIR as a system of its own.** A general FHIR pack, not a DHIS2 one: a
-   pipeline that pulls from one FHIR server and pushes to another, neither of them DHIS2, is as
-   much its purpose as feeding DHIS2. It depends on the FHIR engine only, and carries no DHIS2
-   dependency. Between steps a resource or a Bundle is plain FHIR JSON, as a data value set is
-   in the dhis2 pack, so `transform.jq`, references and storage work on it unchanged; inside a
-   block the engine's R4 models type what they cover (an `OperationOutcome` read into a step
-   failure, a transaction `Bundle` built), and a resource they do not model passes through as
-   JSON. Stages, each its own slice:
-   - **A `fhir` connection kind and the REST blocks.** Read, a search that follows
-     `Bundle.link[next]` under a page cap or hands its pages to a fan-out, create, update, and
-     transaction/batch. Writes are idempotent by FHIR's own means: conditional create
-     (`ifNoneExist`) and conditional update on `identifier`, never on the source server's ids,
-     and a transaction rewrites references between the resources it carries as `urn:uuid`
-     entries. An `OperationOutcome` is classified the way the dhis2 pack classifies an import
-     conflict, and the health check reads `/metadata`. The first flagship is FHIR to FHIR on a
-     schedule against a public test server (`hapi.fhir.org/baseR4`).
-     **Published.** `dirigent-fhir` is on PyPI and at
-     [winterop-com/dirigent-fhir](https://github.com/winterop-com/dirigent-fhir), with its own
-     docs site, and moves in lockstep with this repository: the `fhir` connection kind and `fhir.read`, `fhir.search`, `fhir.create`,
-     `fhir.update` and `fhir.transaction`, every request held to the origin of `base_url`, and
-     `max_response` and `request_deadline` on every answer. It pins `dhis2w-fhir-engine` 1.38.3
-     and imports no DHIS2 code, though that release declares `dhis2w-client` as a dependency, so
-     installing the pack installs it too. It is tested offline against a fake
-     FHIR server, and its flagship runs as `fhir-to-fhir` in `dirigent-examples` between two
-     local HAPI FHIR servers rather than the public one, whose shared data a copy cannot assert
-     on. `dg init --pack dirigent-fhir` offers it, and `dirigent-integration`'s `make test` runs
-     its tests and validates its examples. **Done on the pack's main, released with the next
-     version:** `fhir.search` hands its pages (`emit: pages`, one Bundle each) or its resources
-     (`emit: resources`) to a following step's `for_each`, as `fhir-copy-page-by-page` shows.
-   - **FHIRPath on the verb frames:** `transform.fhirpath`, `map.fhirpath`, `filter.fhirpath`,
-     the mapping between two servers' profiles being where FHIRPath earns its place over jq.
-     **Built on the pack's main.** Engines on the verb frames, evaluated in a runner process the
-     step timeout kills, the answer held to `max_output`. The program publishes
-     `application/fhirpath`, which takes no `${...}`: a value goes under `variables` and is read
-     as `%name`, and an unbound `%name` is refused rather than evaluated to nothing. Left: a
-     FHIRPath language entry in the UI's editor, which edits it uncoloured today.
-   - **CQL and measures.** `fhir.cql` evaluates a library over the resources a step produced
-     (a Bundle, a search, one patient's compartment), with libraries resolved from the
-     document, from storage, or as ELM; `fhir.measure` runs a Measure and answers with a
-     MeasureReport, which a pipeline then pushes to another FHIR server or, through
-     `dirigent-dhis2`, into DHIS2 as aggregate data values. Terminology for `in`/`memberOf`
-     comes from a value set carried in the step or from a remote FHIR terminology server.
-     **Begun on the pack's main.** `fhir.cql` evaluates a library written in the step over a
-     Bundle or a list of resources, per patient in the Patient context and once otherwise, its
-     values passed as CQL parameters (`text/cql` takes no `${...}`). `fhir.measure` evaluates the
-     conventional populations per patient, nests them by `proportion`, `ratio` or `cohort`
-     scoring before counting, and answers a summary MeasureReport. Left: libraries from storage
-     or as ELM, one patient's compartment as the data, terminology for `in`/`memberOf`,
-     continuous-variable measures and stratifiers, and the MeasureReport into DHIS2.
-   - **Validation, profiles and IG packages:** structural validation first, then a profile
-     resolved from a pinned package (`name#version` from the FHIR package registry), a
-     package cache, and terminology for bindings. **Structural validation built on the pack's
-     main:** `fhir.validate` holds every resource to FHIR's JSON rules and the engine's R4 model
-     for the eighteen types it models, projected onto the elements the model names, and fails
-     its step `rejected` listing the issues by FHIRPath, or reports them as an OperationOutcome.
-     A profile is checked only by the engine's `conformsTo()`, which reads `meta.profile`: the
-     engine resolves no StructureDefinition, so profiles proper, packages and bindings are left.
-   - **FHIR in through an endpoint source:** `application/fhir+json` taken, shaped, imported into DHIS2 by the dhis2 pack, and answered with a reply, in
-     `dirigent-integration`'s `shelves/fhir/` with a standalone `fhir-to-dhis2` walkthrough.
-     Converting a QuestionnaireResponse into DHIS2 uses `dhis2w-fhir` and belongs in
-     `dirigent-dhis2`, not here.
+     a dry run into a write; and a broker message stalling polled sources on PostgreSQL.
+2. **dirigent-fhir: what the FHIR pack still lacks.** The pack is published with its own
+   [docs site](https://winterop-com.github.io/dirigent-fhir/); what it does not do yet, each its
+   own slice:
+   - **CQL and measures.** Libraries from storage or as ELM, one patient's compartment as the
+     data, terminology for `in`/`memberOf` from a value set carried in the step or a remote FHIR
+     terminology server, continuous-variable measures and stratifiers, and a MeasureReport pushed
+     through `dirigent-dhis2` into DHIS2 as aggregate data values.
+   - **Profiles, IG packages and bindings.** `fhir.validate` is structural, and a profile is
+     checked only by the engine's `conformsTo()`, which reads `meta.profile`. Left: a profile
+     resolved from a pinned package (`name#version` from the FHIR package registry), a package
+     cache, and terminology for bindings. Where generic IG package loading lives is decided then.
+   - **A reply for FHIR in.** `fhir-to-dhis2` and `dirigent-integration`'s
+     `fhir-subscription-to-dhis2` take `application/fhir+json` at an endpoint, shape it and import
+     it, and neither answers its caller with a reply.
    - **The read side** (`/metadata`, reads, searches, history) served by facade routers
      mounted inside the dirigent server, picking only the routers wanted. This needs a routes
      contribution surface, the open question "A server in the mix" below.
-
-   **The engine, as dhis2w-fhir publishes it.** The pack depends on the `dhis2w-fhir`
-   engine as published, under its own name and version, and asks nothing of how that
-   repository is split or named. What the pack uses of it has no DHIS2 in it: FHIRPath, CQL and ELM
-   evaluators, each run against its conformance suite; measure evaluation by the conventional
-   population definitions; data sources over memory, a Bundle and one patient's Bundle; CQL
-   library resolvers over files, memory and a composite; a terminology service, in memory or
-   against a remote FHIR server; UCUM unit conversion; and closed, frozen R4 models for about
-   twenty resource types that reproduce the wire document key for key.
-   - The pack imports only the engine's DHIS2-free parts, and a test holds it to that. The
-     published `dhis2w-fhir-engine` (1.38.3) still requires `dhis2w-client` and `fastapi`, so
-     installing the pack installs them; whether that changes is dhis2w-fhir's to decide.
-   - What the pack found in the engine (1.38.3), reported to dhis2w-fhir rather than changed:
-     `MeasureEvaluator.evaluate_population` counts each population independently, so a numerator
-     that does not repeat the denominator's criterion is overcounted (the pack nests them
-     itself), and its `to_fhir()` omits `period` and the population code system; FHIRPath's
-     `1 + 1` answers a Decimal rather than an Integer, and an undefined `%name` evaluates to
-     nothing rather than an error; and the R4 models name a subset of each resource's elements
-     and are closed, so they type what they name but cannot validate a resource whole.
-   - The FHIR REST client the blocks need (search paging, conditional create and update,
-     transaction bundles with `urn:uuid` references, `OperationOutcome` parsing, `/metadata`)
-     lives in the pack.
-   - A resource without an engine model is carried as JSON, so the model list never gates a
-     pipeline. The pin follows the engine's releases.
-   - Generic IG package loading (registry fetch, cache, `name#version`) is new work for the
-     validation stage; where it lives is decided then.
-4. **`dirigent-full-demo`: one instance with everything, for the tutorials.** A `dg init` project
-   in the workspace, beside `dirigent-examples`. It is one instance that has it all:
-   - every package and pack as dependencies, `dirigent-integration`'s shelves included;
-   - every service the corpus teaches with, running in its compose stack: object storage
-     (S3), Kafka and RabbitMQ, PostgreSQL, the warehouse, and the telemetry and alert
-     sinks;
-   - a `dhis2` connection to the play demo, with a gate in its verify that checks the demo
-     is healthy;
-   - every example applied and runnable, the sources shelf included;
-   - a `verify.sh` that brings it up from nothing, applies, runs the corpus and asserts
-     green, the way the example repos do.
+   - **What the engine leaves to dhis2w-fhir.** The published `dhis2w-fhir-engine` (1.38.3)
+     still requires `dhis2w-client` and `fastapi`, so installing the pack installs them. Reported
+     to dhis2w-fhir rather than changed: `MeasureEvaluator.evaluate_population` counts each
+     population independently, so a numerator that does not repeat the denominator's criterion
+     is overcounted (the pack nests them itself), and its `to_fhir()` omits `period` and the
+     population code system; FHIRPath's `1 + 1` answers a Decimal rather than an Integer, and an
+     undefined `%name` evaluates to nothing rather than an error; and the R4 models name a subset
+     of each resource's elements and are closed, so they cannot validate a resource whole.
+3. **`dirigent-full-demo`: one instance with everything, for the tutorials.** `everything` in
+   `dirigent-examples` is most of it: one instance with the corpus and the tutorial pipelines
+   applied, S3, Kafka, RabbitMQ and a PostgreSQL warehouse in its compose stack, an alert sink,
+   the play demo connected, and a `verify.sh` that brings it up and asserts green. Left:
+   - `dirigent-contrib`, `dirigent-fhir` and `dirigent-integration`'s shelves as dependencies,
+     with their examples applied;
+   - the telemetry sink, the OTLP collector of `infra/compose.otel.yaml`, in its stack;
+   - a gate in its verify that checks the play demo is healthy before the corpus runs.
    It is a demo, not a product install; a real instance still installs only what it uses.
-5. **A DHIS2 app for dirigent, shipped with dirigent-dhis2.** DHIS2 people want to see and run
+4. **A DHIS2 app for dirigent, shipped with dirigent-dhis2.** DHIS2 people want to see and run
    their pipelines from inside DHIS2: an App Platform app, installed through App Management,
    listing the pipelines that touch this DHIS2 instance, their runs and logs, and the sources
    waiting for input, with run, pause and rerun where the user may. It belongs to
@@ -237,13 +76,13 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      for CORS.
    - *Where it ships.* A built app zip as a release asset of `dirigent-dhis2`, versioned with
      the pack, with the App Hub as a later option.
-6. **More packs.** An outside system goes in the one `dirigent-contrib` package, beside Chap and
+5. **More packs.** An outside system goes in the one `dirigent-contrib` package, beside Chap and
    the open climate service, rather than in a package or a repository of its own. Only a system
    big enough to carry its own repository takes one, as `dirigent-dhis2` does, with its own
    examples and tests, self-testing against `dirigent-plugin`'s main and assembled by
    `dirigent-integration`. Either way a pack is wired through a connection kind, with a client
    written fresh or wrapping a stable one.
-7. **AI blocks: local models and hosted APIs, both first-class.** A pipeline step that asks a
+6. **AI blocks: local models and hosted APIs, both first-class.** A pipeline step that asks a
    model, whose answer is data a later step can read rather than prose. Local is the starting
    point, so an AI step runs in `dg run --local` with nothing in the cloud; a hosted API sits
    behind the same blocks, and a document moves between them by changing the connection.
@@ -371,8 +210,9 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
   as the cross-boundary shelves alone: its only runtime dependency is `dirigent-plugin`, and
   the assembly the control center tests is a dependency group that never reaches PyPI. So
   `uv add dirigent-integration` adds 24 documents that each name the packs they need under
-  `requires`, and no packs. The screen then wants a "runnable here" filter (every requirement
-  installed), a filter by contributing plugin, and `dg init` offering the shelves as a choice.
+  `requires`, and no packs. The screen filters by contributing plugin and marks each
+  requirement met or not; it still wants a "runnable here" filter (every requirement
+  installed), and `dg init` offering the shelves as a choice.
 
 - **A TUI for watching a run.** A scrolling stream is the wrong shape for a DAG: it cannot
   show a step updating in place, a fan-out's item grid, or logs beside structure. Wanted: a
@@ -426,7 +266,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
 - **A better logo.** The current mark and banner are placeholders generated early. Rounded
   corners at least, or a different mark entirely; whatever it becomes, it needs the square
   favicon, the README banner, and a dark-background variant, and `docs/assets/logo.png` and
-  `banner.png` keep their names so nothing needs rewiring. It may fold into the UI redesign.
+  `banner.png` keep their names so nothing needs rewiring.
 
 - **Reusable step groups.** Blocks are the unit below a pipeline and `pipeline.run` composes
   above it, but a repeated five-step idiom has nowhere to live except duplication or its own
@@ -459,14 +299,11 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
 Block families we expect to want. Each is a package that ships on its own, and none
 requires touching the engine. None is near-term.
 
-- **A transform family.** The groundwork is done: four verb frames in
-  `dirigent_plugin.transforms` -- `transform`, `map`, `filter`, `convert` -- with the promise
-  each one makes enforced by its frame rather than trusted to an engine, and four engines
-  shipping on them (`transform.jq`, `map.jq`, `filter.jq`, `convert.std`). Everything below
-  is a new *kind* on machinery that exists, which means a package and no core change.
-  `docs/transforms.md` is the page, and `examples/transform/` holds the worked documents.
-  What is left is the tabular half the in-memory engines deliberately do not reach, still an
-  open design, so these are the thoughts so far rather than a decision.
+- **More of the transform family.** The verb frames and the engines on them are
+  [docs/transforms.md](docs/transforms.md); everything below is a new *kind* on that machinery,
+  which means a package and no core change. What is left is the tabular half the in-memory
+  engines do not reach, still an open design, so these are the thoughts so far rather than a
+  decision.
 
   Split it into families that ship separately, so no part waits on the rest:
   - **Codecs.** More formats on `convert`, each a pair the engine declares and the frame

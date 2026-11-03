@@ -627,4 +627,9 @@ uv run dg run --local examples/acme-orders.yaml
 ```
 
 A real pack built exactly this way is
-[dirigent-dhis2](https://github.com/winterop-com/dirigent-dhis2).
+[dirigent-dhis2](https://github.com/winterop-com/dirigent-dhis2). Two more are published the
+same way, each with its own documentation:
+[dirigent-contrib](https://winterop-com.github.io/dirigent-contrib/), the Chap and climate
+service packs, and [dirigent-fhir](https://winterop-com.github.io/dirigent-fhir/), a FHIR R4
+connection kind with read, search, create, update and transaction blocks, FHIRPath on the
+transform verbs, CQL and measures, and structural validation. `dg init --pack` offers all three.

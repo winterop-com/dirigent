@@ -243,7 +243,9 @@ means; `dg runs profile` is the same shape measured after the fact.
 
 Every installed plugin ships documents, and an instance serves them: `dg examples list` is
 that catalogue, the packs' shelves included. A document that opted in to being copied wears
-the `starter` tag, and `dg pipeline new` copies it.
+the `starter` tag, and `dg pipeline new` copies it. The web UI's Examples screen is the same
+catalogue: it narrows by tag, shelf and contributing plugin, and marks each connection and
+schema a document requires as held on this instance or not.
 
 ```bash
 dg examples list                              # everything the instance ships

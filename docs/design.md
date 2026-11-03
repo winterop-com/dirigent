@@ -351,6 +351,9 @@ dirigent/
 
 [The architecture page](architecture.md) draws the same twenty packages as a dependency
 tree, and `packages/dirigent-common/tests/test_dependency_tree.py` asserts every edge in it.
+`dirigent-common` holds what more than one package needs, below every package that needs it. A
+helper moves down into it when a second adapter pack would otherwise duplicate it, not before,
+so `status_class` and `is_success` stay in `dirigent-block-http`.
 
 Two of these are contracts, and both must stay small and stable because other people write
 against them. `dirigent-plugin` is what a third-party block package imports. `dirigent-client`
@@ -520,6 +523,18 @@ normalises to UTC on the way in and re-attaches it on the way out, because SQLit
 timezone concept and would otherwise hand back naive datetimes for a schema whose engine
 compares due times constantly.
 
+A row is one of two shapes. An entity has a time-ordered uuid `id`, `created_at` and
+`updated_at`. A journal row -- a schedule firing, a source input, a log entry -- is written
+once and never touched again, so it has an integer `id` that also orders it and `created_at`
+alone. A row's age is its `created_at` in either shape, which is what retention and every
+listing filtered by age ask.
+
+Before 1.0 there is one migration, and the baseline is edited in place rather than amended, so
+the schema is the `CREATE` that states it and never an `ALTER` that behaves differently. A
+state an older dirigent wrote is
+[refused at boot](operations.md#one-process-no-dependencies-dg-dev) by name rather than
+migrated. Two drift tests, one on SQLite and one on PostgreSQL, hold the baseline to the models.
+
 ## 6. Execution engine
 
 The engine is two kinds of asyncio loop and a set of tables, and deliberately nothing else.
@@ -556,7 +571,12 @@ run row before it writes anything, so the run's status is derived once rather th
 workers each seeing the other as still in flight; and because that lock comes before any
 write, no transaction ever has to upgrade a share lock it already took through a foreign
 key, which is how a pair of workers finishing at once would otherwise deadlock. The claim
-also routes: a document declares `requires.workers`, the run pins that list at creation, and
+locks the attempt and then the run, the outcome the run and then the attempts, so two workers
+can still close a cycle between them: both transactions re-read everything they decide on, and
+the one PostgreSQL aborts to break a deadlock is run again. An attempt's buffered log is drained
+before that retry rather than inside it, since draining empties the buffer and a second pass
+would commit the outcome with no log. The claim also routes: a document declares
+`requires.workers`, the run pins that list at creation, and
 a worker claims only what its own tags cover -- `jsonb` containment on PostgreSQL, a
 `json_each` walk on SQLite. A run requiring nothing is claimable by anyone.
 
@@ -809,6 +829,8 @@ so their rules are worth stating exactly:
   because the alternative -- a row updated on every call -- turns a cheap refusal into a
   database write, which is precisely what a caller hammering the endpoint would be trying to
   cause.
+- **An endpoint takes no files.** A body is JSON, form fields or text, within `max_body`; a
+  caller with a file posts its URI, and the pipeline fetches it.
 - **The body never becomes parameters.** It is the source's output, and a step reads from it
   what it names with `${steps.<source>.output.body}`, so a caller cannot smuggle configuration
   past the pipeline's own parameter schema.
@@ -1151,6 +1173,10 @@ explicit operation id and summary on every operation, because a generated client
 readable as the names it is given. The catalog endpoint is the load-bearing one: the UI is a
 client of `/blocks`, which is why installing a plugin package extends the product without a
 frontend release.
+
+**A request's transaction commits before its response is sent.** Routes are `Transactional`:
+the commit happens while the response can still become a refusal, so a client told a write
+happened can read it straight back, and a commit that fails answers an error rather than a 2xx.
 
 **Pagination.** Every listing answers one envelope, `{"items": [...], "next": <cursor or null>}`,
 and takes `limit` (1 to 500, defaulting to 50) and `after`. `after` is whatever the previous
