@@ -570,6 +570,37 @@ def test_a_query_or_a_url_holding_no_credential_is_applied(host: PluginHost, con
     assert validate_against_catalog(definition, host.catalog()) == []
 
 
+@pytest.mark.parametrize(
+    ("config", "field"),
+    [
+        ("{base_url: 'https://host', basic_username: u, basic_password: literal}", "basic_password"),
+        ("{base_url: 'https://host', hmac_secret: literal}", "hmac_secret"),
+        ("{base_url: 'https://u:literal@host'}", "base_url"),
+    ],
+)
+def test_a_carried_connection_holding_a_secret_is_refused_at_plan(config: str, field: str) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: held\n"
+        f"connections:\n  carried: {{kind: http, config: {config}}}\n"
+        "steps:\n  a: {block: transform.jq, config: {input: {}, program: '.'}}\n"
+    )
+    issues = validate_against_catalog(definition, load_plugin_host().catalog())
+    assert [(issue.code, issue.location) for issue in issues] == [
+        ("document.carried_connection_secret", f"connections.carried.config.{field}")
+    ]
+    assert issues[0].params == {"connection": "carried", "field": field}
+    assert "literal" not in issues[0].message
+
+
+def test_a_carried_connection_holding_settings_alone_is_planned() -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: held\n"
+        "connections:\n  carried: {kind: http, config: {base_url: 'https://user@host', timeout: 30s}}\n"
+        "steps:\n  a: {block: transform.jq, config: {input: {}, program: '.'}}\n"
+    )
+    assert validate_against_catalog(definition, load_plugin_host().catalog()) == []
+
+
 def test_a_header_map_holding_no_credential_is_applied(host: PluginHost) -> None:
     definition = load_text(
         "format: dirigent/v1\ncode: held\n"

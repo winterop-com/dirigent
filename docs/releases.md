@@ -26,6 +26,16 @@ secret, and with no `DIRIGENT_SECRET_KEY` configured, `dg dev` now generates one
 project's `.env`, readable by its owner alone, and its `starting` record names the file in
 `secret_key_written`, never the key.
 
+**Breaking: a document's `connections:` block may not hold a secret.** Plan refuses a carried
+connection whose config sets a field its kind declares secret, such as `basic_password` or
+`hmac_secret`, or a URL with a password in it, with `document.carried_connection_secret` at
+`connections.<code>.config.<field>`. `dg validate`, `dg run --local` and every plan refuse it the
+same way; a server already refused any carried connection at apply. The shipped examples that
+carried the playground's demo credentials (`http-headers-and-auth-connection`,
+`webhook-post-hmac`, `webhook-signed`) now name the `playground` connection, which a local run
+gets from `--connections examples/connections.yaml`; `connections-referenced-vs-carried` carries
+its connection without one.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

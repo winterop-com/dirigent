@@ -533,12 +533,17 @@ connections:
   demo:
     name: Demo API
     kind: http
-    description: The public demo API, with its documented demo login.
+    description: The public demo API.
     config:
       base_url: https://demo.example.org/api
-      basic_username: demo
-      basic_password: demo
+      timeout: 30s
 ```
+
+A carried connection holds settings alone. One holding a field its kind declares secret, such as
+`basic_password`, or a URL with a password in it, is refused at plan with
+`document.carried_connection_secret`, wherever the document is planned: a document never holds
+a secret, however public. A connection that needs one is created with `dg connection create`, or
+handed to a local run in a connections file.
 
 `dg run --local` seeds these into its throwaway instance, so the document runs with nothing to
 set up first. `name` and `description` are optional and label the connection it seeds; a
@@ -552,8 +557,8 @@ entry, because it satisfies its own reference.
 
 **A server refuses to apply a document that carries a connection or a schema.** An applied
 document is stored, versioned, exported and diffed, and a credential -- or a shape every version
-would then repeat -- would be in all four. Carry a connection only where the credential is
-already public and the document has to stand alone; anywhere else the instance holds it and
+would then repeat -- would be in all four. Carry a connection only where the document has to
+stand alone and the connection needs no secret; anywhere else the instance holds it and
 `dg connection create` makes it. A shared instance likewise holds its schemas, applied once with
 `dg schema create` and named in `requires.schemas`.
 

@@ -1067,6 +1067,8 @@ const refused = {
         template_name_unknown: '{name} is not something this template is given, so it renders empty{hint}.',
         carried_connections:
             'This document carries its own connections ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.connections.',
+        carried_connection_secret:
+            'Connection {connection} carries {field}, a secret, and a document never holds one. Create the connection on the instance with its secret and name it by its code.',
         carried_schemas:
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
