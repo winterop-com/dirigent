@@ -49,6 +49,13 @@ with a suggestion of `sqlite+asyncpg://`, a driver that does not exist; `sql.no_
 now names the async drivers of the URL's own dialect, `sqlite+aiosqlite://` for SQLite, and its
 `suggested` param replaces `driver_name`.
 
+**Breaking: an `http` connection check is healthy on a 2xx or a 3xx alone.** A 400 at the base
+URL used to report healthy, proving only that the host answered. Any 4xx is now unhealthy, with
+its status and the path in `detail`: a 401 or a 403 says the service refused the credential the
+connection holds, or wanted one it holds none of, and another 4xx says to set `health_path` to an
+address the service answers. A connection that checked green against a 4xx needs a `health_path`.
+The `webhook` kind keeps its own check, a HEAD that proves the endpoint is reachable.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

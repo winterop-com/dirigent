@@ -1421,6 +1421,14 @@ answer the same.
 dg connection kinds sql
 ```
 
+### `dg connection check`
+
+`dg connection check CODE` asks the connection's own kind whether its system answers, and exits 1
+only when the answer is no. An `http` connection requests its `health_path` (`/` unless set) and
+is healthy on a 2xx or a 3xx alone: a 401 or a 403 says the service refused the credential the
+connection holds, or wanted one it does not hold, and any other 4xx that the host answers but
+the address is not one it serves, so a `health_path` that answers is the remedy.
+
 ### `dg connection create`
 
 A connection's secret fields are never echoed: at a terminal they are asked for, and the answer
