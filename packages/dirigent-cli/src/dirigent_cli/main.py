@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from typer import _click, rich_utils
 from typer.core import TyperGroup
 
-from dirigent_cli import commands, source_commands, triggers
+from dirigent_cli import commands, profile_commands, source_commands, triggers
 from dirigent_cli.aliases import add_alias, add_list_aliases
 from dirigent_cli.context import CliState, state_of
 from dirigent_cli.formatters import DEFAULT, names
@@ -158,6 +158,7 @@ app.add_typer(docker_app, rich_help_panel=PROCESS_PANEL)
 app.add_typer(db_app, rich_help_panel=ADMIN_PANEL)
 app.add_typer(storage_app, rich_help_panel=ADMIN_PANEL)
 app.add_typer(config_app, rich_help_panel=ADMIN_PANEL)
+app.add_typer(profile_commands.profile_app, rich_help_panel=ADMIN_PANEL)
 app.add_typer(commands.auth_app, rich_help_panel=ADMIN_PANEL)
 commands.system_app.add_typer(health_app)
 app.add_typer(commands.system_app, rich_help_panel=ADMIN_PANEL)

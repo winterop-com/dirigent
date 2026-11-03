@@ -151,10 +151,41 @@ such as a satellite hop or a handshake through a distant proxy.
 
 ```bash
 dg --profile prod runs list --status failed
+DG_PROFILE=staging dg runs list          # the same choice, for every command this shell runs
 ```
 
-Precedence is `--url` / `--token` flags, then `DG_URL` / `DG_TOKEN`, then the selected
-profile. A `.env` at the root of the project, beside `.dirigent/`, stands in for any of these
+Which profile is selected is decided in this order: `--profile`, then `DG_PROFILE` -- from the
+shell, or from the project's `.env` when the shell does not set it -- then the file's
+`default:`, then the file's only profile when it holds exactly one. Only one file is read: the
+nearest project `.dirigent/profiles.yaml` when there is one, and `~/.config/dirigent/profiles.yaml`
+otherwise, so a profile in the user file is not selectable from inside a project whose file does
+not declare it.
+
+`dg profile list` and `dg profile show` say what that comes to here, without printing a token:
+
+```bash
+dg profile list            # every profile in the project file and the user file
+dg profile show            # the one selected here, resolved
+dg profile show staging    # a named one
+```
+
+`dg profile list` writes one `profile` record per profile, with the row under `fields`: its
+`name`, `url`, the `file` it is declared in and that file's `scope` (`project` or `user`),
+whether it is the file's `default`, whether it is `selected` here, whether its file is the
+`active` one commands here read, and `token`, how its token is obtained -- `token`,
+`token_env NAME` or `token_cmd`, or `null` -- never the value. `dg profile show` writes one
+`profile` record for one profile, with the same fields plus what a command run here would use:
+`selected_by` (`argument`, `--profile`, `DG_PROFILE`, `default` or `only profile`),
+`api_prefix`, `timeout`, `connect_timeout`, `retries`, `token_available` -- whether a token
+can be had now, from `DG_TOKEN` or the profile's own mechanism, which for `token_cmd` means
+running the command -- `token_problem` saying why not when it cannot, and `overridden_by`, the
+`DG_URL` and `DG_TOKEN` set here that win over the profile. A name that is not in the active
+file is refused with `cli.profile_not_here`, which says when the profile is in the user file
+that a project file shadows. There is no `dg profile use`: the default is one line in a file
+you own, `default:`, and `DG_PROFILE` selects one for a shell without writing anything.
+
+Precedence for the server and the token is `--url` / `--token` flags, then `DG_URL` /
+`DG_TOKEN`, then the selected profile. A `.env` at the root of the project, beside `.dirigent/`, stands in for any of these
 variables the shell does not set, including the one a `token_env` names: that is where
 `dg init` puts the token it mints, and where a `DG_STAGING_TOKEN` for the profile above can
 live too. The shell's own value always wins over the file's, within the rules above. The same file is the settings
@@ -974,6 +1005,7 @@ verb and whose fields are the identity of what changed:
 | `kind` | Written by | What it carries |
 | --- | --- | --- |
 | `config` | `dg config show` | `settings`, secrets redacted |
+| `profile` | `dg profile list`, `dg profile show` | One per profile, under `fields`: `name`, `url`, `file`, `scope`, `default`, `selected`, `active` and how its `token` is obtained, never the token; `show` adds `selected_by`, `api_prefix`, `timeout`, `connect_timeout`, `retries`, `token_available`, `token_problem` and `overridden_by` |
 | `db.revision` | `dg db current` | `revision`, `head`, `at_head` |
 | `db.history` | `dg db history` | `history`, as alembic wrote it |
 | `db.upgraded` | `dg db upgrade` | `database`, `target`, and the `revision` it reached |
@@ -1233,6 +1265,7 @@ dg docker reap [--dry-run]              # compose stacks left up by runs that ha
 
 # Administration
 dg --version | dg config show
+dg profile list | show [NAME]           # the profiles that apply here; never a token
 dg secret-key                           # a DIRIGENT_SECRET_KEY, on one plain line
 dg prune [--runs 30d] [--logs 7d] [--inputs 30d] [--firings 30d] [--notifications 30d]
          [--no-scratch] [--dry-run]     # an age given here beats the configured one

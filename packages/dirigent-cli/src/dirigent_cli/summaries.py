@@ -125,10 +125,29 @@ def _input_line(record: Record) -> Record:
     }
 
 
+def _profile_line(record: Record) -> Record:
+    """One profile on one line: its name, whether it is the one in use here, where it points and its token."""
+    row = _row(record)
+    marks = [mark for mark in ("selected", "default") if row.get(mark)]
+    named = str(row.get("name"))
+    return {
+        "at": record.get("at"),
+        "level": "info" if row.get("active", True) else "debug",
+        "kind": record.get("kind"),
+        "message": f"{named} ({', '.join(marks)})" if marks else named,
+        "url": row.get("url"),
+        "token_from": row.get("token") or "none",
+        "scope": row.get("scope"),
+        "file": row.get("file"),
+        "active": row.get("active"),
+    }
+
+
 #: Record kinds that carry a row under ``fields``, and the line each one reads as.
 LINES: Final[Mapping[str, Callable[[Record], Record]]] = {
     "source": _source_line,
     "source.input": _input_line,
+    "profile": _profile_line,
 }
 
 
@@ -476,6 +495,30 @@ def _config(record: Record) -> RenderableType | None:
     return build_fields("effective configuration", held) if held else None
 
 
+def _resolved_profile(record: Record) -> RenderableType | None:
+    """Render ``dg profile show``: the profile resolved, field by field, its token described and never shown."""
+    row = _row(record)
+    if "api_prefix" not in row:
+        return None
+    available = "available" if row.get("token_available") else "not available"
+    shown: dict[str, object] = {
+        "url": row.get("url"),
+        "api_prefix": row.get("api_prefix"),
+        "timeout": row.get("timeout"),
+        "connect_timeout": row.get("connect_timeout"),
+        "retries": row.get("retries"),
+        "token": f"{row.get('token') or 'none'}, {available}",
+        "selected by": row.get("selected_by"),
+        "file": row.get("file"),
+    }
+    if row.get("token_problem"):
+        shown["why no token"] = row.get("token_problem")
+    overridden = row.get("overridden_by")
+    if isinstance(overridden, list) and overridden:
+        shown["overridden by"] = ", ".join(str(one) for one in cast("list[object]", overridden))
+    return build_fields(f"profile {escape(str(row.get('name')))}", shown)
+
+
 def _db_history(record: Record) -> RenderableType | None:
     """Render the migration history the record carries, as alembic wrote it."""
     history = str(record.get("history") or "")
@@ -751,4 +794,5 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "instance.initialised": _initialised,
     "pipeline.created": _created,
     "schema.updated": _schema_edited,
+    "profile": _resolved_profile,
 }
