@@ -65,6 +65,7 @@ async def test_a_report_from_a_step_that_left_no_text_warns_and_stores_nothing(
 
     assert await documents_of(sessions, run.id) == []
     [warning] = await warnings_of(sessions, run.id)
+    assert warning.fields is not None
     assert "left no `text`" in warning.fields["reason"]
 
 
