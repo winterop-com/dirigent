@@ -115,6 +115,26 @@ claude mcp add --transport http dirigent https://dirigent.example.org/mcp \
   --header "Authorization: Bearer $DG_TOKEN"
 ```
 
+The shell expands `$DG_TOKEN` there, so the token itself is what the client stores. To keep it
+out of every file, give the project a `.mcp.json` instead, which Claude Code reads from the
+project root and expands from the environment it was started with:
+
+```json
+{
+  "mcpServers": {
+    "dirigent": {
+      "type": "http",
+      "url": "https://dirigent.example.org/mcp",
+      "headers": { "Authorization": "Bearer ${DG_TOKEN}" }
+    }
+  }
+}
+```
+
+The file holds no secret and can be committed. Start the client with the token in its
+environment, for example `DG_TOKEN=$(op read op://Vault/dirigent/credential) claude`; Claude Code
+asks once before it uses a server a project's file names.
+
 Nothing is installed beside the agent, and each request acts as the token it presents: two
 agents with two tokens are two callers, and a `viewer` token is offered only the tools that read.
 There is no OAuth sign-in to go through; a client that supports custom headers on an HTTP server
