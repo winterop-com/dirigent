@@ -452,7 +452,7 @@ def state_of(
     """Read whether a source takes inputs now, from its row and the runs it has unsettled."""
     if row.paused or not pipeline_active:
         return SourceState.DRAINING if unsettled else SourceState.PAUSED
-    if is_polled and row.failures > 0:
+    if is_polled and row.poll_failures > 0:
         return SourceState.FAILING
     if is_polled and row.polled_at is None:
         return SourceState.STARTING
@@ -499,11 +499,12 @@ def source_out(
         max_in_flight=bound,
         accepted=row.accepted,
         refused=row.refused,
+        failed=row.failed,
         last_input_at=row.last_input_at,
         summary=summary_of(kinds, row),
         polled_at=row.polled_at,
         next_poll_at=row.next_poll_at if is_polled else None,
-        failures=row.failures,
+        poll_failures=row.poll_failures,
         last_error=row.last_error,
         created_at=row.created_at,
     )

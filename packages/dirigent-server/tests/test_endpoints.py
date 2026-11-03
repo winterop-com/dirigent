@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from dirigent_client.schemas import AttemptOut, Page, SourceInputOut, SourceOut
 from dirigent_core.config import Settings
+from dirigent_core.sources import intake
 from dirigent_server import create_app
 from tests_support import apply_document
 
@@ -131,16 +132,33 @@ def test_a_call_becomes_a_run_entered_at_the_source_with_the_request_as_its_inpu
 
 
 @pytest.mark.parametrize("presented", [None, "Bearer not-the-token", "Basic dXNlcjpwYXNz"])
-def test_a_call_without_the_sources_token_is_refused_401_and_writes_nothing(
+def test_a_call_without_the_sources_token_is_refused_401_and_journaled_without_what_it_presented(
     client: TestClient, presented: str | None
 ) -> None:
     apply_document(client, echo())
     headers = {"Authorization": presented} if presented else {"Authorization": ""}
-    refused = client.post("/endpoints/echo/ann", json={}, headers=headers)
+    refused = client.post("/endpoints/echo/ann", json={"secret": "in the body"}, headers=headers)
     assert refused.status_code == 401, refused.text
     assert refused.json()["code"] == "source.token_refused"
     assert refused.headers["www-authenticate"].startswith("Bearer")
-    assert inputs(client, "echo") == []
+    [entry] = inputs(client, "echo")
+    assert (entry.outcome, entry.status, entry.code, entry.run_id) == ("refused", 401, "source.token_refused", None)
+    assert entry.body_bytes == 0, "the body of a call nobody let in is never read"
+    written = entry.model_dump_json()
+    assert "in the body" not in written
+    if presented:
+        assert presented.split()[-1] not in written, "nothing the caller presented is kept"
+    counted = source(client, "echo")
+    assert (counted.accepted, counted.refused, counted.failed) == (0, 1, 0)
+
+
+def test_an_unauthenticated_flood_journals_only_its_share(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(intake, "UNADMITTED_JOURNAL_PER_MINUTE", 3)
+    apply_document(client, echo())
+    for _ in range(10):
+        assert client.post("/endpoints/echo/ann", json={}, headers={"Authorization": ""}).status_code == 401
+    assert len(inputs(client, "echo")) == 3
+    assert source(client, "echo").refused == 3
 
 
 def test_a_public_source_takes_a_call_with_no_token(client: TestClient) -> None:
@@ -190,7 +208,7 @@ def test_the_checks_run_in_their_order(client: TestClient) -> None:
         "/endpoints/echo/ann", content=b"{nope", headers={**bearer(token), "Content-Type": "application/json"}
     )
     assert malformed.status_code == 400, malformed.text
-    assert [entry.status for entry in inputs(client, "echo")] == [400, 413, 415]
+    assert [entry.status for entry in inputs(client, "echo")] == [400, 413, 415, 401]
     assert all(entry.outcome == "refused" for entry in inputs(client, "echo"))
 
 
@@ -336,14 +354,16 @@ def test_a_public_source_has_no_token_to_rotate(client: TestClient) -> None:
     assert refused.json()["code"] == "source.takes_no_token"
 
 
-def test_a_source_past_its_rate_is_answered_429_and_writes_no_row(client: TestClient) -> None:
+def test_a_source_past_its_rate_is_answered_429_and_journaled_as_refused(client: TestClient) -> None:
     token = token_of(apply_document(client, echo("      rate: {per_minute: 1}")))
     assert client.post("/endpoints/echo/ann", json={}, headers=bearer(token)).status_code == 200
     throttled = client.post("/endpoints/echo/ann", json={}, headers=bearer(token))
     assert throttled.status_code == 429, throttled.text
     assert throttled.json()["code"] == "source.rate"
     assert throttled.headers["retry-after"] == "60"
-    assert [(entry.outcome, entry.status) for entry in inputs(client, "echo")] == [("replied", 200)]
+    assert [(entry.outcome, entry.status) for entry in inputs(client, "echo")] == [("refused", 429), ("replied", 200)]
+    counted = source(client, "echo")
+    assert (counted.accepted, counted.refused) == (1, 1)
 
 
 def test_a_source_with_as_many_runs_in_flight_as_it_allows_is_backlogged(client: TestClient) -> None:
@@ -507,7 +527,10 @@ def test_a_signed_source_takes_a_body_signed_with_its_secret_and_refuses_any_oth
     forged = client.post("/endpoints/held", content=body, headers=signed("not the secret", body))
     assert forged.status_code == 401, forged.text
     assert forged.json()["code"] == "source.signature_mismatch"
-    assert inputs(client, "held") == [], "a caller who cannot sign causes no writes"
+    assert [(entry.status, entry.code) for entry in inputs(client, "held")] == [
+        (401, "source.signature_mismatch"),
+        (401, "source.signature_required"),
+    ]
 
     taken = client.post("/endpoints/held", content=body, headers=signed(secret, body))
     assert taken.status_code == 202, taken.text
@@ -533,7 +556,7 @@ def test_a_signature_is_taken_once_and_only_inside_its_window(client: TestClient
     )
     moved = {**signed(secret, body), "X-Dirigent-Timestamp": str(int(time.time()) - 1)}
     assert client.post("/endpoints/held", content=body, headers=moved).json()["code"] == "source.signature_mismatch"
-    assert [entry.status for entry in inputs(client, "held")] == [202]
+    assert [entry.status for entry in inputs(client, "held")] == [401, 401, 401, 401, 401, 202]
 
 
 def test_a_signature_refused_past_its_check_is_still_spent(client: TestClient) -> None:
@@ -543,11 +566,11 @@ def test_a_signature_refused_past_its_check_is_still_spent(client: TestClient) -
     headers = signed(secret, body)
     assert client.post("/endpoints/held", content=body, headers=headers).status_code == 503
     replayed = client.post("/endpoints/held", content=body, headers=headers)
-    assert replayed.json()["code"] == "source.signature_replayed", "a captured call writes one journal row at most"
-    assert [entry.status for entry in inputs(client, "held")] == [503]
+    assert replayed.json()["code"] == "source.signature_replayed", "a captured call is let in once at most"
+    assert [entry.status for entry in inputs(client, "held")] == [401, 503]
 
 
-def test_a_caller_who_cannot_sign_spends_no_rate_and_writes_no_row(client: TestClient) -> None:
+def test_a_caller_who_cannot_sign_spends_no_rate(client: TestClient) -> None:
     applied = apply_document(client, held("      auth: {kind: hmac}\n      rate: {per_minute: 1}"))
     secret = applied["sources"]["tokens"][0]["token"]
     body = b'{"order": 1}'
@@ -559,7 +582,7 @@ def test_a_caller_who_cannot_sign_spends_no_rate_and_writes_no_row(client: TestC
     client.post(f"{PREFIX}/pipelines/held/sources/ask/$pause")
     forged = client.post("/endpoints/held", content=b"x" * 10, headers=signed("not the secret", b"x" * 10))
     assert forged.status_code == 401, "the signature is checked before the source's state is"
-    assert [entry.status for entry in inputs(client, "held")] == [202]
+    assert [entry.status for entry in inputs(client, "held")] == [401, 202, 401, 401, 401]
 
 
 def test_a_signing_secret_is_rotated_or_replaced_with_the_senders_own(client: TestClient) -> None:

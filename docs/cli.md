@@ -1042,7 +1042,7 @@ verb and whose fields are the identity of what changed:
 | `pipeline.schema` | `dg pipeline schema` | the number of `blocks` composed in, and the `schema` itself, or the `path` that `-f` wrote it to |
 | `pipeline.created` | `dg pipeline new` | `code`, the `starter` it copied, the `path` it wrote, the copy's own `requires`, and the `preflight` list to work through |
 | `schedule.created` / `.paused` / `.resumed` / `.deleted` | `dg schedule …` | `code`, `pipeline`, and a live one's `clock`, `timezone`, `next_fire_at` |
-| `source` | `dg source list`, `dg source show` | One per source, under `fields`: `pipeline`, `code`, `kind`, `state`, the `route` and `methods` it answers, its `url_path`, `auth`, `token_prefix`, `in_flight` against `max_in_flight`, and the `accepted` and `refused` counts |
+| `source` | `dg source list`, `dg source show` | One per source, under `fields`: `pipeline`, `code`, `kind`, `state`, the `route` and `methods` it answers, its `url_path`, `auth`, `token_prefix`, `in_flight` against `max_in_flight`, the `accepted`, `failed` and `refused` counts, and `poll_failures` for a source a worker polls |
 | `source.input` | `dg source inputs` | One per input, newest first, under `fields`: `outcome`, the HTTP `status` it was answered with, the `run_id` or the refusal's `code` and `reason`, `method`, `path`, `body_bytes`, `duration_ms`, `caller` |
 | `source.paused` / `.resumed` | `dg source pause`, `dg source resume` | `code`, `pipeline`, and the `state` it is in now |
 | `source.token_rotated` | `dg source rotate-token` | `code`, `pipeline`, the `url` to call, its `auth` and, for a signed source, the signature `header`, and the new `token` or signing secret, once |

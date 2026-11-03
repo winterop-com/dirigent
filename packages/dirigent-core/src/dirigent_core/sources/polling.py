@@ -266,7 +266,7 @@ async def _settle(
                 )
             row.cursor = answer.cursor
             row.polled_at = moment
-            row.failures = 0
+            row.poll_failures = 0
             row.last_error = None
             cadence = kind.poll_every(kind.config_model.model_validate(row.config))
             row.next_poll_at = moment + (answer.next_poll_in if answer.next_poll_in is not None else cadence)
@@ -342,12 +342,12 @@ async def _failed(
         row = await session.get(Source, claimed.source_id, populate_existing=True)
         if row is None or row.lease_owner != owner:
             return PollOutcome(source_id=claimed.source_id, runs=[], error=error)
-        row.failures += 1
+        row.poll_failures += 1
         row.last_error = error
-        row.next_poll_at = utcnow() + backoff_for(row.failures, services)
+        row.next_poll_at = utcnow() + backoff_for(row.poll_failures, services)
         row.lease_owner = None
         row.lease_expires_at = None
-        failures = row.failures
+        failures = row.poll_failures
     _logger.warning("source poll failed", source=str(claimed.source_id), failures=failures, error=error)
     return PollOutcome(source_id=claimed.source_id, runs=[], error=error)
 

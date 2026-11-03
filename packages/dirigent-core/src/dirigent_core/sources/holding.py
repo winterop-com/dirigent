@@ -214,7 +214,7 @@ async def _enter_all(
                     duration_ms=0,
                 )
             )
-        row.failures = 0
+        row.poll_failures = 0
         row.last_error = None
     _logger.info("source received", source=taken.code, runs=len(runs))
     return runs
@@ -226,7 +226,7 @@ async def _opened(sessions: async_sessionmaker[AsyncSession], source_id: UUID, *
         await session.execute(
             sa.update(Source)
             .where(Source.id == source_id, Source.lease_owner == owner)
-            .values(polled_at=utcnow(), failures=0, last_error=None)
+            .values(polled_at=utcnow(), poll_failures=0, last_error=None)
         )
 
 
@@ -302,12 +302,12 @@ async def _failed(
         row = await session.get(Source, source_id, populate_existing=True)
         if row is None or row.lease_owner != owner:
             return
-        row.failures += 1
+        row.poll_failures += 1
         row.last_error = error
-        row.next_poll_at = utcnow() + backoff_for(row.failures, services)
+        row.next_poll_at = utcnow() + backoff_for(row.poll_failures, services)
         row.lease_owner = None
         row.lease_expires_at = None
-        failures = row.failures
+        failures = row.poll_failures
     _logger.warning("held source failed", source=str(source_id), failures=failures, error=error)
 
 

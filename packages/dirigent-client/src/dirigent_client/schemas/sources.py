@@ -101,10 +101,14 @@ class SourceOut(WireModel):
     """How many unsettled runs it allows before refusing an input, or null for no bound."""
 
     accepted: int = 0
-    """How many inputs became runs."""
+    """How many inputs became runs that did not answer their caller with a failure."""
 
     refused: int = 0
-    """How many inputs were refused once their caller was let in."""
+    """How many calls were refused before any run existed: unauthenticated, rate limited,
+    malformed, paused or backlogged."""
+
+    failed: int = 0
+    """How many inputs became runs whose failure was what their held caller was answered with."""
 
     last_input_at: datetime | None = None
     summary: str | None = None
@@ -114,8 +118,8 @@ class SourceOut(WireModel):
     """When a poll of a polled source last succeeded."""
 
     next_poll_at: datetime | None = None
-    failures: int = 0
-    """How many polls in a row have failed."""
+    poll_failures: int = 0
+    """How many polls in a row have failed, for a kind a worker polls or holds."""
 
     last_error: str | None = None
     created_at: datetime

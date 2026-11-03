@@ -2660,9 +2660,10 @@ const triggers = {
         public: 'public',
         /** What the copy button beside a source's URL names. */
         copy_url: 'Copy the URL',
-        /** What it has taken: inputs that became runs, and inputs refused. */
+        /** What it has taken: runs started, runs that answered with their failure, and calls refused. */
         taken: 'Received',
         accepted: (count: string) => `${count} accepted`,
+        failed: (count: string) => `${count} failed`,
         refused: (count: string) => `${count} refused`,
         /** Its runs unsettled, against the bound it holds them to. */
         bounded: (count: string, bound: string) => `${count} of ${bound}`,
@@ -2674,6 +2675,7 @@ const triggers = {
         outcome: {
             accepted: 'accepted',
             replied: 'replied',
+            failed: 'failed',
             refused: 'refused',
             timed_out: 'timed out',
         },
