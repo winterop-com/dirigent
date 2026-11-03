@@ -388,7 +388,7 @@ as well as `[project].dependencies`. A `dg` the pin does not allow is refused be
 anything, with exit code 3 and `cli.version_mismatch`, naming both versions and the project:
 
 ```text
-this is dg 0.34.0, and the project at /home/me/trial pins dirigent-cli ==0.33.0
+this is dg X.Y.Z, and the project at /home/me/trial pins dirigent-cli ==0.32.0
   - uv run dg dev runs the dg the project pins; uv sync installs it first
   - or set DG_ALLOW_VERSION_MISMATCH=1 to run this dg against the project anyway
 ```
