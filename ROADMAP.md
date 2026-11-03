@@ -132,11 +132,14 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      list rows and their lead cells beyond `EntityHeading`, tab strips, empty and loading states,
      the graph's node, the account row, a panel with tabs -- and make each one component, drawn on
      `/design` in every variant and state.
-   - **Reusable beyond this app.** Whether `components/ds`, the tokens and the gallery become a
-     package other products can take (Maneki is the first candidate), with its own version, or
-     stay inside dirigent's frontend. Open: the package boundary, how tokens and the brand are
-     themed per product, and how `docs/ui-conventions.md` splits into what is the system's and
-     what is dirigent's.
+   - **A shared UI project outside dirigent.** The components, the tokens, the gallery and the
+     conventions become a project of their own, designed for dirigent, stabbur, Maneki and the
+     dhis2w-fhir UI together rather than lifted out of this frontend, and each product takes it as a
+     versioned dependency. dirigent's frontend then keeps only what is dirigent's: its screens,
+     its labels and the conventions that are about its own data. Open: where it lives and how it is
+     released, how tokens and the brand are themed per product, what each of the four products has
+     that the others would take or must stay apart from, and how `docs/ui-conventions.md` splits
+     into the shared system's and dirigent's.
 
 ## Open questions
 
