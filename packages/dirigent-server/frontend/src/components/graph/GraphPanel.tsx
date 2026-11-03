@@ -48,7 +48,7 @@ export function GraphPanel({
                 title={LABELS.pipelines.page.graph}
                 tone="graph"
                 inset={false}
-                aside={<PageCanvasTools layout={layout} onLayout={onLayout} />}
+                aside={<PageCanvasTools frame={frame} layout={layout} onLayout={onLayout} />}
                 className={cn(filled && 'flex flex-1 flex-col', className)}
                 bodyClassName={cn(filled && 'flex min-h-0 flex-1 flex-col')}
             >

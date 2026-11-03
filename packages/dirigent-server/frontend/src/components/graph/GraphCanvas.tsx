@@ -54,9 +54,10 @@ import {
  * the screen decides what it means.
  *
  * WHERE IT STANDS DECIDES WHAT THE WHEEL DOES. A stage -- the editor's, or a graph opened in a
- * window -- takes the wheel and zooms on it. A canvas on a page, sized to its drawing or to the room
- * the page leaves it, gives a plain wheel back to the page and zooms on a pinch or on the platform's
- * modifier held over the wheel. Every canvas pans when its ground is dragged.
+ * window -- takes the wheel and zooms on it, and so does a canvas filling the room its page leaves
+ * it, which is the screen. A canvas sized to its drawing gives a plain wheel back to the page and
+ * zooms on a pinch or on the platform's modifier held over the wheel. Every canvas pans when its
+ * ground is dragged.
  *
  * THE WHOLE GRAPH IS VISIBLE UNTIL SOMEBODY MOVES IT. A pipeline is a shape, and a reader
  * opening one is asking what shape it is -- so the view is fitted to every node, at a zoom held
@@ -362,7 +363,8 @@ function Canvas({
         >
             <FitToGraph nodes={nodes} moved={moved} direction={layout.direction} />
             {onPage && (
-                <ModifiedWheel
+                <PageWheel
+                    plain={frame === 'filled'}
                     onZoomed={() => {
                         setMoved(true)
                     }}
@@ -445,14 +447,17 @@ export function LayoutControl({
  * It reads the canvas through the provider the page wraps both in.
  */
 export function PageCanvasTools({
+    frame,
     layout,
     onLayout,
 }: {
+    frame: Extract<CanvasFrame, 'fitted' | 'filled'>
     layout: LayoutChoice
     onLayout: (layout: LayoutChoice) => void
 }) {
     const flow = useReactFlow()
     const modifier = modifierLabel(applePlatform(navigator.userAgent))
+    const filled = frame === 'filled'
     const step = (direction: 'in' | 'out') => () => {
         void flow.zoomTo(steppedZoom(flow.getZoom(), direction), { duration: 120 })
     }
@@ -461,7 +466,7 @@ export function PageCanvasTools({
             <IconButton
                 icon={ICONS.zoom_out}
                 label={ZOOM_OUT_LABEL}
-                tooltip={LABELS.shell.zoom_out_on_page(modifier)}
+                tooltip={filled ? LABELS.shell.zoom_out_filled : LABELS.shell.zoom_out_on_page(modifier)}
                 size="sm"
                 className="text-muted-foreground"
                 onClick={step('out')}
@@ -469,7 +474,7 @@ export function PageCanvasTools({
             <IconButton
                 icon={ICONS.zoom_in}
                 label={ZOOM_IN_LABEL}
-                tooltip={LABELS.shell.zoom_in_on_page(modifier)}
+                tooltip={filled ? LABELS.shell.zoom_in_filled : LABELS.shell.zoom_in_on_page(modifier)}
                 size="sm"
                 className="text-muted-foreground"
                 onClick={step('in')}
@@ -500,13 +505,14 @@ export function PageCanvasTools({
 }
 
 /**
- * A wheel over a canvas on a page zooms it only with Ctrl or the platform's modifier held, or as a
- * trackpad pinch, which browsers send as a wheel with Ctrl. Every other wheel scrolls the page.
+ * A wheel over a canvas on a page zooms it with Ctrl or the platform's modifier held, or as a
+ * trackpad pinch, which browsers send as a wheel with Ctrl. With `plain`, every wheel zooms it and
+ * none reaches the page; without, every other wheel scrolls the page.
  *
  * The zoom is anchored on the pointer and moves by `wheelZoomFactor` per event, so a pinch's run
  * of small deltas and a mouse wheel's notches both zoom at a pace that can be followed.
  */
-function ModifiedWheel({ onZoomed }: { onZoomed: () => void }) {
+function PageWheel({ plain, onZoomed }: { plain: boolean; onZoomed: () => void }) {
     const flow = useReactFlow()
     const marker = useRef<HTMLDivElement | null>(null)
     const zoomed = useRef(onZoomed)
@@ -517,7 +523,7 @@ function ModifiedWheel({ onZoomed }: { onZoomed: () => void }) {
         const element = marker.current?.closest('.react-flow')
         if (!(element instanceof HTMLElement)) return
         const onWheel = (event: WheelEvent) => {
-            if (!event.ctrlKey && !event.metaKey) return
+            if (!plain && !event.ctrlKey && !event.metaKey) return
             event.preventDefault()
             event.stopPropagation()
             const view = flow.getViewport()
@@ -542,7 +548,7 @@ function ModifiedWheel({ onZoomed }: { onZoomed: () => void }) {
         return () => {
             element.removeEventListener('wheel', onWheel, { capture: true })
         }
-    }, [flow])
+    }, [flow, plain])
     return <div ref={marker} className="hidden" aria-hidden />
 }
 
