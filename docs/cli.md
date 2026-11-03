@@ -309,8 +309,11 @@ migrates the schema, creates the first admin and mints it one token. The token i
 and written to the project's `.env` with owner-only permissions, where the `local` profile
 reads it whenever the shell does not export `DG_TOKEN`. A generated `DIRIGENT_SECRET_KEY` goes
 into that same file: a `.env` is a settings layer, so the instance seals connection secrets
-under that key from its first command, with nothing to export. Give the password with
-`--password`, or `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` where there is nothing to prompt.
+under that key from its first command, with nothing to export. With no password given, by
+`--password`, `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` or the form, the first admin is admin / admin,
+as on the instance `dg dev` starts on an empty state; `admin` is accepted when named, too. Any
+other password is at least 8 characters, and `--template compose` always asks for one of at
+least 8, by prompt or by `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` where there is nothing to prompt.
 
 `--service` names what the stack carries beside PostgreSQL, the migration, the server and the
 worker, and may repeat: `s3` (object storage, on unless the flag says otherwise; off means
