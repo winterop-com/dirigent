@@ -56,6 +56,13 @@ connection holds, or wanted one it holds none of, and another 4xx says to set `h
 address the service answers. A connection that checked green against a 4xx needs a `health_path`.
 The `webhook` kind keeps its own check, a HEAD that proves the endpoint is reachable.
 
+**Breaking: a test message is its own event, `test`.** `dg alerts test` queued its message as
+`run_succeeded`. It is now `test` in the queue (`NotificationOut.event` is a `NotificationEvent`,
+the four rule events and `test`), in a webhook's payload and in the log channel's `event_kind`,
+and the log line carries no stand-in run facts. A rule still binds to the four run events alone.
+The baseline migration is edited in place: `notifications.event` is the `notification_event`
+enum, which adds `test`.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

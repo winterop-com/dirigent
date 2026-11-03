@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from dirigent_client.enums import AlertEvent, AlertScope, Importance, NotificationStatus
+from dirigent_client.enums import AlertEvent, AlertScope, Importance, NotificationEvent, NotificationStatus
 from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_common import EntityName
 from dirigent_common.durations import Duration
@@ -95,7 +95,7 @@ class NotificationOut(WireModel):
     """One queued or delivered alert."""
 
     id: UUID
-    event: AlertEvent
+    event: NotificationEvent
     rule: str | None = Field(default=None, description="The rule that raised it; null for a test.")
     notifier: str
     connection: str | None = None

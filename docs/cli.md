@@ -1682,7 +1682,10 @@ no connection meaning the process log. The sender follows from that connection's
 connection no installed notifier delivers through is refused here exactly as it is when a rule
 names it. The message goes through the same queue and the same notifier call a real alert does,
 because a test that took a shortcut would prove only that the shortcut works -- so it appears in
-`dg alerts queue` and is delivered by a worker, not by the API.
+`dg alerts queue` and is delivered by a worker, not by the API. Its event is `test`, its own kind
+rather than any run's, in the queue, in the webhook payload's `event` and in the log channel's
+`event_kind`; its templates still render over a stand-in run, so a template can be tried before
+a rule carries it.
 
 `dg alerts rules pause` holds a rule's deliveries and `resume` lets them go again. Pausing is
 instance state on the row rather than something the rule declares, so a rule held here keeps

@@ -1252,7 +1252,7 @@ fields, never a rendered body:
 
 | Field | What it is |
 | --- | --- |
-| `event_kind` | `run_failed`, `run_completed_with_errors`, `run_succeeded` or `run_stuck` |
+| `event_kind` | `run_failed`, `run_completed_with_errors`, `run_succeeded` or `run_stuck`, or `test` for a message `dg alerts test` sent, which carries no run facts |
 | `run_id`, `pipeline`, `status` | The run, its pipeline's code, and its status when the alert was raised |
 | `failing_step`, `item` | The first step that failed, and the key of the fan-out element that failed in it |
 | `error`, `error_code` | What failed, on one line, scrubbed of the step's secrets, and its dotted code |

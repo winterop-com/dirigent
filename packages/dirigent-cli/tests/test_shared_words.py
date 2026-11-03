@@ -27,7 +27,7 @@ import pytest
 from dirigent_cli.messages import WORKER_NEVER_REGISTERED, WORKER_SILENT
 from dirigent_cli.output import ALERT_EVENTS, CONNECTION_HEALTH, IMPORTANCE_FLOOR, RUNS_IN_FLIGHT
 from dirigent_cli.summaries import IN_FLIGHT_KEEPS_ITS_SHAPE, SCHEMA_REACHES
-from dirigent_client.enums import AlertEvent, FiringOutcome
+from dirigent_client.enums import FiringOutcome, NotificationEvent
 from dirigent_client.schemas.alerts import TEST_SUBJECT
 from dirigent_core.messages import DOCUMENT_EMPTY, PIPELINE_IN_USE
 from dirigent_server.messages import FORBIDDEN
@@ -100,15 +100,15 @@ def as_fragment(text: str) -> str:
     return text.lower().rstrip(".")
 
 
-@pytest.mark.parametrize("event", list(AlertEvent))
-def test_an_alert_event_is_called_the_same_thing_by_dg_and_by_the_web_ui(event: AlertEvent) -> None:
+@pytest.mark.parametrize("event", list(NotificationEvent))
+def test_an_alert_event_is_called_the_same_thing_by_dg_and_by_the_web_ui(event: NotificationEvent) -> None:
     """The clearest case in the product: two byte-identical tables, one for each language."""
     assert ALERT_EVENTS[event.value] == said(f"alerting.event.{event.value}")
 
 
 def test_every_alert_event_on_the_wire_has_a_word_on_both_sides() -> None:
     """A new member of the enum is a word each renderer has to be given, not a code on a screen."""
-    wire = {event.value for event in AlertEvent}
+    wire = {event.value for event in NotificationEvent}
     assert set(ALERT_EVENTS) == wire
     assert {code.removeprefix("alerting.event.") for code in LABELS if code.startswith("alerting.event.")} == wire
 

@@ -19,6 +19,7 @@ from dirigent_client.enums import (
     Importance,
     InputOutcome,
     LogLevel,
+    NotificationEvent,
     NotificationStatus,
     ProvenanceSource,
     RunItemStatus,
@@ -656,7 +657,9 @@ class Notification(Entity):
     """The code of the rule that raised this, kept after the rule is deleted; null for a test message."""
 
     run_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("runs.id", ondelete="CASCADE"), index=True)
-    event: Mapped[AlertEvent] = mapped_column(string_enum(AlertEvent, "alert_event"), nullable=False)
+    event: Mapped[NotificationEvent] = mapped_column(
+        string_enum(NotificationEvent, "notification_event"), nullable=False
+    )
     notifier: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     connection_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("connections.id", ondelete="RESTRICT"))
     subject: Mapped[str] = mapped_column(SaidText, nullable=False)

@@ -155,6 +155,18 @@ async def test_an_alert_about_no_run_names_none_rather_than_inventing_an_id() ->
     assert not {"run_id", "pipeline", "url"} & set(entry)
 
 
+async def test_a_test_message_is_its_own_event_and_reports_no_stand_in_run() -> None:
+    stand_in: dict[str, JsonValue] = {"run": {"pipeline": "(test)", "status": "succeeded"}, "report": None}
+    with capture_logs() as entries:
+        await LogNotifier().send(
+            an_alert(subject="dirigent test alert", event="test", run_id=None, pipeline=None, context=stand_in),
+            LogNotifierConfig(),
+        )
+    entry = alert_entries(entries)[0]
+    assert (entry["event"], entry["event_kind"]) == ("dirigent test alert", "test")
+    assert "status" not in entry, "the stand-in run a template renders over is not a run"
+
+
 def test_the_channel_writes_under_the_logger_the_engine_configures() -> None:
     assert ALERT_LOGGER == "dirigent.alert"
     assert LogNotifier.id == "log"

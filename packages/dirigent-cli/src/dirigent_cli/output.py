@@ -559,13 +559,14 @@ def watching(scope: object, importance: object) -> str:
 
 
 #: What each alert event is called in a rendering. The wire's word is what a rule is declared
-#: with; these are the words a reader is shown. The web UI draws the same four out of its own
+#: with, or a test message is queued as; these are the words a reader is shown. The web UI draws them out of its own
 #: catalogue, and `tests/test_shared_words.py` fails when the two tables stop agreeing.
 ALERT_EVENTS: Mapping[str, str] = {
     "run_failed": "Failed",
     "run_completed_with_errors": "Completed with errors",
     "run_succeeded": "Succeeded",
     "run_stuck": "Stuck",
+    "test": "Test message",
 }
 
 

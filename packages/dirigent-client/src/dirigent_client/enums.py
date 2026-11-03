@@ -153,6 +153,17 @@ class AlertEvent(StrEnum):
     RUN_STUCK = "run_stuck"
 
 
+class NotificationEvent(StrEnum):
+    """What one queued notification was raised for: a rule's run event, or a test somebody sent."""
+
+    RUN_FAILED = "run_failed"
+    RUN_COMPLETED_WITH_ERRORS = "run_completed_with_errors"
+    RUN_SUCCEEDED = "run_succeeded"
+    RUN_STUCK = "run_stuck"
+    TEST = "test"
+    """Sent by ``dg alerts test`` or its API route, by no rule and for no run."""
+
+
 class AlertScope(StrEnum):
     """Whether an alert rule watches everything or one pipeline."""
 

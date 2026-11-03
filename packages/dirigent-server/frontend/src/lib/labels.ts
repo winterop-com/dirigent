@@ -3323,9 +3323,10 @@ const alerting = {
     set_up_channel: (notifier: string) => `Set up ${notifier}…`,
 
     /**
-     * What each event is called wherever a rule names one. Keyed by `AlertEvent` on the wire.
+     * What each event is called wherever a rule or a queued message names one. Keyed by
+     * `NotificationEvent` on the wire, which is `AlertEvent` and `test`.
      *
-     * `dg` prints these same four words from `ALERT_EVENTS` in `dirigent_cli.output`. Neither
+     * `dg` prints these same words from `ALERT_EVENTS` in `dirigent_cli.output`. Neither
      * side can import the other's table and the wire carries codes alone, so the copy stays and
      * `packages/dirigent-cli/tests/test_shared_words.py` fails when the two stop agreeing.
      */
@@ -3334,6 +3335,7 @@ const alerting = {
         run_completed_with_errors: 'Completed with errors',
         run_succeeded: 'Succeeded',
         run_stuck: 'Stuck',
+        test: 'Test message',
     },
     /** How wide a rule reaches, keyed by `AlertScope`, as the dialog's control offers the two. */
     scope: {
