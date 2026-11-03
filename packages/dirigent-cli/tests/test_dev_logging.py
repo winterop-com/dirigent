@@ -77,10 +77,11 @@ def test_the_log_file_is_in_the_state_directory(tmp_path: Path) -> None:
     assert main.dev_log_path(settings) == tmp_path / ".dirigent" / "state" / "dev.log"
 
 
-def test_the_starting_record_names_the_log_file(tmp_path: Path) -> None:
+def test_the_starting_and_ready_records_name_the_log_file(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     record = main.dev_started(settings, bound="http://127.0.0.1:4999", admin="admin", token=None, migrated=None)
     assert record["log"] == str((tmp_path / ".dirigent" / "state" / "dev.log").resolve())
+    assert main.dev_facts(settings, admin="admin")["log"] == record["log"], "the ready record carries it too"
 
 
 def test_the_log_file_is_ndjson_and_quiet_at_info(tmp_path: Path) -> None:
