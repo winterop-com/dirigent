@@ -264,7 +264,7 @@ def test_a_source_carries_its_own_kinds_fields(client: TestClient) -> None:
     assert any("'uri' is a required property" in message for message in problems)
 
     no_such_kind = sourced({"kind": "carrier_pigeon"})
-    assert not validator.is_valid(no_such_kind)
+    assert not validator.is_valid(no_such_kind)  # pyright: ignore[reportUnknownMemberType]
 
 
 def test_an_instance_with_no_source_kinds_leaves_the_kind_open() -> None:
