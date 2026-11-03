@@ -17,6 +17,7 @@ from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunSta
 from dirigent_client.schemas import (
     TERMINAL_RUN_STATUSES,
     ArtifactOut,
+    AttemptDetail,
     AttemptEvent,
     AttemptOut,
     DagNode,
@@ -548,6 +549,30 @@ async def rerun_one(
     if created is None:
         return RunAccepted(status="skipped", detail="a run of this pipeline is already in flight")
     return RunAccepted(run_id=created.id, status=created.status.value)
+
+
+@router.get(
+    "/attempts/{attempt_id}",
+    operation_id="getAttempt",
+    summary="Read an attempt by its id",
+    response_model=AttemptDetail,
+)
+async def get_attempt(attempt_id: UUID, session: SessionDep, principal: PrincipalDep) -> AttemptDetail:
+    """Read one attempt with the run, the pipeline and the item it belongs to, from its id alone."""
+    found = await session.execute(
+        sa.select(StepAttempt, Pipeline.code, RunItem.item_key)
+        .join(Run, Run.id == StepAttempt.run_id)
+        .join(Pipeline, Pipeline.id == Run.pipeline_id)
+        .outerjoin(RunItem, RunItem.id == StepAttempt.run_item_id)
+        .where(StepAttempt.id == attempt_id)
+    )
+    row = found.one_or_none()
+    if row is None:
+        raise Refusal(NO_ATTEMPT, status=status.HTTP_404_NOT_FOUND, attempt_id=attempt_id)
+    attempt, pipeline, item = row
+    spilled = await _spilled(session, attempt.run_id, [attempt.id])
+    rendered = _render_attempt(attempt, spilled)
+    return AttemptDetail(**rendered.model_dump(), run_id=attempt.run_id, pipeline=pipeline, item=item)
 
 
 @router.post(

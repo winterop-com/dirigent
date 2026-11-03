@@ -511,8 +511,9 @@ Three clusters, with the boundary visible in the schema layout itself. All times
 | `StepAttempt` | execution | One row per attempt: number, kind (automatic / manual), input, output reference, error, remote handle, lease, `available_at`, `next_poll_at`, timings. |
 | `ArtifactRef` | execution | The durable record of a step output: content type, size, digest, and either an inlined value or a URI into pluggable storage, never a worker-local path. |
 | `AlertRule` | definition | Event, scope (global or pipeline), the one connection it delivers through and the sender that resolved from its kind, message template, throttle. |
-| `Notification` | execution | One queued alert delivery, claimed and retried exactly like an attempt: the rule and run it came from, the channel, the rendered subject and body with the run snapshot they were rendered from, a lease, an attempt count, and a terminal status. Unique on `(alert_rule_id, run_id, event)`, which is the deduplication. |
+| `Notification` | execution | One queued alert delivery, claimed and retried exactly like an attempt: the rule and run it came from (the rule by its code too, which a delivery keeps when the rule is deleted), the channel, the rendered subject and body with the run snapshot they were rendered from, a lease, an attempt count, and a terminal status. Unique on `(alert_rule_id, run_id, event)`, which is the deduplication. |
 | `LogEntry` | execution | Append-only, scoped run / item / attempt, batched writes. Bounded by `retention_logs`, which is unset by default. |
+| `AuditEntry` | journal | One administrative change: who (account, and the token it acted through), the action, the subject's kind, code and parent, and the names of the fields an update changed, never a value. Written in the change's own transaction, read by admins only, bounded by `retention_audit` (`365d` by default). |
 | `Worker` | execution | The registry: hostname, version, installed plugins, tags, last seen. Doubles as observability. |
 
 The one migration there is (`0001_baseline`) creates every table and runs on both
@@ -524,7 +525,7 @@ timezone concept and would otherwise hand back naive datetimes for a schema whos
 compares due times constantly.
 
 A row is one of two shapes. An entity has a time-ordered uuid `id`, `created_at` and
-`updated_at`. A journal row -- a schedule firing, a source input, a log entry -- is written
+`updated_at`. A journal row -- a schedule firing, a source input, a log entry, an audit entry -- is written
 once and never touched again, so it has an integer `id` that also orders it and `created_at`
 alone. A row's age is its `created_at` in either shape, which is what retention and every
 listing filtered by age ask.
@@ -1125,6 +1126,7 @@ GET           /api/v1/runs/{id}/items        # the fan-out grid, paged in creati
 GET           /api/v1/runs/{id}/attempts     # paged in creation order; filters: step, status
 POST          /api/v1/runs/{id}/$cancel
 POST          /api/v1/runs/{id}/$rerun       # same params and source input; version: pinned | current
+GET           /api/v1/attempts/{id}          # one attempt by its id alone, with its run_id, pipeline and item
 POST          /api/v1/attempts/{id}/$retry   # Idempotency-Key header required
 GET           /api/v1/runs/{id}/$logs        # a page like every listing; ?follow=sse tails it
 GET           /api/v1/runs/{id}/$events      # the whole run as one SSE stream, for a watcher

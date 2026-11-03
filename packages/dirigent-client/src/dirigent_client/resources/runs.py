@@ -15,6 +15,7 @@ from dirigent_client.errors import TransportError, WaitTimeout
 from dirigent_client.resources.base import Resource, query, request_body, segment
 from dirigent_client.schemas import (
     ArtifactOut,
+    AttemptDetail,
     AttemptEvent,
     AttemptOut,
     ItemOut,
@@ -355,3 +356,11 @@ class Runs(Resource):
                     return
                 remaining -= 1
             await asyncio.sleep(RECONNECT_SECONDS)
+
+
+class Attempts(Resource):
+    """Read one attempt by its id alone, which is what an engine log line names."""
+
+    async def get(self, attempt_id: UUID | str) -> AttemptDetail:
+        """Read an attempt with the run, the pipeline and the step it belongs to."""
+        return await self._one(AttemptDetail, "GET", f"/attempts/{segment(attempt_id)}")

@@ -264,6 +264,28 @@ async def test_an_operator_handing_create_connection_a_secret_is_refused_by_name
     assert SECRET not in str(refused.value)
 
 
+async def test_the_audit_trail_is_read_by_an_admin_and_names_the_agents_token(
+    admin: MCPServer, clients: dict[UserRole, Dirigent]
+) -> None:
+    await clients[UserRole.ADMIN].connections.create(
+        "warehouse", kind="http", config={"base_url": "http://x.invalid", "bearer_token": SECRET}
+    )
+    trail = await call(admin, "list_audit", subject_kind="connection")
+    [entry] = trail["items"]
+    assert (entry["action"], entry["subject_code"]) == ("created", "warehouse")
+    assert entry["actor_label"] == "admin (token admin-mcp)"
+    assert SECRET not in json.dumps(trail)
+
+
+async def test_the_audit_trail_is_not_offered_below_admin(clients: dict[UserRole, Dirigent]) -> None:
+    offered = mcp_server.build(
+        mcp_server.shared(lambda: clients[UserRole.OPERATOR]), offers=mcp_server.Offers.OPERATING
+    )
+    assert "list_audit" not in {tool.name for tool in await offered.list_tools()}
+    with pytest.raises(ToolError, match="not permitted for your role"):
+        await mcp_server.build(mcp_server.shared(lambda: clients[UserRole.OPERATOR])).call_tool("list_audit", {})
+
+
 async def test_a_schema_is_listed_and_read(operator: MCPServer, clients: dict[UserRole, Dirigent]) -> None:
     body = {"type": "object", "properties": {"station": {"type": "string"}}}
     await clients[UserRole.ADMIN].schemas.create(body, code="reading")
@@ -315,6 +337,22 @@ async def test_a_run_with_no_source_says_so(operator: MCPServer) -> None:
     assert answered["stored_bytes"] == 0
 
 
+async def test_an_attempt_is_read_by_its_id_alone(operator: MCPServer) -> None:
+    document = "format: dirigent/v1\nkind: pipeline\ncode: plain\nsteps:\n  one:\n    block: value.const\n"
+    await call(operator, "apply_document", document=document + "    config:\n      value: 1\n")
+    accepted = await call(operator, "run_pipeline", code="plain")
+    attempts = await call(operator, "run_attempts", run_id=accepted["run_id"])
+    attempt_id = attempts["items"][0]["id"]
+    found = await call(operator, "get_attempt", attempt_id=attempt_id)
+    assert (found["id"], found["run_id"], found["pipeline"], found["step_name"]) == (
+        attempt_id,
+        accepted["run_id"],
+        "plain",
+        "one",
+    )
+    assert found.get("item") is None, "not a fan-out element"
+
+
 async def test_every_tool_says_whether_it_writes_destroys_or_repeats(operator: MCPServer) -> None:
     tools = {tool.name: tool.annotations for tool in await operator.list_tools()}
     assert all(annotations is not None for annotations in tools.values())
@@ -325,7 +363,7 @@ async def test_every_tool_says_whether_it_writes_destroys_or_repeats(operator: M
     }
     reads = {name for name, (read_only, *_) in hints.items() if read_only}
     assert {"list_connections", "get_connection", "list_schemas", "get_schema", "get_source"} <= reads
-    assert {"list_alert_rules", "get_alert_rule", "get_run", "whoami"} <= reads
+    assert {"list_alert_rules", "get_alert_rule", "get_run", "get_attempt", "whoami", "list_audit"} <= reads
     assert all(hints[name][2] for name in reads), "reading twice is reading once"
     assert hints["rotate_source_token"][:3] == (False, True, False)
     assert hints["apply_document"][:3] == (False, True, True)

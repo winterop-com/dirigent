@@ -66,6 +66,7 @@ from dirigent_core.engine.definition import (
 )
 from dirigent_core.engine.expansion import collect_errors, collect_outputs, is_gate, item_value_of
 from dirigent_core.engine.failure import Failure, backoff_delay, should_retry
+from dirigent_core.engine.logcontext import attempt_fields
 from dirigent_core.engine.quota import StorageMeter
 from dirigent_core.engine.recovery import overdue_deadlines
 from dirigent_core.engine.references import (
@@ -81,7 +82,7 @@ from dirigent_core.engine.runs import (
     promote_queued_run,
 )
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.engine.state import advance, lock_run
+from dirigent_core.engine.state import advance, lock_run, mark_started
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.messages import (
@@ -139,6 +140,9 @@ MAX_PROBE_DOUBLINGS = 20
 SQLITE_CLAIM_LOCK = asyncio.Lock()
 
 _logger = get_logger("engine")
+
+#: Step-level detail, which a process can quiet without quieting the run-level lines.
+_steps = get_logger("engine.steps")
 
 
 class Produced(BaseModel):
@@ -198,6 +202,15 @@ class Errored(BaseModel):
 type CallResult = Produced | Submitted | Waiting | Vanished | Errored
 
 
+class Cancelled(BaseModel):
+    """Why a run's cancel took an attempt's lease: the refusal's code, and who, when a person did."""
+
+    model_config = ConfigDict(frozen=True)
+
+    reason: str | None = None
+    by: str | None = None
+
+
 class Engine:
     """One process's view of the engine: claim a unit, run it, record what happened."""
 
@@ -235,12 +248,13 @@ class Engine:
                 attempt = await select_due(session, moment, self.tags)
                 if attempt is None:
                     return None
-                unit = await self._prepare(session, attempt, moment)
+                with log_context(**await attempt_fields(session, attempt)):
+                    unit = await self._prepare(session, attempt, moment)
                 if unit is not None:
                     _logger.debug(
                         "attempt claimed",
+                        **unit.log_fields,
                         worker=self.owner,
-                        step=unit.step_name,
                         block=unit.block_id,
                         attempt=unit.attempt_number,
                         from_status=unit.previous_status.value,
@@ -390,6 +404,8 @@ class Engine:
                 run_item_id=attempt.run_item_id,
                 step_name=attempt.step_name,
                 block_id=attempt.block_id,
+                pipeline=definition.code,
+                item_key=item.item_key if item is not None else None,
                 attempt_number=attempt.attempt,
                 started_at=started,
                 previous_status=previous,
@@ -453,8 +469,7 @@ class Engine:
         attempt.input = {**(attempt.input or {}), "config": {**config, **shown}}
         attempt.deadline_at = deadline
         if run.status is RunStatus.QUEUED:
-            run.status = RunStatus.RUNNING
-            run.started_at = run.started_at or now
+            mark_started(run, definition.code, now)
 
         return unit
 
@@ -490,9 +505,8 @@ class Engine:
                 parent=telemetry.context_from(unit.traceparent),
             ) as span,
             log_context(
-                run_id=str(unit.run_id),
+                **unit.log_fields,
                 run_item_id=str(unit.run_item_id) if unit.run_item_id else None,
-                step=unit.step_name,
                 attempt=unit.attempt_number,
                 block=unit.block_id,
                 worker=self.owner,
@@ -759,7 +773,7 @@ class Engine:
         if run is None:  # pragma: no cover - the attempt was just read from this run
             return
         await cancel_remote(session, self.services, run, attempt, await load_connections(session))
-        _logger.info(
+        _steps.info(
             "remote work submitted into a cancelled attempt was cancelled",
             attempt_id=str(unit.attempt_id),
             run_id=str(unit.run_id),
@@ -884,7 +898,7 @@ class Engine:
 
             status = await self._advance(session, run, definition, now)
             telemetry.record_step(attempt.status.value, unit.block_id, seconds)
-            _logger.info("attempt settled", status=attempt.status.value, run_status=status.value)
+            _steps.info("attempt settled", status=attempt.status.value, run_status=status.value)
 
     async def _advance(
         self,
@@ -1028,11 +1042,9 @@ class Engine:
             if step is None:
                 continue
             await self._settle_deadline(session, run, definition, attempt, step, moment)
-            _logger.info(
+            _steps.info(
                 "a deadline passed while the attempt waited",
-                attempt_id=str(attempt.id),
-                run_id=str(run.id),
-                step=attempt.step_name,
+                **await attempt_fields(session, attempt),
                 deadline_at=attempt.deadline_at.isoformat() if attempt.deadline_at else None,
                 on_timeout=step.on_timeout.value,
             )
@@ -1116,7 +1128,7 @@ class Engine:
                 deadline_at=attempt.deadline_at,
             )
         )
-        _logger.info(
+        _steps.info(
             "attempt will be retried",
             step=attempt.step_name,
             next_attempt=attempt.attempt + 1,
@@ -1138,6 +1150,22 @@ class Engine:
         await self._advance(session, run, definition, now)
 
     # -- leases ------------------------------------------------------------------
+
+    async def cancelled(self, attempt_ids: Sequence[UUID]) -> dict[UUID, Cancelled]:
+        """Name the attempts among these whose run's cancel stopped them, with what cancelled it."""
+        if not attempt_ids:
+            return {}
+        async with self.sessions() as session:
+            rows = await session.execute(
+                sa.select(StepAttempt.id, Run.error_code, Run.error_params)
+                .join(Run, Run.id == StepAttempt.run_id)
+                .where(StepAttempt.id.in_(attempt_ids), StepAttempt.status == AttemptStatus.CANCELLED)
+            )
+            found: dict[UUID, Cancelled] = {}
+            for attempt_id, reason, params in rows.all():
+                by = (params or {}).get("principal")
+                found[attempt_id] = Cancelled(reason=reason, by=by if isinstance(by, str) else None)
+            return found
 
     async def heartbeat(self, units: Sequence[ClaimedUnit], *, now: datetime | None = None) -> set[UUID]:
         """Refresh the leases these claims hold, and say which ones they still hold.

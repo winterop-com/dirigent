@@ -19,12 +19,21 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dirigent_client.enums import AuditAction, AuditSubject
 from dirigent_client.schemas import ConnectionDetail, ConnectionIn, ConnectionOut, ConnectionUpdate, Page
 from dirigent_common import HealthReport, JsonMap, Message, scrub, secrets_of, validation_issues
+from dirigent_core import audit
 from dirigent_core.connections import ConnectionInUse, connection_users, remove_connection, said
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, utcnow
-from dirigent_core.secrets import REDACTED, ConnectionAwaitingSecrets, redact, secret_fields, unset_secrets
+from dirigent_core.secrets import (
+    REDACTED,
+    ConnectionAwaitingSecrets,
+    SecretKeyMismatch,
+    redact,
+    secret_fields,
+    unset_secrets,
+)
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.errors import Refusal
 from dirigent_server.logging import get_logger
@@ -272,6 +281,7 @@ async def create_connection(
     )
     session.add(row)
     await session.flush()
+    await audit.record(session, AuditAction.CREATED, AuditSubject.CONNECTION, code=row.code, subject_id=row.id)
     return render(row, services)
 
 
@@ -309,19 +319,41 @@ async def update_connection(
     config the model accepts completes a connection awaiting its secrets.
     """
     row = await find(session, code)
-    if payload.changing("name"):
+    awaited = row.awaiting_secrets
+    fields: list[str] = []
+    if payload.changing("name") and payload.name != row.name:
         row.name = payload.name
-    if payload.changing("description"):
+        fields.append("name")
+    if payload.changing("description") and payload.description != row.description:
         row.description = payload.description
+        fields.append("description")
     if payload.config is not None:
         config = restore_marked_secrets(row, payload.config, services)
         public, envelope, key_id = seal(services, row.kind, config)
+        fields += audit.changed(dict(row.config), public)
+        fields += sealed_changes(services, row, envelope, key_id)
         row.config = public
         row.secret_envelope = envelope
         row.secret_key_id = key_id
         row.awaiting_secrets = False
     await session.flush()
+    if fields:
+        action = AuditAction.SECRETS_SUPPLIED if awaited and not row.awaiting_secrets else AuditAction.UPDATED
+        await audit.record(session, action, AuditSubject.CONNECTION, code=row.code, subject_id=row.id, fields=fields)
     return render(row, services)
+
+
+def sealed_changes(services: EngineServices, row: Connection, envelope: bytes | None, key_id: str | None) -> list[str]:
+    """Name the secret fields a new envelope holds differently from the stored one, never their values.
+
+    A stored envelope the instance key no longer opens counts every field the new one holds as changed.
+    """
+    after = services.secrets.open(envelope, key_id=key_id)
+    try:
+        before = services.secrets.open(row.secret_envelope, key_id=row.secret_key_id)
+    except SecretKeyMismatch:
+        return sorted(after)
+    return audit.changed(before, after)
 
 
 @router.delete(

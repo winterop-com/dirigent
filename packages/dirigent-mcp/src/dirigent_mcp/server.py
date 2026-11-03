@@ -36,6 +36,8 @@ from dirigent_client import (
     AlertEvent,
     AlertScope,
     AttemptOut,
+    AuditAction,
+    AuditSubject,
     BlockEntry,
     BlockKind,
     Dirigent,
@@ -478,6 +480,14 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         return await call(measured)
 
     @tool(READS)
+    async def get_attempt(attempt_id: str) -> Any:
+        """Read one attempt by its id alone, as an engine log line names it.
+
+        Answers its `run_id`, `pipeline`, step and `item`, with its output, error and timing.
+        """
+        return await call(lambda dg: dg.attempts.get(attempt_id))
+
+    @tool(READS)
     async def run_logs(
         run_id: str, step: str | None = None, after: str | None = None, limit: int = DEFAULT_LIMIT
     ) -> Any:
@@ -681,6 +691,34 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
             }
 
         return await call(created)
+
+    @tool(READS, needs=Offers.ADMINISTERING)
+    async def list_audit(
+        subject_kind: AuditSubject | None = None,
+        subject: str | None = None,
+        actor: str | None = None,
+        action: AuditAction | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        after: str | None = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Any:
+        """List administrative changes newest first: who, what it did to which subject, and which fields.
+
+        Never a value. `actor` is a username, or a host command such as `dg dev` where no account acted.
+        """
+        return await call(
+            lambda dg: dg.audit.list(
+                subject_kind=subject_kind,
+                subject=subject,
+                actor=actor,
+                action=action,
+                since=since,
+                until=until,
+                after=after,
+                limit=limit,
+            )
+        )
 
     @tool(READS)
     async def list_schemas(after: str | None = None, limit: int = DEFAULT_LIMIT) -> Any:

@@ -2,10 +2,14 @@
 
 import asyncio
 import contextlib
+import logging
+from collections.abc import Generator, Iterable, MutableMapping
 from datetime import datetime, timedelta
 from typing import Any
 
 import sqlalchemy as sa
+import structlog
+from structlog.testing import capture_logs as captured_logs
 
 from dirigent_client.enums import AttemptStatus, RunStatus, WorkerStatus
 from dirigent_core import telemetry
@@ -15,12 +19,25 @@ from dirigent_core.engine import EngineServices
 from dirigent_core.engine.claim import ClaimedUnit
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.recovery import reap_workers
-from dirigent_core.engine.runs import create_run, save_pipeline
+from dirigent_core.engine.runs import cancel_run, create_run, save_pipeline
+from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import Run, StepAttempt, utcnow
 from dirigent_core.models import Worker as WorkerRow
 from dirigent_core.plugins import PluginHost
 from dirigent_core.worker import Chore, Worker, default_worker_name
 from engineblocks import EchoOperator
+
+
+@contextlib.contextmanager
+def capture_logs(processors: Iterable[Any] = ()) -> Generator[list[MutableMapping[str, Any]]]:
+    """Capture structured events at INFO and up, whatever level an earlier test configured."""
+    saved = structlog.get_config()
+    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.INFO))
+    try:
+        with captured_logs(processors=processors) as logged:
+            yield logged
+    finally:
+        structlog.configure(**saved)
 
 
 def fan_out(count: int) -> PipelineDefinition:
@@ -159,13 +176,12 @@ async def test_a_lease_held_by_another_worker_is_not_refreshed(
     assert await theirs.engine.heartbeat([]) == set()
 
 
-async def test_a_worker_abandons_a_unit_whose_heartbeat_returns_zero(
-    sessions: Any, settings: Settings, host: PluginHost
-) -> None:
-    """A heartbeat that comes back empty means the work is somebody else's now."""
-    services = EngineServices.build(fast(settings), host)
-    await create(sessions, services, fan_out(1))
-    worker = Worker(sessions, services, name="losing", sweeper=False)
+async def mid_call(
+    sessions: Any, services: EngineServices, name: str
+) -> tuple[Worker, Run, ClaimedUnit, "asyncio.Task[None]", asyncio.Event]:
+    """Claim one unit and hold it mid-call, the way a block that never answers would."""
+    run = await create(sessions, services, fan_out(1))
+    worker = Worker(sessions, services, name=name, sweeper=False)
     unit = await worker.engine.claim()
     assert unit is not None
 
@@ -186,6 +202,25 @@ async def test_a_worker_abandons_a_unit_whose_heartbeat_returns_zero(
     worker._tasks.add(task)  # pyright: ignore[reportPrivateUsage]
     worker._running[unit.attempt_id] = task  # pyright: ignore[reportPrivateUsage]
     await started.wait()
+    return worker, run, unit, task, release
+
+
+async def heartbeat_and_abandon(worker: Worker) -> list[Any]:
+    """Run one heartbeat's worth of the loop, and hand back what it logged."""
+    claimed = dict(worker.in_flight)
+    held = await worker.engine.heartbeat(list(claimed.values()))
+    assert held == set()
+    with capture_logs() as logged:
+        await worker._abandon([claimed[attempt_id] for attempt_id in set(claimed) - held])  # pyright: ignore[reportPrivateUsage]
+    return logged
+
+
+async def test_a_worker_abandons_a_unit_whose_heartbeat_returns_zero(
+    sessions: Any, settings: Settings, host: PluginHost
+) -> None:
+    """A heartbeat that comes back empty means the work is somebody else's now."""
+    services = EngineServices.build(fast(settings), host)
+    worker, _, unit, task, release = await mid_call(sessions, services, "losing")
 
     # Somebody else took the lease while this worker was mid-call.
     async with session_scope(sessions) as session:
@@ -193,16 +228,64 @@ async def test_a_worker_abandons_a_unit_whose_heartbeat_returns_zero(
         assert stolen is not None
         stolen.lease_owner = "the other worker"
 
-    claimed = dict(worker.in_flight)
-    held = await worker.engine.heartbeat(list(claimed.values()))
-    assert held == set()
-    worker._abandon(set(claimed) - held)  # pyright: ignore[reportPrivateUsage]
-
+    logged = await heartbeat_and_abandon(worker)
     with contextlib.suppress(asyncio.CancelledError):
         await task
     assert task.cancelled()
+    [lost] = [entry for entry in logged if entry["event"] == "lease lost, abandoning attempt"]
+    assert lost["log_level"] == "warning"
+    assert lost["attempt_id"] == str(unit.attempt_id)
+    assert lost["run_id"] == str(unit.run_id)
+    assert lost["pipeline"] == "worker-batch"
+    assert lost["step"] == "push"
+    assert lost["item"] == unit.item_key
+    assert lost["item"] is not None
     assert unit.attempt_id not in worker.in_flight
     release.set()
+
+
+async def test_a_cancelled_run_stops_its_attempt_at_info_naming_who_cancelled(
+    sessions: Any, settings: Settings, host: PluginHost
+) -> None:
+    services = EngineServices.build(fast(settings), host)
+    worker, run, unit, task, release = await mid_call(sessions, services, "stopping")
+
+    async with session_scope(sessions) as session:
+        row = await session.get(Run, run.id)
+        assert row is not None
+        await cancel_run(session, services, row, CANCELLED_BY, principal="ada")
+
+    logged = await heartbeat_and_abandon(worker)
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+    assert task.cancelled()
+    assert [entry for entry in logged if entry["event"] == "lease lost, abandoning attempt"] == []
+    [stopped] = [entry for entry in logged if entry["event"] == "attempt stopped: run cancelled"]
+    assert stopped["log_level"] == "info"
+    assert stopped["cancelled_by"] == "ada"
+    assert stopped["reason"] == CANCELLED_BY.code
+    assert (stopped["run_id"], stopped["pipeline"], stopped["step"]) == (str(run.id), "worker-batch", "push")
+    assert stopped["attempt_id"] == str(unit.attempt_id)
+    assert stopped["item"] == unit.item_key
+    release.set()
+
+
+async def test_an_attempts_engine_lines_name_its_run_pipeline_step_and_item(
+    sessions: Any, settings: Settings, host: PluginHost
+) -> None:
+    services = EngineServices.build(fast(settings), host)
+    run = await create(sessions, services, fan_out(1))
+    worker = Worker(sessions, services, name="naming", sweeper=False)
+    with capture_logs(processors=[structlog.contextvars.merge_contextvars]) as logged:
+        unit = await worker.engine.claim()
+        assert unit is not None
+        await worker.engine.run_unit(unit)
+    [settled] = [entry for entry in logged if entry["event"] == "attempt settled"]
+    assert settled["run_id"] == str(run.id)
+    assert settled["pipeline"] == "worker-batch"
+    assert settled["step"] == "push"
+    assert settled["attempt_id"] == str(unit.attempt_id)
+    assert settled["item"] == unit.item_key
 
 
 async def test_the_sweeper_recovers_what_a_dead_worker_left_behind(

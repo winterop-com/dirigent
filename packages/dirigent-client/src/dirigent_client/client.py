@@ -8,12 +8,13 @@ from typing import Any, Self
 import httpx2
 
 from dirigent_client.resources.alerts import Alerts
+from dirigent_client.resources.audit import Audit
 from dirigent_client.resources.auth import Admin, Auth
 from dirigent_client.resources.blocks import Blocks
 from dirigent_client.resources.connections import Connections
 from dirigent_client.resources.examples import Examples
 from dirigent_client.resources.pipelines import Pipelines
-from dirigent_client.resources.runs import Runs
+from dirigent_client.resources.runs import Attempts, Runs
 from dirigent_client.resources.schedules import Schedules
 from dirigent_client.resources.schemas import Schemas
 from dirigent_client.resources.sources import Sources
@@ -58,6 +59,7 @@ class Dirigent:
         )
         self.pipelines = Pipelines(self.transport)
         self.runs = Runs(self.transport)
+        self.attempts = Attempts(self.transport)
         self.connections = Connections(self.transport)
         self.schemas = Schemas(self.transport)
         self.blocks = Blocks(self.transport)
@@ -66,6 +68,7 @@ class Dirigent:
         self.sources = Sources(self.transport)
         self.trigger_documents = TriggerDocuments(self.transport)
         self.alerts = Alerts(self.transport)
+        self.audit = Audit(self.transport)
         self.system = System(self.transport)
         self.workers = Workers(self.transport)
         self.auth = Auth(self.transport)
@@ -101,6 +104,7 @@ class BlockingDirigent:
         self.url = self.client.url
         self.pipelines = self.client.pipelines
         self.runs = self.client.runs
+        self.attempts = self.client.attempts
         self.connections = self.client.connections
         self.schemas = self.client.schemas
         self.blocks = self.client.blocks
@@ -109,6 +113,7 @@ class BlockingDirigent:
         self.sources = self.client.sources
         self.trigger_documents = self.client.trigger_documents
         self.alerts = self.client.alerts
+        self.audit = self.client.audit
         self.system = self.client.system
         self.workers = self.client.workers
         self.auth = self.client.auth

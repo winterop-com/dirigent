@@ -201,6 +201,10 @@ UNSAFE_FOR_THE_INSTANCE = CLI.define(
 
 NOT_A_RUN_STATUS = CLI.define("not_a_run_status", "{value} is not a run status ({allowed})")
 
+NOT_A_MOMENT = CLI.define(
+    "not_a_moment", "{option} takes a timestamp such as 2026-11-03T09:00Z, or a span back such as 24h, not {value}"
+)
+
 NO_FAILURE_TO_RETRY = CLI.define("no_failure_to_retry", "run {run_id} has no settled failure of step {step} to retry")
 
 NO_REPORT_DOCUMENT = CLI.define(

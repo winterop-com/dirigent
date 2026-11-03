@@ -20,10 +20,12 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dirigent_client.enums import AuditAction, AuditSubject
 from dirigent_client.schemas import Catalog
 from dirigent_common import Issue, JsonMap
 from dirigent_common.messages import TEXT_UNSTORABLE
 from dirigent_common.storable import is_storable
+from dirigent_core import audit
 from dirigent_core.engine.definition import schemas_named
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import SCHEMA_IN_USE, SCHEMA_INVALID, SCHEMA_NO_CODE
@@ -140,12 +142,29 @@ async def store_schema(
         row = Schema(code=resolved_code, name=resolved_name, description=resolved_description, body=body)
         session.add(row)
         await session.flush()
+        await audit.record(session, AuditAction.CREATED, AuditSubject.SCHEMA, code=row.code, subject_id=row.id)
         return row
+    before = schema_fields(existing)
     existing.name = resolved_name
     existing.description = resolved_description
     existing.body = body
     await session.flush()
+    await record_schema_update(session, existing, before)
     return existing
+
+
+def schema_fields(row: Schema) -> dict[str, object]:
+    """What an edit of a stored schema may change, for naming the fields it did."""
+    return {"name": row.name, "description": row.description, "body": row.body}
+
+
+async def record_schema_update(session: AsyncSession, row: Schema, before: dict[str, object]) -> None:
+    """Journal an edit of a stored schema, naming the fields it changed, when it changed any."""
+    fields = audit.changed(before, schema_fields(row))
+    if fields:
+        await audit.record(
+            session, AuditAction.UPDATED, AuditSubject.SCHEMA, code=row.code, subject_id=row.id, fields=fields
+        )
 
 
 async def schema_codes(session: AsyncSession) -> set[str]:
@@ -188,6 +207,8 @@ async def delete_schema(session: AsyncSession, code: str) -> bool:
     if row is None:
         return False
     await session.delete(row)
+    await session.flush()
+    await audit.record(session, AuditAction.DELETED, AuditSubject.SCHEMA, code=code, subject_id=row.id)
     return True
 
 

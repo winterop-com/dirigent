@@ -175,7 +175,7 @@ class Worker:
         try:
             await self.engine.run_unit(unit)
         except Exception as error:  # the outcome transaction owns failures; this is a bug
-            _logger.error("executing an attempt raised", attempt_id=str(unit.attempt_id), error=str(error))
+            _logger.error("executing an attempt raised", **unit.log_fields, error=str(error))
         finally:
             self.in_flight.pop(unit.attempt_id, None)
             self._running.pop(unit.attempt_id, None)
@@ -209,27 +209,43 @@ class Worker:
             try:
                 claimed = dict(self.in_flight)
                 held = await self.engine.heartbeat(list(claimed.values()))
-                self._abandon(set(claimed) - held)
+                await self._abandon([claimed[attempt_id] for attempt_id in set(claimed) - held])
                 await self._register(WorkerStatus.DRAINING if self.draining else WorkerStatus.RUNNING)
             except Exception as error:  # a missed heartbeat is recoverable; a dead task is not
                 _logger.warning("heartbeat failed", worker=self.name, error=str(error))
 
-    def _abandon(self, lost: set[UUID]) -> None:
+    async def _abandon(self, lost: Sequence[ClaimedUnit]) -> None:
         """Stop working on attempts whose lease this worker no longer holds.
 
-        A heartbeat that does not come back means the sweeper handed the attempt to somebody
-        else: the outcome will be refused by the engine's lease fence anyway, and continuing
-        is duplicate work against whatever the block talks to.
+        A cancel of the run releases the lease, and is said at INFO with who cancelled it.
+        Any other heartbeat that does not come back means the sweeper handed the attempt to
+        somebody else: the outcome will be refused by the engine's lease fence anyway, and
+        continuing is duplicate work against whatever the block talks to.
         """
-        for attempt_id in lost:
-            task = self._running.pop(attempt_id, None)
-            _logger.warning(
-                "lease lost, abandoning attempt",
-                worker=self.name,
-                attempt_id=str(attempt_id),
-                cancelled=task is not None and not task.done(),
-            )
-            if task is not None and not task.done():
+        if not lost:
+            return
+        cancelled = await self.engine.cancelled([unit.attempt_id for unit in lost])
+        for unit in lost:
+            task = self._running.pop(unit.attempt_id, None)
+            stopping = task is not None and not task.done()
+            why = cancelled.get(unit.attempt_id)
+            if why is not None:
+                _logger.info(
+                    "attempt stopped: run cancelled",
+                    **unit.log_fields,
+                    worker=self.name,
+                    reason=why.reason,
+                    cancelled_by=why.by,
+                    stopped=stopping,
+                )
+            else:
+                _logger.warning(
+                    "lease lost, abandoning attempt",
+                    **unit.log_fields,
+                    worker=self.name,
+                    cancelled=stopping,
+                )
+            if task is not None and stopping:
                 task.cancel()
 
     async def _sweep_loop(self) -> None:

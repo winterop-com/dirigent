@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from typer import _click, rich_utils
 from typer.core import TyperGroup
 
-from dirigent_cli import commands, profile_commands, source_commands, triggers
+from dirigent_cli import audit_commands, commands, profile_commands, source_commands, triggers
 from dirigent_cli.aliases import add_alias, add_list_aliases
 from dirigent_cli.context import CliState, state_of
 from dirigent_cli.formatters import DEFAULT, names
@@ -87,6 +87,7 @@ if TYPE_CHECKING:
     from dirigent_common import JsonMap
     from dirigent_core import retention
     from dirigent_core.migrations import SchemaDifference
+    from dirigent_core.models import Connection
     from dirigent_core.worker import Worker
     from dirigent_plugin import ContainerResult
 
@@ -165,6 +166,7 @@ app.add_typer(commands.auth_app, rich_help_panel=ADMIN_PANEL)
 commands.system_app.add_typer(health_app)
 app.add_typer(commands.system_app, rich_help_panel=ADMIN_PANEL)
 app.add_typer(commands.admin_app, rich_help_panel=ADMIN_PANEL)
+app.command(name="audit", rich_help_panel=ADMIN_PANEL)(audit_commands.audit)
 
 app.command("run", rich_help_panel=RUN_PANEL)(commands.run_command)
 app.command("backfill", rich_help_panel=RUN_PANEL)(commands.backfill_command)
@@ -311,6 +313,9 @@ def resolve_output(named: str | None, *, json_output: bool) -> Format:
 DEV_ADMIN = "admin"
 DEV_PASSWORD = "admin"  # noqa: S105
 DEV_TOKEN_NAME = "dev"
+
+#: The file in the state directory ``dg dev`` writes its log to.
+DEV_LOG_FILE = "dev.log"
 
 #: The credential `dg dev --seed` authenticates its own applies with, and how long it lasts.
 SEED_TOKEN_NAME = "dev seed"
@@ -578,18 +583,22 @@ async def store_connection(
     """Insert or overwrite one connection row, and say which of the two happened."""
     import sqlalchemy as sa
 
+    from dirigent_client.enums import AuditAction, AuditSubject
+    from dirigent_core import audit
     from dirigent_core.database import create_engine, create_session_factory, session_scope
     from dirigent_core.models import Connection
 
     engine = create_engine(settings)
     try:
         async with session_scope(create_session_factory(engine)) as session:
+            audit.act_as(session, audit.host("dg connection ensure"))
             found = await session.execute(sa.select(Connection).where(Connection.code == code))
             row = found.scalar_one_or_none()
             written = "updated" if row is not None else "created"
             if row is None:
                 row = Connection(code=code)
                 session.add(row)
+            before = _connection_fields(row, settings)
             row.kind = kind
             row.name = name
             row.description = description
@@ -597,9 +606,38 @@ async def store_connection(
             row.secret_envelope = envelope
             row.secret_key_id = key_id
             row.awaiting_secrets = False
+            await session.flush()
+            if written == "created":
+                await audit.record(session, AuditAction.CREATED, AuditSubject.CONNECTION, code=code, subject_id=row.id)
+            else:
+                fields = audit.changed(before, _connection_fields(row, settings))
+                if fields:
+                    await audit.record(
+                        session,
+                        AuditAction.UPDATED,
+                        AuditSubject.CONNECTION,
+                        code=code,
+                        subject_id=row.id,
+                        fields=fields,
+                    )
         return written
     finally:
         await engine.dispose()
+
+
+def _connection_fields(row: "Connection", settings: Settings) -> dict[str, object]:
+    """A connection row flattened to field and value, secrets opened, for naming what an ensure changed.
+
+    A stored envelope the key no longer opens reads as one field that differs from anything.
+    """
+    from dirigent_core.secrets import SecretBox, SecretError
+
+    key = settings.secret_key.get_secret_value() if settings.secret_key else None
+    try:
+        sealed = SecretBox(key).open(row.secret_envelope, key_id=row.secret_key_id)
+    except SecretError:
+        sealed = {"secrets": object()}
+    return {"name": row.name, "description": row.description, **dict(row.config or {}), **sealed}
 
 
 @health_app.callback(invoke_without_command=True)
@@ -712,6 +750,7 @@ def prune_command(
     inputs: Annotated[str | None, typer.Option(help="Keep the record of inputs to a source younger than this.")] = None,
     firings: Annotated[str | None, typer.Option(help="Keep schedule firings younger than this.")] = None,
     notifications: Annotated[str | None, typer.Option(help="Keep sent alerts younger than this.")] = None,
+    audit: Annotated[str | None, typer.Option(help="Keep audit trail entries younger than this.")] = None,
     scratch: Annotated[
         bool,
         typer.Option("--scratch/--no-scratch", help="Delete a pruned run's artifacts from storage too."),
@@ -728,7 +767,7 @@ def prune_command(
     settings = get_settings()
     state = state_of(ctx)
     try:
-        policy = _prune_policy(settings, runs, logs, inputs, firings, notifications, scratch=scratch)
+        policy = _prune_policy(settings, runs, logs, inputs, firings, notifications, scratch=scratch, audit=audit)
     except ValueError as error:
         refuse(INVALID_AGE, status=2, title="Invalid age", detail=str(error))
         raise typer.Exit(code=2) from error
@@ -744,6 +783,7 @@ def _prune_policy(
     notifications: str | None,
     *,
     scratch: bool,
+    audit: str | None = None,
 ) -> "retention.Policy":
     """Resolve each family's age: the flag, then the setting, then not pruned at all."""
     from dirigent_common import parse_duration
@@ -758,6 +798,7 @@ def _prune_policy(
         inputs=age(inputs, settings.retention_inputs),
         firings=age(firings, settings.retention_firings),
         notifications=age(notifications, settings.retention_notifications),
+        audit=age(audit, settings.retention_audit),
         scratch=scratch,
     )
 
@@ -1049,14 +1090,16 @@ async def _create_user(
     settings: Settings, username: str, password: str, role: UserRole, email: str | None = None
 ) -> str:
     """Create one account directly against the configured database."""
+    from dirigent_core.audit import acting_as, host
     from dirigent_core.auth import AuthError, create_user
     from dirigent_core.database import create_engine, create_session_factory, session_scope
 
     engine = create_engine(settings)
     try:
-        async with session_scope(create_session_factory(engine)) as session:
-            user = await create_user(session, username, password, role=role, email=email)
-            return user.username
+        with acting_as(host("dg admin user create")):
+            async with session_scope(create_session_factory(engine)) as session:
+                user = await create_user(session, username, password, role=role, email=email)
+                return user.username
     except AuthError as error:
         refuse(AUTH_REFUSED, detail=str(error))
         raise typer.Exit(code=1) from error
@@ -1126,12 +1169,7 @@ def dev(
     settings = get_settings()
     drop_secret_key_variable()
     keep_same_user_out()
-    # A developer convenience starts its own logging at WARNING and -v is what asks for more,
-    # while a named DIRIGENT_LOG_LEVEL still wins.
-    _process_logging(
-        state.level if state is not None else "WARNING",
-        cap_foreign=state is None or not state.debug_all,
-    )
+    _dev_logging(state, settings)
     warn_of_ignored_settings()
     if not settings.is_sqlite:
         refuse(
@@ -1153,6 +1191,7 @@ def dev(
         refuse_state(error)
     migrated = _migrate_quietly(settings)
     guard_schema(settings)
+    _dev_logging(state, settings, to_file=True)
     admin, token = asyncio.run(dev_admin(settings, exposed_on=address if exposed else None))
     listening = port or settings.port
     bound = f"http://{address}:{listening}"
@@ -1300,6 +1339,9 @@ def dev_facts(settings: Settings, *, admin: str | None, password: str | None = N
     state = settings.sqlite_path
     if state is not None:
         fields["state"] = str(state.parent.resolve())
+    log = dev_log_path(settings)
+    if log is not None:
+        fields["log"] = str(log.resolve())
     return fields
 
 
@@ -1330,6 +1372,55 @@ def emit(record: Record) -> None:
         Sink(output_mode()).write(record)
     except BrokenPipeError:
         silence_stdout()
+
+
+def dev_log_path(settings: Settings) -> Path | None:
+    """Name the file ``dg dev`` writes its log to, in its state directory, or None with no state on disk."""
+    database = settings.sqlite_path
+    return None if database is None else database.parent / DEV_LOG_FILE
+
+
+def dev_log_level(state: CliState | None, settings: Settings) -> str:
+    """Choose ``dg dev``'s level: a flag, then a ``log_level`` the settings name, then INFO."""
+    if state is not None and (state.verbose or state.debug or state.debug_all):
+        return state.level
+    if "log_level" in settings.model_fields_set:
+        return settings.log_level
+    return "INFO"
+
+
+def _dev_logging(state: CliState | None, settings: Settings, *, to_file: bool = False) -> None:
+    """Point ``dg dev``'s logging at its stream and, once its state directory stands, at its log file.
+
+    At its own level the request log and the step-level engine lines are quiet; ``-v`` lets
+    both through, and ``--debug-all`` everything.
+    """
+    import logging
+
+    from dirigent_cli.output import output_mode
+    from dirigent_cli.stream import ansi
+    from dirigent_core.logging import ACCESS_LOGGER, NOISY_LOGGERS, STEP_LOGGER, LogFile
+
+    detailed = state is not None and bool(state.verbose or state.debug or state.debug_all)
+    floors = (
+        dict(NOISY_LOGGERS)
+        if detailed
+        else {**NOISY_LOGGERS, ACCESS_LOGGER: logging.WARNING, STEP_LOGGER: logging.WARNING}
+    )
+    path = dev_log_path(settings) if to_file else None
+    mode = output_mode()
+    configure_logging(
+        dev_log_level(state, settings),
+        mode,
+        floors=floors,
+        cap_foreign=state is None or not state.debug_all,
+        foreign_allowed=frozenset({ACCESS_LOGGER}) if detailed else frozenset(),
+        stream=sys.stdout,
+        paint=ansi if mode == "console" else None,
+        file=None
+        if path is None
+        else LogFile(path=path, max_bytes=settings.dev_log_max_size, backups=settings.dev_log_backups),
+    )
 
 
 def _process_logging(level: str, *, cap_foreign: bool, stream: TextIO | None = None) -> None:
@@ -1379,6 +1470,7 @@ async def dev_admin(settings: Settings, *, exposed_on: str | None = None) -> tup
     There the development admin is still made, with a warning that its fixed password is
     reachable from that address.
     """
+    from dirigent_core.audit import act_as, host
     from dirigent_core.auth import (
         create_fixture_admin,
         find_user,
@@ -1393,6 +1485,7 @@ async def dev_admin(settings: Settings, *, exposed_on: str | None = None) -> tup
     try:
         sessions = create_session_factory(engine)
         async with session_scope(sessions) as session:
+            act_as(session, host("dg dev"))
             existing = await list_users(session)
             if exposed_on is not None:
                 fixture = await find_user(session, DEV_ADMIN)
@@ -1419,12 +1512,14 @@ async def seed_token(settings: Settings) -> str:
     though it runs inside the process that is serving. A --keep-state instance kept its own
     admin and handed its token over long ago, so one is minted here for the seeding alone.
     """
+    from dirigent_core.audit import act_as, host
     from dirigent_core.auth import issue_token, list_users
     from dirigent_core.database import create_engine, create_session_factory, session_scope
 
     engine = create_engine(settings)
     try:
         async with session_scope(create_session_factory(engine)) as session:
+            act_as(session, host("dg dev"))
             admins = [user for user in await list_users(session) if user.role is UserRole.ADMIN and user.active]
             if not admins:
                 refuse(

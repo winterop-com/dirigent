@@ -93,7 +93,7 @@ describe('the groups', () => {
             ['/runs', '/triggers'],
             ['/pipelines', '/connections', '/schemas'],
             ['/blocks', '/examples'],
-            ['/admin/users', '/admin/workers', '/admin/alerting'],
+            ['/admin/users', '/admin/workers', '/admin/alerting', '/admin/audit'],
         ])
     })
 })

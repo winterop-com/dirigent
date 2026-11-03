@@ -152,6 +152,73 @@ def upgrade() -> None:
         sa.UniqueConstraint("email", name=op.f("uq_users_email")),
     )
     op.create_table(
+        "audit_entries",
+        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
+        sa.Column(
+            "action",
+            sa.Enum(
+                "created",
+                "updated",
+                "deleted",
+                "activated",
+                "deactivated",
+                "paused",
+                "resumed",
+                "revoked",
+                "role_changed",
+                "password_changed",
+                "password_reset",
+                "token_rotated",
+                "secrets_supplied",
+                name="audit_action",
+                native_enum=False,
+                length=32,
+            ),
+            nullable=False,
+        ),
+        sa.Column(
+            "subject_kind",
+            sa.Enum(
+                "pipeline",
+                "trigger_document",
+                "schedule",
+                "source",
+                "alert_rule",
+                "connection",
+                "schema",
+                "user",
+                "token",
+                name="audit_subject",
+                native_enum=False,
+                length=32,
+            ),
+            nullable=False,
+        ),
+        sa.Column("subject_id", sa.Uuid(), nullable=True),
+        sa.Column("subject_code", sa.String(length=200), nullable=True),
+        sa.Column("parent_code", sa.String(length=200), nullable=True),
+        sa.Column("fields", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False),
+        sa.Column("actor_id", sa.Uuid(), nullable=True),
+        sa.Column("actor_username", sa.String(length=200), nullable=True),
+        sa.Column("actor_token", sa.String(length=200), nullable=True),
+        sa.Column("actor_token_prefix", sa.String(length=16), nullable=True),
+        sa.Column("actor_label", sa.String(length=400), nullable=False),
+        sa.Column(
+            "created_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_audit_entries")),
+    )
+    with op.batch_alter_table("audit_entries", schema=None) as batch_op:
+        batch_op.create_index("ix_audit_entries_created_at", ["created_at"], unique=False)
+        batch_op.create_index(
+            "ix_audit_entries_subject_kind_subject_code", ["subject_kind", "subject_code"], unique=False
+        )
+        batch_op.create_index("ix_audit_entries_actor_username", ["actor_username"], unique=False)
+
+    op.create_table(
         "workers",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),
@@ -634,6 +701,7 @@ def upgrade() -> None:
         "notifications",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("alert_rule_id", sa.Uuid(), nullable=True),
+        sa.Column("rule_code", sa.String(length=200), nullable=True),
         sa.Column("run_id", sa.Uuid(), nullable=True),
         sa.Column(
             "event",
@@ -683,7 +751,7 @@ def upgrade() -> None:
             ["alert_rule_id"],
             ["alert_rules.id"],
             name=op.f("fk_notifications_alert_rule_id_alert_rules"),
-            ondelete="CASCADE",
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["connection_id"],
@@ -1027,6 +1095,12 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop all of it."""
+    with op.batch_alter_table("audit_entries", schema=None) as batch_op:
+        batch_op.drop_index("ix_audit_entries_actor_username")
+        batch_op.drop_index("ix_audit_entries_subject_kind_subject_code")
+        batch_op.drop_index("ix_audit_entries_created_at")
+
+    op.drop_table("audit_entries")
     with op.batch_alter_table("log_entries", schema=None) as batch_op:
         batch_op.drop_index("ix_log_entries_run_id_id")
         batch_op.drop_index("ix_log_entries_created_at")

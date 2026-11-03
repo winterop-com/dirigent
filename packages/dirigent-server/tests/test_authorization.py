@@ -156,6 +156,8 @@ def test_a_viewer_reads_a_pipeline_a_run_and_a_report(client: TestClient, viewer
     assert viewer.get(f"{PREFIX}/runs/{run_id}/$report").status_code == 200
     assert viewer.get(f"{PREFIX}/runs/{run_id}/artifacts").status_code == 200
     assert viewer.get(f"{PREFIX}/artifacts/{run_id}").status_code == 404, "read by a viewer, and simply not there"
+    attempt_id = client.get(f"{PREFIX}/runs/{run_id}/attempts").json()["items"][0]["id"]
+    assert viewer.get(f"{PREFIX}/attempts/{attempt_id}").status_code == 200
     assert viewer.post(f"{PREFIX}/pipelines/api-demo/$validate", json={}).status_code == 200
 
 

@@ -8,6 +8,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Final, NoReturn, cast
+from urllib.parse import quote
 from uuid import UUID
 
 import typer
@@ -920,12 +921,14 @@ async def first_admin(settings: Settings, username: str, password: str, *, fixtu
     A fixture admin is a local instance's, whose fixed password the length rule spares.
     """
     from dirigent_client.enums import UserRole
+    from dirigent_core.audit import act_as, host
     from dirigent_core.auth import AuthError, create_fixture_admin, create_user, issue_token
     from dirigent_core.database import create_engine, create_session_factory, session_scope
 
     engine = create_engine(settings)
     try:
         async with session_scope(create_session_factory(engine)) as session:
+            act_as(session, host("dg init"))
             if fixture:
                 user = await create_fixture_admin(session, username, password)
             else:
@@ -2284,6 +2287,37 @@ def runs_show(
                 for item in items
             ],
         )
+
+
+@runs_app.command("attempt")
+def runs_attempt(
+    ctx: typer.Context,
+    attempt_id: Annotated[UUID, typer.Argument(help="The attempt to find, as an engine log line names it.")],
+) -> None:
+    """Find an attempt by its id alone: its run, its pipeline, its step, and where the UI shows it."""
+    with client_for(state_of(ctx)) as dg:
+        found = dg.call(dg.attempts.get(attempt_id))
+        base = dg.url.rstrip("/")
+    emit_fact(
+        "run.attempt",
+        message=found.status.value,
+        attempt_id=str(found.id),
+        run_id=str(found.run_id),
+        pipeline=found.pipeline,
+        step=found.step_name,
+        item=found.item,
+        attempt=found.attempt,
+        block=found.block_id,
+        error=found.error,
+        started_at=found.started_at.isoformat() if found.started_at else None,
+        finished_at=found.finished_at.isoformat() if found.finished_at else None,
+        address=f"{base}{attempt_address(found.run_id, found.step_name, found.id)}",
+    )
+
+
+def attempt_address(run_id: UUID, step: str, attempt_id: UUID) -> str:
+    """The UI's address of a run with this step chosen and this try marked."""
+    return f"/runs/{run_id}/{quote(step, safe='')}?attempt={attempt_id}"
 
 
 @runs_app.command("cancel")

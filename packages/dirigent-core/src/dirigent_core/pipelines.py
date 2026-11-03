@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
-from dirigent_client.enums import AttemptStatus, RunStatus
+from dirigent_client.enums import AttemptStatus, AuditAction, AuditSubject, RunStatus
 from dirigent_client.schemas import (
     ApplyResult,
     DiffSummary,
@@ -26,6 +26,7 @@ from dirigent_client.schemas import (
     ValidationIssue,
 )
 from dirigent_common import JsonMap
+from dirigent_core import audit
 from dirigent_core.connections import hold_connections
 from dirigent_core.documents import (
     digest_of,
@@ -45,7 +46,6 @@ from dirigent_core.engine.runs import Provenance, save_pipeline
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.errors import DomainError
-from dirigent_core.logging import get_logger
 from dirigent_core.messages import (
     PIPELINE_IN_USE,
     PIPELINE_NO_SUCH_VERSION,
@@ -69,8 +69,6 @@ from dirigent_core.reportchecks import report_warnings
 from dirigent_core.schemas import schema_codes
 from dirigent_core.sources.rows import claimed_route_issues, reconcile_sources, retiring_sources
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues, retiring_schedules
-
-_logger = get_logger("pipelines")
 
 
 class PipelineError(DomainError):
@@ -212,6 +210,17 @@ def diff_definitions(current: PipelineDefinition, incoming: PipelineDefinition) 
     )
 
 
+def changed_parts(diff: DiffSummary) -> list[str]:
+    """Name the parts of a document a plan's diff says changed, as the audit trail records them."""
+    parts = {
+        "steps": bool(diff.steps_added or diff.steps_removed or diff.steps_changed),
+        "params": diff.params_changed,
+        "triggers": diff.triggers_changed,
+        "settings": diff.settings_changed,
+    }
+    return [part for part, changed in parts.items() if changed]
+
+
 async def plan_apply(
     session: AsyncSession,
     services: EngineServices,
@@ -347,12 +356,14 @@ async def apply_document(
     sources = await reconcile_sources(
         session, services.settings, services.sources, services.secrets, pipeline, definition, pause_created=paused
     )
-    _logger.info(
-        "pipeline applied",
-        pipeline=definition.code,
-        version=version.version,
-        action=plan.action.value,
-        digest=plan.digest,
+    created = plan.action is PlanAction.CREATE
+    await audit.record(
+        session,
+        AuditAction.CREATED if created else AuditAction.UPDATED,
+        AuditSubject.PIPELINE,
+        code=definition.code,
+        subject_id=pipeline.id,
+        fields=() if created or plan.diff is None else changed_parts(plan.diff),
     )
     return ApplyResult(
         plan=plan, pipeline_id=version.pipeline_id, version=version.version, triggers=triggers, sources=sources
@@ -399,9 +410,12 @@ async def set_active(session: AsyncSession, code: str, *, active: bool) -> Pipel
     """Activate or deactivate a pipeline, keeping its code and its history."""
     pipeline = await require_pipeline(session, code)
     await lock_pipeline(session, pipeline.id)
+    was = pipeline.active
     pipeline.active = active
     await session.flush()
-    _logger.info("pipeline activation changed", pipeline=code, active=active)
+    if was is not active:
+        action = AuditAction.ACTIVATED if active else AuditAction.DEACTIVATED
+        await audit.record(session, action, AuditSubject.PIPELINE, code=code, subject_id=pipeline.id)
     return pipeline
 
 
@@ -441,14 +455,14 @@ async def delete_pipeline(session: AsyncSession, code: str) -> None:
     live = await count_runs(session, pipeline.id, Run.status.in_(IN_FLIGHT))
     if live:
         raise PipelineInUse(code, live)
-    history = await count_runs(session, pipeline.id)
     runs = sa.select(Run.id).where(Run.pipeline_id == pipeline.id).scalar_subquery()
     for table in RUN_FAMILY:
         await session.execute(sa.delete(table).where(table.run_id.in_(runs)))
     await session.execute(sa.delete(Run).where(Run.pipeline_id == pipeline.id))
+    pipeline_id = pipeline.id
     await session.delete(pipeline)
     await session.flush()
-    _logger.info("pipeline deleted", pipeline=code, runs=history)
+    await audit.record(session, AuditAction.DELETED, AuditSubject.PIPELINE, code=code, subject_id=pipeline_id)
 
 
 #: The run statuses a step failure is worth naming under.

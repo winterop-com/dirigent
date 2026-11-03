@@ -462,6 +462,25 @@ def test_a_run_profile_renders_the_chain_and_the_split_along_it() -> None:
     assert "70%" in text, "the share of the run is what says which part is worth attention"
 
 
+def test_a_found_attempt_renders_what_it_belongs_to_and_where_to_open_it() -> None:
+    found = make(
+        "run.attempt",
+        at=AT,
+        message="failed",
+        attempt_id="an-attempt",
+        run_id="a-run",
+        pipeline="demo",
+        step="load",
+        item="oslo",
+        attempt=2,
+        address="http://127.0.0.1:8080/runs/a-run/load?attempt=an-attempt",
+    )
+    text = printed(Console().render(found))
+    assert "attempt an-attempt" in text
+    assert "oslo" in text
+    assert "http://127.0.0.1:8080/runs/a-run/load?attempt=an-attempt" in text
+
+
 def test_run_stats_render_the_days_the_durations_and_what_failed_most() -> None:
     """Every table is drawn from the record, and the line keeps none of what is drawn beneath it."""
     stats = make(

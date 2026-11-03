@@ -33,6 +33,7 @@ from dirigent_common.durations import format_duration
 from dirigent_core import telemetry, wakeups
 from dirigent_core.auth import hash_token
 from dirigent_core.engine.definition import load_definition
+from dirigent_core.engine.logcontext import run_fields
 from dirigent_core.engine.runs import Attribution, Entry, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
@@ -504,7 +505,7 @@ class _Journal:
     async def accept(self, accepted: InputAccepted) -> int:
         """Record an input that became a run, and hand back its journal row."""
         written = await self._write(InputOutcome.ACCEPTED, 202, run_id=accepted.run_id)
-        _logger.info("input accepted", source=self.row.code, run_id=str(accepted.run_id))
+        _logger.info("input accepted", source=self.row.code, **await run_fields(self.session, accepted.run_id))
         return written
 
     async def _write(

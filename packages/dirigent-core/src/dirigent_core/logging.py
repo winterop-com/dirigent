@@ -5,13 +5,16 @@ called at import time by a library module.
 """
 
 import logging
+import logging.handlers
 import os
 import sys
 from collections.abc import Generator, Mapping
 from contextlib import contextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
+from pydantic import BaseModel, ConfigDict
 from structlog.typing import EventDict, Processor
 
 from dirigent_core.protocol import Paint, adopt, console
@@ -53,6 +56,12 @@ _OWNED = "_dirigent_handler"
 #: Where a foreign logger is floored when verbosity was a request for dirigent's own reasoning.
 FOREIGN_FLOOR = logging.WARNING
 
+#: The per-request access log, which a process quiets at its own level until asked for.
+ACCESS_LOGGER = "uvicorn.access"
+
+#: Step-level engine detail: each attempt settled, retried, or past its deadline.
+STEP_LOGGER = f"{PACKAGE_LOGGER}.engine.steps"
+
 type LogFormat = Literal["console", "json"]
 
 
@@ -64,14 +73,15 @@ class CapForeignLoggers(logging.Filter):
     buries the answer to the one that was asked. ``--debug-all`` is how that is asked for.
     """
 
-    def __init__(self, floor: int = FOREIGN_FLOOR) -> None:
-        """Floor every logger outside the package namespace."""
+    def __init__(self, floor: int = FOREIGN_FLOOR, *, allowed: frozenset[str] = frozenset()) -> None:
+        """Floor every logger outside the package namespace, except the ones named."""
         super().__init__()
         self.floor = floor
+        self.allowed = allowed
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """Keep dirigent's own records, and anybody else's only from the floor upward."""
-        if record.levelno >= self.floor:
+        """Keep dirigent's own records, the named loggers', and anybody else's only from the floor upward."""
+        if record.levelno >= self.floor or record.name in self.allowed:
             return True
         return record.name == PACKAGE_LOGGER or record.name.startswith(f"{PACKAGE_LOGGER}.")
 
@@ -139,6 +149,16 @@ def silence_stdout() -> None:
         pass
 
 
+class LogFile(BaseModel):
+    """A file a process also writes its log to as NDJSON, rotated once it reaches a size."""
+
+    model_config = ConfigDict(frozen=True)
+
+    path: Path
+    max_bytes: int
+    backups: int
+
+
 class StreamHandler(logging.StreamHandler["TextIO"]):
     """A stream handler that goes quiet when its reader closes the pipe.
 
@@ -166,8 +186,10 @@ def configure_logging(
     *,
     floors: Mapping[str, int] | None = None,
     cap_foreign: bool = False,
+    foreign_allowed: frozenset[str] = frozenset(),
     stream: "TextIO | None" = None,
     paint: "Paint | None" = None,
+    file: LogFile | None = None,
 ) -> None:
     """Point structlog and the standard library at one shared, formatted handler.
 
@@ -180,6 +202,9 @@ def configure_logging(
     The console rendering is the record grammar, so a command's diagnostics read like its
     story rather than like a second program starting. ``paint`` says how to colour it; the
     caller supplies that, because what a terminal may be sent is the caller's to know.
+
+    ``file`` adds a second handler writing the same events to a file as NDJSON, whatever the
+    stream is spelled in, rotated by size.
     """
     numeric_level = logging.getLevelNamesMapping().get(level.upper(), logging.INFO)
 
@@ -191,21 +216,33 @@ def configure_logging(
         cache_logger_on_first_use=False,
     )
 
-    handler = StreamHandler(sys.stderr if stream is None else stream)
-    handler.setFormatter(
-        structlog.stdlib.ProcessorFormatter(
-            foreign_pre_chain=_shared_processors(),
-            processors=_renderer_chain(log_format, paint),
+    handlers: list[logging.Handler] = [StreamHandler(sys.stderr if stream is None else stream)]
+    formats: list[LogFormat] = [log_format]
+    if file is not None:
+        file.path.parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(
+            logging.handlers.RotatingFileHandler(
+                file.path, maxBytes=file.max_bytes, backupCount=file.backups, encoding="utf-8"
+            )
         )
-    )
-    if cap_foreign:
-        handler.addFilter(CapForeignLoggers())
-    setattr(handler, _OWNED, True)
+        formats.append("json")
+    for handler, spelling in zip(handlers, formats, strict=True):
+        handler.setFormatter(
+            structlog.stdlib.ProcessorFormatter(
+                foreign_pre_chain=_shared_processors(),
+                processors=_renderer_chain(spelling, paint if spelling == "console" else None),
+            )
+        )
+        if cap_foreign:
+            handler.addFilter(CapForeignLoggers(allowed=foreign_allowed))
+        setattr(handler, _OWNED, True)
 
     root = logging.getLogger()
     for existing in own_handlers(root):
         root.removeHandler(existing)
-    root.addHandler(handler)
+        existing.close()
+    for handler in handlers:
+        root.addHandler(handler)
     root.setLevel(numeric_level)
 
     for name in BRIDGED_LOGGERS:

@@ -1122,6 +1122,21 @@ def test_showing_a_run_composes_one_document_out_of_the_paged_sub_resources(tmp_
     assert (document["attempts_total"], document["items_total"]) == (2, 0)
 
 
+def test_an_attempt_is_found_by_its_id_with_its_run_and_the_address_that_opens_it(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path)
+    assert invoke("run", "cli-demo").exit_code == 0
+    run_id = latest_run()
+    document = only(invoke("runs", "show", run_id, "--json").output, "run.detail")["fields"]
+    attempt_id = document["attempts"][0]["id"]
+
+    found = only(machine("runs", "attempt", attempt_id).stdout, "run.attempt")
+    assert found["attempt_id"] == attempt_id
+    assert found["run_id"] == run_id
+    assert found["pipeline"] == "cli-demo"
+    assert found["step"] == "greet"
+    assert found["address"].endswith(f"/runs/{run_id}/greet?attempt={attempt_id}")
+
+
 def test_showing_a_run_says_where_each_steps_time_went(tmp_path: Path, server: str) -> None:
     """A reader can tell queued time from running time without doing the subtraction."""
     apply_document(tmp_path)

@@ -75,7 +75,7 @@ graph TB
       28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
       42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
       43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; only an alert rule and a named schema are deleted."]
-      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry.")]
       45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
 
@@ -115,7 +115,7 @@ graph TB
 
       subgraph 19 ["API server"]
 
-        20["API routes<br/>[Component]<br/>/api/v1: pipelines and apply, runs, sources, triggers, connections, alerts, users, workers, system."]
+        20["API routes<br/>[Component]<br/>/api/v1: pipelines and apply, runs, sources, triggers, connections, alerts, users, the audit trail, workers, system."]
         21["Auth<br/>[Component]<br/>Session cookie for the UI, bearer token for automation. Viewer, operator and admin roles."]
         22["Event streams<br/>[Component]<br/>SSE tails of a run's log entries and events, woken by dirigent_settled."]
         23["Endpoint intake<br/>[Component]<br/>/endpoints: checks a call in a fixed order (route, token, rate, type, size, signature), records the input, creates the run."]
@@ -127,7 +127,7 @@ graph TB
       18["Web UI<br/>[Container: React SPA]<br/>Pipeline builder, run grid and logs, connections, schedules, sources and alerts. Built from the block catalog."]
       42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
       43["dirigent-mcp<br/>[Container: MCP over stdio or Streamable HTTP (Python)]<br/>MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; only an alert rule and a named schema are deleted."]
-      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry.")]
       45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
 
@@ -189,7 +189,7 @@ graph TB
         41["Storage facade<br/>[Component]<br/>Dispatches URIs by scheme. Keeps a small output inline and a large one as a URI."]
       end
 
-      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry.")]
       45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
 
@@ -241,7 +241,7 @@ graph LR
       19["API server<br/>[Container: FastAPI / Uvicorn (Python)]<br/>dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler."]
       28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
       42["dg CLI<br/>[Container: Typer (Python)]<br/>Applies documents, starts and watches runs, and starts the server, worker and scheduler processes."]
-      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry.")]
       45[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
     end
 
@@ -273,7 +273,7 @@ graph LR
 
       19["API server<br/>[Container: FastAPI / Uvicorn (Python)]<br/>dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler."]
       28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
-      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry.")]
     end
 
     16["HTTP APIs<br/>[Software System]<br/>Any HTTP service an http.request step reaches, or that calls an endpoint source."]
@@ -298,7 +298,7 @@ graph LR
     subgraph 17 ["Dirigent"]
 
       28["Worker [1..*]<br/>[Container: asyncio (Python)]<br/>dg worker. Claims due attempts and calls blocks; polls and holds sources; sweeps leases and deadlines; delivers alerts. Routed by capability tags."]
-      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+      44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry.")]
     end
 
     13["S3-compatible storage<br/>[Software System]<br/>Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, MinIO."]
@@ -322,7 +322,7 @@ graph LR
 
       subgraph 156 ["postgres"]
 
-        157[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+        157[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry.")]
       end
 
       subgraph 158 ["s3"]
@@ -382,7 +382,7 @@ graph LR
 
       subgraph 182 [".dirigent/state"]
 
-        183[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry.")]
+        183[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry.")]
         187[("Artifact storage<br/>[Container: file:// or s3:// (dirigent-storage-s3)]<br/>Step outputs too large to inline, and each run's scratch prefix. Never a worker-local path.")]
       end
 

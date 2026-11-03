@@ -11,6 +11,7 @@ from dirigent_client.schemas.alerts import (
     TestQueued,
     TestRequest,
 )
+from dirigent_client.schemas.audit import AuditEntryOut
 from dirigent_client.schemas.auth import (
     Identity,
     IssuedTokenOut,
@@ -61,6 +62,7 @@ from dirigent_client.schemas.pipelines import (
 from dirigent_client.schemas.runs import (
     TERMINAL_RUN_STATUSES,
     ArtifactOut,
+    AttemptDetail,
     AttemptEvent,
     AttemptOut,
     DagNode,
@@ -114,12 +116,14 @@ from dirigent_client.schemas.triggers import (
 from dirigent_common import JsonList, JsonMap
 
 __all__ = [
+    "AuditEntryOut",
     "AlertRuleIn",
     "AlertRuleOut",
     "AlertRuleUpdate",
     "ApplyRequest",
     "ApplyResult",
     "ArtifactOut",
+    "AttemptDetail",
     "AttemptEvent",
     "AttemptOut",
     "BackfillAccepted",

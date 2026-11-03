@@ -714,6 +714,11 @@ state, which references a step resolved and what it read them from, how a failur
 classified and whether the retry budget covered it, when the next probe is due and why, and
 which leases the worker still holds.
 
+Every engine line about a run names it by `run_id` and `pipeline`, and a line about an attempt
+adds `step`, `attempt_id`, and `item` for a fan-out element. An attempt id is enough to get back
+to the run: `dg runs attempt ATTEMPT_ID` answers with its run, pipeline and step and the UI
+address that opens the run with that try marked, and the UI's search takes the id as well.
+
 Verbosity raises dirigent's own loggers and nobody else's: at `-v` and at `--debug`, anything
 outside the `dirigent` namespace -- alembic's migration history, SQLAlchemy's statements,
 uvicorn's access lines, the HTTP stack's socket reads -- stays at WARNING. Asking for more
@@ -721,7 +726,8 @@ detail is asking for the engine's reasoning, and answering with a library's woul
 `--debug-all` lifts every cap and sets the level itself, so it is the one flag that needs
 nothing beside it.
 
-Precedence is the flag, then `DIRIGENT_LOG_LEVEL`, then quiet.
+Precedence is the flag, then `DIRIGENT_LOG_LEVEL`, then quiet. `dg dev` is the exception: it is
+a process, so unasked it logs at INFO, and a `log_level` its settings name wins over that.
 
 ### The stream is a protocol
 
@@ -835,6 +841,20 @@ dg dev > dev.ndjson                # records, kept, and read back later with dg 
 dg dev --json | dg format compact  # the starting and ready records as one line each
 ```
 
+`dg dev` logs at INFO: every administrative change the audit trail records, each run's
+`run started` and `run settled` (with its `outcome` and `duration_ms`), and the engine's other
+INFO events. The per-request access log and the step-level engine lines (`attempt settled`,
+`attempt will be retried`) stay quiet until `-v` asks for them; `--debug` adds the engine's
+internals. A `log_level` the project's `dirigent.yaml` or `DIRIGENT_LOG_LEVEL` names is
+respected; a flag beats it.
+
+`dg dev` also writes its log to `.dirigent/state/dev.log`, as NDJSON whatever the terminal is,
+so a session can be read back after the terminal is gone: `dg format -f .dirigent/state/dev.log`
+or `jq` over it. The `starting` record names the file in its `log` field. It is rotated once it
+reaches `dev_log_max_size` (10MB), keeping `dev_log_backups` (3) older files beside it, and it
+lives in the state directory, so `--wipe-state` clears it and it is never committed.
+`dg server`, `dg worker` and `dg scheduler` write no file: their log is standard output.
+
 #### A command's diagnostics
 
 A command is not a process: its story goes to standard output and its own logging to standard
@@ -890,7 +910,7 @@ rather than being able to change what a parser reads the record by.
 | `step` | An attempt changes state; the message is the new status | `block`, `attempt`, `duration_ms` once it has settled |
 | `log` | A block writes a line | Whatever the block bound to it |
 | `output` | A step settles, from `-v` up; the message is its status | The output's own fields, or `artifact` and `bytes` when it went to storage |
-| `process` | A long-running process starts, when it is ready, when `dg dev --wipe-state` clears its state, and when the process that started `dg dev` goes | `process`; for `dg dev` and `dg server` a `starting` carries the `version`, `api`, `ui` when the UI is served, `docs` and `mcp` when MCP is enabled, and `dg dev`'s adds the `admin`, `state`, the `token` it minted and the schema it `migrated` to; a `ready` carries the same addresses and `version`, the `packs[]` loaded, each a `name` and `version`, and how many `blocks`, `connection_kinds` and `source_kinds` they contribute, and `dg dev`'s adds the `admin`, the fixture `password` while it still signs in, and the `state`; a `state cleared` carries the `state` it deleted and the `hint` that keeps it, and a `parent gone` the `parent` pid that went |
+| `process` | A long-running process starts, when it is ready, when `dg dev --wipe-state` clears its state, and when the process that started `dg dev` goes | `process`; for `dg dev` and `dg server` a `starting` carries the `version`, `api`, `ui` when the UI is served, `docs` and `mcp` when MCP is enabled, and `dg dev`'s adds the `admin`, `state`, the `log` file, the `token` it minted and the schema it `migrated` to; a `ready` carries the same addresses and `version`, the `packs[]` loaded, each a `name` and `version`, and how many `blocks`, `connection_kinds` and `source_kinds` they contribute, and `dg dev`'s adds the `admin`, the fixture `password` while it still signs in, the `state` and the `log` file; a `state cleared` carries the `state` it deleted and the `hint` that keeps it, and a `parent gone` the `parent` pid that went |
 | `seed.connection` | `dg dev --seed` creates a connection a file or a document declares | `connection`, `connection_kind`, `action` of `created` or `updated`, and the `origin` file it was read from |
 | `seed.schema` | `dg dev --seed` stores a standalone JSON Schema file | `schema`, the code it is stored under, and the `origin` file it was read from |
 | `seed.applied` | `dg dev --seed` stores one document | `document`, `pipeline`, `action`, and the `schedules_paused` and `sources_paused` this apply brought into being |
@@ -1082,6 +1102,7 @@ verb and whose fields are the identity of what changed:
 | `example.written` | `dg examples show -f` | `code`, and the `path` the document was written to |
 | `example.source` | `dg examples show` | The example itself: `code`, `name`, `description`, `tags`, `shelf`, `plugin`, `starter`, `requires`, and the `source` verbatim |
 | `run.detail` | `dg runs show` | The run, its `dag`, its `items` and its `attempts`, under `fields` |
+| `run.attempt` | `dg runs attempt` | `attempt_id`, `run_id`, `pipeline`, `step`, `item` for a fan-out element, `attempt`, `block`, `error`, `started_at`, `finished_at`, and the `address` that opens the run in the UI with that try marked |
 | `run.report` | `dg runs report` | What each step amounted to and how long it took, under `fields` |
 | `run.report_document` | `dg runs report --markdown` | `run_id`, and the markdown `document` the run rendered when it settled |
 | `runs.summary` | `dg runs summary` | Each pipeline's runs created in the window, the one that ran last first: `window_start`, `window_end`, and `pipelines[]` of `pipeline`, `name`, `latest` (`id`, `status`, `created_at`), `counts` of the states it has runs in, `recent[]` of its newest 30 runs oldest first, and `median_duration_ms` of the settled ones |
@@ -1243,6 +1264,7 @@ dg runs show | cancel | pause | resume | report | profile RUN_ID
 dg runs report RUN_ID [--markdown]      # the document the run rendered, when it declares `report:`
 dg runs logs RUN_ID [--follow] [--step NAME]
 dg runs retry RUN_ID --step NAME [--failed-items]
+dg runs attempt ATTEMPT_ID                   # the run, pipeline and step an attempt id belongs to, and its UI address
 dg runs rerun RUN_ID [--current] [--watch]   # a new run with the same parameters and source input
 dg format [console|compact] [-f FILE]   # render an NDJSON stream; reads stdin by default
 
@@ -1306,7 +1328,9 @@ dg --version | dg config show
 dg profile list | show [NAME]           # the profiles that apply here; never a token
 dg secret-key                           # a DIRIGENT_SECRET_KEY, on one plain line
 dg prune [--runs 30d] [--logs 7d] [--inputs 30d] [--firings 30d] [--notifications 30d]
-         [--no-scratch] [--dry-run]     # an age given here beats the configured one
+         [--audit 365d] [--no-scratch] [--dry-run]   # an age given here beats the configured one
+dg audit [--kind connection] [--subject CODE] [--actor NAME] [--action deleted]
+         [--since 24h] [--until 2026-11-03T09:00Z] [--limit 50]   # admin: who changed what
 dg db upgrade [REVISION] | current | history
 dg storage ensure                       # the bucket the artifact root addresses
 dg auth login [--username U] [--password P] | dg auth status   # login emits the token it minted
@@ -1319,6 +1343,13 @@ dg admin user list | activate NAME | deactivate NAME
 dg admin user password NAME [--password P]
 dg admin token create NAME [--user U] [--expires 90d] | list | revoke ID
 ```
+
+`dg audit` reads the [audit trail](security.md#the-audit-trail), newest first, as one `audit`
+record per change; the row rides under `fields`, so `dg audit | jq -r '.fields.actor_label'`
+names who acted, and at a terminal each reads as a line: the action, the subject as
+`pipeline/schedule` where it belongs to one, who acted, and the fields an update changed, never
+their values. `--since` and `--until` take a timestamp or a span back from now. `--actor` is a
+username, or a host command such as `dg dev` for a change no account made.
 
 `dg auth login` mints an API token and is the one place it is readable, so it writes a
 `token.issued` record carrying the token itself -- a scripted login reads it off the stream,

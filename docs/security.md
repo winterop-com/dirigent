@@ -1038,6 +1038,52 @@ stored -- no version row, export or diff can carry a credential that way. Carry 
 the credential is already public, such as a demo instance whose password is documented; for
 anything else the instance holds the connection and the document names it by code.
 
+## The audit trail
+
+Every administrative change is a row in `audit_entries`, written in the transaction that makes
+the change, so a change that is refused or rolls back leaves none. The same change is one INFO
+line on the process log under `dirigent.audit`, carrying the same fields.
+
+**What it records.** When, who, what, to what, and which fields:
+
+| Field | What it holds |
+| --- | --- |
+| `created_at` | When the change committed. |
+| `actor_username`, `actor_id` | The account that acted. Null when the host acted on the database directly: `dg admin user create`, `dg connection ensure`, `dg init`, `dg dev`'s own admin, `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD`, `apply_dir` at boot. |
+| `actor_token`, `actor_token_prefix` | The API token the account acted through, so an agent's changes read `agent (token mcp-trial)` the way its runs do. Null for a browser session. |
+| `actor_label` | Who acted, rendered: the username and token, or the host command's name. |
+| `action` | `created`, `updated`, `deleted`, `activated`, `deactivated`, `paused`, `resumed`, `revoked`, `role_changed`, `password_changed`, `password_reset`, `token_rotated`, `secrets_supplied`. |
+| `subject_kind`, `subject_code`, `subject_id` | `pipeline`, `trigger_document`, `schedule`, `source`, `alert_rule`, `connection`, `schema`, `user` or `token`, and which one. |
+| `parent_code` | What the subject belongs to: a schedule's or a source's pipeline, a token's account. |
+| `fields` | For an update, the names of the fields it changed. |
+
+The changes recorded are: a pipeline applied (created, or updated with the parts of the
+document that changed), activated, deactivated, pruned or deleted; a triggers document
+applied or deleted; a schedule created, redeclared, paused, resumed or deleted, whether by
+hand or by the document that owns it; a source paused, resumed, its token rotated or its
+signing secret set; an alert rule created, changed, paused, resumed or deleted; a connection
+created, updated, given the secrets it awaited (`secrets_supplied`) or deleted, through the API or `dg connection ensure`; a schema stored,
+corrected or deleted; an account created, edited, given a role, deactivated, activated, its
+password changed or reset; an API token created or revoked.
+
+Not recorded: a login, a logout and a browser session, which are credentials rather than
+changes; a run started, cancelled, paused, resumed, rerun or retried, and a notification
+retried, because a run and its attempts already name what started each one; a connection's
+health check; and an apply that changed nothing.
+
+**What it never records is a value.** An update names `bearer_token`, never the token; a
+password change says the password changed. A secret has no way into the table or the log
+line, because neither is ever handed one.
+
+**Who can read it.** Admins only: `GET /audit` (filters `subject_kind`, `subject`, `actor`,
+`action`, `since`, `until`, paged like every listing), `dirigent-client`'s `audit.list`,
+`dg audit`, the MCP `list_audit` tool, which an admin token alone is offered, and the Audit
+screen under Admin. An operator and a viewer are refused.
+
+**How long it is kept.** `retention_audit`, `365d` unless set, swept by the scheduler like
+every other [retention](operations.md#retention) family; `dg prune --audit` prunes by hand.
+Set it to null to keep every entry.
+
 ## Network placement
 
 Dirigent's coordination is entirely PostgreSQL. There is no inter-service protocol and no port
@@ -1125,9 +1171,6 @@ Stated plainly, because a security page that lists only what exists is not much 
   secrets; admin gates supplying a secret and modifying a connection, not using it.
 - **MFA, password policy, account lockout.** None of these exist. There is a minimum length of
   eight characters and a rate limit on login, and that is the whole of it.
-- **Audit log.** There is attribution -- every run points at what started it -- and there are
-  process logs. There is no queryable record of administrative actions: who created a
-  connection, who revoked a token, who deleted a pipeline.
 - **Secret-manager integration.** None, by design. See [where the key comes
   from](#where-the-key-comes-from).
 - **Key rotation.** Not supported. See [rotation, honestly](#rotation-honestly).

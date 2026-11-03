@@ -3911,3 +3911,22 @@ async def test_a_child_run_holds_its_own_shapes_rather_than_its_parent_s(
     assert child is not None
     assert set(parent.schemas) == {"ou-shape"}
     assert set(child.schemas) == {"child-shape"}, "a child pins its own, and inherits none of the parent's"
+
+
+async def test_a_run_says_once_that_it_started_and_once_that_it_settled(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    """The run-level lines a quiet process log keeps: its start, and its outcome and duration."""
+    definition = PipelineDefinition(code="told", steps=steps(only=StepDefinition(block="test.echo")))
+    run = await start(sessions, services, definition)
+    with capture_logs() as logged:
+        await drain(engine)
+
+    started = [entry for entry in logged if entry["event"] == "run started"]
+    settled = [entry for entry in logged if entry["event"] == "run settled"]
+    assert [(entry["run_id"], entry["pipeline"]) for entry in started] == [(str(run.id), "told")]
+    assert len(settled) == 1
+    assert settled[0]["outcome"] == RunStatus.SUCCEEDED.value
+    assert settled[0]["pipeline"] == "told"
+    assert isinstance(settled[0]["duration_ms"], int)
+    assert settled[0]["duration_ms"] >= 0

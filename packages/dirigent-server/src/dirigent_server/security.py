@@ -23,6 +23,7 @@ from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from dirigent_common.hosts import is_loopback_host
+from dirigent_core.audit import act_as
 from dirigent_core.auth import Principal, resolve_token
 from dirigent_core.config import Settings
 from dirigent_server.dependencies import SessionDep
@@ -104,7 +105,10 @@ async def optional_principal(
     secret = presented_secret(request)
     if secret is None:
         return None
-    return await resolve_token(session, secret)
+    principal = await resolve_token(session, secret)
+    if principal is not None:
+        act_as(session, principal.actor)
+    return principal
 
 
 async def require_principal(principal: Annotated[Principal | None, Security(optional_principal)]) -> Principal:

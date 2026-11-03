@@ -440,6 +440,7 @@ HOSTILE: dict[str, str] = {
     "retention_firings": "1s",
     "retention_inputs": "1s",
     "retention_logs": "1s",
+    "retention_audit": "1s",
     "retention_notifications": "1s",
     "retention_runs": "1s",
     "scheduler_lock_key": "7",
