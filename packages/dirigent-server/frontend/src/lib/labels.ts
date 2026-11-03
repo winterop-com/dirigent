@@ -1191,7 +1191,7 @@ const refused = {
     },
     secret: {
         connection_awaiting_secrets:
-            'Connection {connection} holds its settings and awaits its secrets ({fields}). Set them in its dialog, or with dg connection set-secret {connection}.',
+            'Connection {connection} holds its settings and awaits its secrets ({fields}). Nothing uses it until they are set.',
         connection_unreadable: 'The settings of a stored connection no longer fit its kind: {detail}',
         key_file_unreadable: 'The secret key file {path} cannot be read as a key: {detail}',
         key_malformed: 'DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken.',

@@ -81,7 +81,7 @@ CONNECTION_CONFIG_INVALID = SERVER.define("connection_config_invalid", "{detail}
 SECRETS_WITHHELD = SERVER.define(
     "secrets_withheld",
     "{fields} {verb} secret, and a connection created awaiting its secrets carries none: "
-    "leave {pronoun} out, and a person sets {pronoun} afterwards with `dg connection set-secret` or in its dialog",
+    "leave {pronoun} out, and a person sets {pronoun} afterwards",
 )
 
 NO_SCHEMA = SERVER.define("no_schema", "no schema coded {code}")

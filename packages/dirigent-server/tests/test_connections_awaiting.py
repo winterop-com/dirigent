@@ -111,7 +111,7 @@ async def test_a_check_is_refused_until_a_person_completes_it(admin: httpx2.Asyn
     refused = await admin.post(f"{PREFIX}/connections/vault/$check")
     assert refused.status_code == 409, refused.text
     assert refused.json()["code"] == "secret.connection_awaiting_secrets"
-    assert "dg connection set-secret vault" in refused.json()["detail"]
+    assert "vault holds its settings and awaits its secrets (password, api_token)" in refused.json()["detail"]
     assert (await admin.get(f"{PREFIX}/connections/vault")).json()["last_check_at"] is None
 
     still = await admin.patch(f"{PREFIX}/connections/vault", json={"config": {"endpoint": "https://vault.invalid"}})

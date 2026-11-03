@@ -122,9 +122,8 @@ CONNECTION_UNREADABLE = SECRET.define(
 
 CONNECTION_AWAITING_SECRETS = SECRET.define(
     "connection_awaiting_secrets",
-    "connection {connection} holds its settings and awaits its secrets ({fields}): a person supplies them "
-    "with `dg connection set-secret {connection}` or in its dialog on the Connections screen, "
-    "and nothing uses it until then",
+    "connection {connection} holds its settings and awaits its secrets ({fields}): "
+    "nothing uses it until a person supplies them",
 )
 
 ARTIFACTS = Catalogue("artifacts")
