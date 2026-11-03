@@ -6,6 +6,7 @@ coarser guard against a flapping pipeline.
 """
 
 import asyncio
+import json
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta
@@ -24,6 +25,7 @@ from dirigent_client.enums import (
     Importance,
     LogLevel,
     NotificationStatus,
+    RunItemStatus,
     RunStatus,
 )
 from dirigent_client.schemas.alerts import LOG_NOTIFIER, TEST_BODY, TEST_SUBJECT
@@ -50,6 +52,7 @@ from dirigent_core.messages import (
     ALERT_UNKNOWN_PIPELINE,
     ALERT_VERSION_GONE,
     BAD_ALERT_TEMPLATE,
+    BLOCK_RAISED,
     DUPLICATE_RULE,
     NOTIFICATION_IN_FLIGHT,
     NOTIFIER_NOT_ON_WORKER,
@@ -85,6 +88,20 @@ SUBJECT_CAP: Final = 200
 
 #: What a subject may render before it is refused: room to be cut rather than lost.
 SUBJECT_RENDER_CAP: Final = 8 * SUBJECT_CAP
+
+#: The characters an alert's error is cut to: one line, read beside the run's other facts.
+ERROR_CAP: Final = 300
+
+#: The run statuses an alert names a failing step and an error for.
+FAILING: Final = frozenset({RunStatus.FAILED, RunStatus.COMPLETED_WITH_ERRORS})
+
+#: How the default body opens for each status, before the failing step and its error.
+OPENING: Final = {
+    RunStatus.FAILED.value: "Failed",
+    RunStatus.COMPLETED_WITH_ERRORS.value: "Completed with errors",
+    RunStatus.SUCCEEDED.value: "Succeeded",
+    RunStatus.RUNNING.value: "Still running, with no progress",
+}
 
 CLAIM_LIMIT = 1
 
@@ -529,13 +546,70 @@ def _context_for(
     same whether the facts came with the call or were built here.
     """
     if facts is None:
-        return build_context(run, pipeline, base_url=base_url, report_url=report_url)
+        context = build_context(run, pipeline, base_url=base_url, report_url=report_url)
+        failure: JsonMap = {"failing_step": None, "failing_item": None, "error": None, "error_code": None}
+        if run.status in FAILING and run.error:
+            failure |= {"error": _said(run.error, run.error_code, run.error_params), "error_code": run.error_code}
+        return {**context, **failure}
     # Imported here rather than at module scope: reporting imports this module back.
     from dirigent_core.reporting import as_context
 
     context = as_context(facts)
     cast("JsonMap", context["run"])["report_url"] = report_url
-    return context
+    return {**context, **failure_of(run, facts)}
+
+
+def failure_of(run: Run, facts: "RunFacts") -> JsonMap:
+    """Name where a failing run went wrong: the failing step, the fan-out element, and what was said.
+
+    The first failed element's own refusal comes first, then the first failed step's, then the
+    run's own error, which is what a run that failed outside every step carries. A run that did
+    not fail names nothing.
+    """
+    named: JsonMap = {"failing_step": None, "failing_item": None, "error": None, "error_code": None}
+    if run.status not in FAILING:
+        return named
+    step = next((one for one in facts.steps if one.outcome == "failed"), None)
+    item = next(
+        (
+            one
+            for one in facts.items
+            if one.status is RunItemStatus.FAILED and (step is None or one.failing_step in (None, step.step))
+        ),
+        None,
+    )
+    error: str | None
+    code: str | None
+    params: Mapping[str, JsonValue] | None
+    if item is not None and item.error:
+        error, code, params = item.error, item.error_code, item.error_params
+    elif step is not None and step.error:
+        error, code, params = step.error, step.error_code, step.error_params
+    else:
+        error, code, params = run.error, run.error_code, run.error_params
+    failing_step = step.step if step is not None else (item.failing_step if item is not None else None)
+    return {
+        "failing_step": failing_step,
+        "failing_item": item.key if item is not None else None,
+        "error": _said(error, code, params),
+        "error_code": code if error else None,
+    }
+
+
+def _said(error: str | None, code: str | None, params: Mapping[str, JsonValue] | None) -> str | None:
+    """Cut a refusal to the one line an alert carries.
+
+    A block that raised something it did not explain is named by a sentence that says only
+    that, so what it raised is the line instead. Both were scrubbed of the step's secrets
+    when the attempt was written, and nothing here reads anything else.
+    """
+    if not error:
+        return None
+    detail = (params or {}).get("raised_detail") if code == BLOCK_RAISED.code else None
+    if isinstance(detail, str) and detail:
+        kind = (params or {}).get("raised_kind")
+        error = f"{kind}: {detail}" if isinstance(kind, str) and kind else detail
+    return " ".join(error.split())[:ERROR_CAP]
 
 
 async def _facts_of(session: AsyncSession, run: Run, *, base_url: str | None, rendered_at: datetime) -> "RunFacts":
@@ -618,9 +692,41 @@ def _one_line(text: str) -> str:
 
 
 def _body(context: JsonMap) -> str:
-    """Render the default body: the run's own facts, one per line, in a stable order."""
+    """Render the default body: how the run ended and where, who started it, then the links.
+
+    Short lines a person reads in a mail or a chat message, with the parameters as JSON.
+    """
     run = cast("JsonMap", context.get("run", {}))
-    lines = [f"{name}: {_as_text(value)}" for name, value in run.items() if value not in (None, "", {}, [])]
+    status = _as_text(run.get("status"))
+    where = ", ".join(
+        part
+        for part in (
+            f"at step {_as_text(context.get('failing_step'))}" if context.get("failing_step") else "",
+            f"item {_as_text(context.get('failing_item'))}" if context.get("failing_item") else "",
+        )
+        if part
+    )
+    opening = " ".join(part for part in (OPENING.get(status, status.replace("_", " ").capitalize()), where) if part)
+    error = context.get("error")
+    lines = [f"{opening}: {_as_text(error)}" if error else f"{opening}."]
+    started = f"Triggered by {_as_text(run.get('trigger'))}" if run.get("trigger") else "Started"
+    duration = run.get("duration_ms")
+    if isinstance(duration, int) and duration > 0:
+        started += f", ran for {format_duration(timedelta(milliseconds=duration))}"
+    lines.append(f"{started}.")
+    params = run.get("params")
+    if params:
+        lines.append(f"Params: {json.dumps(params, ensure_ascii=False, sort_keys=True, default=str)}")
+    if run.get("window_start") or run.get("window_end"):
+        lines.append(f"Window: {_as_text(run.get('window_start'))} to {_as_text(run.get('window_end'))}.")
+    if run.get("started_at"):
+        moments = f"Started {_as_text(run.get('started_at'))}"
+        if run.get("finished_at"):
+            moments += f", finished {_as_text(run.get('finished_at'))}"
+        lines.append(f"{moments}.")
+    lines.append(f"Run: {_as_text(run.get('url') or run.get('id'))}")
+    if run.get("report_url"):
+        lines.append(f"Report: {_as_text(run.get('report_url'))}")
     return "\n".join(lines)
 
 

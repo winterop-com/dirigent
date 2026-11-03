@@ -23,7 +23,7 @@ from dirigent_client.enums import (
     TriggerKind,
 )
 from dirigent_client.schemas.alerts import LOG_NOTIFIER
-from dirigent_common import JsonMap, render
+from dirigent_common import JsonMap, render, spellings
 from dirigent_core import alerting
 from dirigent_core.alerting import (
     DEFAULT_TEMPLATE,
@@ -56,7 +56,7 @@ from dirigent_core.alerting import (
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
-from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
+from dirigent_core.engine.definition import PipelineDefinition, RetryPolicy, StepDefinition
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.runs import create_run, save_pipeline
 from dirigent_core.ids import uuid7
@@ -907,8 +907,8 @@ async def test_a_queued_message_carries_the_link_back_when_the_instance_has_one(
         assert stored is not None
         queued = await raise_for_run(session, linked_services, stored, AlertEvent.RUN_FAILED, now=NOW)
     assert run_facts(queued[0].context)["url"] == f"https://dirigent.test/runs/{run.id}"
-    assert f"url: https://dirigent.test/runs/{run.id}" in queued[0].body
-    assert "duration_ms: 120000" in queued[0].body
+    assert f"Run: https://dirigent.test/runs/{run.id}" in queued[0].body.splitlines()
+    assert "ran for 2m" in queued[0].body
 
 
 async def test_a_run_no_rule_cares_about_queues_nothing(
@@ -1103,6 +1103,137 @@ async def test_a_name_the_facts_do_not_have_renders_empty_in_a_body(
     ), "an undefined name is not a failure"
 
 
+#: A credential a block opens and then quotes back in what it raises.
+QUOTED = "dummy-SECRET-7f3a9c"
+
+
+async def failed_through_a_step(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> tuple[Run, Notification]:
+    """Run a pipeline whose one step raises with a secret in the text, and hand back its alert."""
+    definition = PipelineDefinition(
+        code="run-controls",
+        steps={
+            "slow": StepDefinition(block="test.remote", config={"quotes": QUOTED}, retry=RetryPolicy(max_attempts=1))
+        },
+    )
+    async with session_scope(sessions) as session:
+        version = await save_pipeline(session, definition)
+        created = await create_run(session, services, version)
+    assert created is not None
+    moment = datetime.now(UTC)
+    for _ in range(20):
+        unit = await engine.claim(now=moment)
+        if unit is None:
+            break
+        await engine.run_unit(unit, now=moment)
+        moment += timedelta(seconds=5)
+    async with sessions() as session:
+        settled = await session.get(Run, created.id)
+        assert settled is not None and settled.status is RunStatus.FAILED
+    (notification,) = await notifications_of(sessions)
+    return settled, notification
+
+
+async def test_a_failed_runs_alert_names_the_failing_step_and_what_it_raised(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK))
+    run, notification = await failed_through_a_step(engine, sessions, services)
+
+    context = notification.context or {}
+    assert context["failing_step"] == "slow"
+    assert context["failing_item"] is None
+    assert context["error"] == "RuntimeError: Illegal header value b'Bearer ***'"
+    assert context["error_code"] == "run.block_raised"
+    lines = notification.body.splitlines()
+    assert lines[0] == "Failed at step slow: RuntimeError: Illegal header value b'Bearer ***'"
+    assert lines[-1] == f"Run: {run.id}"
+    assert not any(line.startswith(("id:", "status:", "pipeline:")) for line in lines), "prose, not a dump"
+
+
+async def test_a_secret_a_step_raised_never_reaches_the_alert(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK))
+    _, notification = await failed_through_a_step(engine, sessions, services)
+
+    for spelling in spellings(QUOTED):
+        assert spelling not in notification.body
+        assert spelling not in str(notification.context)
+    assert "***" in str((notification.context or {})["error"])
+
+
+async def test_a_custom_body_reads_the_failing_step_and_its_error(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            connection=DESK,
+            body="{{ run.pipeline }} broke in {{ failing_step }}: {{ error }}",
+        ),
+    )
+    _, notification = await failed_through_a_step(engine, sessions, services)
+
+    assert notification.body == "run-controls broke in slow: RuntimeError: Illegal header value b'Bearer ***'"
+
+
+async def test_the_default_body_writes_the_params_as_json_and_the_link(
+    sessions: async_sessionmaker[AsyncSession], linked_services: EngineServices
+) -> None:
+    run = await stored_run(sessions, linked_services)
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        stored.params = {"delay": "1s", "note": "ø"}
+    await declare(
+        sessions, linked_services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK)
+    )
+    queued = await raise_one(sessions, linked_services, run)
+
+    assert queued.body.splitlines() == [
+        "Failed: the loader gave up",
+        "Triggered by adhoc, ran for 2m.",
+        'Params: {"delay": "1s", "note": "ø"}',
+        "Started 2026-08-28T12:00:00+00:00, finished 2026-08-28T12:02:00+00:00.",
+        f"Run: https://dirigent.test/runs/{run.id}",
+    ]
+
+
+async def test_a_run_that_succeeded_names_no_failure_in_its_alert(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services, status=RunStatus.SUCCEEDED)
+    await declare(
+        sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_SUCCEEDED, connection=DESK)
+    )
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        (queued,) = await raise_for_run(session, services, stored, AlertEvent.RUN_SUCCEEDED, now=NOW)
+
+    context = queued.context or {}
+    assert [context[name] for name in ("failing_step", "failing_item", "error", "error_code")] == [None] * 4
+    assert queued.body.splitlines()[0] == "Succeeded."
+
+
+async def test_a_stuck_runs_default_body_says_it_is_still_running(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services, status=RunStatus.RUNNING)
+    await declare(sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_STUCK, connection=DESK))
+    async with session_scope(sessions) as session:
+        assert await raise_for_stuck(session, services, [run.id], now=NOW) == 1
+    (queued,) = await notifications_of(sessions)
+
+    assert queued.body.splitlines()[0] == "Still running, with no progress."
+    assert (queued.context or {})["failing_step"] is None
+
+
 async def test_a_rule_whose_template_does_not_compile_is_refused_at_creation(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
@@ -1140,8 +1271,7 @@ async def test_a_body_over_the_cap_falls_back_with_a_warning_in_the_runs_timelin
     )
     queued = await raise_one(sessions, services, run)
 
-    assert queued.body.startswith("id: ")
-    assert "pipeline: nightly" in queued.body, "the default body, the run's facts one per line"
+    assert queued.body.startswith("Failed: the loader gave up\n"), "the default body"
     warned = [entry for entry in await entries_of(sessions, run.id) if entry.level is LogLevel.WARNING]
     assert [entry.message for entry in warned] == [
         "the body of alert 'page-ops' was not rendered, so the default was sent"
@@ -1210,7 +1340,7 @@ async def test_a_body_that_fails_while_rendering_falls_back_to_the_facts(
     )
     queued = await raise_one(sessions, services, run)
 
-    assert "pipeline: nightly" in queued.body, "the default body, the run's facts one per line"
+    assert queued.body.startswith("Failed: the loader gave up\n"), "the default body"
     warned = [entry for entry in await entries_of(sessions, run.id) if entry.level is LogLevel.WARNING]
     assert [entry.message for entry in warned] == [
         "the body of alert 'page-ops' was not rendered, so the default was sent"
