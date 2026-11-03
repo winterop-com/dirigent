@@ -337,6 +337,31 @@ def test_the_runner_names_a_request_kind_it_does_not_know() -> None:
     assert answered == {"error": "explain is not a request kind: compile, run, or forget"}
 
 
+def test_an_interrupted_jq_runner_exits_130_without_a_traceback() -> None:
+    """The interrupt lands between two requests: after an answer, before the next line is read."""
+    import signal
+    import subprocess
+    import sys
+
+    started = subprocess.Popen(  # noqa: S603 - the argv is this test's own
+        (sys.executable, jq_runner.__file__),
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    assert started.stdin is not None
+    assert started.stdout is not None
+    started.stdin.write(b'{"kind": "forget", "id": "x"}\n')
+    started.stdin.flush()
+    assert started.stdout.readline(), "the runner answered, so it is inside its read loop"
+    started.send_signal(signal.SIGINT)
+    _out, err = started.communicate(timeout=10)
+
+    assert started.returncode == 130
+    assert b"Traceback" not in err
+    assert b"KeyboardInterrupt" not in err
+
+
 def test_a_program_keeps_the_lines_it_was_written_on() -> None:
     """A jq program is written over several lines, and the config carries it exactly as typed."""
     written = "group_by(.region)\n| map({region: .[0].region, total: (map(.count) | add)})\n"
