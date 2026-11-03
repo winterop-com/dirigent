@@ -27,6 +27,7 @@ from dirigent_blocks.messages import (
 from dirigent_common import (
     DEFAULT_CREDENTIAL_HEADER,
     BlockModel,
+    CredentialForm,
     CredentialHeader,
     CredentialQuery,
     CredentialScheme,
@@ -275,6 +276,11 @@ class SlackConnectionKind(ConnectionKind):
 
     id: ClassVar[str] = "slack"
     config_model: ClassVar[type[BaseModel]] = SlackNotifierConfig
+    credential_forms: ClassVar[tuple[CredentialForm, ...]] = (
+        CredentialForm(code="webhook", name="Incoming webhook", fields=("webhook_url",)),
+        CredentialForm(code="bot", name="Bot token and channel", fields=("bot_token", "channel")),
+    )
+    credential_required: ClassVar[bool] = True
 
     async def check(self, config: BaseModel) -> HealthReport:
         """Prove a bot token with ``auth.test``, and say why a webhook cannot be proved at all."""

@@ -374,3 +374,27 @@ SOURCE_UNREACHABLE = CLI.define("source_unreachable", "{url} could not be called
 NO_SUCH_BLOCK = CLI.define(
     "no_such_block", "no block {block} is installed beside dg; dg blocks list --local names them"
 )
+
+VERSION_MISMATCH = CLI.define(
+    "version_mismatch",
+    "this is dg {running}, and the project at {project} pins dirigent-cli {pinned}",
+)
+
+USE_THE_PROJECTS_DG = CLI.define(
+    "use_the_projects_dg",
+    "uv run dg {command} runs the dg the project pins; uv sync installs it first",
+)
+
+OR_ALLOW_ANY_VERSION = CLI.define(
+    "or_allow_any_version",
+    "or set {variable}=1 to run this dg against the project anyway",
+)
+
+CONNECTION_NEEDS_A_CREDENTIAL = CLI.define(
+    "connection_needs_a_credential",
+    "a {kind} connection needs one of these credentials, and none was given: {forms}",
+)
+
+CREDENTIAL_FORM = CLI.define("credential_form", "{form}: {flags}")
+
+PROFILE_NOT_HERE = CLI.define("profile_not_here", "{detail}")

@@ -92,7 +92,7 @@ from dirigent_common.redaction import (
 )
 from dirigent_common.schema_references import LOCAL_REFERENCES, Unresolvable
 from dirigent_common.schema_values import EvaluationOverrun, ValueValidator, bounded_evaluation
-from dirigent_common.schemas import BlockModel, HealthReport, HttpConnectionConfig
+from dirigent_common.schemas import BlockModel, CredentialForm, HealthReport, HttpConnectionConfig
 from dirigent_common.sizes import (
     FILLER,
     SIZE_PATTERN,
@@ -148,6 +148,7 @@ __all__ = [
     "DEFAULT_CREDENTIAL_HEADER",
     "CredentialScheme",
     "CredentialValue",
+    "CredentialForm",
     "BlockModel",
     "Catalogue",
     "Duration",

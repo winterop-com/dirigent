@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Final, cast
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from dirigent_cli.readme import readme_document
 from dirigent_core.configdocs import example_document, project_document
 from dirigent_core.secrets import generate_key
 
@@ -880,23 +881,6 @@ dependencies = [
 __PACKS__]
 """
 
-README_TEMPLATE = """\
-# __NAME__
-
-A dirigent project. `pipelines/` holds the pipeline documents and `dirigent.yaml` the
-project's settings. `AGENTS.md` says how to find, check and run a document, for a person or a
-coding agent working here.
-
-`pyproject.toml` pins the dirigent runtime, so the `dg` this project runs on is that pinned
-one and `uv run` is how it is reached.
-
-## Run
-
-```bash
-__RUN__
-```
-"""
-
 AGENTS_TEMPLATE = """\
 # Working in __NAME__
 
@@ -977,28 +961,6 @@ tests.
 #: Claude Code reads CLAUDE.md, and this makes it read the same notes every other agent does.
 CLAUDE_TEMPLATE = "@AGENTS.md\n"
 
-#: The commands a scaffolded project's README opens with, per template.
-README_RUN: Final = {
-    "local": (
-        "uv sync",
-        "uv run dg dev",
-        "uv run dg pipeline new <starter>",
-        "uv run dg apply",
-    ),
-    "documents": (
-        "uv sync",
-        "uv run dg pipeline new <starter>",
-        "uv run dg apply --dry-run",
-        "uv run dg apply",
-    ),
-    "compose": (
-        "uv sync",
-        "docker compose up -d",
-        "uv run dg auth login --username admin",
-        "uv run dg pipeline new <starter>",
-    ),
-}
-
 
 class Scaffolded(BaseModel):
     """What a scaffold wrote, and what it found already there and left alone."""
@@ -1030,8 +992,7 @@ def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -
     written.append(_write(directory / EXAMPLE_CONFIG_FILE, example_document()))
     name = project_name(directory)
     _record(directory / "pyproject.toml", pyproject_document(name, choices, version), written, skipped)
-    readme = README_TEMPLATE.replace("__NAME__", name).replace("__RUN__", "\n".join(README_RUN[choices.template]))
-    _record(directory / "README.md", readme, written, skipped)
+    _record(directory / "README.md", readme_document(name, choices), written, skipped)
     _record_agent_notes(directory, written, skipped)
     _merge_ignore(directory / ".gitignore", ROOT_IGNORE_TEMPLATE, written, skipped)
     if choices.workflow:

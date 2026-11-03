@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from dirigent_common import BlockModel, HealthReport
+from dirigent_common import BlockModel, CredentialForm, HealthReport
 from dirigent_plugin import (
     ConnectionKind,
     Contribution,
@@ -298,6 +298,21 @@ class DemoConnectionKind(ConnectionKind):
 
 def test_a_connection_kind_that_declares_no_mark_conforms() -> None:
     assert assert_contribution_conforms(Contribution(connection_kinds=[DemoConnectionKind()])) == []
+
+
+def test_a_credential_form_naming_a_field_the_config_lacks_is_reported() -> None:
+    class Keyed(DemoConnectionKind):
+        """A connection kind whose credential form names a field that is not there."""
+
+        id = "keyed"
+        credential_forms = (
+            CredentialForm(code="url", fields=("base_url",)),
+            CredentialForm(code="token", fields=("api_token",)),
+        )
+
+    assert assert_contribution_conforms(Contribution(connection_kinds=[Keyed()])) == [
+        "connection kind keyed credential form 'token' names api_token, which its config model does not declare"
+    ]
 
 
 def test_a_connection_kind_that_declares_path_data_conforms() -> None:

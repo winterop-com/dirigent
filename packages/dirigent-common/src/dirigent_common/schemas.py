@@ -33,6 +33,21 @@ class BlockModel(BaseModel):
     model_config = ConfigDict(use_attribute_docstrings=True, extra="forbid")
 
 
+class CredentialForm(BaseModel):
+    """One way a connection kind authenticates: the config fields that together make one credential."""
+
+    model_config = ConfigDict(frozen=True)
+
+    code: str
+    """What the choice is called where a person picks one, such as ``api_token`` or ``basic``."""
+
+    fields: tuple[str, ...]
+    """The config fields this form sets, secret and plain alike, every one of which it needs."""
+
+    name: str | None = None
+    """A human title for the choice, such as ``Personal access token``."""
+
+
 class HealthReport(BaseModel):
     """The outcome of checking a connection against its external system."""
 

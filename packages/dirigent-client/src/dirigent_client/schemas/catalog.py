@@ -6,7 +6,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from dirigent_common import API_VERSION, JsonMap
+from dirigent_common import API_VERSION, CredentialForm, JsonMap
 
 
 class BlockKind(StrEnum):
@@ -47,6 +47,12 @@ class SurfaceEntry(BaseModel):
     mark: str | None = None
     """The ``d`` of one SVG path on a 24-unit grid this surface's kind is drawn by, where it
     declares one. Monochrome: a screen fills it in the ink it draws every other mark in."""
+
+    credential_forms: list[CredentialForm] = Field(default_factory=list[CredentialForm])
+    """The ways a connection kind authenticates when it takes one of several, each naming its fields."""
+
+    credential_required: bool = False
+    """Whether a connection of this kind needs one of ``credential_forms`` to work."""
 
 
 class SourceEntry(BaseModel):

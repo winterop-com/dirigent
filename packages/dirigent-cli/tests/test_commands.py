@@ -13,17 +13,17 @@ from typing import Any, ClassVar
 import pytest
 import typer
 import yaml
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, model_validator
 from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering, closing, of_kind, only, plain, records, refusal, rows
 from dirigent_cli import commands
-from dirigent_cli.commands import GUARD_EXIT, instance_settings
+from dirigent_cli.commands import GUARD_EXIT, cli_version, instance_settings
 from dirigent_cli.main import app, dev_admin, hoist_globals
 from dirigent_cli.output import CONNECTION_HEALTH
 from dirigent_cli.profiles import resolve_endpoint
 from dirigent_cli.project import InitChoices, ProjectError, find_project, scaffold
-from dirigent_common import BlockModel, HealthReport
+from dirigent_common import BlockModel, CredentialForm, HealthReport
 from dirigent_core import config as core_config
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, get_settings, reset_settings_cache
 from dirigent_plugin import ConnectionKind, Contribution, extension
@@ -907,7 +907,7 @@ def test_a_project_may_keep_its_documents_in_any_directory_of_its_own(tmp_path: 
 
 
 def test_apply_in_a_project_applies_every_document(tmp_path: Path, server: str) -> None:
-    scaffold(tmp_path, InitChoices(pipelines=("report-to-file",)))
+    scaffold(tmp_path, InitChoices(pipelines=("report-to-file",)), version=cli_version())
     (tmp_path / "pipelines" / "second.yaml").write_text(DOCUMENT)
     result = machine("apply")
     assert result.exit_code == 0
@@ -918,7 +918,7 @@ def test_apply_in_a_project_applies_pipelines_before_the_documents_that_schedule
     tmp_path: Path, server: str
 ) -> None:
     """A triggers document naming an absent pipeline is refused, so ordering is the whole test."""
-    scaffold(tmp_path, InitChoices())
+    scaffold(tmp_path, InitChoices(), version=cli_version())
     (tmp_path / "pipelines" / "second.yaml").write_text(DOCUMENT)
     # Sorts first by path, so only the ordering rule can make this converge in one apply.
     (tmp_path / "pipelines" / "a-clocks.yaml").write_text(
@@ -933,7 +933,7 @@ def test_apply_in_a_project_applies_pipelines_before_the_documents_that_schedule
 
 
 def test_renaming_a_whole_project_is_refused(tmp_path: Path, server: str) -> None:
-    scaffold(tmp_path, InitChoices())
+    scaffold(tmp_path, InitChoices(), version=cli_version())
     result = machine("apply", "--as", "everything")
     assert result.exit_code == 1
     assert "--as recodes one document" in refusal(result.stdout)["message"]
@@ -1555,6 +1555,50 @@ class SecretfulPlugin:
 SECRETFUL = [{"secretful": SecretfulPlugin()}]
 
 
+class KeyedConfig(BlockModel):
+    """A connection that takes a token or a basic pair, and refuses to go without either, as dhis2 does."""
+
+    base_url: str
+    api_token: SecretStr | None = None
+    basic_username: str | None = None
+    basic_password: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def _one_credential(self) -> "KeyedConfig":
+        if self.api_token is None and not (self.basic_username and self.basic_password):
+            raise ValueError("a keyed connection needs an api_token or basic credentials")
+        return self
+
+
+class KeyedConnectionKind(ConnectionKind):
+    """A kind that needs one of two credential forms, and says so."""
+
+    id: ClassVar[str] = "keyed"
+    config_model: ClassVar[type[BaseModel]] = KeyedConfig
+    credential_forms: ClassVar[tuple[CredentialForm, ...]] = (
+        CredentialForm(code="api_token", fields=("api_token",)),
+        CredentialForm(code="basic", fields=("basic_username", "basic_password")),
+    )
+    credential_required: ClassVar[bool] = True
+
+    async def check(self, config: BaseModel) -> HealthReport:
+        """Report health without reaching anything: there is nothing behind this kind."""
+        return HealthReport(healthy=True)
+
+
+class KeyedPlugin:
+    """The plugin that contributes the kind with a choice of credential."""
+
+    @extension
+    def contribute(self) -> Contribution:
+        """Contribute the one connection kind these tests need."""
+        return Contribution(connection_kinds=[KeyedConnectionKind()])
+
+
+#: What a test that needs a choice of credential installs into its server.
+KEYED = [{"keyed": KeyedPlugin()}]
+
+
 class VerdictConfig(BlockModel):
     """What this kind's check should answer, so one test can ask for each outcome."""
 
@@ -1672,7 +1716,78 @@ def test_a_bare_create_at_a_terminal_offers_every_secret_the_kind_declares(
     monkeypatch.setattr(typer, "prompt", prompting(asked, {"base_url": "https://ops.example.org"}))
     created = invoke("connection", "create", "http", "ops-api")
     assert created.exit_code == 0, created.output
-    assert asked == ["base_url", "bearer_token", "basic_password", "credential", "hmac_secret"]
+    assert asked == ["base_url", "authenticate with (bearer, basic, credential, none)", "hmac_secret"]
+
+
+def test_a_bare_create_asks_for_every_field_of_the_credential_chosen(
+    server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The basic pair's username is not a secret, and a working connection still needs it."""
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    answers = {
+        "base_url": "https://ops.example.org",
+        "authenticate with (bearer, basic, credential, none)": "basic",
+        "basic_username": "ops",
+        "basic_password": "district",
+    }
+    monkeypatch.setattr(typer, "prompt", prompting(asked, answers))
+    created = invoke("connection", "create", "http", "ops-api")
+    assert created.exit_code == 0, created.output
+    assert asked == [*answers, "hmac_secret"]
+    stored = only(machine("connection", "show", "ops-api").stdout, "connection")["fields"]["config"]
+    assert (stored["basic_username"], stored["basic_password"], stored["bearer_token"]) == ("ops", "***", None)
+
+
+@pytest.mark.parametrize("extra_plugins", KEYED, indirect=True)
+def test_a_create_with_set_and_no_credential_is_offered_the_choice(
+    server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The dhis2 case: --set gave the address, and the kind cannot work without a credential."""
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    answers = {"authenticate with (api_token, basic)": "api_token", "api_token": "d2p_token"}
+    monkeypatch.setattr(typer, "prompt", prompting(asked, answers))
+    created = invoke("connection", "create", "keyed", "play", "--set", "base_url=https://play.example.org")
+    assert created.exit_code == 0, created.output
+    assert asked == list(answers)
+    stored = only(machine("connection", "show", "play").stdout, "connection")["fields"]["config"]
+    assert (stored["api_token"], stored["basic_username"]) == ("***", None)
+
+
+@pytest.mark.parametrize("extra_plugins", KEYED, indirect=True)
+def test_a_credential_started_on_the_command_line_is_completed(server: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A basic_username given by --set chose the basic form, so only its password is asked for."""
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    monkeypatch.setattr(typer, "prompt", prompting(asked, {"basic_password": "district"}))
+    created = invoke(
+        "connection",
+        "create",
+        "keyed",
+        "play",
+        "--set",
+        "base_url=https://play.example.org",
+        "--set",
+        "basic_username=admin",
+    )
+    assert created.exit_code == 0, created.output
+    assert asked == ["basic_password"]
+
+
+@pytest.mark.parametrize("extra_plugins", KEYED, indirect=True)
+def test_a_create_in_a_script_without_a_credential_names_every_form(server: str) -> None:
+    """Nobody can be asked, so the refusal says which flags give each credential the kind takes."""
+    refused = machine("connection", "create", "keyed", "play", "--set", "base_url=https://play.example.org")
+    assert refused.exit_code == 1
+    said = refusal(refused.stdout)
+    assert said["code"] == "cli.connection_needs_a_credential"
+    assert said["params"]["forms"] == "api_token or basic"
+    flags = {problem["params"]["form"]: problem["params"]["flags"] for problem in said["problems"]}
+    assert flags == {
+        "api_token": "--set api_token=...",
+        "basic": "--set basic_username=... --set basic_password=...",
+    }
 
 
 @pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
@@ -1783,6 +1898,16 @@ def test_creating_an_account_without_a_role_is_refused(server: str) -> None:
     """There is no default, so nothing becomes an admin by leaving the option out."""
     result = invoke("admin", "user", "create", "second", "--password", "another password")
     assert result.exit_code != 0
+
+
+def test_the_password_prompt_says_the_minimum_before_it_is_typed(server: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A refusal for length after typing it twice is a wasted round; the prompt names the rule."""
+    asked: list[str] = []
+    monkeypatch.setattr(typer, "prompt", prompting(asked, {"password (at least 8 characters)": "long enough pw"}))
+    created = machine("admin", "user", "create", "prompted", "--role", "viewer")
+    assert created.exit_code == 0, created.output
+    assert asked == ["password (at least 8 characters)"]
+    assert only(created.stdout, "user.created")["username"] == "prompted"
 
 
 def test_a_token_is_minted_and_revoked_for_another_account(server: str) -> None:

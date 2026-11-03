@@ -1,5 +1,6 @@
 """The dirigent plugin contract: small, stable, and the only dirigent package a block author imports."""
 
+from dirigent_common import CredentialForm
 from dirigent_plugin.blocks import (
     BLOCK_ID_PATTERN,
     MARK_LIMIT,
@@ -94,6 +95,7 @@ __all__ = [
     "ConnectionRef",
     "ContainerResult",
     "Contribution",
+    "CredentialForm",
     "ConvertConfig",
     "ConvertOutput",
     "Converter",

@@ -441,6 +441,36 @@ path-data characters only, at most 4 kB -- and a pack that declares anything els
 `plugin.invalid_mark` rather than handing a browser markup. `assert_contribution_conforms` makes
 the same check, so a pack reads the refusal in its own test run.
 
+### A connection kind that takes one of several credentials says which
+
+A config model that takes a token or a basic pair, and refuses to go without one, says so in a
+model validator, which a client creating a connection cannot read. `credential_forms` says it
+where a client can: each form names every config field it needs, and `credential_required`
+says whether a working connection needs one of them at all.
+
+```python
+from dirigent_plugin import CredentialForm
+
+
+class AcmeConnectionKind(ConnectionKind):
+    id: ClassVar[str] = "acme"
+    config_model: ClassVar[type[BaseModel]] = AcmeConnectionConfig
+    credential_forms: ClassVar[tuple[CredentialForm, ...]] = (
+        CredentialForm(code="api_token", name="Personal access token", fields=("api_token",)),
+        CredentialForm(code="basic", name="Username and password", fields=("basic_username", "basic_password")),
+    )
+    credential_required: ClassVar[bool] = True
+```
+
+The catalog carries both on the kind's entry. `dg connection create` reads them: at a terminal,
+with no form given, it asks which one and then every field of it, the plain `basic_username` as
+well as the hidden password; in a script, a kind that needs a credential and got none is refused
+with `cli.connection_needs_a_credential`, which names each form and the `--set` flags that give
+it. The validator still decides what is accepted. `assert_contribution_conforms` reports a form
+that names a field the config model does not declare. dirigent's own `http` kind declares a
+bearer token, a basic pair and a header credential, none required, and `slack` an incoming
+webhook or a bot token and channel, one required.
+
 ### What `ctx.http` reads from a connection
 
 `ctx.http(ref)` builds a client for a connection of any kind, so it reads a config's fields by

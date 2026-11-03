@@ -20,6 +20,7 @@ dependencies = [
     "dirigent-plugin==0.32.0",
     "dirigent-server==0.32.0",
     "httpx2>=2.12.0",
+    "packaging>=24.0",
     "python-dotenv>=1.1.0",
     "pyyaml>=6.0.3",
     "rich>=15.0.0",

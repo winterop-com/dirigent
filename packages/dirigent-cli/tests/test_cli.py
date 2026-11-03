@@ -804,6 +804,7 @@ def test_every_list_command_answers_to_a_hidden_ls() -> None:
         "source ls",
         "trigger-document ls",
         "alerts rules ls",
+        "profile ls",
         "admin user ls",
         "admin token ls",
     ]

@@ -10,6 +10,7 @@ from jsonschema import Draft202012Validator
 from typer.testing import CliRunner
 
 from clisupport import only, refusal, rows
+from dirigent_cli.commands import cli_version
 from dirigent_cli.main import app, hoist_globals
 from dirigent_cli.project import AGENTS_TEMPLATE, InitChoices, scaffold
 
@@ -112,7 +113,7 @@ def test_a_project_made_before_the_notes_gets_them_and_keeps_its_own(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = tmp_path / "older"
-    scaffold(root, InitChoices(template="documents"), version="1.2.3")
+    scaffold(root, InitChoices(template="documents"), version=cli_version())
     (root / "AGENTS.md").unlink()
     (root / "CLAUDE.md").write_text("ours\n")
     monkeypatch.chdir(root)

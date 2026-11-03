@@ -12,7 +12,7 @@ from pluginkit import PluginManager
 from pydantic import BaseModel
 
 from dirigent_client.schemas import BlockEntry, BlockKind, Catalog, SourceEntry, SurfaceEntry
-from dirigent_common import API_VERSION, HumaneJsonSchema, JsonMap, Message, as_markdown
+from dirigent_common import API_VERSION, CredentialForm, HumaneJsonSchema, JsonMap, Message, as_markdown
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     AMBIGUOUS_EXAMPLE,
@@ -311,6 +311,7 @@ class PluginHost:
                 self.connection_kinds,
                 lambda item: item.config_model,
                 mark=lambda item: item.mark,
+                credentials=lambda item: (item.credential_forms, item.credential_required),
             ),
         )
 
@@ -337,18 +338,24 @@ class PluginHost:
         index: Mapping[str, T],
         config_model: Callable[[T], type[BaseModel]],
         mark: Callable[[T], str | None] | None = None,
+        credentials: Callable[[T], tuple[Sequence[CredentialForm], bool]] | None = None,
     ) -> list[SurfaceEntry]:
         """Render one non-block surface's index as catalog entries."""
-        return [
-            SurfaceEntry(
-                id=identifier,
-                plugin=self.owner_of(surface, identifier),
-                config_schema=json_schema(config_model(item)),
-                secret_fields=secret_fields(config_model(item)),
-                mark=None if mark is None else mark(item),
+        entries: list[SurfaceEntry] = []
+        for identifier, item in sorted(index.items()):
+            forms, required = credentials(item) if credentials is not None else ((), False)
+            entries.append(
+                SurfaceEntry(
+                    id=identifier,
+                    plugin=self.owner_of(surface, identifier),
+                    config_schema=json_schema(config_model(item)),
+                    secret_fields=secret_fields(config_model(item)),
+                    mark=None if mark is None else mark(item),
+                    credential_forms=list(forms),
+                    credential_required=required,
+                )
             )
-            for identifier, item in sorted(index.items())
-        ]
+        return entries
 
 
 def load_plugin_host(

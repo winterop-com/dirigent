@@ -151,10 +151,41 @@ such as a satellite hop or a handshake through a distant proxy.
 
 ```bash
 dg --profile prod runs list --status failed
+DG_PROFILE=staging dg runs list          # the same choice, for every command this shell runs
 ```
 
-Precedence is `--url` / `--token` flags, then `DG_URL` / `DG_TOKEN`, then the selected
-profile. A `.env` at the root of the project, beside `.dirigent/`, stands in for any of these
+Which profile is selected is decided in this order: `--profile`, then `DG_PROFILE` -- from the
+shell, or from the project's `.env` when the shell does not set it -- then the file's
+`default:`, then the file's only profile when it holds exactly one. Only one file is read: the
+nearest project `.dirigent/profiles.yaml` when there is one, and `~/.config/dirigent/profiles.yaml`
+otherwise, so a profile in the user file is not selectable from inside a project whose file does
+not declare it.
+
+`dg profile list` and `dg profile show` say what that comes to here, without printing a token:
+
+```bash
+dg profile list            # every profile in the project file and the user file
+dg profile show            # the one selected here, resolved
+dg profile show staging    # a named one
+```
+
+`dg profile list` writes one `profile` record per profile, with the row under `fields`: its
+`name`, `url`, the `file` it is declared in and that file's `scope` (`project` or `user`),
+whether it is the file's `default`, whether it is `selected` here, whether its file is the
+`active` one commands here read, and `token`, how its token is obtained -- `token`,
+`token_env NAME` or `token_cmd`, or `null` -- never the value. `dg profile show` writes one
+`profile` record for one profile, with the same fields plus what a command run here would use:
+`selected_by` (`argument`, `--profile`, `DG_PROFILE`, `default` or `only profile`),
+`api_prefix`, `timeout`, `connect_timeout`, `retries`, `token_available` -- whether a token
+can be had now, from `DG_TOKEN` or the profile's own mechanism, which for `token_cmd` means
+running the command -- `token_problem` saying why not when it cannot, and `overridden_by`, the
+`DG_URL` and `DG_TOKEN` set here that win over the profile. A name that is not in the active
+file is refused with `cli.profile_not_here`, which says when the profile is in the user file
+that a project file shadows. There is no `dg profile use`: the default is one line in a file
+you own, `default:`, and `DG_PROFILE` selects one for a shell without writing anything.
+
+Precedence for the server and the token is `--url` / `--token` flags, then `DG_URL` /
+`DG_TOKEN`, then the selected profile. A `.env` at the root of the project, beside `.dirigent/`, stands in for any of these
 variables the shell does not set, including the one a `token_env` names: that is where
 `dg init` puts the token it mints, and where a `DG_STAGING_TOKEN` for the profile above can
 live too. The shell's own value always wins over the file's, within the rules above. The same file is the settings
@@ -330,14 +361,46 @@ stack's `Dockerfile`, or a dependency in `pyproject.toml` for the other two temp
 
 What it writes is a uv project. `pyproject.toml` depends on `dirigent-cli` at the version of
 the `dg` that scaffolded it, so `uv sync` builds the project's own environment and `uv run dg`
-is that pinned runtime rather than whatever is on the path. A `README.md` carries the
-template's commands, `AGENTS.md` the loop a person or a coding agent works in -- find, validate,
+is that pinned runtime rather than whatever is on the path. A `README.md` walks someone who
+has never used dirigent from the scaffold to a working setup, in `uv run dg` throughout: starting
+the template's instance and signing in (admin / admin on a local one, and `--wipe-state` to start
+again), creating a connection, a first starter validated, run with `--local`, applied and run on
+the instance, an `operator` account and token for a coding agent with the project-scope
+`.mcp.json` that reads `${DG_MCP_TOKEN}`, and a table of what goes wrong; a project opened with
+`--pack` gets each pack's connection kinds and the fields they need. It holds no secret.
+`AGENTS.md` the loop a person or a coding agent works in -- find, validate,
 run locally, apply -- with `CLAUDE.md` pointing at it, and a root `.gitignore` covers `.venv/`,
 `__pycache__/` and `.env`. See [working with a coding agent](agents.md). A directory that already
 has a `pyproject.toml`, a `README.md` or either agent file keeps its own -- the record lists those
 under `skipped`, and adding `dirigent-cli` to that `pyproject.toml` is then yours to do; an
 existing root `.gitignore` gains the missing lines instead. `dg init --agents` writes the two
 agent files alone, for a project made before `dg init` wrote them, and takes no other option.
+
+### The dg a project pins
+
+A `dg` other than the project's -- a `uv tool install` from months ago, another virtualenv on
+the path -- reads and writes the same `.dirigent/state` and talks to the same instance, and an
+older one writes a state the pinned one then refuses. So every command run inside a project
+first finds the nearest `pyproject.toml` that names `dirigent-cli` with a version, walking up
+from the working directory, and compares that pin with its own version. A range pin such as
+`dirigent-cli>=0.32,<0.33` is satisfied by any version inside it, and a dependency group counts
+as well as `[project].dependencies`. A `dg` the pin does not allow is refused before it does
+anything, with exit code 3 and `cli.version_mismatch`, naming both versions and the project:
+
+```text
+this is dg X.Y.Z, and the project at /home/me/trial pins dirigent-cli ==0.32.0
+  - uv run dg dev runs the dg the project pins; uv sync installs it first
+  - or set DG_ALLOW_VERSION_MISMATCH=1 to run this dg against the project anyway
+```
+
+Every command is refused, the ones that only read included, because a read against a schema
+the running version does not know misleads as surely as a write damages. `dg --version`,
+`--help` on any command, `dg format` and `dg secret-key` answer anyway: none of them reads the
+project or an instance. `uv run dg` is always the project's own, and
+`DG_ALLOW_VERSION_MISMATCH=1` is the deliberate way past the check. A `pyproject.toml` that
+names `dirigent-cli` without a version, as a workspace member does, pins nothing. The check is
+the running `dg`'s own, so a global `dg` older than the release that brought it does not make
+it: `uv tool upgrade dirigent-cli` brings one up to a version that does.
 
 It refuses to run over an instance that is already there: migrating and re-admining a live
 database is not what running it twice means. `--template documents` scaffolds beside one
@@ -948,6 +1011,7 @@ verb and whose fields are the identity of what changed:
 | `kind` | Written by | What it carries |
 | --- | --- | --- |
 | `config` | `dg config show` | `settings`, secrets redacted |
+| `profile` | `dg profile list`, `dg profile show` | One per profile, under `fields`: `name`, `url`, `file`, `scope`, `default`, `selected`, `active` and how its `token` is obtained, never the token; `show` adds `selected_by`, `api_prefix`, `timeout`, `connect_timeout`, `retries`, `token_available`, `token_problem` and `overridden_by` |
 | `db.revision` | `dg db current` | `revision`, `head`, `at_head` |
 | `db.history` | `dg db history` | `history`, as alembic wrote it |
 | `db.upgraded` | `dg db upgrade` | `database`, `target`, and the `revision` it reached |
@@ -1207,6 +1271,7 @@ dg docker reap [--dry-run]              # compose stacks left up by runs that ha
 
 # Administration
 dg --version | dg config show
+dg profile list | show [NAME]           # the profiles that apply here; never a token
 dg secret-key                           # a DIRIGENT_SECRET_KEY, on one plain line
 dg prune [--runs 30d] [--logs 7d] [--inputs 30d] [--firings 30d] [--notifications 30d]
          [--no-scratch] [--dry-run]     # an age given here beats the configured one
@@ -1285,10 +1350,28 @@ dg connection create http ops-api --set base_url=https://ops.example.org \
   --set basic_username=ops --set basic_password=district
 ```
 
-A bare `dg connection create KIND CODE` is the interactive form, and there every secret the kind
-declares is offered in turn: Enter leaves one unset. In a script -- a pipe, a container, CI --
+A bare `dg connection create KIND CODE` is the interactive form, and there every required field is
+asked for and every secret the kind declares outside its credential forms is offered in turn:
+Enter leaves one unset. In a script -- a pipe, a container, CI --
 nothing is asked at all, and a required field that arrived through no `--set` is a refusal
 naming the flag to pass.
+
+Some kinds authenticate one of several ways -- a `dhis2` connection takes an `api_token` or a
+`basic_username` and `basic_password` -- and the kind declares the choices as its credential
+forms ([plugins](plugins.md#a-connection-kind-that-takes-one-of-several-credentials-says-which)).
+At a terminal, an invocation that gave none of a form's fields is asked `authenticate with`,
+naming the forms, and then for every field of the one chosen: the username in the clear, the
+password hidden. The bare form always asks, with `none` among the answers where the kind may go
+without; with `--set` it asks only where the kind needs a credential. A form the command line
+started -- `--set basic_username=admin` alone -- is completed rather than chosen again. In a
+script, a kind that needs a credential and got none is refused before anything is sent, with
+`cli.connection_needs_a_credential`, one problem per form, and the exact flags for each:
+
+```text
+a dhis2 connection needs one of these credentials, and none was given: api_token or basic
+  - api_token: --set api_token=...
+  - basic: --set basic_username=... --set basic_password=...
+```
 
 An empty value is not a credential: `--set bearer_token=` leaves the field unset rather than
 sealing an empty string, so every read afterwards says `null` rather than `***`. A required
@@ -1505,4 +1588,6 @@ holding is refused rather than handed to a second one.
 configured database rather than the API, because the first account on a fresh instance has to
 exist before anything can authenticate to create it. In a container,
 `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` does the same thing unattended, and does nothing once an
-account exists.
+account exists. Without `--password` it asks for one twice, hidden, and the question names the
+rule a password is held to -- `password (at least 8 characters)` -- so a short one is not typed
+twice only to be refused.
