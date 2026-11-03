@@ -60,7 +60,8 @@ rather than leaving the gap for you to find.
   everything else is in the clear.
 - Multi-tenant separation of any kind. One dirigent instance is one team's instance.
 - Denial of service from an authenticated principal. Rate limiting exists on the two
-  unauthenticated write paths (login and endpoint sources) and nowhere else.
+  unauthenticated write paths (login and endpoint sources) and on `/mcp`, per token, and
+  nowhere else.
 - Anything a pipeline's own outbound traffic can reach. `http.request` will call the URL it is
   given; there is no egress allowlist.
 
@@ -290,8 +291,13 @@ unmounts it, and `/mcp` then answers 404.
   stream counts as a request for that long and is then ended, and one process
   holds at most `mcp_max_sessions` (256) sessions for each of the three roles, and at most
   `mcp_max_sessions_per_token` (32) for one token, so no token can fill its role's room alone; past
-  either, a new session is answered 503. Like the rest of the
-  authenticated API, `/mcp` is not rate limited.
+  either, a new session is answered 503.
+- **Rate limited per token.** One token makes at most `mcp_rate_per_minute` (300) requests a
+  minute to `/mcp`, across every session it holds, and may spend a minute's worth in one burst.
+  The count is the token's, not the peer address's, so agents behind one address do not share
+  it. A request past it is answered 429 with `Retry-After` (`server.mcp_rate`) after the token
+  is authenticated and before any session reads it. A request that does not authenticate is
+  not counted. The bucket is the process's own, as the login and intake limits are.
 
 There is no OAuth discovery at `/mcp`: no `/.well-known/oauth-protected-resource`, and no
 `resource_metadata` in the 401. The instance's credential is its own API token, minted by an
@@ -1187,8 +1193,8 @@ Stated plainly, because a security page that lists only what exists is not much 
   family, are refused beside a `connection` the same way (`http.routing_header_refused`), whatever
   their value and however they are spelled. An absolute link the
   service itself hands back, such as a next page on the same origin, is still followed. A step that calls another service names no connection and gives the `url`.
-- **Rate limiting on the authenticated API.** Only login and endpoint sources are limited, and `/mcp`
-  is not.
+- **Rate limiting on the authenticated API.** Only login, endpoint sources and `/mcp` are
+  limited; the REST API under `/api/v1` is not.
 - **A CSRF token.** There is none, and the defence is instead the origin check on every
   cookie-authenticated write described in [cross-site writes](#cross-site-writes), on top of
   the cookie's `SameSite=Lax`. That is the modern shape and it is what the UI relies on; a

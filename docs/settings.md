@@ -43,6 +43,7 @@ directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn a
 | `mcp_session_idle` | `DIRIGENT_MCP_SESSION_IDLE` | `"30m"` | How long an MCP session at `/mcp` lives with no request in flight before it is closed. |
 | `mcp_max_sessions` | `DIRIGENT_MCP_MAX_SESSIONS` | `256` | How many MCP sessions one server process holds open at once; a new one past it is answered 503. |
 | `mcp_max_sessions_per_token` | `DIRIGENT_MCP_MAX_SESSIONS_PER_TOKEN` | `32` | How many of those sessions one API token may hold; a new one past it is answered 503. |
+| `mcp_rate_per_minute` | `DIRIGENT_MCP_RATE_PER_MINUTE` | `300` | How many requests one API token may make to `/mcp` a minute, across all its sessions. |
 | `ui_dir` | `DIRIGENT_UI_DIR` | `null` | A built web UI bundle to serve, instead of the one installed with the server. **Host only.** |
 | `log_level` | `DIRIGENT_LOG_LEVEL` | `"INFO"` | How loud the process log is. This is the process log; a run's own telemetry is the `log_entries` table, and a CLI `-v` or `--debug` flag wins over this. |
 | `log_format` | `DIRIGENT_LOG_FORMAT` | `null` | How a command spells its output and its logs: `console` renders, `json` writes records. |

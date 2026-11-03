@@ -25,6 +25,11 @@ MCP_CROSS_ORIGIN = SERVER.define(
     "this MCP request was caused by a page on another origin, which this instance does not answer",
 )
 
+MCP_RATE = SERVER.define(
+    "mcp_rate",
+    "too many MCP requests with this token; this instance accepts {per_minute} a minute",
+)
+
 UNAUTHENTICATED_BODY_TOO_LARGE = SERVER.define(
     "unauthenticated_body_too_large",
     "the body is larger than the {limit} bytes this route reads from a caller it has not authenticated",

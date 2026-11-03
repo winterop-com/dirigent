@@ -7,6 +7,7 @@ one is held as its hash, so what a caller sends does not decide how much memory 
 """
 
 import hashlib
+import math
 import time
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -51,6 +52,11 @@ class TokenBucket(BaseModel):
     def forget(self, key: str) -> None:
         """Drop a key's bucket."""
         self.buckets.pop(_held_key(key), None)
+
+
+def retry_after(per_minute: int) -> dict[str, str]:
+    """The ``Retry-After`` header for a refusal: how long until a bucket refilled at this rate holds one call again."""
+    return {"Retry-After": str(max(1, math.ceil(60 / per_minute)))}
 
 
 def _held_key(key: str) -> str:

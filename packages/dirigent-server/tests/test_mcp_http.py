@@ -307,6 +307,21 @@ async def test_an_mcp_message_past_the_cap_is_answered_413(settings: Settings, a
     assert answered.status_code == 413
 
 
+async def test_a_token_past_its_rate_is_answered_429_and_another_token_is_not(
+    settings: Settings, operator_token: str, second_operator_token: str
+) -> None:
+    limited = settings.model_copy(update={"mcp_rate_per_minute": 2})
+    async with serving(limited) as url, httpx2.AsyncClient(timeout=30) as http:
+        kept = [await opened(http, url, operator_token) for _ in range(2)]
+        assert [answer.status_code for answer in kept] == [200, 200]
+        refused = await opened(http, url, operator_token)
+        assert refused.status_code == 429
+        assert refused.headers["retry-after"] == "30"
+        assert refused.json()["code"] == "server.mcp_rate"
+        assert refused.json()["params"] == {"per_minute": 2}
+        assert (await opened(http, url, second_operator_token)).status_code == 200, "another token has its own count"
+
+
 def test_an_instance_that_turns_mcp_off_does_not_mount_it(settings: Settings, admin_token: str) -> None:
     off = settings.model_copy(update={"mcp_enabled": False})
     with TestClient(create_app(off, scheduler=False), headers={"Authorization": f"Bearer {admin_token}"}) as client:

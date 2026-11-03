@@ -1190,6 +1190,7 @@ const refused = {
         internal: 'The server failed to handle this request. The server log has the detail.',
         mcp_cross_origin:
             'This MCP request was caused by a page on another origin, which this instance does not answer.',
+        mcp_rate: 'Too many MCP requests with this token. This instance accepts {per_minute} a minute.',
         no_alert_rule: 'No alert rule coded {code}.',
         no_artifact: 'No artifact {artifact_id}.',
         no_attempt: 'No attempt {attempt_id}.',
