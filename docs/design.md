@@ -1374,7 +1374,9 @@ Reading guide for the choices above:
   `${artifacts}` is the instance's storage root, which nothing sweeps, so a document that
   keeps something writes it at `${artifacts}/<path>`. There are no expressions, loops, or
   conditionals in v1; logic lives in blocks and trigger rules, which is what keeps documents
-  reviewable. A reference standing alone resolves to the typed value, so `"${params.count}"`
+  reviewable. A path is dotted all the way down, an array's element included:
+  `${steps.<name>.output.rows.0}`, never `rows[0]`, which plan refuses with
+  `document.reference_bracket_index`, naming the dotted form. A reference standing alone resolves to the typed value, so `"${params.count}"`
   is an integer downstream, while one inside a larger string interpolates as text -- a list or
   an object as its compact JSON, a boolean as `true` or `false`, null as nothing; an unknown
   reference fails the attempt as `rejected` rather than resolving to empty. `$${...}` is the

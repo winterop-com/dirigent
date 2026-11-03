@@ -63,6 +63,11 @@ and the log line carries no stand-in run facts. A rule still binds to the four r
 The baseline migration is edited in place: `notifications.event` is the `notification_event`
 enum, which adds `test`.
 
+**Breaking: a reference indexed with brackets is refused at plan.** `${steps.x.output.value[0]}`
+passed plan and failed at run time; a reference reads an element as a dotted segment, and plan
+now refuses brackets with `document.reference_bracket_index`, naming the dotted form to write,
+`${steps.x.output.value.0}`.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

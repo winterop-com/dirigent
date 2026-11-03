@@ -920,6 +920,31 @@ def test_a_for_each_may_not_read_a_step_that_is_not_upstream(host: PluginHost) -
     ]
 
 
+@pytest.mark.parametrize(
+    ("reference", "dotted"),
+    [
+        ("steps.a.output.value[0]", "steps.a.output.value.0"),
+        ("steps.a.output.rows[2].name", "steps.a.output.rows.2.name"),
+        ("params.day['start']", "params.day.start"),
+    ],
+)
+def test_an_index_in_brackets_is_refused_at_plan_naming_the_dotted_form(
+    host: PluginHost, reference: str, dotted: str
+) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: bracketed\n"
+        "params: {type: object, properties: {day: {type: object}}}\nsteps:\n"
+        "  a: { block: test.echo, config: {value: hi} }\n"
+        f'  b: {{ block: test.echo, depends_on: [a], config: {{value: "${{{reference}}}"}} }}\n'
+    )
+    issues = validate_against_catalog(definition, host.catalog())
+    assert [(issue.location, issue.code) for issue in issues] == [
+        ("steps.b.config", "document.reference_bracket_index")
+    ]
+    assert issues[0].params == {"reference": reference, "dotted": dotted}
+    assert f"${{{dotted}}}" in issues[0].message
+
+
 def test_a_for_each_may_not_read_a_matching_item(host: PluginHost) -> None:
     definition = load_text(
         "format: dirigent/v1\ncode: paired-list\nsteps:\n"

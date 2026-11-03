@@ -2,6 +2,7 @@
 
 import difflib
 import hashlib
+import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Final, cast, get_args, get_origin
@@ -80,6 +81,7 @@ from dirigent_core.messages import (
     NOT_A_MAPPING,
     NOT_YAML,
     PARAMS_SCHEMA_INVALID,
+    REFERENCE_BRACKET_INDEX,
     REFERENCE_ERROR_NOT_UPSTREAM,
     REFERENCE_GRID_IN_CONFIG,
     REFERENCE_MALFORMED_ARTIFACTS,
@@ -1141,6 +1143,10 @@ def _adopted_grid_problem(reference: str, definition: PipelineDefinition, step: 
     return None
 
 
+#: An index written in brackets, ``[0]`` or ``['key']``, which a reference spells as a dotted segment.
+BRACKET_INDEX: Final = re.compile(r"""\[\s*['"]?([^\]'"]*?)['"]?\s*\]""")
+
+
 def _reference_problem(
     reference: str,
     definition: PipelineDefinition,
@@ -1154,6 +1160,8 @@ def _reference_problem(
     ``family`` names the fan-outs this step shares a grid with, which are the only steps whose
     matching item it may read.
     """
+    if BRACKET_INDEX.search(reference):
+        return Issue.of(REFERENCE_BRACKET_INDEX, reference=reference, dotted=BRACKET_INDEX.sub(r".\1", reference))
     parts = [part for part in reference.split(".") if part]
     match parts:
         case []:

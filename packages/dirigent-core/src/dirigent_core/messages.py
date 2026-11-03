@@ -481,6 +481,11 @@ TRIGGER_OWNED_ELSEWHERE = DOCUMENT.define(
 
 REFERENCE_NAMES_NOTHING = DOCUMENT.define("reference_names_nothing", "${{}} names nothing")
 
+REFERENCE_BRACKET_INDEX = DOCUMENT.define(
+    "reference_bracket_index",
+    "${{{reference}}} indexes with brackets, and a reference reads an element as a dotted segment: write ${{{dotted}}}",
+)
+
 REFERENCE_UNDECLARED_PARAM = DOCUMENT.define(
     "reference_undeclared_param",
     "${{{reference}}} reads an undeclared parameter ({available})",
