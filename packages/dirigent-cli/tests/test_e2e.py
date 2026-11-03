@@ -20,6 +20,7 @@ from cryptography.fernet import Fernet
 
 from clisupport import LINE, asking_for_the_rendering, closing, of_kind, plain, records
 from dirigent_cli.commands import GUARD_EXIT
+from dirigent_core.protocol import parse
 
 pytestmark = pytest.mark.e2e
 
@@ -661,6 +662,12 @@ def test_dg_dev_announces_itself_as_records_and_not_a_schema_history(tmp_path: P
     assert started["token"], "the token is minted once and carried on the record"
     assert started["migrated"], "one field for a schema that was created, not six lines"
     assert started["at"], "a record carries the moment it happened"
+    ready = emitted[-1]
+    assert ready["version"] == started["version"], "the banner's facts travel as fields in a pipe, and no banner"
+    assert ready["password"] == "admin", "a fresh dev instance signs in with the fixture login"
+    assert ready["packs"], "and names the packs it loaded"
+    assert ready["blocks"] > 0
+    assert "token" not in ready, "the token is handed over once, on the starting record"
     messages = [str(record.get("message", "")) for record in emitted]
     for noise in ("Running upgrade", "user created", "token issued", "Application startup complete"):
         assert noise not in messages, f"{noise!r} is detail, and detail is what -v is for"
@@ -789,8 +796,8 @@ def test_a_committed_scaffold_starts_twice_and_wipes(tmp_path: Path) -> None:
     assert (root / ".dirigent" / "state").stat().st_mode & 0o777 == 0o700
 
 
-def test_dg_dev_renders_its_lines_when_asked_to(project: Path) -> None:
-    """The process commands follow the output too: -o console draws the starting line in the grammar."""
+def test_dg_dev_renders_its_banner_when_asked_to(project: Path) -> None:
+    """The process commands follow the output too: -o console draws the banner once the instance answers."""
     port = free_port()
     process = subprocess.Popen(  # noqa: S603 - the argv is this test's own
         [str(dg_path()), "-o", "console", "dev", "--port", str(port)],
@@ -804,13 +811,16 @@ def test_dg_dev_renders_its_lines_when_asked_to(project: Path) -> None:
     try:
         assert process.stdout is not None
         deadline = time.monotonic() + STARTUP_TIMEOUT
-        first = ""
+        drawn: list[str] = []
         while time.monotonic() < deadline:
-            first = process.stdout.readline().strip()
-            if first:
+            drawn.append(plain(process.stdout.readline()))
+            if "dev instance ready" in drawn[-1]:
                 break
-        assert LINE.match(plain(first)), first
-        assert "starting" in first
+        assert "dev instance ready" in drawn[-1], drawn
+        drawn.append(plain(process.stdout.readline()))
+        assert any(f"127.0.0.1:{port}" in line for line in drawn)
+        assert not any(parse(line.strip()) for line in drawn), "a rendering, not records"
+        assert not any(LINE.match(line) and "starting" in line for line in drawn), "starting is the banner's"
     finally:
         process.terminate()
         try:

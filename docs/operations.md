@@ -90,6 +90,11 @@ Everything the services share is a database URL, a secret key, and the bucket.
 
 `dg server` runs the application under uvicorn. Pointing granian or hypercorn at the app
 factory instead is [running under another ASGI server](server.md#running-under-another-asgi-server).
+It says `starting` before uvicorn binds and `ready` once the port accepts, as `process`
+records naming its version, its addresses and every pack it loaded with the blocks,
+connection kinds and source kinds they contribute; under compose or `docker logs` those are
+two NDJSON lines, and at a terminal they are drawn as one banner, as
+[`dg dev`'s are](cli.md#the-machine-encoding).
 
 Four overlay files add to that base, each layered with another `-f` and each declaring only
 what differs. `make docker-run-all` is every one of them at once:

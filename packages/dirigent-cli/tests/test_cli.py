@@ -29,6 +29,7 @@ from dirigent_cli.main import (
     hoist_globals,
     warn_of_ignored_settings,
 )
+from dirigent_core import __version__
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, get_settings, redacted_url, reset_settings_cache
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.protocol import make
@@ -905,6 +906,100 @@ def test_a_dev_instance_announces_itself_as_one_record(tmp_path: Path) -> None:
     assert record["docs"] == "http://127.0.0.1:3333/docs"
     assert record["token"] == "secret", "the token is minted once, so the record is what carries it"
     assert record["migrated"] == "0007"
+    assert record["version"] == __version__
+    assert record["ui"] == "http://127.0.0.1:3333", "the UI is served by default"
+    assert record["mcp"] == "http://127.0.0.1:3333/mcp", "and so is MCP"
+    assert "password" not in record, "the starting record does not say how to sign in; the ready one does"
+
+
+def test_an_instance_serving_neither_ui_nor_mcp_names_neither(tmp_path: Path) -> None:
+    settings = Settings(
+        database_url=f"sqlite+aiosqlite:///{tmp_path / 'state' / 'dirigent.db'}", ui_enabled=False, mcp_enabled=False
+    )
+    record = main.dev_started(settings, bound="http://127.0.0.1:3333", admin="dev", token=None, migrated=None)
+    assert "ui" not in record
+    assert "mcp" not in record
+    assert record["api"] == "http://127.0.0.1:3333"
+
+
+def test_a_ready_instance_carries_its_version_its_addresses_and_what_it_loaded(tmp_path: Path) -> None:
+    """The banner is drawn off this record alone, so every fact it draws is a field here."""
+    from dirigent_cli.instance import facts
+    from dirigent_core.plugins import load_plugin_host
+
+    settings = Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'state' / 'dirigent.db'}")
+    host = load_plugin_host()
+    said = {
+        **facts(settings, host, process="dev", bound="http://127.0.0.1:3333"),
+        **main.dev_facts(settings, admin="admin", password=main.DEV_PASSWORD),
+    }
+    record = main.ready_record(said)
+    assert record["kind"] == "process"
+    assert record["message"] == "ready"
+    assert record["process"] == "dev"
+    assert record["version"] == __version__
+    assert record["docs"] == "http://127.0.0.1:3333/docs"
+    assert record["admin"] == "admin"
+    assert record["password"] == "admin"
+    assert record["state"] == str((tmp_path / "state").resolve())
+    assert record["blocks"] == len(host.blocks)
+    assert record["connection_kinds"] == len(host.connection_kinds)
+    assert record["source_kinds"] == len(host.sources)
+    names = [pack["name"] for pack in record["packs"]]
+    assert names == sorted(set(names)), "each distribution once, in name order"
+    assert {"name": "dirigent-blocks", "version": __version__} in record["packs"]
+    assert "token" not in record
+
+
+def test_a_plugin_with_no_distribution_is_listed_under_its_own_name() -> None:
+    from dirigent_cli.instance import loaded
+    from dirigent_core.plugins import PluginHost
+    from dirigent_plugin import Contribution
+
+    counted = loaded(PluginHost({"by-hand": Contribution()}))
+    assert counted["packs"] == [{"name": "by-hand", "version": None}]
+    assert counted["blocks"] == 0
+    assert counted["connection_kinds"] == 0
+    assert counted["source_kinds"] >= 1, "dirigent's own source kinds are always there"
+
+
+def test_a_server_announces_itself_without_the_dev_only_facts() -> None:
+    settings = Settings(database_url="sqlite+aiosqlite:///:memory:")
+    started = main.server_started(settings, bound="http://0.0.0.0:8000")
+    assert started["process"] == "server"
+    assert started["version"] == __version__
+    assert started["api"] == "http://0.0.0.0:8000"
+    said = main.server_facts(settings, bound="http://0.0.0.0:8000")
+    assert said["process"] == "server"
+    assert said["packs"]
+    for dev_only in ("admin", "password", "state", "log", "token"):
+        assert dev_only not in started
+        assert dev_only not in said
+
+
+def test_only_the_fixture_password_is_ever_announced() -> None:
+    """The ready record names a password only while the dev admin still signs in with the fixed one."""
+    from dirigent_client.enums import UserRole
+    from dirigent_core import migrations
+    from dirigent_core.auth import create_user
+
+    settings = get_settings()
+    migrations.upgrade("head", settings)
+    asyncio.run(main.dev_admin(settings))
+    assert asyncio.run(main.fixture_signs_in(settings, main.DEV_ADMIN))
+
+    async def another_admin() -> None:
+        engine = create_engine(settings)
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                await create_user(session, "morten", "a-longer-password-of-mine", role=UserRole.ADMIN)
+        finally:
+            await engine.dispose()
+
+    asyncio.run(another_admin())
+    assert not asyncio.run(main.fixture_signs_in(settings, "morten"))
+    assert not asyncio.run(main.fixture_signs_in(settings, "nobody"))
+    assert "password" not in main.dev_facts(settings, admin="morten")
 
 
 def test_a_dev_instance_that_minted_nothing_carries_no_token(tmp_path: Path) -> None:

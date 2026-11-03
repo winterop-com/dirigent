@@ -524,6 +524,132 @@ def test_a_process_that_minted_a_token_hands_it_over_beneath_its_line() -> None:
     assert "DG_TOKEN" not in quiet
 
 
+BASE = "http://127.0.0.1:8123"
+
+
+def announced(message: str, **fields: Any) -> dict[str, Any]:
+    """One record a serving process announces itself with, carrying what the banner reads."""
+    said: dict[str, Any] = {
+        "process": "dev",
+        "version": "0.32.0",
+        "api": BASE,
+        "ui": BASE,
+        "docs": f"{BASE}/docs",
+        "mcp": f"{BASE}/mcp",
+        "admin": "admin",
+        "password": "admin",
+        "state": "/work/.dirigent/state",
+        "log": "/work/.dirigent/state/dev.log",
+        "packs": [
+            {"name": "dirigent-block-base", "version": "0.32.0"},
+            {"name": "dirigent-blocks", "version": "0.32.0"},
+            {"name": "dirigent-dhis2", "version": "0.31.4"},
+        ],
+        "blocks": 33,
+        "connection_kinds": 10,
+        "source_kinds": 1,
+    }
+    return make("process", at=AT, message=message, **{**said, **fields})
+
+
+def drawn_at(item: object, *, width: int, colour: bool, encoding: str = "utf-8") -> str:
+    """Print a rendering to a terminal of a fixed width and encoding, with colour named rather than detected."""
+
+    class Terminal(io.StringIO):
+        """A terminal's stream, saying which characters it can draw."""
+
+        def __init__(self, drawable: str) -> None:
+            super().__init__()
+            self.drawable = drawable
+
+        def __getattribute__(self, name: str) -> Any:
+            if name == "encoding":
+                return object.__getattribute__(self, "drawable")
+            return super().__getattribute__(name)
+
+    written = Terminal(encoding)
+    console = RichConsole(
+        file=written,
+        force_terminal=colour,
+        color_system="truecolor" if colour else None,
+        no_color=not colour,
+        width=width,
+    )
+    parts: list[object] = list(item.renderables) if isinstance(item, Group) else [item]
+    for part in parts:
+        console.print(part)
+    return written.getvalue()
+
+
+def test_a_ready_instance_is_drawn_as_one_banner_of_the_facts_its_record_carries() -> None:
+    drawn = plain(drawn_at(Console().render(announced("ready")), width=100, colour=False))
+    lines = [line.rstrip() for line in drawn.splitlines()]
+    head = next(index for index, line in enumerate(lines) if "dirigent 0.32.0" in line)
+    assert "●" in lines[head + 1], "the mark stands beside the head on a wide terminal"
+    assert "dev instance ready, UI and API" in lines[head + 1]
+    assert lines[head + 2].strip().endswith(BASE)
+    labelled = {line.split()[0]: line for line in lines[head + 3 :] if line.strip()}
+    assert set(labelled) == {"docs", "mcp", "sign", "state", "log", "loaded", "packs"}
+    assert labelled["sign"].split()[-3:] == ["admin", "/", "admin"]
+    assert labelled["loaded"].endswith("33 blocks, 10 connection kinds, 1 source kind")
+    assert "2 at 0.32.0: dirigent-block-base, dirigent-blocks; dirigent-dhis2 0.31.4" in labelled["packs"]
+    assert "[info" not in drawn, "the banner is not a line of the grammar"
+
+
+def test_the_banner_carries_the_brand_in_colour_and_the_same_words_without_it() -> None:
+    coloured = drawn_at(Console().render(announced("ready")), width=100, colour=True)
+    assert "\x1b[38;2;210;154;42m" in coloured, "the mark is drawn in the brand's amber"
+    bare = drawn_at(Console().render(announced("ready")), width=100, colour=False)
+    assert "\x1b[" not in bare
+    assert plain(coloured).split() == bare.split()
+
+
+def test_a_narrow_terminal_gets_the_banner_without_its_mark_and_nothing_cut() -> None:
+    drawn = drawn_at(Console().render(announced("ready")), width=40, colour=False)
+    assert "●" not in drawn
+    assert all(len(line.rstrip()) <= 40 for line in drawn.splitlines())
+    assert "/work/.dirigent/state/dev.log" in drawn.replace("\n", "").replace(" ", "")
+
+
+def test_a_terminal_without_box_characters_gets_the_mark_in_ascii() -> None:
+    drawn = drawn_at(Console().render(announced("ready")), width=100, colour=False, encoding="ascii")
+    assert "●" not in drawn
+    assert "o--o--o" in drawn
+
+
+def test_a_server_banner_says_nothing_of_signing_in_or_of_state() -> None:
+    server = announced("ready", process="server", admin=None, password=None, state=None, log=None, ui=None, mcp=None)
+    drawn = drawn_at(Console().render(server), width=100, colour=False)
+    assert "server ready, API only" in drawn
+    for absent in ("sign in", "state", "log", "mcp"):
+        assert f"  {absent} " not in drawn
+
+
+def test_the_starting_record_hands_over_its_token_and_leaves_the_rest_to_the_banner() -> None:
+    minted = Console().render(announced("starting", token="a-dev-token"))
+    drawn = printed(minted)
+    assert "export DG_TOKEN=a-dev-token" in drawn
+    assert "starting" not in drawn
+    assert "dirigent 0.32.0" not in drawn
+    assert printed(Console().render(announced("starting"))) == ""
+    banner = drawn_at(Console().render(announced("ready", token="a-dev-token")), width=100, colour=False)
+    assert "a-dev-token" not in banner, "the token is never drawn on the banner"
+
+
+def test_a_process_record_without_a_version_keeps_its_line() -> None:
+    """A stream an older dirigent wrote reads as it always did."""
+    drawn = printed(Console().render(make("process", at=AT, message="ready", process="dev")))
+    assert drawn.splitlines()[0].count("ready") == 1
+    assert "dirigent" not in drawn
+
+
+def test_the_compact_formatter_keeps_the_announcement_on_one_line() -> None:
+    line = printed(Compact().render(announced("ready")))
+    assert "\n" not in line
+    assert " ready " in line
+    assert "blocks=33" in line
+
+
 def test_a_changed_schema_names_the_pipelines_it_was_changed_for() -> None:
     """The dependents ride off the line and are drawn beneath it, named rather than counted."""
     edited = make(

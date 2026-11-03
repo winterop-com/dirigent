@@ -74,7 +74,7 @@ dg source set-secret signed-nested-payload published --secret "$PROVIDER_SECRET"
 dg dev                                  # a local instance: API, worker, one SQLite file
 # its state is .dirigent/state, kept between starts; --wipe-state starts from nothing
 # on an empty state its admin is admin / admin, a fixture; the starting record carries
-# the token, minted once, so copy it out of that line
+# the token, minted once, and a terminal shows it once above the banner
 export DG_URL=http://127.0.0.1:3333 DG_TOKEN=...
 
 dg init my-pipelines && cd my-pipelines && uv sync
@@ -787,7 +787,7 @@ the terminal is free to wrap it.
 ```text
 2026-01-01T18:22:23.069+01:00 [info    ] succeeded                      [step fetch] block=http.request attempt=1 duration_ms=282
 2026-01-01T18:22:23.297+01:00 [warning ] the region refused             [log push[east]] region=east status=503
-2026-01-01T18:22:24.000+01:00 [info    ] ready                          [process] process=dev
+2026-01-01T18:22:24.000+01:00 [info    ] stopping                       [process] process=dev reason=SIGINT grace_ms=10000
 ```
 
 `compact` is the same grammar with the padding spent on nothing:
@@ -816,9 +816,23 @@ banner, no table, no colour; at a terminal they render the same lines. A process
 stream: its logging joins the records on standard output rather than standard error, so one
 pipe carries the whole story.
 
+`dg dev` and `dg server` announce themselves with two `process` records, `starting` and
+`ready`, and at a terminal the pair is drawn as one banner once the instance answers: the
+mark and the version, the address to open, the API docs, the MCP endpoint when it is
+enabled, and what the installed packs contribute, with every pack and its version. A dev
+instance adds who to sign in as -- `admin / admin` while the fixture login still holds -- its
+state directory and, where it keeps one, its log file. A token `dg dev` minted is shown once
+above the banner and never on it. Every fact the banner draws is a field of the `ready`
+record, so `dg format` draws the same banner from a stream that was kept, and a pipe carries
+the same facts with no banner. The mark is left off in a terminal under 60 columns and
+drawn in ASCII where box characters are not, and `NO_COLOR` draws it without the brand's
+amber. `dg format compact` renders the two records as the one-line `starting` and `ready`
+they are.
+
 ```bash
-dg dev                             # rendered at a terminal
+dg dev                             # rendered at a terminal, ending in the banner
 dg dev > dev.ndjson                # records, kept, and read back later with dg format -f
+dg dev --json | dg format compact  # the starting and ready records as one line each
 ```
 
 #### A command's diagnostics
@@ -876,7 +890,7 @@ rather than being able to change what a parser reads the record by.
 | `step` | An attempt changes state; the message is the new status | `block`, `attempt`, `duration_ms` once it has settled |
 | `log` | A block writes a line | Whatever the block bound to it |
 | `output` | A step settles, from `-v` up; the message is its status | The output's own fields, or `artifact` and `bytes` when it went to storage |
-| `process` | A long-running process starts, when it is ready, when `dg dev --wipe-state` clears its state, and when the process that started `dg dev` goes | `process`, and for `dg dev` the `api`, `docs`, `state`, `admin`, `token` and `migrated` it would otherwise have printed; a `state cleared` carries the `state` it deleted and the `hint` that keeps it, and a `parent gone` the `parent` pid that went |
+| `process` | A long-running process starts, when it is ready, when `dg dev --wipe-state` clears its state, and when the process that started `dg dev` goes | `process`; for `dg dev` and `dg server` a `starting` carries the `version`, `api`, `ui` when the UI is served, `docs` and `mcp` when MCP is enabled, and `dg dev`'s adds the `admin`, `state`, the `token` it minted and the schema it `migrated` to; a `ready` carries the same addresses and `version`, the `packs[]` loaded, each a `name` and `version`, and how many `blocks`, `connection_kinds` and `source_kinds` they contribute, and `dg dev`'s adds the `admin`, the fixture `password` while it still signs in, and the `state`; a `state cleared` carries the `state` it deleted and the `hint` that keeps it, and a `parent gone` the `parent` pid that went |
 | `seed.connection` | `dg dev --seed` creates a connection a file or a document declares | `connection`, `connection_kind`, `action` of `created` or `updated`, and the `origin` file it was read from |
 | `seed.schema` | `dg dev --seed` stores a standalone JSON Schema file | `schema`, the code it is stored under, and the `origin` file it was read from |
 | `seed.applied` | `dg dev --seed` stores one document | `document`, `pipeline`, `action`, and the `schedules_paused` and `sources_paused` this apply brought into being |
