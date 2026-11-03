@@ -17,6 +17,15 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**`dg dev` generates a secret key when a project has none.** A project made with
+`dg init --template documents` has no `.env`, so the first `dg connection create` against the
+`dg dev` started there was refused `secret.key_missing`. On a state holding no sealed connection
+secret, and with no `DIRIGENT_SECRET_KEY` configured, `dg dev` now generates one into the
+project's `.env`, readable by its owner alone, and its `starting` record names the file in
+`secret_key_written`, never the key.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

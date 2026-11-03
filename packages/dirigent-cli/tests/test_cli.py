@@ -912,6 +912,61 @@ def test_a_dev_instance_announces_itself_as_one_record(tmp_path: Path) -> None:
     assert "password" not in record, "the starting record does not say how to sign in; the ready one does"
 
 
+@pytest.mark.usefixtures("dotenv_layer")
+def test_dev_generates_a_key_into_the_project_env_when_none_is_configured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dirigent_core import migrations
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("DG_TOKEN=abc")
+    settings = get_settings()
+    migrations.upgrade("head", settings)
+
+    written = asyncio.run(main.dev_secret_key(settings))
+
+    assert written == Path(".env")
+    assert (tmp_path / ".env").stat().st_mode & 0o777 == 0o600
+    lines = (tmp_path / ".env").read_text().splitlines()
+    assert lines[0] == "DG_TOKEN=abc", "what the file held is kept"
+    key = next(line for line in lines if line.startswith("DIRIGENT_SECRET_KEY="))
+    reset_settings_cache()
+    configured = get_settings().secret_key
+    assert configured is not None
+    assert configured.get_secret_value() == key.partition("=")[2]
+    record = main.dev_started(
+        settings, bound="http://127.0.0.1:4999", admin="dev", token=None, migrated=None, keyed=written
+    )
+    assert record["secret_key_written"] == ".env"
+    assert key.partition("=")[2] not in str(record), "the record names the file, never the key"
+
+
+@pytest.mark.usefixtures("dotenv_layer")
+def test_dev_generates_no_key_when_one_is_configured_or_a_secret_is_sealed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dirigent_core import migrations
+    from dirigent_core.models import Connection
+
+    monkeypatch.chdir(tmp_path)
+    settings = get_settings()
+    migrations.upgrade("head", settings)
+    keyed = settings.model_copy(update={"secret_key": "configured"})
+    assert asyncio.run(main.dev_secret_key(keyed)) is None
+
+    async def seal() -> None:
+        engine = create_engine(settings)
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                session.add(Connection(code="sealed", kind="http", config={}, secret_envelope=b"sealed"))
+        finally:
+            await engine.dispose()
+
+    asyncio.run(seal())
+    assert asyncio.run(main.dev_secret_key(settings)) is None, "a new key could not open what an old one sealed"
+    assert not (tmp_path / ".env").exists()
+
+
 def test_an_instance_serving_neither_ui_nor_mcp_names_neither(tmp_path: Path) -> None:
     settings = Settings(
         database_url=f"sqlite+aiosqlite:///{tmp_path / 'state' / 'dirigent.db'}", ui_enabled=False, mcp_enabled=False

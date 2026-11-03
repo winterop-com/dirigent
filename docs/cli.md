@@ -404,7 +404,12 @@ it: `uv tool upgrade dirigent-cli` brings one up to a version that does.
 
 It refuses to run over an instance that is already there: migrating and re-admining a live
 database is not what running it twice means. `--template documents` scaffolds beside one
-without touching it, which is what to use against a server somebody else runs.
+without touching it, which is what to use against a server somebody else runs. It writes no
+`.env`; a `dg dev` started in such a project with no `DIRIGENT_SECRET_KEY` configured, and no
+connection secret sealed in its state, generates one into the project's `.env` (created
+readable by you alone, or added to), and its `starting` record names the file in
+`secret_key_written` without ever carrying the key. Every scaffold's `.gitignore` keeps `.env`
+out of git.
 
 Run the instance it made with `uv run dg dev`, in its own terminal in the project directory:
 it keeps running, and serves the UI at `http://127.0.0.1:3333`. `dg dev --wipe-state` would

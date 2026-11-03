@@ -225,7 +225,8 @@ from the `pyproject.toml` it wrote, which pins the dirigent that scaffolded it -
 `--wipe-state` here: it would empty the directory `dg init` just filled and mint a development
 admin of its own, leaving the token in `.env` addressing an account that no longer exists.
 `dg init --template documents` stops after the documents, which is what to use when the
-instance is somebody else's server. `--template` is also what decides whether you are asked:
+instance is somebody else's server; a `dg dev` started there anyway generates its own
+`DIRIGENT_SECRET_KEY` into `.env` on its first start, and says so. `--template` is also what decides whether you are asked:
 at a terminal, `dg init hello` with none of the shape flags opens one form that asks all of
 this -- where it runs, the stack's services, packs, a workflow, and the first admin -- and
 naming a template answers the first question, so the command runs straight through.

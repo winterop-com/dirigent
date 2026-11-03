@@ -354,16 +354,25 @@ def _issued(record: Record) -> RenderableType | None:
 
     A login's ``token.issued`` and ``dg dev``'s ``starting`` both carry one exactly once; a
     process record without a token, ``ready`` or ``state cleared``, is its line alone.
+    ``starting`` also says when it generated a secret key, naming the file and never the key.
     """
     token = record.get("token")
-    if not token:
-        return None
-    return Group(
-        "",
-        f"  [bold]export DG_TOKEN={escape(str(token))}[/]",
-        "",
-        "[yellow]This is the only time the token is shown.[/]",
-    )
+    keyed = record.get("secret_key_written")
+    parts: list[RenderableType] = []
+    if keyed:
+        parts += [
+            "",
+            f"Generated a DIRIGENT_SECRET_KEY into [bold]{escape(str(keyed))}[/], readable by you alone.",
+            "[dim]It opens every connection secret this instance stores; keep it.[/]",
+        ]
+    if token:
+        parts += [
+            "",
+            f"  [bold]export DG_TOKEN={escape(str(token))}[/]",
+            "",
+            "[yellow]This is the only time the token is shown.[/]",
+        ]
+    return Group(*parts) if parts else None
 
 
 def _source_token(record: Record) -> RenderableType | None:
