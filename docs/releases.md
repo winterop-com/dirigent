@@ -17,11 +17,60 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
-## Unreleased
+## 0.33.0
+
+Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do
+`dirigent-dhis2`, `dirigent-contrib`, `dirigent-fhir` and `dirigent-integration`.
+
+**Before upgrading.** The baseline migration is edited in place, so `dg db upgrade` does not
+carry this release's schema: recreate the state (`dg dev --wipe-state`, or a fresh database), or
+make the changes by hand. The new table is `audit_entries`. `connections` gains `awaiting_secrets`
+(a boolean, false by default); `notifications` gains `rule_code`, and its `alert_rule_id` foreign
+key becomes nullable with `ON DELETE SET NULL`; `sources` gains `failed`, `sources.failures` is
+renamed `poll_failures`, and `input_outcome` gains `failed`; `runs` gains the index
+`ix_runs_created_at`. Four changes break a document or a caller, each marked **Breaking** below: a
+list or object inside text renders as JSON; a block's limits are refused at plan; a source's
+counters are renamed and recounted; cancelling a settled run is refused. A `dg` of another version
+run inside a project that pins dirigent now refuses to run: use `uv run dg`, or
+`uv tool upgrade dirigent-cli` for the global one.
+
+**`dg dev` and `dg server` draw one startup banner at a terminal.** The `ready` record carries the
+version, the addresses (UI, API, docs, `/mcp`), on `dg dev` the sign-in and the state path, the
+dev log file, and every pack loaded with its version and how many blocks, connection kinds and
+source kinds it contributes; at a terminal the console formatter draws it as one banner under the
+mark. In a pipe, with `--json` or `DIRIGENT_LOG_FORMAT`, the records are written as they are and
+nothing else. `dg server` now writes `starting` and `ready` too.
+
+**Ctrl-C stops `dg dev` within a bound, a second Ctrl-C at once.** `dg dev` handles SIGINT and
+SIGTERM itself: the first drains the worker and stops the API, closing connections still open once
+the worker has drained, and gives up after 10 seconds, naming what it cancelled; a second exits at
+once. Program runners such as jq's start outside the terminal's process group, so a Ctrl-C no
+longer reaches them or prints their traceback, and `dg dev` stops them on its way out. It hung
+before whenever a stream was open, a `--watch` or an MCP session.
+
+**`dg` guards a project against another `dg`, and asks for a kind's credential.** Inside a project
+whose `pyproject.toml` pins `dirigent-cli`, a `dg` the pin does not allow refuses with
+`cli.version_mismatch`, naming both versions; `DG_ALLOW_VERSION_MISMATCH=1` runs it anyway. A
+connection kind declares its `credential_forms` and whether one is `credential_required`, and
+`dg connection create` asks which form to use and for each of its fields at a terminal; outside one,
+a required credential left out is refused with the exact `--set` fields of each form. `dg init`'s
+README is a guide from the scaffold to a running instance, a connection, a first pipeline and an
+agent over MCP, for each template. `dg profile list` and `dg profile show` say which profiles exist,
+which is selected and where each token comes from, never the token; `DG_PROFILE` is documented.
+
+**An alert names its failing step and why.** The log channel writes one structured line per alert
+-- `event_kind`, `run_id`, `pipeline`, `status`, `failing_step` (and `item`), a one-line `error`
+and its `error_code`, `trigger`, `duration_ms`, `url` -- where it wrote the text body into one
+field. A default body opens with the failing step and its error and writes params as JSON, and a
+custom body template reads `failing_step`, `failing_item`, `error` and `error_code`.
+
+**The run graph zooms on a plain wheel, and the account row is a menu.** On the run's screen, whose
+graph fills the room above the terminal, a plain wheel zooms about the pointer; the pipeline's page
+keeps a plain wheel for the page and Ctrl or Cmd with the wheel for the graph. The rail's account
+row is a round avatar, the name and a chevron, and its menu carries Settings, Keyboard shortcuts,
+Appearance (Light, Dark, System) and Sign out; the top strip's mode flip is gone.
 
 **An agent or an operator sets up a connection, and an admin gives it its secrets.** The MCP server's `create_connection` (offered to an operator and an admin, never a viewer) creates a connection with its settings alone. It sends `awaiting_secrets: true` on `POST /connections`, and the API then refuses any field the kind declares secret by name and never by value (`server.secrets_withheld`), still refuses every other setting the kind's model refuses, and stores the settings alone. An operator may now `POST /connections` too, without a secret: one carrying a secret value is refused by field name (`server.secrets_need_admin`, 403), a connection that cannot work without a secret (its model refuses the settings alone, or its kind's `credential_required` names a form none of which is complete) is stored awaiting it, and any other, such as `http` without auth, is stored complete and usable. Supplying a secret, updating, deleting and checking a connection stay an admin's. Every read carries `awaiting_secrets`; a step, a source, an alert and `$check` refuse such a connection (`secret.connection_awaiting_secrets`) until an update whose config the model accepts whole completes it. The tool answers the secret fields to supply and the command that does it: the new `dg connection set-secret CODE [FIELD]...`, which asks for the kind's credential form as `dg connection create` does and prompts for each secret without echoing it, or the connection's dialog, where the Connections screen draws it as *awaiting secrets*. `dirigent-client`'s `connections.create` takes `awaiting_secrets`.
-
-**The schema changed, and `dg db upgrade` does not carry it.** `connections` gains `awaiting_secrets`, a boolean defaulting to false. The baseline migration is edited in place: recreate the database, or add the column by hand (`ALTER TABLE connections ADD COLUMN awaiting_secrets BOOLEAN NOT NULL DEFAULT false`).
 
 **An agent over MCP reaches what it had to ask a person for.** `get_run_report` reads the markdown report document a run rendered, and whether it rendered one, as `dg runs report RUN --markdown` does. `get_run_profile` is `dg runs profile`: the critical path and its queued, running and waiting time. `list_schedule_firings` is `dg schedule firings`, and `list_alert_deliveries` is `dg alerts queue`, narrowed to a run or a `status`. Alert rules are written with `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`, `resume_alert_rule` and `delete_alert_rule`, which an operator is offered, and named schemas with `create_schema`, `update_schema` and `delete_schema`, which only an admin is, as the API allows. `dirigent-client`'s `alerts.notifications` takes `status`, and the run-timing model `dg runs profile` computes moved from `dirigent_cli.timing` to `dirigent_client.timing`.
 
@@ -31,17 +80,11 @@ relock against the tag and bump.
 
 Alert rules stay out of pipeline documents. A rule's code is the instance's rather than a pipeline's, a `global` rule watches every pipeline, and a rule is removed by a person rather than by a document that stopped declaring it.
 
-**`runs` gains an index too.** `ix_runs_created_at` is the one the summary per pipeline reads its window through. The baseline migration is edited in place, so `dg db upgrade` does not carry it: recreate the database, or add it by hand with `CREATE INDEX ix_runs_created_at ON runs (created_at)`. A database without it answers the same, more slowly.
-
 **Runs grouped by pipeline.** The Runs screen has a View switch between the list and By pipeline: one row per pipeline that ran in the last hour, 24 hours or 7 days, with the newest run's state, a count per state it has runs in, its 30 most recent runs as dots oldest first, each a link to its run, when it last ran, and the median duration of the settled ones. A row opens the list of that pipeline's runs over the same window. The view and window are in the address, `/runs?group=pipeline&window=24h`; the pipeline, tag and status filters carry over, the status asking for each pipeline's newest run. The same answer is `GET /runs/$summary?since=24h` (`RunSummary`, with `latest=<state>` and `tag`), `dg.runs.summary()`, `dg runs summary` (`runs.summary` records), and the `runs_by_pipeline` MCP tool.
 
 **A refused config says what is wrong, in our words.** A step whose resolved config its block refuses fails with `run.config_invalid`: one short sentence, `` `delay` must be at most 30s ``, with every problem in `error_params.problems[]` (code, message, location, params), and the run's screen lists them by field. A literal config is refused the same way at apply, at `steps.<step>.config.<field>`. Every validation message reads in our own words under the same `validation.*` codes (`must be at most 30s`, `is required`, `must be a valid integer`), with a duration or size limit written as a document writes one.
 
 **How a run was started is said once.** The runs list, the pipeline page's Recent runs, the run's header and its Trigger section name a person or a token by the label alone (`agent (token mcp-trial)`, not `api token · agent (token mcp-trial)`), a schedule, backfill or source as its kind and code, and a rerun as `rerun of <run> by <who>`. The run dialog says `runs as admin`.
-
-**Before upgrading.** The baseline migration is edited in place, so `dg db upgrade` does not carry
-it: `sources` gains `failed`, `sources.failures` is renamed `poll_failures`, and `input_outcome`
-gains `failed`. Recreate the database, or make the same changes by hand.
 
 **A report template reads the run's parameters.** `{{ params.period }}` reads the parameters the
 run resolved to, defaults filled in, beside `run.params`, in a `report:` template and an alert's
@@ -102,9 +145,9 @@ whose `report.render` step rendered text offers that text on its Report tab. `re
 summary says it does not set the run's report.
 
 
-**Who changed what is recorded, and the schema changed.** Every administrative change -- a pipeline applied, activated, deactivated or deleted, a triggers document, a schedule, a source paused or its token rotated, an alert rule, a connection, a schema, an account, an API token created or revoked -- is a row in the new `audit_entries` table, written in the change's own transaction: who acted (the account, and the token it acted through, so an agent's change reads `agent (token mcp-trial)`), the action, the subject's kind and code, and for an update the names of the fields it changed, never a value. Admins read it with `GET /audit`, `dirigent-client`'s `audit.list`, `dg audit`, the MCP `list_audit` tool, and the Audit screen under Admin. It is kept for `retention_audit`, `365d` unless set, and `dg prune --audit` prunes it by hand. The same change is one INFO line on the process log, which now includes a token's revocation and a connection's create, update and delete. See [the audit trail](security.md#the-audit-trail). The baseline migration is edited in place, so `dg db upgrade` does not create the table: recreate the state (`dg dev --wipe-state`, or a fresh database), or create `audit_entries` by hand from the baseline.
+**Who changed what is recorded.** Every administrative change -- a pipeline applied, activated, deactivated or deleted, a triggers document, a schedule, a source paused or its token rotated, an alert rule, a connection, a schema, an account, an API token created or revoked -- is a row in the new `audit_entries` table, written in the change's own transaction: who acted (the account, and the token it acted through, so an agent's change reads `agent (token mcp-trial)`), the action, the subject's kind and code, and for an update the names of the fields it changed, never a value. Admins read it with `GET /audit`, `dirigent-client`'s `audit.list`, `dg audit`, the MCP `list_audit` tool, and the Audit screen under Admin. It is kept for `retention_audit`, `365d` unless set, and `dg prune --audit` prunes it by hand. The same change is one INFO line on the process log, which now includes a token's revocation and a connection's create, update and delete. See [the audit trail](security.md#the-audit-trail).
 
-**Deleting an alert rule keeps what it sent, and the schema changed.** A delivery's rule was a cascade, so deleting a rule deleted every notification it had raised, while its docstrings said they were kept. Now `notifications.alert_rule_id` is set to null when the rule goes, and the new `notifications.rule_code`, written when a delivery is queued, keeps naming the rule in `GET /notifications`, `dg alerts queue` and the MCP `list_alert_deliveries`. The baseline migration is edited in place, so recreate the state, or add `rule_code` and change the foreign key by hand.
+**Deleting an alert rule keeps what it sent.** A delivery's rule was a cascade, so deleting a rule deleted every notification it had raised, while its docstrings said they were kept. Now `notifications.alert_rule_id` is set to null when the rule goes, and the new `notifications.rule_code`, written when a delivery is queued, keeps naming the rule in `GET /notifications`, `dg alerts queue` and the MCP `list_alert_deliveries`.
 
 **`dg dev` says what happened.** It logs at INFO by default: the audited changes, each run started and settled with its outcome and `duration_ms`, and the engine's other INFO events, without the per-request log, which `-v` adds with the step-level detail. A `log_level` in the project's settings is respected. It also writes its log as NDJSON to `.dirigent/state/dev.log`, whatever the terminal, rotated at `dev_log_max_size` (`10MB`) with `dev_log_backups` (3) kept; the `starting` record names the file. `dg server` still logs to stdout only.
 

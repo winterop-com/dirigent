@@ -60,7 +60,7 @@ cd regional
 ```
 
 ```text
-2026-01-01T18:22:31.702+01:00 [info    ] scaffolded                     [project.scaffolded] directory=/home/you/dirigent-tutorial/regional template=documents version=0.32.0
+2026-01-01T18:22:31.702+01:00 [info    ] scaffolded                     [project.scaffolded] directory=/home/you/dirigent-tutorial/regional template=documents version=0.33.0
 Created a documents project in /home/you/dirigent-tutorial/regional:
   + dirigent.yaml
   + .dirigent/profiles.yaml
