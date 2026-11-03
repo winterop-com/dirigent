@@ -47,7 +47,7 @@ export function ReportDocumentPane({
         >
             <div className={cn('flex flex-col gap-3', capped && 'max-h-[28rem] overflow-y-auto p-4')}>
                 <Description text={document.markdown} ink="body" />
-                {prefix !== null && (
+                {prefix !== null && document.id !== null && (
                     <a
                         className="w-fit text-xs text-foreground underline-offset-2 hover:underline"
                         href={artifactUrl(prefix, document.id)}

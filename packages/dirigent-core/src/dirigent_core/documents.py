@@ -439,6 +439,7 @@ def validate_against_catalog(
     the codes are checked. ``source_kinds`` is the source kinds the instance knows; unset, the
     built-in ones.
     """
+    from dirigent_core.reportchecks import report_issues
     from dirigent_core.sources.kinds import built_in_kinds
     from dirigent_core.sources.rules import source_issues
 
@@ -470,6 +471,7 @@ def validate_against_catalog(
     issues.extend(_reference_issues(definition))
     issues.extend(_trigger_issues(definition, checker, check_params=not malformed_params))
     issues.extend(source_issues(definition, kinds))
+    issues.extend(report_issues(definition, catalog if check_blocks else None))
     if check_blocks:
         issues.extend(
             _step_block_issues(

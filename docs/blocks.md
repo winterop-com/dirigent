@@ -52,7 +52,7 @@ Two properties are worth reading before a block is used:
 | [`playground.generate`](#playgroundgenerate) | operator | playground | Generate rows, a delay, a failure, or a payload, with nothing to call. | `block-base` |
 | [`rabbitmq.consume`](#rabbitmqconsume) | sensor | rabbitmq | Wait for messages on a RabbitMQ queue. | `block-queues` |
 | [`rabbitmq.publish`](#rabbitmqpublish) | operator | rabbitmq | Publish one message to an exchange. | `block-queues` |
-| [`report.render`](#reportrender) | operator | report | Render text from a Jinja template. | `block-base` |
+| [`report.render`](#reportrender) | operator | report | Render text from a Jinja template; `report: {from: <step>}` makes it the run's report. | `block-base` |
 | [`shell.run`](#shellrun) | operator | execute | Run a command on the worker. | `block-execute` |
 | [`sql.execute`](#sqlexecute) | operator | sql | Run SQL statements against a database in one transaction. | `block-sql` |
 | [`sql.query`](#sqlquery) | operator | sql | Run one SQL statement and return its rows. | `block-sql` |
@@ -513,7 +513,7 @@ Contributed by `block-queues`. Not idempotent.
 
 ### `report.render`
 
-Render text from a Jinja template.
+Render text from a Jinja template; `report: {from: <step>}` makes it the run's report.
 
 Contributed by `block-base`. Idempotent.
 

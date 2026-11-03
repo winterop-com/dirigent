@@ -199,6 +199,7 @@ from dirigent_core.engine.definition import PipelineDefinition, TriggersDefiniti
 from dirigent_core.engine.runs import RunWindow
 from dirigent_core.engine.state import in_execution_order
 from dirigent_core.examples import STARTER_TAG, ExampleEntry
+from dirigent_core.reportchecks import report_warnings
 from dirigent_core.schemas import code_from_id
 from dirigent_core.statedir import StateRefused, check_state
 
@@ -621,12 +622,15 @@ def validate_command(
             failures += 1
             continue
         checked = "document and catalog" if server else "document and installed blocks"
+        warned = report_warnings(definition) if isinstance(definition, PipelineDefinition) else []
         emit_fact(
             "validation",
+            level="warning" if warned else "info",
             message="valid",
             code=definition.code,
             document=label,
             checked=checked,
+            warnings=[issue.issue().model_dump(mode="json") for issue in warned] or None,
             steps=[step._asdict() for step in graph_steps(definition)]
             if isinstance(definition, PipelineDefinition)
             else None,

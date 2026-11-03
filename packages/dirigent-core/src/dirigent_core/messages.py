@@ -264,6 +264,38 @@ SCHEDULE_ONE_CLOCK = DOCUMENT.define(
 
 TEMPLATE_REFUSED = DOCUMENT.define("template_refused", "{detail}")
 
+REPORT_TEMPLATE_AND_STEP = DOCUMENT.define(
+    "report_template_and_step",
+    "report takes a template or a step whose text it is, not both",
+)
+
+REPORT_NO_SUCH_STEP = DOCUMENT.define("report_no_such_step", "report.from names {step}, and no step is called that")
+
+REPORT_STEP_NOT_A_BLOCK = DOCUMENT.define(
+    "report_step_not_a_block", "report.from names {step}, which is a {form} and hands on no text"
+)
+
+REPORT_STEP_NO_TEXT = DOCUMENT.define(
+    "report_step_no_text",
+    "report.from names {step}, and its block {block} hands on no `text` string to be the run's report",
+)
+
+REPORT_RENDER_UNSEEN = DOCUMENT.define(
+    "report_render_unseen",
+    "step {step} renders text with report.render, and with no `report:` it is not the run's report "
+    "and does not appear in the Report tab; write `report: {{from: {bare}}}` to make it the run's report",
+)
+
+REPORT_STEP_LEFT_NO_TEXT = DOCUMENT.define(
+    "report_step_left_no_text",
+    "step {step} left no `text` to be the run's report: it did not succeed, or handed on none",
+)
+
+TEMPLATE_NAME_UNKNOWN = DOCUMENT.define(
+    "template_name_unknown",
+    "{name} is not something this template is given, so it renders empty{hint}",
+)
+
 TOO_MANY_TAGS = DOCUMENT.define(
     "too_many_tags", "a document declares at most {maximum} tags, and this one declares {counted}"
 )

@@ -43,6 +43,7 @@ from dirigent_core.messages import (
     REPLY_BAD_STATUS,
     REPLY_BODY_TWICE,
     REPLY_FIELD_REFUSED,
+    REPORT_TEMPLATE_AND_STEP,
     SAMPLE_OUTSIDE_SOURCE,
     SCHEDULE_ONE_CLOCK,
     SELF_DEPENDENCY,
@@ -494,11 +495,26 @@ class TriggerSpecs(BaseModel):
 
 
 class ReportSpec(BaseModel):
-    """The report document a run renders when it settles; no template means the built-in one."""
+    """The report document a run renders when it settles.
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    ``template`` renders it over the run's facts; ``from`` takes the ``text`` a step handed on,
+    such as a ``report.render`` step's, as it is. With neither, the built-in template renders it.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid", validate_by_name=True, serialize_by_alias=True)
 
     template: Annotated[str | None, Field(json_schema_extra={"contentMediaType": TEMPLATE_MEDIA_TYPE})] = None
+    """A Jinja template over the run's facts."""
+
+    step: str | None = Field(default=None, alias="from")
+    """The step whose output's ``text`` is the run's report, rendered no further."""
+
+    @model_validator(mode="after")
+    def _one_way(self) -> Self:
+        """Refuse a report that is both rendered and taken from a step."""
+        if self.template is not None and self.step is not None:
+            raise ValueError(REPORT_TEMPLATE_AND_STEP.render())
+        return self
 
     @field_validator("template")
     @classmethod

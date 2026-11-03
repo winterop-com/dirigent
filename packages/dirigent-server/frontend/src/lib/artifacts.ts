@@ -17,6 +17,7 @@
 
 import { apiJson, apiText, apiUrl, type Page } from '@/lib/api'
 import { PAGE } from '@/lib/paging'
+import type { AttemptOut } from '@/lib/runs'
 
 /** The content type the run's report document is stored as. `MARKDOWN_CONTENT_TYPE` in core. */
 export const MARKDOWN_CONTENT_TYPE = 'text/markdown'
@@ -91,7 +92,8 @@ export function reportArtifact(items: readonly ArtifactOut[]): ArtifactOut | nul
 
 /** The run's report document: the artifact it is, and the markdown it holds. */
 export interface ReportDocument {
-    id: string
+    /** The artifact the markdown is read from, or null for text a step handed on. */
+    id: string | null
     markdown: string
 }
 
@@ -106,4 +108,25 @@ export async function readReportDocument(runId: string): Promise<ReportDocument 
     const found = reportArtifact(await readArtifacts(runId))
     if (found === null) return null
     return { id: found.id, markdown: await readArtifactText(found.id) }
+}
+
+/** The text a `report.render` step handed on, by the step that rendered it. */
+export interface RenderedText {
+    step: string
+    text: string
+}
+
+/** The block whose text a document most often means as its report. */
+const RENDER_BLOCK = 'report.render'
+
+/** The last text a succeeded `report.render` attempt of the run handed on, or null. */
+export function renderedText(attempts: readonly AttemptOut[]): RenderedText | null {
+    for (let index = attempts.length - 1; index >= 0; index -= 1) {
+        const attempt = attempts[index]
+        const text = attempt.output?.text
+        if (attempt.block_id === RENDER_BLOCK && attempt.status === 'succeeded' && typeof text === 'string') {
+            return { step: attempt.step_name, text }
+        }
+    }
+    return null
 }

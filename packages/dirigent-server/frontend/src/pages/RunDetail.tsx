@@ -438,6 +438,7 @@ export function RunDetail() {
                         settled={runSettled(state.run.status)}
                         report={report}
                         problem={reportProblem}
+                        attempts={Object.values(state.attempts)}
                     />
                 ),
             },

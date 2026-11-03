@@ -7,9 +7,11 @@ import {
     artifactsPath,
     MARKDOWN_CONTENT_TYPE,
     readReportDocument,
+    renderedText,
     reportArtifact,
     type ArtifactOut,
 } from '@/lib/artifacts'
+import type { AttemptOut } from '@/lib/runs'
 
 /** One artifact row, with only what a test is asking about spelled out. */
 function artifact(over: Partial<ArtifactOut>): ArtifactOut {
@@ -109,5 +111,30 @@ describe('readReportDocument', () => {
         expect(refused).toBeInstanceOf(ApiError)
         expect((refused as ApiError).problem.code).toBe('artifacts.object_missing')
         expect((refused as ApiError).problem.detail).toContain('restore the artifact root')
+    })
+})
+
+/** One attempt, with only what a test is asking about spelled out. */
+function attempt(over: Partial<AttemptOut>): AttemptOut {
+    return {
+        step_name: 'summary',
+        block_id: 'report.render',
+        status: 'succeeded',
+        output: null,
+        ...over,
+    } as AttemptOut
+}
+
+describe('renderedText', () => {
+    test('a report.render step that succeeded offers its text', () => {
+        const found = renderedText([attempt({ output: { text: '# Weekly', content_type: 'text/markdown' } })])
+        expect(found).toEqual({ step: 'summary', text: '# Weekly' })
+    })
+
+    test('a step of another block, a failed one, or one with no text offers nothing', () => {
+        expect(renderedText([attempt({ block_id: 'value.const', output: { text: 'x' } })])).toBeNull()
+        expect(renderedText([attempt({ status: 'failed', output: { text: 'x' } })])).toBeNull()
+        expect(renderedText([attempt({ output: { value: 1 } })])).toBeNull()
+        expect(renderedText([])).toBeNull()
     })
 })

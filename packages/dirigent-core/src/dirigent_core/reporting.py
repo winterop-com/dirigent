@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus
-from dirigent_common import JsonMap, render
+from dirigent_common import JsonMap, RenderTooLarge, render
 from dirigent_common.depth import shown
 from dirigent_core import alerting, telemetry
 from dirigent_core.artifacts import MARKDOWN_CONTENT_TYPE, canonical_json, persist_document
@@ -19,6 +19,7 @@ from dirigent_core.engine.definition import PipelineDefinition
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import build_step_states, in_execution_order
 from dirigent_core.logging import get_logger
+from dirigent_core.messages import REPORT_STEP_LEFT_NO_TEXT
 from dirigent_core.models import ArtifactRef, LogEntry, Pipeline, PipelineVersion, Run, RunItem, StepAttempt
 
 #: The document a run renders when it declares ``report:`` without a template of its own.
@@ -330,11 +331,15 @@ async def render_run_report(
         return RenderedReport()
     facts = await facts_of_run(session, run, definition, base_url=services.settings.alert_base_url, rendered_at=now)
     template = definition.report.template or DEFAULT_TEMPLATE
+    max_bytes = int(services.settings.report_max_size)
     try:
-        markdown = await asyncio.wait_for(
-            asyncio.to_thread(render, template, as_context(facts), max_bytes=int(services.settings.report_max_size)),
-            timeout=services.settings.report_render_timeout.total_seconds(),
-        )
+        if definition.report.step is not None:
+            markdown = step_text(facts, definition.report.step, max_bytes=max_bytes)
+        else:
+            markdown = await asyncio.wait_for(
+                asyncio.to_thread(render, template, as_context(facts), max_bytes=max_bytes),
+                timeout=services.settings.report_render_timeout.total_seconds(),
+            )
         existing = await _report_row(session, run.id)
         storage = await services.bound_storage(session)
         async with session.begin_nested():
@@ -361,6 +366,17 @@ async def render_run_report(
         _logger.warning("the run's report was not rendered", run_id=str(run.id), error=str(error))
         return RenderedReport(facts=facts)
     return RenderedReport(facts=facts, markdown=markdown, artifact_id=reference.id)
+
+
+def step_text(facts: RunFacts, step: str, *, max_bytes: int) -> str:
+    """The ``text`` a step handed on, which ``report: {from: <step>}`` makes the run's report."""
+    found = facts.step.get(step)
+    text = found.output.get("text") if found is not None and found.output is not None else None
+    if not isinstance(text, str):
+        raise ValueError(REPORT_STEP_LEFT_NO_TEXT.render(step=repr(step)))
+    if len(text.encode()) > max_bytes:
+        raise RenderTooLarge(max_bytes)
+    return text
 
 
 async def _report_row(session: AsyncSession, run_id: UUID) -> ArtifactRef | None:

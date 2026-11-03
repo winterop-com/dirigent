@@ -1031,7 +1031,7 @@ verb and whose fields are the identity of what changed:
 | `db.history` | `dg db history` | `history`, as alembic wrote it |
 | `db.upgraded` | `dg db upgrade` | `database`, `target`, and the `revision` it reached |
 | `storage.ensured` | `dg storage ensure` | the artifact `root`, the `bucket` it addresses, whether this call `created` it, and the `endpoint` it was made at |
-| `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` |
+| `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` and the `warnings[]` that refuse nothing, such as a `report.render` step no `report:` reads; a record with warnings is at `warning` level |
 | `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid`, and the files in a directory `skipped` as not documents |
 | `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once |
