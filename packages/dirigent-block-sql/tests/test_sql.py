@@ -366,6 +366,24 @@ async def test_a_synchronous_url_is_refused_because_these_blocks_speak_async() -
     with pytest.raises(ValidationError) as raised:
         SqlConnectionConfig(url="postgresql://user@host/db")
     assert "names no driver" in str(raised.value)
+    assert "postgresql+asyncpg:// or postgresql+psycopg://" in str(raised.value)
+
+
+@pytest.mark.parametrize(
+    ("url", "suggested", "absent"),
+    [
+        ("sqlite:///tmp/x.db", "sqlite+aiosqlite://", "sqlite+asyncpg"),
+        ("mysql://user@host/db", "mysql+aiomysql:// or mysql+asyncmy://", "mysql+asyncpg"),
+        ("firebird://user@host/db", "firebird+<an async driver>://", "firebird+asyncpg"),
+    ],
+)
+def test_a_synchronous_url_is_told_the_async_driver_its_own_dialect_takes(
+    url: str, suggested: str, absent: str
+) -> None:
+    with pytest.raises(ValidationError) as raised:
+        SqlConnectionConfig(url=url)
+    assert suggested in str(raised.value)
+    assert absent not in str(raised.value)
 
 
 def test_a_url_that_is_not_a_url_says_so() -> None:

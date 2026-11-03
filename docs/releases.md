@@ -44,6 +44,11 @@ serves them at `GET /api/v1/connection-kinds` and `GET /api/v1/connection-kinds/
 them. **Breaking:** the `connection_kind` records `dg blocks list` writes carry the same shape,
 `fields[]` in place of `config_schema` and `secret_fields`.
 
+**A SQL URL naming no driver is told the one its dialect takes.** `sqlite:///x.db` was refused
+with a suggestion of `sqlite+asyncpg://`, a driver that does not exist; `sql.no_async_driver`
+now names the async drivers of the URL's own dialect, `sqlite+aiosqlite://` for SQLite, and its
+`suggested` param replaces `driver_name`.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

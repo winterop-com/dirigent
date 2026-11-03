@@ -43,8 +43,7 @@ ENGINE_PACKAGE_MISSING = SQL.define(
 NO_ASYNC_DRIVER = SQL.define(
     "no_async_driver",
     "{driver} names no driver, and these blocks speak to a database over an "
-    "async one; write the driver in the url, as in "
-    "{driver_name}+asyncpg:// or {driver_name}+aiosqlite://",
+    "async one; write the driver in the url, as in {suggested}",
 )
 
 READ_ONLY_UNSUPPORTED = SQL.define(
