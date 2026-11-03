@@ -2,7 +2,7 @@ import { ReactFlowProvider, useReactFlow, type Edge } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 
 import { fitCapped, GraphCanvas, type CanvasEditing } from '@/components/graph/GraphCanvas'
-import { useMeasure } from '@/components/graph/measure'
+import { measuresByFont, useMeasure } from '@/components/graph/measure'
 import { usePlacedGraph } from '@/components/graph/use-placed'
 import { AddStepButton, AddStepMenuAt } from '@/components/pipeline/AddStepMenu'
 import {
@@ -315,6 +315,7 @@ function EditableGraph({
                 nodeTypes={NODE_TYPES}
                 editing={readOnly ? undefined : editing}
                 onSelect={choose}
+                settled={placed.settled && measuresByFont(measure)}
                 control={readOnly ? undefined : <AddStepButton blocks={blocks} onChoose={onAddStep} />}
             />
 

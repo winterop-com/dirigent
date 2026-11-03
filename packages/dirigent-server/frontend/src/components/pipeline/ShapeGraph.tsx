@@ -3,7 +3,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 
 import { GraphCanvas, LayoutControl, type CanvasFrame } from '@/components/graph/GraphCanvas'
 import { GraphPanel } from '@/components/graph/GraphPanel'
-import { useMeasure } from '@/components/graph/measure'
+import { measuresByFont, useMeasure } from '@/components/graph/measure'
 import { StepPorts } from '@/components/graph/StepPorts'
 import { usePlacedGraph } from '@/components/graph/use-placed'
 import { DEFAULT_LAYOUT, drawnSize, NODE_HEIGHT, type LayoutChoice, type LayoutShape } from '@/lib/dag-layout'
@@ -142,6 +142,7 @@ export function ShapeGraph({
             onSelect={onSelect}
             frame={frame}
             layout={layout}
+            settled={placed.settled && measuresByFont(measure)}
             control={frame === 'window' ? <LayoutControl layout={layout} onLayout={setLayout} /> : undefined}
         />
     )
