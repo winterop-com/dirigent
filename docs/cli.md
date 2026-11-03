@@ -1383,9 +1383,10 @@ secret given empty is refused exactly as one left out is.
 `dg connection set-secret CODE` asks for each secret field the connection's kind declares, or
 only the `FIELD`s named, hiding the answer as it is typed; Enter keeps what is stored. It sends
 the connection's settings back with what was typed, so the kind validates the whole config, and
-that completes a connection an agent created with its settings alone (`create_connection` over
-MCP): until then it is listed as awaiting secrets and nothing uses it. It only prompts, so it
-runs at a terminal and is refused in a script.
+that completes a connection created with its settings alone, by an operator or an agent's
+`create_connection` over MCP: until then it is listed as awaiting secrets and nothing uses it.
+Setting a secret is an admin's, so it needs an admin token. It only prompts, so it runs at a
+terminal and is refused in a script.
 
 ```bash
 dg connection set-secret dhis2-play basic_password

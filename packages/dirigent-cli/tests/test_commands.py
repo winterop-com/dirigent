@@ -1899,6 +1899,31 @@ def test_set_secret_asks_only_for_the_fields_named_and_refuses_one_that_is_not_s
     assert asked == ["api_token"]
 
 
+@pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
+def test_an_operator_cannot_set_a_secret(server: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    import httpx2
+
+    base = f"{os.environ['DG_URL']}/api/v1"
+    admin = {"Authorization": f"Bearer {server}"}
+    made = httpx2.post(
+        f"{base}/users", json={"username": "ops", "password": "an operator password", "role": "operator"}, headers=admin
+    )
+    assert made.status_code == 201, made.text
+    issued = httpx2.post(f"{base}/users/ops/tokens", json={"name": "ops"}, headers=admin)
+    assert issued.status_code == 201, issued.text
+    create_awaiting(server, "vault", "secretful", {"endpoint": "https://vault.example.org"})
+    monkeypatch.setenv("DG_TOKEN", issued.json()["token"])
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    monkeypatch.setattr(typer, "prompt", prompting([], {"api_token": "t0ken"}))
+
+    refused = invoke("connection", "set-secret", "vault")
+
+    assert refused.exit_code == 1
+    assert "t0ken" not in refused.output
+    stored = only(machine("connection", "show", "vault").stdout, "connection")["fields"]
+    assert stored["awaiting_secrets"] is True
+
+
 def test_set_secret_with_nobody_at_a_terminal_is_refused(server: str) -> None:
     machine("connection", "create", "http", "ops-api", "--set", "base_url=https://ops.example.org")
     refused = machine("connection", "set-secret", "ops-api")

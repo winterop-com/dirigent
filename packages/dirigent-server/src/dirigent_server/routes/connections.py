@@ -20,7 +20,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import ConnectionDetail, ConnectionIn, ConnectionOut, ConnectionUpdate, Page
-from dirigent_common import HealthReport, JsonMap, scrub, secrets_of, validation_issues
+from dirigent_common import HealthReport, JsonMap, Message, scrub, secrets_of, validation_issues
 from dirigent_core.connections import ConnectionInUse, connection_users, remove_connection, said
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, utcnow
@@ -35,11 +35,12 @@ from dirigent_server.messages import (
     CONNECTION_REFERENCED,
     NO_CONNECTION,
     REDACTED_SECRET,
+    SECRETS_NEED_ADMIN,
     SECRETS_WITHHELD,
     UNKNOWN_CONNECTION_KIND,
 )
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip
-from dirigent_server.security import AdminDep, PrincipalDep
+from dirigent_server.security import AdminDep, OperatorDep, PrincipalDep
 from dirigent_server.transactions import Transactional
 
 router = APIRouter(route_class=Transactional, tags=["connections"])
@@ -163,24 +164,34 @@ def seal(services: EngineServices, kind_id: str, config: JsonMap) -> tuple[JsonM
     return services.secrets.encrypt_config(model, validated)
 
 
-def hold_settings(services: EngineServices, kind_id: str, config: JsonMap) -> JsonMap:
-    """Validate the settings of a connection awaiting its secrets, and answer its public half.
+def given_secrets(model: type[BaseModel], config: JsonMap) -> list[str]:
+    """The secret fields a config carries a value for; null and empty set nothing."""
+    return sorted(name for name in secret_fields(model) if config.get(name) not in (None, ""))
 
-    A secret field given is refused by name. The model's problems are refused except those
-    at a secret field and those of the model as a whole, which a missing secret may cause;
-    the update that supplies the secrets is validated whole.
-    """
-    model = kind_model(services, kind_id)
-    secrets = secret_fields(model)
-    given = sorted(name for name in config if name in secrets)
+
+def refuse_secrets(given: list[str], message: Message, status_code: int) -> None:
+    """Refuse the secret fields given, by name and never by value."""
     if given:
         raise Refusal(
-            SECRETS_WITHHELD,
-            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            message,
+            status=status_code,
             fields=", ".join(given),
             verb="is" if len(given) == 1 else "are",
             pronoun="it" if len(given) == 1 else "them",
         )
+
+
+def hold_settings(services: EngineServices, kind_id: str, config: JsonMap) -> JsonMap:
+    """Validate the settings of a connection awaiting its secrets, and answer its public half.
+
+    A secret field given a value is refused by name. The model's problems are refused except
+    those at a secret field and those of the model as a whole, which a missing secret may
+    cause; the update that supplies the secrets is validated whole.
+    """
+    model = kind_model(services, kind_id)
+    secrets = secret_fields(model)
+    refuse_secrets(given_secrets(model, config), SECRETS_WITHHELD, status.HTTP_422_UNPROCESSABLE_CONTENT)
+    config = {name: value for name, value in config.items() if name not in secrets}
     try:
         validated = model.model_validate(config)
     except ValidationError as error:
@@ -227,16 +238,21 @@ async def create_connection(
     payload: ConnectionIn,
     session: SessionDep,
     services: ServicesDep,
-    principal: AdminDep,
+    principal: OperatorDep,
 ) -> ConnectionOut:
     """Validate a credential against its kind, seal its secret half, and store it.
 
     Awaiting its secrets, it is stored with its settings alone, unless its kind declares none.
+    An operator creates one only so, and a secret it sends is refused: an admin supplies them.
     """
+    model = kind_model(services, payload.kind)
+    if not principal.is_admin:
+        refuse_secrets(given_secrets(model, payload.config), SECRETS_NEED_ADMIN, status.HTTP_403_FORBIDDEN)
     existing = await session.execute(sa.select(Connection).where(Connection.code == payload.code))
     if existing.scalar_one_or_none() is not None:
         raise Refusal(CONNECTION_EXISTS, status=status.HTTP_409_CONFLICT, code=repr(payload.code))
-    awaiting = payload.awaiting_secrets and bool(secret_fields(kind_model(services, payload.kind)))
+    asked = payload.awaiting_secrets or not principal.is_admin
+    awaiting = asked and bool(secret_fields(model))
     if awaiting:
         public, envelope, key_id = hold_settings(services, payload.kind, payload.config), None, None
     else:

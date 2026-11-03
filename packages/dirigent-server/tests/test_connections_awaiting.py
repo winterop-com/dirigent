@@ -43,10 +43,24 @@ class VaultKind(ConnectionKind):
         return HealthReport(healthy=True, detail="answered")
 
 
+class PlainConfig(BlockModel):
+    """A kind that declares no secret at all."""
+
+    endpoint: str
+
+
+class PlainKind(ConnectionKind):
+    id: ClassVar[str] = "plain"
+    config_model: ClassVar[type[BaseModel]] = PlainConfig
+
+    async def check(self, config: BaseModel) -> HealthReport:
+        return HealthReport(healthy=True)
+
+
 class VaultPlugin:
     @extension
     def contribute(self) -> Contribution:
-        return Contribution(connection_kinds=[VaultKind()])
+        return Contribution(connection_kinds=[VaultKind(), PlainKind()])
 
 
 @pytest.fixture
@@ -63,6 +77,28 @@ async def admin(app: FastAPI, admin_token: str) -> AsyncIterator[httpx2.AsyncCli
         transport=httpx2.ASGITransport(app), base_url="http://testserver", headers=headers
     ) as client:
         yield client
+
+
+def _client(app: FastAPI, token: str) -> httpx2.AsyncClient:
+    return httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app), base_url="http://testserver", headers={"Authorization": f"Bearer {token}"}
+    )
+
+
+@pytest.fixture
+async def operator(app: FastAPI, operator_token: str) -> AsyncIterator[httpx2.AsyncClient]:
+    async with _client(app, operator_token) as client:
+        yield client
+
+
+@pytest.fixture
+async def viewer(app: FastAPI, viewer_token: str) -> AsyncIterator[httpx2.AsyncClient]:
+    async with _client(app, viewer_token) as client:
+        yield client
+
+
+async def _create(client: httpx2.AsyncClient, code: str, kind: str, config: dict[str, Any]) -> httpx2.Response:
+    return await client.post(f"{PREFIX}/connections", json={"code": code, "kind": kind, "config": config})
 
 
 async def _awaiting(client: httpx2.AsyncClient, code: str, kind: str, config: dict[str, Any]) -> httpx2.Response:
@@ -142,3 +178,55 @@ async def test_a_step_naming_it_is_refused_before_anything_is_sent(app: FastAPI,
     [attempt] = (await admin.get(f"{PREFIX}/runs/{run_id}/attempts")).json()["items"]
     assert (attempt["status"], attempt["error_code"]) == ("failed", "secret.connection_awaiting_secrets")
     assert attempt["error_params"]["connection"] == "svc"
+
+
+async def test_an_operator_creates_a_connection_awaiting_its_secrets_whatever_it_asked(
+    operator: httpx2.AsyncClient,
+) -> None:
+    vault = await _create(operator, "vault", "vault", {"endpoint": "https://vault.invalid", "username": "ops"})
+    assert vault.status_code == 201, vault.text
+    assert vault.json()["awaiting_secrets"] is True
+
+    web = await _create(operator, "web", "http", {"base_url": "https://svc.invalid", "bearer_token": None})
+    assert web.status_code == 201, web.text
+    assert web.json()["awaiting_secrets"] is True, "http declares secret fields, so an admin completes it"
+
+
+async def test_an_operator_creates_a_kind_with_no_secret_complete(
+    operator: httpx2.AsyncClient, admin: httpx2.AsyncClient
+) -> None:
+    plain = await _create(operator, "plain", "plain", {"endpoint": "https://plain.invalid"})
+    assert plain.status_code == 201, plain.text
+    assert plain.json()["awaiting_secrets"] is False
+    assert (await admin.post(f"{PREFIX}/connections/plain/$check")).json()["healthy"] is True
+
+
+async def test_an_operator_sending_a_secret_is_refused_by_name_and_nothing_is_stored(
+    operator: httpx2.AsyncClient,
+) -> None:
+    refused = await _create(operator, "vault", "vault", {"endpoint": "https://vault.invalid", "api_token": TOKEN})
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["code"] == "server.secrets_need_admin"
+    assert "api_token" in refused.json()["detail"]
+    assert TOKEN not in refused.text
+    assert (await operator.get(f"{PREFIX}/connections")).json()["items"] == []
+
+
+async def test_an_operator_cannot_supply_a_secret_through_an_update_and_a_viewer_creates_nothing(
+    operator: httpx2.AsyncClient, viewer: httpx2.AsyncClient
+) -> None:
+    assert (await _create(operator, "vault", "vault", {"endpoint": "https://vault.invalid"})).status_code == 201
+    patched = await operator.patch(
+        f"{PREFIX}/connections/vault", json={"config": {"endpoint": "https://vault.invalid", "api_token": TOKEN}}
+    )
+    assert patched.status_code == 403, patched.text
+    assert TOKEN not in patched.text
+    assert (await operator.delete(f"{PREFIX}/connections/vault")).status_code == 403
+    assert (await operator.post(f"{PREFIX}/connections/vault/$check")).status_code == 403
+    assert (await _create(viewer, "plain", "plain", {"endpoint": "https://plain.invalid"})).status_code == 403
+
+
+async def test_an_admin_still_creates_a_whole_connection_with_its_secret(admin: httpx2.AsyncClient) -> None:
+    made = await _create(admin, "vault", "vault", {"endpoint": "https://vault.invalid", "api_token": TOKEN})
+    assert made.status_code == 201, made.text
+    assert (made.json()["awaiting_secrets"], made.json()["config"]["api_token"]) == (False, "***")

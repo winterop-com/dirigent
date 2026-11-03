@@ -107,7 +107,7 @@ apply_document retires a source, with its input journal and token, and a schedul
 document stops declaring them, so plan first and keep every source and schedule a pipeline has.
 A run is started with run_pipeline, read with get_run, run_logs and run_attempts, and run again with rerun_run.
 A secret never passes through this server: create_connection stores a connection's settings
-alone, and a person supplies its secrets with the command it answers before anything uses it.
+alone, and an admin supplies its secrets with the command it answers before anything uses it.
 The resources dirigent://schema/document and dirigent://blocks are the document format and the
 block catalogue to write against."""
 
@@ -437,7 +437,7 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         """Ask a connection's outside system whether it answers with the stored credential, and record it."""
         return await call(lambda dg: dg.connections.check(code))
 
-    @tool(CREATES, needs=Offers.ADMINISTERING)
+    @tool(CREATES)
     async def create_connection(
         kind: str,
         code: str,
@@ -449,9 +449,9 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
         `settings` holds the kind's non-secret fields. A secret field of the kind (a connection's
         `secret_fields`) is refused by name, so no credential belongs here or anywhere in this
-        conversation. Nothing uses the connection until a person has supplied its secrets.
-        Answers the connection, `secrets_to_supply`, and `supply_with`: the command a person
-        runs, or the screen they open, to set them.
+        conversation. Nothing uses the connection until an admin has supplied its secrets.
+        Answers the connection, `secrets_to_supply`, and `supply_with`: who supplies them, and
+        the command they run or the screen they open to do it.
         """
 
         async def created(dg: Dirigent) -> Any:
@@ -465,6 +465,7 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
                 "connection": _json(made),
                 "secrets_to_supply": [field for field in made.secret_fields if made.config.get(field) is None],
                 "supply_with": {
+                    "by": "an admin of this instance",
                     "command": f"dg --url {origin} connection set-secret {made.code}",
                     "screen": f"{origin}/connections/{made.code}",
                 },

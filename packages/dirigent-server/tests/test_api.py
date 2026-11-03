@@ -3043,7 +3043,6 @@ OPERATOR_REFUSED = [
     ("get", "/tokens"),
     ("post", "/tokens"),
     ("delete", "/tokens/whatever"),
-    ("post", "/connections"),
     ("patch", "/connections/whatever"),
     ("delete", "/connections/whatever"),
     ("post", "/connections/whatever/$check"),

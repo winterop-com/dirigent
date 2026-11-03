@@ -14,7 +14,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 from pydantic import BaseModel, SecretStr, model_validator
 
-from dirigent_client import AlertEvent, Dirigent
+from dirigent_client import AlertEvent, Dirigent, DirigentError
 from dirigent_client.enums import UserRole
 from dirigent_common import BlockModel, HealthReport
 from dirigent_core.auth import create_user, issue_token
@@ -186,6 +186,7 @@ async def test_a_connection_is_created_awaiting_the_secrets_a_person_supplies(ad
     assert created["connection"]["awaiting_secrets"] is True
     assert created["secrets_to_supply"] == ["api_token"]
     assert created["supply_with"] == {
+        "by": "an admin of this instance",
         "command": "dg --url http://testserver connection set-secret vault",
         "screen": "http://testserver/connections/vault",
     }
@@ -217,9 +218,31 @@ async def test_a_secret_handed_to_create_connection_is_refused_by_name_and_never
     assert (await call(admin, "list_connections"))["items"] == []
 
 
-async def test_creating_a_connection_is_the_apis_to_refuse_to_an_operator(operator: MCPServer) -> None:
-    with pytest.raises(ToolError, match="not permitted for your role"):
-        await operator.call_tool("create_connection", {"kind": "http", "code": "api", "settings": {}})
+async def test_an_operator_creates_a_connection_an_admin_completes(
+    operator: MCPServer, clients: dict[UserRole, Dirigent]
+) -> None:
+    created = await call(
+        operator, "create_connection", kind="vault", code="vault", settings={"endpoint": "https://vault.invalid"}
+    )
+    assert (created["secrets_to_supply"], created["supply_with"]["by"]) == (["api_token"], "an admin of this instance")
+
+    with pytest.raises(DirigentError, match="not permitted for your role"):
+        await clients[UserRole.OPERATOR].connections.update(
+            "vault", config={"endpoint": "https://vault.invalid", "api_token": SECRET}
+        )
+    completed = await clients[UserRole.ADMIN].connections.update(
+        "vault", config={"endpoint": "https://vault.invalid", "api_token": SECRET}
+    )
+    assert completed.awaiting_secrets is False
+
+
+async def test_an_operator_handing_create_connection_a_secret_is_refused_by_name(operator: MCPServer) -> None:
+    with pytest.raises(ToolError) as refused:
+        await operator.call_tool(
+            "create_connection", {"kind": "vault", "code": "vault", "settings": {"endpoint": "x", "api_token": SECRET}}
+        )
+    assert "api_token" in str(refused.value)
+    assert SECRET not in str(refused.value)
 
 
 async def test_a_schema_is_listed_and_read(operator: MCPServer, clients: dict[UserRole, Dirigent]) -> None:
@@ -289,7 +312,7 @@ async def test_every_tool_says_whether_it_writes_destroys_or_repeats(operator: M
     assert hints["apply_document"][:3] == (False, True, True)
     assert hints["cancel_run"][:3] == (False, True, False)
     assert hints["check_connection"] == (False, False, True, True)
-    assert hints["create_connection"] == (False, False, False, False)
+    assert hints["create_connection"] == (False, False, False, False), "an operator is offered it"
     assert hints["run_pipeline"] == (False, False, False, True)
     assert hints["pause_source"][:3] == (False, False, True)
     assert not {name for name in tools if name.startswith("delete")}

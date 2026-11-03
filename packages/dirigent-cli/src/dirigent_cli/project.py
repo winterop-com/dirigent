@@ -922,10 +922,10 @@ tools rather than `uv run dg`. A document is passed as its text.
   checks one it already holds, by its code.
 - Apply: `apply_document`.
 - Run and read runs: `run_pipeline`, `list_runs`, `get_run`, `run_attempts`, `run_logs`.
-- Connections: `list_connections`, `get_connection`, and with an admin token
-  `create_connection`, which stores a connection's settings alone and refuses every secret
-  field. Never ask for or pass a secret: tell the person to run the `supply_with` command it
-  answers, `dg connection set-secret CODE`, which prompts for each secret at their terminal.
+- Connections: `list_connections`, `get_connection`, and `create_connection`, which stores
+  a connection's settings alone and refuses every secret field. Never ask for or pass a
+  secret: tell the person that an admin runs the `supply_with` command it answers,
+  `dg connection set-secret CODE`, which prompts for each secret at their terminal.
 
 ## Reading what dg says
 
@@ -952,7 +952,7 @@ record per line, each with a `kind`. Select with `jq`, for example
   output lists it under `depends_on`.
 - Secrets never go in a document or through you. A connection holds them, created by a person
   with `uv run dg connection create KIND CODE`, or with its settings alone by you and completed
-  by a person with `uv run dg connection set-secret CODE`; a step names it by its code.
+  by an admin with `uv run dg connection set-secret CODE`; a step names it by its code.
 - `.dirigent/state/` and `.env` belong to the local instance; they are not edited by hand.
 
 ## Reading further

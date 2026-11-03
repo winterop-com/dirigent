@@ -46,6 +46,7 @@ OPERATOR_ONLY = [
     ("post", "/pipelines/api-demo/sources/ask/$rotate-token"),
     ("post", "/pipelines/api-demo/sources/ask/$set-secret"),
     ("delete", "/trigger-documents/nightly-clocks"),
+    ("post", "/connections"),
     ("post", "/alert-rules"),
     ("patch", "/alert-rules/whatever"),
     ("delete", "/alert-rules/whatever"),

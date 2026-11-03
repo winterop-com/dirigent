@@ -224,7 +224,9 @@ async def test_each_role_is_offered_the_tools_of_its_own_reach(
     assert offered["viewer"] < offered["operator"] < offered["admin"]
     assert "plan_document" not in offered["viewer"]
     assert "plan_document" in offered["operator"]
-    assert {"check_connection", "create_connection"}.isdisjoint(offered["viewer"] | offered["operator"])
+    assert "check_connection" not in offered["operator"]
+    assert "create_connection" not in offered["viewer"]
+    assert {"create_connection"} <= offered["operator"]
     assert {"check_connection", "create_connection"} <= offered["admin"]
 
 

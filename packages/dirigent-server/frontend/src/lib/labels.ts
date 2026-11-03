@@ -1240,6 +1240,8 @@ const refused = {
             'This route wants a credential: the basic pair {username}/{username}, or the documented bearer token. Both are public constants.',
         prune_names_nothing:
             'Keep names no codes, and pruning against an empty set would deactivate every directory pipeline.',
+        secrets_need_admin:
+            "{fields} {verb} secret, and only an admin sets a connection's secrets. Leave {pronoun} out, and the connection is created awaiting {pronoun}.",
         secrets_withheld:
             '{fields} {verb} secret, and a connection created awaiting its secrets carries none. Leave {pronoun} out, and set {pronoun} afterwards.',
         redacted_secret:
