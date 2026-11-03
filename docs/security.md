@@ -331,9 +331,11 @@ may, and an operator everything a viewer may.
   document with the rows it owns, alert rules, the notifier test, and creating a connection
   without its secrets. An operator's `POST /api/v1/connections` carrying a value for any field
   the kind declares secret is refused by field name, never by value
-  (`server.secrets_need_admin`, a `403`). A kind
-  with secret fields is then stored awaiting its secrets, used by nothing until an admin
-  supplies them; a kind with none is stored complete and usable at once.
+  (`server.secrets_need_admin`, a `403`). A connection that cannot work without a secret --
+  its kind's model refuses the settings alone, or the kind requires one of its credential
+  forms (`credential_required`) -- is stored awaiting its secrets and used by nothing until an
+  admin supplies them. One whose kind declares no secret, or takes its credential optionally,
+  such as `http` without auth, is stored complete and usable at once.
 - An **admin** may in addition hand out authority. That set is exact:
 
 | Operation | Why it is admin |

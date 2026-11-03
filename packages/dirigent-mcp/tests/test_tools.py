@@ -195,13 +195,29 @@ async def test_a_connection_is_created_awaiting_the_secrets_a_person_supplies(ad
         await admin.call_tool("check_connection", {"code": "vault"})
 
 
-async def test_a_connection_whose_secrets_are_optional_says_which_are_unset(admin: MCPServer) -> None:
+async def test_a_connection_whose_credential_is_optional_is_usable_and_says_what_it_could_be_given(
+    operator: MCPServer,
+) -> None:
     created = await call(
-        admin, "create_connection", kind="http", code="api", name="The API", settings={"base_url": "https://x.invalid"}
+        operator,
+        "create_connection",
+        kind="http",
+        code="api",
+        name="The API",
+        settings={"base_url": "https://x.invalid"},
     )
 
-    assert (created["connection"]["name"], created["connection"]["awaiting_secrets"]) == ("The API", True)
-    assert {"bearer_token", "basic_password"} <= set(created["secrets_to_supply"])
+    assert (created["connection"]["name"], created["connection"]["awaiting_secrets"]) == ("The API", False)
+    assert created["secrets_to_supply"] == []
+    assert {"bearer_token", "basic_password"} <= set(created["optional_secrets"])
+    assert created["supply_with"]["command"].endswith("connection set-secret api")
+
+
+async def test_a_kind_requiring_a_credential_awaits_it(operator: MCPServer) -> None:
+    created = await call(operator, "create_connection", kind="slack", code="ops-slack", settings={"channel": "#ops"})
+
+    assert created["connection"]["awaiting_secrets"] is True
+    assert {"webhook_url", "bot_token"} <= set(created["secrets_to_supply"])
 
 
 async def test_a_secret_handed_to_create_connection_is_refused_by_name_and_never_repeated(

@@ -449,26 +449,29 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
         `settings` holds the kind's non-secret fields. A secret field of the kind (a connection's
         `secret_fields`) is refused by name, so no credential belongs here or anywhere in this
-        conversation. Nothing uses the connection until an admin has supplied its secrets.
-        Answers the connection, `secrets_to_supply`, and `supply_with`: who supplies them, and
-        the command they run or the screen they open to do it.
+        conversation. A kind that cannot work without a secret awaits it, and nothing uses the
+        connection until an admin has supplied it; one whose credential is optional is usable at
+        once. Answers the connection, `secrets_to_supply` (what it awaits), `optional_secrets`
+        (what a usable one could still be given), and `supply_with`: who supplies them, and the
+        command they run or the screen they open to do it.
         """
 
         async def created(dg: Dirigent) -> Any:
             made = await dg.connections.create(
                 code, kind=kind, config=settings or {}, name=name, description=description, awaiting_secrets=True
             )
-            if not made.awaiting_secrets:
-                return {"connection": _json(made), "secrets_to_supply": [], "supply_with": None}
+            unset = [field for field in made.secret_fields if made.config.get(field) is None]
             origin = dg.url.rstrip("/")
+            supply = {
+                "by": "an admin of this instance",
+                "command": f"dg --url {origin} connection set-secret {made.code}",
+                "screen": f"{origin}/connections/{made.code}",
+            }
             return {
                 "connection": _json(made),
-                "secrets_to_supply": [field for field in made.secret_fields if made.config.get(field) is None],
-                "supply_with": {
-                    "by": "an admin of this instance",
-                    "command": f"dg --url {origin} connection set-secret {made.code}",
-                    "screen": f"{origin}/connections/{made.code}",
-                },
+                "secrets_to_supply": unset if made.awaiting_secrets else [],
+                "optional_secrets": [] if made.awaiting_secrets else unset,
+                "supply_with": supply if unset else None,
             }
 
         return await call(created)

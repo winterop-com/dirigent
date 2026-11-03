@@ -2736,27 +2736,34 @@ def connection_set_secret(
 ) -> None:
     """Set a connection's secrets, prompting for each without echoing it.
 
-    A prompt answered blank keeps what is stored. The connection's settings are sent back with
-    the secrets, so the server validates them whole, and that completes a connection created
-    awaiting its secrets.
+    With no ``FIELD`` named, a kind that takes one of several credentials is asked which, as
+    ``dg connection create`` asks, unless one is already begun; that form's fields are asked
+    for, then every other secret the kind declares. A secret prompt answered blank keeps what
+    is stored. The connection's settings are sent back with the secrets, so the server
+    validates them whole, and that completes a connection created awaiting its secrets.
     """
     if not at_a_terminal() or json_mode():
         fail(CANNOT_PROMPT_SECRET)
     refuse_a_server_a_project_named(state_of(ctx))
     with client_for(state_of(ctx)) as dg:
         row = dg.call(dg.connections.get(code))
-        asked = field_names or row.secret_fields
-        for field in asked:
+        for field in field_names or ():
             if field not in row.secret_fields:
                 fail(NOT_A_SECRET_FIELD, field=field, code=code, fields=", ".join(row.secret_fields) or "none")
-        config = dict(row.config)
-        typed: list[str] = []
+        held = {name: value for name, value in row.config.items() if value is not None}
+        given = dict(held)
+        asked = list(field_names or ())
+        if not field_names:
+            entry = _connection_entry(dg.call(dg.blocks.catalog()), row.kind)
+            properties = cast("dict[str, Any]", entry.config_schema.get("properties") or {})
+            choose_a_credential(entry, given, properties, interactive=True, offered=True)
+            asked = [field for field in row.secret_fields if field not in credential_fields(entry)]
         for field in asked:
             value = typer.prompt(field, hide_input=True, default="", show_default=False)
             if value:
-                config[field] = value
-                typed.append(field)
-        updated = dg.call(dg.connections.update(code, config=config))
+                given[field] = value
+        typed = [field for field, value in given.items() if held.get(field) != value]
+        updated = dg.call(dg.connections.update(code, config={**row.config, **given}))
     emit_fact(
         "connection.updated",
         message="updated",

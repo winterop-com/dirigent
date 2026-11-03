@@ -1380,8 +1380,11 @@ secret given empty is refused exactly as one left out is.
 
 ### `dg connection set-secret`
 
-`dg connection set-secret CODE` asks for each secret field the connection's kind declares, or
-only the `FIELD`s named, hiding the answer as it is typed; Enter keeps what is stored. It sends
+`dg connection set-secret CODE` asks for the connection's secrets, hiding each answer as it is
+typed; Enter keeps what is stored. A kind that takes one of several credentials is asked which,
+as `dg connection create` asks, unless the connection already began one -- a slack connection
+holding its `channel` is asked only for `bot_token` -- and then every other secret the kind
+declares. Naming `FIELD`s asks for those alone. It sends
 the connection's settings back with what was typed, so the kind validates the whole config, and
 that completes a connection created with its settings alone, by an operator or an agent's
 `create_connection` over MCP: until then it is listed as awaiting secrets and nothing uses it.

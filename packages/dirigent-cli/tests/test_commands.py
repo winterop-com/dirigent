@@ -1899,6 +1899,40 @@ def test_set_secret_asks_only_for_the_fields_named_and_refuses_one_that_is_not_s
     assert asked == ["api_token"]
 
 
+def test_set_secret_completes_the_credential_form_a_connection_began(
+    server: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A slack connection given its channel began the bot form, so only the bot token is asked."""
+    create_awaiting(server, "ops-slack", "slack", {"channel": "#ops"})
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    monkeypatch.setattr(typer, "prompt", prompting(asked, {"bot_token": "xoxb-t0ken"}))
+
+    completed = invoke("connection", "set-secret", "ops-slack")
+
+    assert completed.exit_code == 0, completed.output
+    assert asked == ["bot_token"]
+    stored = only(machine("connection", "show", "ops-slack").stdout, "connection")["fields"]
+    assert (stored["awaiting_secrets"], stored["config"]["bot_token"], stored["config"]["webhook_url"]) == (
+        False,
+        "***",
+        None,
+    )
+
+
+def test_set_secret_asks_which_credential_where_none_is_begun(server: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    machine("connection", "create", "http", "ops-api", "--set", "base_url=https://ops.example.org")
+    asked: list[str] = []
+    monkeypatch.setattr(commands, "at_a_terminal", lambda: True)
+    choice = "authenticate with (bearer, basic, credential, none)"
+    monkeypatch.setattr(typer, "prompt", prompting(asked, {choice: "bearer", "bearer_token": "t0ken"}))
+
+    assert invoke("connection", "set-secret", "ops-api").exit_code == 0
+    assert asked == [choice, "bearer_token", "hmac_secret"]
+    stored = only(machine("connection", "show", "ops-api").stdout, "connection")["fields"]["config"]
+    assert (stored["bearer_token"], stored["basic_password"]) == ("***", None)
+
+
 @pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
 def test_an_operator_cannot_set_a_secret(server: str, monkeypatch: pytest.MonkeyPatch) -> None:
     import httpx2

@@ -221,8 +221,8 @@ bigger than a document, or paste the pages it names.
 - **Secrets.** A connection holds them, and a document names a connection by its code and never
   carries a secret. A secret given to an agent lands in its transcript, so it never handles one.
   With an operator token its `create_connection` stores a connection's settings alone and refuses
-  a secret field by name; a kind with secret fields then awaits them, used by nothing and refused
-  by a check, until an admin sets them with `dg connection set-secret CODE`, which prompts at a
+  a secret field by name. A connection that cannot work without a secret then awaits it, used by
+  nothing and refused by a check, until an admin sets it with `dg connection set-secret CODE`, which prompts at a
   terminal without echoing, or by editing it on the Connections screen. `dg connection create`
   makes a whole one yourself, as an admin.
 - **Blocks that run code on a worker.** `shell.run`, `docker.*` and their kind are refused until

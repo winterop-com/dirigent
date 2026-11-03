@@ -5,12 +5,14 @@ from typing import Any, ClassVar, Final
 
 import httpx2
 import pytest
+import sqlalchemy as sa
 from fastapi import FastAPI
 from pydantic import BaseModel, SecretStr, model_validator
 
 from dirigent_common import BlockModel, HealthReport
 from dirigent_core.config import Settings
 from dirigent_core.engine.executor import Engine
+from dirigent_core.models import Connection
 from dirigent_core.plugins import load_plugin_host
 from dirigent_plugin import ConnectionKind, Contribution, extension
 from dirigent_server import create_app
@@ -163,7 +165,10 @@ async def test_a_check_is_refused_until_a_person_completes_it(admin: httpx2.Asyn
 
 
 async def test_a_step_naming_it_is_refused_before_anything_is_sent(app: FastAPI, admin: httpx2.AsyncClient) -> None:
-    assert (await _awaiting(admin, "svc", "http", {"base_url": "http://127.0.0.1:9"})).status_code == 201
+    assert (await _create(admin, "svc", "http", {"base_url": "http://127.0.0.1:9"})).status_code == 201
+    async with app.state.session_factory() as session:
+        await session.execute(sa.update(Connection).values(awaiting_secrets=True))
+        await session.commit()
     document = {
         "format": "dirigent/v1",
         "code": "uses",
@@ -187,9 +192,16 @@ async def test_an_operator_creates_a_connection_awaiting_its_secrets_whatever_it
     assert vault.status_code == 201, vault.text
     assert vault.json()["awaiting_secrets"] is True
 
+    slack = await _create(operator, "ops-slack", "slack", {"channel": "#ops"})
+    assert slack.status_code == 201, slack.text
+    assert slack.json()["awaiting_secrets"] is True, "slack requires a credential and was given none"
+
+
+async def test_an_operator_creates_a_plain_http_connection_complete(operator: httpx2.AsyncClient) -> None:
+    """A kind whose credential is optional, given none, is whole and usable at once."""
     web = await _create(operator, "web", "http", {"base_url": "https://svc.invalid", "bearer_token": None})
     assert web.status_code == 201, web.text
-    assert web.json()["awaiting_secrets"] is True, "http declares secret fields, so an admin completes it"
+    assert web.json()["awaiting_secrets"] is False
 
 
 async def test_an_operator_creates_a_kind_with_no_secret_complete(

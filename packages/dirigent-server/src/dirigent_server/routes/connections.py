@@ -181,14 +181,17 @@ def refuse_secrets(given: list[str], message: Message, status_code: int) -> None
         )
 
 
-def hold_settings(services: EngineServices, kind_id: str, config: JsonMap) -> JsonMap:
-    """Validate the settings of a connection awaiting its secrets, and answer its public half.
+def hold_settings(services: EngineServices, kind_id: str, config: JsonMap) -> tuple[JsonMap, bool]:
+    """Validate a connection's settings without its secrets: its public half, and whether it awaits them.
 
     A secret field given a value is refused by name. The model's problems are refused except
     those at a secret field and those of the model as a whole, which a missing secret may
-    cause; the update that supplies the secrets is validated whole.
+    cause. It awaits its secrets where the model refuses it without them, or where its kind
+    requires one of its credential forms and none is complete; otherwise it is stored whole,
+    and usable as it is.
     """
-    model = kind_model(services, kind_id)
+    contributed = services.host.connection_kinds[kind_id]
+    model = contributed.config_model
     secrets = secret_fields(model)
     refuse_secrets(given_secrets(model, config), SECRETS_WITHHELD, status.HTTP_422_UNPROCESSABLE_CONTENT)
     config = {name: value for name, value in config.items() if name not in secrets}
@@ -199,9 +202,9 @@ def hold_settings(services: EngineServices, kind_id: str, config: JsonMap) -> Js
         kept = [item for item in errors if item["loc"] and item["loc"][0] not in secrets]
         if kept:
             refuse_invalid(kept, error)
-        return {**config, **dict.fromkeys(secrets)}
+        return {**config, **dict.fromkeys(secrets)}, True
     public, _, _ = services.secrets.encrypt_config(model, validated)
-    return public
+    return public, contributed.credential_required and bool(contributed.credential_forms)
 
 
 @router.get(
@@ -242,8 +245,9 @@ async def create_connection(
 ) -> ConnectionOut:
     """Validate a credential against its kind, seal its secret half, and store it.
 
-    Awaiting its secrets, it is stored with its settings alone, unless its kind declares none.
-    An operator creates one only so, and a secret it sends is refused: an admin supplies them.
+    Asked to await its secrets, it is stored with its settings alone, awaiting them where they
+    are wanted (`hold_settings`). An operator creates one only so, and a secret it sends is
+    refused: an admin supplies them.
     """
     model = kind_model(services, payload.kind)
     if not principal.is_admin:
@@ -251,10 +255,9 @@ async def create_connection(
     existing = await session.execute(sa.select(Connection).where(Connection.code == payload.code))
     if existing.scalar_one_or_none() is not None:
         raise Refusal(CONNECTION_EXISTS, status=status.HTTP_409_CONFLICT, code=repr(payload.code))
-    asked = payload.awaiting_secrets or not principal.is_admin
-    awaiting = asked and bool(secret_fields(model))
-    if awaiting:
-        public, envelope, key_id = hold_settings(services, payload.kind, payload.config), None, None
+    awaiting = False
+    if (payload.awaiting_secrets or not principal.is_admin) and secret_fields(model):
+        (public, awaiting), envelope, key_id = hold_settings(services, payload.kind, payload.config), None, None
     else:
         public, envelope, key_id = seal(services, payload.kind, payload.config)
     row = Connection(
