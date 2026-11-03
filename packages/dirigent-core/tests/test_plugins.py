@@ -7,7 +7,15 @@ import pytest
 from cryptography.fernet import Fernet
 from pydantic import BaseModel, Field, SecretStr
 
-from dirigent_common import API_VERSION, BlockModel, Catalogue, Duration, HealthReport, base_format_checker
+from dirigent_common import (
+    API_VERSION,
+    BlockModel,
+    Catalogue,
+    CredentialForm,
+    Duration,
+    HealthReport,
+    base_format_checker,
+)
 from dirigent_core.config import Settings
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.plugins import (
@@ -355,6 +363,35 @@ def test_a_connection_kind_carries_its_declared_mark_into_the_catalog() -> None:
     catalog = PluginHost({"marked": MarkedPlugin().contribute()}).catalog()
 
     assert [entry.mark for entry in catalog.connection_kinds] == ["M12 2 L22 12 L12 22 L2 12 Z"]
+
+
+def test_a_connection_kind_carries_its_credential_forms_into_the_catalog() -> None:
+    """The forms a kind declares reach the catalog a client builds its create form from."""
+
+    class KeyedConnectionKind(DeskConnectionKind):
+        """A connection kind that takes one of two credentials."""
+
+        id = "keyed"
+        credential_forms = (
+            CredentialForm(code="token", fields=("base_url",)),
+            CredentialForm(code="pair", name="A pair", fields=("base_url",)),
+        )
+        credential_required = True
+
+    class KeyedPlugin:
+        """A plugin contributing one connection kind with credential forms."""
+
+        @extension
+        def contribute(self) -> Contribution:
+            """Contribute the keyed connection kind."""
+            return Contribution(connection_kinds=[KeyedConnectionKind()])
+
+    catalog = PluginHost({"keyed": KeyedPlugin().contribute()}).catalog()
+
+    (entry,) = catalog.connection_kinds
+    assert [form.code for form in entry.credential_forms] == ["token", "pair"]
+    assert entry.credential_forms[1].name == "A pair"
+    assert entry.credential_required is True
 
 
 class RstDocstrings(BlockModel):

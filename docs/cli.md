@@ -339,6 +339,32 @@ under `skipped`, and adding `dirigent-cli` to that `pyproject.toml` is then your
 existing root `.gitignore` gains the missing lines instead. `dg init --agents` writes the two
 agent files alone, for a project made before `dg init` wrote them, and takes no other option.
 
+### The dg a project pins
+
+A `dg` other than the project's -- a `uv tool install` from months ago, another virtualenv on
+the path -- reads and writes the same `.dirigent/state` and talks to the same instance, and an
+older one writes a state the pinned one then refuses. So every command run inside a project
+first finds the nearest `pyproject.toml` that names `dirigent-cli` with a version, walking up
+from the working directory, and compares that pin with its own version. A range pin such as
+`dirigent-cli>=0.32,<0.33` is satisfied by any version inside it, and a dependency group counts
+as well as `[project].dependencies`. A `dg` the pin does not allow is refused before it does
+anything, with exit code 3 and `cli.version_mismatch`, naming both versions and the project:
+
+```text
+this is dg 0.34.0, and the project at /home/me/trial pins dirigent-cli ==0.33.0
+  - uv run dg dev runs the dg the project pins; uv sync installs it first
+  - or set DG_ALLOW_VERSION_MISMATCH=1 to run this dg against the project anyway
+```
+
+Every command is refused, the ones that only read included, because a read against a schema
+the running version does not know misleads as surely as a write damages. `dg --version`,
+`--help` on any command, `dg format` and `dg secret-key` answer anyway: none of them reads the
+project or an instance. `uv run dg` is always the project's own, and
+`DG_ALLOW_VERSION_MISMATCH=1` is the deliberate way past the check. A `pyproject.toml` that
+names `dirigent-cli` without a version, as a workspace member does, pins nothing. The check is
+the running `dg`'s own, so a global `dg` older than the release that brought it does not make
+it: `uv tool upgrade dirigent-cli` brings one up to a version that does.
+
 It refuses to run over an instance that is already there: migrating and re-admining a live
 database is not what running it twice means. `--template documents` scaffolds beside one
 without touching it, which is what to use against a server somebody else runs.
@@ -1285,10 +1311,28 @@ dg connection create http ops-api --set base_url=https://ops.example.org \
   --set basic_username=ops --set basic_password=district
 ```
 
-A bare `dg connection create KIND CODE` is the interactive form, and there every secret the kind
-declares is offered in turn: Enter leaves one unset. In a script -- a pipe, a container, CI --
+A bare `dg connection create KIND CODE` is the interactive form, and there every required field is
+asked for and every secret the kind declares outside its credential forms is offered in turn:
+Enter leaves one unset. In a script -- a pipe, a container, CI --
 nothing is asked at all, and a required field that arrived through no `--set` is a refusal
 naming the flag to pass.
+
+Some kinds authenticate one of several ways -- a `dhis2` connection takes an `api_token` or a
+`basic_username` and `basic_password` -- and the kind declares the choices as its credential
+forms ([plugins](plugins.md#a-connection-kind-that-takes-one-of-several-credentials-says-which)).
+At a terminal, an invocation that gave none of a form's fields is asked `authenticate with`,
+naming the forms, and then for every field of the one chosen: the username in the clear, the
+password hidden. The bare form always asks, with `none` among the answers where the kind may go
+without; with `--set` it asks only where the kind needs a credential. A form the command line
+started -- `--set basic_username=admin` alone -- is completed rather than chosen again. In a
+script, a kind that needs a credential and got none is refused before anything is sent, with
+`cli.connection_needs_a_credential`, one problem per form, and the exact flags for each:
+
+```text
+a dhis2 connection needs one of these credentials, and none was given: api_token or basic
+  - api_token: --set api_token=...
+  - basic: --set basic_username=... --set basic_password=...
+```
 
 An empty value is not a credential: `--set bearer_token=` leaves the field unset rather than
 sealing an empty string, so every read afterwards says `null` rather than `***`. A required
@@ -1505,4 +1549,6 @@ holding is refused rather than handed to a second one.
 configured database rather than the API, because the first account on a fresh instance has to
 exist before anything can authenticate to create it. In a container,
 `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD` does the same thing unattended, and does nothing once an
-account exists.
+account exists. Without `--password` it asks for one twice, hidden, and the question names the
+rule a password is held to -- `password (at least 8 characters)` -- so a short one is not typed
+twice only to be refused.

@@ -33,6 +33,7 @@ from dirigent_cli.messages import (
     NOT_A_FORMATTER,
     NOT_AN_OUTPUT_FORMAT,
     NOTHING_TO_PRUNE,
+    OR_ALLOW_ANY_VERSION,
     OR_NO_SCHEDULER,
     OR_POSTGRES,
     OUTPUTS_ARE,
@@ -48,9 +49,12 @@ from dirigent_cli.messages import (
     USE_DG_DEV_STANDALONE,
     USE_DG_SERVER,
     USE_JQ,
+    USE_THE_PROJECTS_DG,
+    VERSION_MISMATCH,
     WORKER_NEEDS_POSTGRES,
 )
 from dirigent_cli.output import configure, detail_mode, emit_fact, emit_problem, emit_rendered, refuse
+from dirigent_cli.pin import ALLOW_ENV, find_pin
 from dirigent_client.enums import UserRole
 from dirigent_common import Issue, raised_detail, validation_issues
 from dirigent_common.hosts import is_loopback_host
@@ -96,6 +100,9 @@ ADMIN_PANEL = "Administration"
 
 PANEL_ORDER = (RUN_PANEL, DEFINE_PANEL, CONNECT_PANEL, TRIGGER_PANEL, PROCESS_PANEL, ADMIN_PANEL)
 
+#: Where the group keeps the arguments it was invoked with, for its callback to read.
+ARGV_KEY = "dirigent.argv"
+
 
 class PanelOrderedGroup(TyperGroup):
     """A group whose help panels follow PANEL_ORDER.
@@ -104,6 +111,11 @@ class PanelOrderedGroup(TyperGroup):
     before every subcommand group, so panel order otherwise depends on which entries
     happen to be groups.
     """
+
+    def parse_args(self, ctx: _click.Context, args: list[str]) -> list[str]:
+        """Keep the invocation's arguments where the callback can see them, then parse as usual."""
+        ctx.meta[ARGV_KEY] = list(args)
+        return super().parse_args(ctx, args)
 
     # Typer vendors its own click; the signature must match the base class or this is a
     # new method rather than an override.
@@ -212,6 +224,40 @@ def main_callback(
         output=resolve_output(output, json_output=json_output),
     )
     ctx.obj.configure_output()
+    refuse_another_version(ctx)
+
+
+#: Commands that read neither a project nor an instance, so a project's pin does not bind them.
+UNPINNED_COMMANDS = frozenset({"format", "secret-key"})
+
+
+def refuse_another_version(ctx: typer.Context) -> None:
+    """Refuse to run a dg other than the one the project in this directory pins.
+
+    ``--help`` is answered whatever the version, and ``DG_ALLOW_VERSION_MISMATCH=1`` runs the
+    command anyway.
+    """
+    argv = cast("list[str]", ctx.meta.get(ARGV_KEY, []))
+    asked = argv[: argv.index("--")] if "--" in argv else argv
+    if "--help" in asked or ctx.invoked_subcommand in UNPINNED_COMMANDS:
+        return
+    if os.environ.get(ALLOW_ENV, "").strip().lower() in {"1", "true", "yes"}:
+        return
+    running = distribution_version("dirigent-cli")
+    pin = find_pin()
+    if pin is None or running == "not installed" or pin.allows(running):
+        return
+    command = ctx.invoked_subcommand or ""
+    refuse(
+        VERSION_MISMATCH,
+        status=commands.GUARD_EXIT,
+        title="Not the dg this project pins",
+        problems=[Issue.of(USE_THE_PROJECTS_DG, command=command), Issue.of(OR_ALLOW_ANY_VERSION, variable=ALLOW_ENV)],
+        running=running,
+        pinned=pin.specifier,
+        project=str(pin.project),
+    )
+    raise typer.Exit(code=commands.GUARD_EXIT)
 
 
 def _read_settings() -> None:
@@ -908,8 +954,12 @@ def user_create(
     """
     import asyncio
 
+    from dirigent_core.auth import MIN_PASSWORD_LENGTH
+
     settings = get_settings()
-    secret = password or typer.prompt("password", hide_input=True, confirmation_prompt=True)
+    secret = password or typer.prompt(
+        f"password (at least {MIN_PASSWORD_LENGTH} characters)", hide_input=True, confirmation_prompt=True
+    )
     created = asyncio.run(_create_user(settings, username, secret, role, email))
     emit_fact(
         "user.created",

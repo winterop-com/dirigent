@@ -21,6 +21,7 @@ from dirigent_common import (
     SHELL_MEDIA_TYPE,
     SQL_MEDIA_TYPE,
     BlockModel,
+    CredentialForm,
     HealthReport,
     HumaneJsonSchema,
     Issue,
@@ -1097,6 +1098,17 @@ class ConnectionKind(ABC):
     Monochrome and filled in ``currentColor``, at the size every other kind's mark is drawn at;
     a kind that declares none is drawn by the neutral mark.
     """
+
+    credential_forms: ClassVar[tuple[CredentialForm, ...]] = ()
+    """The ways this kind authenticates, when it takes one of several, such as a token or a basic pair.
+
+    A form names every config field it needs. A client creating a connection offers the choice
+    and asks for the chosen form's fields; the config model's own validator still decides what
+    is accepted.
+    """
+
+    credential_required: ClassVar[bool] = False
+    """Whether a working connection needs one of ``credential_forms``, or may go without any."""
 
     @abstractmethod
     async def check(self, config: BaseModel) -> HealthReport:

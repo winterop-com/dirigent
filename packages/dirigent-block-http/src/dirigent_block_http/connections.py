@@ -10,7 +10,7 @@ from typing import ClassVar
 import httpx2
 from pydantic import BaseModel
 
-from dirigent_common import HealthReport, HttpConnectionConfig, build_client, raised_detail, secrets_of
+from dirigent_common import CredentialForm, HealthReport, HttpConnectionConfig, build_client, raised_detail, secrets_of
 from dirigent_plugin import ConnectionKind
 
 
@@ -19,6 +19,11 @@ class HttpConnectionKind(ConnectionKind):
 
     id: ClassVar[str] = "http"
     config_model: ClassVar[type[BaseModel]] = HttpConnectionConfig
+    credential_forms: ClassVar[tuple[CredentialForm, ...]] = (
+        CredentialForm(code="bearer", name="Bearer token", fields=("bearer_token",)),
+        CredentialForm(code="basic", name="Basic username and password", fields=("basic_username", "basic_password")),
+        CredentialForm(code="credential", name="A credential in a header or query parameter", fields=("credential",)),
+    )
 
     async def check(self, config: BaseModel) -> HealthReport:
         """Request the health path and report whether the service answered."""

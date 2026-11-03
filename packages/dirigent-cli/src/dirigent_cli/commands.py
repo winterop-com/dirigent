@@ -17,6 +17,7 @@ from rich.markup import escape
 
 from dirigent_cli import schemas, starters
 from dirigent_cli.context import CliState, Session, client_for, state_of
+from dirigent_cli.credentials import choose_a_credential, credential_fields, is_secret_field
 from dirigent_cli.explain import explain as document_shape
 from dirigent_cli.graph import GraphStep, render_graph, steps_of_document
 from dirigent_cli.local import (
@@ -180,7 +181,7 @@ from dirigent_client import (
     ValidationIssue,
     declared_label,
 )
-from dirigent_client.schemas import TokenLifetime
+from dirigent_client.schemas import SurfaceEntry, TokenLifetime
 from dirigent_common import Issue, JsonMap, Message, bounded_load, is_entity_name
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings
@@ -1140,7 +1141,7 @@ def parse_params(
     return {
         name: value
         for name, value in built.items()
-        if value != "" or not _is_secret_field(cast("dict[str, Any]", properties.get(name) or {}))
+        if value != "" or not is_secret_field(cast("dict[str, Any]", properties.get(name) or {}))
     }
 
 
@@ -2658,20 +2659,30 @@ def connection_create(
 
     Prompting happens only on a terminal; in a script every value must arrive via ``--set``.
     An invocation carrying ``--set`` is prompted only for what it cannot do without: a
-    required field it left out. A bare invocation is the interactive form and is offered
-    every secret the kind declares.
+    required field it left out, and a credential where the kind needs one and none was given.
+    A bare invocation is the interactive form: the required fields, the choice of credential
+    where the kind takes one of several, and every other secret the kind declares.
     """
     refuse_a_server_a_project_named(state_of(ctx))
     with client_for(state_of(ctx)) as dg:
-        schema = _connection_schema(dg.call(dg.blocks.catalog()), kind_id)
+        entry = _connection_entry(dg.call(dg.blocks.catalog()), kind_id)
+        schema = entry.config_schema
         config = parse_params(set_value, schema=schema)
         required = set(cast("list[str]", schema.get("required") or []))
+        properties = cast("dict[str, Any]", schema.get("properties") or {})
         interactive = at_a_terminal() and not json_mode()
+        credentials = credential_fields(entry)
         # An invocation that carried --set said what it wanted, so only a required secret is
         # still asked for there: an optional one it left out is left out. With no --set at
         # all the command is the form, and every secret is offered.
         offered = not set_value
-        for field, body in cast("dict[str, Any]", schema.get("properties") or {}).items():
+        chosen = False
+        for field, body in properties.items():
+            if field in credentials:
+                if not chosen:
+                    choose_a_credential(entry, config, properties, interactive=interactive, offered=offered)
+                    chosen = True
+                continue
             if field in config:
                 continue
             # An optional secret nobody set is simply unset: a prompt is an offer, and
@@ -2681,7 +2692,7 @@ def connection_create(
                 fail(CANNOT_PROMPT_SET, field=field)
             if not interactive:
                 continue
-            if _is_secret_field(body):
+            if is_secret_field(body):
                 if not offered and field not in required:
                     continue
                 value = typer.prompt(f"{field}", hide_input=True, default="", show_default=False)
@@ -2701,27 +2712,13 @@ def connection_create(
     )
 
 
-def _connection_schema(catalog: Catalog, kind_id: str) -> dict[str, Any]:
-    """Find one connection kind's published schema in the catalog."""
+def _connection_entry(catalog: Catalog, kind_id: str) -> SurfaceEntry:
+    """Find one connection kind's catalog entry."""
     for entry in catalog.connection_kinds:
         if entry.id == kind_id:
-            return entry.config_schema
+            return entry
     known = ", ".join(entry.id for entry in catalog.connection_kinds) or "none"
     fail(UNKNOWN_CONNECTION_KIND, kind=repr(kind_id), known=known)
-
-
-def _is_secret_field(body: dict[str, Any]) -> bool:
-    """Report whether a schema field is one the server will redact.
-
-    ``format: password`` is the same declaration that makes the engine encrypt the field,
-    so hiding the prompt and encrypting the value stay in agreement.
-    """
-    if body.get("format") == "password":
-        return True
-    options = cast("list[object]", body.get("anyOf") or [])
-    return any(
-        isinstance(option, dict) and cast("dict[str, Any]", option).get("format") == "password" for option in options
-    )
 
 
 @connection_app.command("show")

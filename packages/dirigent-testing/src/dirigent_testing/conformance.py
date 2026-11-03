@@ -215,6 +215,14 @@ def assert_contribution_conforms(contribution: Contribution) -> list[str]:
         refusal = mark_refusal(connection.id, connection.mark)
         if refusal is not None:
             issues.append(refusal)
+        known = set(connection.config_model.model_fields)
+        for form in connection.credential_forms:
+            unknown = [field for field in form.fields if field not in known]
+            label = f"connection kind {connection.id} credential form {form.code!r}"
+            if not form.fields:
+                issues.append(f"{label} names no field")
+            elif unknown:
+                issues.append(f"{label} names {', '.join(unknown)}, which its config model does not declare")
     for source in contribution.sources:
         kind = source.spec.kind
         for role in ("config_model", "output_model"):
