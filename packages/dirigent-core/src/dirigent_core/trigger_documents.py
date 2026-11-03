@@ -11,18 +11,16 @@ from uuid import UUID
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.enums import DocumentKind, ProvenanceSource
+from dirigent_client.enums import AuditAction, AuditSubject, DocumentKind, ProvenanceSource
 from dirigent_client.schemas import ApplyResult, Materialized, PipelinePlan, PlanAction
+from dirigent_core import audit
 from dirigent_core.documents import TriggerTarget, digest_of, validate_against_catalog
 from dirigent_core.engine.definition import TriggersDefinition, canonical_document, load_definition
 from dirigent_core.engine.runs import Provenance
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
-from dirigent_core.logging import get_logger
 from dirigent_core.models import Pipeline, Schedule, TriggerDocument
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues, retiring_schedules
-
-_logger = get_logger("triggers")
 
 #: The owner a document that does not exist yet declares under: an id no row can hold, so
 #: every code the pipeline already carries belongs to somebody else.
@@ -61,9 +59,10 @@ async def owned_codes(session: AsyncSession, document_id: UUID) -> list[str]:
 
 async def delete_trigger_document(session: AsyncSession, services: EngineServices, row: TriggerDocument) -> None:
     """Delete a triggers document, and with it every schedule it owns."""
+    code, document_id = row.code, row.id
     await session.delete(row)
     await session.flush()
-    _logger.info("triggers document deleted", document=row.code)
+    await audit.record(session, AuditAction.DELETED, AuditSubject.TRIGGER_DOCUMENT, code=code, subject_id=document_id)
 
 
 async def delete_absent_trigger_documents(
@@ -173,6 +172,7 @@ async def apply_triggers_document(
             triggers=retiring,
         )
     row = existing or TriggerDocument(code=definition.code)
+    before = dict(existing.document) if existing is not None else {}
     row.name = definition.name
     row.description = definition.description
     row.pipeline_id = pipeline.id
@@ -186,11 +186,17 @@ async def apply_triggers_document(
         session.add(row)
     await session.flush()
     triggers = await materialize_triggers(session, pipeline, definition, pause_created=paused, owner=row.id)
-    _logger.info(
-        "triggers document applied",
-        document=definition.code,
-        pipeline=pipeline.code,
-        action=plan.action.value,
-        digest=plan.digest,
-    )
+    if existing is None:
+        await audit.record(
+            session, AuditAction.CREATED, AuditSubject.TRIGGER_DOCUMENT, code=row.code, subject_id=row.id
+        )
+    elif plan.action is PlanAction.UPDATE:
+        await audit.record(
+            session,
+            AuditAction.UPDATED,
+            AuditSubject.TRIGGER_DOCUMENT,
+            code=row.code,
+            subject_id=row.id,
+            fields=audit.changed(before, dict(row.document)),
+        )
     return ApplyResult(kind=DocumentKind.TRIGGERS, plan=plan, pipeline_id=pipeline.id, triggers=triggers)

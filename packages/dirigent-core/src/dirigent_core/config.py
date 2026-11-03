@@ -76,6 +76,7 @@ HOST_ONLY_SETTINGS = frozenset(
         "database_url",
         "enabled_unsafe_blocks",
         "host",
+        "retention_audit",
         "retention_firings",
         "retention_inputs",
         "retention_logs",
@@ -313,6 +314,12 @@ class Settings(BaseSettings):
     ``--json`` or ``-o console`` wins over it.
     """
 
+    dev_log_max_size: Size = Field(default=10 * 1024 * 1024, ge=1)
+    """How large ``dg dev``'s log file in the state directory grows before it is rotated."""
+
+    dev_log_backups: int = Field(default=3, ge=0)
+    """How many rotated ``dg dev`` log files are kept beside the live one."""
+
     artifact_root: str = f"file://./{STATE_DIR}/artifacts"
     """Default storage backend URI prefix for run scratch space and artifacts."""
 
@@ -446,6 +453,9 @@ class Settings(BaseSettings):
 
     retention_notifications: Duration | None = None
     """How long an alert that was sent is kept, for runs too young to be pruned themselves."""
+
+    retention_audit: Duration | None = timedelta(days=365)
+    """How long an entry of the audit trail is kept; null keeps every one."""
 
     retention_scratch: bool = True
     """Whether pruning a run also deletes its artifacts from storage."""

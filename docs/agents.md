@@ -208,6 +208,7 @@ text that is not a document, and the file is not opened.
 | `get_attempt_output` | One attempt's output, inline or from storage, or the part a JSON pointer names |
 | `get_run_report` | The markdown report document a run rendered when it settled, and whether it rendered one |
 | `get_run_profile` | Where a run's wall clock went: the critical path, and its queued, running and waiting time |
+| `get_attempt` | Read one attempt by its id alone, as an engine log line names it, with the `run_id`, `pipeline`, step and `item` it belongs to |
 | `run_stats` | How the runs of a window went: per day, each pipeline's p50, p95 and max duration, and what failed most |
 | `runs_by_pipeline` | Each pipeline's runs in a window: the newest, how many per state, its last 10 runs, and the median duration, for the first `limit` (20) pipelines with `more` counting the rest |
 | `cancel_run`, `pause_run`, `resume_run`, `retry_attempt`, `rerun_run` | Stop a run, pause or resume one, retry one attempt, or run a settled run again with its parameters and source input |
@@ -217,6 +218,7 @@ text that is not a document, and the file is not opened.
 | `create_connection` | Create a connection with its settings alone, awaiting the secrets an admin supplies, and answer which they are and the `dg connection set-secret` command that sets them (operator or admin) |
 | `list_schemas`, `get_schema` | The named JSON Schemas a document can reference |
 | `create_schema`, `update_schema`, `delete_schema` | Store, rewrite or remove a named schema (admin only); one a pipeline references is not removed |
+| `list_audit` | Who changed what: every administrative change, newest first, with the fields an update changed and never a value (admin only, and offered to an admin token alone) |
 | `list_alert_rules`, `get_alert_rule` | What alerts on what, and where it sends |
 | `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`, `resume_alert_rule`, `delete_alert_rule` | Declare an alert rule, change what it says or where it sends, hold or release its deliveries, remove it |
 | `list_alert_deliveries` | The alert queue, newest first, narrowed to a run or a `status`, as `dg alerts queue` shows it |

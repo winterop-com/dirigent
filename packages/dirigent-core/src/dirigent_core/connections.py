@@ -12,8 +12,9 @@ from collections.abc import Iterable, Mapping, Sequence
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.enums import NotificationStatus
+from dirigent_client.enums import AuditAction, AuditSubject, NotificationStatus
 from dirigent_client.schemas import Catalog, ConnectionUsers, PipelineUse
+from dirigent_core import audit
 from dirigent_core.engine.definition import connections_named
 from dirigent_core.models import AlertRule, Connection, Notification, Pipeline, PipelineVersion
 
@@ -102,3 +103,4 @@ async def remove_connection(
     )
     await session.delete(row)
     await session.flush()
+    await audit.record(session, AuditAction.DELETED, AuditSubject.CONNECTION, code=row.code, subject_id=row.id)

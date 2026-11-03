@@ -22,9 +22,18 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dirigent_client.enums import AuditAction, AuditSubject
 from dirigent_client.schemas import Page, SchemaIn, SchemaOut, SchemaUpdate
+from dirigent_core import audit
 from dirigent_core.models import Schema
-from dirigent_core.schemas import SchemaInUse, check_valid_schema, resolve_identity, schema_users
+from dirigent_core.schemas import (
+    SchemaInUse,
+    check_valid_schema,
+    record_schema_update,
+    resolve_identity,
+    schema_fields,
+    schema_users,
+)
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.errors import Refusal
 from dirigent_server.messages import NO_SCHEMA, SCHEMA_EXISTS
@@ -97,6 +106,7 @@ async def create_schema(
     row = Schema(code=code, name=name, description=description, body=payload.body)
     session.add(row)
     await session.flush()
+    await audit.record(session, AuditAction.CREATED, AuditSubject.SCHEMA, code=row.code, subject_id=row.id)
     users = await schema_users(session, services.host.catalog())
     return render(row, users.get(row.code, ()))
 
@@ -125,6 +135,7 @@ async def update_schema(
     decides; what is refused is removing the shape from under them, not changing it.
     """
     row = await find(session, code)
+    before = schema_fields(row)
     if payload.changing("name"):
         row.name = payload.name
     if payload.changing("description"):
@@ -133,6 +144,7 @@ async def update_schema(
         check_valid_schema(payload.body)
         row.body = payload.body
     await session.flush()
+    await record_schema_update(session, row, before)
     users = await schema_users(session, services.host.catalog())
     return render(row, users.get(code, ()))
 
@@ -157,4 +169,6 @@ async def delete_schema(code: str, session: SessionDep, services: ServicesDep, p
     if named:
         raise SchemaInUse(code, named)
     await session.delete(row)
+    await session.flush()
+    await audit.record(session, AuditAction.DELETED, AuditSubject.SCHEMA, code=code, subject_id=row.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -1,8 +1,9 @@
 """Every namespaced accessor: the method it uses, the path it addresses, and what it sends."""
 
 from collections.abc import Awaitable, Callable
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import parse_qs
 from uuid import UUID
 
 import httpx2
@@ -13,6 +14,8 @@ from dirigent_client import (
     API_PREFIX,
     AlertEvent,
     AlertScope,
+    AuditAction,
+    AuditSubject,
     BlockKind,
     Dirigent,
     DirigentError,
@@ -118,6 +121,7 @@ PAYLOADS: dict[str, Any] = {
         "steps": [],
     },
     f"/attempts/{ID}/$retry": ATTEMPT,
+    f"/attempts/{ID}": {**ATTEMPT, "run_id": ID, "pipeline": "demo", "item": "oslo"},
     "/connections": {"items": [CONNECTION], "next": None},
     "/connections/warehouse": CONNECTION,
     "/connections/warehouse/$check": {"healthy": True, "detail": "200 OK"},
@@ -245,6 +249,7 @@ ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] =
     ("runs.get", lambda dg: dg.runs.get(ID), "GET", f"/runs/{ID}"),
     ("runs.cancel", lambda dg: dg.runs.cancel(ID), "POST", f"/runs/{ID}/$cancel"),
     ("runs.retry", lambda dg: dg.runs.retry(ID), "POST", f"/attempts/{ID}/$retry"),
+    ("attempts.get", lambda dg: dg.attempts.get(ID), "GET", f"/attempts/{ID}"),
     ("runs.logs", lambda dg: dg.runs.logs(ID), "GET", f"/runs/{ID}/$logs"),
     ("runs.report", lambda dg: dg.runs.report(ID), "GET", f"/runs/{ID}/$report"),
     ("connections.list", lambda dg: dg.connections.list(), "GET", "/connections"),
@@ -542,3 +547,41 @@ async def test_url_syntax_in_an_identifier_stays_inside_its_segment(code: str, e
         await dg.pipelines.validate(code)
 
     assert seen == [f"{API_PREFIX}/pipelines/{encoded}/$validate".encode()]
+
+
+async def test_the_audit_listing_sends_its_filters_and_reads_entries() -> None:
+    entry = {
+        "id": 7,
+        "created_at": WHEN,
+        "action": "updated",
+        "subject_kind": "connection",
+        "subject_code": "ops-api",
+        "fields": ["bearer_token"],
+        "actor_username": "agent",
+        "actor_token": "mcp-trial",
+        "actor_label": "agent (token mcp-trial)",
+    }
+    recorder = Recorder([httpx2.Response(200, json={"items": [entry], "next": None})])
+    async with client_of(recorder) as dg:
+        page = await dg.audit.list(
+            subject_kind=AuditSubject.CONNECTION,
+            action=AuditAction.UPDATED,
+            actor="agent",
+            since=datetime(2026, 11, 1, tzinfo=UTC),
+            limit=10,
+        )
+    method, path, sent, _ = recorder.last
+    assert (method, path) == ("GET", f"{API_PREFIX}/audit")
+    assert parse_qs(sent) == {
+        "subject_kind": ["connection"],
+        "action": ["updated"],
+        "actor": ["agent"],
+        "since": ["2026-11-01T00:00:00+00:00"],
+        "limit": ["10"],
+    }
+    [read] = page.items
+    assert (read.subject_code, read.fields, read.actor_label) == (
+        "ops-api",
+        ["bearer_token"],
+        "agent (token mcp-trial)",
+    )

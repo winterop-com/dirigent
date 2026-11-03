@@ -274,7 +274,7 @@ def test_a_policy_reads_the_configured_ages(settings: Settings) -> None:
 
 def test_nothing_configured_is_reported_as_nothing_to_do(settings: Settings) -> None:
     """A sweep with no age would read every table to delete nothing."""
-    assert not retention.configured(retention.policy_from(settings))
+    assert not retention.configured(retention.policy_from(settings.model_copy(update={"retention_audit": None})))
     assert retention.configured(retention.Policy(logs=FOREVER))
 
 

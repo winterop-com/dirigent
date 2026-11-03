@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from typer.testing import CliRunner
 
-from clisupport import asking_for_the_rendering, only, plain, refusal, rows
+from clisupport import asking_for_the_rendering, only, plain, records, refusal, rows
 from dirigent_cli import source_commands
 from dirigent_cli.main import app, hoist_globals
 from dirigent_cli.output import alert_event, throttle_note, watching
@@ -869,3 +869,53 @@ def test_a_signed_source_is_called_with_a_body_signed_by_its_secret(tmp_path: Pa
     called = machine(*args, "--signing-secret", minted["token"])
     assert called.exit_code == 0, called.output
     assert only(called.stdout, "source.called")["status"] == 200
+
+
+def test_the_audit_trail_is_a_record_per_change_newest_first(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path)
+    assert machine("pipeline", "deactivate", "cli-demo").exit_code == 0
+    result = machine("audit", "--kind", "pipeline")
+    assert result.exit_code == 0, result.output
+    assert {record["kind"] for record in records(result.stdout)} == {"audit"}
+    written = rows(result.stdout)
+    assert [(row["action"], row["subject_code"]) for row in written] == [
+        ("deactivated", "cli-demo"),
+        ("created", "cli-demo"),
+    ]
+    assert written[0]["actor_label"] == "tester (token cli)"
+    narrowed = machine("audit", "--kind", "pipeline", "--action", "created", "--since", "1h")
+    assert [row["action"] for row in rows(narrowed.stdout)] == ["created"]
+
+
+def test_an_audit_window_reads_a_span_back_or_a_timestamp() -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from dirigent_cli.audit_commands import moment_of
+
+    now = datetime(2026, 11, 3, 12, tzinfo=UTC)
+    assert moment_of("24h", option="--since", now=now) == now - timedelta(hours=24)
+    assert moment_of("2026-11-01T09:00", option="--since", now=now) == datetime(2026, 11, 1, 9, tzinfo=UTC)
+    assert moment_of(None, option="--since", now=now) is None
+
+
+def test_an_audit_record_reads_as_one_line_naming_who_did_what() -> None:
+    from dirigent_cli import summaries
+
+    shown = summaries.line(
+        {
+            "kind": "audit",
+            "fields": {
+                "created_at": "2026-11-03T12:00:00Z",
+                "action": "updated",
+                "subject_kind": "schedule",
+                "subject_code": "nightly",
+                "parent_code": "cli-demo",
+                "fields": ["cron", "timezone"],
+                "actor_label": "agent (token mcp-trial)",
+            },
+        }
+    )
+    assert shown["message"] == "updated"
+    assert shown["subject"] == "cli-demo/nightly"
+    assert shown["actor"] == "agent (token mcp-trial)"
+    assert shown["fields"] == "cron, timezone"

@@ -130,6 +130,29 @@ test('an account is made, and then turned off', async ({ page }) => {
     await expect(rowOf(page, username)).toContainText('deactivated')
 })
 
+test('an account made on the users screen is a row of the audit trail, and narrows by action', async ({
+    page,
+}) => {
+    await signIn(page)
+    const username = someone()
+    await page.goto('/admin/users')
+    await createAccount(page, username)
+    await expect(rowOf(page, username)).toBeVisible()
+
+    await page.goto('/admin/audit')
+    await expect(page.getByRole('heading', { name: LABELS.screen.audit.name })).toBeVisible()
+    const made = page.getByRole('row').filter({ hasText: username })
+    await expect(made).toContainText(LABELS.audit.actions.created)
+    await expect(made).toContainText(LABELS.audit.subjects.user)
+    await expect(made).toContainText(DEV_USERNAME)
+
+    await page
+        .getByRole('button', { name: LABELS.shell.filter(LABELS.audit.action, LABELS.audit.any_action) })
+        .click()
+    await page.getByRole('menuitemradio', { name: LABELS.audit.actions.deleted, exact: true }).click()
+    await expect(page.getByText(LABELS.audit.empty_filtered)).toBeVisible()
+})
+
 test('the last admin cannot deactivate itself, and is told so where it asked', async ({ page }) => {
     await signIn(page)
     await page.goto('/admin/users')

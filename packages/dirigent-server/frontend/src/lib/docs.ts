@@ -25,6 +25,7 @@ export type DocsTag =
     | 'users'
     | 'workers'
     | 'alerts'
+    | 'audit'
     | 'system'
 
 /** Where the interactive documentation for one resource is. */

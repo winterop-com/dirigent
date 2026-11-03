@@ -1,5 +1,6 @@
 import { CornerDownLeft } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router'
 
 import {
     Command,
@@ -14,8 +15,17 @@ import {
 import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { useStore } from '@/hooks/use-store'
 import { NEUTRAL_GLYPH } from '@/lib/glyphs'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
-import { filterActions, paletteActions, paletteOpen, shelve, type PaletteAction } from '@/lib/palette'
+import { addressOfId, idOf } from '@/lib/id-jump'
+import {
+    filterActions,
+    GO_GROUP,
+    paletteActions,
+    paletteOpen,
+    shelve,
+    type PaletteAction,
+} from '@/lib/palette'
 
 export const PALETTE_TITLE = LABELS.palette.title
 export const PALETTE_DESCRIPTION = LABELS.palette.description
@@ -42,7 +52,21 @@ export function CommandPalette() {
     const actions = useStore(paletteActions)
     const [query, setQuery] = useState('')
 
-    const shown = useMemo(() => filterActions(actions, query), [actions, query])
+    const navigate = useNavigate()
+    const shown = useMemo(() => {
+        const id = idOf(query)
+        if (id === null) return filterActions(actions, query)
+        const opening: PaletteAction = {
+            id: 'open-id',
+            title: LABELS.palette.open_id(id),
+            group: GO_GROUP,
+            icon: ICONS.open_id,
+            run: () => {
+                void addressOfId(id).then((path) => navigate(path))
+            },
+        }
+        return [opening]
+    }, [actions, navigate, query])
     const shelves = useMemo(() => shelve(shown), [shown])
 
     function choose(action: PaletteAction): void {

@@ -22,6 +22,8 @@ from dirigent_client.enums import (
     IMPORTANCE_RANK,
     AlertEvent,
     AlertScope,
+    AuditAction,
+    AuditSubject,
     Importance,
     LogLevel,
     NotificationStatus,
@@ -42,6 +44,7 @@ from dirigent_common import (
     secrets_of,
 )
 from dirigent_common.depth import shown
+from dirigent_core import audit
 from dirigent_core.database import is_deadlock, session_scope
 from dirigent_core.engine.definition import load_definition
 from dirigent_core.engine.services import EngineServices
@@ -223,7 +226,7 @@ async def create_rule(session: AsyncSession, services: EngineServices, request: 
     )
     session.add(rule)
     await session.flush()
-    _logger.info("alert rule created", rule=rule.code, alert_event=rule.event.value, notifier=rule.notifier)
+    await audit.record(session, AuditAction.CREATED, AuditSubject.ALERT_RULE, code=rule.code, subject_id=rule.id)
     return rule
 
 
@@ -280,10 +283,10 @@ async def _target(session: AsyncSession, services: EngineServices, code: str | N
 
 async def delete_rule(session: AsyncSession, rule: AlertRule) -> None:
     """Remove an alert rule; the notifications it already raised are kept."""
-    code = rule.code
+    code, rule_id = rule.code, rule.id
     await session.delete(rule)
     await session.flush()
-    _logger.info("alert rule deleted", rule=code)
+    await audit.record(session, AuditAction.DELETED, AuditSubject.ALERT_RULE, code=code, subject_id=rule_id)
 
 
 def _satisfied_levels(importance: Importance) -> list[Importance]:
@@ -318,9 +321,12 @@ async def matching_rules(
 
 async def set_paused(session: AsyncSession, rule: AlertRule, *, paused: bool) -> AlertRule:
     """Hold a rule's deliveries, or let them resume; the rule itself is left as declared."""
+    if rule.paused is paused:
+        return rule
     rule.paused = paused
     await session.flush()
-    _logger.info("alert rule paused" if paused else "alert rule resumed", rule=rule.code)
+    action = AuditAction.PAUSED if paused else AuditAction.RESUMED
+    await audit.record(session, action, AuditSubject.ALERT_RULE, code=rule.code, subject_id=rule.id)
     return rule
 
 
@@ -338,6 +344,12 @@ async def update_rule(
     worker can dispatch on.
     """
     named = {name: value for name, value in changes.items() if name in UPDATABLE}
+    before = {
+        "template": rule.template,
+        "body": rule.body,
+        "importance": rule.importance,
+        "connection": rule.connection_id,
+    }
     if "template" in named or "body" in named:
         check_templates(
             template=cast("str | None", named.get("template", rule.template)),
@@ -346,17 +358,25 @@ async def update_rule(
         rule.template = cast("str | None", named.get("template", rule.template))
         rule.body = cast("str | None", named.get("body", rule.body))
         await session.flush()
-        _logger.info("alert rule retemplated", rule=rule.code)
     if "importance" in named:
         floor = cast("Importance | None", named["importance"])
         rule.importance = floor
         await session.flush()
-        _logger.info("alert rule reweighted", rule=rule.code, importance=floor.value if floor else None)
     if "connection" in named:
         code = cast("str | None", named["connection"])
         rule.notifier, rule.connection_id = await _target(session, services, code)
         await session.flush()
-        _logger.info("alert rule retargeted", rule=rule.code, notifier=rule.notifier, connection=code)
+    after = {
+        "template": rule.template,
+        "body": rule.body,
+        "importance": rule.importance,
+        "connection": rule.connection_id,
+    }
+    fields = audit.changed(before, after)
+    if fields:
+        await audit.record(
+            session, AuditAction.UPDATED, AuditSubject.ALERT_RULE, code=rule.code, subject_id=rule.id, fields=fields
+        )
     if "paused" in named:
         await set_paused(session, rule, paused=bool(named["paused"]))
     return rule

@@ -16,9 +16,9 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 from pydantic import BaseModel, ConfigDict, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.enums import TokenKind, TriggerKind, UserRole
+from dirigent_client.enums import AuditAction, AuditSubject, TokenKind, TriggerKind, UserRole
+from dirigent_core import audit
 from dirigent_core.errors import DomainError
-from dirigent_core.logging import get_logger
 from dirigent_core.messages import DUPLICATE_EMAIL, DUPLICATE_USER, LAST_ADMIN, WEAK_PASSWORD, WRONG_PASSWORD
 from dirigent_core.models import ApiToken, User, utcnow
 
@@ -42,7 +42,6 @@ ACCOUNT_LOCK_KEY = 0x64_69_72_67_61_63_63_74
 LAST_USED_RESOLUTION = timedelta(seconds=60)
 
 _hasher = PasswordHasher()
-_logger = get_logger("auth")
 
 
 class AuthError(DomainError):
@@ -112,6 +111,7 @@ class Principal(BaseModel):
     role: UserRole
     token_id: UUID | None = None
     token_name: str | None = None
+    token_prefix: str | None = None
     via: TokenKind | None = None
 
     @property
@@ -130,6 +130,18 @@ class Principal(BaseModel):
         if self.token_name and self.via is TokenKind.API:
             return f"{self.username} (token {self.token_name})"
         return self.username
+
+    @property
+    def actor(self) -> audit.Actor:
+        """Who this principal is, as the audit trail records it; a session names no token."""
+        api = self.via is TokenKind.API
+        return audit.Actor(
+            user_id=self.user_id,
+            username=self.username,
+            token=self.token_name if api else None,
+            token_prefix=self.token_prefix if api else None,
+            label=self.label,
+        )
 
     @property
     def trigger_kind(self) -> TriggerKind:
@@ -247,7 +259,7 @@ async def create_user(
     )
     session.add(user)
     await session.flush()
-    _logger.info("user created", username=username, role=role.value)
+    await audit.record(session, AuditAction.CREATED, AuditSubject.USER, code=username, subject_id=user.id)
     return user
 
 
@@ -256,7 +268,7 @@ async def create_fixture_admin(session: AsyncSession, username: str, password: s
     user = User(username=username, password_hash=_hasher.hash(password), role=UserRole.ADMIN)
     session.add(user)
     await session.flush()
-    _logger.info("fixture admin created", username=username)
+    await audit.record(session, AuditAction.CREATED, AuditSubject.USER, code=username, subject_id=user.id)
     return user
 
 
@@ -265,7 +277,7 @@ async def reset_password(session: AsyncSession, user: User, password: str) -> Us
     user.password_hash = hash_password(password)
     await revoke_sessions(session, user.id)
     await session.flush()
-    _logger.info("password reset", username=user.username)
+    await audit.record(session, AuditAction.PASSWORD_RESET, AuditSubject.USER, code=user.username, subject_id=user.id)
     return user
 
 
@@ -314,9 +326,13 @@ async def set_role(session: AsyncSession, user: User, role: UserRole) -> User:
     """Change what an account may do, refusing the change that locks everyone out."""
     if role is not UserRole.ADMIN:
         await _refuse_lockout(session, user)
+    if user.role is role:
+        return user
     user.role = role
     await session.flush()
-    _logger.info("user role changed", username=user.username, role=role.value)
+    await audit.record(
+        session, AuditAction.ROLE_CHANGED, AuditSubject.USER, code=user.username, subject_id=user.id, fields=["role"]
+    )
     return user
 
 
@@ -348,7 +364,7 @@ async def deactivate_user(session: AsyncSession, user: User) -> User:
     await _refuse_lockout(session, user)
     user.active = False
     await revoke_sessions(session, user.id)
-    _logger.info("user deactivated", username=user.username)
+    await audit.record(session, AuditAction.DEACTIVATED, AuditSubject.USER, code=user.username, subject_id=user.id)
     return user
 
 
@@ -356,7 +372,7 @@ async def activate_user(session: AsyncSession, user: User) -> User:
     """Let an account log in again; the sessions it lost are not restored."""
     user.active = True
     await session.flush()
-    _logger.info("user activated", username=user.username)
+    await audit.record(session, AuditAction.ACTIVATED, AuditSubject.USER, code=user.username, subject_id=user.id)
     return user
 
 
@@ -377,7 +393,7 @@ async def change_password(
         raise WrongPassword
     user.password_hash = hash_password(new)
     await revoke_sessions(session, user.id, keep=keep)
-    _logger.info("password changed", username=user.username)
+    await audit.record(session, AuditAction.PASSWORD_CHANGED, AuditSubject.USER, code=user.username, subject_id=user.id)
     return user
 
 
@@ -433,7 +449,10 @@ async def issue_token(
     )
     session.add(row)
     await session.flush()
-    _logger.info("token issued", username=user.username, name=name, kind=kind.value)
+    if kind is TokenKind.API:
+        await audit.record(
+            session, AuditAction.CREATED, AuditSubject.TOKEN, code=name, subject_id=row.id, parent=user.username
+        )
     return IssuedToken(
         id=row.id,
         name=name,
@@ -472,6 +491,7 @@ async def resolve_token(session: AsyncSession, secret: str, *, now: datetime | N
         role=user.role,
         token_id=token.id,
         token_name=token.name,
+        token_prefix=token.prefix,
         via=token.kind,
     )
 
@@ -549,6 +569,15 @@ async def revoke_token(session: AsyncSession, token_id: UUID) -> bool:
         return False
     token.revoked_at = utcnow()
     await session.flush()
+    owner = await session.get(User, token.user_id)
+    await audit.record(
+        session,
+        AuditAction.REVOKED,
+        AuditSubject.TOKEN,
+        code=token.name,
+        subject_id=token.id,
+        parent=owner.username if owner else None,
+    )
     return True
 
 

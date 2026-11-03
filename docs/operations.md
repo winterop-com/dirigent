@@ -43,9 +43,17 @@ export DG_URL=http://127.0.0.1:3333
 export DG_TOKEN=$(jq -r 'select(.kind == "process" and has("token")) | .token' dev.ndjson)
 ```
 
-`dg dev` starts its own logging at WARNING, and `-v` is what asks for the migration lines, the
-request log, and the engine's own events. That is a level, not a spelling: the terminal
-decides the spelling.
+`dg dev` logs at INFO: the administrative changes the audit trail records, each run's
+`run started` and `run settled` with its `outcome` and `duration_ms`, and the engine's other
+INFO events. `-v` adds the request log and the step-level engine lines, and a `log_level` the
+project's `dirigent.yaml` or `DIRIGENT_LOG_LEVEL` names is respected. That is a level, not a
+spelling: the terminal decides the spelling.
+
+`dg dev` also keeps its log in `.dirigent/state/dev.log`, as NDJSON whatever the terminal is,
+rotated at `dev_log_max_size` (10MB) with `dev_log_backups` (3) older files kept; the `starting`
+record names it in its `log` field, and `--wipe-state` clears it with the rest of the state.
+`dg server`, `dg worker` and `dg scheduler` write no log file: they log to standard output only,
+which is what a container runtime, systemd or a log shipper collects.
 
 Before 1.0 the schema is not migrated between versions, so a state an older dirigent wrote is
 refused at boot by name: every process reflects what it found before it says anything else,
@@ -665,6 +673,8 @@ exhaustion, which is exactly why it is refused up front.
 | --- | --- | --- |
 | `DIRIGENT_LOG_LEVEL` | `INFO` | Process log level: `DEBUG`, `INFO`, `WARNING`, or `ERROR`. This is the *process* log; product telemetry is the `log_entries` table. A CLI `-v` / `--debug` flag wins over it. |
 | `DIRIGENT_LOG_FORMAT` | the terminal decides | How a command spells its output and its logs: `console` renders, `json` writes records. Unset, a terminal renders and anything else gets records, the process commands included. |
+| `DIRIGENT_DEV_LOG_MAX_SIZE` | `10MB` | How large `dg dev`'s log file in the state directory grows before it is rotated. |
+| `DIRIGENT_DEV_LOG_BACKUPS` | `3` | How many rotated `dg dev` log files are kept beside the live one. |
 
 ### Storage and artifacts
 
@@ -1021,14 +1031,18 @@ the same processors as dirigent's own events and end up in the same shape.
 **Where they go.** `dg dev`, `dg server`, `dg worker` and `dg scheduler` write their logs to
 **stdout**, because for a process that stream is the log: NDJSON under a collector, rendered
 lines at a terminal. Everything else -- the
-commands a person types -- writes its logs to **stderr**, leaving stdout for the answer. There
-is no log file, no rotation, and no setting that names a path: collect them the way your
-runtime collects a container's output.
+commands a person types -- writes its logs to **stderr**, leaving stdout for the answer.
+`dg server`, `dg worker` and `dg scheduler` keep no log file, no rotation, and no setting that
+names a path: collect them the way your runtime collects a container's output. `dg dev` alone
+also writes its log to `.dirigent/state/dev.log` as NDJSON, rotated by size, because a laptop
+has no collector.
 
 | Setting | Default | Effect |
 | --- | --- | --- |
 | `DIRIGENT_LOG_FORMAT` | the terminal decides | How a command spells its output and its logs: `console` renders coloured, aligned lines, `json` emits one record per line. Unset, a terminal renders and a pipe or a container's log gets records, the four process commands included |
 | `DIRIGENT_LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. A CLI `-v` (INFO), `--debug` (DEBUG), or `--debug-all` (DEBUG, uncapped) wins over it |
+| `DIRIGENT_DEV_LOG_MAX_SIZE` | `10MB` | How large `dg dev`'s `.dirigent/state/dev.log` grows before it is rotated |
+| `DIRIGENT_DEV_LOG_BACKUPS` | `3` | How many rotated `dg dev` log files are kept beside the live one |
 
 At DEBUG, three libraries are floored at INFO -- `aiosqlite`, `asyncio`, and `httpcore2` --
 because they log once per cursor operation or socket read and would bury everything else.
@@ -1418,6 +1432,7 @@ mean an instance running at a real cadence needs a policy.
 | `retention_inputs` | What arrived at a source, and what came of it |
 | `retention_firings` | When a schedule fired |
 | `retention_notifications` | Alerts already sent |
+| `retention_audit` | Entries of the [audit trail](security.md#the-audit-trail); `365d` unless set, the one age with a default |
 | `retention_scratch` | Whether a pruned run's artifacts are deleted from storage too |
 
 Ages are humane durations -- `30d`, `12h`, `90m`. A starting point for an instance that runs
@@ -1462,7 +1477,7 @@ than one that holds locks for minutes, and an interrupted sweep has still made p
 work off a backlog before setting a policy, or prune an instance that runs no scheduler:
 
 ```bash
-dg prune --runs 90d --logs 14d --dry-run   # what would go
+dg prune --runs 90d --logs 14d --audit 730d --dry-run   # what would go
 dg prune --runs 90d --logs 14d             # what went
 ```
 
@@ -1503,10 +1518,6 @@ running.
 
 What you should know before you run this in anger. These are verified against the code, not a
 guess at what might be missing.
-
-**No queryable audit trail.** Every run points at what started it, which is real attribution.
-Administrative actions -- who created a connection, who revoked a token, who deleted a pipeline
--- are in the process log and nowhere else.
 
 **Health checks cover the database only.** See [health checks](#health-checks). A green
 readiness probe does not mean storage is reachable, that the scheduler holds leadership, or

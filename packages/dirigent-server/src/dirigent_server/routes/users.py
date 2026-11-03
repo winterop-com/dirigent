@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dirigent_client.enums import AuditAction, AuditSubject
 from dirigent_client.schemas import (
     IssuedTokenOut,
     Page,
@@ -13,6 +14,7 @@ from dirigent_client.schemas import (
     UserOut,
     UserUpdate,
 )
+from dirigent_core import audit
 from dirigent_core.auth import (
     activate_user,
     create_user,
@@ -91,13 +93,20 @@ async def update_account(
 ) -> UserOut:
     """Change an account's display name, email or role; the username and the password are not editable."""
     row = await find(session, username)
-    if payload.changing("name"):
+    fields: list[str] = []
+    if payload.changing("name") and payload.name != row.name:
         row.name = payload.name
-    if payload.changing("email"):
+        fields.append("name")
+    if payload.changing("email") and payload.email != row.email:
         await set_email(session, row, payload.email)
+        fields.append("email")
     if payload.role is not None:
         await set_role(session, row, payload.role)
     await session.flush()
+    if fields:
+        await audit.record(
+            session, AuditAction.UPDATED, AuditSubject.USER, code=row.username, subject_id=row.id, fields=fields
+        )
     return render(row)
 
 

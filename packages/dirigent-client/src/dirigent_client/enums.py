@@ -302,3 +302,42 @@ class WorkerStatus(StrEnum):
     RUNNING = "running"
     DRAINING = "draining"
     STOPPED = "stopped"
+
+
+class AuditAction(StrEnum):
+    """What an administrative change did to its subject."""
+
+    CREATED = "created"
+    UPDATED = "updated"
+    DELETED = "deleted"
+    ACTIVATED = "activated"
+    DEACTIVATED = "deactivated"
+    PAUSED = "paused"
+    RESUMED = "resumed"
+    REVOKED = "revoked"
+    ROLE_CHANGED = "role_changed"
+    PASSWORD_CHANGED = "password_changed"
+    """An account changed its own password, presenting the old one."""
+
+    PASSWORD_RESET = "password_reset"
+    """An admin set an account's password without the old one."""
+
+    TOKEN_ROTATED = "token_rotated"
+    """A source's caller token or signing secret was replaced by a minted one."""
+
+    SECRETS_SUPPLIED = "secrets_supplied"
+    """Secrets were handed in: a connection awaiting them completed, or a source given its sender's signing secret."""
+
+
+class AuditSubject(StrEnum):
+    """What kind of thing an administrative change was made to."""
+
+    PIPELINE = "pipeline"
+    TRIGGER_DOCUMENT = "trigger_document"
+    SCHEDULE = "schedule"
+    SOURCE = "source"
+    ALERT_RULE = "alert_rule"
+    CONNECTION = "connection"
+    SCHEMA = "schema"
+    USER = "user"
+    TOKEN = "token"

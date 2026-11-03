@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AttemptStatus, RunStatus
+from dirigent_core.engine.logcontext import attempt_fields, run_fields
 from dirigent_core.engine.state import lock_run
 from dirigent_core.logging import get_logger
 from dirigent_core.models import Run, StepAttempt, utcnow
@@ -62,8 +63,7 @@ async def sweep_leases(session: AsyncSession, *, now: datetime | None = None) ->
         recovered.append(attempt.id)
         _logger.warning(
             "lease expired, attempt recovered",
-            attempt_id=str(attempt.id),
-            step=attempt.step_name,
+            **await attempt_fields(session, attempt),
             landing=landing,
         )
     return recovered
@@ -90,7 +90,7 @@ async def detect_stuck_runs(
     )
     stuck = list(rows.scalars())
     for run_id in stuck:
-        _logger.warning("run has not progressed", run_id=str(run_id), stalled_for=str(after))
+        _logger.warning("run has not progressed", **await run_fields(session, run_id), stalled_for=str(after))
     return stuck
 
 

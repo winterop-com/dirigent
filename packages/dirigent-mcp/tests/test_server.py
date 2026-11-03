@@ -176,9 +176,8 @@ async def test_a_read_only_server_offers_only_the_tools_that_read(server: MCPSer
         mcp_server.shared(lambda: pytest.fail("listing tools opens no client")), offers=mcp_server.Offers.READING
     )
     offered = {tool.name for tool in await reading.list_tools()}
-    assert offered == {name for name, tool in every.items() if tool.annotations and tool.annotations.read_only_hint} - {
-        "plan_document"
-    }
+    reads = {name for name, tool in every.items() if tool.annotations and tool.annotations.read_only_hint}
+    assert offered == reads - {"plan_document", "list_audit"}, "planning needs an operator, the audit trail an admin"
     assert {"apply_document", "run_pipeline", "cancel_run", "pause_source", "create_connection"}.isdisjoint(offered)
 
 

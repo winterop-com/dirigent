@@ -73,7 +73,7 @@ const Examples = lazy(() => import('@/pages/Examples').then((module) => ({ defau
 /**
  * The admin section, which most readers of this app are never offered.
  *
- * Four screens, a users table with two dialogs behind it and a dashboard that composes five
+ * Five screens, a users table with two dialogs behind it and a dashboard that composes five
  * listings, all of it behind a role gate. An operator pays nothing for any of it.
  */
 const AdminUsers = lazy(() =>
@@ -84,6 +84,9 @@ const AdminWorkers = lazy(() =>
 )
 const AdminAlerting = lazy(() =>
     import('@/pages/admin/Alerting').then((module) => ({ default: module.AdminAlerting })),
+)
+const AdminAudit = lazy(() =>
+    import('@/pages/admin/Audit').then((module) => ({ default: module.AdminAudit })),
 )
 
 /** The design system's gallery, which no reader on the way to a run needs. */
@@ -263,6 +266,14 @@ export default function App() {
                     element={
                         <Suspense fallback={<Loading />}>
                             <AdminAlerting />
+                        </Suspense>
+                    }
+                />
+                <Route
+                    path="admin/audit"
+                    element={
+                        <Suspense fallback={<Loading />}>
+                            <AdminAudit />
                         </Suspense>
                     }
                 />

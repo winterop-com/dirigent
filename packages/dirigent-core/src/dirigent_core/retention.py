@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_core.engine.claim import is_postgres
 from dirigent_core.logging import get_logger
-from dirigent_core.models import LogEntry, Notification, Run, ScheduleFiring, SourceInput
+from dirigent_core.models import AuditEntry, LogEntry, Notification, Run, ScheduleFiring, SourceInput
 from dirigent_core.storage import Storage
 
 if TYPE_CHECKING:
@@ -43,6 +43,7 @@ FAMILIES: Final[tuple[tuple[str, type[Any], tuple[sa.ColumnElement[bool], ...]],
     ("firings", ScheduleFiring, ()),
     # An alert that has not been sent is still owed to somebody.
     ("notifications", Notification, (Notification.sent_at.is_not(None),)),
+    ("audit", AuditEntry, ()),
 )
 
 #: A run is only ever pruned once it has settled: an unfinished run is either still running
@@ -69,6 +70,9 @@ class Policy(BaseModel):
 
     notifications: timedelta | None = None
     """Alerts already sent, whose run is too young to prune."""
+
+    audit: timedelta | None = None
+    """Entries of the audit trail."""
 
     scratch: bool = True
     """Whether a pruned run's artifacts are deleted from storage along with its rows."""
@@ -105,6 +109,7 @@ def policy_from(settings: "Settings") -> Policy:
         inputs=settings.retention_inputs,
         firings=settings.retention_firings,
         notifications=settings.retention_notifications,
+        audit=settings.retention_audit,
         scratch=settings.retention_scratch,
     )
 
@@ -119,6 +124,7 @@ def configured(policy: Policy) -> bool:
             policy.inputs,
             policy.firings,
             policy.notifications,
+            policy.audit,
         )
     )
 

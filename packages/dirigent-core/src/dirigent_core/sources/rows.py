@@ -13,9 +13,9 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.enums import SourceState, TriggerKind
+from dirigent_client.enums import AuditAction, AuditSubject, SourceState, TriggerKind
 from dirigent_client.schemas import SourceChanges, SourceInputOut, SourceOut, SourceTokenOut, ValidationIssue
-from dirigent_core import wakeups
+from dirigent_core import audit, wakeups
 from dirigent_core.artifacts import canonical_json, digest_of
 from dirigent_core.auth import PREFIX_LENGTH, hash_token, mint_secret
 from dirigent_core.config import Settings
@@ -529,12 +529,15 @@ def summary_of(kinds: Mapping[str, AnySource], row: Source) -> str | None:
 
 async def set_paused(session: AsyncSession, pipeline: Pipeline, row: Source, *, paused: bool) -> Source:
     """Pause or resume a source, keeping its token and its counts."""
+    was = row.paused
     row.paused = paused
     if not paused and row.next_poll_at is not None:
         row.next_poll_at = utcnow()
     await session.flush()
     await wakeups.publish(session, wakeups.SOURCES, f"{pipeline.code}/{row.code}")
-    _logger.info("source paused" if paused else "source resumed", pipeline=pipeline.code, source=row.code)
+    if was is not paused:
+        action = AuditAction.PAUSED if paused else AuditAction.RESUMED
+        await audit.record(session, action, AuditSubject.SOURCE, code=row.code, subject_id=row.id, parent=pipeline.code)
     return row
 
 
@@ -554,7 +557,15 @@ async def rotate_source_token(
     token = _set_token(row) if kind == "token" else _set_signing_secret(row, secrets, mint_secret())
     await session.flush()
     await wakeups.publish(session, wakeups.SOURCES, f"{pipeline.code}/{row.code}")
-    _logger.info("source token rotated", pipeline=pipeline.code, source=row.code)
+    await audit.record(
+        session,
+        AuditAction.TOKEN_ROTATED,
+        AuditSubject.SOURCE,
+        code=row.code,
+        subject_id=row.id,
+        parent=pipeline.code,
+        fields=["token" if kind == "token" else "signing_secret"],
+    )
     return _token_out(settings, kinds, pipeline, row, token)
 
 
@@ -574,7 +585,15 @@ async def set_signing_secret(
     _set_signing_secret(row, secrets, secret)
     await session.flush()
     await wakeups.publish(session, wakeups.SOURCES, f"{pipeline.code}/{row.code}")
-    _logger.info("source signing secret set", pipeline=pipeline.code, source=row.code)
+    await audit.record(
+        session,
+        AuditAction.SECRETS_SUPPLIED,
+        AuditSubject.SOURCE,
+        code=row.code,
+        subject_id=row.id,
+        parent=pipeline.code,
+        fields=["signing_secret"],
+    )
     return row
 
 

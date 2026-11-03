@@ -16,9 +16,10 @@ from jsonschema import FormatChecker
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.enums import RunPriority, ScheduleKind
+from dirigent_client.enums import AuditAction, AuditSubject, RunPriority, ScheduleKind
 from dirigent_common import EntityName, JsonMap, format_duration
 from dirigent_common.durations import Duration, DurationError, parse_duration, refuse_negative
+from dirigent_core import audit
 from dirigent_core.engine.definition import (
     LONGEST_CADENCE,
     ParameterError,
@@ -28,7 +29,6 @@ from dirigent_core.engine.definition import (
 )
 from dirigent_core.engine.runs import RunWindow
 from dirigent_core.errors import DomainError
-from dirigent_core.logging import get_logger
 from dirigent_core.messages import (
     BAD_CRON,
     BAD_INTERVAL,
@@ -48,8 +48,6 @@ from dirigent_core.messages import (
     WHOLE_SECONDS,
 )
 from dirigent_core.models import Pipeline, Schedule, ScheduleFiring, utcnow
-
-_logger = get_logger("scheduler")
 
 
 class ScheduleError(DomainError):
@@ -481,15 +479,37 @@ async def create_schedule(
     )
     session.add(schedule)
     await session.flush()
-    _logger.info(
-        "schedule created",
-        pipeline=pipeline.code,
-        schedule=schedule.code,
-        kind=schedule.kind.value,
-        next_fire_at=schedule.next_fire_at.isoformat() if schedule.next_fire_at else None,
-        paused=schedule.paused,
+    await audit.record(
+        session,
+        AuditAction.CREATED,
+        AuditSubject.SCHEDULE,
+        code=schedule.code,
+        subject_id=schedule.id,
+        parent=pipeline.code,
     )
     return schedule
+
+
+#: What a redeclaration may change on a schedule, compared before and after to name the fields it did.
+DECLARED: Final = (
+    "name",
+    "description",
+    "kind",
+    "cron",
+    "interval_seconds",
+    "run_at",
+    "timezone",
+    "params",
+    "connection_pins",
+    "log_levels",
+    "priority",
+)
+
+
+async def _pipeline_code(session: AsyncSession, schedule: Schedule) -> str | None:
+    """Name the pipeline a schedule belongs to."""
+    found = await session.execute(sa.select(Pipeline.code).where(Pipeline.id == schedule.pipeline_id))
+    return found.scalar_one_or_none()
 
 
 async def update_schedule(
@@ -504,6 +524,7 @@ async def update_schedule(
     Operational state is untouched: a paused schedule stays paused through an edit.
     """
     check_schedule(request)
+    before = {field: getattr(schedule, field) for field in DECLARED}
     schedule.name = request.name
     schedule.description = request.description
     schedule.kind = request.kind()
@@ -517,7 +538,17 @@ async def update_schedule(
     schedule.priority = request.priority
     schedule.next_fire_at = first_fire_at(request, now=now)
     await session.flush()
-    _logger.info("schedule updated", schedule=schedule.code, kind=schedule.kind.value)
+    fields = audit.changed(before, {field: getattr(schedule, field) for field in DECLARED})
+    if fields:
+        await audit.record(
+            session,
+            AuditAction.UPDATED,
+            AuditSubject.SCHEDULE,
+            code=schedule.code,
+            subject_id=schedule.id,
+            parent=await _pipeline_code(session, schedule),
+            fields=fields,
+        )
     return schedule
 
 
@@ -526,20 +557,32 @@ async def set_paused(session: AsyncSession, schedule: Schedule, *, paused: bool)
 
     Resuming without recomputing would fire once for every slot missed while paused.
     """
+    was = schedule.paused
     schedule.paused = paused
     if not paused:
         schedule.next_fire_at = next_fire_for(schedule, utcnow())
     await session.flush()
-    _logger.info("schedule paused" if paused else "schedule resumed", schedule=schedule.code)
+    if was is not paused:
+        await audit.record(
+            session,
+            AuditAction.PAUSED if paused else AuditAction.RESUMED,
+            AuditSubject.SCHEDULE,
+            code=schedule.code,
+            subject_id=schedule.id,
+            parent=await _pipeline_code(session, schedule),
+        )
     return schedule
 
 
 async def delete_schedule(session: AsyncSession, schedule: Schedule) -> None:
     """Remove a schedule; its firing history goes with it."""
-    code = schedule.code
+    code, schedule_id = schedule.code, schedule.id
+    parent = await _pipeline_code(session, schedule)
     await session.delete(schedule)
     await session.flush()
-    _logger.info("schedule deleted", schedule=code)
+    await audit.record(
+        session, AuditAction.DELETED, AuditSubject.SCHEDULE, code=code, subject_id=schedule_id, parent=parent
+    )
 
 
 async def list_firings(

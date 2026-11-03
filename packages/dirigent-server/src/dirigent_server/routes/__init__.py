@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 from dirigent_core.config import Settings
 from dirigent_server.routes import (
     alerts,
+    audit,
     auth,
     blocks,
     connections,
@@ -47,6 +48,7 @@ TAGS: list[dict[str, str]] = [
     {"name": "schemas", "description": "Named JSON Schemas the instance holds."},
     {"name": "workers", "description": "The worker registry."},
     {"name": "users", "description": "Local accounts."},
+    {"name": "audit", "description": "Who changed what: every administrative change, for admins."},
     {"name": "system", "description": "What this instance is, and whether it is well."},
     {"name": "health", "description": "Liveness and readiness."},
     {
@@ -83,6 +85,7 @@ def build_router(settings: Settings | None = None) -> APIRouter:
         schemas,
         workers,
         users,
+        audit,
         system,
     ):
         guarded.include_router(module.router)

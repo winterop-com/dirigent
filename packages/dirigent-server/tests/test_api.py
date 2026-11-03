@@ -1801,6 +1801,26 @@ def test_a_runs_attempts_walk_in_pages(client: TestClient) -> None:
     assert client.get(f"{PREFIX}/runs/{run_id}/attempts", params={"after": "half-past"}).status_code == 422
 
 
+def test_an_attempt_is_read_by_its_id_with_its_run_pipeline_step_and_item(client: TestClient) -> None:
+    run_id = settled_fan_out(client)
+    spread = client.get(f"{PREFIX}/runs/{run_id}/attempts", params={"step": "spread"}).json()["items"][0]
+    keys = {row["id"]: row["item_key"] for row in client.get(f"{PREFIX}/runs/{run_id}/items").json()["items"]}
+
+    found = client.get(f"{PREFIX}/attempts/{spread['id']}")
+    assert found.status_code == 200, found.text
+    body = found.json()
+    assert body["id"] == spread["id"]
+    assert body["run_id"] == run_id
+    assert body["pipeline"] == "fanned"
+    assert body["step_name"] == "spread"
+    assert body["item"] == keys[spread["run_item_id"]]
+
+    seed = client.get(f"{PREFIX}/runs/{run_id}/attempts", params={"step": "seed"}).json()["items"][0]
+    assert client.get(f"{PREFIX}/attempts/{seed['id']}").json()["item"] is None
+    missing = client.get(f"{PREFIX}/attempts/00000000-0000-0000-0000-000000000000")
+    assert missing.status_code == 404
+
+
 def test_a_runs_attempts_can_be_filtered_by_step_and_state(client: TestClient) -> None:
     run_id = settled_fan_out(client)
 

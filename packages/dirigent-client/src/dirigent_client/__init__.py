@@ -6,6 +6,8 @@ from dirigent_client.enums import (
     AlertScope,
     AttemptKind,
     AttemptStatus,
+    AuditAction,
+    AuditSubject,
     BodyKind,
     DocumentKind,
     EntryVia,
@@ -52,8 +54,10 @@ from dirigent_client.schemas import (
     ApplyRequest,
     ApplyResult,
     ArtifactOut,
+    AttemptDetail,
     AttemptEvent,
     AttemptOut,
+    AuditEntryOut,
     BackfillAccepted,
     BackfilledRun,
     BackfillRequest,
@@ -141,6 +145,9 @@ from dirigent_client.transport import (
 )
 
 __all__ = [
+    "AuditAction",
+    "AuditEntryOut",
+    "AuditSubject",
     "API_PREFIX",
     "CLEAR",
     "DEFAULT_CONNECT_TIMEOUT",
@@ -162,6 +169,7 @@ __all__ = [
     "BackfilledRun",
     "ArtifactOut",
     "AttemptKind",
+    "AttemptDetail",
     "AttemptEvent",
     "AttemptOut",
     "AttemptStatus",

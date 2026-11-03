@@ -22,8 +22,11 @@ from dirigent_core.engine.expansion import expand_gate, is_gate
 from dirigent_core.engine.references import references_in
 from dirigent_core.engine.replies import entered_attempt, settle_reply
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.logging import get_logger
 from dirigent_core.messages import NOT_ENTERED
 from dirigent_core.models import Pipeline, Run, RunItem, StepAttempt, utcnow
+
+_logger = get_logger("engine")
 
 #: A reference into a step, by the step's name and the field read off it: output, items, or item.
 STEP_FIELD: Final = re.compile(r"^\s*steps\.([a-z][a-z0-9_]*)\.([a-z_]+)")
@@ -486,14 +489,34 @@ async def advance(
     derived = derive_run_status(states, cancelled=run.status is RunStatus.CANCELLED)
     if derived is None:
         if run.status is RunStatus.QUEUED and any(_worked(attempt) for attempt in attempts):
-            run.status = RunStatus.RUNNING
-            run.started_at = run.started_at or moment
+            mark_started(run, definition.code, moment)
         await session.flush()
         return run.status
     run.status = derived
-    run.finished_at = run.finished_at or moment
+    if run.finished_at is None:
+        run.finished_at = moment
+        log_settled(run, definition.code)
     await session.flush()
     return derived
+
+
+def mark_started(run: Run, pipeline: str, moment: datetime) -> None:
+    """Move a queued run to running, and say so once, the first time it starts."""
+    run.status = RunStatus.RUNNING
+    if run.started_at is not None:
+        return
+    run.started_at = moment
+    _logger.info("run started", run_id=str(run.id), pipeline=pipeline)
+
+
+def log_settled(run: Run, pipeline: str) -> None:
+    """Say that a run settled, with its outcome and how long it took from its start."""
+    began = run.started_at or run.created_at
+    finished = run.finished_at or utcnow()
+    duration_ms = max(0, round((finished - began).total_seconds() * 1000))
+    _logger.info(
+        "run settled", run_id=str(run.id), pipeline=pipeline, outcome=run.status.value, duration_ms=duration_ms
+    )
 
 
 def _worked(attempt: StepAttempt) -> bool:

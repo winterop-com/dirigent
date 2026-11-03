@@ -20,6 +20,7 @@ from dirigent_client.enums import PRIORITY_RANK, AttemptStatus, RunPriority, Run
 from dirigent_common import JsonMap
 from dirigent_core.engine.context import ConnectionRecord
 from dirigent_core.engine.definition import StepDefinition
+from dirigent_core.engine.logcontext import LogFields, fields_of
 from dirigent_core.models import Run, StepAttempt
 from dirigent_plugin import RemoteHandle
 
@@ -41,6 +42,12 @@ class ClaimedUnit(BaseModel):
     run_item_id: UUID | None
     step_name: str
     block_id: str
+    pipeline: str | None = None
+    """The code of the pipeline the run belongs to, which the engine's log lines name."""
+
+    item_key: str | None = None
+    """The key of the fan-out element this attempt runs over, or None outside a fan-out."""
+
     attempt_number: int
     started_at: datetime
     """When this attempt first started, which a wait measures itself from."""
@@ -70,6 +77,17 @@ class ClaimedUnit(BaseModel):
 
     deadline_at: datetime | None = None
     gone_probes: int = 0
+
+    @property
+    def log_fields(self) -> LogFields:
+        """Name this attempt the way every engine log line about it does."""
+        return fields_of(
+            run_id=self.run_id,
+            pipeline=self.pipeline,
+            step=self.step_name,
+            attempt_id=self.attempt_id,
+            item=self.item_key,
+        )
 
     @property
     def is_probe(self) -> bool:

@@ -47,6 +47,8 @@ directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn a
 | `ui_dir` | `DIRIGENT_UI_DIR` | `null` | A built web UI bundle to serve, instead of the one installed with the server. **Host only.** |
 | `log_level` | `DIRIGENT_LOG_LEVEL` | `"INFO"` | How loud the process log is. This is the process log; a run's own telemetry is the `log_entries` table, and a CLI `-v` or `--debug` flag wins over this. |
 | `log_format` | `DIRIGENT_LOG_FORMAT` | `null` | How a command spells its output and its logs: `console` renders, `json` writes records. |
+| `dev_log_max_size` | `DIRIGENT_DEV_LOG_MAX_SIZE` | `10485760` | How large `dg dev`'s log file in the state directory grows before it is rotated. |
+| `dev_log_backups` | `DIRIGENT_DEV_LOG_BACKUPS` | `3` | How many rotated `dg dev` log files are kept beside the live one. |
 | `artifact_root` | `DIRIGENT_ARTIFACT_ROOT` | `"file://./.dirigent/state/artifacts"` | Default storage backend URI prefix for run scratch space and artifacts. **Host only.** |
 | `work_root` | `DIRIGENT_WORK_ROOT` | `"./.dirigent/state/work"` | Directory on this worker's own filesystem where a run's local working files go. **Host only.** |
 | `storage_connections` | `DIRIGENT_STORAGE_CONNECTIONS` | `{}` | Which connection configures each storage scheme, as `scheme -> connection code`. **Host only.** |
@@ -76,6 +78,7 @@ directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn a
 | `retention_inputs` | `DIRIGENT_RETENTION_INPUTS` | `null` | How long the record of an input that reached a source is kept. **Host only.** |
 | `retention_firings` | `DIRIGENT_RETENTION_FIRINGS` | `null` | How long a schedule firing is kept. **Host only.** |
 | `retention_notifications` | `DIRIGENT_RETENTION_NOTIFICATIONS` | `null` | How long an alert that was sent is kept, for runs too young to be pruned themselves. **Host only.** |
+| `retention_audit` | `DIRIGENT_RETENTION_AUDIT` | `"52w1d"` | How long an entry of the audit trail is kept; null keeps every one. **Host only.** |
 | `retention_scratch` | `DIRIGENT_RETENTION_SCRATCH` | `true` | Whether pruning a run also deletes its artifacts from storage. |
 | `retention_interval` | `DIRIGENT_RETENTION_INTERVAL` | `"1h"` | How often the scheduler sweeps whatever the retention ages have outlived. |
 | `retention_batch` | `DIRIGENT_RETENTION_BATCH` | `500` | How many rows of one family a single sweep deletes before committing. |

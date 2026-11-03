@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from dirigent_core import __version__, wakeups
+from dirigent_core.audit import acting_as, host
 from dirigent_core.auth import BOOTSTRAP_PASSWORD_ENV, bootstrap_admin
 from dirigent_core.config import Settings, get_settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
@@ -176,13 +177,14 @@ async def _apply_startup_directory(app: FastAPI) -> None:
     settings: Settings = app.state.settings
     if settings.apply_dir is None:
         return
-    summary = await apply_directory(
-        app.state.session_factory,
-        app.state.services,
-        settings.apply_dir,
-        prune=settings.apply_prune,
-        lock_key=settings.apply_lock_key,
-    )
+    with acting_as(host("apply_dir")):
+        summary = await apply_directory(
+            app.state.session_factory,
+            app.state.services,
+            settings.apply_dir,
+            prune=settings.apply_prune,
+            lock_key=settings.apply_lock_key,
+        )
     if summary.skipped:
         return
     _logger.info(
@@ -209,7 +211,6 @@ async def _bootstrap(app: FastAPI) -> None:
     password = os.environ.get(BOOTSTRAP_ENV)
     if not password:
         return
-    async with session_scope(app.state.session_factory) as session:
-        created = await bootstrap_admin(session, password)
-    if created is not None:
-        _logger.info("bootstrap admin created", username=created.username)
+    with acting_as(host(BOOTSTRAP_PASSWORD_ENV)):
+        async with session_scope(app.state.session_factory) as session:
+            await bootstrap_admin(session, password)

@@ -46,9 +46,10 @@ from dirigent_core.engine.definition import (
 )
 from dirigent_core.engine.expansion import is_gate, new_attempt, write_items
 from dirigent_core.engine.failure import Failure
+from dirigent_core.engine.logcontext import attempt_fields, fields_of, run_fields
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.engine.state import advance, lock_pipeline, lock_run
+from dirigent_core.engine.state import advance, lock_pipeline, lock_run, log_settled
 from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
@@ -628,11 +629,18 @@ async def cancel_run(
 
     # A cancelled run is one of the runs whose report matters most, and no step of it can
     # render one.
-    await render_run_report(session, services, run, await _definition_of(session, run), now=moment)
+    definition = await _definition_of(session, run)
+    await render_run_report(session, services, run, definition, now=moment)
     # A cancelled run frees the concurrency slot as a finished one does; without promoting
     # here, cancelling the active run of a `queue` pipeline wedges the queue forever.
     await promote_queued_run(session, services, run.pipeline_id)
-    _logger.info("run cancelled", run_id=str(run.id), reason=reason.code, attempts=len(attempts))
+    _logger.info(
+        "run cancelled",
+        **fields_of(run_id=run.id, pipeline=definition.code),
+        reason=reason.code,
+        attempts=len(attempts),
+    )
+    log_settled(run, definition.code)
     return run
 
 
@@ -650,7 +658,7 @@ async def pause_run(session: AsyncSession, run: Run, *, now: datetime | None = N
     run.status = RunStatus.PAUSED
     run.paused_at = moment
     await session.flush()
-    _logger.info("run paused", run_id=str(run.id))
+    _logger.info("run paused", **await run_fields(session, run.id))
     return run
 
 
@@ -679,7 +687,7 @@ async def resume_run(session: AsyncSession, run: Run, *, now: datetime | None = 
     run.paused_at = None
     await session.flush()
     await wakeups.publish(session, wakeups.WORK)
-    _logger.info("run resumed", run_id=str(run.id), held_ms=round(held.total_seconds() * 1000))
+    _logger.info("run resumed", **await run_fields(session, run.id), held_ms=round(held.total_seconds() * 1000))
     return run
 
 
@@ -756,11 +764,11 @@ async def cancel_remote(
     except Exception as error:  # best effort by contract: a refusal must not block the cancel
         _logger.warning(
             "remote cancellation failed",
-            attempt_id=str(attempt.id),
+            **await attempt_fields(session, attempt),
             error=raised_detail(error, redact=context.opened_secrets),
         )
         return False
-    _logger.info("remote cancellation requested", attempt_id=str(attempt.id), accepted=accepted)
+    _logger.info("remote cancellation requested", **await attempt_fields(session, attempt), accepted=accepted)
     return accepted
 
 
@@ -826,8 +834,9 @@ async def promote_queued_run(session: AsyncSession, services: EngineServices, pi
         version = await session.get(PipelineVersion, run.pipeline_version_id)
         if version is None:
             continue
-        await advance(session, run, load_definition(version.document), services=services)
-        _logger.info("held run released", run_id=str(run.id))
+        definition = load_definition(version.document)
+        await advance(session, run, definition, services=services)
+        _logger.info("held run released", **fields_of(run_id=run.id, pipeline=definition.code))
         return run
     return None
 
@@ -921,7 +930,7 @@ async def retry_step(
     run.finished_at = None
     run.error = None
     await session.flush()
-    _logger.info("manual retry created", run_id=str(run.id), step=step_name, attempt=retried.attempt)
+    _logger.info("manual retry created", **await attempt_fields(session, retried), attempt=retried.attempt)
     return retried
 
 

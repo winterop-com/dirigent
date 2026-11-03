@@ -133,6 +133,17 @@ class AttemptEvent(AttemptOut):
     """Where the element sits in the fan-out, which is the order a reader lists the elements in."""
 
 
+class AttemptDetail(AttemptOut):
+    """One attempt read by its id alone, with the run and pipeline it belongs to."""
+
+    run_id: UUID
+    pipeline: str
+    """The code of the pipeline the run belongs to."""
+
+    item: str | None = None
+    """The key of the fan-out element this attempt ran over, or None outside a fan-out."""
+
+
 class ItemOut(WireModel):
     """One element of a fan-out step."""
 

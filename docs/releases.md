@@ -101,6 +101,13 @@ about a `report.render` step in a document with no `report:`, and about a name a
 whose `report.render` step rendered text offers that text on its Report tab. `report.render`'s
 summary says it does not set the run's report.
 
+
+**Who changed what is recorded, and the schema changed.** Every administrative change -- a pipeline applied, activated, deactivated or deleted, a triggers document, a schedule, a source paused or its token rotated, an alert rule, a connection, a schema, an account, an API token created or revoked -- is a row in the new `audit_entries` table, written in the change's own transaction: who acted (the account, and the token it acted through, so an agent's change reads `agent (token mcp-trial)`), the action, the subject's kind and code, and for an update the names of the fields it changed, never a value. Admins read it with `GET /audit`, `dirigent-client`'s `audit.list`, `dg audit`, the MCP `list_audit` tool, and the Audit screen under Admin. It is kept for `retention_audit`, `365d` unless set, and `dg prune --audit` prunes it by hand. The same change is one INFO line on the process log, which now includes a token's revocation and a connection's create, update and delete. See [the audit trail](security.md#the-audit-trail). The baseline migration is edited in place, so `dg db upgrade` does not create the table: recreate the state (`dg dev --wipe-state`, or a fresh database), or create `audit_entries` by hand from the baseline.
+
+**`dg dev` says what happened.** It logs at INFO by default: the audited changes, each run started and settled with its outcome and `duration_ms`, and the engine's other INFO events, without the per-request log, which `-v` adds with the step-level detail. A `log_level` in the project's settings is respected. It also writes its log as NDJSON to `.dirigent/state/dev.log`, whatever the terminal, rotated at `dev_log_max_size` (`10MB`) with `dev_log_backups` (3) kept; the `starting` record names the file. `dg server` still logs to stdout only.
+
+**An attempt id leads to its run.** Every engine and worker line about an attempt carries `run_id`, `pipeline` and `step`, and `item` for a fan-out element. `GET /attempts/{id}`, `dirigent-client`'s `attempts.get`, `dg runs attempt ID`, the MCP `get_attempt` tool and the UI's search take an attempt id alone and answer with the run, pipeline and step it belongs to. A run a person cancelled or paused stops its attempts with an INFO line saying so, and `lease lost` at WARNING is kept for a lease the sweeper took.
+
 ## 0.32.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.32.0 together, and so do

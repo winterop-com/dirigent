@@ -12,6 +12,8 @@ from dirigent_client.enums import (
     AlertScope,
     AttemptKind,
     AttemptStatus,
+    AuditAction,
+    AuditSubject,
     EntryVia,
     FiringOutcome,
     Importance,
@@ -770,6 +772,42 @@ class ApiToken(Entity):
     last_used_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
 
+class AuditEntry(Journal):
+    """One administrative change: who made it, what it did, to which subject, and which fields.
+
+    Never a value: an update names the fields it changed, so a secret cannot reach this table.
+    The actor and the subject are copied rather than referenced, so the row outlives both.
+    """
+
+    __tablename__ = "audit_entries"
+    __table_args__ = (
+        sa.Index("ix_audit_entries_created_at", "created_at"),
+        sa.Index("ix_audit_entries_subject_kind_subject_code", "subject_kind", "subject_code"),
+        sa.Index("ix_audit_entries_actor_username", "actor_username"),
+    )
+
+    action: Mapped[AuditAction] = mapped_column(string_enum(AuditAction, "audit_action"), nullable=False)
+    subject_kind: Mapped[AuditSubject] = mapped_column(string_enum(AuditSubject, "audit_subject"), nullable=False)
+    subject_id: Mapped[UUID | None] = mapped_column(sa.Uuid)
+    subject_code: Mapped[str | None] = mapped_column(sa.String(200))
+    parent_code: Mapped[str | None] = mapped_column(sa.String(200))
+    """The code of what the subject belongs to: a schedule's or a source's pipeline, a token's account."""
+
+    fields: Mapped[JsonList] = mapped_column(JsonDocument, nullable=False, default=list)
+    """The names of the fields an update changed, and never their values."""
+
+    actor_id: Mapped[UUID | None] = mapped_column(sa.Uuid)
+    """The account that acted, or null for the host itself, such as ``dg admin`` on the database."""
+
+    actor_username: Mapped[str | None] = mapped_column(sa.String(200))
+    actor_token: Mapped[str | None] = mapped_column(sa.String(200))
+    """The name of the API token the account acted through, or null for a session or the host."""
+
+    actor_token_prefix: Mapped[str | None] = mapped_column(sa.String(16))
+    actor_label: Mapped[str] = mapped_column(sa.String(400), nullable=False)
+    """Who acted, as a run's attribution renders it: ``agent (token mcp-trial)``."""
+
+
 #: Every table in the schema, in dependency order.
 ALL_TABLES = (
     Pipeline,
@@ -793,4 +831,5 @@ ALL_TABLES = (
     ArtifactRef,
     User,
     ApiToken,
+    AuditEntry,
 )

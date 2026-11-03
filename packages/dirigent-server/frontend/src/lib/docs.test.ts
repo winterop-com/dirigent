@@ -12,6 +12,7 @@ const TAGS: DocsTag[] = [
     'users',
     'workers',
     'alerts',
+    'audit',
     'system',
 ]
 

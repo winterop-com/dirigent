@@ -144,6 +144,24 @@ def _profile_line(record: Record) -> Record:
     }
 
 
+def _audit_line(record: Record) -> Record:
+    """Read one administrative change as a line: when, what, to which subject, by whom, and which fields."""
+    row = _row(record)
+    parent = row.get("parent_code")
+    code = row.get("subject_code")
+    fields = row.get("fields")
+    return {
+        "at": row.get("created_at") or record.get("at"),
+        "level": "info",
+        "kind": record.get("kind"),
+        "message": row.get("action"),
+        "subject_kind": row.get("subject_kind"),
+        "subject": f"{parent}/{code}" if parent else code,
+        "actor": row.get("actor_label"),
+        "fields": ", ".join(str(one) for one in cast("list[object]", fields)) if fields else None,
+    }
+
+
 #: Record kinds that carry a row under ``fields``, and the line each one reads as.
 def _summary_line(record: Record) -> Record:
     """A runs summary on one line: how many pipelines ran, with the rows drawn beneath it."""
@@ -155,6 +173,7 @@ LINES: Final[Mapping[str, Callable[[Record], Record]]] = {
     "source.input": _input_line,
     "profile": _profile_line,
     "runs.summary": _summary_line,
+    "audit": _audit_line,
 }
 
 
@@ -681,6 +700,22 @@ def _profile(record: Record) -> RenderableType | None:
     )
 
 
+def _attempt(record: Record) -> RenderableType | None:
+    """Render a found attempt: what it belongs to, and where the UI shows it."""
+    return build_fields(
+        f"attempt {escape(str(record.get('attempt_id')))}",
+        {
+            "run": record.get("run_id"),
+            "pipeline": record.get("pipeline"),
+            "step": record.get("step"),
+            **({"item": record.get("item")} if record.get("item") is not None else {}),
+            "try": record.get("attempt"),
+            "status": record.get("message"),
+            "open": record.get("address"),
+        },
+    )
+
+
 def _share(part: object, whole: object) -> str:
     """Say what fraction of the run one part of it was, where the run has a duration."""
     if not isinstance(part, int) or not isinstance(whole, int) or whole <= 0:
@@ -835,6 +870,7 @@ def _count(value: object, status: str) -> str:
 RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "run": _run,
     "run.profile": _profile,
+    "run.attempt": _attempt,
     "runs.stats": _stats,
     "runs.summary": _summary,
     "backfill": _backfill,

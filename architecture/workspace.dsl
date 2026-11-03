@@ -64,7 +64,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
 
             server = container "API server" "dg server. The REST API, the web UI bundle, SSE streams, and endpoint sources. Embeds the scheduler unless --no-scheduler." "FastAPI / Uvicorn (Python)" {
                 tags "FastAPI"
-                routes = component "API routes" "/api/v1: pipelines and apply, runs, sources, triggers, connections, alerts, users, workers, system."
+                routes = component "API routes" "/api/v1: pipelines and apply, runs, sources, triggers, connections, alerts, users, the audit trail, workers, system."
                 auth = component "Auth" "Session cookie for the UI, bearer token for automation. Viewer, operator and admin roles."
                 streams = component "Event streams" "SSE tails of a run's log entries and events, woken by dirigent_settled."
                 intake = component "Endpoint intake" "/endpoints: checks a call in a fixed order (route, token, rate, type, size, signature), records the input, creates the run."
@@ -95,7 +95,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
 
             mcp = container "dirigent-mcp" "MCP server run as a local command, or as a standalone HTTP server that forwards each caller's token. Every tool is a call the Python client makes; only an alert rule and a named schema are deleted." "MCP over stdio or Streamable HTTP (Python)"
 
-            db = container "Database" "Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the worker registry." "PostgreSQL 17; SQLite under dg dev" {
+            db = container "Database" "Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry." "PostgreSQL 17; SQLite under dg dev" {
                 tags "Database" "PostgreSQL"
             }
 

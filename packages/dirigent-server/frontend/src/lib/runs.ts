@@ -128,6 +128,13 @@ export interface AttemptEvent extends AttemptOut {
     item_index: number | null
 }
 
+/** One attempt read by its id alone, with the run and pipeline it belongs to. `AttemptDetail`. */
+export interface AttemptDetail extends AttemptOut {
+    run_id: string
+    pipeline: string
+    item: string | null
+}
+
 /** One node of the run's graph. `DagNode`. */
 export interface DagNode {
     /** The step's key in the document, which every edge and every attempt references. */
@@ -242,6 +249,11 @@ export function eventsPath(runId: string): string {
 /** Read one run with the graph the UI draws. */
 export function readRun(runId: string): Promise<RunDetailOut> {
     return apiJson<RunDetailOut>(`/runs/${encodeURIComponent(runId)}`)
+}
+
+/** Read one attempt by its id alone, which is what an engine log line names. */
+export function readAttempt(attemptId: string): Promise<AttemptDetail> {
+    return apiJson<AttemptDetail>(`/attempts/${encodeURIComponent(attemptId)}`)
 }
 
 /** Read a run's summary, which is where its artifacts and per-step totals come from. */

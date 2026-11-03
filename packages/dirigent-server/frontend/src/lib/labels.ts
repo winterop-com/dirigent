@@ -685,6 +685,11 @@ const screen = {
         name: 'Alerting',
         hint: 'Rules and the delivery queue',
     },
+    /** Every administrative change, by whom. */
+    audit: {
+        name: 'Audit',
+        hint: 'Who changed what, and when',
+    },
     /** An address nothing answers for. */
     nowhere: 'Nothing at this address',
     /** Every component in the design system, drawn. Offered by the palette and not by the rail. */
@@ -890,6 +895,8 @@ const palette = {
     description: 'Every place this app can go, and everything it can do from here',
     placeholder: 'Go to a screen, or run something',
     empty: 'Nothing matches that.',
+    /** The one row a pasted run or attempt id offers. */
+    open_id: (id: string) => `Open the run or attempt ${id}`,
 
     /** What the two keys along the foot do. */
     foot: {
@@ -3204,6 +3211,67 @@ const workers = {
 } as const
 
 /**
+ * The audit screen: every administrative change, newest first, with who made it and which fields.
+ *
+ * An action and a subject kind are the wire's words, said here the way a sentence would say them.
+ */
+const audit = {
+    /** The palette rows this screen offers. */
+    reload_action: 'Read the audit trail again',
+    filter_clear: 'Clear every audit filter',
+    /** The column headings. */
+    when: 'When',
+    actor: 'Actor',
+    action: 'Action',
+    fields: 'Fields',
+    /** The accessible names of the two boxes a code is typed into. */
+    filter_actor: 'Filter changes by who made them',
+    filter_subject: 'Filter changes by subject code',
+    /** What the selects are worth when nothing is chosen. */
+    any_kind: 'Any subject',
+    any_action: 'Any action',
+    /** The token an account acted through, after the account. */
+    through_token: (token: string) => `token ${token}`,
+    /** The head of that token, on hover. */
+    token_prefix: (prefix: string) => `prefix ${prefix}`,
+    empty: 'No changes recorded.',
+    empty_filtered: 'No change matches these filters.',
+    /** One row per change, as the foot counts them. */
+    count: {
+        one: 'change',
+        many: 'changes',
+    },
+    /** What each action is called. */
+    actions: {
+        created: 'created',
+        updated: 'updated',
+        deleted: 'deleted',
+        activated: 'activated',
+        deactivated: 'deactivated',
+        paused: 'paused',
+        resumed: 'resumed',
+        revoked: 'revoked',
+        role_changed: 'role changed',
+        password_changed: 'password changed',
+        password_reset: 'password reset',
+        token_rotated: 'token rotated',
+        secrets_supplied: 'secret supplied',
+    },
+    /** What each kind of subject is called. */
+    subjects: {
+        pipeline: 'pipeline',
+        trigger_document: 'triggers document',
+        schedule: 'schedule',
+        source: 'source',
+        alert_rule: 'alert rule',
+        connection: 'connection',
+        schema: 'schema',
+        user: 'account',
+        token: 'token',
+    },
+} as const
+
+/**
  * The alerting screen: the rules that watch runs, the channel strip above them, the delivery
  * queue below, and the two dialogs that declare a rule and prove a channel.
  */
@@ -3652,6 +3720,7 @@ export const LABELS = {
     users,
     workers,
     alerting,
+    audit,
     settings,
     design,
 } as const satisfies Record<string, Catalogue>
