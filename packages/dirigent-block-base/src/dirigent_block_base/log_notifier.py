@@ -7,13 +7,16 @@ mint: an instance with nothing configured still says something.
 from typing import ClassVar, Literal
 
 import structlog
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue
 
 from dirigent_common import BlockModel
 from dirigent_plugin import AlertMessage, Notifier
 
 #: Must match the logger chain dirigent-core configures.
 ALERT_LOGGER = "dirigent.alert"
+
+#: The event a run that stopped moving raises, which has no outcome to name yet.
+STUCK = "run_stuck"
 
 
 class LogNotifierConfig(BlockModel):
@@ -30,15 +33,45 @@ class LogNotifier(Notifier):
     config_model: ClassVar[type[BaseModel]] = LogNotifierConfig
 
     async def send(self, message: AlertMessage, config: BaseModel) -> None:
-        """Write one alert through the shared structlog chain, at the configured level."""
+        """Write one alert as one structured line, at the configured level.
+
+        The line carries the facts as fields rather than the body a text channel renders, and
+        a field with nothing to say is left off.
+        """
         settings = LogNotifierConfig.model_validate(config.model_dump())
         logger: structlog.stdlib.BoundLogger = structlog.get_logger(ALERT_LOGGER)
         write = getattr(logger, settings.level, logger.warning)
-        write(
-            message.subject,
-            event_kind=message.event,
-            run_id=str(message.run_id) if message.run_id else None,
-            pipeline=message.pipeline,
-            url=message.url,
-            body=message.body,
-        )
+        context = message.context
+        run = context.get("run")
+        run = run if isinstance(run, dict) else {}
+        fields: dict[str, JsonValue] = {
+            "event_kind": message.event,
+            "run_id": str(message.run_id) if message.run_id else None,
+            "pipeline": message.pipeline,
+            "status": run.get("status"),
+            "failing_step": context.get("failing_step"),
+            "item": context.get("failing_item"),
+            "error": context.get("error"),
+            "error_code": context.get("error_code"),
+            "trigger": run.get("trigger"),
+            "duration_ms": run.get("duration_ms"),
+            "url": message.url,
+        }
+        write(headline(message), **{name: value for name, value in fields.items() if value is not None})
+
+
+def headline(message: AlertMessage) -> str:
+    """Say in a few words what happened to which pipeline, and where: ``nightly failed at load``.
+
+    A message about no run, which is what a test message is, says its own subject.
+    """
+    context = message.context
+    run = context.get("run")
+    status = run.get("status") if isinstance(run, dict) else None
+    if message.run_id is None or not message.pipeline or not isinstance(status, str):
+        return message.subject
+    if message.event == STUCK:
+        return f"{message.pipeline} has not progressed"
+    said = f"{message.pipeline} {status.replace('_', ' ')}"
+    step = context.get("failing_step")
+    return f"{said} at {step}" if isinstance(step, str) and step else said

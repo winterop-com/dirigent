@@ -1207,6 +1207,30 @@ Four channels ship built in.
 | `slack` | `slack` | An incoming webhook, or a bot token and a channel |
 | `email` | `email` | A submission server, a sender, and recipients |
 
+### Log
+
+One structured line per alert under the `dirigent.alert` logger, at `warning`. The message says what happened in a few words, and the facts are
+fields, never a rendered body:
+
+```text
+[warning  ] run-controls failed at slow    duration_ms=1022 error='RuntimeError: asked to fail' error_code=run.block_raised event_kind=run_failed failing_step=slow pipeline=run-controls run_id=01a1a120-... status=failed trigger='agent (token mcp-trial)' url=https://dirigent.example.org/runs/01a1a120-...
+```
+
+| Field | What it is |
+| --- | --- |
+| `event_kind` | `run_failed`, `run_completed_with_errors`, `run_succeeded` or `run_stuck` |
+| `run_id`, `pipeline`, `status` | The run, its pipeline's code, and its status when the alert was raised |
+| `failing_step`, `item` | The first step that failed, and the key of the fan-out element that failed in it |
+| `error`, `error_code` | What failed, on one line, scrubbed of the step's secrets, and its dotted code |
+| `trigger` | Who or what started the run, such as `schedule` or `agent (token mcp-trial)` |
+| `duration_ms` | How long the run ran |
+| `url` | The run in the web UI, when `DIRIGENT_ALERT_BASE_URL` is set |
+
+A field with nothing to say is left off, so a run that succeeded carries no `failing_step` or
+`error`, and a stuck run reads `nightly has not progressed`. The run's parameters are not on the
+line; the text channels' default body carries them as JSON. Into a pipe the line is one JSON
+record with the same fields.
+
 ### Webhook
 
 One JSON POST per alert, to any endpoint that can receive one. The connection carries the

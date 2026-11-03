@@ -148,18 +148,37 @@ once `DIRIGENT_RETENTION_RUNS` is set.
 ## The same context, in an alert
 
 An alert rule reads these facts too. Its `template` is the subject and its `body` is the body,
-both Jinja over this context plus one more name: `report`, the run's rendered report document
-when it has one, so a rule can carry the whole page rather than a link to it.
+both Jinja over this context plus the names that say where a failing run went wrong:
+
+| Name | What it is |
+| --- | --- |
+| `failing_step` | The first step that failed, for a run that failed or completed with errors; null otherwise |
+| `failing_item` | The key of the first fan-out element that failed in that step, when an element failed |
+| `error` | What failed, on one line and cut at 300 characters: the element's refusal, else the step's, else the run's own. For a block that raised something it did not explain, it is what the block raised. It is read from the attempt as stored, already scrubbed of the step's secrets |
+| `error_code` | The dotted code of that refusal, when it has one |
+| `report` | The run's rendered report document when it has one, so a rule can carry the whole page rather than a link to it |
 
 ```bash
 dg alerts rules create nightly-failed --event run_failed --connection ops-slack \
-  --template '{{ pipeline.code }} failed at {{ step.load.step }}' \
+  --template '{{ pipeline.code }} failed at {{ failing_step }}' \
   --body-file alert-body.md.j2
 ```
 
-A rule with no `template` gets `{{ run.pipeline }} run {{ run.status }}`; a rule with no `body`
-gets the run's own facts, one per line. A subject is collapsed to one line and cut at 200
-characters, because that is what a subject is. Both templates are compiled when the rule is
+A rule with no `template` gets `{{ run.pipeline }} run {{ run.status }}`. A rule with no `body`
+gets a few short lines: how the run ended, with the failing step, the element and the error,
+then who triggered it and how long it ran, the parameters as JSON when it had any, the data
+window, when it started and finished, and the link to the run -- or its id, when
+`DIRIGENT_ALERT_BASE_URL` is unset.
+
+```text
+Failed at step slow: RuntimeError: Illegal header value b'Bearer ***'
+Triggered by agent (token mcp-trial), ran for 1s22ms.
+Params: {"delay": "1s"}
+Started 2026-11-03T11:16:57.851899+00:00, finished 2026-11-03T11:16:58.873724+00:00.
+Run: https://dirigent.example.org/runs/01a1a120-...
+```
+
+A subject is collapsed to one line and cut at 200 characters, because that is what a subject is. Both templates are compiled when the rule is
 created, so a syntax error is refused there; a render that fails when the alert is raised falls
 back to the default and leaves a warning in the run's timeline, because an alert is the last
 thing standing between a failure and the person who needs to know. An alert is never paid for
