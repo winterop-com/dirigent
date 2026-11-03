@@ -44,6 +44,7 @@ from dirigent_client import (
     Importance,
     NotificationStatus,
     RunStatus,
+    SourceEntry,
 )
 from dirigent_client.resources.pipelines import parse_document
 from dirigent_client.timing import profile
@@ -516,11 +517,18 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
     @tool(READS)
     async def list_blocks(kind: BlockKind | None = None) -> Any:
-        """List the installed blocks a step can use, each with its id, kind and one-line summary."""
+        """List the installed blocks a step can use, and the source kinds a source node can write.
+
+        A block comes with its id, kind and one-line summary; a source kind with its `kind`, its
+        summary, who takes its inputs, whether a reply may answer it, and the fields it writes.
+        """
 
         async def listed(dg: Dirigent) -> Any:
             catalog = await dg.blocks.catalog(kind=kind)
-            return {"blocks": [_summary(entry) for entry in catalog.blocks]}
+            return {
+                "blocks": [_summary(entry) for entry in catalog.blocks],
+                "sources": [_source_summary(entry) for entry in catalog.sources],
+            }
 
         return await call(listed)
 
@@ -916,6 +924,17 @@ async def _stored_output(dg: Dirigent, run_id: str, uri: str) -> str:
         if page.next is None:
             raise ToolError(NO_STORED_OUTPUT.render(run_id=run_id, uri=uri))
         after = page.next
+
+
+def _source_summary(entry: SourceEntry) -> JsonMap:
+    """One source kind as a listing shows it, its fields included, since there are few of them."""
+    return {
+        "kind": entry.kind,
+        "summary": entry.summary,
+        "hosting": entry.hosting,
+        "replies": entry.replies,
+        "config_schema": entry.config_schema,
+    }
 
 
 def _json(value: Any) -> Any:

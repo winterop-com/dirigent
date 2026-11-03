@@ -227,3 +227,47 @@ def test_a_document_declaring_a_report_validates_against_the_published_schema(cl
         "report": {"template": "# {{ run.status }}"},
     }
     assert validator.is_valid(document), deep_messages(validator.iter_errors(document))  # pyright: ignore[reportUnknownMemberType]
+
+
+def sourced(source: dict[str, Any]) -> dict[str, Any]:
+    """A pipeline whose one source node is the one given, and whose one step follows it."""
+    return {
+        "format": "dirigent/v1",
+        "kind": "pipeline",
+        "code": "sourced",
+        "steps": {
+            "intake": {"source": source},
+            "parse": {"block": BLOCK, "depends_on": ["intake"], "config": dict(CONVERT_CONFIG)},
+        },
+    }
+
+
+def test_a_source_kind_is_one_of_the_installed_kinds(client: TestClient) -> None:
+    schema = read(client)
+    kind = schema["$defs"]["SourceNode"]["properties"]["kind"]
+    installed = sorted(entry.kind for entry in load_plugin_host().catalog().sources)
+    assert kind["enum"] == installed
+    assert {"endpoint", "sensor", "storage"} <= set(kind["enum"])
+
+
+def test_a_source_carries_its_own_kinds_fields(client: TestClient) -> None:
+    validator = Draft202012Validator(read(client))
+    good = sourced({"kind": "storage", "uri": "file:///data/in/*.csv", "poll": "5m"})
+    assert validator.is_valid(good), deep_messages(validator.iter_errors(good))  # pyright: ignore[reportUnknownMemberType]
+
+    unknown_field = sourced({"kind": "storage", "uri": "file:///data/in/*.csv", "nonsense": 1})
+    problems = deep_messages(validator.iter_errors(unknown_field))  # pyright: ignore[reportUnknownMemberType]
+    assert any("nonsense" in message for message in problems)
+
+    missing = sourced({"kind": "storage"})
+    problems = deep_messages(validator.iter_errors(missing))  # pyright: ignore[reportUnknownMemberType]
+    assert any("'uri' is a required property" in message for message in problems)
+
+    no_such_kind = sourced({"kind": "carrier_pigeon"})
+    assert not validator.is_valid(no_such_kind)
+
+
+def test_an_instance_with_no_source_kinds_leaves_the_kind_open() -> None:
+    schema = document_schema(Catalog())
+    assert "enum" not in schema["$defs"]["SourceNode"]["properties"]["kind"]
+    assert "allOf" not in schema["$defs"]["SourceNode"]

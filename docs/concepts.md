@@ -151,6 +151,14 @@ takes. A run of a pipeline with sources starts with the source it entered at alr
 its output the input -- for the `endpoint` kind, the request's method, path, path parameters,
 query, headers and body -- and every other source settled skipped as not entered.
 
+The kinds are a catalog, contributed the way blocks are: dirigent ships `endpoint`, `storage`
+and `sensor`, `dirigent-block-queues` adds `kafka` and `rabbitmq`, and a pack may add its own.
+`GET /api/v1/blocks` lists them under `sources`, each with the fields it writes, and so does
+`list_blocks` over MCP. `dg pipeline schema` and the instance's document schema make
+`source.kind` a choice between the installed kinds and hold each to its own fields, so an
+editor completes `kind: storage` and then `uri` and `poll`, and squiggles a field the kind does
+not take.
+
 Sources are roots, and every other step descends from one: a root beside them would run on
 every input from every source, and is refused. A step joining the branches of two sources says
 `all_done` or `always`, since a run enters at one of them only. A pipeline with sources carries

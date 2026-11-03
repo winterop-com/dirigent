@@ -33,7 +33,7 @@ ANNOTATIONS: Final = ("title", "description", "default", "examples", "deprecated
 
 
 def document_schema(catalog: Catalog) -> JsonMap:
-    """Compose both document kinds with this instance's own block config schemas.
+    """Compose both document kinds with this instance's own block config and source kind schemas.
 
     The two branches share ``$defs``, and ``kind`` is what an editor picks between them by.
     """
@@ -74,7 +74,39 @@ def _pipeline_schema(catalog: Catalog) -> JsonMap:
         )
     if cases:
         step["allOf"] = cases
+    _graft_sources(catalog, definitions)
     return schema
+
+
+def _graft_sources(catalog: Catalog, definitions: dict[str, Any]) -> None:
+    """Make a source node a choice between this instance's source kinds, each with its own fields.
+
+    ``kind`` names the choice, so an editor completes the kinds and then the fields of the one
+    written; a field the kind does not declare is squiggled where an apply would refuse it.
+    """
+    sources = sorted(catalog.sources, key=lambda entry: entry.kind)
+    if not sources:
+        return
+    node = cast("dict[str, Any]", definitions["SourceNode"])
+    kinds = [entry.kind for entry in sources]
+    cast("dict[str, Any]", node["properties"])["kind"] = {
+        **cast("dict[str, Any]", node["properties"])["kind"],
+        "enum": kinds,
+        "description": "What arrives here: " + ", ".join(f"`{kind}`" for kind in kinds) + ".",
+    }
+    cases: list[JsonMap] = []
+    for entry in sources:
+        config, lifted = _lift(entry.config_schema, f"source.{entry.kind}")
+        definitions.update(lifted)
+        fields = cast("dict[str, Any]", config.get("properties", {}))
+        then: dict[str, Any] = {
+            "properties": {"kind": {"const": entry.kind, "description": entry.summary}, **fields},
+            "additionalProperties": False,
+        }
+        if config.get("required"):
+            then["required"] = ["kind", *cast("list[str]", config["required"])]
+        cases.append({"if": {"properties": {"kind": {"const": entry.kind}}, "required": ["kind"]}, "then": then})
+    node["allOf"] = cases
 
 
 def _lift(config_schema: JsonMap, block_id: str) -> tuple[JsonMap, dict[str, Any]]:

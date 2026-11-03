@@ -283,7 +283,11 @@ async def test_a_refusal_reaches_the_agent_as_a_tool_error(server: MCPServer) ->
 
 
 async def test_the_catalog_is_listed_short_and_read_whole(server: MCPServer) -> None:
-    listed = (await call(server, "list_blocks"))["blocks"]
+    answer = await call(server, "list_blocks")
+    listed = answer["blocks"]
+    storage = next(entry for entry in answer["sources"] if entry["kind"] == "storage")
+    assert "uri" in storage["config_schema"]["properties"]
+    assert {"endpoint", "sensor", "storage"} <= {entry["kind"] for entry in answer["sources"]}
     const = next(entry for entry in listed if entry["id"] == "value.const")
     assert set(const) == {"id", "kind", "group", "summary"}
     block = await call(server, "get_block", block_id="value.const")
