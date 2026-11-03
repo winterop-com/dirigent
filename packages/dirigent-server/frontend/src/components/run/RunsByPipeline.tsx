@@ -124,7 +124,7 @@ function RecentStrip({ runs }: { runs: readonly RecentRun[] }) {
             className="flex w-max max-w-full min-w-0 flex-row-reverse items-center overflow-hidden"
             data-testid="recent-runs"
         >
-            {[...runs].reverse().map((run) => {
+            {runs.toReversed().map((run) => {
                 const said = LABELS.runs.grouped.dot(statusLabel(run.status), formatInstant(run.created_at))
                 return (
                     <Link

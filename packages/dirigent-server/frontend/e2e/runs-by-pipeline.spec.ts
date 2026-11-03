@@ -81,7 +81,7 @@ test('a pipeline that ran many times is one row, counted by state, with a strip 
     // the newest is first in the document and this run's six are the first six, each a link.
     const strip = row.getByTestId('recent-runs').getByRole('link')
     const hrefs = await strip.evaluateAll((links) => links.map((link) => link.getAttribute('href')))
-    expect(hrefs.slice(0, runs.length)).toEqual(runs.map((run) => `/runs/${run}`).reverse())
+    expect(hrefs.slice(0, runs.length)).toEqual(runs.map((run) => `/runs/${run}`).toReversed())
     const boxes = await strip.evaluateAll((links) => links.map((link) => link.getBoundingClientRect().x))
     expect(boxes[0]).toBeGreaterThan(boxes[1])
     await expect(strip.first()).toHaveAttribute('data-status', 'succeeded')
