@@ -266,6 +266,7 @@ async def test_runs_by_pipeline_are_read_only_and_answer_one_row_per_pipeline(se
     assert row["latest"]["id"] == accepted["run_id"]
     assert sum(row["counts"].values()) == 1
     assert (await call(server, "runs_by_pipeline", latest="cancelled"))["pipelines"] == []
+    assert "more" not in summary
 
 
 async def test_a_refusal_reaches_the_agent_as_a_tool_error(server: MCPServer) -> None:
