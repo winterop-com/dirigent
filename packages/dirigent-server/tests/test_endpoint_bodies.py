@@ -150,9 +150,9 @@ async def test_a_call_finishing_its_body_is_taken(app: FastAPI, admin: httpx2.As
     assert call.status == 202
 
 
-@pytest.mark.parametrize(("auth", "journaled"), [("hmac", 0), ("public", 1)])
+@pytest.mark.parametrize("auth", ["hmac", "public"])
 async def test_a_body_that_stops_arriving_is_answered_408_and_closes_the_connection(
-    settings: Settings, admin_token: str, auth: str, journaled: int
+    settings: Settings, admin_token: str, auth: str
 ) -> None:
     built = create_app(
         settings.model_copy(update={"source_body_timeout": timedelta(milliseconds=100)}), scheduler=False
@@ -170,7 +170,7 @@ async def test_a_body_that_stops_arriving_is_answered_408_and_closes_the_connect
         assert call.status == 408
         assert call.headers[b"connection"] == b"close"
         inputs = (await client.get(f"{PREFIX}/pipelines/stalled/sources/ask/inputs")).json()["items"]
-        assert [row["status"] for row in inputs] == [408] * journaled
+        assert [row["status"] for row in inputs] == [408], "signed or not, a stalled body is journaled"
 
 
 #: Far enough from the wall clock that no test here reads it by accident.

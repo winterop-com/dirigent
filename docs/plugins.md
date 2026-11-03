@@ -179,6 +179,15 @@ def check_config(self, config: BaseModel) -> list[Issue]:
     return [Issue.of(BATCH_TOO_LARGE, asked=config.batch_size, maximum=MAX_BATCH)]
 ```
 
+A limit is cheapest on the field itself, where plan and validate see it before anything runs.
+`Field(le=...)` on an integer becomes the schema's `maximum`, and on a `Duration` or a `Size`,
+which JSON Schema has no bound for, it is published as `x-dirigent-bounds` --
+`{"kind": "duration", "maximum": "30s"}` -- and enforced by every check that holds the
+catalog, `dg validate` offline and an MCP `validate_pipeline` included. A literal config is
+also validated against the block's model at apply, so a field or model validator refuses there
+too; an error on a value that is still a `${...}` is left to the run. `check_config` is for
+what neither can state, and the run is for what depends on the data.
+
 The attempt row, the run event and the problem document all carry the code and the params
 beside the rendered sentence, so an operator can select one refusal out of a stream with
 `jq 'select(.error_code == "acme.rejected")'` however the English is later reworded. A pack's

@@ -309,7 +309,7 @@ async def test_a_batch_no_run_can_be_made_of_is_not_acknowledged_and_comes_back(
         await holder.tick()
 
         async def failed() -> bool:
-            return (await the_source(sessions)).failures == 1
+            return (await the_source(sessions)).poll_failures == 1
 
         await eventually(failed)
         assert INBOX.acked == []
@@ -340,7 +340,7 @@ async def test_a_consumer_that_will_not_open_is_failing_and_backs_off(
         await holder.tick()
 
         async def failed() -> bool:
-            return (await the_source(sessions)).failures == 1
+            return (await the_source(sessions)).poll_failures == 1
 
         await eventually(failed)
         row = await the_source(sessions)

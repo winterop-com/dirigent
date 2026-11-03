@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 
 import { Fact, Section } from '@/components/run/Panel'
+import { Button } from '@/components/ui/button'
 import { ReportDocumentPane } from '@/components/run/ReportDocument'
 import { StatusChip } from '@/components/run/StatusChip'
 import { ApiError, type Problem } from '@/lib/api'
-import { readReportDocument, type ReportDocument } from '@/lib/artifacts'
+import { readReportDocument, renderedText, type RenderedText, type ReportDocument } from '@/lib/artifacts'
 import { formatDuration } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import { itemsNote, type RunReport } from '@/lib/runs'
+import { itemsNote, type AttemptOut, type RunReport } from '@/lib/runs'
 import { said } from '@/lib/refusal'
 
 /**
@@ -25,6 +26,10 @@ import { said } from '@/lib/refusal'
  * MARKDOWN GOES THROUGH `Description`. The lexer is its own chunk and this is the only pane on
  * the run screen that draws prose, so a reader who never opens this tab never fetches it.
  *
+ * A STEP'S TEXT IS NOT THE RUN'S REPORT. A `report.render` step hands its text on as output,
+ * and a document that declares no `report:` renders no document of its own, so the tab offers
+ * the step's text behind a control and says what makes it the report: `report: {from: <step>}`.
+ *
  * A DOCUMENT IS WIDER THAN THE PANEL. The panel is a column a few hundred pixels across and a
  * report is a page: it opens in the window every pane holding more than it can show offers, at
  * a reading measure, and the raw markdown is a link away for whoever wants the file itself.
@@ -34,6 +39,7 @@ export function ReportTab({
     settled,
     report,
     problem,
+    attempts,
 }: {
     runId: string
     /** Whether the run has reached a state nothing will move it out of. */
@@ -42,6 +48,8 @@ export function ReportTab({
     report: RunReport | null
     /** Why the summary could not be read, or null. */
     problem: Problem | null
+    /** The run's attempts, which is where a rendering step's text is read from. */
+    attempts: readonly AttemptOut[]
 }) {
     // Keyed by the run it was read for, so opening another run shows its own reading rather
     // than the last one's document for a frame. Nothing here is cleared from inside an effect.
@@ -87,7 +95,9 @@ export function ReportTab({
         return <p className="p-4 text-sm text-muted-foreground">{LABELS.shell.reading}</p>
     }
 
-    if (found.document === null) return <Summary report={report} problem={problem} />
+    if (found.document === null) {
+        return <Summary report={report} problem={problem} rendered={renderedText(attempts)} />
+    }
 
     return <ReportDocumentPane document={found.document} />
 }
@@ -98,11 +108,23 @@ export function ReportTab({
  * The second sentence names the document key, because declaring one is not a gesture anywhere
  * on this screen.
  */
-function Summary({ report, problem }: { report: RunReport | null; problem: Problem | null }) {
+function Summary({
+    report,
+    problem,
+    rendered,
+}: {
+    report: RunReport | null
+    problem: Problem | null
+    rendered: RenderedText | null
+}) {
     const items = report === null ? null : itemsNote(report.items_total, report.items_failed)
     return (
         <div className="flex flex-col gap-4 p-4">
-            <p className="text-sm text-muted-foreground">{LABELS.runs.report_missing}</p>
+            {rendered === null ? (
+                <p className="text-sm text-muted-foreground">{LABELS.runs.report_missing}</p>
+            ) : (
+                <StepRendered rendered={rendered} />
+            )}
             <Section title={LABELS.word.summary}>
                 {problem !== null ? (
                     <p className="text-xs text-muted-foreground">{said(problem)}</p>
@@ -133,6 +155,34 @@ function Summary({ report, problem }: { report: RunReport | null; problem: Probl
                     </>
                 )}
             </Section>
+        </div>
+    )
+}
+
+/** What a run with no report document says when one of its steps rendered text, and the text behind a control. */
+function StepRendered({ rendered }: { rendered: RenderedText }) {
+    const [shown, setShown] = useState(false)
+    const words = LABELS.runs.report_rendered_by_step
+    return (
+        <div className="flex flex-col gap-2">
+            <p className="text-sm text-muted-foreground">
+                {words.before} <span className="font-mono text-foreground">{rendered.step}</span>{' '}
+                {words.after}{' '}
+                <span className="font-mono text-foreground">{`report: {from: ${rendered.step}}`}</span>{' '}
+                {words.hint_after}
+            </p>
+            <Button
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                aria-expanded={shown}
+                onClick={() => {
+                    setShown((was) => !was)
+                }}
+            >
+                {shown ? LABELS.runs.report_hide_step : LABELS.runs.report_show_step}
+            </Button>
+            {shown && <ReportDocumentPane document={{ id: null, markdown: rendered.text }} capped />}
         </div>
     )
 }

@@ -136,8 +136,14 @@ async def _held(
         raise
     answered = await waiter.wait(hold)
     response = await _answer(request, session, services, taken.accepted, answered, hold.timeout)
-    outcome = InputOutcome.TIMED_OUT if isinstance(answered, TimedOut) else InputOutcome.REPLIED
-    await settle_input(session, taken.input_id, outcome, response.status_code, started)
+    outcome = (
+        InputOutcome.TIMED_OUT
+        if isinstance(answered, TimedOut)
+        else InputOutcome.REPLIED
+        if isinstance(answered, Replied)
+        else InputOutcome.FAILED
+    )
+    await settle_input(session, taken.input_id, hold.source_id, outcome, response.status_code, started)
     return response
 
 

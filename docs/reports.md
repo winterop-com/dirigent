@@ -38,6 +38,42 @@ A document with no `report:` section renders nothing at all. The template is a
 [Jinja](https://jinja.palletsprojects.com/) template, compiled when the document is applied,
 so a syntax error is refused at `report.template` rather than at the first settlement.
 
+Or take a step's text as it is:
+
+```yaml
+report: {from: summary}
+
+steps:
+  summary:
+    block: report.render
+    config:
+      template: "# {{ title }}"
+      values: {title: Weekly}
+```
+
+`from` names a step whose output carries a `text` string -- a `report.render` step, or any
+block whose output schema declares one -- and that text, rendered no further, is the run's
+document. It takes no template, and a section with both is refused. Plan and validate refuse a
+`from` naming no step, a source or a reply, or a block whose output has no `text`; a step that
+did not succeed, or handed on no text, leaves a warning in the run's timeline and no document,
+as a template that fails does.
+
+`report.render` alone does not set the run's report: its text is the step's output, and the
+Report tab draws what `report:` renders. Plan and `dg validate` warn about a `report.render`
+step in a document with no `report:` section and name the `report: {from: <step>}` that would
+make it the run's report, and a run of one offers the step's text on its Report tab beside the
+summary.
+
+## What plan and validate check in a template
+
+A name the facts do not have renders empty, so a typo is silent at the run. Plan and
+`dg validate` read the names a template reaches for and warn, as
+`document.template_name_unknown`, about any its context does not have: an unknown top-level
+name, a field of `run` or `pipeline` that is not one, `step.<name>` for a step the document
+does not declare, and `params.<name>` for a parameter its schema does not list. A
+`report.render` template is checked against the keys of its literal `values`. A warning never
+refuses the document, and the render stays as lenient as it was.
+
 ## What a template may read
 
 The context is the run's facts, the same ones `dg runs report` summarises.
@@ -48,7 +84,8 @@ The context is the run's facts, the same ones `dg runs report` summarises.
 | `run.status` | `succeeded`, `failed`, `completed_with_errors`, or `cancelled` |
 | `run.pipeline` | The pipeline's code |
 | `run.error` | Why it ended badly, or a cancellation's reason; null otherwise |
-| `run.params` | The parameters the run resolved to |
+| `params` | The parameters the run resolved to, defaults filled in, so `{{ params.period }}` reads one |
+| `run.params` | The same parameters, under the run |
 | `run.trigger` | The trigger's label, or its kind when it has no label |
 | `run.started_at` / `run.finished_at` | ISO 8601 moments, or null |
 | `run.duration_ms` | Milliseconds from start to finish, or null |
@@ -76,6 +113,10 @@ Three filters render a value the way a person reads it:
 stored -- the artifact row's size where the attempt has one, else the length of the canonical
 JSON -- so `{{ step.load.output_bytes | bytes }}` reads `1.5mb`. Both are null for a step that
 never ran, which is why a template guards on the step before reading into it.
+
+A value prints the way JSON reads it rather than the way Python does: a list or an object as
+its compact JSON, a boolean as `true` or `false`, and null as nothing. `{{ step.fetch.output |
+tojson(indent=2) }}` prints the same value indented, for a block a person reads.
 
 A name the facts do not have renders as empty rather than failing the document. Half a run's
 facts are legitimately null depending on how it ended, so a template reading `run.error` on a

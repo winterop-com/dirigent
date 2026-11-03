@@ -39,6 +39,68 @@ Alert rules stay out of pipeline documents. A rule's code is the instance's rath
 
 **How a run was started is said once.** The runs list, the pipeline page's Recent runs, the run's header and its Trigger section name a person or a token by the label alone (`agent (token mcp-trial)`, not `api token · agent (token mcp-trial)`), a schedule, backfill or source as its kind and code, and a rerun as `rerun of <run> by <who>`. The run dialog says `runs as admin`.
 
+**Before upgrading.** The baseline migration is edited in place, so `dg db upgrade` does not carry
+it: `sources` gains `failed`, `sources.failures` is renamed `poll_failures`, and `input_outcome`
+gains `failed`. Recreate the database, or make the same changes by hand.
+
+**A report template reads the run's parameters.** `{{ params.period }}` reads the parameters the
+run resolved to, defaults filled in, beside `run.params`, in a `report:` template and an alert's
+subject and body alike.
+
+**A list or an object inside text is JSON, not a Python repr. Breaking.** A `${...}` inside a
+longer string interpolates a list or an object as its compact JSON (`[{"value":"42"}]`, never
+`[{'value': '42'}]`), a boolean as `true` or `false` and null as nothing; a reference standing
+alone keeps its type as before. In a report, an alert and `report.render`, `{{ value }}` prints a
+list or an object as compact JSON, a boolean as `true`/`false` and null as nothing, where it
+printed Python's `True` and `None`; `| tojson(indent=2)` indents. An alert's default body writes
+`params` as JSON too.
+
+**A block's limits are refused at plan, not at the run. Breaking.** A bound on a `Duration` or a
+`Size` field -- `playground.generate`'s `delay` of at most `30s`, its `payload` of at most `1mb`, a
+`timeout` that must be more than `0s`, `docker.run`'s `memory` of at least `6mb` -- is published in
+the block's schema as `x-dirigent-bounds` and enforced by every check holding the catalog, `dg
+validate` offline and MCP's `plan_document` included, where JSON Schema had no keyword for it and
+it was dropped. A literal config is also validated against the block's own model at apply, so a
+field or model validator refuses there; an error on a value that is still a `${...}` is left to
+the run. `playground.generate` and `playground.arrive` refuse an unknown locale, a provider Faker
+does not have and a size argument past its cap at apply. `docs/blocks.md` says each bound.
+
+**Source kinds are in the document schema.** `source.kind` is a choice between the installed kinds
+-- `endpoint`, `storage`, `sensor`, and `kafka` and `rabbitmq` with `dirigent-block-queues`, or any
+a pack contributes -- and each kind's fields are held to that kind, so `dg pipeline schema`, the
+instance's document schema and an editor complete and check them. MCP's `list_blocks` answers
+with `sources` beside `blocks`, each with its fields.
+
+**An example reads a failed step's error in a reply.** `examples/sources/reply-with-the-error.yaml`
+answers 201 when a check passes and 422 with `${steps.check.error.code}` and `.message` from a
+`one_failed` reply when it refuses.
+
+**A source's counts say what they count, and every call is journaled. Breaking.** `accepted`
+counts runs started whose caller was not answered with the run's failure; the new `failed` counts
+runs whose held caller's answer was the run's failure (422 or 502), and their journal row ends
+`failed` rather than `replied`; `refused` counts every call refused before a run, a call with no
+token or a bad signature, one past the source's rate, and a stalled or oversized body before
+admission included. Those were not journaled at all; they now are, without a header or a body,
+60 a minute per source at most, so a flood from nobody cannot fill the journal. `failures` on a
+source is renamed `poll_failures`, since it counts failed polls. The Triggers panel shows `n
+failed` beside accepted and refused.
+
+**Cancelling a settled run is refused. Breaking.** `POST /runs/{id}/$cancel` on a run that already
+settled answers 409 `run.already_settled` with the run's `status` in the params, rather than the
+run as though the cancel had done something. `dg.runs.cancel()` raises it, `dg runs cancel` writes
+it as an `error` record and exits 1, and MCP's `cancel_run` fails with the sentence and
+`[run.already_settled]`. Every MCP tool error now ends with its code in brackets.
+
+**A step's text can be the run's report.** `report: {from: <step>}` makes the `text` a step handed
+on -- a `report.render` step's, or any block output with a `text` string -- the run's report
+document, with no template; a section with both is refused, and plan refuses a `from` naming no
+step, a source or a reply, or a block whose output has no `text`. Plan and `dg validate` warn
+about a `report.render` step in a document with no `report:`, and about a name a report or
+`report.render` template reads that its context does not have, such as `step.sumary` or a
+`params.x` the schema does not list; rendering stays lenient. A run with no report document
+whose `report.render` step rendered text offers that text on its Report tab. `report.render`'s
+summary says it does not set the run's report.
+
 ## 0.32.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.32.0 together, and so do

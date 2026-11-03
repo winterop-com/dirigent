@@ -151,6 +151,14 @@ takes. A run of a pipeline with sources starts with the source it entered at alr
 its output the input -- for the `endpoint` kind, the request's method, path, path parameters,
 query, headers and body -- and every other source settled skipped as not entered.
 
+The kinds are a catalog, contributed the way blocks are: dirigent ships `endpoint`, `storage`
+and `sensor`, `dirigent-block-queues` adds `kafka` and `rabbitmq`, and a pack may add its own.
+`GET /api/v1/blocks` lists them under `sources`, each with the fields it writes, and so does
+`list_blocks` over MCP. `dg pipeline schema` and the instance's document schema make
+`source.kind` a choice between the installed kinds and hold each to its own fields, so an
+editor completes `kind: storage` and then `uri` and `poll`, and squiggles a field the kind does
+not take.
+
 Sources are roots, and every other step descends from one: a root beside them would run on
 every input from every source, and is refused. A step joining the branches of two sources says
 `all_done` or `always`, since a run enters at one of them only. A pipeline with sources carries
@@ -195,20 +203,38 @@ each check answering for itself: the instance's rate for the address and route (
 input (503), the content type (415), the body in time (408) and under `max_body` (413), the body
 parsing (400), the runs in flight
 (503), and, when a reply can answer, a free seat among the callers this server holds (503);
-then the run is created. Every input from the source's own rate onwards is recorded, refusals
-included, and `dg source inputs` reads them.
+then the run is created. Every call that reaches a source's route is journaled, and
+`dg source inputs` reads them: the method, the path, the caller's address, the status it was
+answered with and the refusal's code and reason, never a header or a body, so nothing a caller
+presented is kept. A call refused before it was let in -- no token, a bad signature, too fast,
+too large, too slow -- is journaled too, but only 60 a minute for one source; past that it is
+answered and counted in telemetry alone, so a flood from nobody cannot fill the journal.
+
+A source counts what came of its calls in three numbers that add up to its journal:
+
+| Count | What it counts |
+| --- | --- |
+| `accepted` | A run was started, and its caller was not answered with the run's failure: answered 202, answered by a reply, or still held when its timeout passed |
+| `failed` | A run was started, and the held caller's answer was the run's failure: 422 when a step on the way to a reply refused the input, 502 otherwise |
+| `refused` | No run was started: 401 and its signature kin, 404 for a source gone mid-call, 408, 413, 415, 400, 429 and 503 |
+
+`poll_failures` is something else: how many polls in a row of a polled or held source have
+failed, which is what makes it `failing` and doubles its backoff.
 
 When no reply is downstream of the source, the caller is answered 202 with where to read the
 run. When one is, the caller is held for the longest `timeout` among the replies its input can
 reach, capped by `source_reply_max`, and the first reply to settle is the answer: its status,
-headers, content type and body, or the object `body_from` names, streamed. When no reply can
+headers, content type and body, or the object `body_from` names, streamed, and the journal row
+ends `replied`. When no reply can
 answer any more, the run's failure is the answer, as a problem naming the run and the step: 422
 when a step on the way to a reply refused the input as `rejected`, 502 otherwise. What the step
 failed with stays on the run, for whoever may read it, and a reply on a failure path that means a
-caller to see it says so with `${steps.<name>.error.message}`. A caller still held when
+caller to see it says so with `${steps.<name>.error.message}` (`.code` and `.params` beside it);
+`examples/sources/reply-with-the-error.yaml` answers 201 on success and 422 with the check's own
+message on a `one_failed` reply. A caller still held when
 its timeout passes is answered 504, and the run carries on. Each server process holds its
 callers on one reader, woken when a run settles, and a held input's journal row ends
-`replied` or `timed_out`.
+`replied`, `failed` or `timed_out`.
 
 A `storage` source is polled rather than called: a worker lists its `uri`, a prefix or a glob,
 every `poll` (at most ten years, past which apply refuses it), and each object it has not handed over before becomes one run,

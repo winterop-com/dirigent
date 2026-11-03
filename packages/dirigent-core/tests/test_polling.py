@@ -174,7 +174,7 @@ async def test_a_failed_poll_keeps_the_cursor_and_backs_off(
     [outcome] = await polling.tick(sessions, services, owner=WORKER)
     assert outcome.error is not None
     row = await the_source(sessions)
-    assert (row.failures, row.cursor, row.lease_owner) == (1, None, None)
+    assert (row.poll_failures, row.cursor, row.lease_owner) == (1, None, None)
     assert row.last_error == outcome.error
     assert row.next_poll_at is not None
     assert row.next_poll_at - datetime.now(UTC) > timedelta(seconds=20), "it waits out the backoff"
@@ -357,7 +357,7 @@ async def test_an_input_no_run_can_be_made_of_fails_the_poll_and_keeps_the_curso
     assert outcome.runs == []
     assert outcome.error is not None
     row = await the_source(sessions)
-    assert (row.cursor, row.failures, row.accepted) == (None, 1, 0), "nothing of the batch is kept"
+    assert (row.cursor, row.poll_failures, row.accepted) == (None, 1, 0), "nothing of the batch is kept"
     assert await entered(sessions) == []
 
     monkeypatch.undo()
@@ -459,11 +459,11 @@ async def test_a_stored_cadence_past_a_date_stays_on_its_own_row_and_the_next_so
 
     assert len(outcomes) == 2
     poison = await _source(sessions, "aaa")
-    assert poison.failures == 1
+    assert poison.poll_failures == 1
     assert poison.last_error
     assert poison.lease_owner is None
     healthy = await _source(sessions, "bbb")
-    assert healthy.failures == 0
+    assert healthy.poll_failures == 0
     assert healthy.polled_at is not None
     assert healthy.lease_owner is None
 

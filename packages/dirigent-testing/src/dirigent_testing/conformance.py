@@ -22,6 +22,7 @@ from jsonschema.validators import extend as extend_validator  # pyright: ignore[
 from pydantic import BaseModel, JsonValue
 
 from dirigent_common import LOCAL_REFERENCES, BlockModel, HumaneJsonSchema, JsonMap
+from dirigent_common.bounds import BOUNDS_KEYWORD, bounds_keyword
 from dirigent_plugin import AnyOperator, AnySensor, Contribution, mark_refusal
 
 #: A ``${...}`` reference, matched the way the engine matches one.
@@ -53,7 +54,10 @@ def _skip_deferred(keyword: Any) -> Any:
 #: A validator that checks everything an example states literally and defers a reference.
 _ConfigValidator: Any = extend_validator(  # pyright: ignore[reportUnknownVariableType]
     Draft202012Validator,
-    {name: _skip_deferred(keyword) for name, keyword in Draft202012Validator.VALIDATORS.items()},
+    {
+        name: _skip_deferred(keyword)
+        for name, keyword in {**Draft202012Validator.VALIDATORS, BOUNDS_KEYWORD: bounds_keyword}.items()
+    },
 )
 
 

@@ -228,10 +228,16 @@ export function SourcePanel({
                               )}
                     </span>
                 </Fact>
-                {source.accepted + source.refused > 0 && (
+                {source.accepted + source.failed + source.refused > 0 && (
                     <Fact label={LABELS.triggers.source.taken}>
                         <span>
                             {LABELS.triggers.source.accepted(String(source.accepted))}
+                            {source.failed > 0 && (
+                                <span className="text-muted-foreground">
+                                    {' · '}
+                                    {LABELS.triggers.source.failed(String(source.failed))}
+                                </span>
+                            )}
                             {source.refused > 0 && (
                                 <span className="text-muted-foreground">
                                     {' · '}

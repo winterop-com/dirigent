@@ -241,6 +241,14 @@ async def test_a_settled_run_is_rerun_and_one_in_flight_is_refused(server: MCPSe
     assert (again["triggered_by_kind"], again["triggered_by_id"]) == ("rerun", original)
 
 
+async def test_cancelling_a_settled_run_is_refused_with_its_state(server: MCPServer) -> None:
+    await call(server, "apply_document", document=DOCUMENT)
+    run_id = (await call(server, "run_pipeline", code="mcp-demo"))["run_id"]
+    await call(server, "cancel_run", run_id=run_id)
+    with pytest.raises(ToolError, match=r"already settled as cancelled.*\[run\.already_settled\]"):
+        await server.call_tool("cancel_run", {"run_id": run_id})
+
+
 async def test_run_stats_are_read_only_and_answer_the_window(server: MCPServer) -> None:
     tools = {tool.name: tool for tool in await server.list_tools()}
     assert tools["run_stats"].annotations is not None and tools["run_stats"].annotations.read_only_hint
@@ -275,7 +283,11 @@ async def test_a_refusal_reaches_the_agent_as_a_tool_error(server: MCPServer) ->
 
 
 async def test_the_catalog_is_listed_short_and_read_whole(server: MCPServer) -> None:
-    listed = (await call(server, "list_blocks"))["blocks"]
+    answer = await call(server, "list_blocks")
+    listed = answer["blocks"]
+    storage = next(entry for entry in answer["sources"] if entry["kind"] == "storage")
+    assert "uri" in storage["config_schema"]["properties"]
+    assert {"endpoint", "sensor", "storage"} <= {entry["kind"] for entry in answer["sources"]}
     const = next(entry for entry in listed if entry["id"] == "value.const")
     assert set(const) == {"id", "kind", "group", "summary"}
     block = await call(server, "get_block", block_id="value.const")

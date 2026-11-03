@@ -514,10 +514,13 @@ class Source(Entity):
 
     paused: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     accepted: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
-    """How many inputs became runs."""
+    """How many inputs became runs that did not answer their caller with a failure."""
 
     refused: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
-    """How many inputs were refused once the caller was known to be let in."""
+    """How many calls were refused before any run existed, an unauthenticated one included."""
+
+    failed: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    """How many inputs became runs whose failure was what their held caller was answered with."""
 
     last_input_at: Mapped[datetime | None] = mapped_column(Timestamp)
     next_poll_at: Mapped[datetime | None] = mapped_column(Timestamp, index=True)
@@ -536,8 +539,8 @@ class Source(Entity):
     """The worker polling the source now."""
 
     lease_expires_at: Mapped[datetime | None] = mapped_column(Timestamp)
-    failures: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
-    """How many polls in a row have failed."""
+    poll_failures: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    """How many polls in a row have failed, for a kind a worker polls or holds."""
 
     last_error: Mapped[str | None] = mapped_column(SaidText)
 

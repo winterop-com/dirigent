@@ -579,7 +579,8 @@ def test_a_source_reads_as_its_state_its_step_and_what_it_has_taken() -> None:
             "max_in_flight": 2,
             "accepted": 3,
             "refused": 0,
-            "failures": 0,
+            "failed": 0,
+            "poll_failures": 0,
             "last_error": None,
         },
     )
@@ -591,7 +592,8 @@ def test_a_source_reads_as_its_state_its_step_and_what_it_has_taken() -> None:
     assert "in_flight=1/2" in drawn
     assert "accepted=3" in drawn
     assert "fields.kind" not in drawn, "the source's own kind is not spelled as a namespaced collision"
-    assert "failures" not in drawn, "a source that has not failed says nothing of failures"
+    assert "poll_failures" not in drawn, "a source that has not failed says nothing of failures"
+    assert "failed=" not in drawn, "nor of failed runs when it has none"
 
 
 def test_a_refused_input_reads_as_a_warning_with_its_reason() -> None:

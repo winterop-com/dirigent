@@ -51,6 +51,12 @@ def test_an_embedded_reference_interpolates_as_text(scope: ReferenceScope) -> No
     assert resolve("${params.day} has ${params.count}", scope) == "2026-08-28 has 3"
 
 
+def test_a_list_or_object_inside_a_string_interpolates_as_compact_json(scope: ReferenceScope) -> None:
+    assert resolve("regions: ${params.regions}", scope) == 'regions: ["no","se"]'
+    assert resolve("rows ${steps.list.output}", scope) == 'rows [{"n":1},{"n":2}]'
+    assert resolve("body=${steps.fetch.output.body}", scope) == 'body={"id":"abc"}'
+
+
 #: A config publishing SQL on a top-level field, and on a field of a definition two ways.
 SQL_SCHEMA: JsonMap = {
     "type": "object",

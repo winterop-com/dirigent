@@ -1048,6 +1048,16 @@ const refused = {
         yaml_nested_too_deep: 'This YAML nests too deeply to be read.',
     },
     document: {
+        report_no_such_step: 'report.from names {step}, and no step is called that.',
+        report_render_unseen:
+            "Step {step} renders text with report.render, and with no report key it is not the run's report and does not appear in the Report tab. Write report: {from: {bare}} to make it the run's report.",
+        report_step_left_no_text:
+            "Step {step} left no text to be the run's report: it did not succeed, or handed on none.",
+        report_step_no_text:
+            "report.from names {step}, and its block {block} hands on no text to be the run's report.",
+        report_step_not_a_block: 'report.from names {step}, which is a {form} and hands on no text.',
+        report_template_and_step: 'A report takes a template or a step whose text it is, not both.',
+        template_name_unknown: '{name} is not something this template is given, so it renders empty{hint}.',
         carried_connections:
             'This document carries its own connections ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.connections.',
         carried_schemas:
@@ -1148,6 +1158,7 @@ const refused = {
         input_too_deep:
             'The input at {step} nests deeper than the {limit} levels of lists and objects a run stores.',
         not_entered: 'The input arrived at {entered}, so {step} was not entered.',
+        already_settled: 'This run already settled as {status}, so there is nothing to cancel.',
         not_paused: 'This run is {status}, and only a paused run resumes.',
         not_pausable: 'This run is {status}, and only a queued or running run pauses.',
         not_retryable: 'Step {step} is {status}, and only a settled failure can be retried.',
@@ -2443,6 +2454,17 @@ const runs = {
     report_download: 'Download the markdown',
     report_missing:
         'This run rendered no report document. A pipeline document declares one under its report key.',
+    /**
+     * A run with no report whose `report.render` step made text, which is not its report. The
+     * step's code and the document key are drawn in mono between these words.
+     */
+    report_rendered_by_step: {
+        before: 'Step',
+        after: "rendered text, and it is not this run's report.",
+        hint_after: 'in the document makes it one.',
+    },
+    report_show_step: 'Show what it rendered',
+    report_hide_step: 'Hide it',
     /** How many warnings one step of the summary wrote. */
     step_warned: (count: string) => `${count} warned`,
 
@@ -2660,9 +2682,10 @@ const triggers = {
         public: 'public',
         /** What the copy button beside a source's URL names. */
         copy_url: 'Copy the URL',
-        /** What it has taken: inputs that became runs, and inputs refused. */
+        /** What it has taken: runs started, runs that answered with their failure, and calls refused. */
         taken: 'Received',
         accepted: (count: string) => `${count} accepted`,
+        failed: (count: string) => `${count} failed`,
         refused: (count: string) => `${count} refused`,
         /** Its runs unsettled, against the bound it holds them to. */
         bounded: (count: string, bound: string) => `${count} of ${bound}`,
@@ -2674,6 +2697,7 @@ const triggers = {
         outcome: {
             accepted: 'accepted',
             replied: 'replied',
+            failed: 'failed',
             refused: 'refused',
             timed_out: 'timed out',
         },

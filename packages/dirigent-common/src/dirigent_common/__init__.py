@@ -103,7 +103,7 @@ from dirigent_common.sizes import (
     format_size,
     parse_size,
 )
-from dirigent_common.templating import RenderTooLarge, TemplateError, compile_template, render
+from dirigent_common.templating import RenderTooLarge, TemplateError, as_text, compile_template, render
 from dirigent_common.types import JsonList, JsonMap
 from dirigent_common.uris import STORAGE_URI_FORMAT, StorageUri
 from dirigent_common.values import spelled
@@ -182,6 +182,7 @@ __all__ = [
     "StorageUri",
     "TemplateError",
     "as_markdown",
+    "as_text",
     "entity_name_error",
     "build_client",
     "carries_credential",

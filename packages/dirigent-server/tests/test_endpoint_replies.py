@@ -164,7 +164,9 @@ def test_a_reply_that_cannot_render_answers_422_naming_the_run(client: TestClien
     [entry] = inputs(client, "now")
     assert problem["params"]["run"] == str(entry.run_id)
     assert called.headers["location"] == f"{PREFIX}/runs/{entry.run_id}"
-    assert (entry.outcome, entry.status) == ("replied", 422)
+    assert (entry.outcome, entry.status) == ("failed", 422), "the run's failure was the answer"
+    counted = client.get(f"{PREFIX}/pipelines/now/sources/ask").json()
+    assert (counted["accepted"], counted["refused"], counted["failed"]) == (0, 0, 1)
 
 
 @pytest.mark.parametrize(

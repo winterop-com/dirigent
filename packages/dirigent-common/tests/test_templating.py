@@ -145,3 +145,17 @@ def test_a_macro_that_recurses_forever_is_a_template_error() -> None:
     with pytest.raises(TemplateError) as raised:
         render("{% macro tail(n) %}{{ tail(n + 1) }}{% endmacro %}{{ tail(0) }}", {}, max_bytes=CAP)
     assert "maximum recursion depth exceeded" in str(raised.value)
+
+
+def test_a_list_or_object_prints_as_compact_json_not_a_repr() -> None:
+    context = {"rows": [{"value": "42", "ok": True}], "one": {"a": None}}
+    assert render("{{ rows }} {{ one }}", context, max_bytes=CAP) == '[{"value":"42","ok":true}] {"a":null}'
+
+
+def test_a_boolean_and_null_print_as_json_reads_them() -> None:
+    context = {"yes": True, "no": False, "nothing": None}
+    assert render("{{ yes }} {{ no }} [{{ nothing }}]", context, max_bytes=CAP) == "true false []"
+
+
+def test_the_tojson_filter_still_indents_on_request() -> None:
+    assert render("{{ one | tojson(indent=2) }}", {"one": {"a": 1}}, max_bytes=CAP) == '{\n  "a": 1\n}'

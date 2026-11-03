@@ -44,6 +44,7 @@ from dirigent_client import (
     Importance,
     NotificationStatus,
     RunStatus,
+    SourceEntry,
 )
 from dirigent_client.resources.pipelines import parse_document
 from dirigent_client.timing import profile
@@ -218,12 +219,16 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
             raise ResourceError(str(error)) from error
 
     async def call[T](work: Callable[[Dirigent], Awaitable[T]], *, narrow: Message | None = None) -> Any:
-        """Make one call, answering with its JSON under the size bound, and a refusal as a tool error."""
+        """Make one call, answering with its JSON under the size bound, and a refusal as a tool error.
+
+        The error is the refusal's sentence with its code after it in brackets, so an agent can
+        tell ``run.already_settled`` from any other 409 without parsing the sentence.
+        """
         try:
             async with connect() as dg:
                 answer = await work(dg)
         except DirigentError as error:
-            raise ToolError(str(error)) from error
+            raise ToolError(f"{error} [{error.code}]" if error.code else str(error)) from error
         return bounded(_json(answer), narrow=narrow)
 
     @tool(READS)
@@ -481,7 +486,10 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
     @tool(STOPS)
     async def cancel_run(run_id: str) -> Any:
-        """Cancel a run: what has not started never does, and running remote work is told to stop."""
+        """Cancel a run: what has not started never does, and running remote work is told to stop.
+
+        A run that already settled is refused as `run.already_settled`, naming the status it settled as.
+        """
         return await call(lambda dg: dg.runs.cancel(run_id))
 
     @tool(STARTS)
@@ -509,11 +517,18 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
     @tool(READS)
     async def list_blocks(kind: BlockKind | None = None) -> Any:
-        """List the installed blocks a step can use, each with its id, kind and one-line summary."""
+        """List the installed blocks a step can use, and the source kinds a source node can write.
+
+        A block comes with its id, kind and one-line summary; a source kind with its `kind`, its
+        summary, who takes its inputs, whether a reply may answer it, and the fields it writes.
+        """
 
         async def listed(dg: Dirigent) -> Any:
             catalog = await dg.blocks.catalog(kind=kind)
-            return {"blocks": [_summary(entry) for entry in catalog.blocks]}
+            return {
+                "blocks": [_summary(entry) for entry in catalog.blocks],
+                "sources": [_source_summary(entry) for entry in catalog.sources],
+            }
 
         return await call(listed)
 
@@ -909,6 +924,17 @@ async def _stored_output(dg: Dirigent, run_id: str, uri: str) -> str:
         if page.next is None:
             raise ToolError(NO_STORED_OUTPUT.render(run_id=run_id, uri=uri))
         after = page.next
+
+
+def _source_summary(entry: SourceEntry) -> JsonMap:
+    """One source kind as a listing shows it, its fields included, since there are few of them."""
+    return {
+        "kind": entry.kind,
+        "summary": entry.summary,
+        "hosting": entry.hosting,
+        "replies": entry.replies,
+        "config_schema": entry.config_schema,
+    }
 
 
 def _json(value: Any) -> Any:

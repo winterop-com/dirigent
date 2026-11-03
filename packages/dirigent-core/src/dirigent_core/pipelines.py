@@ -65,6 +65,7 @@ from dirigent_core.models import (
     StepAttempt,
 )
 from dirigent_core.registry import live_worker_tags
+from dirigent_core.reportchecks import report_warnings
 from dirigent_core.schemas import schema_codes
 from dirigent_core.sources.rows import claimed_route_issues, reconcile_sources, retiring_sources
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues, retiring_schedules
@@ -243,7 +244,7 @@ async def plan_apply(
             current_version=pipeline.current_version if pipeline else None,
             issues=issues,
         )
-    warnings = worker_routing_issues(definition, await live_worker_tags(session))
+    warnings = [*worker_routing_issues(definition, await live_worker_tags(session)), *report_warnings(definition)]
     if pipeline is None or pipeline.current_version is None:
         return PipelinePlan(
             code=definition.code, action=PlanAction.CREATE, digest=digest, next_version=1, warnings=warnings

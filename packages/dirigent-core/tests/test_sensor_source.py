@@ -91,7 +91,7 @@ async def test_a_sensor_reading_part_of_a_run_fails_the_poll(
     [failed] = await polling.tick(sessions, services, owner=WORKER)
     assert failed.error is not None and "scratch" in failed.error
     row = await the_source(sessions)
-    assert (row.failures, row.cursor) == (1, None)
+    assert (row.poll_failures, row.cursor) == (1, None)
 
 
 @pytest.mark.parametrize(

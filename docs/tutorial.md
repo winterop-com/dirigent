@@ -215,6 +215,11 @@ Worth reading before you run it:
   from an `echo` carries its trailing newline. Where that matters, print without one --
   `printf '%s'` -- rather than trimming at the reference.
 
+  A reference standing alone keeps its type, so `"${params.count}"` is a number to the block.
+  One inside a longer string becomes text: a list or an object as its compact JSON
+  (`rows: [{"value":"42"}]`, never a Python repr), a boolean as `true` or `false`, and null as
+  nothing.
+
 - **`$${...}` is the escape**, and it is how a value reaches a tool with its own braces
   intact: a compose file interpolating `$${GREETING}`, a shell command holding `$${HOME}`, a
   template another program renders. It yields the literal `${...}` and is never resolved, so

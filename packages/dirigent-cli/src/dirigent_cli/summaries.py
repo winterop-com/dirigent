@@ -97,9 +97,10 @@ def _source_line(record: Record) -> Record:
         "in_flight": row.get("in_flight") if bound is None else f"{row.get('in_flight')}/{bound}",
         "accepted": row.get("accepted"),
         "refused": row.get("refused"),
+        "failed": row.get("failed") or None,
         "last_input_at": row.get("last_input_at"),
         "next_poll_at": row.get("next_poll_at"),
-        "failures": row.get("failures") or None,
+        "poll_failures": row.get("poll_failures") or None,
         "last_error": row.get("last_error"),
     }
 

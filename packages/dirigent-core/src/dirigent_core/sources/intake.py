@@ -91,6 +91,11 @@ SIGNATURE_RECORD_MARGIN: Final = timedelta(minutes=1)
 #: How long a process answers from the routes it read before reading them again, a notification or not.
 ROUTES_TTL_SECONDS: Final = 5.0
 
+#: How many calls a minute one source journals among those refused before they were let in --
+#: no token, a bad signature, too fast, too large, too slow. Past it they are answered and
+#: counted in telemetry alone, so a flood from nobody cannot fill the journal.
+UNADMITTED_JOURNAL_PER_MINUTE: Final = 60
+
 #: The scheme an endpoint's token is presented under.
 BEARER: Final = "bearer"
 
@@ -197,6 +202,7 @@ class Intake:
         """Start with no routes read and empty buckets."""
         self.instance_bucket = TokenBucket()
         self.source_bucket = TokenBucket()
+        self.unadmitted_bucket = TokenBucket()
         self._table: RouteTable | None = None
         self._mark: wakeups.Mark | None = None
         self._read_at = 0.0
@@ -210,6 +216,18 @@ class Intake:
             self._table = table = await read_routes(session)
             self._read_at = moment
         return table
+
+    async def _unadmitted(
+        self, session: AsyncSession, row: Source, call: Call, started: float, refusal: Refusal
+    ) -> Refusal:
+        """Journal a call refused before it was let in, while this source's share of such rows lasts.
+
+        The row carries what any refusal's does -- the method, the path, the caller's address
+        and the reason -- and never a header or the body, so nothing a caller presented is kept.
+        """
+        if not self.unadmitted_bucket.allow(str(row.id), per_minute=UNADMITTED_JOURNAL_PER_MINUTE):
+            return _counted(refusal)
+        return await _Journal(session, row, call, started).refuse(refusal)
 
     async def take(
         self,
@@ -251,13 +269,19 @@ class Intake:
         if current is None:
             return _counted(Refusal.of(NO_ROUTE, status=404, method=call.method, path=called))
         row, pipeline = current
+
+        async def unadmitted(refusal: Refusal) -> Refusal:
+            return await self._unadmitted(session, row, call, started, refusal)
+
         kind = received(services.sources, row)
         if kind is None:
-            return _counted(Refusal.of(SOURCE_KIND_MISSING, status=503, code=repr(row.code), kind=repr(row.kind)))
+            return await unadmitted(
+                Refusal.of(SOURCE_KIND_MISSING, status=503, code=repr(row.code), kind=repr(row.kind))
+            )
         source, config = kind
         auth = source.auth(config)
         if auth.kind == "token" and not _presents(row, call.headers):
-            return _counted(
+            return await unadmitted(
                 Refusal.of(TOKEN_REFUSED, status=401, headers={"WWW-Authenticate": 'Bearer realm="dirigent"'})
             )
         cap = settings.source_max_body
@@ -267,19 +291,19 @@ class Intake:
         if auth.kind == "hmac":
             body = await _read_released(session, read, most, settings.source_body_timeout)
             if body is None:
-                return _counted(_timed_out(settings.source_body_timeout))
+                return await unadmitted(_timed_out(settings.source_body_timeout))
             if len(body) > most:
-                return _counted(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
+                return await unadmitted(Refusal.of(SOURCE_BODY_TOO_LARGE, status=413, limit=most))
             if await _current(session, found.source_id) is None:
                 return _counted(Refusal.of(NO_ROUTE, status=404, method=call.method, path=called))
             unsigned = await _unsigned(session, services, row, auth, call.headers, body, utcnow())
             if unsigned is not None:
-                return _counted(unsigned)
+                return await unadmitted(unsigned)
         rate = source.rate(config)
         if rate is not None and not self.source_bucket.allow(
             str(row.id), per_minute=rate.per_minute, capacity=rate.burst
         ):
-            return _counted(
+            return await unadmitted(
                 Refusal.of(SOURCE_RATE, status=429, headers=retry_after(rate.per_minute), per_minute=rate.per_minute)
             )
         journal = _Journal(session, row, call, started)
@@ -517,15 +541,26 @@ class _Journal:
 
 
 async def settle_input(
-    session: AsyncSession, input_id: int, outcome: InputOutcome, status: int, started: float
+    session: AsyncSession, input_id: int, source_id: UUID, outcome: InputOutcome, status: int, started: float
 ) -> None:
-    """Write what a held caller was answered with onto its journal row, and how long it was held."""
+    """Write what a held caller was answered with onto its journal row, and how long it was held.
+
+    A caller answered with the run's failure moves the input from the source's ``accepted``
+    to its ``failed``, so the two count runs that did and did not answer their caller well.
+    """
     await session.execute(
         sa.update(SourceInput)
         .where(SourceInput.id == input_id)
         .values(outcome=outcome, status=status, duration_ms=round((time.monotonic() - started) * 1000))
         .execution_options(synchronize_session=False)
     )
+    if outcome is InputOutcome.FAILED:
+        await session.execute(
+            sa.update(Source)
+            .where(Source.id == source_id)
+            .values({Source.accepted: Source.accepted - 1, Source.failed: Source.failed + 1})
+            .execution_options(synchronize_session=False)
+        )
     telemetry.record_input(outcome.value, status)
 
 

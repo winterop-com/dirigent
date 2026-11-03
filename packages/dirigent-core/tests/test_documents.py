@@ -1221,3 +1221,57 @@ def test_a_document_with_no_report_says_nothing_about_one() -> None:
 def test_a_report_template_round_trips_through_the_canonical_form() -> None:
     document = load_text(MINIMAL + 'report:\n  template: "# {{ run.status }}"\n')
     assert load_document(canonical_document(document)) == document
+
+
+def playground_step(config: str) -> str:
+    """A one-step document generating with the playground, with the config written inline."""
+    return f"format: dirigent/v1\ncode: knobs\nsteps:\n  a: {{ block: playground.generate, config: {config} }}\n"
+
+
+def test_a_delay_past_the_playgrounds_limit_is_refused_by_the_schema_alone() -> None:
+    """The bound travels in the published schema, so a check holding only the catalog refuses it."""
+    issues = validate_against_catalog(load_text(playground_step("{delay: 5m}")), load_plugin_host().catalog())
+    assert [(issue.location, issue.code, issue.params["limit"]) for issue in issues] == [
+        ("steps.a.config.delay", "validation.less_than_equal", "30s")
+    ], "the same refusal the block's own model makes, with the bound as a document writes it"
+
+
+def test_a_delay_inside_the_limit_plans() -> None:
+    installed = load_plugin_host()
+    definition = load_text(playground_step("{delay: 30s}"))
+    assert validate_against_catalog(definition, installed.catalog(), blocks=installed.blocks) == []
+
+
+def test_a_bounded_duration_publishes_its_bounds_in_the_spelling_a_document_writes() -> None:
+    entry = load_plugin_host().catalog().block("playground.generate")
+    assert entry is not None
+    delay = entry.config_schema["properties"]["delay"]
+    assert delay["x-dirigent-bounds"] == {"kind": "duration", "minimum": "0s", "maximum": "30s"}
+    assert "ge" not in delay
+    assert "le" not in delay
+
+
+def test_a_size_past_its_limit_is_refused_by_the_schema_alone() -> None:
+    issues = validate_against_catalog(load_text(playground_step("{payload: 1TB}")), load_plugin_host().catalog())
+    assert [(issue.location, issue.code, issue.params["limit"]) for issue in issues] == [
+        ("steps.a.config.payload", "validation.less_than_equal", "1mb")
+    ]
+
+
+def test_a_literal_config_is_validated_against_the_blocks_model_at_apply() -> None:
+    """A rule only the model states, such as a provider Faker does not have, is refused before the run."""
+    installed = load_plugin_host()
+    definition = load_text(playground_step("{fields: {name: no_such_provider}}"))
+    issues = validate_against_catalog(definition, installed.catalog(), blocks=installed.blocks)
+    assert [issue.location for issue in issues] == ["steps.a.config.fields.name"]
+    assert "no_such_provider" in issues[0].message
+
+
+def test_a_model_error_on_a_reference_is_left_to_the_run() -> None:
+    installed = load_plugin_host()
+    definition = load_text(
+        "format: dirigent/v1\ncode: knobs\n"
+        "params: {type: object, properties: {rows: {type: integer, default: 1}}}\n"
+        "steps:\n  a: { block: playground.generate, config: {rows: '${params.rows}'} }\n"
+    )
+    assert validate_against_catalog(definition, installed.catalog(), blocks=installed.blocks) == []

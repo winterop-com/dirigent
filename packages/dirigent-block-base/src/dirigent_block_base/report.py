@@ -61,12 +61,19 @@ class ReportRenderOperator(Operator[ReportRenderConfig, ReportRenderOutput]):
     ``kafka.produce``, ``rabbitmq.publish`` or ``webhook.post`` is what sends it anywhere. It
     runs on any worker with nothing on the allowlist, because it touches nothing.
 
+    It does not set the run's report: the Report tab shows what the document's ``report:``
+    section renders. ``report: {from: <this step>}`` makes this step's text the run's report.
+
     The template renders in the same sandbox the run's own ``report:`` section uses: no
     loader, so ``include``, ``import`` and ``extends`` reach nothing, and an undefined name
     renders as the empty string rather than failing the step.
     """
 
-    spec = OperatorSpec(id="report.render", summary="Render text from a Jinja template.", idempotent=True)
+    spec = OperatorSpec(
+        id="report.render",
+        summary="Render text from a Jinja template, which `report: {from: <step>}` takes as the report.",
+        idempotent=True,
+    )
     config_model: ClassVar[type[BaseModel]] = ReportRenderConfig
     output_model: ClassVar[type[BaseModel]] = ReportRenderOutput
 

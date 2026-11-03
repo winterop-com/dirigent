@@ -17,7 +17,7 @@ import type { OutcomeTone } from '@/lib/triggers'
 export type SourceState = 'starting' | 'listening' | 'failing' | 'backlogged' | 'draining' | 'paused'
 
 /** What came of one input that reached a source. `InputOutcome`. */
-export type InputOutcome = 'accepted' | 'replied' | 'refused' | 'timed_out'
+export type InputOutcome = 'accepted' | 'replied' | 'failed' | 'refused' | 'timed_out'
 
 /** A source as a listing shows it, never its token. `SourceOut`. */
 export interface SourceOut {
@@ -43,14 +43,18 @@ export interface SourceOut {
     signature_header: string | null
     in_flight: number
     max_in_flight: number | null
+    /** Inputs that became runs and did not answer their caller with a failure. */
     accepted: number
+    /** Calls refused before any run existed, an unauthenticated one included. */
     refused: number
+    /** Inputs that became runs whose failure was what their held caller was answered with. */
+    failed: number
     last_input_at: string | null
     /** What the source listens to, in one line its kind writes, such as the prefix it polls. */
     summary: string | null
     polled_at: string | null
     next_poll_at: string | null
-    failures: number
+    poll_failures: number
     last_error: string | null
     created_at: string
 }
@@ -303,7 +307,11 @@ export function inputView(input: SourceInputOut): {
 } {
     const failed = input.status !== null && input.status >= 400
     const tone: OutcomeTone =
-        input.outcome === 'refused' || input.outcome === 'timed_out' ? 'critical' : failed ? 'warn' : 'good'
+        input.outcome === 'refused' || input.outcome === 'failed' || input.outcome === 'timed_out'
+            ? 'critical'
+            : failed
+              ? 'warn'
+              : 'good'
     return {
         label: LABELS.triggers.source.outcome[input.outcome],
         tone,

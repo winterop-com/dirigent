@@ -676,6 +676,13 @@ The new run is attributed to the original: its `triggered_by_kind` is `rerun` an
 was skipped. The command needs an operator, as `dg runs cancel` does; the same call is
 `POST /api/v1/runs/{id}/$rerun`, `dg.runs.rerun()` in the Python client, and `rerun_run` over MCP.
 
+`dg runs cancel RUN_ID` on a run that already settled changes nothing and says so: the API
+answers 409 `run.already_settled` with the run's `status` in the params, the command writes
+that refusal as an `error` record and exits 1, `dg.runs.cancel()` raises it, and `cancel_run`
+over MCP fails with the sentence and `[run.already_settled]` after it. `dg runs pause` and
+`dg runs resume` refuse a run they do not apply to the same way, as `run.not_pausable` and
+`run.not_paused`.
+
 ### The report a run wrote for itself
 
 `dg runs report RUN_ID` summarises a run from live queries: what each step amounted to, and
@@ -1024,7 +1031,7 @@ verb and whose fields are the identity of what changed:
 | `db.history` | `dg db history` | `history`, as alembic wrote it |
 | `db.upgraded` | `dg db upgrade` | `database`, `target`, and the `revision` it reached |
 | `storage.ensured` | `dg storage ensure` | the artifact `root`, the `bucket` it addresses, whether this call `created` it, and the `endpoint` it was made at |
-| `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` |
+| `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` and the `warnings[]` that refuse nothing, such as a `report.render` step no `report:` reads; a record with warnings is at `warning` level |
 | `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid`, and the files in a directory `skipped` as not documents |
 | `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once |
@@ -1035,7 +1042,7 @@ verb and whose fields are the identity of what changed:
 | `pipeline.schema` | `dg pipeline schema` | the number of `blocks` composed in, and the `schema` itself, or the `path` that `-f` wrote it to |
 | `pipeline.created` | `dg pipeline new` | `code`, the `starter` it copied, the `path` it wrote, the copy's own `requires`, and the `preflight` list to work through |
 | `schedule.created` / `.paused` / `.resumed` / `.deleted` | `dg schedule …` | `code`, `pipeline`, and a live one's `clock`, `timezone`, `next_fire_at` |
-| `source` | `dg source list`, `dg source show` | One per source, under `fields`: `pipeline`, `code`, `kind`, `state`, the `route` and `methods` it answers, its `url_path`, `auth`, `token_prefix`, `in_flight` against `max_in_flight`, and the `accepted` and `refused` counts |
+| `source` | `dg source list`, `dg source show` | One per source, under `fields`: `pipeline`, `code`, `kind`, `state`, the `route` and `methods` it answers, its `url_path`, `auth`, `token_prefix`, `in_flight` against `max_in_flight`, the `accepted`, `failed` and `refused` counts, and `poll_failures` for a source a worker polls |
 | `source.input` | `dg source inputs` | One per input, newest first, under `fields`: `outcome`, the HTTP `status` it was answered with, the `run_id` or the refusal's `code` and `reason`, `method`, `path`, `body_bytes`, `duration_ms`, `caller` |
 | `source.paused` / `.resumed` | `dg source pause`, `dg source resume` | `code`, `pipeline`, and the `state` it is in now |
 | `source.token_rotated` | `dg source rotate-token` | `code`, `pipeline`, the `url` to call, its `auth` and, for a signed source, the signature `header`, and the new `token` or signing secret, once |

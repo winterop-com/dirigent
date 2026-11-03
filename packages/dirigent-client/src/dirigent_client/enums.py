@@ -224,7 +224,10 @@ class InputOutcome(StrEnum):
     """It became a run, and the caller was answered with where to read it, or is held for its reply."""
 
     REPLIED = "replied"
-    """It became a run whose answer the caller was held for: a reply, or the run's failure."""
+    """It became a run whose reply the caller was held for and answered with."""
+
+    FAILED = "failed"
+    """It became a run the caller was held for, and the run's failure was the answer."""
 
     REFUSED = "refused"
     """It was refused before any run existed, and the reason is on the row."""
