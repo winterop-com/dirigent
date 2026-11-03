@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, ClassVar, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 
 from dirigent_common import (
     COMPOSE_MEDIA_TYPE,
@@ -15,10 +15,12 @@ from dirigent_common import (
     TEMPLATE_MEDIA_TYPE,
     BlockModel,
     Duration,
+    HttpConnectionConfig,
     PlainHeaders,
     PlainQuery,
     PlainUrl,
     StorageUri,
+    secrets_of,
     spellings,
 )
 from dirigent_plugin import (
@@ -348,9 +350,13 @@ class RemoteOperator(Operator[RemoteConfig, RemoteOutput]):
 
 
 class QuotingConfig(BaseModel):
-    """A secret to open, and what the block then answers with."""
+    """A secret to open, and what the block then answers with.
+
+    With ``user`` the secret is the password of an HTTP connection's basic credential for that user.
+    """
 
     opens: str
+    user: str | None = None
     answers: dict[str, JsonValue] = {}
 
 
@@ -369,7 +375,15 @@ class QuotingOperator(Operator[QuotingConfig, _Answered]):
 
     async def execute(self, config: QuotingConfig, ctx: StepContext) -> _Answered | RemoteHandle:
         """Open the secret, then answer with the configured output."""
-        cast("Any", ctx).opened_secrets.update(spellings(config.opens))
+        if config.user is None:
+            opened = spellings(config.opens)
+        else:
+            opened = secrets_of(
+                HttpConnectionConfig(
+                    base_url="https://basic.test", basic_username=config.user, basic_password=SecretStr(config.opens)
+                )
+            )
+        cast("Any", ctx).opened_secrets.update(opened)
         return _Answered.model_validate(config.answers)
 
 

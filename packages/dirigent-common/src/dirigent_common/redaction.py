@@ -5,6 +5,7 @@ Whatever writes such text beside a viewer's reach scrubs it first, with every sp
 takes once a library has quoted it.
 """
 
+import base64
 import json
 from collections.abc import Collection
 from typing import Final, cast
@@ -23,6 +24,13 @@ URL_SAFE_IN_A_QUERY: Final = "!$'()*,;:/?@[]"
 #: The shortest secret replaced in an output. An output is data rather than a message about a
 #: failure, and a shorter one would take ordinary text with it wherever those characters occur.
 MIN_OUTPUT_SPELLING: Final = 4
+
+
+#: The name, or the end of a name, of a field holding the secret half of a basic credential.
+PASSWORD_FIELD: Final = "password"
+
+#: The same for the user half, in its place.
+USERNAME_FIELD: Final = "username"
 
 
 class Spelling(str):
@@ -56,6 +64,19 @@ def spellings(secret: str) -> set[str]:
     return {Spelling(one, secret) for one in written if one}
 
 
+def basic_spellings(username: str, password: str) -> set[str]:
+    """Name every way the credential HTTP basic authentication sends reads: ``user:password`` in base64.
+
+    Standard and URL-safe, padded and not, each in every spelling of :func:`spellings`, and each
+    remembering the encoding rather than the password, so the encoding is what an output scrub judges.
+    """
+    pair = f"{username}:{password}".encode("utf-8", "surrogateescape")
+    found: set[str] = set()
+    for encoded in (base64.b64encode(pair).decode("ascii"), base64.urlsafe_b64encode(pair).decode("ascii")):
+        found |= spellings(encoded) | spellings(encoded.rstrip("="))
+    return found
+
+
 def could_be_data(secret: str) -> bool:
     """Whether a secret could as well be ordinary data: too short, or made only of letters or only of digits."""
     bare = secret.strip()
@@ -63,13 +84,27 @@ def could_be_data(secret: str) -> bool:
 
 
 def secrets_of(config: BaseModel) -> set[str]:
-    """Name every spelling of every secret an opened config holds."""
+    """Name every spelling of every secret an opened config holds.
+
+    A ``password`` or ``<prefix>_password`` beside a ``username`` or ``<prefix>_username`` is a basic
+    credential, and adds the spellings of the pair as basic authentication sends it.
+    """
     found: set[str] = set()
     for name in type(config).model_fields:
         value = getattr(config, name, None)
-        if isinstance(value, SecretStr):
-            found |= spellings(value.get_secret_value())
+        if not isinstance(value, SecretStr):
+            continue
+        secret = value.get_secret_value()
+        found |= spellings(secret)
+        user = getattr(config, _username_beside(name), None) if name.endswith(PASSWORD_FIELD) else None
+        if isinstance(user, str) and user and secret:
+            found |= basic_spellings(user, secret)
     return found
+
+
+def _username_beside(name: str) -> str:
+    """Name the field holding the user of a password field, ``basic_password`` giving ``basic_username``."""
+    return f"{name.removesuffix(PASSWORD_FIELD)}{USERNAME_FIELD}"
 
 
 def scrub(text: str, secrets: Collection[str] = ()) -> str:
@@ -124,6 +159,7 @@ def _walked(value: JsonValue, ordered: list[str]) -> JsonValue:
 __all__ = [
     "MIN_OUTPUT_SPELLING",
     "REDACTED",
+    "basic_spellings",
     "could_be_data",
     "scrub",
     "scrub_json",
