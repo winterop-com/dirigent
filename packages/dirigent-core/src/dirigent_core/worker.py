@@ -102,6 +102,13 @@ class Worker:
             _logger.info("worker draining", worker=self.name, in_flight=len(self.in_flight))
             self._stopping.set()
 
+    def cancel_in_flight(self) -> list[asyncio.Task[None]]:
+        """Cancel every attempt still executing and hand back their tasks, for a process that will not drain."""
+        running = [task for task in self._tasks if not task.done()]
+        for task in running:
+            task.cancel()
+        return running
+
     async def run(self) -> None:
         """Run the claim loop until asked to stop, then drain what is in flight."""
         await self._register(WorkerStatus.RUNNING)

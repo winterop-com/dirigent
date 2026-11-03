@@ -76,6 +76,8 @@ from dirigent_core.statedir import StateRefused, check_state, clear_state_direct
 from dirigent_core.telemetry import configure_telemetry
 
 if TYPE_CHECKING:
+    import asyncio
+
     import uvicorn
     from fastapi import FastAPI
     from sqlalchemy.ext.asyncio import AsyncEngine
@@ -1341,21 +1343,16 @@ async def _dev(
 
     import uvicorn
 
-    from dirigent_core.worker import install_signal_handlers
-
     worker, engine = build_worker(settings, concurrency=None, tags=None, name=None)
-    install_signal_handlers(worker)
     server_config = uvicorn.Config(build_dev_app(settings, host), host=host, port=port, log_config=None)
-    api = uvicorn.Server(server_config)
-
-    def shut_down() -> None:
-        """Ask for the shutdown SIGTERM asks for: the worker drains, and serve returns."""
-        worker.request_stop()
-        api.should_exit = True
+    api = _dev_server(server_config)
+    stopping = DevShutdown(worker, api)
+    stopping.install()
 
     worker_task = asyncio.create_task(worker.run())
     ready = asyncio.create_task(_announce_ready(api))
-    orphaned = asyncio.create_task(watch_parent(os.getppid, shut_down))
+    orphaned = asyncio.create_task(watch_parent(os.getppid, lambda: stopping.ask("parent gone")))
+    streams = asyncio.create_task(_close_streams_once_drained(api, worker_task))
     seeding = (
         asyncio.create_task(_seed(api, local_url(host, port), bearer, seed, installed)) if seed or installed else None
     )
@@ -1364,11 +1361,163 @@ async def _dev(
     finally:
         ready.cancel()
         orphaned.cancel()
+        streams.cancel()
         if seeding is not None:
             seeding.cancel()
         worker.request_stop()
         await worker_task
         await engine.dispose()
+        stopping.done()
+
+
+#: How long ``dg dev`` waits, once asked to stop, for its steps to finish and its connections
+#: to close before it exits anyway.
+DEV_SHUTDOWN_GRACE_SECONDS = 10.0
+
+
+def _dev_server(config: "uvicorn.Config") -> "uvicorn.Server":
+    """Build the API server ``dg dev`` runs, leaving SIGINT and SIGTERM to the instance's own handlers."""
+    import contextlib
+    from collections.abc import Generator
+
+    import uvicorn
+
+    class DevServer(uvicorn.Server):
+        @contextlib.contextmanager
+        def capture_signals(self) -> Generator[None]:
+            """Install nothing: DevShutdown answers the signals."""
+            yield
+
+    return DevServer(config)
+
+
+async def _close_streams_once_drained(api: "uvicorn.Server", worker: "asyncio.Task[None]") -> None:
+    """Close the connections still streaming once the worker has drained, so a followed run or an agent's stream ends.
+
+    The API stops accepting at the first signal and waits for open responses to finish, and
+    a stream that follows a run, or an MCP session's, finishes only when its client goes.
+    """
+    import asyncio
+
+    await asyncio.wait([worker])
+    while not api.should_exit:
+        await asyncio.sleep(0.1)
+    for connection in list(api.server_state.connections):
+        transport = getattr(connection, "transport", None)
+        if transport is not None:
+            transport.close()
+
+
+#: How long the steps an abandoned stop cancels have to end the processes they started.
+DEV_ABANDON_SECONDS = 2.0
+
+#: The exit status a process ended by a signal reports, by the signal's name.
+SIGNALLED_EXIT = {"SIGINT": 130, "SIGTERM": 143}
+
+
+class DevShutdown:
+    """How ``dg dev`` stops: the first SIGINT or SIGTERM drains within a bound, a second ends it at once.
+
+    Either way out that does not wait cancels the steps still running, so the commands and
+    runner processes they started end with them, and exits without the rest of the drain.
+    """
+
+    def __init__(
+        self,
+        worker: "Worker",
+        api: "uvicorn.Server",
+        *,
+        grace: float = DEV_SHUTDOWN_GRACE_SECONDS,
+        leave: Callable[[int], object] = os._exit,
+    ) -> None:
+        """Hold what a stop drains, how long it may take, and how the process ends when it will not wait."""
+        self.worker = worker
+        self.api = api
+        self.grace = grace
+        self.leave = leave
+        self.asked = 0
+        self._deadline: asyncio.TimerHandle | None = None
+        self._leaving: asyncio.Task[None] | None = None
+
+    def install(self) -> None:
+        """Answer SIGINT and SIGTERM on the running loop."""
+        import asyncio
+        import signal
+
+        loop = asyncio.get_running_loop()
+        for received in (signal.SIGINT, signal.SIGTERM):
+            try:
+                loop.add_signal_handler(received, self.ask, received.name)
+            except NotImplementedError:  # pragma: no cover - only on platforms without loop signals
+                signal.signal(
+                    received,
+                    lambda number, _frame: loop.call_soon_threadsafe(self.ask, signal.Signals(number).name),
+                )
+
+    def ask(self, reason: str) -> None:
+        """Start the graceful stop; a second ask abandons it, and a third leaves without a word."""
+        import asyncio
+
+        self.asked += 1
+        code = SIGNALLED_EXIT.get(reason, 1)
+        if self.asked == 1:
+            emit(
+                make(
+                    "process",
+                    at=datetime.now(UTC),
+                    message="stopping",
+                    process="dev",
+                    reason=reason,
+                    grace_ms=int(self.grace * 1000),
+                )
+            )
+            self.worker.request_stop()
+            self.api.should_exit = True
+            self._deadline = asyncio.get_running_loop().call_later(
+                self.grace, self.abandon, "gave up waiting", reason, 1
+            )
+        elif self.asked == 2:
+            self.abandon("stopping now", reason, code)
+        else:
+            self.leave(code)
+
+    def done(self) -> None:
+        """Stand the deadline down: the stop finished inside it."""
+        if self._deadline is not None:
+            self._deadline.cancel()
+
+    def abandon(self, message: str, reason: str, code: int) -> None:
+        """Say what is left unfinished, cancel it, and end the process once it has had a moment to clean up."""
+        import asyncio
+
+        if self._leaving is not None:
+            return
+        self.done()
+        emit(
+            make(
+                "process",
+                at=datetime.now(UTC),
+                level="warning",
+                message=message,
+                process="dev",
+                reason=reason,
+                in_flight=sorted(str(attempt) for attempt in self.worker.in_flight),
+                connections=len(self.api.server_state.connections),
+            )
+        )
+        self._leaving = asyncio.ensure_future(self._leave(self.worker.cancel_in_flight(), code))
+
+    async def _leave(self, cancelled: "Sequence[asyncio.Task[None]]", code: int) -> None:
+        """Give the cancelled steps a moment to end what they started, stop every runner, and exit."""
+        import asyncio
+
+        from dirigent_plugin.runners import stop_runners
+
+        if cancelled:
+            await asyncio.wait(cancelled, timeout=DEV_ABANDON_SECONDS)
+        stop_runners()
+        sys.stdout.flush()
+        self.leave(code)
 
 
 def local_url(host: str, port: int) -> str:

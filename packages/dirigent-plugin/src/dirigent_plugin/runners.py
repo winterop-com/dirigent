@@ -19,13 +19,19 @@ request and in the order the requests arrived:
 
 A step's program therefore crosses the pipe once, however many elements it is run over. The
 pipe closing is how the parent says it is done.
+
+A runner starts in a process group of its own, so the interrupt a terminal sends the worker's
+group never reaches it: the worker decides when a runner stops, and stops every one it
+started when it exits.
 """
 
 import asyncio
 import atexit
+import contextlib
 import json
 import os
 import subprocess
+import sys
 from collections.abc import Callable, Sequence
 from contextvars import ContextVar
 from typing import IO, Any, ClassVar, cast
@@ -45,18 +51,29 @@ RUNNER_STOPPED = "the process running the program stopped before it answered"
 #: and the worker's environment holds the instance's secrets.
 RUNNER_ENVIRONMENT = ("PATH", "LANG", "LC_ALL", "TZ")
 
+#: How long a runner whose pipe was closed has to exit, and then to answer a terminate, before it is killed.
+RUNNER_STOP_SECONDS = 1.0
+
+
+def _own_group() -> dict[str, Any]:
+    """The Popen arguments that start a process outside the worker's process group."""
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
 
 class ProgramRunner:
     """One runner process, and the two pipes a program and its outputs cross."""
 
     def __init__(self, command: Sequence[str]) -> None:
-        """Start the process the command names and hold the pipes it is spoken to over."""
+        """Start the process the command names, in a group of its own, and hold the pipes it is spoken to over."""
         self.command = tuple(command)
         self.process = subprocess.Popen(
             self.command,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             env={name: os.environ[name] for name in RUNNER_ENVIRONMENT if name in os.environ},
+            **_own_group(),
         )
         # Popen types both pipes as optional; both were asked for.
         self._to = cast("IO[bytes]", self.process.stdin)
@@ -111,6 +128,21 @@ class ProgramRunner:
         self._to.close()
         self._from.close()
 
+    def stop(self) -> None:
+        """Close the pipe so the runner exits on its own, terminating and then killing one that does not."""
+        with contextlib.suppress(OSError):
+            self._to.close()
+        try:
+            self.process.wait(timeout=RUNNER_STOP_SECONDS)
+        except subprocess.TimeoutExpired:
+            self.process.terminate()
+            try:
+                self.process.wait(timeout=RUNNER_STOP_SECONDS)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait()
+        self._from.close()
+
     def _exchange(self, request: dict[str, Any]) -> dict[str, Any]:
         """Send one request, read the one reply to it, and raise what the runner refused."""
         try:
@@ -136,13 +168,13 @@ class _Runners:
     A step holds one for as long as its program runs and gives it back after, so two steps
     never meet on one pipe. A process is started when there is none to hand out and then
     lives on, because starting one costs more than every program a step runs through it; it
-    ends when the worker does, its pipe closing under it. A process that was killed is not
-    handed out again.
+    is stopped when the worker exits. A process that was killed is not handed out again.
     """
 
     def __init__(self) -> None:
         """Start with no processes; the first step that needs one starts it."""
         self._idle: dict[tuple[str, ...], list[ProgramRunner]] = {}
+        self._every: set[ProgramRunner] = set()
 
     async def take(self, command: Sequence[str]) -> ProgramRunner:
         """Hand out an idle process for a command, starting one off the event loop when there is none."""
@@ -151,7 +183,8 @@ class _Runners:
             runner = idle.pop()
             if runner.alive:
                 return runner
-        starting = asyncio.ensure_future(asyncio.to_thread(ProgramRunner, command))
+            self._every.discard(runner)
+        starting = asyncio.ensure_future(asyncio.to_thread(self._start, command))
         try:
             return await asyncio.shield(starting)
         except asyncio.CancelledError:
@@ -165,12 +198,29 @@ class _Runners:
         """Take a process back for the next step that runs its command, unless it was killed."""
         if runner.alive:
             self._idle.setdefault(runner.command, []).append(runner)
+        else:
+            self._every.discard(runner)
 
     def shutdown(self) -> None:
-        """Kill every idle process, so none is left running when this one exits."""
-        for idle in self._idle.values():
-            while idle:
-                idle.pop().kill()
+        """Stop every process this pool started, so none outlives the one that started it.
+
+        An idle one is told by its pipe closing and given a moment to exit; one a step still
+        holds is killed, which is what ends the read that step's thread is blocked in.
+        """
+        idle = {runner for kept in self._idle.values() for runner in kept}
+        self._idle.clear()
+        every, self._every = self._every, set()
+        for runner in every:
+            if runner in idle:
+                runner.stop()
+            else:
+                runner.kill()
+
+    def _start(self, command: Sequence[str]) -> ProgramRunner:
+        """Start one process and count it among the ones to stop at exit."""
+        runner = ProgramRunner(command)
+        self._every.add(runner)
+        return runner
 
     def _started(self, starting: "asyncio.Future[ProgramRunner]") -> None:
         """Keep a process whose step gave up on it while it was starting."""
@@ -182,7 +232,13 @@ class _Runners:
 #: that starts a runner: a step holds a runner, not a verb.
 _RUNNERS = _Runners()
 
-atexit.register(_RUNNERS.shutdown)
+
+def stop_runners() -> None:
+    """Stop every runner process this worker started, for a process about to exit without running atexit."""
+    _RUNNERS.shutdown()
+
+
+atexit.register(stop_runners)
 
 #: The runner the step running on this task talks to. A program is compiled and run from
 #: inside the thread offload() hands the step's work to, which is where the engine reads it.

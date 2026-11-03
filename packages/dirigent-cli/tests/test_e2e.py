@@ -508,6 +508,110 @@ def test_a_document_declares_its_clocks_and_its_pipeline_runs_for_real(project: 
     assert outcomes == {"load": "succeeded", "verify": "succeeded"}
 
 
+JQ_PIPELINE = """\
+format: dirigent/v1
+kind: pipeline
+code: interrupted
+steps:
+  shape:
+    block: transform.jq
+    config:
+      input: {a: 1}
+      program: "{b: (.a + 1)}"
+"""
+
+#: How long a Ctrl-C'd dev instance with nothing in flight may take to exit.
+STOP_TIMEOUT = 8.0
+
+
+def _collect(stream: Any, into: list[str]) -> None:
+    """Keep every line a pipe carries, so it never fills and can be read once the process is gone."""
+    try:
+        for line in stream:
+            into.append(line)
+    except ValueError:  # pragma: no cover - the pipe was closed while being read
+        pass
+
+
+def runner_pids(parent: int) -> list[int]:
+    """The jq runner processes a dev instance started, by pid."""
+    found = subprocess.run(  # noqa: S603 - the argv is this test's own
+        ["pgrep", "-P", str(parent), "-f", "jq_runner"],  # noqa: S607 - pgrep from PATH, as a person would
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return [int(pid) for pid in found.stdout.split()]
+
+
+def gone(pid: int) -> bool:
+    """Whether no process holds a pid any longer."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    return False
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a terminal's Ctrl-C is a POSIX process-group signal")
+def test_ctrl_c_stops_dg_dev_and_its_runners_quietly(project: Path) -> None:
+    """A terminal's Ctrl-C reaches the whole foreground group; dev stops within its bound and leaves nothing."""
+    import signal
+
+    port = free_port()
+    url = f"http://127.0.0.1:{port}"
+    process = subprocess.Popen(  # noqa: S603 - the argv is this test's own
+        [str(dg_path()), "dev", "--port", str(port)],
+        cwd=project,
+        env=environment(project),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        start_new_session=True,
+    )
+    out: list[str] = []
+    err: list[str] = []
+    try:
+        token = read_token(process, time.monotonic() + STARTUP_TIMEOUT)
+        readers = [
+            threading.Thread(target=_collect, args=(process.stdout, out), daemon=True),
+            threading.Thread(target=_collect, args=(process.stderr, err), daemon=True),
+        ]
+        for reader in readers:
+            reader.start()
+        wait_for_health(url, process)
+        env = environment(project, url=url, token=token)
+        (project / "interrupted.yaml").write_text(JQ_PIPELINE)
+        applied = run(["apply", "interrupted.yaml"], cwd=project, env=env)
+        assert applied.returncode == 0, applied.stdout + applied.stderr
+        ran = run(["run", "interrupted", "--watch"], cwd=project, env=env, timeout=RUN_TIMEOUT)
+        assert ran.returncode == 0, ran.stdout + ran.stderr
+        runners = runner_pids(process.pid)
+        assert runners, "the jq step left a runner in the pool"
+
+        os.killpg(process.pid, signal.SIGINT)
+        process.wait(timeout=STOP_TIMEOUT)
+        for reader in readers:
+            reader.join(timeout=5)
+    finally:
+        if process.poll() is None:  # pragma: no cover - only when the stop hangs
+            process.kill()
+            process.wait(timeout=10)
+        for pipe in (process.stdout, process.stderr):
+            if pipe is not None:
+                pipe.close()
+
+    assert process.returncode == 0, "".join(err)
+    assert "Traceback" not in "".join(err)
+    said = [record for record in records("".join(out)) if record.get("kind") == "process"]
+    assert any(record["message"] == "stopping" and record["reason"] == "SIGINT" for record in said)
+    deadline = time.monotonic() + 5
+    while not all(gone(pid) for pid in runners) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert all(gone(pid) for pid in runners), "a runner outlived the instance that started it"
+
+
 def _schedules() -> list[str]:
     """The command that lists the example's schedules verbatim."""
     return ["schedule", "list", "managed-and-manual", "--json"]

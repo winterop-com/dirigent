@@ -420,6 +420,14 @@ It never outlives the process that started it: a wrapper killed outright forward
 so `dg dev` watches its own parent and shuts down the way SIGTERM shuts it down once it is
 reparented -- which also means backgrounding it past the shell that launched it ends it.
 
+Ctrl-C, or SIGTERM, stops it gracefully: a `stopping` record, then it takes no new work, lets
+the steps in flight finish, closes the streams still open (a watched run, an agent's MCP
+session) and exits 0. It waits at most 10 seconds; past that it writes a `gave up waiting`
+record naming the attempts still in flight and the connections still open, cancels those
+steps and exits 1. A second Ctrl-C does the same at once, with a `stopping now` record, and
+exits 130. The runner processes a `transform.jq` step uses sit outside the terminal's process
+group, so the interrupt never reaches them; `dg dev` stops every one it started on its way out.
+
 `dg dev --seed DIR` fills the instance the moment its API answers: every `dirigent/v1`
 document under the directory, recursively and in path order, applied the way `dg apply
 --paused` applies it, so its schedules and its polled or held sources land paused and a seeded
