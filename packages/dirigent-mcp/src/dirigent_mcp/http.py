@@ -60,6 +60,9 @@ OpenClient = Callable[[str, Request], Dirigent]
 #: Answers a request that is refused, given the request.
 Refuse = Callable[[Request], Response]
 
+#: Answers an authenticated caller's request that is refused for going too fast, or nothing when it may go on.
+Throttle = Callable[[Caller, Request], Response | None]
+
 
 def bearer(request: Request) -> str | None:
     """The bearer token a request presents in its ``Authorization`` header; a cookie is never read."""
@@ -131,9 +134,11 @@ class McpEndpoint:
         session_idle: timedelta,
         max_sessions: int,
         max_sessions_per_token: int,
+        throttle: Throttle | None = None,
     ) -> None:
         """Hold how a caller is authenticated, how a call reaches the instance, and how a refusal is answered."""
         self._authenticate = authenticate
+        self._throttle = throttle
         self._connect = per_caller(open_client)
         self._unauthenticated = unauthenticated
         self._cross_origin = cross_origin
@@ -190,7 +195,7 @@ class McpEndpoint:
             await sessions
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        """Refuse a request another origin caused or nobody authenticated, else hand it to its caller's server."""
+        """Refuse a request another origin caused, nobody authenticated or its caller sent too fast, else serve it."""
         request = Request(scope)
         if self._initiated_elsewhere(request):
             await self._cross_origin(request)(scope, receive, send)
@@ -199,6 +204,10 @@ class McpEndpoint:
         caller = await self._authenticate(secret) if secret is not None else None
         if secret is None or caller is None:
             await self._unauthenticated(request)(scope, receive, send)
+            return
+        refused = self._throttle(caller, request) if self._throttle is not None else None
+        if refused is not None:
+            await refused(scope, receive, send)
             return
         manager = self._managers.get(caller.offers)
         if manager is None:

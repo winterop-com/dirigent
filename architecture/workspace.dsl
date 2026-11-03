@@ -70,7 +70,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
                 intake = component "Endpoint intake" "/endpoints: checks a call in a fixed order (route, token, rate, type, size, signature), records the input, creates the run."
                 waiter = component "Reply waiter" "One reader per process. Answers each held caller with the first reply to settle, or with the run's failure, or 504 at its deadline."
                 uiHost = component "UI host" "Serves the SPA bundle and the shell for its deep links."
-                mcpEndpoint = component "MCP endpoint" "/mcp: MCP over Streamable HTTP. Checks the origin and the bearer token, offers a viewer only the reading tools, and calls the API in process as the caller."
+                mcpEndpoint = component "MCP endpoint" "/mcp: MCP over Streamable HTTP. Checks the origin and the bearer token, limits each token's rate, offers a viewer only the reading tools, and calls the API in process as the caller."
             }
 
             scheduler = container "Scheduler" "dg scheduler, or embedded in dg server. Turns due schedules into run rows. Time, and only time." "asyncio (Python)"

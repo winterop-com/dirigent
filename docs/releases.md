@@ -17,6 +17,10 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**`/mcp` is rate limited per token.** A new setting, `mcp_rate_per_minute` (300), bounds how many requests one API token makes to `/mcp` a minute across all its sessions, with a minute's worth allowed as one burst. A request past it is answered 429 with `Retry-After` (`server.mcp_rate`). The count is per token, not per address, and per server process.
+
 ## 0.31.0
 
 Released 2026-11-02. Every package in the workspace moves to 0.31.0 together, and so do

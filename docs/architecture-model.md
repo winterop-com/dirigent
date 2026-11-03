@@ -121,7 +121,7 @@ graph TB
         23["Endpoint intake<br/>[Component]<br/>/endpoints: checks a call in a fixed order (route, token, rate, type, size, signature), records the input, creates the run."]
         24["Reply waiter<br/>[Component]<br/>One reader per process. Answers each held caller with the first reply to settle, or with the run's failure, or 504 at its deadline."]
         25["UI host<br/>[Component]<br/>Serves the SPA bundle and the shell for its deep links."]
-        26["MCP endpoint<br/>[Component]<br/>/mcp: MCP over Streamable HTTP. Checks the origin and the bearer token, offers a viewer only the reading tools, and calls the API in process as the caller."]
+        26["MCP endpoint<br/>[Component]<br/>/mcp: MCP over Streamable HTTP. Checks the origin and the bearer token, limits each token's rate, offers a viewer only the reading tools, and calls the API in process as the caller."]
       end
 
       18["Web UI<br/>[Container: React SPA]<br/>Pipeline builder, run grid and logs, connections, schedules, sources and alerts. Built from the block catalog."]
