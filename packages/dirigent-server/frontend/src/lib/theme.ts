@@ -19,8 +19,33 @@
  * module writes, so the store below starts on the palette the document is already painted in.
  */
 
+import { ICONS, type Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { createStore } from '@/lib/store'
+
+/** The three settings of the mode axis, as next-themes stores them. */
+export const MODES = ['light', 'dark', 'system'] as const
+
+export type Mode = (typeof MODES)[number]
+
+/** What each setting is called: on the Theme pane, in the account menu, and in the palette. */
+export const MODE_LABELS: Record<Mode, string> = {
+    light: LABELS.shell.mode.light,
+    dark: LABELS.shell.mode.dark,
+    system: LABELS.shell.mode.system,
+}
+
+/** The mark each setting is drawn with. */
+export const MODE_ICONS: Record<Mode, Icon> = {
+    light: ICONS.light,
+    dark: ICONS.dark,
+    system: ICONS.system,
+}
+
+/** The setting next-themes holds, read as one of the three; nothing stored yet is System. */
+export function modeOf(theme: string | undefined): Mode {
+    return MODES.find((mode) => mode === theme) ?? 'system'
+}
 
 /** The name a palette is stored and written under: its `data-theme` value. */
 export type PaletteName = 'dirigent' | 'paper' | 'contrast'

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
 
-import { headingOf, oneLine, titleOf } from '@/lib/identity'
+import { headingOf, initialOf, oneLine, titleOf } from '@/lib/identity'
 
 /** Everything under `src/`, which one test below reads to assert what is not in it. */
 const SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -101,5 +101,21 @@ describe('a row says the opening', () => {
 
     test('a description with no sentence end is shown whole', () => {
         expect(oneLine('everything the backend needs')).toBe('everything the backend needs')
+    })
+})
+
+describe('initialOf', () => {
+    test('is the first letter of the username, upper case', () => {
+        expect(initialOf('admin')).toBe('A')
+        expect(initialOf('ola.nordmann')).toBe('O')
+    })
+
+    test('reads past leading space and keeps a letter outside ASCII whole', () => {
+        expect(initialOf('  ærlig')).toBe('Æ')
+        expect(initialOf('9lives')).toBe('9')
+    })
+
+    test('is nothing for an empty username', () => {
+        expect(initialOf('')).toBe('')
     })
 })

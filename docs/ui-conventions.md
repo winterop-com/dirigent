@@ -167,15 +167,18 @@ agree. Because a palette's selector outranks `.dark`, a token the base sets in b
 light half alone leaks into the dark mode. A token a palette does not touch falls through to the
 base, which is how a palette that only moves its surfaces keeps the status and kind hues.
 
-**Both axes are chosen on the settings dialog's Theme pane**, and nowhere else. Appearance is
+**Both axes are chosen on the settings dialog's Theme pane.** Appearance is
 Light, Dark and System, one segmented control rather than a menu, because a choice from a fixed
 set of three is one control and not a list to open. **Palette is three swatch cards**, because
 what a palette is is what it looks like, and a card showing the ground, the surface, the line,
 the ink and the accent says in one glance what a sentence under a segmented control took a
 paragraph to approximate -- so no palette carries a line about itself any more. Neither row holds
 a copy of what it sets -- Appearance writes next-themes, Palette writes `choosePalette`, and both
-read back through the store. The top strip's flip is the two-way toggle over Appearance, and System
-is reachable only here.
+read back through the store. **The mode is also the account menu's Appearance submenu**, the same
+three writing the same store, because it is the one look somebody changes in passing; the palette's
+Appearance rows are the third door to it. **The top strip carries no mode flip**: the account menu
+stands on every screen, and a control said twice on one screen has to earn the second time, which a
+two-way flip that cannot reach System does not.
 
 **Three palettes ship, ordered quiet to loud: `dirigent`, `paper`, `contrast`.** The default is
 the Flow first palette: neutral blue-grey surfaces, softly raised, in a dark and a light mode;
@@ -235,8 +238,8 @@ shell's rule. Ink runs `--foreground`, `--muted-foreground` for a hint and a cod
 timestamp beside a name. Every surface stays near-achromatic, so status colour is the only colour
 a screen carries.
 
-**The amber is the brand and the focus ring, and nothing else.** `--brand` fills the mark, and
-`--ring` is every focus ring. **An action is drawn in ink**: the primary button is `--primary`,
+**The amber is the brand, the reader's avatar and the focus ring, and nothing else.** `--brand`
+fills the mark and the avatar at the foot of the rail, and `--ring` is every focus ring. **An action is drawn in ink**: the primary button is `--primary`,
 which is the foreground as a fill with the page's colour on it, so the one loud thing on a strip is
 the verb somebody came to press rather than a colour. A secondary button is `--secondary`, a
 quiet one is ink on nothing, and a verb that takes something away is the critical ink on
@@ -1312,12 +1315,23 @@ label at `text-xs`. An entry is muted ink, the pointer lifts it to `--card` and 
 one is the `--secondary` fill at weight 600. `lib/nav` is the array the rail draws and the palette
 offers, and the line an entry carries about itself, and its mark, are data the palette reads.
 
-**The account stands at the foot of the rail**: a square avatar on `--secondary` at the
-control's corner, and the username in mono. Pressing it opens the account menu, upward: who is
-signed in and their role, Settings, Shortcuts with the key that opens them, Sign out, and at the
-foot the instance's name, environment and version. A key is drawn beside a row only where
-`lib/shortcuts` binds one. `GET /auth/me` carries no display name, so the menu is headed by the
-username, which is the account's code.
+**The account stands at the foot of the rail, and the whole row is the control.** A round avatar
+in `--brand` carries the username's first letter upper case in `--brand-foreground` -- one pair in
+every palette and both modes, at 8.1:1 -- then the username, and an up-and-down chevron at the
+row's right edge saying the row opens a menu. **This is the one place a code stands in the UI
+face.** The username is the account's code, and wherever it is addressed -- the accounts listing,
+the Account pane, a token's owner -- it is mono; here it is the reader's own name said back to them,
+which nobody copies or types from, so it reads as a name. `GET /auth/me` carries no display name,
+so the username is the title in the row and in the menu alike.
+
+**The account menu opens upward from the row.** Its head is the avatar beside the username and the
+role, a plain word as everywhere else, with the instance's name, environment and version on the
+line under them -- said there once, and nowhere else in the menu. Then Settings, Keyboard shortcuts
+with the key that opens them, Appearance, a separator, and Sign out, each row led by its mark from
+`lib/icons`. A key is drawn beside a row only where `lib/shortcuts` binds one. **Appearance is a
+submenu** of Light, Dark and System with the one in force checked. The keyboard is the menu
+primitive's own: focus moves into the menu on open, the arrows walk its rows, the right arrow opens
+Appearance and the left one shuts it, and Escape closes the menu and gives focus back to the row.
 
 **The rail hides whole.** The platform's modifier plus B and the palette's row take it off screen
 and bring it back, and while it is hidden the top strip carries `Show navigation`{ .label } at
@@ -1331,8 +1345,7 @@ crumb. At the right, the screen's note and identifier come first, and nothing a 
 there is something its own page already says -- how many rows were read is the table's, a
 standing fact is which version the instance holds rather than who applied it and when, and an
 instant is the house's relative form. Then the palette's button, which is the search glyph with the chord on its
-tooltip; the panel's toggle, where the screen has filled a panel; the instance's dot; and the mode
-flip, which is the two-way toggle over Appearance.
+tooltip; the panel's toggle, where the screen has filled a panel; and the instance's dot, last.
 
 **A page's head stands still and its body scrolls.** Under the top strip a page is two parts:
 the head -- the title, the code under it, a line of facts and the screen's verbs, which `PageHeader`

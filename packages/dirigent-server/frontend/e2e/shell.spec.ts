@@ -180,16 +180,49 @@ test('an empty listing states the fact and stops', async ({ page }) => {
 test('the account menu holds the account, the settings, the shortcuts, the way out and the instance', async ({
     page,
 }) => {
-    await page.getByRole('button', { name: /^Account: / }).click()
+    const row = page.getByRole('button', { name: /^Account: / })
+    // The row is the avatar's capital, the username and the chevron saying it opens.
+    await expect(row.locator('[data-account-avatar]')).toHaveText('A')
+    await expect(row).toContainText('admin')
+    await row.click()
     const menu = page.getByRole('menu')
     await expect(menu).toContainText('admin')
-    await expect(menu).toContainText('local')
+    // The instance is said once, in the head.
+    await expect(menu.getByText('local', { exact: false })).toHaveCount(1)
     await expect(page.getByRole('menuitem', { name: LABELS.shell.settings })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: LABELS.shell.account.appearance })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: LABELS.action.sign_out })).toBeVisible()
 
     // The one key the menu draws is the one `lib/shortcuts` binds.
-    await page.getByRole('menuitem', { name: LABELS.settings.category.shortcuts }).click()
+    await page.getByRole('menuitem', { name: LABELS.shell.account.shortcuts }).click()
     await expect(page.getByRole('dialog')).toBeVisible()
+})
+
+test('the account menu is walked by keyboard, Appearance included', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' })
+    const row = page.getByRole('button', { name: /^Account: / })
+    await row.focus()
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('menu')).toBeVisible()
+
+    const appearance = page.getByRole('menuitem', { name: LABELS.shell.account.appearance })
+    await appearance.focus()
+    await page.keyboard.press('ArrowRight')
+    const light = page.getByRole('menuitemradio', { name: LABELS.shell.mode.light })
+    await expect(light).toBeVisible()
+    await expect(page.getByRole('menuitemradio', { name: LABELS.shell.mode.system })).toBeChecked()
+    await expect(light).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page.locator('html')).toHaveClass(/light/)
+    expect(await page.evaluate(() => localStorage.getItem('theme'))).toBe('light')
+
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('menu')).toHaveCount(0)
+    await expect(row).toBeFocused()
+
+    // The mode is said in the menu, so the top strip carries no flip of its own.
+    await expect(page.getByRole('button', { name: /^Switch to / })).toHaveCount(0)
 })
 
 test('signing out from the account menu goes to the door', async ({ page }) => {
