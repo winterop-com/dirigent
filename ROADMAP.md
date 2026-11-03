@@ -114,6 +114,29 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      so an instance that runs no model carries nothing for it: by the naming rule a block family
      is `dirigent-block-ai`, outside the `dirigent-blocks` umbrella. Whether it lives in this
      repository or in `dirigent-contrib` is open too.
+7. **Another UI and design round.** The owner still sees issues across the screens after the
+   0.32 and 0.33 changes. Two independent passes over the live UI, one by Codex and one by Claude
+   Design, each against `docs/ui-conventions.md` in both palettes and at phone width, each ending in
+   a list of findings with screenshots and a proposed design for what the conventions do not yet
+   answer. The owner picks between them where they differ; what is chosen changes the conventions
+   first, then the code, and every screen it touches gets the `ui-review` pass. The queued items
+   from earlier rounds go into the same pass: graph sizing, the active highlight, a live jq
+   preview, and the run's pause buttons.
+8. **A reusable design system.** `src/components/ds` and the `/design` gallery exist, and
+   `scripts/check_ui_system.py` ratchets what predates them: 29 entries in
+   `scripts/ui_system_offenders.txt` (26 direct `lucide-react` imports, 2 hand-sized icon buttons,
+   1 hand-typed chip). Left, each its own slice:
+   - **Finish the migration.** Every offender moved onto `components/ds`, and the ratchet file
+     empty.
+   - **Cover what is still hand-built.** Find the shapes screens still assemble themselves --
+     list rows and their lead cells beyond `EntityHeading`, tab strips, empty and loading states,
+     the graph's node, the account row, a panel with tabs -- and make each one component, drawn on
+     `/design` in every variant and state.
+   - **Reusable beyond this app.** Whether `components/ds`, the tokens and the gallery become a
+     package other products can take (Maneki is the first candidate), with its own version, or
+     stay inside dirigent's frontend. Open: the package boundary, how tokens and the brand are
+     themed per product, and how `docs/ui-conventions.md` splits into what is the system's and
+     what is dirigent's.
 
 ## Open questions
 
