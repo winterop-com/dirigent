@@ -363,7 +363,11 @@ connections.
 
 Another dialect is a driver away: install its async driver on the worker and write it in the
 URL. Nothing in these blocks is PostgreSQL-specific beyond the two rows above, and a dialect
-without them is refused where it would otherwise be silently weaker.
+without them is refused where it would otherwise be silently weaker. A URL naming no driver,
+such as `sqlite:///data.db`, is refused with `sql.no_async_driver`, which suggests the async
+drivers that dialect takes: `sqlite+aiosqlite://`, `postgresql+asyncpg://` or
+`postgresql+psycopg://`, `mysql+aiomysql://` or `mysql+asyncmy://`, `mssql+aioodbc://`,
+`oracle+oracledb://`.
 
 ## Adding an engine
 

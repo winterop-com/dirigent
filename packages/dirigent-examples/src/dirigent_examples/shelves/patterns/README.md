@@ -162,7 +162,7 @@ they call that and nothing else.
 ```bash
 dg dev &
 dg run --local examples/patterns/sensor-http-ready.yaml
-dg run --local examples/patterns/webhook-signed.yaml
+dg run --local examples/patterns/webhook-signed.yaml --connections examples/connections.yaml
 dg run --local examples/patterns/connections-referenced-vs-carried.yaml \
   --connections examples/connections.yaml
 ```

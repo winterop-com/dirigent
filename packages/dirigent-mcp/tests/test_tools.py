@@ -172,6 +172,21 @@ async def test_a_connection_is_listed_read_and_checked_and_its_secret_never_show
     assert (await call(admin, "get_connection", code="warehouse"))["last_check_healthy"] is False
 
 
+async def test_a_connection_kind_is_listed_and_read_field_by_field(operator: MCPServer) -> None:
+    kinds = {row["id"]: row for row in (await call(operator, "list_connection_kinds"))["items"]}
+    assert "http" in kinds
+    assert kinds["http"]["required"] == ["base_url"]
+    assert "basic_password" in kinds["http"]["secret"]
+    assert "basic" in {form["code"] for form in kinds["http"]["credential_forms"]}
+
+    http = await call(operator, "get_connection_kind", kind="http")
+    fields = {field["name"]: field for field in http["fields"]}
+    assert (fields["basic_password"]["secret"], fields["basic_password"]["credential_form"]) == (True, "basic")
+    assert (fields["timeout"]["type"], fields["timeout"]["default"]) == ("duration", "30s")
+    with pytest.raises(ToolError, match="no connection kind"):
+        await operator.call_tool("get_connection_kind", {"kind": "nope"})
+
+
 async def test_checking_a_connection_is_the_apis_to_refuse_to_an_operator(
     operator: MCPServer, clients: dict[UserRole, Dirigent]
 ) -> None:

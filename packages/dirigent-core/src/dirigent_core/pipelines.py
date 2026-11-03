@@ -201,11 +201,15 @@ def diff_definitions(current: PipelineDefinition, incoming: PipelineDefinition) 
         steps_changed=sorted(name for name in before & after if current.steps[name] != incoming.steps[name]),
         params_changed=current.params != incoming.params,
         triggers_changed=current.triggers != incoming.triggers,
+        requires_changed=current.requires != incoming.requires,
+        report_changed=current.report != incoming.report,
         settings_changed=(
             current.name != incoming.name
             or current.description != incoming.description
             or current.tags != incoming.tags
             or current.concurrency != incoming.concurrency
+            or current.priority != incoming.priority
+            or current.importance != incoming.importance
         ),
     )
 
@@ -216,6 +220,8 @@ def changed_parts(diff: DiffSummary) -> list[str]:
         "steps": bool(diff.steps_added or diff.steps_removed or diff.steps_changed),
         "params": diff.params_changed,
         "triggers": diff.triggers_changed,
+        "requires": diff.requires_changed,
+        "report": diff.report_changed,
         "settings": diff.settings_changed,
     }
     return [part for part, changed in parts.items() if changed]

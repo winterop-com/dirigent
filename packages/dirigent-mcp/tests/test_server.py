@@ -42,6 +42,7 @@ def settings(tmp_path: Path) -> Settings:
         database_url=f"sqlite+aiosqlite:///{tmp_path / 'dirigent.db'}",
         artifact_root=f"file://{tmp_path / 'artifacts'}",
         secret_key=SecretStr(Fernet.generate_key().decode()),
+        enabled_unsafe_blocks=["shell.run"],
     )
 
 
@@ -291,6 +292,16 @@ async def test_the_catalog_is_listed_short_and_read_whole(server: MCPServer) -> 
     assert set(const) == {"id", "kind", "group", "summary"}
     block = await call(server, "get_block", block_id="value.const")
     assert "properties" in block["config_schema"]
+    assert block["unsafe"] is False
+    assert block.get("unsafe_enabled") is None
+
+
+async def test_an_unsafe_block_is_marked_with_whether_this_instance_enables_it(server: MCPServer) -> None:
+    listed = {entry["id"]: entry for entry in (await call(server, "list_blocks"))["blocks"]}
+    assert (listed["shell.run"]["unsafe"], listed["shell.run"]["unsafe_enabled"]) == (True, True)
+    assert (listed["docker.run"]["unsafe"], listed["docker.run"]["unsafe_enabled"]) == (True, False)
+    docker = await call(server, "get_block", block_id="docker.run")
+    assert (docker["unsafe"], docker["unsafe_enabled"]) == (True, False)
 
 
 def test_the_server_refuses_to_start_without_an_instance(monkeypatch: pytest.MonkeyPatch) -> None:

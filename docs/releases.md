@@ -17,6 +17,71 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**`dg dev` generates a secret key when a project has none.** A project made with
+`dg init --template documents` has no `.env`, so the first `dg connection create` against the
+`dg dev` started there was refused `secret.key_missing`. On a state holding no sealed connection
+secret, and with no `DIRIGENT_SECRET_KEY` configured, `dg dev` now generates one into the
+project's `.env`, readable by its owner alone, and its `starting` record names the file in
+`secret_key_written`, never the key.
+
+**Breaking: a document's `connections:` block may not hold a secret.** Plan refuses a carried
+connection whose config sets a field its kind declares secret, such as `basic_password` or
+`hmac_secret`, or a URL with a password in it, with `document.carried_connection_secret` at
+`connections.<code>.config.<field>`. `dg validate`, `dg run --local` and every plan refuse it the
+same way; a server already refused any carried connection at apply. The shipped examples that
+carried the playground's demo credentials (`http-headers-and-auth-connection`,
+`webhook-post-hmac`, `webhook-signed`) now name the `playground` connection, which a local run
+gets from `--connections examples/connections.yaml`; `connections-referenced-vs-carried` carries
+its connection without one.
+
+**A connection kind's fields are discoverable.** `dg connection kinds` lists every kind with its
+required fields, its secret ones and its credential forms, and `dg connection kinds KIND` (or
+`--local`) describes one field by field: type, required, secret, default, credential form. The API
+serves them at `GET /api/v1/connection-kinds` and `GET /api/v1/connection-kinds/{kind}`, MCP adds
+`list_connection_kinds` and `get_connection_kind`, and `dg connection create --help` points at
+them. **Breaking:** the `connection_kind` records `dg blocks list` writes carry the same shape,
+`fields[]` in place of `config_schema` and `secret_fields`.
+
+**A SQL URL naming no driver is told the one its dialect takes.** `sqlite:///x.db` was refused
+with a suggestion of `sqlite+asyncpg://`, a driver that does not exist; `sql.no_async_driver`
+now names the async drivers of the URL's own dialect, `sqlite+aiosqlite://` for SQLite, and its
+`suggested` param replaces `driver_name`.
+
+**Breaking: an `http` connection check is healthy on a 2xx or a 3xx alone.** A 400 at the base
+URL used to report healthy, proving only that the host answered. Any 4xx is now unhealthy, with
+its status and the path in `detail`: a 401 or a 403 says the service refused the credential the
+connection holds, or wanted one it holds none of, and another 4xx says to set `health_path` to an
+address the service answers. A connection that checked green against a 4xx needs a `health_path`.
+The `webhook` kind keeps its own check, a HEAD that proves the endpoint is reachable.
+
+**Breaking: a test message is its own event, `test`.** `dg alerts test` queued its message as
+`run_succeeded`. It is now `test` in the queue (`NotificationOut.event` is a `NotificationEvent`,
+the four rule events and `test`), in a webhook's payload and in the log channel's `event_kind`,
+and the log line carries no stand-in run facts. A rule still binds to the four run events alone.
+The baseline migration is edited in place: `notifications.event` is the `notification_event`
+enum, which adds `test`.
+
+**Breaking: a reference indexed with brackets is refused at plan.** `${steps.x.output.value[0]}`
+passed plan and failed at run time; a reference reads an element as a dotted segment, and plan
+now refuses brackets with `document.reference_bracket_index`, naming the dotted form to write,
+`${steps.x.output.value.0}`.
+
+**The block catalog marks unsafe blocks.** A catalog entry carries `unsafe` (a block that runs
+code on the worker, such as `docker.run` and `shell.run`) and `unsafe_enabled`, whether this
+instance's `enabled_unsafe_blocks` names it, in `GET /api/v1/blocks` and `/blocks/{id}`, the
+`block` records of `dg blocks list` and `dg blocks show` (with `--local`, against the settings
+`dg` reads), MCP's `list_blocks` and `get_block`, and the Blocks screen, where the row and the
+panel wear an `unsafe` chip and the facts say whether it is enabled.
+
+**A plan's diff names every top-level section that changed.** A document whose only change was its
+`report:` used to plan as an update with every flag false. `DiffSummary` gains `report_changed`
+and `requires_changed`, and `settings_changed` now covers `priority` and `importance` beside the
+name, description, tags and concurrency. The API's plan, `dg apply`'s records and its console
+lines, MCP's `plan_document`, the editor's plan and the audit trail's changed parts all carry
+them.
+
 ## 0.33.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.33.0 together, and so do

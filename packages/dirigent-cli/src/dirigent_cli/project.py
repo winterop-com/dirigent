@@ -928,6 +928,8 @@ tools rather than `uv run dg`. A document is passed as its text.
   `run_attempts` shows outputs as their size and start; `get_attempt_output` reads one, with
   `path` a JSON pointer into it. `get_run_report` reads a run's report document,
   `get_run_profile` where its time went.
+- Connection kinds: `list_connection_kinds`, and `get_connection_kind` for one kind's fields,
+  which are secret, which required, and their defaults.
 - Connections: `list_connections`, `get_connection`, and `create_connection`, which stores
   a connection's settings alone and refuses every secret field. Never ask for or pass a
   secret: tell the person that an admin runs the `supply_with` command it answers,
@@ -963,6 +965,7 @@ record per line, each with a `kind`. Select with `jq`, for example
 - Secrets never go in a document or through you. A connection holds them, created by a person
   with `uv run dg connection create KIND CODE`, or with its settings alone by you and completed
   by an admin with `uv run dg connection set-secret CODE`; a step names it by its code.
+  `uv run dg connection kinds KIND` lists the fields a kind takes and which are secret.
 - `.dirigent/state/` and `.env` belong to the local instance; they are not edited by hand.
 
 ## Reading further

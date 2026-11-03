@@ -74,7 +74,10 @@ what makes alerting work on a fresh install.
 ![The blocks screen: every block the installed packs contribute, grouped by family, with its kind, how many examples use it and the plugin it comes from.](images/screens/blocks.png)
 
 Every block the installed packages contribute, with the config schema that validates a step and
-renders its form. Installing a pack extends this list without a frontend release.
+renders its form. Installing a pack extends this list without a frontend release. An unsafe
+block, one that runs code on the worker, wears an `unsafe` chip beside its id: filled where this
+instance enables it, dashed and saying `not enabled` where a step naming it would be refused at
+plan.
 
 ## How these are made
 

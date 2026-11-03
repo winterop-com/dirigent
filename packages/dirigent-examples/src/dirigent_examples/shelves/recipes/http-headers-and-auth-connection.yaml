@@ -24,12 +24,11 @@
 # every API response -- an applied connection reports which fields are set, never what they
 # are set to.
 #
-# This document carries its connection inline instead, which is the exception rather than
-# the pattern, and it is labelled below with why: the credentials are the playground's own
-# documented pair, which guards nothing, so the recipe runs standalone with nothing to hand
-# it. Real credentials never go in a file that lives in git. The instance will not store a
-# document that carries a connection, either, which is the format making that hard to get
-# wrong.
+# A local run has no server to hold it, so it is handed the connection file beside the
+# examples, which plays the instance's part. The pair there is the playground's own
+# documented credential, a public constant that guards nothing. A document never carries a
+# secret: one whose connections: block holds a field its kind declares secret is refused at
+# plan, wherever it is planned.
 #
 # What the connection contributes, once named:
 #
@@ -54,8 +53,10 @@
 # credential anywhere else.
 #
 #   dg dev &
-#   dg run --local examples/recipes/http-headers-and-auth-connection.yaml
-#   dg run --local examples/recipes/http-headers-and-auth-connection.yaml -p path=/request
+#   dg run --local examples/recipes/http-headers-and-auth-connection.yaml \
+#     --connections examples/connections.yaml
+#   dg run --local examples/recipes/http-headers-and-auth-connection.yaml \
+#     --connections examples/connections.yaml -p path=/request
 
 format: dirigent/v1
 kind: pipeline
@@ -73,24 +74,8 @@ requires:
   blocks:
     - http.request
     - transform.jq
-
-# Carried inline so this recipe runs standalone. The pair is the playground's own documented
-# credential, a public constant that guards nothing; a real one is created on the instance and
-# named by code, and an instance refuses to store a document that carries a connection at all.
-connections:
-  playground-auth:
-    name: Playground, basic auth
-    description: |
-      The playground with its basic-auth pair, so a step sends credentials it never holds. Used
-      by `http-headers-and-auth-connection`.
-    kind: http
-    config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
-      basic_username: playground
-      basic_password: playground
-      timeout: 30s
-      # What dg connection check calls to answer green or red.
-      health_path: /request
+  connections:
+    - playground
 
 params:
   type: object
@@ -110,7 +95,7 @@ steps:
     config:
       # A code, resolved by the instance. The host, the credentials and the default timeout
       # all come from it.
-      connection: playground-auth
+      connection: playground
       path: ${params.path}
       method: GET
       headers:

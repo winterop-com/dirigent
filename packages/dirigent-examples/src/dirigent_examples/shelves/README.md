@@ -158,14 +158,16 @@ outcome each one settles as.
 
 ## Connections
 
-Three of the examples reference the `playground` connection by code. Documents are portable precisely because
-they name credentials rather than carrying them, so the credential has to exist wherever the
-document is applied. On a server, create it once:
+Several of the examples reference the `playground` connection by code, and none carries its
+credentials: a document whose `connections:` block holds a secret field is refused at plan.
+Documents are portable precisely because they name credentials rather than carrying them, so
+the credential has to exist wherever the document is applied. On a server, create it once:
 
 ```bash
 dg connection create http playground \
   --set base_url=http://127.0.0.1:3333/api/v1/playground \
-  --set basic_username=playground --set basic_password=playground
+  --set basic_username=playground --set basic_password=playground \
+  --set hmac_secret='a shared secret between two dirigent instances'
 ```
 
 A local run has no server to hold it, so it is handed the connection instead:

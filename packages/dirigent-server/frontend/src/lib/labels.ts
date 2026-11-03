@@ -1067,6 +1067,10 @@ const refused = {
         template_name_unknown: '{name} is not something this template is given, so it renders empty{hint}.',
         carried_connections:
             'This document carries its own connections ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.connections.',
+        reference_bracket_index:
+            '${{{reference}}} indexes with brackets, and a reference reads an element as a dotted segment. Write ${{{dotted}}}.',
+        carried_connection_secret:
+            'Connection {connection} carries {field}, a secret, and a document never holds one. Create the connection on the instance with its secret and name it by its code.',
         carried_schemas:
             'This document carries its own schemas ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.schemas.',
         no_format: 'The document declares no format. Add format: {format}.',
@@ -1932,7 +1936,9 @@ const editor = {
         },
         params_changed: 'the parameter schema changed',
         triggers_changed: 'the triggers changed',
-        settings_changed: 'the name, description, or concurrency policy changed',
+        requires_changed: 'what it requires of the instance changed',
+        report_changed: 'the report changed',
+        settings_changed: 'the name, description, tags, concurrency, priority or importance changed',
         /** A plan that would write a version, and change nothing a reader would scan for. */
         no_changes: 'No changes from the stored version.',
         /** What the instance refuses about the document, counted. */
@@ -2880,6 +2886,7 @@ const blocks = {
             plugin: 'plugin',
             idempotent: 'idempotent',
             local_execution: 'local_execution',
+            unsafe: 'unsafe',
             default_poll_seconds: 'default_poll_seconds',
             default_deadline_seconds: 'default_deadline_seconds',
         },
@@ -2892,6 +2899,24 @@ const blocks = {
             required: 'requires allowlisting',
             absent: 'no allowlist entry',
         },
+        /** Whether the block is unsafe and, where the answer knows, whether this instance enables it. */
+        unsafe: {
+            no: 'no',
+            yes: 'yes',
+            enabled: 'yes, enabled on this instance',
+            not_enabled: 'yes, not enabled on this instance',
+        },
+    },
+
+    /** The chip an unsafe block wears beside its id, and what hovering it says. */
+    unsafe: {
+        label: 'unsafe',
+        not_enabled_label: 'unsafe, not enabled',
+        enabled: 'Runs code on the worker, and this instance enables it.',
+        not_enabled:
+            'Runs code on the worker, and this instance does not enable it: a step naming it is refused at plan until DIRIGENT_ENABLED_UNSAFE_BLOCKS names it.',
+        unknown:
+            'Runs code on the worker, so an instance runs it only where DIRIGENT_ENABLED_UNSAFE_BLOCKS names it.',
     },
 
     /**
@@ -3321,9 +3346,10 @@ const alerting = {
     set_up_channel: (notifier: string) => `Set up ${notifier}…`,
 
     /**
-     * What each event is called wherever a rule names one. Keyed by `AlertEvent` on the wire.
+     * What each event is called wherever a rule or a queued message names one. Keyed by
+     * `NotificationEvent` on the wire, which is `AlertEvent` and `test`.
      *
-     * `dg` prints these same four words from `ALERT_EVENTS` in `dirigent_cli.output`. Neither
+     * `dg` prints these same words from `ALERT_EVENTS` in `dirigent_cli.output`. Neither
      * side can import the other's table and the wire carries codes alone, so the copy stays and
      * `packages/dirigent-cli/tests/test_shared_words.py` fails when the two stop agreeing.
      */
@@ -3332,6 +3358,7 @@ const alerting = {
         run_completed_with_errors: 'Completed with errors',
         run_succeeded: 'Succeeded',
         run_stuck: 'Stuck',
+        test: 'Test message',
     },
     /** How wide a rule reaches, keyed by `AlertScope`, as the dialog's control offers the two. */
     scope: {

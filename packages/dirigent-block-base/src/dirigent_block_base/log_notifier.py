@@ -43,7 +43,8 @@ class LogNotifier(Notifier):
         write = getattr(logger, settings.level, logger.warning)
         context = message.context
         run = context.get("run")
-        run = run if isinstance(run, dict) else {}
+        # A message about no run, a test, renders its templates over a stand-in run it does not report.
+        run = run if isinstance(run, dict) and message.run_id is not None else {}
         fields: dict[str, JsonValue] = {
             "event_kind": message.event,
             "run_id": str(message.run_id) if message.run_id else None,

@@ -160,6 +160,7 @@ from dirigent_client import (
     AttemptOut,
     AttemptStatus,
     BackfillAccepted,
+    BlockEntry,
     BlockKind,
     Catalog,
     Clear,
@@ -183,7 +184,7 @@ from dirigent_client import (
     ValidationIssue,
     declared_label,
 )
-from dirigent_client.schemas import SurfaceEntry, TokenLifetime
+from dirigent_client.schemas import ConnectionKindEntry, SurfaceEntry, TokenLifetime
 from dirigent_client.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_common import Issue, JsonMap, Message, bounded_load, is_entity_name
 from dirigent_core import migrations
@@ -326,7 +327,13 @@ def _print_plan(result: ApplyResult, origin: str) -> bool:
         ):
             if changed:
                 console.print(f"  [dim]steps {label}:[/] {escape(', '.join(changed))}")
-        for label, flag in (("params", diff.params_changed), ("triggers", diff.triggers_changed)):
+        for label, flag in (
+            ("params", diff.params_changed),
+            ("triggers", diff.triggers_changed),
+            ("requires", diff.requires_changed),
+            ("report", diff.report_changed),
+            ("settings", diff.settings_changed),
+        ):
             if flag:
                 console.print(f"  [dim]{label} changed[/]")
     for label, removed in (("sources", result.sources.removed), ("schedules", result.triggers.schedules_removed)):
@@ -2604,10 +2611,26 @@ LOCAL_BLOCKS = "Read the blocks installed beside dg, instead of the instance's o
 
 
 def installed_catalog() -> Catalog:
-    """Read the catalog every plugin installed beside this `dg` contributes, without addressing any server."""
+    """Read the catalog every plugin installed beside this `dg` contributes, without addressing any server.
+
+    An unsafe block says whether the settings this `dg` reads enable it, as a local run would.
+    """
+    from dirigent_core.config import get_settings
     from dirigent_core.plugins import load_plugin_host
 
-    return load_plugin_host().catalog()
+    return load_plugin_host().catalog().enabled_by(get_settings().enabled_unsafe_blocks)
+
+
+def unsafe_said(entry: BlockEntry) -> str:
+    """Say whether a block is unsafe and, where that is known, whether it is enabled, as table markup."""
+    return f"[yellow]{_unsafe_words(entry)}[/]" if entry.unsafe else "-"
+
+
+def _unsafe_words(entry: BlockEntry) -> str:
+    """Say an unsafe block's state in words: enabled here, not enabled, or unknown."""
+    if entry.unsafe_enabled is None:
+        return "unsafe"
+    return "unsafe, enabled" if entry.unsafe_enabled else "unsafe, not enabled"
 
 
 @blocks_app.command("list")
@@ -2631,12 +2654,15 @@ def blocks_list(
     if state_of(ctx).json_output:
         emit_records("block", catalog.blocks)
         emit_records("storage_scheme", catalog.storage_schemes)
-        emit_records("connection_kind", catalog.connection_kinds)
+        emit_records("connection_kind", [ConnectionKindEntry.of(entry) for entry in catalog.connection_kinds])
         return
     table(
         "blocks",
-        ["id", "kind", "plugin", "summary"],
-        [[escape(block.id), block.kind.value, escape(block.plugin), escape(block.summary)] for block in catalog.blocks],
+        ["id", "kind", "plugin", "unsafe", "summary"],
+        [
+            [escape(block.id), block.kind.value, escape(block.plugin), unsafe_said(block), escape(block.summary)]
+            for block in catalog.blocks
+        ],
     )
     console.print(
         f"[dim]storage schemes:[/] {escape(', '.join(entry.id for entry in catalog.storage_schemes)) or '-'}   "
@@ -2669,6 +2695,7 @@ def blocks_show(
             "summary": entry.summary,
             "idempotent": "yes" if entry.idempotent else "no",
             "runs code on the worker": "yes" if entry.local_execution else "no",
+            "unsafe": _unsafe_words(entry) if entry.unsafe else "no",
         },
     )
     console.print("\n[bold]config[/]")
@@ -2719,16 +2746,101 @@ def connection_list(
     )
 
 
+@connection_app.command("kinds")
+def connection_kinds(
+    ctx: typer.Context,
+    kind_id: Annotated[
+        str | None, typer.Argument(metavar="[KIND]", help="One kind to describe field by field; every kind if omitted.")
+    ] = None,
+    local: Annotated[
+        bool, typer.Option("--local", help="Read the kinds installed beside dg, not the instance's.")
+    ] = False,
+) -> None:
+    """List the connection kinds, or one kind's fields: secret, required, defaults, credential forms.
+
+    What `dg connection create KIND CODE --set field=value` takes is read here. A secret field
+    is asked for at a terminal, never passed by an agent.
+    """
+    if local:
+        kinds = [ConnectionKindEntry.of(entry) for entry in installed_catalog().connection_kinds]
+        if kind_id is not None:
+            found = [entry for entry in kinds if entry.id == kind_id]
+            if not found:
+                fail(
+                    UNKNOWN_CONNECTION_KIND, kind=repr(kind_id), known=", ".join(entry.id for entry in kinds) or "none"
+                )
+            kinds = found
+    else:
+        with client_for(state_of(ctx)) as dg:
+            kinds = [dg.call(dg.blocks.connection_kind(kind_id))] if kind_id else dg.call(dg.blocks.connection_kinds())
+    if state_of(ctx).json_output:
+        return emit_records("connection_kind", kinds)
+    if kind_id is None:
+        table(
+            "connection kinds",
+            ["kind", "plugin", "required", "secret", "credential forms"],
+            [
+                [
+                    escape(entry.id),
+                    escape(entry.plugin),
+                    escape(", ".join(field.name for field in entry.fields if field.required) or "-"),
+                    escape(", ".join(field.name for field in entry.fields if field.secret) or "-"),
+                    escape(_forms_said(entry)),
+                ]
+                for entry in kinds
+            ],
+        )
+        return
+    entry = kinds[0]
+    fields(
+        f"connection kind {escape(entry.id)}",
+        {
+            "plugin": entry.plugin,
+            "description": entry.description or "-",
+            "credential forms": _forms_said(entry),
+            "credential required": "yes" if entry.credential_required else "no",
+        },
+    )
+    table(
+        "fields",
+        ["field", "type", "required", "secret", "default", "form"],
+        [
+            [
+                escape(field.name),
+                escape(field.type + (f" ({', '.join(str(one) for one in field.choices)})" if field.choices else "")),
+                "yes" if field.required else "-",
+                "[yellow]secret[/]" if field.secret else "-",
+                escape(field.default if isinstance(field.default, str) else json.dumps(field.default))
+                if field.has_default and field.default not in (None, "")
+                else "-",
+                escape(field.credential_form or "-"),
+            ]
+            for field in entry.fields
+        ],
+    )
+
+
+def _forms_said(entry: ConnectionKindEntry) -> str:
+    """Say a kind's credential forms, each with the fields it sets."""
+    return "; ".join(f"{form.code}: {', '.join(form.fields)}" for form in entry.credential_forms) or "-"
+
+
 @connection_app.command("create")
 def connection_create(
     ctx: typer.Context,
     kind_id: Annotated[str, typer.Argument(metavar="KIND", help="The connection kind, such as http.")],
     code: Annotated[str, typer.Argument(help="What to call it; documents reference this code.")],
     name: Annotated[str | None, typer.Option(help="A human title for this connection.")] = None,
-    set_value: Annotated[list[str] | None, typer.Option("--set", help="field=value, repeatable.")] = None,
+    set_value: Annotated[
+        list[str] | None,
+        typer.Option("--set", help="field=value, repeatable; `dg connection kinds KIND` lists the fields."),
+    ] = None,
     description: Annotated[str | None, typer.Option(help="What this credential is for.")] = None,
 ) -> None:
     """Create a connection, prompting for the secret fields without echoing them.
+
+    `dg connection kinds` lists every kind, and `dg connection kinds KIND` the fields one
+    takes: which are secret, which required, their defaults, and its credential forms.
 
     Prompting happens only on a terminal; in a script every value must arrive via ``--set``.
     An invocation carrying ``--set`` is prompted only for what it cannot do without: a

@@ -30,9 +30,10 @@
 # SecretStr sealed at rest and redacted in every response, and a connection without one
 # fails the step saying so rather than sending an unsigned POST that looks signed.
 #
-# The connection is carried inline here, labelled, so the recipe runs standalone -- the
-# secret below is a demo string in a public file and protects nothing. On an instance it is
-# created once and the document names its code.
+# A document never carries the secret: a connections: block holding one is refused at plan.
+# On an instance the connection is created once and the document names its code; a --local
+# run is handed examples/connections.yaml instead, whose secret is a demo string in a public
+# file and protects nothing.
 #
 # A signature is not a substitute for TLS, and it is not a replay defence. It says the body
 # came from someone holding the secret; it says nothing about when. A receiver that cares
@@ -49,8 +50,9 @@
 # hmac_secret; nothing in the steps changes.
 #
 #   dg dev &
-#   dg run --local examples/recipes/webhook-post-hmac.yaml
-#   dg run --local examples/recipes/webhook-post-hmac.yaml -p day=2026-02-01
+#   dg run --local examples/recipes/webhook-post-hmac.yaml --connections examples/connections.yaml
+#   dg run --local examples/recipes/webhook-post-hmac.yaml --connections examples/connections.yaml \
+#     -p day=2026-02-01
 
 format: dirigent/v1
 kind: pipeline
@@ -68,22 +70,8 @@ requires:
   blocks:
     - transform.jq
     - webhook.post
-
-# Carried so the recipe runs standalone. hmac_secret is a SecretStr; this one is a demo
-# string in a public file and protects nothing.
-connections:
-  playground-receiver:
-    name: Playground webhook receiver
-    description: |
-      The playground as the receiver a report or a notification is posted to. Used by
-      `report-daily-digest`, `report-to-webhook`, `webhook-post-hmac` and
-      `webhook-post-summary`; `webhook-post-hmac` also seals a signing secret on it.
-    kind: http
-    config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
-      hmac_secret: a shared secret between two dirigent instances
-      timeout: 30s
-      health_path: /request
+  connections:
+    - playground
 
 params:
   type: object
@@ -113,11 +101,11 @@ steps:
     block: webhook.post
     depends_on: [event]
     config:
-      connection: playground-receiver
+      connection: playground
       path: /request
       body: ${steps.event.output.value}
       # The connection whose hmac_secret signs the bytes. Unset means an unsigned POST.
-      sign_with: playground-receiver
+      sign_with: playground
       headers:
         x-event-kind: import.finished
 
@@ -125,7 +113,7 @@ steps:
     block: webhook.post
     depends_on: [event]
     config:
-      connection: playground-receiver
+      connection: playground
       path: /request
       body: ${steps.event.output.value}
       # No sign_with, and the same connection: signing is the step's decision, not the

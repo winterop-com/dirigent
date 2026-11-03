@@ -73,6 +73,25 @@ DRIVER_PACKAGE: Final = {
     "oracledb": "oracledb",
 }
 
+#: The async drivers each dialect is spoken to through, the first the one a refusal suggests first.
+ASYNC_DRIVERS: Final = {
+    "postgresql": ("asyncpg", "psycopg"),
+    "sqlite": ("aiosqlite",),
+    "mysql": ("aiomysql", "asyncmy"),
+    "mariadb": ("aiomysql", "asyncmy"),
+    "mssql": ("aioodbc",),
+    "oracle": ("oracledb",),
+}
+
+
+def async_drivers_for(backend: str) -> str:
+    """Spell the URL schemes that name an async driver for a dialect, or the form one takes."""
+    drivers = ASYNC_DRIVERS.get(backend)
+    if drivers is None:
+        return f"{backend}+<an async driver>://"
+    return " or ".join(f"{backend}+{driver}://" for driver in drivers)
+
+
 #: The package each backend that is an engine rather than a driver is carried by, for the
 #: install line a URL naming one is refused with when it is not installed.
 KNOWN_ENGINE_PACKAGES: Final = {"duckdb": "dirigent-block-duckdb"}
@@ -164,7 +183,7 @@ class SqlAlchemyEngine(SqlEngine):
             package = KNOWN_ENGINE_PACKAGES.get(backend)
             if package is not None:
                 raise ValueError(ENGINE_PACKAGE_MISSING.render(backend=backend, package=package))
-            raise ValueError(NO_ASYNC_DRIVER.render(driver=repr(url.drivername), driver_name=url.drivername))
+            raise ValueError(NO_ASYNC_DRIVER.render(driver=repr(url.drivername), suggested=async_drivers_for(backend)))
         if settings.read_only and backend not in READ_ONLY:
             supported = ", ".join(sorted(READ_ONLY))
             raise ValueError(READ_ONLY_UNSUPPORTED.render(backend=backend, supported=supported))

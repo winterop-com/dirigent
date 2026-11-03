@@ -28,6 +28,9 @@ import type { Importance } from '@/lib/pipelines'
 /** What a rule watches for. `AlertEvent` in dirigent_client.enums. */
 export type AlertEvent = 'run_failed' | 'run_completed_with_errors' | 'run_succeeded' | 'run_stuck'
 
+/** What a queued message was raised for: a rule's event, or a test. `NotificationEvent`. */
+export type NotificationEvent = AlertEvent | 'test'
+
 /** Whether a rule watches everything or one pipeline. `AlertScope`. */
 export type AlertScope = 'global' | 'pipeline'
 
@@ -112,7 +115,7 @@ export function throttleNote(throttle: string): string {
 /** One message the queue holds. `NotificationOut`. */
 export interface NotificationOut {
     id: string
-    event: AlertEvent
+    event: NotificationEvent
     /** The rule that raised it, or null for a message somebody sent as a test. */
     rule: string | null
     notifier: string

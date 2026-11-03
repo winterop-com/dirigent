@@ -20,6 +20,7 @@ from dirigent_client.enums import (
     AuditSubject,
     Importance,
     LogLevel,
+    NotificationEvent,
     NotificationStatus,
     RunStatus,
     TriggerKind,
@@ -960,7 +961,7 @@ async def test_a_terminal_status_raises_the_event_it_maps_to(
         stored = await session.get(Run, run.id)
         assert stored is not None
         queued = await raise_for_status(session, services, stored, status, now=NOW)
-    assert [notification.event for notification in queued] == [event]
+    assert [notification.event for notification in queued] == [NotificationEvent(event.value)]
 
 
 @pytest.mark.parametrize("status", [RunStatus.CANCELLED, RunStatus.QUEUED, RunStatus.RUNNING])
@@ -1814,6 +1815,7 @@ async def test_a_test_message_is_queued_attached_to_nothing(
         queued = await queue_test_message(session, services, connection=DESK)
     assert queued.alert_rule_id is None
     assert queued.run_id is None
+    assert queued.event is NotificationEvent.TEST, "a test is its own event, not a run that succeeded"
     assert queued.subject == "dirigent test alert"
     assert queued.status is NotificationStatus.PENDING
     assert run_facts(queued.context)["pipeline"] == "(test)"

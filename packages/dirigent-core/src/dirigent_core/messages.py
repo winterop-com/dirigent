@@ -251,6 +251,12 @@ CARRIED_CONNECTIONS = DOCUMENT.define(
     "create them on the instance and let the document name them under requires.connections",
 )
 
+CARRIED_CONNECTION_SECRET = DOCUMENT.define(
+    "carried_connection_secret",
+    "connection {connection} carries {field}, a secret, and a document never holds one: create the "
+    "connection on the instance with its secret and name it by its code",
+)
+
 CARRIED_SCHEMAS = DOCUMENT.define(
     "carried_schemas",
     "this document carries its own schemas ({named}), which an instance will not store: "
@@ -474,6 +480,11 @@ TRIGGER_OWNED_ELSEWHERE = DOCUMENT.define(
 )
 
 REFERENCE_NAMES_NOTHING = DOCUMENT.define("reference_names_nothing", "${{}} names nothing")
+
+REFERENCE_BRACKET_INDEX = DOCUMENT.define(
+    "reference_bracket_index",
+    "${{{reference}}} indexes with brackets, and a reference reads an element as a dotted segment: write ${{{dotted}}}",
+)
 
 REFERENCE_UNDECLARED_PARAM = DOCUMENT.define(
     "reference_undeclared_param",

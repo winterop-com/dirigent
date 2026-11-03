@@ -404,7 +404,12 @@ it: `uv tool upgrade dirigent-cli` brings one up to a version that does.
 
 It refuses to run over an instance that is already there: migrating and re-admining a live
 database is not what running it twice means. `--template documents` scaffolds beside one
-without touching it, which is what to use against a server somebody else runs.
+without touching it, which is what to use against a server somebody else runs. It writes no
+`.env`; a `dg dev` started in such a project with no `DIRIGENT_SECRET_KEY` configured, and no
+connection secret sealed in its state, generates one into the project's `.env` (created
+readable by you alone, or added to), and its `starting` record names the file in
+`secret_key_written` without ever carrying the key. Every scaffold's `.gitignore` keeps `.env`
+out of git.
 
 Run the instance it made with `uv run dg dev`, in its own terminal in the project directory:
 it keeps running, and serves the UI at `http://127.0.0.1:3333`. `dg dev --wipe-state` would
@@ -1068,7 +1073,7 @@ verb and whose fields are the identity of what changed:
 | `validation` | `dg validate`, `dg pipeline validate` | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` and the `warnings[]` that refuse nothing, such as a `report.render` step no `report:` reads; a record with warnings is at `warning` level |
 | `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid`, and the files in a directory `skipped` as not documents |
-| `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once |
+| `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an update's `diff` (`steps_added`, `steps_removed`, `steps_changed`, and `params_changed`, `triggers_changed`, `requires_changed`, `report_changed` and `settings_changed`, the last for the name, description, tags, concurrency, priority or importance), an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once |
 | `prune` | `dg apply --prune` | The reconcile: under `fields`, the pipelines `pruned`, the `trigger_documents_removed` that went with them, and `dry_run` |
 | `prune` | `dg prune` | The retention sweep, in flat fields rather than under `fields`: `total`, `dry_run`, and a count per family; a sweep that ran adds the `artifacts` it deleted from storage |
 | `backfill` | `dg backfill` | `pipeline`, `schedule`, `dry_run`, `windows_total`, `runs_created`, and `windows[]` of `window_start`, `window_end` and the `run_id` each became |
@@ -1290,6 +1295,7 @@ dg schema update CODE [FILE|-] [--name TEXT] [--description TEXT]   # a label gi
 
 # Connect
 dg connection list | show CODE | check CODE | delete CODE
+dg connection kinds [KIND] [--local]   # every kind's fields: secret, required, defaults, credential forms
 dg connection create KIND CODE [--name TEXT] [--set field=value] [--description TEXT]
 dg connection set-secret CODE [FIELD]...
 dg connection ensure KIND CODE [--name TEXT] [--set field=value] [--description TEXT]
@@ -1399,6 +1405,29 @@ should be here, so a worker that is simply not there fails `dg system health wor
 not fail `dg system health`; containers' HEALTHCHECKs use the named forms. Every form writes
 one `check` record per check and exits 0 or 1; the bare form adds a closing `health` verdict,
 because it is the one that checked more than one thing.
+
+### `dg connection kinds`
+
+`dg connection kinds` lists every connection kind the instance holds, each with its required
+fields, its secret ones and its credential forms; `dg connection kinds KIND` describes one field
+by field: its type (`duration` and `size` for a humane value), whether it is required or secret,
+its default, and the credential form it belongs to. That is what `dg connection create KIND CODE
+--set field=value` takes. `--local` reads the kinds installed beside `dg` instead of an
+instance's. Each kind is a `connection_kind` record, read from `GET /api/v1/connection-kinds` and
+`GET /api/v1/connection-kinds/{kind}`; MCP's `list_connection_kinds` and `get_connection_kind`
+answer the same.
+
+```bash
+dg connection kinds sql
+```
+
+### `dg connection check`
+
+`dg connection check CODE` asks the connection's own kind whether its system answers, and exits 1
+only when the answer is no. An `http` connection requests its `health_path` (`/` unless set) and
+is healthy on a 2xx or a 3xx alone: a 401 or a 403 says the service refused the credential the
+connection holds, or wanted one it does not hold, and any other 4xx that the host answers but
+the address is not one it serves, so a `health_path` that answers is the remedy.
 
 ### `dg connection create`
 
@@ -1653,7 +1682,10 @@ no connection meaning the process log. The sender follows from that connection's
 connection no installed notifier delivers through is refused here exactly as it is when a rule
 names it. The message goes through the same queue and the same notifier call a real alert does,
 because a test that took a shortcut would prove only that the shortcut works -- so it appears in
-`dg alerts queue` and is delivered by a worker, not by the API.
+`dg alerts queue` and is delivered by a worker, not by the API. Its event is `test`, its own kind
+rather than any run's, in the queue, in the webhook payload's `event` and in the log channel's
+`event_kind`; its templates still render over a stand-in run, so a template can be tried before
+a rule carries it.
 
 `dg alerts rules pause` holds a rule's deliveries and `resume` lets them go again. Pausing is
 instance state on the row rather than something the rule declares, so a rule held here keeps

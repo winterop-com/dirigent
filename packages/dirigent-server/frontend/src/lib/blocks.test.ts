@@ -9,6 +9,7 @@ import {
     groupOf,
     narrowBlocks,
     typeLabel,
+    unsafeChip,
     type BlockEntry,
 } from '@/lib/blocks'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
@@ -29,6 +30,8 @@ const SHELL: BlockEntry = {
     plugin: 'builtin',
     idempotent: false,
     local_execution: true,
+    unsafe: true,
+    unsafe_enabled: false,
     default_poll_seconds: null,
     default_deadline_seconds: null,
     config_schema: {
@@ -68,6 +71,7 @@ const SLEEP: BlockEntry = {
     plugin: 'builtin',
     idempotent: false,
     local_execution: false,
+    unsafe: false,
     default_poll_seconds: 60,
     default_deadline_seconds: 86400,
     config_schema: {},
@@ -228,7 +232,12 @@ describe('what a field falls back to', () => {
 
 describe('the facts a block carries besides its schemas', () => {
     test('names each fact with the word the catalog answers with', () => {
-        expect(factsOf(SHELL).map((fact) => fact.term)).toEqual(['plugin', 'idempotent', 'local_execution'])
+        expect(factsOf(SHELL).map((fact) => fact.term)).toEqual([
+            'plugin',
+            'idempotent',
+            'local_execution',
+            'unsafe',
+        ])
     })
 
     /**
@@ -244,6 +253,27 @@ describe('the facts a block carries besides its schemas', () => {
     test('says as much about a block that does not', () => {
         const fact = factsOf(SLEEP).find((one) => one.term === 'local_execution')
         expect(fact?.detail).toBe('no allowlist entry')
+    })
+
+    test('says whether this instance enables an unsafe block, and no for a safe one', () => {
+        const detail = (entry: BlockEntry) => factsOf(entry).find((one) => one.term === 'unsafe')?.detail
+        expect(detail(SHELL)).toBe('yes, not enabled on this instance')
+        expect(detail({ ...SHELL, unsafe_enabled: true })).toBe('yes, enabled on this instance')
+        expect(detail({ ...SHELL, unsafe_enabled: null })).toBe('yes')
+        expect(detail(SLEEP)).toBe('no')
+    })
+
+    test('marks an unsafe block with a chip whose tone says whether it is enabled', () => {
+        expect(unsafeChip(SLEEP)).toBeNull()
+        expect(unsafeChip(SHELL)).toMatchObject({ label: 'unsafe, not enabled', tone: 'dashed' })
+        expect(unsafeChip({ ...SHELL, unsafe_enabled: true })).toMatchObject({
+            label: 'unsafe',
+            tone: 'critical',
+        })
+        expect(unsafeChip({ ...SHELL, unsafe_enabled: null })).toMatchObject({
+            label: 'unsafe',
+            tone: 'neutral',
+        })
     })
 
     test('states the timing defaults a sensor carries, in the seconds the wire counts', () => {

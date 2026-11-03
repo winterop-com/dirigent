@@ -2,6 +2,7 @@
 
 import difflib
 import hashlib
+import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Final, cast, get_args, get_origin
@@ -35,6 +36,7 @@ from dirigent_common import (
     carries_credential,
     carries_credential_parameter,
     credential_parameter_in,
+    password_in,
     plain_fields_of,
     userinfo_in,
     validation_issue,
@@ -65,6 +67,7 @@ from dirigent_core.messages import (
     ADOPTED_NOT_FAN_OUT,
     ADOPTED_NOT_UPSTREAM,
     ADOPTION_ONE_FAILED,
+    CARRIED_CONNECTION_SECRET,
     CARRIED_CONNECTIONS,
     CARRIED_SCHEMA_INVALID,
     CARRIED_SCHEMAS,
@@ -78,6 +81,7 @@ from dirigent_core.messages import (
     NOT_A_MAPPING,
     NOT_YAML,
     PARAMS_SCHEMA_INVALID,
+    REFERENCE_BRACKET_INDEX,
     REFERENCE_ERROR_NOT_UPSTREAM,
     REFERENCE_GRID_IN_CONFIG,
     REFERENCE_MALFORMED_ARTIFACTS,
@@ -468,6 +472,7 @@ def validate_against_catalog(
     malformed_params = _params_schema_issues(definition)
     issues.extend(malformed_params)
     issues.extend(_carried_schema_issues(definition))
+    issues.extend(_carried_secret_issues(definition, catalog))
     issues.extend(_reference_issues(definition))
     issues.extend(_trigger_issues(definition, checker, check_params=not malformed_params))
     issues.extend(source_issues(definition, kinds))
@@ -520,6 +525,30 @@ def _params_schema_issues(definition: PipelineDefinition) -> list[ValidationIssu
             )
         ]
     return []
+
+
+def _carried_secret_issues(definition: PipelineDefinition, catalog: Catalog) -> list[ValidationIssue]:
+    """Refuse a carried connection holding a secret: a field its kind declares secret, or a URL with a password.
+
+    A kind the catalog does not know is judged by its URLs alone.
+    """
+    secret = {kind.id: set(kind.secret_fields) for kind in catalog.connection_kinds}
+    issues: list[ValidationIssue] = []
+    for code, connection in sorted(definition.connections.items()):
+        declared = secret.get(connection.kind, set())
+        for field, value in sorted((connection.config or {}).items()):
+            if value is None:
+                continue
+            if field in declared or (isinstance(value, str) and password_in(value)):
+                issues.append(
+                    ValidationIssue.of(
+                        CARRIED_CONNECTION_SECRET,
+                        location=f"connections.{code}.config.{field}",
+                        connection=code,
+                        field=field,
+                    )
+                )
+    return issues
 
 
 def _carried_schema_issues(definition: PipelineDefinition) -> list[ValidationIssue]:
@@ -1114,6 +1143,10 @@ def _adopted_grid_problem(reference: str, definition: PipelineDefinition, step: 
     return None
 
 
+#: An index written in brackets, ``[0]`` or ``['key']``, which a reference spells as a dotted segment.
+BRACKET_INDEX: Final = re.compile(r"""\[\s*['"]?([^\]'"]*?)['"]?\s*\]""")
+
+
 def _reference_problem(
     reference: str,
     definition: PipelineDefinition,
@@ -1127,6 +1160,8 @@ def _reference_problem(
     ``family`` names the fan-outs this step shares a grid with, which are the only steps whose
     matching item it may read.
     """
+    if BRACKET_INDEX.search(reference):
+        return Issue.of(REFERENCE_BRACKET_INDEX, reference=reference, dotted=BRACKET_INDEX.sub(r".\1", reference))
     parts = [part for part in reference.split(".") if part]
     match parts:
         case []:

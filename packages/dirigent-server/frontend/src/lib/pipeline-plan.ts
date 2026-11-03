@@ -117,6 +117,8 @@ export function changesIn(diff: DiffSummary | null): string[] {
     named(lines, diff.steps_changed, LABELS.editor.plan.steps_changed)
     if (diff.params_changed) lines.push(LABELS.editor.plan.params_changed)
     if (diff.triggers_changed) lines.push(LABELS.editor.plan.triggers_changed)
+    if (diff.requires_changed) lines.push(LABELS.editor.plan.requires_changed)
+    if (diff.report_changed) lines.push(LABELS.editor.plan.report_changed)
     if (diff.settings_changed) lines.push(LABELS.editor.plan.settings_changed)
     return lines
 }

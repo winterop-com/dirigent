@@ -694,6 +694,54 @@ async def test_the_connection_check_reports_health(monkeypatch: pytest.MonkeyPat
     assert report.version == "nginx"
 
 
+@pytest.mark.parametrize(
+    ("status", "healthy", "said"),
+    [
+        (204, True, "HTTP 204 at /"),
+        (302, True, "HTTP 302 at /"),
+        (400, False, "set health_path"),
+        (404, False, "set health_path"),
+        (500, False, "HTTP 500 at /"),
+    ],
+)
+async def test_the_connection_check_is_healthy_only_on_a_success_or_a_redirect(
+    monkeypatch: pytest.MonkeyPatch, status: int, healthy: bool, said: str
+) -> None:
+    handler = Responder(httpx2.Response(status))
+
+    def fake_client(config: HttpConnectionConfig) -> httpx2.AsyncClient:
+        return httpx2.AsyncClient(base_url=config.base_url, transport=httpx2.MockTransport(handler))
+
+    monkeypatch.setattr("dirigent_block_http.connections.build_client", fake_client)
+    report = await HttpConnectionKind().check(HttpConnectionConfig(base_url="http://x"))
+    assert report.healthy is healthy
+    assert said in (report.detail or "")
+
+
+@pytest.mark.parametrize(
+    ("config", "said"),
+    [
+        (HttpConnectionConfig(base_url="http://x", bearer_token=SecretStr("t0ken")), "refused the credential"),
+        (HttpConnectionConfig(base_url="http://x"), "holds none"),
+    ],
+)
+async def test_a_refused_credential_is_named_by_the_connection_check(
+    monkeypatch: pytest.MonkeyPatch, config: HttpConnectionConfig, said: str
+) -> None:
+    for status in (401, 403):
+        handler = Responder(httpx2.Response(status))
+
+        def fake_client(config: HttpConnectionConfig, handler: Responder = handler) -> httpx2.AsyncClient:
+            return httpx2.AsyncClient(base_url=config.base_url, transport=httpx2.MockTransport(handler))
+
+        monkeypatch.setattr("dirigent_block_http.connections.build_client", fake_client)
+        report = await HttpConnectionKind().check(config)
+        assert report.healthy is False
+        assert f"HTTP {status}" in (report.detail or "")
+        assert said in (report.detail or "")
+        assert "t0ken" not in (report.detail or "")
+
+
 async def test_the_connection_check_reports_a_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     def refuse(request: httpx2.Request) -> httpx2.Response:
         raise httpx2.ConnectError("refused")

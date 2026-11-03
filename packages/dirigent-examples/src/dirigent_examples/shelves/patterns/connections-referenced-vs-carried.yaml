@@ -81,21 +81,18 @@ requires:
   connections:
     - playground
 
-# Carried, for the case with no instance to name one on. The credentials below are the
-# playground's own documented pair, which guards nothing. basic_password is a SecretStr:
-# sealed on the way in, and an applied connection reports which fields are set and never what
-# they are set to.
+# Carried, for the case with no instance to name one on. A carried connection holds settings
+# alone: a field its kind declares secret, such as basic_password, is refused at plan, because
+# a document never holds a secret. The /request route takes no credential, so none is needed.
 connections:
   playground-carried:
     name: Playground, carried
     description: |
-      The playground with its basic-auth pair, carried in the document so a local run needs no
-      instance connection. Used by `connections-referenced-vs-carried`.
+      The playground, carried in the document so a local run needs no instance connection.
+      Used by `connections-referenced-vs-carried`.
     kind: http
     config:
       base_url: http://127.0.0.1:3333/api/v1/playground
-      basic_username: playground
-      basic_password: playground
       timeout: 30s
       # What dg connection check calls. A connection with no health path can only be tested
       # by running a pipeline through it.

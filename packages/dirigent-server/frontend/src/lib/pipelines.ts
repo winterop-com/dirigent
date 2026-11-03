@@ -144,6 +144,10 @@ export interface DiffSummary {
     steps_changed: string[]
     params_changed: boolean
     triggers_changed: boolean
+    /** What the document says it needs of an instance: blocks, connections, schemas, workers. */
+    requires_changed: boolean
+    /** The `report:` section, its template or the step its text comes from. */
+    report_changed: boolean
     settings_changed: boolean
 }
 

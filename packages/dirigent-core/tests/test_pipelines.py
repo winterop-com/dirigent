@@ -417,6 +417,26 @@ async def test_changing_only_the_tags_is_an_update_the_plan_calls_a_settings_cha
     assert result.plan.diff.steps_changed == []
 
 
+@pytest.mark.parametrize(
+    ("addition", "flag"),
+    [
+        ("report:\n  template: '{{ run.status }}'\n", "report_changed"),
+        ("requires:\n  blocks: [test.echo]\n", "requires_changed"),
+        ("priority: high\n", "settings_changed"),
+        ("importance: critical\n", "settings_changed"),
+    ],
+)
+def test_the_plan_diff_names_every_top_level_section_that_changed(addition: str, flag: str) -> None:
+    """A section changed alone is a diff that says so, never an update every flag calls empty."""
+    before = load_text(tagged("sections", ["climate"]))
+    after = load_text(tagged("sections", ["climate"]) + addition)
+    diff = pipelines.diff_definitions(before, after)
+    flags = {name for name, value in diff.model_dump().items() if value is True}
+    assert flags == {flag}
+    assert not diff.empty
+    assert pipelines.changed_parts(diff) == [flag.removesuffix("_changed")]
+
+
 async def test_an_apply_stores_the_lowercased_tag_and_the_filter_finds_it_there(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

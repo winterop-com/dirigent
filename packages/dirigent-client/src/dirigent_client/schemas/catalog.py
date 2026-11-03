@@ -2,11 +2,16 @@
 
 import hashlib
 import json
+from collections.abc import Collection
 from enum import StrEnum
+from typing import cast
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 
 from dirigent_common import API_VERSION, CredentialForm, JsonMap
+
+#: The humane string formats a field is described by, in place of the ``string`` they are.
+HUMANE_FORMATS = {"humane-duration": "duration", "humane-size": "size"}
 
 
 class BlockKind(StrEnum):
@@ -29,10 +34,22 @@ class BlockEntry(BaseModel):
     plugin: str
     idempotent: bool = False
     local_execution: bool = False
+    unsafe: bool = False
+    """Runs code on the worker, so an instance runs it only where ``enabled_unsafe_blocks`` names it."""
+
+    unsafe_enabled: bool | None = None
+    """Whether this instance enables the unsafe block; null for a safe one, or where the answer cannot know."""
+
     default_poll_seconds: float | None = None
     default_deadline_seconds: float | None = None
     config_schema: JsonMap = Field(default_factory=dict)
     output_schema: JsonMap = Field(default_factory=dict)
+
+    def enabled_by(self, allowed: Collection[str]) -> "BlockEntry":
+        """Say whether an instance enabling ``allowed`` enables this block, where it is unsafe."""
+        if not self.unsafe:
+            return self
+        return self.model_copy(update={"unsafe_enabled": self.id in allowed})
 
 
 class SurfaceEntry(BaseModel):
@@ -53,6 +70,123 @@ class SurfaceEntry(BaseModel):
 
     credential_required: bool = False
     """Whether a connection of this kind needs one of ``credential_forms`` to work."""
+
+
+class ConnectionKindField(BaseModel):
+    """One config field of a connection kind, as ``dg connection create --set`` and an agent write it."""
+
+    name: str
+    type: str
+    """What the value is, in JSON Schema's words, or ``duration`` and ``size`` for a humane one."""
+
+    secret: bool = False
+    """Sealed at rest and never read back; an agent never passes one."""
+
+    required: bool = False
+    default: JsonValue = None
+    """The value an unset field takes, where ``has_default`` says there is one; it may itself be null."""
+
+    has_default: bool = False
+    choices: list[JsonValue] | None = None
+    """The values the field takes, where it is one of a fixed set."""
+
+    credential_form: str | None = None
+    """The code of the credential form this field belongs to, where the kind declares forms."""
+
+    description: str | None = None
+
+
+class ConnectionKindEntry(BaseModel):
+    """One connection kind with its fields: which are secret, which required, their defaults, its credential forms."""
+
+    id: str
+    plugin: str
+    description: str | None = None
+    fields: list[ConnectionKindField] = Field(default_factory=list[ConnectionKindField])
+    credential_forms: list[CredentialForm] = Field(default_factory=list[CredentialForm])
+    """The ways the kind authenticates when it takes one of several, each naming its fields."""
+
+    credential_required: bool = False
+    """Whether a connection of this kind needs one of ``credential_forms`` to work."""
+
+    @classmethod
+    def of(cls, surface: "SurfaceEntry") -> "ConnectionKindEntry":
+        """Read a connection kind's catalog entry as its fields, in the order its schema declares them."""
+        schema = surface.config_schema
+        properties = cast("dict[str, JsonMap]", schema.get("properties") or {})
+        required = set(cast("list[str]", schema.get("required") or []))
+        definitions = cast("dict[str, JsonMap]", schema.get("$defs") or {})
+        forms = {field: form.code for form in surface.credential_forms for field in form.fields}
+        described = schema.get("description")
+        return cls(
+            id=surface.id,
+            plugin=surface.plugin,
+            description=described if isinstance(described, str) else None,
+            fields=[
+                ConnectionKindField(
+                    name=name,
+                    type=_type_of(body, definitions),
+                    secret=name in surface.secret_fields,
+                    required=name in required,
+                    default=body.get("default"),
+                    has_default="default" in body,
+                    choices=_choices_of(body, definitions),
+                    credential_form=forms.get(name),
+                    description=_text(body.get("description")),
+                )
+                for name, body in properties.items()
+            ],
+            credential_forms=surface.credential_forms,
+            credential_required=surface.credential_required,
+        )
+
+
+def _text(value: object) -> str | None:
+    """Answer a schema's string, or None for anything else."""
+    return value if isinstance(value, str) else None
+
+
+def _resolved(body: JsonMap, definitions: dict[str, JsonMap]) -> JsonMap:
+    """Follow a local ``$ref`` to the definition it names, or answer the body as it is."""
+    reference = body.get("$ref")
+    if not isinstance(reference, str) or not reference.startswith("#/$defs/"):
+        return body
+    beside = {key: value for key, value in body.items() if key != "$ref"}
+    return {**definitions.get(reference.removeprefix("#/$defs/"), {}), **beside}
+
+
+def _type_of(body: JsonMap, definitions: dict[str, JsonMap]) -> str:
+    """Name what a property's value is, leaving out the null an optional field also takes."""
+    body = _resolved(body, definitions)
+    variants = cast("list[JsonMap]", body.get("anyOf") or [])
+    if variants:
+        named = [_type_of(variant, definitions) for variant in variants if variant.get("type") != "null"]
+        return " or ".join(dict.fromkeys(named)) or "null"
+    shown = body.get("format")
+    if isinstance(shown, str) and shown in HUMANE_FORMATS:
+        return HUMANE_FORMATS[shown]
+    if "enum" in body:
+        return "enum"
+    declared = body.get("type")
+    if declared == "array":
+        items = body.get("items")
+        return f"array of {_type_of(cast('JsonMap', items), definitions)}" if isinstance(items, dict) else "array"
+    if isinstance(declared, list):
+        return " or ".join(str(one) for one in cast("list[object]", declared) if one != "null")
+    return str(declared) if declared else "any"
+
+
+def _choices_of(body: JsonMap, definitions: dict[str, JsonMap]) -> list[JsonValue] | None:
+    """List the values an enum property takes, through a reference or an optional's variants."""
+    body = _resolved(body, definitions)
+    listed = body.get("enum")
+    if isinstance(listed, list):
+        return list(cast("list[JsonValue]", listed))
+    for variant in cast("list[JsonMap]", body.get("anyOf") or []):
+        found = _choices_of(variant, definitions)
+        if found is not None:
+            return found
+    return None
 
 
 class SourceEntry(BaseModel):
@@ -91,6 +225,10 @@ class Catalog(BaseModel):
     connection_kinds: list[SurfaceEntry] = Field(default_factory=list[SurfaceEntry])
     sources: list[SourceEntry] = Field(default_factory=list[SourceEntry])
     """The source kinds a source node may write."""
+
+    def enabled_by(self, allowed: Collection[str]) -> "Catalog":
+        """Mark each unsafe block with whether an instance enabling ``allowed`` enables it."""
+        return self.model_copy(update={"blocks": [block.enabled_by(allowed) for block in self.blocks]})
 
     def block(self, block_id: str) -> BlockEntry | None:
         """Find one catalog entry by block id."""

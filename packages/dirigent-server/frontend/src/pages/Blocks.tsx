@@ -5,6 +5,7 @@ import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
 import { ListTable, type Column } from '@/components/list/ListTable'
+import { Chip } from '@/components/ds/Chip'
 import { Code } from '@/components/ds/Code'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
@@ -20,6 +21,7 @@ import {
     narrowEntries,
     readCatalog,
     typeLabel,
+    unsafeChip,
     type BlockEntry,
     type CatalogEntry,
 } from '@/lib/blocks'
@@ -241,8 +243,11 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
             kind: 'title',
             cell: (entry) => (
                 <div className="min-w-0">
-                    {/* A block has no name, so the title is the id and wears the mono face itself. */}
-                    <span className="font-mono text-sm font-semibold">{entry.id}</span>
+                    <div className="flex min-w-0 items-center gap-2">
+                        {/* A block has no name, so the title is the id and wears the mono face itself. */}
+                        <span className="font-mono text-sm font-semibold">{entry.id}</span>
+                        <UnsafeChip entry={entry} />
+                    </div>
                     <p className="truncate text-xs text-muted-foreground" title={entry.summary}>
                         {entry.summary}
                     </p>
@@ -268,6 +273,17 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
             cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
         },
     ]
+}
+
+/** An unsafe block's chip, saying in its tone and its title whether this instance enables it. */
+function UnsafeChip({ entry }: { entry: BlockEntry }) {
+    const chip = unsafeChip(entry)
+    if (chip === null) return null
+    return (
+        <Chip tone={chip.tone} title={chip.title}>
+            {chip.label}
+        </Chip>
+    )
 }
 
 /** How many shipped documents require one block, as the link that shows them. */
@@ -376,8 +392,9 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
         <div className="flex flex-col gap-4 p-4">
             <div className="space-y-1">
                 <h2 className="font-mono text-sm font-semibold">{entry.id}</h2>
-                <p>
+                <p className="flex items-center gap-2">
                     <KindChip kind={entry.kind} />
+                    <UnsafeChip entry={entry} />
                 </p>
                 <p className="text-sm text-muted-foreground">{entry.summary}</p>
             </div>

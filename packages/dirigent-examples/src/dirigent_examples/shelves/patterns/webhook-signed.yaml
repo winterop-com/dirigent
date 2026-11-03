@@ -15,10 +15,9 @@
 #     signed with a secret this instance holds, and signing is something the document says out
 #     loud rather than something that happens invisibly because a connection had a field set.
 #   * A secret is never in a document. It is on a connection, sealed at rest and redacted in
-#     every API response, and a document names the connection. What this file carries is a
-#     connection for a --local run to create, which is the one case where carrying one is
-#     right -- a server refuses a document that embeds a credential, because applying it would
-#     store the secret in every version of the pipeline.
+#     every API response, and a document names the connection. A --local run has no instance
+#     to hold it, so it is handed examples/connections.yaml, which plays that part; a document
+#     whose connections: block holds a secret is refused at plan.
 #
 # ON THE RECEIVING INSTANCE, THE DOCUMENT SAYS SIGNED AND THE INSTANCE HOLDS THE SECRET. The
 # receiver is an endpoint source declaring `auth: {kind: hmac}`, and its secret is never in its
@@ -54,7 +53,7 @@
 # signed false.
 #
 #   dg dev &
-#   dg run --local examples/patterns/webhook-signed.yaml
+#   dg run --local examples/patterns/webhook-signed.yaml --connections examples/connections.yaml
 
 format: dirigent/v1
 kind: pipeline
@@ -77,25 +76,13 @@ requires:
     - webhook.post
     - transform.jq
     - value.const
+  connections:
+    - playground
 
-# Carried, because a --local run has no instance to hold a connection. Against a real
-# instance this is a connection created once, and the document names it by code:
-#   dg connection create http ops-receiver \
+# Against a real instance the connection is created once, its secret with it, and the
+# document names it by code:
+#   dg connection create http playground \
 #     --set base_url=http://127.0.0.1:3333/api/v1/playground --set hmac_secret=...
-connections:
-  ops-receiver:
-    name: Signed webhook receiver
-    description: |
-      The playground as a webhook receiver, with the HMAC secret an outbound post is signed
-      with. Used by `webhook-signed`.
-    kind: http
-    config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
-      # A SecretStr: sealed on the way in, redacted on the way out, and never readable back
-      # from the API. This one is a demonstration value and protects nothing.
-      hmac_secret: a shared secret between two dirigent instances
-      timeout: 30s
-
 params:
   type: object
   properties:
@@ -123,11 +110,11 @@ steps:
     depends_on: [build]
     config:
       # Where it goes: the connection's base URL plus this path.
-      connection: ops-receiver
+      connection: playground
       path: /request
       # What signs it. The same connection here, but it need not be: a POST to one place can
       # be signed with a secret agreed with somebody else.
-      sign_with: ops-receiver
+      sign_with: playground
       body: "${steps.build.output.value}"
       headers:
         # Routing metadata the receiver wants. Headers are outside the signature, which
@@ -140,7 +127,7 @@ steps:
     # No sign_with, which is the default. The pair exists so the signed flag has something to
     # be compared against.
     config:
-      connection: ops-receiver
+      connection: playground
       path: /request
       body: "${steps.build.output.value}"
 
