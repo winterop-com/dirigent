@@ -229,3 +229,19 @@ def test_an_operator_change_names_the_operator(operator: TestClient, client: Tes
     entry = entries(client, subject_kind="pipeline")[0]
     assert entry["actor_username"] == "an-operator"
     assert entry["actor_label"] == "an-operator (token operator-tests)"
+
+
+def test_supplying_the_secrets_a_connection_awaits_is_its_own_action(client: TestClient) -> None:
+    created = client.post(
+        f"{PREFIX}/connections",
+        json={"code": "ops-slack", "kind": "slack", "config": {"channel": "#ops"}, "awaiting_secrets": True},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["awaiting_secrets"] is True
+    supplied = client.patch(
+        f"{PREFIX}/connections/ops-slack", json={"config": {"channel": "#ops", "bot_token": SECRET}}
+    )
+    assert supplied.status_code == 200, supplied.text
+    newest = entries(client, subject="ops-slack")[0]
+    assert (newest["action"], newest["fields"]) == ("secrets_supplied", ["bot_token"])
+    assert SECRET not in json.dumps(newest)

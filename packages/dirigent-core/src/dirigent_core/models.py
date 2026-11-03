@@ -649,8 +649,11 @@ class Notification(Entity):
         sa.Index("ix_notifications_created_at", "created_at"),
     )
 
-    alert_rule_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("alert_rules.id", ondelete="CASCADE"), index=True)
-    """The rule that raised this, or null for a test message sent through ``dg alerts test``."""
+    alert_rule_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("alert_rules.id", ondelete="SET NULL"), index=True)
+    """The rule that raised this, or null for a test message or once that rule was deleted."""
+
+    rule_code: Mapped[str | None] = mapped_column(sa.String(200))
+    """The code of the rule that raised this, kept after the rule is deleted; null for a test message."""
 
     run_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("runs.id", ondelete="CASCADE"), index=True)
     event: Mapped[AlertEvent] = mapped_column(string_enum(AlertEvent, "alert_event"), nullable=False)

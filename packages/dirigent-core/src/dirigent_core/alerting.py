@@ -511,6 +511,7 @@ async def _queue_for_run(
         body = _body_of(session, services, rule, rendering, run_id=run.id, moment=moment)
         notification = Notification(
             alert_rule_id=rule.id,
+            rule_code=rule.code,
             run_id=run.id,
             event=event,
             notifier=rule.notifier,

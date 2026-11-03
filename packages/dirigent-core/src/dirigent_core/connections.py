@@ -84,9 +84,9 @@ async def remove_connection(
 ) -> None:
     """Delete a connection, or refuse with what uses it.
 
-    A test message with no rule behind it is the one delivery that outlives what it was sent for,
-    so a settled one lets go of the connection. One still queued keeps it, through the foreign
-    key the caller answers for.
+    A settled delivery outlives what it was sent through -- a test message, or one whose rule was
+    deleted or moved -- so it lets go of the connection. One still queued keeps it, through the
+    foreign key the caller answers for.
     """
     await session.execute(sa.select(Connection.id).where(Connection.id == row.id).with_for_update())
     users = await connection_users(session, catalog, storage_connections, row.code)
@@ -96,7 +96,6 @@ async def remove_connection(
         sa.update(Notification)
         .where(
             Notification.connection_id == row.id,
-            Notification.alert_rule_id.is_(None),
             Notification.status.in_((NotificationStatus.SENT, NotificationStatus.FAILED)),
         )
         .values(connection_id=None)

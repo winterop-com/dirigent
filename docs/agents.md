@@ -231,7 +231,7 @@ and the three that write a schema, which the API allows only an admin.
 
 Alert rules are created through these tools, `dg alerts rules` and the API, not declared in a
 pipeline document: a rule's code is the instance's, not a pipeline's, a `global` rule watches
-every pipeline rather than one, and removing a rule removes the deliveries it raised.
+every pipeline rather than one, and removing a rule keeps the deliveries it raised, each still naming the rule by its code.
 
 Every tool carries the MCP hints a client asks by: `readOnlyHint` on every read,
 `destructiveHint` on what removes or rewrites -- `apply_document`, `edit_pipeline`, `cancel_run`,

@@ -16,6 +16,8 @@ from dirigent_client.enums import (
     AlertEvent,
     AlertScope,
     AttemptStatus,
+    AuditAction,
+    AuditSubject,
     Importance,
     LogLevel,
     NotificationStatus,
@@ -60,7 +62,7 @@ from dirigent_core.engine.definition import PipelineDefinition, RetryPolicy, Ste
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.runs import create_run, save_pipeline
 from dirigent_core.ids import uuid7
-from dirigent_core.models import AlertRule, Connection, LogEntry, Notification, Pipeline, Run, StepAttempt
+from dirigent_core.models import AlertRule, AuditEntry, Connection, LogEntry, Notification, Pipeline, Run, StepAttempt
 from dirigent_core.plugins import PluginHost
 from dirigent_plugin import AlertMessage, Contribution, Notifier
 from engineblocks import EchoOperator, EngineTestPlugin
@@ -528,6 +530,28 @@ async def test_the_rules_can_be_listed_found_and_deleted(
         await delete_rule(session, found)
     async with sessions() as session:
         assert [rule.code for rule in await list_rules(session)] == ["alpha"]
+
+
+async def test_deleting_a_rule_keeps_its_deliveries_naming_it_by_code(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK))
+    failed = await stored_run(sessions, services, pipeline="payments")
+    async with session_scope(sessions) as session:
+        settled = await session.get(Run, failed.id)
+        assert settled is not None
+        assert await raise_for_run(session, services, settled, AlertEvent.RUN_FAILED, now=NOW)
+    async with session_scope(sessions) as session:
+        found = await find_rule(session, "page-ops")
+        assert found is not None
+        await delete_rule(session, found)
+    async with sessions() as session:
+        [kept] = (await session.execute(sa.select(Notification).where(Notification.run_id == failed.id))).scalars()
+        assert (kept.alert_rule_id, kept.rule_code) == (None, "page-ops")
+        [deleted] = (
+            await session.execute(sa.select(AuditEntry).where(AuditEntry.action == AuditAction.DELETED))
+        ).scalars()
+        assert (deleted.subject_kind, deleted.subject_code) == (AuditSubject.ALERT_RULE, "page-ops")
 
 
 # -- matching_rules and the throttle ---------------------------------------------

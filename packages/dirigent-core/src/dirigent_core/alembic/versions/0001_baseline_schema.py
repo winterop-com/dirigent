@@ -701,6 +701,7 @@ def upgrade() -> None:
         "notifications",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("alert_rule_id", sa.Uuid(), nullable=True),
+        sa.Column("rule_code", sa.String(length=200), nullable=True),
         sa.Column("run_id", sa.Uuid(), nullable=True),
         sa.Column(
             "event",
@@ -750,7 +751,7 @@ def upgrade() -> None:
             ["alert_rule_id"],
             ["alert_rules.id"],
             name=op.f("fk_notifications_alert_rule_id_alert_rules"),
-            ondelete="CASCADE",
+            ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
             ["connection_id"],

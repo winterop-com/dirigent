@@ -246,11 +246,10 @@ async def _notification(session: SessionDep, services: ServicesDep, row: Notific
     """Render one notification row, naming the run by its pipeline rather than by its id."""
     run = await session.get(Run, row.run_id) if row.run_id else None
     pipeline = await session.get(Pipeline, run.pipeline_id) if run else None
-    rule = await session.get(AlertRule, row.alert_rule_id) if row.alert_rule_id else None
     return NotificationOut(
         id=row.id,
         event=row.event,
-        rule=rule.code if rule else None,
+        rule=row.rule_code,
         notifier=row.notifier,
         connection=await _connection_code(session, row.connection_id),
         subject=row.subject,

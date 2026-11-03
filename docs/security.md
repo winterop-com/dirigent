@@ -1062,7 +1062,7 @@ document that changed), activated, deactivated, pruned or deleted; a triggers do
 applied or deleted; a schedule created, redeclared, paused, resumed or deleted, whether by
 hand or by the document that owns it; a source paused, resumed, its token rotated or its
 signing secret set; an alert rule created, changed, paused, resumed or deleted; a connection
-created, updated or deleted, through the API or `dg connection ensure`; a schema stored,
+created, updated, given the secrets it awaited (`secrets_supplied`) or deleted, through the API or `dg connection ensure`; a schema stored,
 corrected or deleted; an account created, edited, given a role, deactivated, activated, its
 password changed or reset; an API token created or revoked.
 
