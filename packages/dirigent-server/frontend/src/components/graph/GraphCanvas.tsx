@@ -110,11 +110,14 @@ export function GraphCanvas({
     control = null,
     frame = 'stage',
     layout = DEFAULT_LAYOUT,
+    settled,
     children,
 }: {
     nodes: Node[]
     edges: Edge[]
     nodeTypes: NodeTypes
+    /** Whether the nodes stand where they will stay: elk has answered for them, in the loaded faces. */
+    settled: boolean
     /** What a gesture changes, or nothing on a canvas that is a view. */
     editing?: CanvasEditing | null
     /** Called with the node chosen, or null when the ground under them was clicked. */
@@ -137,6 +140,7 @@ export function GraphCanvas({
             control={control}
             frame={frame}
             layout={layout}
+            settled={settled}
         >
             {children}
         </Canvas>
@@ -213,11 +217,13 @@ function Canvas({
     control = null,
     frame,
     layout,
+    settled,
     children,
 }: {
     nodes: Node[]
     edges: Edge[]
     nodeTypes: NodeTypes
+    settled: boolean
     editing: CanvasEditing | null
     onSelect: (id: string | null) => void
     control?: ReactNode
@@ -257,6 +263,7 @@ function Canvas({
                 connecting && 'dg-connecting',
                 onPage && 'dg-fitted',
             )}
+            data-graph-settled={settled}
             // A finger on a phone scrolls the page; the graph's window is where it is panned.
             panOnDrag={!(onPage && small)}
             zoomOnScroll={!onPage}

@@ -319,9 +319,11 @@ export async function everyNodeIsInView(page: Page): Promise<void> {
 /**
  * Wait until the canvas has stopped moving.
  *
- * A graph re-fits on its own -- when elk answers, and whenever the canvas is resized, which is
- * what opening the right panel or the run's drawer does. A gesture aimed at a point read before
- * that settles lands somewhere else, so anything that presses on the canvas waits here first.
+ * A graph is drawn placed by hand first, then by elk, then by elk again once the faces have
+ * loaded, and it re-fits on its own after each and whenever the canvas is resized, which is what
+ * opening the right panel or the run's drawer does. Each canvas says when its boxes stand where
+ * they will stay, and from then on the view is steady once two reads agree. A gesture aimed at a
+ * point read before that lands somewhere else, so anything that presses on the canvas waits here.
  */
 export async function canvasSettled(page: Page): Promise<void> {
     let last = ''
@@ -329,13 +331,22 @@ export async function canvasSettled(page: Page): Promise<void> {
         .poll(
             async () => {
                 const now = await viewportTransform(page)
-                const steady = now !== '' && now === last
+                const steady = now !== '' && now === last && (await placementsSettled(page))
                 last = now
                 return steady
             },
             { intervals: [120, 120, 120, 120, 120, 250, 250, 500], timeout: 15_000 },
         )
         .toBe(true)
+}
+
+/** Whether every canvas on the page has its boxes where they will stay. */
+async function placementsSettled(page: Page): Promise<boolean> {
+    return page.evaluate(() =>
+        [...document.querySelectorAll('.react-flow')].every(
+            (canvas) => canvas.getAttribute('data-graph-settled') === 'true',
+        ),
+    )
 }
 
 /** The pan and zoom the canvas is drawn at, as React Flow writes it. */

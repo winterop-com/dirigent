@@ -11,6 +11,11 @@ import {
     type PlacedGraph,
 } from '@/lib/dag-layout'
 
+/** A placement, and whether it is the last one this shape and choice will get. */
+export interface Placement extends PlacedGraph {
+    settled: boolean
+}
+
 /**
  * The one place a canvas asks elk for geometry.
  *
@@ -25,8 +30,10 @@ import {
  * every keystroke in the editor, would re-place the whole canvas. A view's layout choice is part
  * of that signature.
  */
-export function usePlacedGraph(shape: LayoutShape, choice: LayoutChoice = DEFAULT_LAYOUT): PlacedGraph {
+export function usePlacedGraph(shape: LayoutShape, choice: LayoutChoice = DEFAULT_LAYOUT): Placement {
     const [placed, setPlaced] = useState<PlacedGraph | null>(null)
+    // The signature elk last answered, or refused, which is when a placement stops moving.
+    const [answered, setAnswered] = useState<string | null>(null)
     const signature = signatureOf(shape, choice)
 
     useEffect(() => {
@@ -35,11 +42,14 @@ export function usePlacedGraph(shape: LayoutShape, choice: LayoutChoice = DEFAUL
             .then((elk) => layoutDag(shape, elk, choice))
             .then(
                 (result) => {
-                    if (current) setPlaced(result)
+                    if (!current) return
+                    setPlaced(result)
+                    setAnswered(signature)
                 },
                 () => {
                     // elk refused this graph, or never arrived. The canvas keeps the placement
                     // it is drawing and the panel still holds every step.
+                    if (current) setAnswered(signature)
                 },
             )
         return () => {
@@ -53,5 +63,6 @@ export function usePlacedGraph(shape: LayoutShape, choice: LayoutChoice = DEFAUL
     // oxlint-disable-next-line react/exhaustive-deps
     const rough = useMemo(() => placedByRank(shape, choice), [signature])
 
-    return placed ?? rough
+    const settled = answered === signature
+    return useMemo(() => ({ ...(placed ?? rough), settled }), [placed, rough, settled])
 }

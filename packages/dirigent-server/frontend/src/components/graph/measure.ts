@@ -71,3 +71,8 @@ export function useMeasure(): Measure {
     }, [ready])
     return ready ? measureByFont : measureByCharacters
 }
+
+/** Whether a measure is the font's, which is the last a canvas's boxes are sized by. */
+export function measuresByFont(measure: Measure): boolean {
+    return measure === measureByFont
+}

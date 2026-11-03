@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { GraphCanvas, LayoutControl, type CanvasFrame } from '@/components/graph/GraphCanvas'
 import { GraphPanel } from '@/components/graph/GraphPanel'
-import { useMeasure } from '@/components/graph/measure'
+import { measuresByFont, useMeasure } from '@/components/graph/measure'
 import { usePlacedGraph } from '@/components/graph/use-placed'
 import { StepNode, type StepNode as StepNodeKind } from '@/components/run/StepNode'
 import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
@@ -165,6 +165,7 @@ export function RunGraph({
             onSelect={onSelect}
             frame={frame}
             layout={layout}
+            settled={placed.settled && measuresByFont(measure)}
             control={frame === 'window' ? <LayoutControl layout={layout} onLayout={setLayout} /> : undefined}
         />
     )
