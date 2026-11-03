@@ -10,6 +10,7 @@ import { Panel } from '@/components/ds/Panel'
 import { Instant } from '@/components/Instant'
 import { Markdown } from '@/components/Markdown'
 import { PageState } from '@/components/PageState'
+import { LatestReport, RecentRuns, RECENT_ROWS, REPORT_RUNS } from '@/components/pipeline/PipelineRuns'
 import { RunDialog } from '@/components/pipeline/RunDialog'
 import { ShapeGraph } from '@/components/pipeline/ShapeGraph'
 import { TagChips } from '@/components/TagChips'
@@ -23,7 +24,9 @@ import { healthOf, readConnections, type ConnectionOut } from '@/lib/connections
 import { titleOf } from '@/lib/identity'
 import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
+import { reportIn } from '@/lib/pipeline-document'
 import { applyPipeline, readPipeline, type StepShape } from '@/lib/pipelines'
+import { EVERY_RUN, readRuns, readSettledRuns } from '@/lib/runs'
 import { connectionsNamed } from '@/lib/requirements'
 import { authLine, readPipelineSources, sampleBody, type SourceOut } from '@/lib/sources'
 import type { JsonMap } from '@/lib/api'
@@ -40,7 +43,9 @@ export function editorPath(code: string): string {
 /**
  * One pipeline, led by its graph.
  *
- * THE GRAPH FIRST, THEN WHAT IT RUNS, WHAT FIRES IT AND WHAT IT REACHES. The heading carries the
+ * THE GRAPH FIRST, THEN WHAT IT DID, THEN WHAT IT RUNS, WHAT FIRES IT AND WHAT IT REACHES. What it
+ * did is its newest runs and, where the document declares a report, the latest settled run's
+ * document. The heading carries the
  * three verbs: Edit opens the editor, Validate dry-runs the stored version against the instance
  * as it is now, and `Run…` asks for what a run needs. Nothing on this page writes the document.
  */
@@ -53,6 +58,16 @@ export function PipelinePage() {
     const schedules = useRead(useCallback(() => readSchedules(code, null), [code]))
     const held = useRead(useCallback(() => readConnections(null), []))
     const listening = useRead(useCallback(() => readPipelineSources(code), [code]))
+    const recent = useRead(
+        useCallback(() => readRuns({ ...EVERY_RUN, pipeline: code }, null, RECENT_ROWS), [code]),
+    )
+    const declared = reportIn(detail.value?.document ?? null).declared
+    const settled = useRead(
+        useCallback(
+            () => (declared ? readSettledRuns(code, REPORT_RUNS) : Promise.resolve(null)),
+            [code, declared],
+        ),
+    )
     // A verb on a source answers with its row as it now stands, over the page it was read on.
     const [fresher, setFresher] = useState<Record<string, SourceOut>>({})
     const [selected, setSelected] = useState<string | null>(null)
@@ -93,6 +108,7 @@ export function PipelinePage() {
     }
 
     const steps = pipeline.shape
+    const reported = settled.value?.items ?? []
     const noVersion = pipeline.document === null
     return (
         <div className="flex min-w-0 flex-col">
@@ -167,6 +183,17 @@ export function PipelinePage() {
                 )}
                 {selected !== null && <ChosenStep steps={steps} code={selected} />}
             </Panel>
+
+            <div className="mt-5 flex flex-wrap items-start gap-5">
+                <RecentRuns
+                    pipeline={pipeline.code}
+                    runs={recent.value?.items ?? null}
+                    problem={recent.problem}
+                    className="flex-[1_1_420px]"
+                />
+                {/* The same bases as the row under it, so the seams between the two rows line up. */}
+                {reported.length > 0 && <LatestReport runs={reported} className="flex-[1_1_300px]" />}
+            </div>
 
             <div className="mt-5 flex flex-wrap items-start gap-5">
                 {steps.some((step) => step.kind === 'block') && (

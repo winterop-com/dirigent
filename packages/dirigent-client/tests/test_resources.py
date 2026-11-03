@@ -450,6 +450,13 @@ async def test_only_the_arguments_a_caller_supplied_reach_the_query_string() -> 
     assert recorder.last[2] == "pipeline=demo&limit=10"
 
 
+async def test_a_settled_filter_travels_as_the_word_the_api_parses() -> None:
+    recorder = Recorder(_answer)
+    async with client_of(recorder) as dg:
+        await dg.runs.list(pipeline="demo", settled=True, limit=5)
+    assert recorder.last[2] == "pipeline=demo&settled=true&limit=5"
+
+
 async def test_a_run_that_the_concurrency_policy_declined_is_not_an_error() -> None:
     body = {"run_id": None, "status": "skipped", "detail": "a run of this pipeline is already in flight"}
     async with client_of(Recorder([httpx2.Response(202, json=body, headers={"X-Dirigent-Version": "0.1.0"})])) as dg:

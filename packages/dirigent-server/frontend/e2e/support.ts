@@ -429,7 +429,7 @@ export async function clickEdge(page: Page, edge: Locator): Promise<void> {
 
 /**
  * How far below the fold a named control inside this container sits, in pixels; positive is
- * clipped.
+ * clipped. The name is the control's words, or its `aria-label` where it is an icon.
  *
  * IT IS MEASURED AGAINST THE SCROLLER AND NOT THE SURFACE. A control cut off by a body's fold is
  * still inside the dialog's or the panel's own box, so comparing it against that box reads a
@@ -442,7 +442,7 @@ export async function clickEdge(page: Page, edge: Locator): Promise<void> {
 export async function belowTheFold(within: Locator, label: string): Promise<number> {
     return within.evaluate((node, wanted) => {
         const button = [...node.querySelectorAll('button')].find(
-            (one) => (one.textContent ?? '').trim() === wanted,
+            (one) => (one.textContent ?? '').trim() === wanted || one.getAttribute('aria-label') === wanted,
         )
         if (button === undefined) return Number.NaN
         let walk = button.parentElement

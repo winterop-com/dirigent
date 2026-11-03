@@ -324,7 +324,7 @@ export function AppShell() {
 
                 <main className="flex min-h-0 w-full flex-1 flex-col">
                     <div ref={setHead} data-page-head className="shrink-0 px-4 pt-1 md:px-8" />
-                    <div data-page-scroller className="dg-scroller flex min-h-0 flex-1 flex-col pt-px pb-12">
+                    <div data-page-scroller className="dg-scroller flex min-h-0 flex-1 flex-col pt-px">
                         {auth.status === 'unknown' ? (
                             <PageState loading={problem === null} problem={problem} empty={false}>
                                 {null}

@@ -816,7 +816,16 @@ over what was read, and the counts beside each heading are what is left.
 
 **A pipeline's page is its graph first.** The title, the code in mono under it, and Edit,
 Validate and `Run…` at the right of the heading; the description; then the graph on the canvas
-ground, then three panels side by side -- Blocks, which block each step runs with the steps as
+ground; then what the pipeline did, side by side -- Recent runs, its newest runs one line each
+(the state, what started it, how long it took and when, each line the link to its run) with `All
+runs`{ .label } beside the heading opening the runs screen narrowed to this pipeline, and `No runs.` as
+the whole body where there are none; and, only where the document declares a `report:` and a run
+has settled, Report, the latest settled run's document rendered as the run's Report tab renders it,
+at a pane's height with the window for the whole of it, the run it came from beside the heading,
+and the settled runs before it as links to their own Report tab at its foot. A document declaring
+no report, or a report and no settled run, draws no Report panel. `GET /runs?settled=true` is how the page finds
+that run, because no single status asks for it. The two rows take the same flex bases, so the seam
+between Recent runs and Report lines up with the one under it. Then three panels side by side -- Blocks, which block each step runs with the steps as
 chips that choose them on the graph, drawn only where a step runs one; Triggers, the schedules and sources that fire it; and
 Connections, what it reaches and how each one is. `Edit` opens the editor at
 `/pipelines/<code>/edit`, which is the screen the rest of this page's editing rules are about;
@@ -954,7 +963,12 @@ offers one comes through it: a config field carrying a program, a value edited a
 report document, an alert body, an example's source, and the block of produced JSON on a run's
 step and a schema's page. The button stands in a strip of its own under the pane, inside the
 box, and the pane scrolls above it: a line that runs to the right edge, wherever the pane is
-scrolled to, ends before the button rather than under it.
+scrolled to, ends before the button rather than under it. **A pane that grows with what it holds
+rather than scrolling -- a report document -- holds its strip to the foot of the scroller it sits
+in**, on that scroller's ground, so the button is on screen wherever the reader has scrolled to
+rather than at the end of a long document; the run's Report tab and a pipeline page's Report panel
+are the two. A panel clips its corners with `overflow: clip` rather than `hidden` for this reason:
+a hidden overflow is a scroller of its own, and a strip held to it would never move.
 
 **A field that names a thing shows the thing.** A string property carrying `x-dirigent-ref` holds
 the code of a connection or a schema, and under the box the form draws what that code resolves to,

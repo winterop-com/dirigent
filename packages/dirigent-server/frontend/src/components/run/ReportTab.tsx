@@ -1,30 +1,14 @@
 import { useEffect, useState } from 'react'
 
-import { Description } from '@/components/Description'
 import { Fact, Section } from '@/components/run/Panel'
+import { ReportDocumentPane } from '@/components/run/ReportDocument'
 import { StatusChip } from '@/components/run/StatusChip'
-import { WindowedPane } from '@/components/WindowedPane'
-import { useApiPrefix } from '@/hooks/use-api-prefix'
 import { ApiError, type Problem } from '@/lib/api'
-import { artifactUrl, readReportDocument, type ReportDocument } from '@/lib/artifacts'
+import { readReportDocument, type ReportDocument } from '@/lib/artifacts'
 import { formatDuration } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { itemsNote, type RunReport } from '@/lib/runs'
-import { cn } from '@/lib/utils'
 import { said } from '@/lib/refusal'
-
-/** What the window is titled and what a saved file is called. */
-const DOCUMENT_NAME = 'report.md'
-
-/**
- * How the document is set in the window: prose at a reading measure, tables the whole width.
- *
- * The markdown component draws one flat column of blocks and knows nothing about a measure, so
- * the measure is put on the blocks that are read as sentences. A table is not one of them: it
- * is drawn in its own scrolling box, and what a window buys it is the room not to scroll.
- */
-const READING =
-    '[&_p]:mx-auto [&_p]:max-w-[68ch] [&_ul]:mx-auto [&_ul]:max-w-[68ch] [&_ol]:mx-auto [&_ol]:max-w-[68ch] [&_pre]:mx-auto [&_pre]:max-w-[68ch] [&_blockquote]:mx-auto [&_blockquote]:max-w-[68ch]'
 
 /**
  * The run's own account of itself: the document it rendered when it settled, or the summary.
@@ -66,7 +50,6 @@ export function ReportTab({
         document: ReportDocument | null
         refusal: Problem | null
     } | null>(null)
-    const prefix = useApiPrefix()
 
     useEffect(() => {
         if (!settled) return
@@ -106,33 +89,7 @@ export function ReportTab({
 
     if (found.document === null) return <Summary report={report} problem={problem} />
 
-    const markdown = found.document.markdown
-    return (
-        <WindowedPane
-            name={DOCUMENT_NAME}
-            frame="none"
-            className="p-4"
-            windowed={
-                <div className={cn('min-h-0 w-full flex-1 overflow-y-auto', READING)}>
-                    <Description text={markdown} ink="body" />
-                </div>
-            }
-        >
-            <div className="flex flex-col gap-3">
-                <Description text={markdown} ink="body" />
-                {prefix !== null && (
-                    <a
-                        className="w-fit text-xs text-foreground underline-offset-2 hover:underline"
-                        href={artifactUrl(prefix, found.document.id)}
-                        download={DOCUMENT_NAME}
-                        rel="noopener"
-                    >
-                        {LABELS.runs.report_download}
-                    </a>
-                )}
-            </div>
-        </WindowedPane>
-    )
+    return <ReportDocumentPane document={found.document} />
 }
 
 /**

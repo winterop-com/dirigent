@@ -1449,6 +1449,18 @@ const pipelines = {
         connections: 'Connections',
         no_triggers: 'No triggers.',
         no_connections: 'No connections.',
+        /** The pipeline's newest runs, and the way to every one of them on the runs screen. */
+        recent_runs: 'Recent runs',
+        all_runs: 'All runs',
+        no_runs: 'No runs.',
+        /** The latest settled run's report document. */
+        report: 'Report',
+        /** Beside the report's heading: the run it was rendered by, as a link to that run. */
+        report_run: (when: string) => `from the run ${when}`,
+        /** The latest settled run rendered no document, as when its template failed. */
+        report_none: 'This run rendered no report.',
+        /** Before the links to the reports of the settled runs before it. */
+        earlier_reports: 'Earlier',
         /** A step chip under a block, which chooses that step on the graph. */
         choose_step: (step: string) => `Select ${step} in the graph`,
         /** The strip under the graph about the chosen box. */
