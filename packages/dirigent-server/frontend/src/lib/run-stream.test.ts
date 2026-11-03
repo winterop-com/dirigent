@@ -232,6 +232,8 @@ function opened(): RunDetailOut {
             params: {},
             triggered_by_kind: 'user',
             parent_run_id: null,
+            triggered_by_id: null,
+            error_params: null,
             triggered_by_label: 'dev',
             source: null,
             trace_id: null,

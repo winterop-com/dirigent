@@ -209,6 +209,7 @@ text that is not a document, and the file is not opened.
 | `get_run_report` | The markdown report document a run rendered when it settled, and whether it rendered one |
 | `get_run_profile` | Where a run's wall clock went: the critical path, and its queued, running and waiting time |
 | `run_stats` | How the runs of a window went: per day, each pipeline's p50, p95 and max duration, and what failed most |
+| `runs_by_pipeline` | Each pipeline's runs in a window: the newest, how many per state, the most recent ones, and the median duration |
 | `cancel_run`, `pause_run`, `resume_run`, `retry_attempt`, `rerun_run` | Stop a run, pause or resume one, retry one attempt, or run a settled run again with its parameters and source input |
 | `list_sources`, `get_source`, `source_inputs`, `pause_source`, `resume_source` | The input sources and what arrived; `get_source` gives an endpoint's full URL and how a caller authenticates, never its token |
 | `rotate_source_token` | Mint an endpoint source a new token or signing secret, shown once, shutting out every caller of the old one |

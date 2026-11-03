@@ -16,8 +16,8 @@ import {
     runsPath,
     settledRunsPath,
     tabFromQuery,
+    startedAs,
     startedBy,
-    triggerSummary,
     waitingForWorkers,
     type RunOut,
     runVerbs,
@@ -32,6 +32,8 @@ const RUN: RunOut = {
     params: {},
     triggered_by_kind: 'schedule',
     parent_run_id: null,
+    triggered_by_id: null,
+    error_params: null,
     triggered_by_label: 'nightly',
     source: null,
     trace_id: null,
@@ -162,35 +164,43 @@ describe("a pipeline's settled runs and a run's report", () => {
 })
 
 describe('what started a run', () => {
-    test('is the kind, and who or what it was', () => {
-        expect(triggerSummary(RUN)).toEqual({
-            kind: 'schedule',
-            who: 'nightly',
-            said: 'nightly',
-            parent: null,
+    test('is a schedule named with its kind, once', () => {
+        expect(startedAs(RUN)).toEqual({
+            said: 'schedule nightly',
+            actor: false,
+            from: null,
+            recorded: 'nightly',
         })
+        const fired = { ...RUN, triggered_by_label: 'schedule nightly' }
+        expect(startedAs(fired).said).toBe('schedule nightly')
     })
 
-    test('spells a kind the way a person reads it rather than the way the wire writes it', () => {
-        expect(triggerSummary({ ...RUN, triggered_by_kind: 'api_token' }).kind).toBe('api token')
+    test('names a token or a person by the label alone, which already says it was a token', () => {
+        const token = {
+            ...RUN,
+            triggered_by_kind: 'api_token' as const,
+            triggered_by_label: 'agent (token mcp-trial)',
+        }
+        expect(startedAs(token)).toMatchObject({ said: 'agent (token mcp-trial)', actor: true })
+        expect(startedAs({ ...RUN, triggered_by_kind: 'user', triggered_by_label: 'admin' }).said).toBe(
+            'admin',
+        )
     })
 
-    test('has nobody to name when the run carries no label', () => {
-        expect(triggerSummary({ ...RUN, triggered_by_label: null }).who).toBeNull()
+    test('says the kind the way a person reads it where nothing else was recorded', () => {
+        const token = { ...RUN, triggered_by_kind: 'api_token' as const, triggered_by_label: null }
+        expect(startedAs(token)).toMatchObject({ said: 'api token', actor: false })
     })
 
-    test('names a backfill, which is a kind of its own and not a firing', () => {
+    test('names a backfill and a source by their kind and code', () => {
         const filled = {
             ...RUN,
             triggered_by_kind: 'backfill' as const,
             triggered_by_label: 'backfill nightly',
         }
-        expect(triggerSummary(filled)).toMatchObject({ kind: 'backfill', who: 'nightly' })
-    })
-
-    test('does not say its kind twice, and keeps what the server recorded whole', () => {
+        expect(startedAs(filled).said).toBe('backfill nightly')
         const fired = { ...RUN, triggered_by_kind: 'source' as const, triggered_by_label: 'source arrive' }
-        expect(triggerSummary(fired)).toMatchObject({ kind: 'source', who: 'arrive', said: 'source arrive' })
+        expect(startedAs(fired).said).toBe('source arrive')
     })
 
     test('names a parent run by its short id, and keeps what the server recorded whole', () => {
@@ -199,13 +209,30 @@ describe('what started a run', () => {
             ...RUN,
             triggered_by_kind: 'pipeline' as const,
             parent_run_id: parent,
+            triggered_by_id: parent,
             triggered_by_label: `a step of run ${parent}`,
         }
-        const started = triggerSummary(child)
-        expect(started.who).toBe(`a step of run ${shortId(parent)}`)
-        expect(started.who).not.toContain(parent)
-        expect(started.said).toBe(`a step of run ${parent}`)
-        expect(started.parent).toBe(parent)
+        const started = startedAs(child)
+        expect(started.said).toBe(`a step of run ${shortId(parent)}`)
+        expect(started.recorded).toBe(`a step of run ${parent}`)
+        expect(started.from).toBe(parent)
+    })
+
+    test('names the run a rerun repeated by its short id, and who asked for it', () => {
+        const original = '0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b'
+        const rerun = {
+            ...RUN,
+            triggered_by_kind: 'rerun' as const,
+            triggered_by_id: original,
+            triggered_by_label: `rerun of ${original} by admin`,
+        }
+        expect(startedAs(rerun)).toMatchObject({
+            said: `rerun of ${shortId(original)} by admin`,
+            from: original,
+        })
+        expect(startedAs({ ...rerun, triggered_by_label: `rerun of ${original}` }).said).toBe(
+            `rerun of ${shortId(original)}`,
+        )
     })
 })
 
@@ -217,8 +244,8 @@ describe('who started a run of a pipeline with a source', () => {
     ]
 
     test('says a hand run started from the sample or with an input given', () => {
-        expect(startedBy(byHand, entered('sample'))).toBe(`admin, ${LABELS.runs.entered.sample}`)
-        expect(startedBy(byHand, entered('hand'))).toBe(`admin, ${LABELS.runs.entered.hand}`)
+        expect(startedBy(byHand, entered('sample'))).toBe(`by admin, ${LABELS.runs.entered.sample}`)
+        expect(startedBy(byHand, entered('hand'))).toBe(`by admin, ${LABELS.runs.entered.hand}`)
     })
 
     test('says a called run was a call to its source', () => {
@@ -231,9 +258,9 @@ describe('who started a run of a pipeline with a source', () => {
         expect(startedBy(called, entered('request'))).toBe(LABELS.runs.a_call('ask'))
     })
 
-    test('says only who it was where the run has no source, or its attempts are not read yet', () => {
-        expect(startedBy(RUN, [])).toBe('nightly')
-        expect(startedBy(byHand, [])).toBe('admin')
+    test('says only how it started where the run has no source, or its attempts are not read yet', () => {
+        expect(startedBy(RUN, [])).toBe('schedule nightly')
+        expect(startedBy(byHand, [])).toBe('by admin')
     })
 })
 

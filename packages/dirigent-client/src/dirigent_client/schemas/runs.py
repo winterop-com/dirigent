@@ -351,3 +351,38 @@ class RunStats(WireModel):
     durations: list[PipelineDurations] = Field(default_factory=list[PipelineDurations])
     top_errors: list[ErrorCount] = Field(default_factory=list[ErrorCount])
     failing_steps: list[StepFailures] = Field(default_factory=list[StepFailures])
+
+
+class RecentRun(WireModel):
+    """One run as a pipeline's summary names it: which, how it stands, and when it was created."""
+
+    id: UUID
+    status: RunStatus
+    created_at: datetime
+
+
+class PipelineRuns(WireModel):
+    """How one pipeline's runs created in a window went."""
+
+    pipeline: str
+    """The pipeline's code."""
+
+    name: str | None = None
+    latest: RecentRun
+    """The newest run of the pipeline in the window."""
+
+    counts: dict[RunStatus, int] = Field(default_factory=dict[RunStatus, int])
+    """How many of its runs in the window are in each state; a state with none is left out."""
+
+    recent: list[RecentRun] = Field(default_factory=list[RecentRun])
+    """Its most recent runs in the window, oldest first, at most ``RECENT_RUNS``."""
+
+    median_duration_ms: int | None = None
+    """The median start-to-finish of its settled runs in the window; null when none settled."""
+
+
+class RunSummary(WireModel):
+    """The runs created in a window, per pipeline, the pipeline that ran most recently first."""
+
+    window: StatsWindow
+    pipelines: list[PipelineRuns] = Field(default_factory=list[PipelineRuns])

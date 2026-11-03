@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from dirigent_client.enums import LogLevel
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.messages import CONFIG_FAILED, CONFIG_REFUSED, ENDPOINT_BODY_TOO_DEEP
+from dirigent_core.messages import CONFIG_FAILED, CONFIG_INVALID, ENDPOINT_BODY_TOO_DEEP
 from dirigent_core.models import LogEntry, StepAttempt
 from dirigent_core.sources.endpoint import MAX_BODY_DEPTH
 from tests_support import apply_document
@@ -201,7 +201,7 @@ def test_a_body_at_the_limit_runs_and_reads_back(client: TestClient) -> None:
     ("config", "status", "code"),
     [
         ("{input: 1, program: '.'}", "succeeded", None),
-        ("{input: {a: {b: '${steps.ask.output.body}'}}, program: '.'}", "failed", CONFIG_REFUSED.code),
+        ("{input: {a: {b: '${steps.ask.output.body}'}}, program: '.'}", "failed", CONFIG_INVALID.code),
     ],
     ids=["a-step-not-reading-it", "a-step-reading-it"],
 )

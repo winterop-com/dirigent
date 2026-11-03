@@ -10,7 +10,7 @@ from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import save_pipeline
 from dirigent_core.models import PipelineVersion, Run, StepAttempt
-from dirigent_core.stats import percentile, run_stats
+from dirigent_core.stats import RECENT_RUNS, percentile, run_stats, run_summary
 
 END = datetime(2026, 3, 10, 12, 0, tzinfo=UTC)
 
@@ -195,3 +195,97 @@ def test_a_percentile_is_the_nearest_rank() -> None:
     assert percentile([4, 1, 3, 2], 50) == 2
     assert percentile([4, 1, 3, 2], 95) == 4
     assert percentile(list(range(1, 101)), 95) == 95
+
+
+async def seed_recent(sessions: async_sessionmaker[AsyncSession]) -> None:
+    """A day of runs created every ten minutes for ``alpha``, a few for ``beta``, and one before the day.
+
+    ``alpha`` (``nightly``) ran forty times, the last three failed and every fifth one before them
+    took ten seconds and the rest two. ``beta`` succeeded once and is still running once.
+    """
+    async with session_scope(sessions) as session:
+        alpha = await save_pipeline(session, _definition("alpha", ["nightly"]))
+        beta = await save_pipeline(session, _definition("beta", []))
+        rows: list[Run] = []
+        for n in range(40):
+            created = END - timedelta(minutes=10 * (40 - n))
+            took = timedelta(seconds=10 if n % 5 == 0 else 2)
+            status = RunStatus.FAILED if n >= 37 else RunStatus.SUCCEEDED
+            rows.append(
+                Run(
+                    pipeline_id=alpha.pipeline_id,
+                    pipeline_version_id=alpha.id,
+                    status=status,
+                    created_at=created,
+                    started_at=created,
+                    finished_at=created + took,
+                )
+            )
+        for created, status in (
+            (END - timedelta(hours=3), RunStatus.SUCCEEDED),
+            (END - timedelta(minutes=1), RunStatus.RUNNING),
+        ):
+            rows.append(
+                Run(
+                    pipeline_id=beta.pipeline_id,
+                    pipeline_version_id=beta.id,
+                    status=status,
+                    created_at=created,
+                    started_at=created,
+                    finished_at=created + timedelta(seconds=7) if status is RunStatus.SUCCEEDED else None,
+                )
+            )
+        rows.append(
+            Run(
+                pipeline_id=beta.pipeline_id,
+                pipeline_version_id=beta.id,
+                status=RunStatus.FAILED,
+                created_at=END - timedelta(days=2),
+            )
+        )
+        session.add_all(rows)
+
+
+async def assert_the_summary_folds(sessions: async_sessionmaker[AsyncSession]) -> None:
+    """The summary over the seeded day, which the PostgreSQL lane asserts with the same body."""
+    await seed_recent(sessions)
+    async with session_scope(sessions) as session:
+        summary = await run_summary(session, end=END, since=timedelta(days=1))
+
+    assert (summary.window.start, summary.window.end) == (END - timedelta(days=1), END)
+    assert [row.pipeline for row in summary.pipelines] == ["beta", "alpha"], "the one that ran last first"
+    beta, alpha = summary.pipelines
+
+    assert alpha.counts == {RunStatus.SUCCEEDED: 37, RunStatus.FAILED: 3}
+    assert len(alpha.recent) == RECENT_RUNS
+    assert [run.created_at for run in alpha.recent] == sorted(run.created_at for run in alpha.recent)
+    assert alpha.recent[-1] == alpha.latest
+    assert (alpha.latest.status, alpha.latest.created_at) == (RunStatus.FAILED, END - timedelta(minutes=10))
+    assert alpha.median_duration_ms == 2000
+
+    assert beta.counts == {RunStatus.SUCCEEDED: 1, RunStatus.RUNNING: 1}, "the run two days back is outside"
+    assert [run.status for run in beta.recent] == [RunStatus.SUCCEEDED, RunStatus.RUNNING]
+    assert beta.median_duration_ms == 7000, "the running one has not settled"
+
+
+async def test_the_summary_folds_a_day_of_runs_per_pipeline(sessions: async_sessionmaker[AsyncSession]) -> None:
+    await assert_the_summary_folds(sessions)
+
+
+async def test_the_summary_narrows_to_a_pipeline_a_tag_and_the_newest_state(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    await seed_recent(sessions)
+    day = timedelta(days=1)
+    async with session_scope(sessions) as session:
+        of_beta = await run_summary(session, end=END, since=day, pipeline="beta")
+        nightly = await run_summary(session, end=END, since=day, tags=["nightly"])
+        failing = await run_summary(session, end=END, since=day, latest=RunStatus.FAILED)
+        hour = await run_summary(session, end=END, since=timedelta(hours=1))
+        nobody = await run_summary(session, end=END, since=day, tags=["weekly"])
+
+    assert [row.pipeline for row in of_beta.pipelines] == ["beta"]
+    assert [row.pipeline for row in nightly.pipelines] == ["alpha"]
+    assert [row.pipeline for row in failing.pipelines] == ["alpha"]
+    assert {row.pipeline: sum(row.counts.values()) for row in hour.pipelines} == {"alpha": 6, "beta": 1}
+    assert nobody.pipelines == []

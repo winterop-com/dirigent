@@ -3,11 +3,15 @@ import { Link } from 'react-router'
 import { HealthSaid } from '@/components/connections/Health'
 import { Code } from '@/components/ds/Code'
 import { Panel } from '@/components/ds/Panel'
-import type { JsonMap } from '@/lib/api'
+import type { Issue, JsonMap } from '@/lib/api'
 import { healthOf, type ConnectionOut } from '@/lib/connections'
 import { LABELS } from '@/lib/labels'
+import { issueSentence } from '@/lib/refusal'
 import type { RunOut } from '@/lib/runs'
 import { statusLabel } from '@/lib/status'
+
+/** A failure that lists no problems of its own. */
+const NO_PROBLEMS: readonly Issue[] = []
 
 /** A value as one line of text, the way a fact or a log field is drawn. */
 function said(value: unknown): string {
@@ -23,6 +27,9 @@ export function connectionOf(config: JsonMap | null): string | null {
 /**
  * What a run failed with: the step, its block, the catalogued code, the sentence, the connection
  * the step named and how that one is, and the parameters the run was given.
+ *
+ * A REFUSED CONFIG IS ITS PROBLEMS. Where the failure lists them, each is drawn as the field it is
+ * at and what is wrong there, and the sentence -- which is the first of them -- is not drawn too.
  */
 export function RunFailure({
     run,
@@ -31,6 +38,7 @@ export function RunFailure({
     block,
     error,
     code,
+    problems = NO_PROBLEMS,
     connection,
 }: {
     run: RunOut
@@ -42,6 +50,8 @@ export function RunFailure({
     /** The sentence the step failed with, or the run's own where no attempt said one. */
     error: string | null
     code: string | null
+    /** The problems the failure lists one by one, where it lists any. */
+    problems?: readonly Issue[]
     connection: ConnectionOut | null
 }) {
     const params = Object.entries(run.params)
@@ -58,7 +68,21 @@ export function RunFailure({
             meta={code ?? undefined}
         >
             {block !== null && <Code value={block} />}
-            {error !== null && <p className="mt-3 text-base break-words">{error}</p>}
+            {problems.length > 0 ? (
+                <ul className="mt-3 space-y-1.5" aria-label={LABELS.runs.failure.problems}>
+                    {problems.map((problem, index) => (
+                        <li
+                            key={`${problem.location ?? ''}:${String(index)}`}
+                            className="flex min-w-0 items-baseline gap-2.5"
+                        >
+                            {problem.location !== null && <Code value={problem.location} tone="body" />}
+                            <span className="min-w-0 text-base break-words">{issueSentence(problem)}</span>
+                        </li>
+                    ))}
+                </ul>
+            ) : (
+                error !== null && <p className="mt-3 text-base break-words">{error}</p>
+            )}
             {connection !== null && (
                 <Link
                     to={`/connections/${encodeURIComponent(connection.code)}`}

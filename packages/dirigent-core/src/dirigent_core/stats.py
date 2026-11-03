@@ -1,12 +1,15 @@
-"""How the runs that settled in a window went: per day, per pipeline, and where they failed.
+"""How the runs in a window went: per day, per pipeline, and where they failed.
 
-Every statement is anchored on the runs whose ``finished_at`` falls in the window, which is
-the ``ix_runs_finished_at`` range scan, and reaches attempts through ``run_id`` alone. A run
+Every stats statement is anchored on the runs whose ``finished_at`` falls in the window, which
+is the ``ix_runs_finished_at`` range scan, and reaches attempts through ``run_id`` alone. A run
 queued, running or paused has not settled and is in none of it.
+
+The summary per pipeline is anchored on the runs whose ``created_at`` falls in the window
+instead, the ``ix_runs_created_at`` range scan, so a run still in flight is in it.
 """
 
 import math
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from typing import Final
@@ -20,7 +23,10 @@ from dirigent_client.schemas import (
     DayCounts,
     ErrorCount,
     PipelineDurations,
+    PipelineRuns,
+    RecentRun,
     RunStats,
+    RunSummary,
     StatsWindow,
     StepFailures,
 )
@@ -36,6 +42,9 @@ DURATION_SAMPLE: Final = 10_000
 
 #: How many rows ``top_errors`` and ``failing_steps`` answer with at most.
 TOP: Final = 10
+
+#: How many of each pipeline's most recent runs a summary names.
+RECENT_RUNS: Final = 30
 
 
 class Scope:
@@ -221,3 +230,91 @@ async def _failing_steps(scope: Scope) -> list[StepFailures]:
         StepFailures(pipeline=code, step=step, failures=failures, last_at=last_at)
         for code, step, failures, last_at in rows
     ]
+
+
+async def run_summary(
+    session: AsyncSession,
+    *,
+    end: datetime,
+    since: timedelta,
+    pipeline: str | None = None,
+    tags: Sequence[str] = (),
+    latest: RunStatus | None = None,
+) -> RunSummary:
+    """Summarise the runs created in ``[end - since, end)`` per pipeline, in three statements.
+
+    One counts the runs per pipeline and state, one ranks each pipeline's runs newest first and
+    keeps the first ``RECENT_RUNS``, and one reads the settled runs' durations, over the most
+    recent sample. ``latest`` keeps only the pipelines whose newest run in the window is in that
+    state; ``tags`` narrows by what each pipeline wears now, as the runs listing does.
+    """
+    start = end - since
+
+    def narrow[*Row](statement: sa.Select[*Row]) -> sa.Select[*Row]:
+        narrowed = statement.where(Run.created_at >= start, Run.created_at < end)
+        if pipeline is not None:
+            narrowed = narrowed.where(Pipeline.code == pipeline)
+        for tag in tags:
+            narrowed = narrowed.where(carries_tag(session, tag))
+        return narrowed
+
+    counted = narrow(
+        sa.select(Run.pipeline_id, Run.status, sa.func.count())
+        .select_from(Run)
+        .join(Pipeline, Pipeline.id == Run.pipeline_id)
+        .group_by(Run.pipeline_id, Run.status)
+    )
+    counts: dict[object, dict[RunStatus, int]] = defaultdict(dict)
+    for pipeline_id, status, runs in (await session.execute(counted)).all():
+        counts[pipeline_id][RunStatus(status)] = runs
+
+    rank = (
+        sa.func.row_number()
+        .over(partition_by=Run.pipeline_id, order_by=(Run.created_at.desc(), Run.id.desc()))
+        .label("rank")
+    )
+    ranked = narrow(
+        sa.select(Run.pipeline_id, Pipeline.code, Pipeline.name, Run.id, Run.status, Run.created_at, rank)
+        .select_from(Run)
+        .join(Pipeline, Pipeline.id == Run.pipeline_id)
+    ).subquery()
+    newest = sa.select(ranked).where(ranked.c.rank <= RECENT_RUNS).order_by(ranked.c.pipeline_id, ranked.c.rank)
+    recent: dict[object, list[RecentRun]] = defaultdict(list)
+    named: dict[object, tuple[str, str | None]] = {}
+    for row in (await session.execute(newest)).all():
+        named[row.pipeline_id] = (row.code, row.name)
+        recent[row.pipeline_id].append(RecentRun(id=row.id, status=RunStatus(row.status), created_at=row.created_at))
+
+    timed = narrow(
+        sa.select(Run.pipeline_id, Run.started_at, Run.finished_at)
+        .select_from(Run)
+        .join(Pipeline, Pipeline.id == Run.pipeline_id)
+        .where(
+            Run.status.in_(TERMINAL_RUN_STATUSES),
+            Run.started_at.is_not(None),
+            Run.finished_at.is_not(None),
+        )
+        .order_by(Run.created_at.desc())
+        .limit(DURATION_SAMPLE)
+    )
+    measured: dict[object, list[int]] = defaultdict(list)
+    for pipeline_id, started, finished in (await session.execute(timed)).all():
+        if started is None or finished is None:  # pragma: no cover - both are held by the statement
+            continue
+        measured[pipeline_id].append(max(0, round((finished - started).total_seconds() * 1000)))
+
+    rows = [
+        PipelineRuns(
+            pipeline=named[pipeline_id][0],
+            name=named[pipeline_id][1],
+            latest=runs[0],
+            counts=counts.get(pipeline_id, {}),
+            recent=runs[::-1],
+            median_duration_ms=percentile(measured[pipeline_id], 50) if measured.get(pipeline_id) else None,
+        )
+        for pipeline_id, runs in recent.items()
+        if latest is None or runs[0].status is latest
+    ]
+    rows.sort(key=lambda row: row.pipeline)
+    rows.sort(key=lambda row: row.latest.created_at, reverse=True)
+    return RunSummary(window=StatsWindow(start=start, end=end), pipelines=rows)

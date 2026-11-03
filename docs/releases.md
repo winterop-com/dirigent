@@ -31,6 +31,14 @@ relock against the tag and bump.
 
 Alert rules stay out of pipeline documents. A rule's code is the instance's rather than a pipeline's, a `global` rule watches every pipeline, and deleting a rule deletes the deliveries it raised, so a document that stopped declaring one would erase the queue's record of what it sent.
 
+**`runs` gains an index too.** `ix_runs_created_at` is the one the summary per pipeline reads its window through. The baseline migration is edited in place, so `dg db upgrade` does not carry it: recreate the database, or add it by hand with `CREATE INDEX ix_runs_created_at ON runs (created_at)`. A database without it answers the same, more slowly.
+
+**Runs grouped by pipeline.** The Runs screen has a View switch between the list and By pipeline: one row per pipeline that ran in the last hour, 24 hours or 7 days, with the newest run's state, a count per state it has runs in, its 30 most recent runs as dots oldest first, each a link to its run, when it last ran, and the median duration of the settled ones. A row opens the list of that pipeline's runs over the same window. The view and window are in the address, `/runs?group=pipeline&window=24h`; the pipeline, tag and status filters carry over, the status asking for each pipeline's newest run. The same answer is `GET /runs/$summary?since=24h` (`RunSummary`, with `latest=<state>` and `tag`), `dg.runs.summary()`, `dg runs summary` (`runs.summary` records), and the `runs_by_pipeline` MCP tool.
+
+**A refused config says what is wrong, in our words.** A step whose resolved config its block refuses fails with `run.config_invalid`: one short sentence, `` `delay` must be at most 30s ``, with every problem in `error_params.problems[]` (code, message, location, params), and the run's screen lists them by field. A literal config is refused the same way at apply, at `steps.<step>.config.<field>`. Every validation message reads in our own words under the same `validation.*` codes (`must be at most 30s`, `is required`, `must be a valid integer`), with a duration or size limit written as a document writes one.
+
+**How a run was started is said once.** The runs list, the pipeline page's Recent runs, the run's header and its Trigger section name a person or a token by the label alone (`agent (token mcp-trial)`, not `api token · agent (token mcp-trial)`), a schedule, backfill or source as its kind and code, and a rerun as `rerun of <run> by <who>`. The run dialog says `runs as admin`.
+
 ## 0.32.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.32.0 together, and so do

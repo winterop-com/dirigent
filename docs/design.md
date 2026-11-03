@@ -1119,6 +1119,7 @@ POST          /api/v1/pipelines/{code}/$run           # parameters validated aga
 POST          /api/v1/pipelines/{code}/$backfill      # one run per window a cadence has gone past
 GET           /api/v1/runs                   # filters: pipeline, status, since
 GET           /api/v1/runs/$stats            # per day, durations, top errors, failing steps over a window
+GET           /api/v1/runs/$summary          # per pipeline: newest run, runs per state, recent runs, median duration
 GET           /api/v1/runs/{id}              # run + DAG view model + item and attempt counts
 GET           /api/v1/runs/{id}/items        # the fan-out grid, paged in creation order
 GET           /api/v1/runs/{id}/attempts     # paged in creation order; filters: step, status

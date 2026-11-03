@@ -5,7 +5,7 @@ import { Copyable, Fact, Section } from '@/components/run/Panel'
 import { StatusChip } from '@/components/run/StatusChip'
 import { asJson, elapsedBetween, formatDuration, formatWindow } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import { startedBy, triggerSummary, type AttemptOut, type RunOut } from '@/lib/runs'
+import { startedAs, startedBy, type AttemptOut, type RunOut } from '@/lib/runs'
 
 export const COPY_TRACE_LABEL = LABELS.runs.copy_trace
 export const COPY_RUN_LABEL = LABELS.runs.copy_run_id
@@ -28,8 +28,7 @@ export const COPY_RUN_LABEL = LABELS.runs.copy_run_id
  */
 export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly AttemptOut[] }) {
     const params = Object.entries(run.params)
-    const started = triggerSummary(run)
-    const who = startedBy(run, attempts)
+    const started = startedAs(run)
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
@@ -42,25 +41,19 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
             {run.error !== null && <p className="text-xs break-words text-critical">{run.error}</p>}
 
             <Section title={LABELS.word.trigger.label}>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term={LABELS.word.kind.term} detail={started.kind} />
-                    <Fact
-                        term={LABELS.runs.fact.by}
-                        detail={
-                            started.parent === null ? (
-                                (who ?? LABELS.runs.trigger_not_recorded)
-                            ) : (
-                                <Link
-                                    className="text-foreground underline-offset-2 hover:underline"
-                                    to={`/runs/${started.parent}`}
-                                    title={started.said ?? undefined}
-                                >
-                                    {started.who}
-                                </Link>
-                            )
-                        }
-                    />
-                </dl>
+                <p className="text-xs">
+                    {started.from === null ? (
+                        startedBy(run, attempts)
+                    ) : (
+                        <Link
+                            className="text-foreground underline-offset-2 hover:underline"
+                            to={`/runs/${started.from}`}
+                            title={started.recorded ?? undefined}
+                        >
+                            {started.said}
+                        </Link>
+                    )}
+                </p>
             </Section>
 
             <Section title={LABELS.runs.timing}>

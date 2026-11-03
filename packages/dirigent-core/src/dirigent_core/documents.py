@@ -38,6 +38,7 @@ from dirigent_common import (
     plain_fields_of,
     userinfo_in,
     validation_issue,
+    validation_issues,
 )
 from dirigent_common.messages import TEXT_UNSTORABLE
 from dirigent_common.storable import unstorable_at
@@ -834,6 +835,9 @@ def _block_refusals(
 ) -> list[ValidationIssue]:
     """Ask the live block what else it refuses, once its config is known to fit the schema.
 
+    A bound the published schema cannot state, such as a longest duration, is refused here by
+    the block's own model, in the words a run would fail with.
+
     A config still carrying a ``${...}`` is not known yet, so it is left to the run: a block
     asked to compile a program that is a reference would refuse the reference rather than
     the program.
@@ -843,14 +847,16 @@ def _block_refusals(
         return []
     try:
         validated = block.config_model.model_validate(config)
-    except ValidationError:
-        return []
+    except ValidationError as error:
+        problems = validation_issues(error.errors(include_url=False), model=block.config_model)
+        return [_at(f"steps.{step}.config", problem) for problem in problems]
     return [_at(f"steps.{step}.config", issue) for issue in cast("list[Issue]", block.check_config(validated))]
 
 
 def _at(location: str, issue: Issue) -> ValidationIssue:
-    """Address a block's own issue at the place in the document it belongs to."""
-    return ValidationIssue(location=location, message=issue.message, code=issue.code, params=issue.params)
+    """Address a block's own issue at the place in the document it belongs to, below that place where it names one."""
+    where = f"{location}.{issue.location}" if issue.location else location
+    return ValidationIssue(location=where, message=issue.message, code=issue.code, params=issue.params)
 
 
 def _allowlist_issues(step: str, block: str, entry: Any, allowed: set[str] | None) -> list[ValidationIssue]:

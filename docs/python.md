@@ -398,14 +398,14 @@ Two things worth knowing if you go that way. Every error response has one shape:
 {
   "status": 422,
   "title": "Unprocessable Content",
-  "detail": "body.priority: Input should be 'low', 'normal' or 'high'",
+  "detail": "body.priority: must be 'low', 'normal' or 'high'",
   "code": "server.request_invalid",
-  "params": {"detail": "body.priority: Input should be 'low', 'normal' or 'high'"},
+  "params": {"detail": "body.priority: must be 'low', 'normal' or 'high'"},
   "problems": [
     {
       "code": "validation.enum",
-      "message": "Input should be 'low', 'normal' or 'high'",
-      "params": {"loc": ["body", "priority"], "input_kind": "str", "msg": "Input should be 'low', 'normal' or 'high'"},
+      "message": "must be 'low', 'normal' or 'high'",
+      "params": {"loc": ["body", "priority"], "input_kind": "str", "msg": "must be 'low', 'normal' or 'high'"},
       "location": "body.priority"
     }
   ],

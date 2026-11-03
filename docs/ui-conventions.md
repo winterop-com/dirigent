@@ -2089,11 +2089,23 @@ a run loaded to name -- the palette's shelf while the read is in flight -- and i
 the pipeline and the instant the moment there is one. A queued run has not started, so every one
 of those readings takes `started_at ?? created_at` and none of them can draw a blank.
 
-**A run started by a step of another names that run by its short id.** `triggerSummary` in
-`lib/runs` is the one phrase -- `a step of run 32ee6409`, `shortId`'s tail of `parent_run_id` --
-on the runs listing's Trigger cell and the run's own Trigger facts, where it is the link to the
-parent. What the server recorded, uuid and all, is on hover. The Trigger column is prose: it
+**How a run was started is one fact, said once.** `startedAs` in `lib/runs` is the one phrase,
+on the runs listing's Trigger cell, the pipeline page's Recent runs, the run's header and its
+Trigger section. A person or a token is named by the label alone -- `agent (token mcp-trial)`
+already says it was a token, so `api token` is not drawn beside it -- and the header reads it after
+`by`. A schedule, a backfill or a source is its kind with the code it names, `schedule nightly`.
+A run started by a step of another names that run by its short id, `a step of run 32ee6409`, and a
+rerun the run it repeated, `rerun of 32ee6409 by admin`; on the run's Trigger section that run is
+the link. What the server recorded, uuid and all, is on hover. The Trigger column is prose: it
 truncates in its share rather than widening the table.
+
+**The runs grouped by pipeline.** The Runs screen's View switch shows one row per pipeline that
+ran in a window (`?group=pipeline&window=24h`; 1h, 24h or 7d): the title by the quartet, the newest
+run's state, a dot and a count per state it has runs in -- a state with none is not drawn -- the
+most recent runs as dots, oldest left and newest right, each a link to its run with its state and
+when on hover, when it last ran, and the median duration of the settled ones. A row opens the flat
+list of that pipeline over the same window. The strip is cut from the left where the cell is
+narrower than it, so the newest run is the one always shown.
 
 **Two durations, measured at two altitudes.** The run's is `started_at` to `finished_at`, beside
 its status chip; a step's is the earliest start of any of its attempts to the latest finish of any

@@ -1,4 +1,4 @@
-"""Runs: the list, the stats, the detail and its DAG, cancellation, rerun, retry, logs, events, and a report."""
+"""Runs: the list, the stats and summary, the detail and its DAG, cancellation, rerun, retry, logs, events, a report."""
 
 import asyncio
 import time
@@ -30,6 +30,7 @@ from dirigent_client.schemas import (
     RunOut,
     RunReport,
     RunStats,
+    RunSummary,
     StepReport,
 )
 from dirigent_common import JsonMap, format_duration
@@ -56,7 +57,7 @@ from dirigent_core.models import (
 from dirigent_core.pipelines import UNWELL, FailedStep, carries_tag, failing_steps
 from dirigent_core.registry import unmet_worker_tags
 from dirigent_core.reporting import duration_ms, items_in_order, run_facts
-from dirigent_core.stats import MAX_WINDOW, run_stats
+from dirigent_core.stats import MAX_WINDOW, run_stats, run_summary
 from dirigent_server.dependencies import ServicesDep, SessionDep, get_sessions
 from dirigent_server.errors import Refusal
 from dirigent_server.messages import (
@@ -282,6 +283,41 @@ async def stats(
             since=since,
         )
     return await run_stats(session, end=utcnow(), since=window, pipeline=pipeline, tags=tag or ())
+
+
+@router.get(
+    "/runs/$summary",
+    operation_id="getRunSummary",
+    summary="Summarise each pipeline's recent runs",
+    response_model=RunSummary,
+)
+async def summary(
+    session: SessionDep,
+    principal: PrincipalDep,
+    since: Annotated[str, Query(description="How far back to look, e.g. 24h; runs created within it.")] = "24h",
+    pipeline: Annotated[str | None, Query(description="Only runs of this pipeline.")] = None,
+    tag: Annotated[
+        list[str] | None, Query(description="Only pipelines wearing this tag; repeat it to name more.")
+    ] = None,
+    latest: Annotated[
+        RunStatus | None, Query(description="Only pipelines whose newest run in the window is in this state.")
+    ] = None,
+) -> RunSummary:
+    """Summarise the runs created within a window, one row per pipeline that ran in it.
+
+    Each row carries the newest run, how many runs are in each state, the most recent runs
+    oldest first, and the median duration of the settled ones. The window is at most 366 days,
+    and ``tag`` narrows as it does on the listing.
+    """
+    window = _window(since)
+    if window > MAX_WINDOW:
+        raise Refusal(
+            STATS_WINDOW_TOO_LONG,
+            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            maximum=format_duration(MAX_WINDOW),
+            since=since,
+        )
+    return await run_summary(session, end=utcnow(), since=window, pipeline=pipeline, tags=tag or (), latest=latest)
 
 
 @router.get("/runs/{run_id}", operation_id="getRun", summary="Read a run", response_model=RunDetail)

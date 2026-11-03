@@ -27,6 +27,7 @@ import { ICONS } from '@/lib/icons'
 import { ApiError, type JsonMap, type Problem } from '@/lib/api'
 import { elapsedBetween, formatBytes, formatDuration, formatInstant } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
+import { problemsIn } from '@/lib/refusal'
 import { fillPanel, openPanel, openPanelTab, panelOpen, panelSheet, type PanelTab } from '@/lib/panels'
 import { RUN_GROUP, registerActions } from '@/lib/palette'
 import { readPipeline, startRun, stepsOf } from '@/lib/pipelines'
@@ -486,8 +487,7 @@ export function RunDetail() {
     )
     const troubled = run.status === 'failed' || run.status === 'completed_with_errors'
     const took = elapsedBetween(run.started_at, run.finished_at)
-    const who = startedBy(run, Object.values(state.attempts))
-    const trigger = who === null ? null : LABELS.runs.line.by(who)
+    const trigger = startedBy(run, Object.values(state.attempts))
 
     // The page scrolls above the terminal, which stands at the foot of the content area. The graph
     // takes whatever height the column has left over, and never less than its drawing needs.
@@ -591,7 +591,7 @@ export function RunDetail() {
                         {took !== null && (
                             <span className="font-mono text-muted-foreground">{formatDuration(took)}</span>
                         )}
-                        {trigger !== null && <span className="text-muted-foreground">{trigger}</span>}
+                        <span className="text-muted-foreground">{trigger}</span>
                         {run.stored_bytes > 0 && (
                             <span
                                 className="text-muted-foreground"
@@ -648,6 +648,7 @@ export function RunDetail() {
                             items={itemFailed !== null}
                             error={failedAttempt?.error ?? run.error}
                             code={failedAttempt?.error_code ?? run.error_code}
+                            problems={problemsIn(failedAttempt?.error_params)}
                             block={failedNode?.block ?? null}
                             connection={
                                 named === null

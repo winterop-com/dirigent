@@ -12,7 +12,7 @@ import { readReportDocument } from '@/lib/artifacts'
 import { elapsedBetween, formatDuration, formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { said } from '@/lib/refusal'
-import { EVERY_RUN, runReportLink, runsLink, triggerSummary, type RunOut } from '@/lib/runs'
+import { EVERY_RUN, runReportLink, runsLink, startedAs, type RunOut } from '@/lib/runs'
 
 /** How many runs the recent-runs panel draws; the runs screen holds the rest. */
 export const RECENT_ROWS = 8
@@ -73,8 +73,7 @@ export function RecentRuns({
 /** One run on one line: its state, what started it, how long it took, and when. */
 function RunLine({ run }: { run: RunOut }) {
     const took = elapsedBetween(run.started_at, run.finished_at)
-    const started = triggerSummary(run)
-    const whole = started.said === null ? started.kind : `${started.kind} · ${started.said}`
+    const started = startedAs(run)
     return (
         <Link
             to={`/runs/${run.id}`}
@@ -83,9 +82,11 @@ function RunLine({ run }: { run: RunOut }) {
             <span className="w-36 shrink-0">
                 <StatusChip status={run.status} />
             </span>
-            <span className="hidden min-w-0 flex-1 truncate text-xs sm:block" title={whole}>
-                {started.kind}
-                {started.who !== null && <span className="text-faint"> · {started.who}</span>}
+            <span
+                className="hidden min-w-0 flex-1 truncate text-xs sm:block"
+                title={started.recorded ?? undefined}
+            >
+                {started.said}
             </span>
             <span className="ml-auto w-16 shrink-0 text-right font-mono text-xs text-muted-foreground">
                 {took === null ? null : formatDuration(took)}

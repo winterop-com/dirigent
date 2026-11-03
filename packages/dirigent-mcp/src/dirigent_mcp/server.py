@@ -349,6 +349,21 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         return await call(lambda dg: dg.runs.stats(since=since, pipeline=pipeline, tags=tags or ()))
 
     @tool(READS)
+    async def runs_by_pipeline(
+        since: str = "24h",
+        pipeline: str | None = None,
+        tags: list[str] | None = None,
+        latest: RunStatus | None = None,
+    ) -> Any:
+        """Summarise each pipeline's runs created within `since` (such as `24h`), the one that ran last first.
+
+        Answers per pipeline its newest run, how many runs are in each state, its 30 most recent
+        runs oldest first, and the median duration of the settled ones. `latest` keeps only the
+        pipelines whose newest run is in that state, such as `failed`.
+        """
+        return await call(lambda dg: dg.runs.summary(since=since, pipeline=pipeline, tags=tags or (), latest=latest))
+
+    @tool(READS)
     async def get_run(run_id: str) -> Any:
         """Read one run: its status, every step's state, and its error when it failed.
 

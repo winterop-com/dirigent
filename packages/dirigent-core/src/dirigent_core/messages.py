@@ -753,6 +753,10 @@ STEP_NOT_IN_VERSION = RUN.define("step_not_in_version", "step {step} is not in t
 
 CONFIG_REFUSED = RUN.define("config_refused", "{detail}")
 
+# The first problem is the sentence; every problem, the first included, rides in ``problems``.
+
+CONFIG_INVALID = RUN.define("config_invalid", "`{field}` {problem}{more}")
+
 # A failure nobody anticipated has no sentence of its own, and a Python class name is not one:
 # the person is told what failed and where the words are, and the class and the exception's own
 # text ride in the params and in the step's log, which is what an operator reads.

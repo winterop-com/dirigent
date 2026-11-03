@@ -195,6 +195,7 @@ class Run(Entity):
     __tablename__ = "runs"
     __table_args__ = (
         sa.Index("ix_runs_pipeline_id_status_created_at", "pipeline_id", "status", "created_at"),
+        sa.Index("ix_runs_created_at", "created_at"),
         sa.Index("ix_runs_finished_at", "finished_at"),
         sa.Index("ix_runs_triggered_by_id_status", "triggered_by_id", "status"),
     )
