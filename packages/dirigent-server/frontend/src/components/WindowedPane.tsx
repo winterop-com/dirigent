@@ -40,6 +40,7 @@ export function WindowedPane({
     children,
     windowed,
     aside,
+    held,
 }: {
     /** What the content is called: the window's title, and what the button names. */
     name: string
@@ -57,12 +58,25 @@ export function WindowedPane({
     windowed: ReactNode
     /** What sits beside the pane in the window: a reference for what is being written. */
     aside?: ReactNode
+    /**
+     * For a pane that grows with its content: the button's strip is held to the foot of the
+     * scroller the pane sits in, on that scroller's ground -- a panel's, or the right panel's.
+     */
+    held?: 'panel' | 'sidebar'
 }) {
     const [wide, setWide] = useState(false)
     const inPlace = (
         <>
             <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-            <div className="flex shrink-0 justify-end p-1.5 pt-0">
+            <div
+                className={cn(
+                    'dg-window-strip flex shrink-0 justify-end p-1.5 pt-0',
+                    held !== undefined && 'pt-1.5',
+                    held === 'panel' && 'bg-panel-ground',
+                    held === 'sidebar' && 'bg-sidebar',
+                )}
+                data-held={held}
+            >
                 <IconButton
                     icon={ICONS.open_in_window}
                     label={LABELS.shell.open_in_window(name)}

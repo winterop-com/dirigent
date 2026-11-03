@@ -1149,7 +1149,7 @@ html.dark[data-theme='contrast'],
 .dg-panel,
 [data-slot='card'] {
     position: relative;
-    overflow: hidden;
+    overflow: clip;
     border: 1px solid var(--panel-line);
     border-radius: var(--radius-surface);
     background-color: var(--panel-ground);
@@ -1948,6 +1948,14 @@ html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-backgrou
     }
 }
 
+/* A pane's window strip held to the foot of the scroller it sits in. Inside the page's scroller
+   it stands in the scroller's foot padding, at the window's edge, so nothing scrolls beneath it. */
+.dg-window-strip[data-held] {
+    position: sticky;
+    bottom: calc(-1 * var(--page-foot, 0px));
+    z-index: 10;
+}
+
 /* ---------------------------------------------------------------------------
    THE PAGE'S SCROLLER.
 
@@ -1957,9 +1965,11 @@ html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-backgrou
    --------------------------------------------------------------------------- */
 .dg-scroller {
     --page-inset: 1rem;
+    --page-foot: 3rem;
     --scroll-track: 8px;
     overflow-y: auto;
     scrollbar-gutter: stable;
+    padding-bottom: var(--page-foot);
     padding-left: var(--page-inset);
     padding-right: calc(var(--page-inset) - var(--scroll-track));
 }

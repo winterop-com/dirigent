@@ -50,8 +50,8 @@ const CELL = 'px-3 py-2 align-top'
 const HEAD = `text-muted-foreground font-medium ${CELL}`
 const ROW = 'border-border even:bg-secondary/30 border-t'
 
-function setting(align: Align | undefined): string | undefined {
-    return align === undefined || align === null ? undefined : SET[align]
+function setting(align: Align | undefined): string {
+    return align === undefined || align === null ? SET.left : SET[align]
 }
 
 function draw(block: Block, index: number): ReactNode {
@@ -97,12 +97,16 @@ function draw(block: Block, index: number): ReactNode {
             return (
                 <Inset key={index} className="overflow-x-auto">
                     <table className="w-full border-collapse text-xs">
-                        <thead>
-                            <tr className="border-b border-border bg-secondary/40">
-                                {headCells(block.header, block.align)}
-                            </tr>
-                        </thead>
-                        <tbody>{bodyRows(block.rows, block.align)}</tbody>
+                        {block.header !== null && (
+                            <thead>
+                                <tr className="border-b border-border bg-secondary/40">
+                                    {headCells(block.header, block.align)}
+                                </tr>
+                            </thead>
+                        )}
+                        <tbody className={cn(block.header === null && '[&>tr:first-child]:border-t-0')}>
+                            {bodyRows(block.rows, block.align)}
+                        </tbody>
                     </table>
                 </Inset>
             )

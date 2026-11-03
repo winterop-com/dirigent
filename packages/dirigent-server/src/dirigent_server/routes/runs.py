@@ -201,6 +201,10 @@ async def list_runs(
     principal: PrincipalDep,
     pipeline: Annotated[str | None, Query(description="Only runs of this pipeline.")] = None,
     run_status: Annotated[RunStatus | None, Query(alias="status", description="Only runs in this state.")] = None,
+    settled: Annotated[
+        bool | None,
+        Query(description="Only runs that have settled (true), or only runs still in flight (false)."),
+    ] = None,
     since: Annotated[str | None, Query(description="Only runs created within this window, e.g. 24h.")] = None,
     tag: Annotated[
         list[str] | None, Query(description="Only runs whose pipeline wears this tag; repeat it to name more.")
@@ -208,7 +212,7 @@ async def list_runs(
     after: AfterParam = None,
     limit: LimitParam = DEFAULT_PAGE,
 ) -> Page[RunOut]:
-    """List runs newest first, filtered by pipeline, status, tag, and how far back to look.
+    """List runs newest first, filtered by pipeline, status, whether settled, tag, and how far back to look.
 
     ``tag`` repeats, and repeating it narrows. It asks the pipeline the run is of what it
     wears now: a run pins its version, never its pipeline's tags, so retagging a pipeline
@@ -225,6 +229,9 @@ async def list_runs(
         statement = statement.where(Pipeline.code == pipeline)
     if run_status is not None:
         statement = statement.where(Run.status == run_status)
+    if settled is not None:
+        terminal = Run.status.in_(TERMINAL_RUN_STATUSES)
+        statement = statement.where(terminal if settled else ~terminal)
     if since is not None:
         statement = statement.where(Run.created_at >= utcnow() - _window(since))
     for one in tag or ():

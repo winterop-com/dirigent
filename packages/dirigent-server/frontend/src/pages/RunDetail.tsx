@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { OutputTab } from '@/components/run/OutputTab'
@@ -39,6 +39,7 @@ import {
     resumeRun,
     runVerbs,
     startedBy,
+    tabFromQuery,
     waitingForWorkers,
     type RunReport,
 } from '@/lib/runs'
@@ -383,7 +384,13 @@ export function RunDetail() {
         ]
     }, [chosen, document, id, report, reportProblem, state])
 
-    useEffect(() => fillPanel(tabs, { screen: `run:${id}`, open: 'step' }), [tabs, id])
+    // An address naming a tab opens the panel on it for this visit, before the first fill.
+    const [asked] = useSearchParams()
+    const askedTab = tabFromQuery(asked)
+    useEffect(() => {
+        if (askedTab !== null) openPanel()
+    }, [askedTab])
+    useEffect(() => fillPanel(tabs, { screen: `run:${id}`, open: askedTab ?? 'step' }), [tabs, id, askedTab])
 
     const failedRun = state?.run.status === 'failed'
     useEffect(() => {

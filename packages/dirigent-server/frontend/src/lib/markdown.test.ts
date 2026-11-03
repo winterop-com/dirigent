@@ -28,7 +28,9 @@ function blockText(block: Block): string {
         case 'quote':
             return textIn(block.children)
         case 'table':
-            return [block.header, ...block.rows].map((row) => row.map(inlineText).join(' | ')).join('\n')
+            return [...(block.header === null ? [] : [block.header]), ...block.rows]
+                .map((row) => row.map(inlineText).join(' | '))
+                .join('\n')
         case 'rule':
             return ''
     }
@@ -70,7 +72,7 @@ function blockKinds(block: Block): string[] {
         case 'quote':
             return [block.kind, ...kindsIn(block.children)]
         case 'table':
-            return [block.kind, ...[...block.header, ...block.rows.flat()].flatMap(inlineKinds)]
+            return [block.kind, ...[...(block.header ?? []), ...block.rows.flat()].flatMap(inlineKinds)]
         default:
             return [block.kind]
     }
@@ -296,6 +298,23 @@ describe('the subset a description is read as', () => {
 
         expect(blocks[0]).toMatchObject({ kind: 'table', align: ['left', 'center', 'right'] })
         expect(kindsIn(blocks)).toEqual(['table', 'text', 'text', 'text', 'text', 'code', 'strong', 'text'])
+    })
+
+    test('a table whose heading cells are all empty has no heading row', () => {
+        expect(readMarkdown('| | |\n| --- | --- |\n| Status | succeeded |')).toEqual([
+            {
+                kind: 'table',
+                align: [null, null],
+                header: null,
+                rows: [[[{ kind: 'text', text: 'Status' }], [{ kind: 'text', text: 'succeeded' }]]],
+            },
+        ])
+    })
+
+    test('one heading cell with words keeps the whole heading row', () => {
+        const blocks = readMarkdown('| | value |\n| --- | --- |\n| a | 1 |')
+
+        expect(blocks[0]).toMatchObject({ kind: 'table', header: [[], [{ kind: 'text', text: 'value' }]] })
     })
 
     test('a table between two paragraphs leaves both of them alone', () => {

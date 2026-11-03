@@ -11,8 +11,11 @@ import {
     narrowed,
     priorityMark,
     replySent,
+    runReportLink,
     runsLink,
     runsPath,
+    settledRunsPath,
+    tabFromQuery,
     startedBy,
     triggerSummary,
     waitingForWorkers,
@@ -138,6 +141,23 @@ describe('the filters an address asks the listing to open on', () => {
     test('round-trip a link back into the filters that made it', () => {
         const filters = { pipeline: 'nightly-etl', status: 'running', since: '1h', tags: ['climate', 'http'] }
         expect(asked(runsLink(filters).split('?')[1])).toEqual(filters)
+    })
+})
+
+describe("a pipeline's settled runs and a run's report", () => {
+    test('ask the listing for one pipeline, settled, newest first', () => {
+        expect(settledRunsPath('nightly-etl', 6)).toBe('/runs?pipeline=nightly-etl&settled=true&limit=6')
+    })
+
+    test("open a run's screen on its report, and read that back from the address", () => {
+        const link = runReportLink(RUN.id)
+        expect(link).toBe(`/runs/${RUN.id}?tab=report`)
+        expect(tabFromQuery(new URLSearchParams(link.split('?')[1]))).toBe('report')
+    })
+
+    test('ignore a tab the screen does not open from its address', () => {
+        expect(tabFromQuery(new URLSearchParams('tab=output'))).toBeNull()
+        expect(tabFromQuery(new URLSearchParams(''))).toBeNull()
     })
 })
 

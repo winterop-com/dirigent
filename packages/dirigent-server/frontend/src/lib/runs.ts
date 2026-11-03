@@ -410,6 +410,35 @@ export function readRuns(
     return apiJson<Page<RunOut>>(runsPath(filters, after, limit))
 }
 
+/**
+ * Where one pipeline's settled runs are read from, newest first.
+ *
+ * `settled` is not one of the listing's filters: it is how a pipeline's page finds the run whose
+ * report is the latest, which no single status can ask for.
+ */
+export function settledRunsPath(pipeline: string, limit: number): string {
+    const query = new URLSearchParams({ pipeline, settled: 'true', limit: String(limit) })
+    return `/runs?${query.toString()}`
+}
+
+/** Read one pipeline's newest settled runs. */
+export function readSettledRuns(pipeline: string, limit: number): Promise<Page<RunOut>> {
+    return apiJson<Page<RunOut>>(settledRunsPath(pipeline, limit))
+}
+
+/** The panel tab a run's address may ask its screen to open on. */
+export const REPORT_TAB = 'report'
+
+/** The address of a run's screen opened on its report. */
+export function runReportLink(runId: string): string {
+    return `/runs/${encodeURIComponent(runId)}?tab=${REPORT_TAB}`
+}
+
+/** Which panel tab a run's address asks for, or null for the screen's own default. */
+export function tabFromQuery(query: URLSearchParams): string | null {
+    return query.get('tab') === REPORT_TAB ? REPORT_TAB : null
+}
+
 /** What started a run: the kind, who or what it was, and the run that started it where one did. */
 export interface TriggerSummary {
     kind: string

@@ -52,7 +52,13 @@ export type Block =
     | { kind: 'code'; text: string; language: string | null }
     | { kind: 'list'; ordered: boolean; items: ListItem[] }
     | { kind: 'quote'; children: Block[] }
-    | { kind: 'table'; align: Align[]; header: Inline[][]; rows: Inline[][][] }
+    | {
+          kind: 'table'
+          align: Align[]
+          /** The heading row, or null where every heading cell is empty and the rows are the whole table. */
+          header: Inline[][] | null
+          rows: Inline[][][]
+      }
     | { kind: 'rule' }
 
 /** The schemes a link may carry. Everything else is drawn as its own words. */
@@ -118,7 +124,9 @@ function blockOf(token: Token): Block[] {
                 {
                     kind: 'table',
                     align: table.align.map((one) => one ?? null),
-                    header: table.header.map((cell) => inlinesOf(cell.tokens)),
+                    header: table.header.every((cell) => cell.text.trim() === '')
+                        ? null
+                        : table.header.map((cell) => inlinesOf(cell.tokens)),
                     rows: table.rows.map((row) => row.map((cell) => inlinesOf(cell.tokens))),
                 },
             ]

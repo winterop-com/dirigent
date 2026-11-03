@@ -1047,6 +1047,23 @@ def test_a_run_filtered_by_tag_and_status_answers_both(client: TestClient) -> No
     assert [row["id"] for row in answer.json()["items"]] == [str(run_id)]
 
 
+def test_the_runs_listing_narrows_to_settled_runs_or_to_runs_in_flight(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    done = UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
+    going = UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
+    rows_written(client, sa.update(Run).where(Run.id == done).values(status=RunStatus.SUCCEEDED))
+    rows_written(client, sa.update(Run).where(Run.id == going).values(status=RunStatus.RUNNING))
+
+    def ids(settled: str) -> list[str]:
+        answer = client.get(f"{PREFIX}/runs", params={"pipeline": "api-demo", "settled": settled})
+        assert answer.status_code == 200, answer.text
+        return [row["id"] for row in answer.json()["items"]]
+
+    assert ids("true") == [str(done)]
+    assert ids("false") == [str(going)]
+    assert client.get(f"{PREFIX}/runs", params={"settled": "perhaps"}).status_code == 422
+
+
 def test_retagging_a_pipeline_moves_its_runs_under_the_new_tag(client: TestClient) -> None:
     apply_tagged(client)
     run_id = client.post(f"{PREFIX}/pipelines/climate-shape/$run", json={"params": {}}).json()["run_id"]

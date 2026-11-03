@@ -47,12 +47,13 @@ class Runs(Resource):
         *,
         pipeline: str | None = None,
         status: RunStatus | None = None,
+        settled: bool | None = None,
         since: str | None = None,
         tags: Sequence[str] = (),
         after: str | None = None,
         limit: int | None = None,
     ) -> Page[RunOut]:
-        """List runs newest first, filtered by pipeline, status, tag, and how far back to look.
+        """List runs newest first, filtered by pipeline, status, whether settled, tag, and how far back to look.
 
         Naming more than one tag narrows: a run is listed only if its pipeline wears all of them.
         """
@@ -63,6 +64,7 @@ class Runs(Resource):
             params=query(
                 pipeline=pipeline,
                 status=status.value if status else None,
+                settled=None if settled is None else str(settled).lower(),
                 since=since,
                 tag=[*tags] or None,
                 after=after,
