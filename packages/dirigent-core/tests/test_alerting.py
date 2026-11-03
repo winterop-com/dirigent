@@ -961,7 +961,7 @@ async def test_a_terminal_status_raises_the_event_it_maps_to(
         stored = await session.get(Run, run.id)
         assert stored is not None
         queued = await raise_for_status(session, services, stored, status, now=NOW)
-    assert [notification.event for notification in queued] == [event]
+    assert [notification.event for notification in queued] == [NotificationEvent(event.value)]
 
 
 @pytest.mark.parametrize("status", [RunStatus.CANCELLED, RunStatus.QUEUED, RunStatus.RUNNING])
