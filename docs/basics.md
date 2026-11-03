@@ -49,7 +49,7 @@ uv sync
 ```
 
 ```text
-2026-09-26T14:40:28.030+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.33.0
+2026-09-26T14:40:28.030+02:00 [info    ] initialised                    [instance.initialised] directory=/home/you/basics state=.dirigent/state schema=0001_baseline admin=admin template=local version=0.34.0
 ```
 
 It creates the state directory, migrates the schema, creates the first admin, and mints that

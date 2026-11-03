@@ -17,7 +17,24 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
-## Unreleased
+## 0.34.0
+
+Released 2026-11-03. Every package in the workspace moves to 0.34.0 together, and so do
+`dirigent-dhis2`, `dirigent-contrib`, `dirigent-fhir` and `dirigent-integration`.
+
+**Before upgrading.** The baseline migration is edited in place, so `dg db upgrade` does not carry
+this release's schema: `notifications.event` becomes the `notification_event` enum, which adds
+`test`. Recreate the state (`dg dev --wipe-state`, or a fresh database), or change the column by
+hand. Six changes break a document or a caller, each marked **Breaking** below: a document's
+`connections:` block may not hold a secret; a step's connection must be of a kind its block takes;
+an `http` check is healthy on a 2xx or 3xx alone; a test alert is its own event; a reference
+indexed with brackets is refused; and `rabbitmq.publish` fails a message no queue takes. The
+`connection_kind` records `dg blocks list` writes change shape too.
+
+**An interrupted program runner exits quietly every time.** A Ctrl-C that reached a jq runner
+between two requests was held until the runner's stdin closed, and then raised outside the code
+that turns it into exit 130, so the runner exited 1 with a bare `KeyboardInterrupt`. The runners
+install their own SIGINT handler before anything else and end with 130 wherever the signal lands.
 
 **`dg dev` generates a secret key when a project has none.** A project made with
 `dg init --template documents` has no `.env`, so the first `dg connection create` against the
@@ -60,8 +77,6 @@ The `webhook` kind keeps its own check, a HEAD that proves the endpoint is reach
 `run_succeeded`. It is now `test` in the queue (`NotificationOut.event` is a `NotificationEvent`,
 the four rule events and `test`), in a webhook's payload and in the log channel's `event_kind`,
 and the log line carries no stand-in run facts. A rule still binds to the four run events alone.
-The baseline migration is edited in place: `notifications.event` is the `notification_event`
-enum, which adds `test`.
 
 **Breaking: a reference indexed with brackets is refused at plan.** `${steps.x.output.value[0]}`
 passed plan and failed at run time; a reference reads an element as a dotted segment, and plan
