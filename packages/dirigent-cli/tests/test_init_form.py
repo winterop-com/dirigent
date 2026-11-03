@@ -42,6 +42,36 @@ async def test_a_short_password_cannot_be_submitted() -> None:
         assert app.focused is app.query_one("#password", Input)
 
 
+async def test_a_local_instance_left_without_a_password_is_admin_admin() -> None:
+    app = form()
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+s")
+    chosen = app.return_value
+    assert chosen is not None
+    assert (chosen.template, chosen.admin, chosen.password) == ("local", "admin", "admin")
+
+
+async def test_a_local_instance_takes_admin_as_its_password() -> None:
+    app = form(password="admin")
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+s")
+    chosen = app.return_value
+    assert chosen is not None
+    assert chosen.password == "admin"
+
+
+async def test_a_stack_refuses_an_empty_or_admin_password() -> None:
+    for password in ("", "admin"):
+        app = form(password=password)
+        async with app.run_test() as pilot:
+            app.query_one("#kind-compose", RadioButton).value = True
+            await pilot.pause()
+            await pilot.press("ctrl+s")
+            await pilot.pause()
+            assert app.return_value is None
+            assert "at least 8" in str(app.query_one("#problem").render())
+
+
 async def test_the_two_passwords_have_to_agree() -> None:
     app = form(password="a-long-enough-password")
     async with app.run_test() as pilot:

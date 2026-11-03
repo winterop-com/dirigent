@@ -11,8 +11,9 @@ uv tool install dirigent-cli
 dg init my-pipelines && cd my-pipelines && uv sync
 ```
 
-`dg init` writes `AGENTS.md` beside the project's `README.md`: the loop below, how to read what
-`dg` answers, and the rules a document most often gets wrong. `CLAUDE.md` holds one line,
+`dg init` writes `AGENTS.md` beside the project's `README.md`: the loop below, the MCP tools
+that run the same loop when the instance's server is connected, how to read what `dg` answers,
+and the rules a document most often gets wrong. `CLAUDE.md` holds one line,
 `@AGENTS.md`, so Claude Code reads the same notes every other agent reads. A project that
 already has either file keeps its own.
 

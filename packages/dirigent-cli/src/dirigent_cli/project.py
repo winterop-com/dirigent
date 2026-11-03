@@ -213,6 +213,10 @@ TEMPLATES: Final = ("local", "compose", "documents")
 
 COMPOSE_TEMPLATE_NAME: Final = "compose"
 
+#: The first admin's password on a local instance when none is given, the one `dg dev` seeds;
+#: the length rule spares it there and nowhere else.
+LOCAL_ADMIN_PASSWORD: Final = "admin"
+
 
 def installed_starters() -> "list[ExampleEntry]":
     """List the starters installed beside ``dg`` itself, which is what a new project may copy.
@@ -258,6 +262,11 @@ class InitChoices(BaseModel):
     def instance(self) -> bool:
         """Whether an instance is initialised here, in ``.dirigent/state``."""
         return self.template == "local"
+
+    @property
+    def local_password(self) -> bool:
+        """Whether a local instance's first admin takes the fixed local password, which skips the length rule."""
+        return self.instance and self.password == LOCAL_ADMIN_PASSWORD
 
     def has(self, service: str) -> bool:
         """Whether the stack carries a service."""
@@ -918,6 +927,17 @@ Every command goes through `uv run dg`, so it runs the dirigent version `pyproje
 4. **Apply it to an instance** once it runs: `uv run dg apply`, then `uv run dg run CODE --watch`.
    `uv run dg dev` starts a local instance with its web UI; it keeps running, so a person starts it
    in a terminal of its own.
+
+## Through MCP
+
+When the instance's dirigent MCP server (`/mcp`) is connected, the same loop goes through its
+tools rather than `uv run dg`. A document is passed as its text.
+
+- Find: `list_blocks`, `get_block`, `list_examples`, `get_example`.
+- Check: `plan_document` checks a document against the instance; `validate_pipeline`
+  checks one it already holds, by its code.
+- Apply: `apply_document`.
+- Run and read runs: `run_pipeline`, `list_runs`, `get_run`, `run_attempts`, `run_logs`.
 
 ## Reading what dg says
 

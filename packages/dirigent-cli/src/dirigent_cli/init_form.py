@@ -20,6 +20,7 @@ from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSe
 
 from dirigent_cli.project import (
     DEFAULT_SERVICES,
+    LOCAL_ADMIN_PASSWORD,
     PACKS,
     SERVICES,
     InitChoices,
@@ -172,7 +173,7 @@ class InitForm(App[InitChoices | None]):
                     yield Input(value=self._admin, placeholder="username", id="admin")
                     yield Input(value=self._password, placeholder="password", password=True, id="password")
                     yield Input(value=self._password, placeholder="confirm", password=True, id="confirm")
-                yield Label(f"At least {MIN_PASSWORD_LENGTH} characters, typed twice.", classes="hint")
+                yield Label("", classes="hint", id="password-hint")
 
             yield Label("", id="problem")
             yield Label("", id="files")
@@ -198,6 +199,11 @@ class InitForm(App[InitChoices | None]):
         self.query_one("#services-label").display = stack
         self.query_one("#services").display = stack
         self.query_one("#admin-block").display = kind != "documents"
+        self.query_one("#password-hint", Label).update(
+            f"At least {MIN_PASSWORD_LENGTH} characters, typed twice; left empty, the password is admin."
+            if kind == "local"
+            else f"At least {MIN_PASSWORD_LENGTH} characters, typed twice."
+        )
         self._refresh_files()
 
     def on_radio_set_changed(self, _event: RadioSet.Changed) -> None:
@@ -274,7 +280,10 @@ class InitForm(App[InitChoices | None]):
             if choices.stack and choices.admin != "admin":
                 problem.update("The stack's first admin is named admin.")
                 return
-            if len(choices.password) < MIN_PASSWORD_LENGTH:
+            if choices.instance and not choices.password and not confirm:
+                choices = choices.model_copy(update={"password": LOCAL_ADMIN_PASSWORD})
+                confirm = LOCAL_ADMIN_PASSWORD
+            if not choices.local_password and len(choices.password) < MIN_PASSWORD_LENGTH:
                 problem.update(f"A password must be at least {MIN_PASSWORD_LENGTH} characters.")
                 self.query_one("#password", Input).focus()
                 return

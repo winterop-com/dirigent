@@ -128,6 +128,7 @@ from dirigent_cli.output import (
 from dirigent_cli.params import ParamError, build_params
 from dirigent_cli.project import (
     DEFAULT_PIPELINES_DIR,
+    LOCAL_ADMIN_PASSWORD,
     InitChoices,
     ProjectError,
     agent_notes,
@@ -687,7 +688,10 @@ def init_command(
         ),
     ] = None,
     admin: Annotated[str, typer.Option(help="The first admin account's username.")] = "admin",
-    password: Annotated[str | None, typer.Option(help="Its password; asked for when omitted.")] = None,
+    password: Annotated[
+        str | None,
+        typer.Option(help="Its password; admin on a local instance, asked for otherwise, when omitted."),
+    ] = None,
     agents: Annotated[
         bool,
         typer.Option("--agents", help="Write only AGENTS.md and CLAUDE.md, into a project that already exists."),
@@ -757,9 +761,11 @@ def init_command(
             _init_fail(INIT_REFUSED, detail=str(error))
         if choices.stack and admin != "admin":
             _init_fail(ADMIN_IS_FIXED_IN_A_STACK)
-        if choices.template != "documents" and not choices.password:
+        if choices.instance and not choices.password:
+            choices = choices.model_copy(update={"password": LOCAL_ADMIN_PASSWORD})
+        elif choices.template != "documents" and not choices.password:
             choices = choices.model_copy(update={"password": _prompt_for_a_password(stack=choices.stack)})
-    if choices.template != "documents" and len(choices.password) < MIN_PASSWORD_LENGTH:
+    if choices.template != "documents" and not choices.local_password and len(choices.password) < MIN_PASSWORD_LENGTH:
         _init_fail(INIT_REFUSED, detail=str(WeakPassword()))
     try:
         made = scaffold(directory, choices, version=version)
@@ -793,7 +799,7 @@ def init_command(
     settings = instance_settings(root)
     migrated = migrations.head_revision(settings) or "none"
     migrations.upgrade("head", settings)
-    token = asyncio.run(first_admin(settings, choices.admin, choices.password))
+    token = asyncio.run(first_admin(settings, choices.admin, choices.password, fixture=choices.local_password))
     env_file = write_instance_env(root, token)
     emit_fact(
         "instance.initialised",
@@ -901,16 +907,22 @@ def cli_version() -> str:
         return "0.0.0"
 
 
-async def first_admin(settings: Settings, username: str, password: str) -> str:
-    """Create the instance's first admin and mint it one token, which is returned once."""
+async def first_admin(settings: Settings, username: str, password: str, *, fixture: bool = False) -> str:
+    """Create the instance's first admin and mint it one token, which is returned once.
+
+    A fixture admin is a local instance's, whose fixed password the length rule spares.
+    """
     from dirigent_client.enums import UserRole
-    from dirigent_core.auth import AuthError, create_user, issue_token
+    from dirigent_core.auth import AuthError, create_fixture_admin, create_user, issue_token
     from dirigent_core.database import create_engine, create_session_factory, session_scope
 
     engine = create_engine(settings)
     try:
         async with session_scope(create_session_factory(engine)) as session:
-            user = await create_user(session, username, password, role=UserRole.ADMIN)
+            if fixture:
+                user = await create_fixture_admin(session, username, password)
+            else:
+                user = await create_user(session, username, password, role=UserRole.ADMIN)
             issued = await issue_token(session, user, name="init")
             return issued.secret.get_secret_value()
     except AuthError as error:

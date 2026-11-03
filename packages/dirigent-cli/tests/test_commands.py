@@ -281,6 +281,47 @@ def test_init_refuses_a_short_password_before_writing_anything(tmp_path: Path) -
     assert not project.exists(), "nothing is written for a password that would have been refused"
 
 
+def _signs_in(root: Path, username: str, password: str) -> bool:
+    from dirigent_core.auth import find_user, verify_password
+    from dirigent_core.database import create_engine, create_session_factory, session_scope
+
+    async def check() -> bool:
+        engine = create_engine(instance_settings(root))
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                user = await find_user(session, username)
+                return user is not None and verify_password(user.password_hash, password)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(check())
+
+
+def test_a_local_instance_signs_in_as_admin_admin_when_no_password_is_given(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv(commands.BOOTSTRAP_PASSWORD_ENV, raising=False)
+    root = tmp_path / "local"
+    result = machine("init", str(root), "--template", "local", "--json")
+    assert result.exit_code == 0, result.output
+    assert only(result.stdout, "instance.initialised")["admin"] == "admin"
+    assert _signs_in(root, "admin", "admin")
+
+
+def test_a_local_instance_takes_admin_as_its_password_when_named(tmp_path: Path) -> None:
+    root = tmp_path / "local"
+    assert machine("init", str(root), "--password", "admin", "--json").exit_code == 0
+    assert _signs_in(root, "admin", "admin")
+
+
+def test_a_stack_refuses_admin_as_its_password(tmp_path: Path) -> None:
+    project = tmp_path / "stack"
+    result = machine("init", str(project), "--template", "compose", "--password", "admin", "--json")
+    assert result.exit_code == 1
+    assert "at least 8" in only(result.stdout, "error")["message"]
+    assert not project.exists()
+
+
 def test_init_never_overwrites(tmp_path: Path) -> None:
     scaffold(tmp_path / "twice", InitChoices())
     with pytest.raises(ProjectError, match="never overwrites"):
@@ -2168,9 +2209,9 @@ def test_documents_only_writes_no_database(tmp_path: Path) -> None:
     assert not (root / ".env").exists(), "the instance is somebody else's, so its key is not this project's"
 
 
-def test_init_refuses_when_it_has_no_password_and_cannot_ask(tmp_path: Path) -> None:
+def test_a_stack_refuses_when_it_has_no_password_and_cannot_ask(tmp_path: Path) -> None:
     """A prompt in a pipe blocks forever, so say how to give one instead."""
-    result = invoke("init", str(tmp_path / "instance"))
+    result = invoke("init", str(tmp_path / "stack"), "--template", "compose")
 
     assert result.exit_code == 1
     assert "DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD" in plain(result.output)
