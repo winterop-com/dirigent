@@ -71,7 +71,7 @@ class ReportRenderOperator(Operator[ReportRenderConfig, ReportRenderOutput]):
 
     spec = OperatorSpec(
         id="report.render",
-        summary="Render text from a Jinja template; `report: {from: <step>}` makes it the run's report.",
+        summary="Render text from a Jinja template, which `report: {from: <step>}` takes as the report.",
         idempotent=True,
     )
     config_model: ClassVar[type[BaseModel]] = ReportRenderConfig

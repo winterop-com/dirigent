@@ -40,7 +40,7 @@ from dirigent_common import (
     validation_issue,
     validation_issues,
 )
-from dirigent_common.bounds import BOUNDS_KEYWORD, bounds_keyword
+from dirigent_common.bounds import BOUNDS_KEYWORD, bounds_keyword, missed_bound
 from dirigent_common.messages import TEXT_UNSTORABLE
 from dirigent_common.storable import unstorable_at
 from dirigent_core.engine.definition import (
@@ -956,15 +956,30 @@ def _config_issues(step: str, config: JsonMap, schema: JsonMap) -> list[Validati
     found = cast("list[SchemaValidationError]", list(raised))
     issues: list[ValidationIssue] = []
     for error in sorted(found, key=lambda item: [str(part) for part in item.absolute_path]):
-        path = ".".join(str(part) for part in error.absolute_path)
-        issues.append(
-            ValidationIssue.of(
-                STEP_CONFIG_INVALID,
-                location=f"steps.{step}.config" + (f".{path}" if path else ""),
-                detail=error.message,
-            )
-        )
+        parts = [str(part) for part in error.absolute_path]
+        location = ".".join([f"steps.{step}.config", *parts])
+        missed = _missed_bound(error)
+        if missed is not None:
+            message, limit = missed
+            issues.append(ValidationIssue.of(message, location=location, limit=limit, loc=parts))
+            continue
+        issues.append(ValidationIssue.of(STEP_CONFIG_INVALID, location=location, detail=error.message))
     return issues
+
+
+def _missed_bound(error: SchemaValidationError) -> tuple[Message, str] | None:
+    """The ``validation.*`` refusal a published bound on a duration or a size was missed under.
+
+    A bound on an optional field is missed inside the ``anyOf`` that allows the null, so the
+    branches are looked through for it.
+    """
+    if error.validator == BOUNDS_KEYWORD:
+        return missed_bound(error.validator_value, error.instance)
+    for inner in error.context or ():
+        found = _missed_bound(inner)
+        if found is not None:
+            return found
+    return None
 
 
 def _connection_issues(step: str, config: JsonMap, connections: set[str] | None) -> list[ValidationIssue]:

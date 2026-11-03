@@ -15,6 +15,7 @@ from jsonschema import ValidationError
 from pydantic import TypeAdapter
 
 from dirigent_common.durations import DurationError, format_duration, to_timedelta
+from dirigent_common.messages import ABOVE, AT_LEAST, AT_MOST, BELOW, Message
 from dirigent_common.sizes import SizeError, format_size, parse_size
 
 #: The keyword a bounded duration or size carries in a published schema.
@@ -68,12 +69,13 @@ def _measure(kind: str, value: object) -> float | None:
     return float(parsed) if isinstance(parsed, int) and not isinstance(parsed, bool) else None
 
 
-#: How each bound reads in a refusal.
-_WORDING: Final = (
-    ("minimum", "at least"),
-    ("exclusiveMinimum", "more than"),
-    ("maximum", "at most"),
-    ("exclusiveMaximum", "less than"),
+#: The refusal each bound is missed under: the same ``validation.*`` message a model's own
+#: bound on the field is, so a schema check and a model check say one thing one way.
+_REFUSED: Final[tuple[tuple[str, Message], ...]] = (
+    ("minimum", AT_LEAST),
+    ("exclusiveMinimum", ABOVE),
+    ("maximum", AT_MOST),
+    ("exclusiveMaximum", BELOW),
 )
 
 
@@ -90,17 +92,26 @@ def _holds(name: str, measured: float, limit: float) -> bool:
             return measured < limit
 
 
-def bounds_keyword(validator: Any, bounds: Any, instance: Any, schema: Any) -> Iterator[ValidationError]:
-    """Refuse a duration or size outside the bounds its field publishes."""
+def missed_bound(bounds: object, instance: object) -> tuple[Message, str] | None:
+    """The refusal a value outside its published bounds is answered with, and the bound as written."""
     if not isinstance(bounds, dict):
-        return
-    kind = str(cast("dict[str, object]", bounds).get("kind", "duration"))
+        return None
+    written_bounds = cast("dict[str, object]", bounds)
+    kind = str(written_bounds.get("kind", "duration"))
     measured = _measure(kind, instance)
     if measured is None:
-        return
-    written_bounds = cast("dict[str, object]", bounds)
-    for name, wording in _WORDING:
+        return None
+    for name, message in _REFUSED:
         written = written_bounds.get(name)
         limit = None if written is None else _measure(kind, written)
         if limit is not None and not _holds(name, measured, limit):
-            yield ValidationError(f"{instance!r} is not {wording} {written}")
+            return message, str(written)
+    return None
+
+
+def bounds_keyword(validator: Any, bounds: Any, instance: Any, schema: Any) -> Iterator[ValidationError]:
+    """Refuse a duration or size outside the bounds its field publishes."""
+    missed = missed_bound(bounds, instance)
+    if missed is not None:
+        message, limit = missed
+        yield ValidationError(message.render(limit=limit))

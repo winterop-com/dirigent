@@ -1231,8 +1231,9 @@ def playground_step(config: str) -> str:
 def test_a_delay_past_the_playgrounds_limit_is_refused_by_the_schema_alone() -> None:
     """The bound travels in the published schema, so a check holding only the catalog refuses it."""
     issues = validate_against_catalog(load_text(playground_step("{delay: 5m}")), load_plugin_host().catalog())
-    assert [issue.location for issue in issues] == ["steps.a.config.delay"]
-    assert "at most 30s" in issues[0].message
+    assert [(issue.location, issue.code, issue.params["limit"]) for issue in issues] == [
+        ("steps.a.config.delay", "validation.less_than_equal", "30s")
+    ], "the same refusal the block's own model makes, with the bound as a document writes it"
 
 
 def test_a_delay_inside_the_limit_plans() -> None:
@@ -1252,7 +1253,9 @@ def test_a_bounded_duration_publishes_its_bounds_in_the_spelling_a_document_writ
 
 def test_a_size_past_its_limit_is_refused_by_the_schema_alone() -> None:
     issues = validate_against_catalog(load_text(playground_step("{payload: 1TB}")), load_plugin_host().catalog())
-    assert [issue.location for issue in issues] == ["steps.a.config.payload"]
+    assert [(issue.location, issue.code, issue.params["limit"]) for issue in issues] == [
+        ("steps.a.config.payload", "validation.less_than_equal", "1mb")
+    ]
 
 
 def test_a_literal_config_is_validated_against_the_blocks_model_at_apply() -> None:
