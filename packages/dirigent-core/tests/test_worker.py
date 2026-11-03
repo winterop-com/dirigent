@@ -2,12 +2,14 @@
 
 import asyncio
 import contextlib
+import logging
+from collections.abc import Generator, Iterable, MutableMapping
 from datetime import datetime, timedelta
 from typing import Any
 
 import sqlalchemy as sa
 import structlog
-from structlog.testing import capture_logs
+from structlog.testing import capture_logs as captured_logs
 
 from dirigent_client.enums import AttemptStatus, RunStatus, WorkerStatus
 from dirigent_core import telemetry
@@ -24,6 +26,18 @@ from dirigent_core.models import Worker as WorkerRow
 from dirigent_core.plugins import PluginHost
 from dirigent_core.worker import Chore, Worker, default_worker_name
 from engineblocks import EchoOperator
+
+
+@contextlib.contextmanager
+def capture_logs(processors: Iterable[Any] = ()) -> Generator[list[MutableMapping[str, Any]]]:
+    """Capture structured events at INFO and up, whatever level an earlier test configured."""
+    saved = structlog.get_config()
+    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.INFO))
+    try:
+        with captured_logs(processors=processors) as logged:
+            yield logged
+    finally:
+        structlog.configure(**saved)
 
 
 def fan_out(count: int) -> PipelineDefinition:
