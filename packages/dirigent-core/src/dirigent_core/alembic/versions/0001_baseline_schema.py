@@ -621,6 +621,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_runs")),
     )
     with op.batch_alter_table("runs", schema=None) as batch_op:
+        batch_op.create_index("ix_runs_created_at", ["created_at"], unique=False)
         batch_op.create_index("ix_runs_finished_at", ["finished_at"], unique=False)
         batch_op.create_index(
             "ix_runs_pipeline_id_status_created_at", ["pipeline_id", "status", "created_at"], unique=False
@@ -1064,6 +1065,7 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f("ix_runs_status"))
         batch_op.drop_index("ix_runs_pipeline_id_status_created_at")
         batch_op.drop_index("ix_runs_finished_at")
+        batch_op.drop_index("ix_runs_created_at")
 
     op.drop_table("runs")
     with op.batch_alter_table("source_routes", schema=None) as batch_op:

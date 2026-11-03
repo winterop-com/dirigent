@@ -59,6 +59,8 @@ export interface RunOut {
     triggered_by_kind: TriggerKind
     /** The run whose step started this one, when a step of another run did. */
     parent_run_id: string | null
+    /** The run, schedule or source that started this one, where one did. */
+    triggered_by_id: string | null
     triggered_by_label: string | null
     /** The source node a run of a pipeline with sources entered at, by its step code. */
     source: string | null
@@ -68,6 +70,8 @@ export interface RunOut {
     error: string | null
     /** The dotted code of the refusal the error was rendered from. */
     error_code: string | null
+    /** The specifics the refusal rendered, for a re-render in this bundle's own words. */
+    error_params: JsonMap | null
     /** The step whose first failed attempt this run holds, when it did not end well. */
     failed_step: string | null
     started_at: string | null
@@ -439,52 +443,84 @@ export function tabFromQuery(query: URLSearchParams): string | null {
     return query.get('tab') === REPORT_TAB ? REPORT_TAB : null
 }
 
-/** What started a run: the kind, who or what it was, and the run that started it where one did. */
-export interface TriggerSummary {
-    kind: string
-    /** Who or what it was, with a parent run named by its short id. */
-    who: string | null
-    /** The whole of what the server recorded, for a title where `who` shortened it. */
-    said: string | null
-    /** The run whose step started this one. */
-    parent: string | null
+/** How a run was started, said once. */
+export interface StartedAs {
+    /**
+     * Who started it, or the kind with what it names: `agent (token mcp-trial)`,
+     * `schedule nightly`, `a step of run 3f4a5b`.
+     */
+    said: string
+    /** Whether `said` names a person or a token, which a line reads after "by". */
+    actor: boolean
+    /** The run this one came from: the run whose step started it, or the run it reran. */
+    from: string | null
+    /** The whole of what the server recorded, for a title where `said` shortened it. */
+    recorded: string | null
 }
 
-/** What started a run, the one way every screen names it. */
-export function triggerSummary(run: RunOut): TriggerSummary {
+/** The kinds whose label is who started the run, so the kind itself says nothing more. */
+const ACTOR_KINDS: ReadonlySet<TriggerKind> = new Set<TriggerKind>(['user', 'api_token', 'adhoc'])
+
+/** What the server records of a rerun: the run it repeated, and who asked for it. */
+const RERUN_LABEL = /^rerun of \S+(?: by (.+))?$/
+
+/**
+ * How a run was started, the one way every screen says it.
+ *
+ * ONE FACT, SAID ONCE. A person or a token is named by the label alone, which already says it was
+ * a token (`agent (token mcp-trial)`); a schedule, a backfill or a source is its kind with the
+ * code it names; a run a step or a rerun started names that run by its short id.
+ */
+export function startedAs(run: RunOut): StartedAs {
+    const recorded = run.triggered_by_label
     const kind = run.triggered_by_kind.replaceAll('_', ' ')
-    const said = run.triggered_by_label
     if (run.parent_run_id !== null) {
         return {
-            kind,
-            who: LABELS.runs.started_by_step(shortId(run.parent_run_id)),
-            said,
-            parent: run.parent_run_id,
+            said: LABELS.runs.started_by_step(shortId(run.parent_run_id)),
+            actor: false,
+            from: run.parent_run_id,
+            recorded,
         }
     }
-    // What the server records of a source or a schedule leads with the kind the row already says.
-    const who = said !== null && said.startsWith(`${kind} `) ? said.slice(kind.length + 1) : said
-    return { kind, who, said, parent: null }
+    if (run.triggered_by_kind === 'rerun') {
+        const original = run.triggered_by_id
+        const who = recorded === null ? null : (RERUN_LABEL.exec(recorded)?.[1] ?? null)
+        const of = original === null ? kind : LABELS.runs.rerun_of(shortId(original))
+        return {
+            said: who === null ? of : LABELS.runs.rerun_by(of, who),
+            actor: false,
+            from: original,
+            recorded,
+        }
+    }
+    if (ACTOR_KINDS.has(run.triggered_by_kind)) {
+        return { said: recorded ?? kind, actor: recorded !== null, from: null, recorded }
+    }
+    const said = recorded === null ? kind : recorded.startsWith(`${kind} `) ? recorded : `${kind} ${recorded}`
+    return { said, actor: false, from: null, recorded }
 }
 
 /**
- * Who started a run, said with how its source was entered: a call to the source, or a person's
- * hand with an input or with the source's sample. Null where nothing was recorded.
+ * How a run was started as its header says it, with how its source was entered: a call to the
+ * source, or a person's hand with an input or with the source's sample. A person or a token is
+ * read after "by".
  */
 export function startedBy(
     run: RunOut,
     attempts: readonly Pick<AttemptOut, 'kind' | 'step_name' | 'via'>[],
-): string | null {
-    const who = triggerSummary(run).who
+): string {
+    const started = startedAs(run)
     const via =
         run.source === null
             ? null
             : (attempts.find((attempt) => attempt.kind === 'received' && attempt.step_name === run.source)
                   ?.via ?? null)
     if (via === 'request' && run.source !== null) return LABELS.runs.a_call(run.source)
-    if (via === 'sample' || via === 'hand')
-        return LABELS.runs.who_by_hand(who ?? LABELS.runs.trigger_not_recorded, LABELS.runs.entered[via])
-    return who
+    const who =
+        via === 'sample' || via === 'hand'
+            ? LABELS.runs.who_by_hand(started.said, LABELS.runs.entered[via])
+            : started.said
+    return started.actor ? LABELS.runs.line.by(who) : who
 }
 
 /**

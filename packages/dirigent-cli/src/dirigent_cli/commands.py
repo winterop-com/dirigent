@@ -2158,6 +2158,37 @@ def runs_stats(
     )
 
 
+@runs_app.command("summary")
+def runs_summary(
+    ctx: typer.Context,
+    since: Annotated[str | None, typer.Option(help="How far back to look, such as 7d; 24h when omitted.")] = None,
+    pipeline: Annotated[str | None, typer.Option(help="Only runs of this pipeline.")] = None,
+    tag: Annotated[
+        list[str] | None,
+        typer.Option("--tag", help="Only pipelines wearing this tag; repeat it to name more."),
+    ] = None,
+    latest: Annotated[
+        str | None, typer.Option(help="Only pipelines whose newest run in the window is in this state.")
+    ] = None,
+) -> None:
+    """Summarise each pipeline's runs within a window: the newest, how many per state, and how long."""
+    if latest is not None and latest not in set(RunStatus):
+        fail(NOT_A_RUN_STATUS, value=repr(latest), allowed=", ".join(sorted(RunStatus)))
+    with client_for(state_of(ctx)) as dg:
+        summary = dg.call(
+            dg.runs.summary(
+                since=since, pipeline=pipeline, tags=tag or [], latest=RunStatus(latest) if latest else None
+            )
+        )
+    emit_fact(
+        "runs.summary",
+        message=f"{len(summary.pipelines)} pipelines ran",
+        window_start=summary.window.start.isoformat(),
+        window_end=summary.window.end.isoformat(),
+        pipelines=[row.model_dump(mode="json") for row in summary.pipelines],
+    )
+
+
 @runs_app.command("show")
 def runs_show(
     ctx: typer.Context,

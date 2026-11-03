@@ -1187,6 +1187,23 @@ def test_run_stats_are_one_record_carrying_the_days_and_the_durations(tmp_path: 
     assert (narrowed["settled"], narrowed["pipeline"], narrowed["durations"]) == (0, "other", [])
 
 
+def test_a_runs_summary_is_one_record_with_a_row_per_pipeline(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path)
+    assert invoke("run", "cli-demo").exit_code == 0
+
+    [summary] = of_kind(records(invoke("runs", "summary", "--json").stdout), "runs.summary")
+    [row] = summary["pipelines"]
+    assert row["pipeline"] == "cli-demo"
+    assert row["latest"]["id"] == latest_run()
+    assert sum(row["counts"].values()) == 1
+    assert [run["id"] for run in row["recent"]] == [latest_run()]
+
+    narrowed = only(invoke("runs", "summary", "--latest", "cancelled", "--json").stdout, "runs.summary")
+    assert narrowed["pipelines"] == []
+    refused = invoke("runs", "summary", "--latest", "broken", "--json")
+    assert refused.exit_code != 0
+
+
 def test_profiling_a_run_records_the_critical_path_and_the_split_along_it(tmp_path: Path, server: str) -> None:
     apply_document(tmp_path)
     assert invoke("run", "cli-demo").exit_code == 0

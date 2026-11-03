@@ -113,7 +113,7 @@ test('a pipeline page says where its endpoint is called, and a new token makes a
     const [run] = runs.items
     expect(run).toBeDefined()
     await page.goto(`/runs/${String(run?.id)}`)
-    await expect(page.getByText(LABELS.runs.line.by(LABELS.runs.a_call('ask')))).toBeVisible()
+    await expect(page.getByText(LABELS.runs.a_call('ask'), { exact: true })).toBeVisible()
     await expect(
         page.getByTestId('step-line').filter({ hasText: `reply · ${LABELS.runs.reply.sent}` }),
     ).toBeVisible()

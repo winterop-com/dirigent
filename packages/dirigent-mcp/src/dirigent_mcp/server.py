@@ -74,6 +74,9 @@ DEFAULT_PORT: Final = 3334
 #: How many rows a listing answers with when the agent names no limit.
 DEFAULT_LIMIT: Final = 20
 
+#: How many of a pipeline's most recent runs `runs_by_pipeline` names, oldest first.
+MCP_RECENT_RUNS: Final = 10
+
 #: How many attempts one read of a run's attempts asks the instance for while it walks them all.
 ATTEMPT_PAGE: Final = 500
 
@@ -347,6 +350,33 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         errors and steps that failed most.
         """
         return await call(lambda dg: dg.runs.stats(since=since, pipeline=pipeline, tags=tags or ()))
+
+    @tool(READS)
+    async def runs_by_pipeline(
+        since: str = "24h",
+        pipeline: str | None = None,
+        tags: list[str] | None = None,
+        latest: RunStatus | None = None,
+        limit: int = DEFAULT_LIMIT,
+    ) -> Any:
+        """Summarise each pipeline's runs created within `since` (such as `24h`), the one that ran last first.
+
+        Answers per pipeline its newest run, how many runs are in each state, its most recent
+        runs oldest first (the last 10 here), and the median duration of the settled ones, for
+        the first `limit` pipelines; `more` counts the ones left out. `latest` keeps only the
+        pipelines whose newest run is in that state, such as `failed`.
+        """
+
+        async def read(dg: Dirigent) -> Any:
+            summary = await dg.runs.summary(since=since, pipeline=pipeline, tags=tags or (), latest=latest)
+            kept = [
+                row.model_copy(update={"recent": row.recent[-MCP_RECENT_RUNS:]})
+                for row in summary.pipelines[: max(limit, 1)]
+            ]
+            left = len(summary.pipelines) - len(kept)
+            return {**_json(summary.model_copy(update={"pipelines": kept})), **({"more": left} if left else {})}
+
+        return await call(read)
 
     @tool(READS)
     async def get_run(run_id: str) -> Any:

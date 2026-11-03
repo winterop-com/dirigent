@@ -144,10 +144,16 @@ def _profile_line(record: Record) -> Record:
 
 
 #: Record kinds that carry a row under ``fields``, and the line each one reads as.
+def _summary_line(record: Record) -> Record:
+    """A runs summary on one line: how many pipelines ran, with the rows drawn beneath it."""
+    return {name: value for name, value in record.items() if name != "pipelines"}
+
+
 LINES: Final[Mapping[str, Callable[[Record], Record]]] = {
     "source": _source_line,
     "source.input": _input_line,
     "profile": _profile_line,
+    "runs.summary": _summary_line,
 }
 
 
@@ -768,6 +774,54 @@ def _stats(record: Record) -> RenderableType | None:
     return Group(*parts)
 
 
+#: The mark one run is drawn as in a summary's strip of recent runs.
+RUN_MARK: Final = "\u25cf"
+
+
+def _summary(record: Record) -> RenderableType | None:
+    """Render a runs summary: per pipeline, the newest run, the runs per state, the recent ones, how long."""
+    pipelines = _mappings(record, "pipelines")
+    if not pipelines:
+        return None
+    return build_table(
+        "runs per pipeline",
+        ["pipeline", "latest", "runs", "recent", "last ran", "median"],
+        [
+            [
+                escape(str(row.get("pipeline"))),
+                styled(_field(row.get("latest"), "status")),
+                _counts(row.get("counts")),
+                _strip(row.get("recent")),
+                moment(_field(row.get("latest"), "created_at")),
+                elapsed(row.get("median_duration_ms")),
+            ]
+            for row in pipelines
+        ],
+    )
+
+
+def _field(value: object, name: str) -> object:
+    """Read one field of a nested mapping, or nothing where the value is not one."""
+    return cast("Mapping[str, object]", value).get(name) if isinstance(value, Mapping) else None
+
+
+def _counts(value: object) -> str:
+    """Render the runs per state that has any, each coloured as its state."""
+    if not isinstance(value, Mapping):
+        return "-"
+    counted = cast("Mapping[str, object]", value)
+    said = [f"{_count(runs, state)} {escape(state.replace('_', ' '))}" for state, runs in counted.items() if runs]
+    return ", ".join(said) or "-"
+
+
+def _strip(value: object) -> str:
+    """Render the recent runs as one coloured mark each, oldest left."""
+    if not isinstance(value, list):
+        return "-"
+    marks = [str(_field(run, "status")) for run in cast("list[object]", value)]
+    return "".join(f"[{STATUS_STYLES.get(mark, 'dim')}]{RUN_MARK}[/]" for mark in marks) or "-"
+
+
 def _count(value: object, status: str) -> str:
     """Render one status's count, coloured as that status when there is any of it."""
     if not value:
@@ -781,6 +835,7 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "run": _run,
     "run.profile": _profile,
     "runs.stats": _stats,
+    "runs.summary": _summary,
     "backfill": _backfill,
     "config": _config,
     "db.history": _db_history,

@@ -177,6 +177,10 @@ const word = {
     pipeline: {
         label: 'Pipeline',
         term: 'pipeline',
+        count: {
+            one: 'pipeline',
+            many: 'pipelines',
+        },
     },
     /** One execution of a pipeline. */
     run: {
@@ -1130,6 +1134,7 @@ const refused = {
             "{reference} cannot be placed, because the command's quoting cannot be read past {opener} on line {line}. Close it or write it another way, or pass the value through argv.",
     },
     run: {
+        config_invalid: '{field} {problem}{more}.',
         connection_wrong_kind:
             'Connection {ref} has kind {kind}, and this step reads a connection of kind {wanted}.',
         entry_ambiguous: 'Pipeline {code} has the sources {sources}. Name the one this run enters at.',
@@ -1344,6 +1349,11 @@ const refused = {
     },
     validation: {
         extra_forbidden: 'Unknown key{suggestion}.',
+        greater_than: 'Must be more than {limit}.',
+        greater_than_equal: 'Must be at least {limit}.',
+        less_than: 'Must be less than {limit}.',
+        less_than_equal: 'Must be at most {limit}.',
+        missing: 'Required.',
         text_unstorable:
             'This holds a NUL character or half a surrogate pair, which cannot be stored. Remove it.',
     },
@@ -1950,7 +1960,7 @@ const editor = {
         info_and_up: 'info and up',
         debug_too: 'debug too',
         /** The footnote: who the run is attributed to, and how it was started. */
-        runs_as: (who: string) => `runs as ${who} · adhoc`,
+        runs_as: (who: string) => `runs as ${who}`,
         /** What a run started here enters its source with, around the source's code. */
         entry: {
             sample: 'Starts from the sample of ',
@@ -2246,6 +2256,8 @@ const runs = {
         heading: (step: string) => `${step} failed`,
         /** A run that completed with errors: the step carried on past items that failed. */
         items_heading: (step: string) => `Items of ${step} failed`,
+        /** The list a refused config's problems are drawn in, one per field, named for a reader. */
+        problems: 'Problems',
     },
     // The listing.
 
@@ -2267,6 +2279,25 @@ const runs = {
     window_option: (window: string) => `Last ${window}`,
     /** What the window select is worth when no window is chosen. */
     any_window: 'All of history',
+    /** The switch between every run and one row per pipeline. */
+    view: {
+        label: 'View',
+        list: 'List',
+        by_pipeline: 'By pipeline',
+    },
+    /** The runs grouped by pipeline: its column headings and what a count and a dot say. */
+    grouped: {
+        latest: 'Latest',
+        counts: 'Runs',
+        recent: 'Recent',
+        last_ran: 'Last ran',
+        median: 'Median',
+        dot: (status: string, when: string) => `${status}, ${when}`,
+        empty: (window: string) => `No pipeline ran in the last ${window}.`,
+        /** The status filter, which asks of each pipeline's newest run. */
+        latest_filter: 'Latest status',
+        any_latest: 'Any latest status',
+    },
     /** Which step a run died in, drawn in front of the refusal itself. */
     failed_at: (step: string) => `at ${step}`,
     empty_filtered: 'No run matches these filters.',
@@ -2280,6 +2311,10 @@ const runs = {
     waiting_tags: (rest: string, last: string) => `${rest} and ${last}`,
     /** Who started a run, where a step of another run did. */
     started_by_step: (run: string) => `a step of run ${run}`,
+    /** A run that repeats another, named by its short id. */
+    rerun_of: (run: string) => `rerun of ${run}`,
+    /** That rerun, with who asked for it. */
+    rerun_by: (rerun: string, who: string) => `${rerun} by ${who}`,
 
     // The run screen: its toolbar, its palette shelf and the graph.
 
@@ -2320,7 +2355,6 @@ const runs = {
      * cannot drift apart. What is left here is what nothing else says.
      */
     fact: {
-        by: 'by',
         /** Whether a reply reached a caller. */
         answer: 'answer',
         finished: 'finished',
@@ -2338,8 +2372,6 @@ const runs = {
         /** How many elements a fan-out ran. */
         items: 'items',
     },
-    /** Who asked for a run, where the server recorded nobody. */
-    trigger_not_recorded: 'not recorded',
     no_parameters: 'This run was started with no parameters.',
 
     // The Step tab.

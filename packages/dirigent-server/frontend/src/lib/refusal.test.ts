@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import { ApiError, type Issue, type Problem } from '@/lib/api'
-import { local, refusalLine, refusalLines, refusalOf, said } from '@/lib/refusal'
+import { local, problemsIn, refusalLine, refusalLines, refusalOf, said } from '@/lib/refusal'
 import { contributedWording } from '@/lib/wording'
 
 /** One refusal as this server writes it: a status phrase for a title, and a sentence to act on. */
@@ -141,5 +141,29 @@ describe('whose sentence a refusal is drawn in', () => {
         // `detail` is the server's joining of what it sent, which no longer matches what is drawn.
         const lines = refusalLines(problem({ detail: 'no pipeline coded convert-one', problems: [listed] }))
         expect(lines).toEqual({ detail: null, problems: ['No pipeline coded convert-one.'] })
+    })
+})
+
+describe('the problems a failure lists', () => {
+    test('a refused config lists each problem with its code and the field it is at', () => {
+        const listed = problemsIn({
+            field: 'delay',
+            problems: [
+                {
+                    code: 'validation.less_than_equal',
+                    message: 'must be at most 30s',
+                    params: { limit: '30s', loc: ['delay'] },
+                    location: 'delay',
+                },
+            ],
+        })
+        expect(listed.map((one) => [one.code, one.location, one.params.limit])).toEqual([
+            ['validation.less_than_equal', 'delay', '30s'],
+        ])
+    })
+
+    test('a failure that lists nothing has no problems to draw', () => {
+        expect(problemsIn({ detail: 'x' })).toEqual([])
+        expect(problemsIn(null)).toEqual([])
     })
 })

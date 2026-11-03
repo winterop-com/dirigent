@@ -578,7 +578,7 @@ test('the run dialog is built from the pipeline own parameter schema', async ({ 
     await expect(dialog.getByLabel('batch_size', { exact: true })).toBeVisible()
     await expect(dialog.getByText('required').first()).toBeVisible()
     // It says who the run would be attributed to, which is what the run's own screen shows.
-    await expect(dialog.getByText(`runs as ${DEV_USERNAME} · adhoc`)).toBeVisible()
+    await expect(dialog.getByText(`runs as ${DEV_USERNAME}`)).toBeVisible()
 
     // The run decides what its log keeps: info and up unless this control asks for debug.
     await expect(dialog.getByLabel(LABELS.editor.run.log_level)).toBeVisible()

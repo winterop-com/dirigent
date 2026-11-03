@@ -1050,6 +1050,13 @@ async def test_the_run_stats_fold_the_same_way_on_postgresql(pg_sessions: Any) -
     await assert_the_stats_fold(pg_sessions)
 
 
+async def test_the_run_summary_ranks_the_same_way_on_postgresql(pg_sessions: Any) -> None:
+    """The window-function read, asserted by the body the SQLite lane runs."""
+    from test_stats import assert_the_summary_folds
+
+    await assert_the_summary_folds(pg_sessions)
+
+
 async def _remigrated(pg_settings: Settings) -> None:
     """Empty the container's database and build the schema from the migrations alone."""
     engine = create_engine(pg_settings)

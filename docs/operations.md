@@ -1159,6 +1159,21 @@ The window is at most 366 days. Every count is exact; the percentiles are measur
 window's most recent 10,000 settled runs, ordered in the server rather than by the database, so
 SQLite and PostgreSQL give the same answer.
 
+`dg runs summary` answers per pipeline instead, for a pipeline that runs every few minutes all
+day. It reads the runs created in the window, 24 hours when `--since` names none, in flight or
+not, and says for each pipeline that ran: its newest run, how many runs are in each state, its
+30 most recent runs oldest first, and the median duration of the settled ones. `--latest failed`
+keeps the pipelines whose newest run failed, which is the list of what is broken now.
+
+```bash
+dg runs summary
+dg runs summary --since 7d --tag nightly
+dg runs summary --latest failed | jq -r '.pipelines[].pipeline'
+```
+
+The same answer is `GET /api/v1/runs/$summary`, `dg.runs.summary()` in the Python client, the
+`runs_by_pipeline` MCP tool, and the Runs screen's By pipeline view.
+
 ## Why was that run slow
 
 `dg runs profile RUN_ID` breaks one run into where its wall clock went. It walks back from the

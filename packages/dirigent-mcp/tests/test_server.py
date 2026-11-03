@@ -253,6 +253,22 @@ async def test_run_stats_are_read_only_and_answer_the_window(server: MCPServer) 
         await server.call_tool("run_stats", {"since": "400d"})
 
 
+async def test_runs_by_pipeline_are_read_only_and_answer_one_row_per_pipeline(server: MCPServer) -> None:
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    annotations = tools["runs_by_pipeline"].annotations
+    assert annotations is not None and annotations.read_only_hint
+
+    await call(server, "apply_document", document=DOCUMENT)
+    accepted = await call(server, "run_pipeline", code="mcp-demo")
+    summary = await call(server, "runs_by_pipeline", since="1h")
+    [row] = summary["pipelines"]
+    assert row["pipeline"] == "mcp-demo"
+    assert row["latest"]["id"] == accepted["run_id"]
+    assert sum(row["counts"].values()) == 1
+    assert (await call(server, "runs_by_pipeline", latest="cancelled"))["pipelines"] == []
+    assert "more" not in summary
+
+
 async def test_a_refusal_reaches_the_agent_as_a_tool_error(server: MCPServer) -> None:
     with pytest.raises(ToolError, match="nobody"):
         await server.call_tool("get_pipeline", {"code": "nobody"})

@@ -1866,6 +1866,42 @@ def test_run_stats_refuse_a_window_that_is_not_one_or_is_too_long(client: TestCl
     assert refused.json()["params"] == {"maximum": "52w2d", "since": "400d"}
 
 
+def test_the_run_summary_answers_one_row_per_pipeline_that_ran(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    first = UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
+    second = UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
+    now = datetime.now(UTC)
+    rows_written(
+        client,
+        sa.update(Run)
+        .where(Run.id == first)
+        .values(
+            status=RunStatus.FAILED,
+            created_at=now - timedelta(minutes=2),
+            started_at=now - timedelta(seconds=5),
+            finished_at=now - timedelta(seconds=1),
+        ),
+        sa.update(Run).where(Run.id == second).values(created_at=now - timedelta(minutes=1)),
+    )
+
+    answered = client.get(f"{PREFIX}/runs/$summary")
+    assert answered.status_code == 200, answered.text
+    [row] = answered.json()["pipelines"]
+    assert row["pipeline"] == "api-demo"
+    assert row["latest"]["id"] == str(second)
+    assert [one["id"] for one in row["recent"]] == [str(first), str(second)], "oldest first"
+    assert row["counts"]["failed"] == 1
+    assert sum(row["counts"].values()) == 2
+    assert 0 not in row["counts"].values()
+    assert row["median_duration_ms"] == 4000
+
+    assert client.get(f"{PREFIX}/runs/$summary", params={"tag": "nightly"}).json()["pipelines"] == []
+    assert client.get(f"{PREFIX}/runs/$summary", params={"latest": "failed"}).json()["pipelines"] == []
+    assert client.get(f"{PREFIX}/runs/$summary", params={"since": "yesterday"}).status_code == 422
+    refused = client.get(f"{PREFIX}/runs/$summary", params={"since": "400d"})
+    assert refused.json()["code"] == "server.stats_window_too_long"
+
+
 def test_a_run_can_be_cancelled(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     run_id = client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"]

@@ -7,8 +7,10 @@ code and render the same refusal in another language without anything else chang
 
 import re
 from collections.abc import Collection, Mapping, Sequence
+from datetime import timedelta
 from string import Formatter
-from typing import Any, ClassVar, Final, Self
+from types import UnionType
+from typing import Any, ClassVar, Final, Self, Union, cast, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -194,31 +196,133 @@ TEXT_UNSTORABLE = VALIDATION.define(
 )
 
 
+MISSING = VALIDATION.define("missing", "is required")
+
+AT_MOST = VALIDATION.define("less_than_equal", "must be at most {limit}")
+
+BELOW = VALIDATION.define("less_than", "must be less than {limit}")
+
+AT_LEAST = VALIDATION.define("greater_than_equal", "must be at least {limit}")
+
+ABOVE = VALIDATION.define("greater_than", "must be more than {limit}")
+
+#: Each bound pydantic reports, the key its context names the limit by, and our wording.
+_BOUNDS: Final[Mapping[str, tuple[str, Message]]] = {
+    "less_than_equal": ("le", AT_MOST),
+    "less_than": ("lt", BELOW),
+    "greater_than_equal": ("ge", AT_LEAST),
+    "greater_than": ("gt", ABOVE),
+}
+
+#: How pydantic spells a timedelta bound in an error's context, which is the bound's repr.
+_TIMEDELTA_REPR: Final = re.compile(r"^datetime\.timedelta\(((?:\w+=-?[\d.]+(?:, )?)*)\)$")
+
+
 def _validation_message(error_type: str) -> Message:
     """Name the message one pydantic error type renders through, minting it on first sight."""
     name = error_type if NAME_PATTERN.match(error_type) else re.sub(r"[^a-z0-9_]", "_", error_type.lower())
     return VALIDATION.messages.get(name) or VALIDATION.define(name, _PYDANTIC_TEXT)
 
 
-def validation_issue(detail: Mapping[str, Any], *, suggestion: str = "") -> Issue:
+def _plain(msg: str) -> str:
+    """Say pydantic's sentence as a predicate of the field it is addressed at."""
+    if msg.startswith("Value error, "):
+        return msg.removeprefix("Value error, ")
+    if msg.startswith("Input should be "):
+        return "must be " + msg.removeprefix("Input should be ")
+    if msg.startswith("Input should "):
+        return "must " + msg.removeprefix("Input should ")
+    return msg
+
+
+def _unwrapped(annotation: Any) -> list[Any]:
+    """Every type and metadata entry an annotation is made of, through aliases, unions and Annotated."""
+    alias = getattr(annotation, "__value__", None)
+    if alias is not None:
+        return _unwrapped(alias)
+    found: list[Any] = [annotation]
+    metadata = getattr(annotation, "__metadata__", None)
+    if metadata is not None:
+        found.extend(metadata)
+        for entry in metadata:
+            found.extend(getattr(entry, "metadata", ()))
+        found.extend(_unwrapped(getattr(annotation, "__origin__", None)))
+        return found
+    if get_origin(annotation) in (Union, UnionType):
+        for member in get_args(annotation):
+            found.extend(_unwrapped(member))
+    return found
+
+
+def _field_parts(model: type[BaseModel], location: Sequence[Any]) -> list[Any] | None:
+    """What the field a validation error is addressed at is made of, or None where the walk loses it."""
+    parts: list[Any] = [model]
+    for step in location:
+        held = next((one for one in parts if isinstance(one, type) and issubclass(one, BaseModel)), None)
+        if held is not None and isinstance(step, str):
+            field = held.model_fields.get(step)
+            if field is None:
+                return None
+            parts = [*field.metadata, *_unwrapped(field.annotation)]
+            continue
+        containers = [one for one in parts if get_origin(one) in (list, dict, tuple, set, frozenset)]
+        if not containers:
+            return None
+        parts = _unwrapped(get_args(containers[0])[-1])
+    return parts
+
+
+def _limit(detail: Mapping[str, Any], key: str, model: type[BaseModel] | None) -> str:
+    """The bound a value missed, said the way a document writes it: ``30s``, ``1mb``, ``10``."""
+    from dirigent_common.durations import format_duration
+    from dirigent_common.sizes import format_size
+
+    parts = _field_parts(model, tuple(detail.get("loc", ()))) if model is not None else None
+    if parts is not None:
+        bound = next((getattr(one, key) for one in parts if hasattr(one, key) and not isinstance(one, type)), None)
+        sized = any(getattr(one, "func", None) is format_size for one in parts)
+        if isinstance(bound, timedelta):
+            return format_duration(bound)
+        if sized and isinstance(bound, int):
+            return format_size(bound)
+        if bound is not None:
+            return str(bound)
+    held = cast("Mapping[str, Any]", detail.get("ctx") or {}).get(key)
+    if isinstance(held, timedelta):
+        return format_duration(held)
+    spelled = _TIMEDELTA_REPR.match(str(held)) if held is not None else None
+    if spelled is not None:
+        named = dict(term.split("=") for term in spelled.group(1).split(", ") if term)
+        return format_duration(timedelta(**{name: float(value) for name, value in named.items()}))
+    return "the limit" if held is None else str(held)
+
+
+def validation_issue(detail: Mapping[str, Any], *, suggestion: str = "", model: type[BaseModel] | None = None) -> Issue:
     """Render one pydantic error as an issue, keeping the value that failed out of the params.
 
     The input value may be a credential or a fragment of a payload, so the params name its
-    kind and never carry it.
+    kind and never carry it. ``model`` is the model that was validated, which is where a
+    bound on a duration or a size is read back as a value a document would write.
     """
     location = ".".join(str(part) for part in detail.get("loc", ()))
     params: JsonMap = {"loc": [str(part) for part in detail.get("loc", ())]}
     if "input" in detail:
         params["input_kind"] = type(detail["input"]).__name__
-    if detail.get("type") == "extra_forbidden":
+    error_type = str(detail.get("type", "value_error"))
+    if error_type == "extra_forbidden":
         return Issue.of(EXTRA_FORBIDDEN, location=location or None, suggestion=suggestion, **params)
-    params["msg"] = str(detail.get("msg", ""))
-    return Issue.of(_validation_message(str(detail.get("type", "value_error"))), location=location or None, **params)
+    if error_type == "missing":
+        return Issue.of(MISSING, location=location or None, **params)
+    if error_type in _BOUNDS:
+        key, message = _BOUNDS[error_type]
+        return Issue.of(message, location=location or None, limit=_limit(detail, key, model), **params)
+    params["msg"] = _plain(str(detail.get("msg", "")))
+    return Issue.of(_validation_message(error_type), location=location or None, **params)
 
 
-def validation_issues(errors: Sequence[Mapping[str, Any]]) -> list[Issue]:
+def validation_issues(errors: Sequence[Mapping[str, Any]], *, model: type[BaseModel] | None = None) -> list[Issue]:
     """Render every pydantic error of one validation as issues."""
-    return [validation_issue(detail) for detail in errors]
+    return [validation_issue(detail, model=model) for detail in errors]
 
 
 #: How much of an exception's own text is kept, where it is stored per attempt or per check.

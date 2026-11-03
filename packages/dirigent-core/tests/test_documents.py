@@ -277,8 +277,8 @@ def test_an_unknown_dependency_is_refused() -> None:
 @pytest.mark.parametrize(
     ("declared", "problem"),
     [
-        ("[ok, 'Bad Tag']", "tags: Value error, tags[1] 'Bad Tag' is not a valid tag"),
-        ("[climate, climate]", "tags: Value error, tags[1] 'climate' is declared twice"),
+        ("[ok, 'Bad Tag']", "tags: tags[1] 'Bad Tag' is not a valid tag"),
+        ("[climate, climate]", "tags: tags[1] 'climate' is declared twice"),
     ],
     ids=["not-a-tag", "said-twice"],
 )

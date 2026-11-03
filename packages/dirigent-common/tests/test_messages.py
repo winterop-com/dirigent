@@ -2,11 +2,22 @@
 
 import importlib
 import re
-from typing import Final
+from datetime import timedelta
+from typing import Annotated, Final, Literal
 
 import pytest
+from pydantic import BaseModel, Field, ValidationError
 
-from dirigent_common import Catalogue, Issue, Message, MessageError, raised_detail, validation_issues
+from dirigent_common import (
+    Catalogue,
+    Duration,
+    Issue,
+    Message,
+    MessageError,
+    Size,
+    raised_detail,
+    validation_issues,
+)
 from dirigent_common.messages import EXTRA_FORBIDDEN, RAISED_DETAIL_CHARS
 
 #: Every messages module the workspace holds, named so importing them all is what the walk
@@ -140,7 +151,8 @@ def test_a_pydantic_error_becomes_an_issue_coded_by_its_own_error_type() -> None
     issues = validation_issues([{"type": "missing", "loc": ("body", "code"), "msg": "Field required", "input": {}}])
 
     assert issues[0].code == "validation.missing"
-    assert issues[0].message == "Field required"
+    assert issues[0].code == "validation.missing"
+    assert issues[0].params.get("msg") is None
     assert issues[0].location == "body.code"
     assert issues[0].params["loc"] == ["body", "code"]
     assert issues[0].params["input_kind"] == "dict"
@@ -153,6 +165,45 @@ def test_a_pydantic_errors_input_value_never_reaches_the_params() -> None:
 
     assert "s3cret" not in str(issues[0].params)
     assert issues[0].params["input_kind"] == "str"
+
+
+class _Bounded(BaseModel):
+    delay: Annotated[Duration, Field(le=timedelta(seconds=30))] = timedelta(0)
+    payload: Annotated[Size, Field(le=1024**2)] | None = None
+    rows: Annotated[int, Field(ge=1)] = 1
+    tag: Literal["a", "b"] = "a"
+
+
+def _refused(**values: object) -> list[Issue]:
+    try:
+        _Bounded.model_validate(values)
+    except ValidationError as error:
+        return validation_issues(error.errors(), model=_Bounded)
+    raise AssertionError("the values were accepted")
+
+
+def test_a_bound_is_coded_by_its_kind_and_carries_the_limit_a_document_would_write() -> None:
+    [delay] = _refused(delay="60s")
+    [payload] = _refused(payload="2mb")
+    [rows] = _refused(rows=0)
+
+    assert (delay.code, delay.location, delay.params["limit"]) == ("validation.less_than_equal", "delay", "30s")
+    assert (payload.code, payload.params["limit"]) == ("validation.less_than_equal", "1mb")
+    assert (rows.code, rows.params["limit"]) == ("validation.greater_than_equal", "1")
+    assert "msg" not in delay.params
+
+
+def test_a_duration_bound_is_read_back_from_pydantics_spelling_without_the_model() -> None:
+    with pytest.raises(ValidationError) as refused:
+        _Bounded.model_validate({"delay": "60s"})
+    [issue] = validation_issues(refused.value.errors())
+    assert issue.params["limit"] == "30s"
+
+
+def test_a_pydantic_sentence_is_said_as_a_predicate_of_its_field() -> None:
+    [tag] = _refused(tag="c")
+    assert tag.code == "validation.literal_error"
+    assert str(tag.params["msg"]).startswith("must be ")
 
 
 def test_an_unknown_key_is_worded_by_us_and_carries_the_suggestion() -> None:

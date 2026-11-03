@@ -38,6 +38,7 @@ from dirigent_common import (
     scrub_json,
     scrub_output,
     spellings,
+    validation_issues,
 )
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
@@ -338,6 +339,7 @@ class Engine:
         previous = attempt.status
         started = attempt.started_at or now
         token = uuid7()
+        model: type[BaseModel] | None = None
         # Nothing in this block touches the database, so whatever it raises is about this
         # attempt and settles it. An exception leaving this method rolls the claim back, and
         # the next claim selects the same attempt again.
@@ -358,6 +360,7 @@ class Engine:
                 window_end=run.window_end,
             )
             block = self.services.block(attempt.block_id)
+            model = block.config_model
             config = resolve_config(
                 step.config,
                 scope,
@@ -407,7 +410,11 @@ class Engine:
                 deadline_at=deadline,
                 gone_probes=attempt.gone_probes,
             )
-        except (UnknownReference, ValidationError) as error:
+        except ValidationError as error:
+            problems = validation_issues(error.errors(include_url=False), model=model)
+            await self._settle_and_advance(session, run, definition, attempt, Failure.config_invalid(problems), now)
+            return None
+        except UnknownReference as error:
             await self._settle_and_advance(
                 session, run, definition, attempt, Failure.rejected(CONFIG_REFUSED, detail=str(error)), now
             )

@@ -17,7 +17,7 @@
  * the list is what is drawn.
  */
 
-import { ApiError, type Issue, type Problem } from '@/lib/api'
+import { ApiError, issuesOf, type Issue, type JsonMap, type Problem } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import { sentenceFor } from '@/lib/wording'
 
@@ -44,6 +44,16 @@ export function said(problem: Problem): string {
 /** One issue as a line, out of whichever sentence it is drawn in. */
 function lineOf(issue: Issue, sentence: string): string {
     return issue.location === null ? sentence : `${issue.location}: ${sentence}`
+}
+
+/** One issue's sentence, without where it is. */
+export function issueSentence(issue: Issue): string {
+    return sentenceFor(issue.code, issue.params) ?? issue.message
+}
+
+/** The problems a failure's params list one by one, which a refused config carries under `problems`. */
+export function problemsIn(params: JsonMap | null | undefined): Issue[] {
+    return issuesOf(params?.problems)
 }
 
 /** One issue as a line: its sentence, prefixed by where it is when it names a place. */

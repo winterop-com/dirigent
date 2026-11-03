@@ -486,6 +486,33 @@ def test_run_stats_render_the_days_the_durations_and_what_failed_most() -> None:
     assert summaries.beneath(make("runs.stats", at=AT, message="0 settled, 0 failed", trend=[])) is None
 
 
+def test_a_runs_summary_renders_a_row_per_pipeline_and_leaves_out_empty_states() -> None:
+    summary = make(
+        "runs.summary",
+        at=AT,
+        message="1 pipelines ran",
+        window_start="2026-01-01T00:00:00+00:00",
+        window_end="2026-01-02T00:00:00+00:00",
+        pipelines=[
+            {
+                "pipeline": "every-ten",
+                "name": None,
+                "latest": {"id": "a", "status": "failed", "created_at": "2026-01-01T23:50:00+00:00"},
+                "counts": {"succeeded": 140, "failed": 3},
+                "recent": [{"id": "b", "status": "succeeded"}, {"id": "a", "status": "failed"}],
+                "median_duration_ms": 4000,
+            }
+        ],
+    )
+    text = printed(Console().render(summary))
+    assert "every-ten" in text
+    assert "140 succeeded, 3 failed" in text
+    assert "4.0s" in text
+    assert "cancelled" not in text, "a state with no runs is not drawn"
+    assert "pipelines" not in summaries.line(summary)
+    assert summaries.beneath(make("runs.summary", at=AT, message="0 pipelines ran", pipelines=[])) is None
+
+
 def test_a_process_that_minted_a_token_hands_it_over_beneath_its_line() -> None:
     """Dg dev's starting record carries the fixture token once; the rendering must not drop it."""
     drawn = printed(

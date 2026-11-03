@@ -6,15 +6,15 @@ and never reaches here.
 """
 
 import random
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from datetime import timedelta
 from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
-from dirigent_common import JsonMap, Message, raised_detail, scrub, scrub_json
+from dirigent_common import Issue, JsonMap, Message, raised_detail, scrub, scrub_json
 from dirigent_core.engine.definition import RetryPolicy
-from dirigent_core.messages import BLOCK_RAISED
+from dirigent_core.messages import BLOCK_RAISED, CONFIG_INVALID
 from dirigent_plugin import AnyOperator, AnySensor, BlockFailure, ErrorClass, classify_default
 
 
@@ -101,6 +101,24 @@ class Failure(BaseModel):
     def rejected(cls, message: Message, /, **params: Any) -> "Failure":
         """Build a failure the engine itself raised and that retrying cannot fix."""
         return cls(code=message.code, message=message.render(**params), params=params, error_class=ErrorClass.REJECTED)
+
+    @classmethod
+    def config_invalid(cls, problems: Sequence[Issue]) -> "Failure":
+        """Build the failure of a step whose resolved config its block's model refused.
+
+        The first problem is the sentence, and ``problems`` carries every one of them with its
+        own code, location and params.
+        """
+        first = problems[0]
+        rest = len(problems) - 1
+        more = "" if rest == 0 else f", and {rest} more problem" + ("" if rest == 1 else "s")
+        return cls.rejected(
+            CONFIG_INVALID,
+            field=first.location or "config",
+            problem=first.message,
+            more=more,
+            problems=[problem.model_dump(mode="json") for problem in problems],
+        )
 
     @classmethod
     def unknown(cls, message: Message, /, **params: Any) -> "Failure":

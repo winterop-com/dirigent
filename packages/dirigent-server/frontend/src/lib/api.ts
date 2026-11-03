@@ -75,7 +75,7 @@ export interface Problem {
 }
 
 /** Read whatever a body put under `problems` as the issues it is meant to be. */
-function issuesOf(value: unknown): Issue[] {
+export function issuesOf(value: unknown): Issue[] {
     if (!Array.isArray(value)) return []
     return value.map((entry) => {
         const one = (entry ?? {}) as Record<string, unknown>
