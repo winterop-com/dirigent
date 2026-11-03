@@ -16,6 +16,7 @@ from pydantic import BaseModel, SecretStr, ValidationError
 from dirigent_common import REDACTED, JsonMap
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
+    CONNECTION_AWAITING_SECRETS,
     CONNECTION_UNREADABLE,
     EMPTY_SECRET,
     SECRET_KEY_MALFORMED,
@@ -94,6 +95,31 @@ class ConnectionUnreadable(SecretError):
     def __init__(self, problems: list[str]) -> None:
         """Name each field that failed and how, and no value."""
         super().__init__(detail="; ".join(problems))
+
+
+class ConnectionAwaitingSecrets(SecretError):
+    """A connection created with its settings alone, which nothing uses until a person supplies its secrets."""
+
+    message = CONNECTION_AWAITING_SECRETS
+
+    def __init__(self, code: str, fields: list[str]) -> None:
+        """Name the connection and the secret fields it has no value for."""
+        super().__init__(connection=code, fields=", ".join(fields) or "none declared")
+        self.connection = code
+        self.fields = fields
+
+
+def unset_secrets(model: type[BaseModel], public: JsonMap, *, sealed: bool) -> list[str]:
+    """List the secret fields a stored connection holds no value for.
+
+    A secret that is set is on no row's public half, so a field absent from it is sealed when
+    an envelope exists, and a field present there is unset whatever the envelope holds.
+    """
+    return [
+        name
+        for name in secret_fields(model)
+        if (name in public and public[name] is None) or (name not in public and not sealed)
+    ]
 
 
 def generate_key() -> str:

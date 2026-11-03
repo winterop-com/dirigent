@@ -78,6 +78,18 @@ UNKNOWN_CONNECTION_KIND = SERVER.define("unknown_connection_kind", "no connectio
 
 CONNECTION_CONFIG_INVALID = SERVER.define("connection_config_invalid", "{detail}")
 
+SECRETS_NEED_ADMIN = SERVER.define(
+    "secrets_need_admin",
+    "{fields} {verb} secret, and only an admin sets a connection's secrets: "
+    "leave {pronoun} out, and the connection is created awaiting {pronoun}",
+)
+
+SECRETS_WITHHELD = SERVER.define(
+    "secrets_withheld",
+    "{fields} {verb} secret, and a connection created awaiting its secrets carries none: "
+    "leave {pronoun} out, and a person sets {pronoun} afterwards",
+)
+
 NO_SCHEMA = SERVER.define("no_schema", "no schema coded {code}")
 
 SCHEMA_EXISTS = SERVER.define("schema_exists", "a schema coded {code} exists")

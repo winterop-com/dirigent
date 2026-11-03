@@ -512,6 +512,8 @@ const state = {
         unverified: 'not verified',
         /** It answered. */
         healthy: 'healthy',
+        /** Created with its settings alone, and nothing uses it until a person sets its secrets. */
+        awaiting: 'awaiting secrets',
         /** The last check did not pass, as a row's word and as a sentence. */
         failed: {
             word: 'failed',
@@ -1188,6 +1190,8 @@ const refused = {
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
     },
     secret: {
+        connection_awaiting_secrets:
+            'Connection {connection} holds its settings and awaits its secrets ({fields}). Nothing uses it until they are set.',
         connection_unreadable: 'The settings of a stored connection no longer fit its kind: {detail}',
         key_file_unreadable: 'The secret key file {path} cannot be read as a key: {detail}',
         key_malformed: 'DIRIGENT_SECRET_KEY is not a Fernet key, and a passphrase is not taken.',
@@ -1236,6 +1240,10 @@ const refused = {
             'This route wants a credential: the basic pair {username}/{username}, or the documented bearer token. Both are public constants.',
         prune_names_nothing:
             'Keep names no codes, and pruning against an empty set would deactivate every directory pipeline.',
+        secrets_need_admin:
+            "{fields} {verb} secret, and only an admin sets a connection's secrets. Leave {pronoun} out, and the connection is created awaiting {pronoun}.",
+        secrets_withheld:
+            '{fields} {verb} secret, and a connection created awaiting its secrets carries none. Leave {pronoun} out, and set {pronoun} afterwards.',
         redacted_secret:
             '{fields} came back as {redacted}, which is what a read shows for a secret that is set, not a secret. Send the real value, or leave the field out to keep what is stored.',
         stats_window_too_long: 'A stats window is at most {maximum}, and {since} is longer.',
@@ -2681,6 +2689,12 @@ const connections = {
     secrets_heading: 'Secrets',
     /** A secret in the dialog's facts that holds nothing. */
     secret_not_set: 'not set',
+    /** A connection created with its settings alone: how the dialog says to complete it, and why Check is shut. */
+    awaiting: {
+        body: 'Nothing uses it until its secrets are set. Edit it to set them here, or in a terminal run',
+        command: (code: string) => `dg connection set-secret ${code}`,
+        check_shut: 'Set its secrets first: nothing can be checked without them.',
+    },
     /** The question before a delete, around the code. */
     delete_ask: { before: 'Delete ', after: '?' },
     /** What stops a delete, and what the shut confirm says on hover. */
@@ -2703,6 +2717,7 @@ const connections = {
             one: (many: string) => `${many} has never been checked`,
             many: (many: string) => `${many} have never been checked`,
         },
+        awaiting: (many: string) => `${many} awaiting secrets`,
     },
 
     /** A connection whose config carries nothing the summary line can name. */

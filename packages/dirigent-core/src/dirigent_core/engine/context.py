@@ -34,13 +34,14 @@ from dirigent_common import (
 )
 from dirigent_core.logging import debug_kept, get_logger
 from dirigent_core.messages import (
+    CONNECTION_AWAITING_SECRETS,
     CONNECTION_WRONG_KIND,
     RUN_UNKNOWN_CONNECTION,
     RUN_UNKNOWN_SCHEMA,
     UNKNOWN_CONNECTION_KIND,
 )
 from dirigent_core.models import Connection
-from dirigent_core.secrets import SecretBox
+from dirigent_core.secrets import SecretBox, unset_secrets
 from dirigent_core.storage import AttemptStorage, Meter, Storage, connection_binder, work_dir
 from dirigent_plugin import BlockFailure, ByteSink, Capture, ConnectionRef, ErrorClass, Logger, Runs
 
@@ -79,6 +80,7 @@ class ConnectionRecord(BaseModel):
     config: JsonMap
     envelope: bytes | None = None
     key_id: str | None = None
+    awaiting_secrets: bool = False
 
 
 async def load_connections(session: AsyncSession) -> dict[str, ConnectionRecord]:
@@ -95,6 +97,7 @@ async def load_connections(session: AsyncSession) -> dict[str, ConnectionRecord]
             config=dict(row.config),
             envelope=row.secret_envelope,
             key_id=row.secret_key_id,
+            awaiting_secrets=row.awaiting_secrets,
         )
         for row in rows.scalars()
     }
@@ -438,7 +441,7 @@ def open_record[C: BaseModel](
     *,
     opened: set[str] | None = None,
 ) -> C:
-    """Open a stored connection for a model, refusing a connection of a kind the model does not read.
+    """Open a stored connection for a model, refusing one of a kind the model does not read or awaiting its secrets.
 
     A model no installed kind declares has no kind to compare against, and only validates.
     ``opened`` collects the secrets it held, for whoever writes what a failure said.
@@ -451,6 +454,13 @@ def open_record[C: BaseModel](
             ref=repr(record.code),
             kind=repr(record.kind),
             wanted=", ".join(repr(kind) for kind in wanted),
+        )
+    if record.awaiting_secrets:
+        raise BlockFailure(
+            CONNECTION_AWAITING_SECRETS,
+            error_class=ErrorClass.REJECTED,
+            connection=record.code,
+            fields=", ".join(unset_secrets(model, record.config, sealed=record.envelope is not None)),
         )
     config = secrets.decrypt_config(model, record.config, record.envelope, key_id=record.key_id)
     if opened is not None:

@@ -34,6 +34,7 @@ function aConnection(over: Partial<ConnectionOut> = {}): ConnectionOut {
         description: null,
         config: {},
         secret_fields: [],
+        awaiting_secrets: false,
         last_check_at: null,
         last_check_healthy: null,
         last_check_detail: null,

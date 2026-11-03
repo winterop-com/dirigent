@@ -24,9 +24,20 @@ class Connections(Resource):
         config: JsonMap | None = None,
         name: str | None = None,
         description: str | None = None,
+        awaiting_secrets: bool = False,
     ) -> ConnectionOut:
-        """Validate a credential against its kind, seal its secret half, and store it."""
-        payload = ConnectionIn(code=code, name=name, kind=kind, description=description, config=config or {})
+        """Validate a credential against its kind, seal its secret half, and store it.
+
+        ``awaiting_secrets`` stores the settings alone, for a person to supply the secrets.
+        """
+        payload = ConnectionIn(
+            code=code,
+            name=name,
+            kind=kind,
+            description=description,
+            config=config or {},
+            awaiting_secrets=awaiting_secrets,
+        )
         return await self._one(ConnectionOut, "POST", "/connections", json=request_body(payload))
 
     async def update(

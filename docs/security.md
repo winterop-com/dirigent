@@ -279,7 +279,16 @@ unmounts it, and `/mcp` then answers 404.
   never offers its model a call the API would refuse with 403: a viewer's leaves out every tool
   that writes and `plan_document`, whose dry run is an operator's route, and an operator's leaves
   out `check_connection`, which is an admin's. Whatever a tool calls is still decided by the route
-  it reaches. `DG_MCP_READ_ONLY=1` over stdio offers what a viewer is offered.
+  it reaches. `DG_MCP_READ_ONLY=1` over stdio offers what a viewer is
+  offered.
+- **No secret passes through it.** What an agent is given lands in its transcript, so no tool
+  takes or shows a credential. `create_connection` sends `awaiting_secrets`, and the API then
+  refuses any field the kind declares secret (`SecretStr`) by name and never by value
+  (`server.secrets_withheld`), stores the settings alone, and waives the kind's validation only
+  where a missing secret is the cause. Such a connection is refused by a step, a source, an alert
+  and a check (`secret.connection_awaiting_secrets`) until an admin supplies its secrets with
+  `dg connection set-secret` or the Connections screen, an update whose config the kind's model
+  accepts whole.
 - **The origin is checked, as the MCP specification requires against DNS rebinding.** A request a
   browser says another site caused (`Sec-Fetch-Site` other than `same-origin` or `none`) or whose
   `Origin` is not this instance's own scheme, host and port is answered 403
@@ -319,7 +328,14 @@ may, and an operator everything a viewer may.
   is a `403`.
 - An **operator** may in addition change pipelines and runs: apply, prune, activate, deactivate,
   run, backfill, cancel, retry, every schedule and source operation, deleting a triggers
-  document with the rows it owns, alert rules, and the notifier test.
+  document with the rows it owns, alert rules, the notifier test, and creating a connection
+  without its secrets. An operator's `POST /api/v1/connections` carrying a value for any field
+  the kind declares secret is refused by field name, never by value
+  (`server.secrets_need_admin`, a `403`). A connection that cannot work without a secret --
+  its kind's model refuses the settings alone, or the kind requires one of its credential
+  forms (`credential_required`) -- is stored awaiting its secrets and used by nothing until an
+  admin supplies them. One whose kind declares no secret, or takes its credential optionally,
+  such as `http` without auth, is stored complete and usable at once.
 - An **admin** may in addition hand out authority. That set is exact:
 
 | Operation | Why it is admin |
@@ -335,8 +351,8 @@ may, and an operator everything a viewer may.
 | `POST /api/v1/users/{username}/$deactivate` | Taking away an account's access |
 | `POST /api/v1/users/{username}/$activate` | Giving it back |
 | `POST /api/v1/users/{username}/$reset-password` | Setting an account's password without its old one |
-| `POST /api/v1/connections` | Storing a third-party credential |
-| `PATCH /api/v1/connections/{code}` | Changing one |
+| `POST /api/v1/connections` with a secret value | Storing a third-party credential |
+| `PATCH /api/v1/connections/{code}` | Changing one, its secrets included |
 | `DELETE /api/v1/connections/{code}` | Removing one |
 | `POST /api/v1/connections/{code}/$check` | Making the instance use a credential on demand |
 | `DELETE /api/v1/pipelines/{code}` | Destroying a definition and its history |
@@ -347,8 +363,9 @@ may, and an operator everything a viewer may.
 A write a role may not perform is answered with `403` and one sentence of detail:
 `not permitted for your role`. It is the same status and the same sentence whichever boundary
 refused it, so the answer says neither which role would have sufficed nor what any role may
-do -- a refusal is not the place to teach the permission model. The `403` a cookie write
-initiated by another site gets is the only one with a different detail, and it says so.
+do -- a refusal is not the place to teach the permission model. Two `403`s carry another detail:
+the one a cookie write initiated by another site gets, which says so, and an operator's
+connection create carrying a secret, which names the secret fields to leave out.
 
 Two consequences worth being deliberate about. Listing connections is available to a viewer, so
 any principal can see which credentials exist and what their non-secret settings are; the secret
@@ -1100,8 +1117,8 @@ Stated plainly, because a security page that lists only what exists is not much 
 - **Per-pipeline permissions.** None. Every operator can run every pipeline, read every run and
   every log, and create schedules on anything.
 - **Per-connection permissions.** None. Any principal can list connections, and any operator
-  can write a pipeline that uses any of them. Admin gates creating and modifying a connection, not using
-  it.
+  can write a pipeline that uses any of them. An operator may create a connection without its
+  secrets; admin gates supplying a secret and modifying a connection, not using it.
 - **MFA, password policy, account lockout.** None of these exist. There is a minimum length of
   eight characters and a rate limit on login, and that is the whole of it.
 - **Audit log.** There is attribution -- every run points at what started it -- and there are

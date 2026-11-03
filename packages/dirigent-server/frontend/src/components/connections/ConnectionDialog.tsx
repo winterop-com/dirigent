@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
 import { DialogShell } from '@/components/ds/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
 import { Fact, FactList } from '@/components/ds/FactList'
+import { Notice } from '@/components/ds/Notice'
 import { TextLink } from '@/components/ds/TextLink'
 import { Button } from '@/components/ui/button'
 import { useConnectionEdit } from '@/hooks/use-connection-edit'
@@ -77,6 +78,9 @@ export function ConnectionDialog({
     const { again: askAgain } = asking
     const usedBy = asking.value?.used_by ?? null
     const used = usedBy !== null && isUsed(usedBy)
+    // A connection awaiting its secrets has nothing a check could open.
+    const checkShut =
+        write.why ?? (connection.awaiting_secrets ? LABELS.connections.awaiting.check_shut : undefined)
 
     const heading = (
         <EntityHeading
@@ -163,12 +167,12 @@ export function ConnectionDialog({
                     }
                     verbs={
                         <>
-                            <Refusable why={write.why}>
+                            <Refusable why={checkShut}>
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={checking || !write.may}
-                                    title={write.why}
+                                    disabled={checking || checkShut !== undefined}
+                                    title={checkShut}
                                     onClick={() => {
                                         onCheck(connection)
                                     }}
@@ -231,6 +235,14 @@ function ConnectionFacts({
     const facts = useMemo(() => settingFacts(connection, schema), [connection, schema])
     return (
         <>
+            {connection.awaiting_secrets && (
+                <Notice tone="warning">
+                    <span className="flex min-w-0 flex-col gap-1">
+                        <span>{LABELS.connections.awaiting.body}</span>
+                        <Code value={LABELS.connections.awaiting.command(connection.code)} tone="body" />
+                    </span>
+                </Notice>
+            )}
             <Description text={connection.description} />
             <FactList>
                 <Fact term={LABELS.word.health}>

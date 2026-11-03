@@ -225,7 +225,9 @@ async def test_each_role_is_offered_the_tools_of_its_own_reach(
     assert "plan_document" not in offered["viewer"]
     assert "plan_document" in offered["operator"]
     assert "check_connection" not in offered["operator"]
-    assert "check_connection" in offered["admin"]
+    assert "create_connection" not in offered["viewer"]
+    assert {"create_connection"} <= offered["operator"]
+    assert {"check_connection", "create_connection"} <= offered["admin"]
 
 
 async def test_two_sessions_act_as_their_own_callers(base: str, admin_token: str, operator_token: str) -> None:

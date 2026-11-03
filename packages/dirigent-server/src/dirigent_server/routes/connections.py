@@ -5,22 +5,26 @@ declaration is what makes the API redact them and the engine encrypt them. Nothi
 returns a secret: a write accepts one, an envelope stores it, a read replaces it with the
 redaction marker, and no endpoint reveals a stored credential. An update that sends the marker
 back keeps the secret it stands for, which reserves the literal marker as a secret value.
+
+A connection created awaiting its secrets holds its settings alone: the model's verdict is
+waived only where it wants a secret, nothing opens the connection, and the first update whose
+config the model accepts whole completes it.
 """
 
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Response, status
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.schemas import ConnectionDetail, ConnectionIn, ConnectionOut, ConnectionUpdate, Page
-from dirigent_common import HealthReport, JsonMap, scrub, secrets_of, validation_issues
+from dirigent_common import HealthReport, JsonMap, Message, scrub, secrets_of, validation_issues
 from dirigent_core.connections import ConnectionInUse, connection_users, remove_connection, said
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, utcnow
-from dirigent_core.secrets import REDACTED, redact, secret_fields
+from dirigent_core.secrets import REDACTED, ConnectionAwaitingSecrets, redact, secret_fields, unset_secrets
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.errors import Refusal
 from dirigent_server.logging import get_logger
@@ -31,10 +35,12 @@ from dirigent_server.messages import (
     CONNECTION_REFERENCED,
     NO_CONNECTION,
     REDACTED_SECRET,
+    SECRETS_NEED_ADMIN,
+    SECRETS_WITHHELD,
     UNKNOWN_CONNECTION_KIND,
 )
 from dirigent_server.pagination import DEFAULT_PAGE, AfterParam, LimitParam, clip
-from dirigent_server.security import AdminDep, PrincipalDep
+from dirigent_server.security import AdminDep, OperatorDep, PrincipalDep
 from dirigent_server.transactions import Transactional
 
 router = APIRouter(route_class=Transactional, tags=["connections"])
@@ -76,6 +82,7 @@ def render(row: Connection, services: EngineServices) -> ConnectionOut:
         description=row.description,
         config=visible,
         secret_fields=fields,
+        awaiting_secrets=row.awaiting_secrets,
         last_check_at=row.last_check_at,
         last_check_healthy=row.last_check_healthy,
         last_check_detail=row.last_check_detail,
@@ -120,8 +127,8 @@ def restore_marked_secrets(row: Connection, config: JsonMap, services: EngineSer
     return {**config, **{name: stored[name] for name in marked}}
 
 
-def seal(services: EngineServices, kind_id: str, config: JsonMap) -> tuple[JsonMap, bytes | None, str | None]:
-    """Validate a config against its kind's model and split it into public and sealed halves."""
+def kind_model(services: EngineServices, kind_id: str) -> type[BaseModel]:
+    """The config model of an installed connection kind, or say which kinds are installed."""
     contributed = services.host.connection_kinds.get(kind_id)
     if contributed is None:
         known = ", ".join(sorted(services.host.connection_kinds)) or "none are installed"
@@ -131,19 +138,73 @@ def seal(services: EngineServices, kind_id: str, config: JsonMap) -> tuple[JsonM
             kind=repr(kind_id),
             known=known,
         )
+    return contributed.config_model
+
+
+def refuse_invalid(errors: list[dict[str, Any]], error: ValidationError) -> NoReturn:
+    """Refuse a config with the problems the model found, none of them carrying the input."""
+    issues = validation_issues(errors)
+    raise Refusal(
+        CONNECTION_CONFIG_INVALID,
+        status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        problems=issues,
+        detail="; ".join(str(issue) for issue in issues),
+    ) from error
+
+
+def seal(services: EngineServices, kind_id: str, config: JsonMap) -> tuple[JsonMap, bytes | None, str | None]:
+    """Validate a config against its kind's model and split it into public and sealed halves."""
+    model = kind_model(services, kind_id)
     try:
-        validated = contributed.config_model.model_validate(config)
+        validated = model.model_validate(config)
     except ValidationError as error:
         # include_input=False: the input here is a credential, and pydantic's default error
         # payload echoes the value that failed into the 422 body and whatever logs it.
-        issues = validation_issues(cast("list[dict[str, Any]]", error.errors(include_input=False)))
+        refuse_invalid(cast("list[dict[str, Any]]", error.errors(include_input=False)), error)
+    return services.secrets.encrypt_config(model, validated)
+
+
+def given_secrets(model: type[BaseModel], config: JsonMap) -> list[str]:
+    """The secret fields a config carries a value for; null and empty set nothing."""
+    return sorted(name for name in secret_fields(model) if config.get(name) not in (None, ""))
+
+
+def refuse_secrets(given: list[str], message: Message, status_code: int) -> None:
+    """Refuse the secret fields given, by name and never by value."""
+    if given:
         raise Refusal(
-            CONNECTION_CONFIG_INVALID,
-            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            problems=issues,
-            detail="; ".join(str(issue) for issue in issues),
-        ) from error
-    return services.secrets.encrypt_config(contributed.config_model, validated)
+            message,
+            status=status_code,
+            fields=", ".join(given),
+            verb="is" if len(given) == 1 else "are",
+            pronoun="it" if len(given) == 1 else "them",
+        )
+
+
+def hold_settings(services: EngineServices, kind_id: str, config: JsonMap) -> tuple[JsonMap, bool]:
+    """Validate a connection's settings without its secrets: its public half, and whether it awaits them.
+
+    A secret field given a value is refused by name. The model's problems are refused except
+    those at a secret field and those of the model as a whole, which a missing secret may
+    cause. It awaits its secrets where the model refuses it without them, or where its kind
+    requires one of its credential forms and none is complete; otherwise it is stored whole,
+    and usable as it is.
+    """
+    contributed = services.host.connection_kinds[kind_id]
+    model = contributed.config_model
+    secrets = secret_fields(model)
+    refuse_secrets(given_secrets(model, config), SECRETS_WITHHELD, status.HTTP_422_UNPROCESSABLE_CONTENT)
+    config = {name: value for name, value in config.items() if name not in secrets}
+    try:
+        validated = model.model_validate(config)
+    except ValidationError as error:
+        errors = cast("list[dict[str, Any]]", error.errors(include_input=False))
+        kept = [item for item in errors if item["loc"] and item["loc"][0] not in secrets]
+        if kept:
+            refuse_invalid(kept, error)
+        return {**config, **dict.fromkeys(secrets)}, True
+    public, _, _ = services.secrets.encrypt_config(model, validated)
+    return public, contributed.credential_required and bool(contributed.credential_forms)
 
 
 @router.get(
@@ -180,13 +241,25 @@ async def create_connection(
     payload: ConnectionIn,
     session: SessionDep,
     services: ServicesDep,
-    principal: AdminDep,
+    principal: OperatorDep,
 ) -> ConnectionOut:
-    """Validate a credential against its kind, seal its secret half, and store it."""
+    """Validate a credential against its kind, seal its secret half, and store it.
+
+    Asked to await its secrets, it is stored with its settings alone, awaiting them where they
+    are wanted (`hold_settings`). An operator creates one only so, and a secret it sends is
+    refused: an admin supplies them.
+    """
+    model = kind_model(services, payload.kind)
+    if not principal.is_admin:
+        refuse_secrets(given_secrets(model, payload.config), SECRETS_NEED_ADMIN, status.HTTP_403_FORBIDDEN)
     existing = await session.execute(sa.select(Connection).where(Connection.code == payload.code))
     if existing.scalar_one_or_none() is not None:
         raise Refusal(CONNECTION_EXISTS, status=status.HTTP_409_CONFLICT, code=repr(payload.code))
-    public, envelope, key_id = seal(services, payload.kind, payload.config)
+    awaiting = False
+    if (payload.awaiting_secrets or not principal.is_admin) and secret_fields(model):
+        (public, awaiting), envelope, key_id = hold_settings(services, payload.kind, payload.config), None, None
+    else:
+        public, envelope, key_id = seal(services, payload.kind, payload.config)
     row = Connection(
         code=payload.code,
         name=payload.name,
@@ -195,6 +268,7 @@ async def create_connection(
         config=public,
         secret_envelope=envelope,
         secret_key_id=key_id,
+        awaiting_secrets=awaiting,
     )
     session.add(row)
     await session.flush()
@@ -231,7 +305,8 @@ async def update_connection(
 ) -> ConnectionOut:
     """Replace a connection's settings; the config is sent whole, not merged field by field.
 
-    A secret field carrying the redaction marker keeps the secret already stored for it.
+    A secret field carrying the redaction marker keeps the secret already stored for it, and a
+    config the model accepts completes a connection awaiting its secrets.
     """
     row = await find(session, code)
     if payload.changing("name"):
@@ -244,6 +319,7 @@ async def update_connection(
         row.config = public
         row.secret_envelope = envelope
         row.secret_key_id = key_id
+        row.awaiting_secrets = False
     await session.flush()
     return render(row, services)
 
@@ -288,13 +364,17 @@ async def check_connection(
     services: ServicesDep,
     principal: AdminDep,
 ) -> HealthReport:
-    """Open the credential and ask its kind whether the external system answers.
+    """Open the credential and ask its kind whether the external system answers; one awaiting its secrets is refused.
 
     The probe runs between two transactions, never inside one: a transaction holds the write
     lock from the moment it opens, and a probe can last a connect timeout. The row is written
     afterwards with one statement, so a connection deleted meanwhile is simply not written.
     """
     row = await find(session, code)
+    contributed = services.host.connection_kinds.get(row.kind)
+    if row.awaiting_secrets and contributed is not None:
+        sealed = row.secret_envelope is not None
+        raise ConnectionAwaitingSecrets(code, unset_secrets(contributed.config_model, dict(row.config), sealed=sealed))
     await session.commit()
     report = await check(row, services)
     await session.execute(

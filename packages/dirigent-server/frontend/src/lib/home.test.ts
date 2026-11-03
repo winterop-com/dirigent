@@ -114,6 +114,7 @@ function connection(code: string, healthy: boolean | null, detail: string | null
         description: null,
         config: {},
         secret_fields: [],
+        awaiting_secrets: false,
         last_check_at: healthy === null ? null : '2026-01-01T00:00:00Z',
         last_check_healthy: healthy,
         last_check_detail: detail,

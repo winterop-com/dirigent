@@ -179,7 +179,7 @@ async def test_a_read_only_server_offers_only_the_tools_that_read(server: MCPSer
     assert offered == {name for name, tool in every.items() if tool.annotations and tool.annotations.read_only_hint} - {
         "plan_document"
     }
-    assert {"apply_document", "run_pipeline", "cancel_run", "pause_source"}.isdisjoint(offered)
+    assert {"apply_document", "run_pipeline", "cancel_run", "pause_source", "create_connection"}.isdisjoint(offered)
 
 
 async def test_a_document_is_planned_applied_and_run(server: MCPServer) -> None:

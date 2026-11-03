@@ -596,6 +596,7 @@ async def store_connection(
             row.config = config
             row.secret_envelope = envelope
             row.secret_key_id = key_id
+            row.awaiting_secrets = False
         return written
     finally:
         await engine.dispose()

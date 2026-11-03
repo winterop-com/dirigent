@@ -19,6 +19,13 @@ class ConnectionIn(RequestModel):
     config: JsonMap = Field(default_factory=dict)
     """The kind's own config, validated against its published model before anything is stored."""
 
+    awaiting_secrets: bool = False
+    """Store the settings alone, a secret field among them refused, for a person to supply the secrets.
+
+    What the model would refuse for want of a secret is let through, and nothing uses the
+    connection until an update whose config the model accepts whole.
+    """
+
 
 class ConnectionUpdate(RequestModel):
     """What editing a connection may change; the kind and code are fixed once minted.
@@ -48,6 +55,9 @@ class ConnectionOut(WireModel):
     config: JsonMap
     secret_fields: list[str] = Field(default_factory=list[str])
     """Which fields the kind declares secret, so a form knows what to render as a password."""
+
+    awaiting_secrets: bool = False
+    """Created with its settings alone; nothing uses it until a person supplies its secrets."""
 
     last_check_at: datetime | None = None
     last_check_healthy: bool | None = None

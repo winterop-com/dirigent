@@ -120,6 +120,12 @@ CONNECTION_UNREADABLE = SECRET.define(
     "a stored connection does not fit the configuration read from it: {detail}",
 )
 
+CONNECTION_AWAITING_SECRETS = SECRET.define(
+    "connection_awaiting_secrets",
+    "connection {connection} holds its settings and awaits its secrets ({fields}): "
+    "nothing uses it until a person supplies them",
+)
+
 ARTIFACTS = Catalogue("artifacts")
 
 NOT_A_URI = ARTIFACTS.define("not_a_uri", "{uri} is not a URI: it names no scheme")

@@ -17,6 +17,12 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**An agent or an operator sets up a connection, and an admin gives it its secrets.** The MCP server's `create_connection` (offered to an operator and an admin, never a viewer) creates a connection with its settings alone. It sends `awaiting_secrets: true` on `POST /connections`, and the API then refuses any field the kind declares secret by name and never by value (`server.secrets_withheld`), still refuses every other setting the kind's model refuses, and stores the settings alone. An operator may now `POST /connections` too, without a secret: one carrying a secret value is refused by field name (`server.secrets_need_admin`, 403), a connection that cannot work without a secret (its model refuses the settings alone, or its kind's `credential_required` names a form none of which is complete) is stored awaiting it, and any other, such as `http` without auth, is stored complete and usable. Supplying a secret, updating, deleting and checking a connection stay an admin's. Every read carries `awaiting_secrets`; a step, a source, an alert and `$check` refuse such a connection (`secret.connection_awaiting_secrets`) until an update whose config the model accepts whole completes it. The tool answers the secret fields to supply and the command that does it: the new `dg connection set-secret CODE [FIELD]...`, which asks for the kind's credential form as `dg connection create` does and prompts for each secret without echoing it, or the connection's dialog, where the Connections screen draws it as *awaiting secrets*. `dirigent-client`'s `connections.create` takes `awaiting_secrets`.
+
+**The schema changed, and `dg db upgrade` does not carry it.** `connections` gains `awaiting_secrets`, a boolean defaulting to false. The baseline migration is edited in place: recreate the database, or add the column by hand (`ALTER TABLE connections ADD COLUMN awaiting_secrets BOOLEAN NOT NULL DEFAULT false`).
+
 ## 0.32.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.32.0 together, and so do

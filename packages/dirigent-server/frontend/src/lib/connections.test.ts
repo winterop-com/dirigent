@@ -35,6 +35,7 @@ const ROW: ConnectionOut = {
         bearer_token: null,
     },
     secret_fields: ['basic_password', 'bearer_token'],
+    awaiting_secrets: false,
     last_check_at: null,
     last_check_healthy: null,
     last_check_detail: null,
@@ -77,6 +78,7 @@ describe('the settings line under a connection title', () => {
         const wide = {
             config: { a: 1, b: 2, c: 3, d: 4, e: 5, token: REDACTED },
             secret_fields: ['token'],
+            awaiting_secrets: false,
         }
         expect(settingsSummary(wide)).toBe(`a=1 · b=2 · c=3 · d=4 · token ${DOTS} · +1 more`)
     })
@@ -131,6 +133,13 @@ describe('whether a connection answered', () => {
         expect(
             healthOf({ last_check_at: null, last_check_healthy: null, last_check_detail: null }).state,
         ).toBe('unchecked')
+    })
+
+    test('says a connection awaiting its secrets is that, whatever a check once said', () => {
+        const view = healthOf({ ...ROW, awaiting_secrets: true, last_check_at: '2026-03-01T09:00:00Z' })
+        expect(view.state).toBe('awaiting')
+        expect(view.label).toBe('awaiting secrets')
+        expect(view.tone).toBeNull()
     })
 })
 
@@ -298,6 +307,12 @@ describe('what the status bar says the connections screen is showing', () => {
         expect(connectionsNote([checked(true), undecided()])).toBe('1 of 2 healthy · 1 could not be verified')
     })
 
+    test('says how many await their secrets beside the count', () => {
+        expect(connectionsNote([checked(true), { ...checked(null), awaiting_secrets: true }])).toBe(
+            '1 of 2 healthy · 1 awaiting secrets',
+        )
+    })
+
     test('says both of what is undecided, each as the kind of undecided it is', () => {
         expect(connectionsNote([checked(true), undecided(), checked(null)])).toBe(
             '1 of 3 healthy · 1 could not be verified · 1 has never been checked',
@@ -315,6 +330,7 @@ describe('how a set of connections came out', () => {
             failed: 1,
             unverified: 1,
             unchecked: 1,
+            awaiting: 0,
         })
     })
 
@@ -325,6 +341,7 @@ describe('how a set of connections came out', () => {
             failed: 0,
             unverified: 0,
             unchecked: 0,
+            awaiting: 0,
         })
     })
 })
@@ -337,6 +354,7 @@ describe('what the dialog says about the settings', () => {
     const row = {
         config: { url: 'https://example.org', username: 'x', timeout: null, token: '***', ssh_key: null },
         secret_fields: ['token', 'ssh_key'],
+        awaiting_secrets: false,
     }
 
     test('says what holds a value, and every secret by whether it is set', () => {
