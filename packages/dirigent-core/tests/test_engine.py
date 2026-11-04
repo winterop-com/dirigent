@@ -3903,6 +3903,7 @@ async def test_a_run_pins_the_schemas_its_schemas_reference(
         version = await save_pipeline(session, gated("one"))
         run = await create_run(session, services, version)
 
+    assert run is not None
     assert sorted(run.schemas) == ["ou-code", "ou-shape"]
 
 
