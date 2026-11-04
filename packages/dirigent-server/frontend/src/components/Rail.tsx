@@ -2,7 +2,6 @@ import { useRef } from 'react'
 import { NavLink } from 'react-router'
 
 import { AccountMenu } from '@/components/AccountMenu'
-import { IconButton } from '@/components/ds/IconButton'
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
@@ -17,7 +16,6 @@ import {
     railWidth,
     resetRailWidth,
     setRailWidth,
-    toggleRail,
 } from '@/lib/panels'
 
 export const RESIZE_RAIL_LABEL = LABELS.shell.resize_nav
@@ -49,15 +47,8 @@ export function Rail({ onSettings, onShortcuts }: { onSettings: () => void; onSh
                 className="hidden shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex"
                 style={{ width }}
             >
-                <div data-shell-strip="top" className="flex h-shell-top shrink-0 items-center gap-2 px-3.5">
+                <div data-shell-strip="top" className="flex h-shell-top shrink-0 items-center px-3.5">
                     <BrandLink />
-                    <IconButton
-                        icon={ICONS.sidebar}
-                        label={LABELS.shell.hide_nav}
-                        size="sm"
-                        className="-mr-1.5 ml-auto text-muted-foreground"
-                        onClick={toggleRail}
-                    />
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-2">
