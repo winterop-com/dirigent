@@ -3127,9 +3127,10 @@ const schemas = {
     details_heading: 'Details',
     /** Where a schema carries no description. */
     no_description: 'This schema carries no description.',
-    /** What edits the name and the description in Details, and what ends that. */
+    /** The schema editor's own window, around the code. */
+    window_title: (code: string) => `${code} · schema`,
+    /** What turns the name and the description in Details into boxes. */
     edit_details: 'Edit the name and the description',
-    done_editing: 'Done',
     /** Over the pipelines that check against the schema, each a link to its pipeline. */
     checked_by: 'Checked by',
     /** The toolbar verb that opens the tester, and the tester window's title around the code. */

@@ -5,7 +5,6 @@ import { Chip } from '@/components/ds/Chip'
 import { Code } from '@/components/ds/Code'
 import { Description } from '@/components/Description'
 import { Section } from '@/components/run/Panel'
-import { CodeFrame } from '@/components/ds/CodeFrame'
 import { FormField } from '@/components/ds/FormField'
 import { Notice } from '@/components/ds/Notice'
 import { PageHeader } from '@/components/ds/PageHeader'
@@ -13,6 +12,7 @@ import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { Refusal } from '@/components/Refusal'
+import { WindowedPane } from '@/components/WindowedPane'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useSchemaSave } from '@/hooks/use-schema-save'
+import type { Problem } from '@/lib/api'
 import { headingOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
@@ -45,6 +46,8 @@ import {
     draftOf,
     holdDraft,
     readSchema,
+    schemaPatch,
+    updateSchema,
     whyKept,
     type SchemaOut,
 } from '@/lib/schemas'
@@ -195,6 +198,40 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
             })
     }
 
+    const [editingDetails, setEditingDetails] = useState(false)
+    const [detailsSaving, setDetailsSaving] = useState(false)
+    const [detailsProblem, setDetailsProblem] = useState<Problem | null>(null)
+    const storedName = schema.name ?? ''
+    const storedDescription = schema.description ?? ''
+    const saveDetails = useCallback(() => {
+        const payload = schemaPatch(schema, given(named), given(description), undefined)
+        if (payload === null) {
+            setEditingDetails(false)
+            return
+        }
+        setDetailsSaving(true)
+        setDetailsProblem(null)
+        void updateSchema(schema.code, payload)
+            .then(
+                (row) => {
+                    onSaved(row)
+                    setEditingDetails(false)
+                },
+                (error: unknown) => {
+                    setDetailsProblem(refusalOf(error))
+                },
+            )
+            .finally(() => {
+                setDetailsSaving(false)
+            })
+    }, [description, named, onSaved, schema])
+    const cancelDetails = useCallback(() => {
+        setNamed(storedName)
+        setDescription(storedDescription)
+        setDetailsProblem(null)
+        setEditingDetails(false)
+    }, [storedDescription, storedName])
+
     const mayWrite = write.may
     const details = useMemo(
         () => (
@@ -203,11 +240,27 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                 description={description}
                 usedBy={schema.used_by}
                 mayWrite={mayWrite}
+                editing={editingDetails}
+                saving={detailsSaving}
+                problem={detailsProblem}
                 onNamed={setNamed}
                 onDescription={setDescription}
+                onEditing={setEditingDetails}
+                onCancel={cancelDetails}
+                onSave={saveDetails}
             />
         ),
-        [description, mayWrite, named, schema.used_by],
+        [
+            cancelDetails,
+            description,
+            detailsProblem,
+            detailsSaving,
+            editingDetails,
+            mayWrite,
+            named,
+            saveDetails,
+            schema.used_by,
+        ],
     )
 
     useEffect(
@@ -268,7 +321,21 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
             />
             <div className="flex min-h-0 flex-1 flex-col gap-3 pb-6">
                 {problem !== null && <Refusal problem={problem} />}
-                <CodeFrame className="min-h-96 flex-1">{schemaPane('min-h-0 flex-1')}</CodeFrame>
+                <Panel
+                    title={LABELS.word.schema.label}
+                    inset={false}
+                    className="flex min-h-96 flex-1 flex-col"
+                    bodyClassName="flex min-h-0 flex-1 flex-col"
+                >
+                    <WindowedPane
+                        name={LABELS.schemas.window_title(schema.code)}
+                        frame="none"
+                        className="min-h-0 flex-1"
+                        windowed={schemaPane('min-h-0 flex-1')}
+                    >
+                        {schemaPane('min-h-0 flex-1')}
+                    </WindowedPane>
+                </Panel>
             </div>
             <Dialog open={trying} onOpenChange={setTrying}>
                 <DialogContent
@@ -338,37 +405,61 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
  *
  * IT READS LIKE A PIPELINE'S PANE, and is a form only when asked to be. The name and code are the
  * page's heading, so the pane opens on the rendered description; `Edit` turns the name and the
- * description into boxes, and the page's Save sends them with the body.
+ * description into boxes, and the pane's own Save stores those two alone, so an edit made here is
+ * never left waiting on the page's Save.
  */
 function Details({
     named,
     description,
     usedBy,
     mayWrite,
+    editing,
+    saving,
+    problem,
     onNamed,
     onDescription,
+    onEditing,
+    onCancel,
+    onSave,
 }: {
     named: string
     description: string
     usedBy: readonly string[]
     mayWrite: boolean
+    editing: boolean
+    saving: boolean
+    problem: Problem | null
     onNamed: (text: string) => void
     onDescription: (text: string) => void
+    onEditing: (editing: boolean) => void
+    /** Put the name and the description back as they are stored, and stop editing them. */
+    onCancel: () => void
+    /** Store the name and the description alone, and stop editing them once they are stored. */
+    onSave: () => void
 }) {
-    const [editing, setEditing] = useState(false)
     const toggle = (
         <Button
-            variant={editing ? 'outline' : 'ghost'}
+            variant="ghost"
             size="sm"
             className="shrink-0"
-            aria-label={editing ? undefined : LABELS.schemas.edit_details}
-            title={editing ? undefined : LABELS.schemas.edit_details}
+            aria-label={LABELS.schemas.edit_details}
+            title={LABELS.schemas.edit_details}
             onClick={() => {
-                setEditing(!editing)
+                onEditing(true)
             }}
         >
-            {editing ? LABELS.schemas.done_editing : LABELS.action.edit}
+            {LABELS.action.edit}
         </Button>
+    )
+    const verbs = (
+        <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" disabled={saving} onClick={onCancel}>
+                {LABELS.action.cancel}
+            </Button>
+            <Button size="sm" disabled={saving} onClick={onSave}>
+                {saving ? LABELS.action.save.busy : LABELS.action.save.verb}
+            </Button>
+        </div>
     )
     return (
         <div className="flex flex-col gap-4 p-4">
@@ -394,7 +485,8 @@ function Details({
                             }}
                         />
                     </FormField>
-                    <div className="flex justify-end">{toggle}</div>
+                    {problem !== null && <Refusal problem={problem} />}
+                    {verbs}
                 </>
             ) : (
                 <div className="flex items-start gap-2">

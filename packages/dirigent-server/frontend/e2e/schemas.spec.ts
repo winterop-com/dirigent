@@ -118,7 +118,7 @@ test('a new schema is named in the dialog and opens on its own page', async ({ p
     await removeSchema(page.request, 'e2e-created-shape')
 })
 
-test('a stored schema is relabelled on its page', async ({ page }) => {
+test('a stored schema is relabelled in its Details, which store it themselves', async ({ page }) => {
     await signIn(page)
     await seedSchema(page.request)
 
@@ -130,15 +130,29 @@ test('a stored schema is relabelled on its page', async ({ page }) => {
     // The name is a display title with no identity, so it is a box in Details; the code is the heading.
     const panel = await details(page)
     await panel.getByRole('button', { name: LABELS.schemas.edit_details }).click()
-    await panel.getByLabel(LABELS.word.name.label).fill('Org unit, corrected')
-    await save.click()
+    await panel.getByLabel(LABELS.word.name.label, { exact: true }).fill('Org unit, corrected')
+    await panel.getByRole('button', { name: LABELS.action.save.verb, exact: true }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Org unit, corrected' })).toBeVisible()
+    await expect(panel.getByLabel(LABELS.word.name.label, { exact: true })).toBeHidden()
     await expect(save).toBeDisabled()
 
     const prefix = await apiPrefix(page.request)
     const read = await (await page.request.get(`${prefix}/schemas/e2e-org-unit`)).json()
     expect(read.name).toBe('Org unit, corrected')
     expect(read.body.title).toBe('Organisation unit')
+})
+
+test('cancelling an edit of the Details puts them back', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    await page.goto('/schemas/e2e-org-unit')
+    const panel = await details(page)
+    await panel.getByRole('button', { name: LABELS.schemas.edit_details }).click()
+    await panel.getByLabel(LABELS.word.description, { exact: true }).fill('Something else')
+    await panel.getByRole('button', { name: LABELS.action.cancel, exact: true }).click()
+    await expect(panel.getByText(SCHEMA.description)).toBeVisible()
+    await expect(page.getByRole('button', { name: LABELS.action.save.verb, exact: true })).toBeDisabled()
 })
 
 test('a shape somebody got wrong is corrected on its page', async ({ page }) => {
