@@ -53,6 +53,7 @@ from dirigent_core.alerting import (
     retry_notification,
     send_notification,
     set_paused,
+    template_warnings,
     throttled_until,
     update_rule,
 )
@@ -1205,6 +1206,45 @@ async def test_a_custom_body_reads_the_failing_step_and_its_error(
     _, notification = await failed_through_a_step(engine, sessions, services)
 
     assert notification.body == "run-controls broke in slow: RuntimeError: Illegal header value b'Bearer ***'"
+
+
+async def test_a_step_failure_is_spelled_the_same_under_run_and_at_the_top(
+    engine: Engine, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            connection=DESK,
+            template="{{ run.pipeline }} failed: {{ run.error_code }} at {{ run.failed_step }}",
+        ),
+    )
+    _, notification = await failed_through_a_step(engine, sessions, services)
+
+    context = notification.context or {}
+    run = cast("dict[str, object]", context["run"])
+    assert (run["error"], run["error_code"], run["failed_step"]) == (
+        context["error"],
+        context["error_code"],
+        context["failing_step"],
+    )
+    assert notification.subject == "run-controls failed: run.block_raised at slow"
+
+
+def test_an_alert_template_reading_a_name_it_is_never_given_is_warned_about() -> None:
+    warned = template_warnings(
+        template="{{ run.error_codee }} {{ failing_step }} {{ pipeline.code }}", body="{{ nonsense }} {{ report }}"
+    )
+
+    assert [(issue.location, issue.code, issue.params["name"]) for issue in warned] == [
+        ("template", "alert.template_name_unknown", "run.error_codee"),
+        ("body", "alert.template_name_unknown", "nonsense"),
+    ]
+    assert "failed_step" in str(warned[0].params["hint"])
+    assert "failing_step" in str(warned[1].params["hint"])
+    assert template_warnings(template=DEFAULT_TEMPLATE, body="{{ error }} {{ step.load.outcome }}") == []
 
 
 async def test_the_default_body_writes_the_params_as_json_and_the_link(

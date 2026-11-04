@@ -27,6 +27,7 @@ from dirigent_core.alerting import (
     list_rules,
     queue_test_message,
     retry_notification,
+    template_warnings,
     update_rule,
 )
 from dirigent_core.models import AlertRule, Connection, Notification, Pipeline, Run
@@ -60,6 +61,7 @@ def render(rule: AlertRule, pipeline: str | None, connection: str | None = None)
         paused=rule.paused,
         last_sent_at=rule.last_sent_at,
         created_at=rule.created_at,
+        warnings=template_warnings(template=rule.template, body=rule.body),
     )
 
 
@@ -108,7 +110,11 @@ async def rule(code: str, session: SessionDep, principal: PrincipalDep) -> Alert
 async def add_rule(
     payload: AlertRuleIn, session: SessionDep, services: ServicesDep, principal: OperatorDep
 ) -> AlertRuleOut:
-    """Declare an alert rule, refusing a target or a pipeline this instance does not have."""
+    """Declare an alert rule, refusing a target or a pipeline this instance does not have.
+
+    A subject or a body that reads a name an alert is never given is stored, and answered with
+    an ``alert.template_name_unknown`` warning for each such name.
+    """
     rule = await create_rule(
         session,
         services,
@@ -138,11 +144,13 @@ async def add_rule(
 async def change_rule(
     code: str, payload: AlertRuleUpdate, session: SessionDep, services: ServicesDep, principal: OperatorDep
 ) -> AlertRuleOut:
-    """Hold a rule's deliveries, let them resume, rewrite what it says, or re-point it.
+    """Pause a rule, resume it, rewrite what it says, or re-point it.
 
-    Pausing is instance state on the row rather than something the rule declares, so a rule an
-    operator held keeps holding when the document that declared it is applied again. A field
-    the caller left out is left as it was.
+    A paused rule ignores every event until it is resumed, and nothing is queued for it
+    meanwhile. Pausing is instance state on the row rather than something the rule declares, so
+    a rule an operator paused stays paused when the document that declared it is applied again.
+    A field the caller left out is left as it was, and a rewritten subject or body is answered
+    with the same warnings as at creation.
     """
     rule = await _rule_or_404(session, code)
     await update_rule(session, services, rule, payload.model_dump(exclude_unset=True))

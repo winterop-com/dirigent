@@ -2265,6 +2265,7 @@ def runs_show(
             "stored": byte_count(run.stored_bytes),
             "trace": run.trace_id or "-",
             "error": run.error or "-",
+            **({"failed step": run.failed_step} if run.failed_step else {}),
             **(
                 {"waiting for": f"a worker carrying {', '.join(detail.waiting_for_workers)}"}
                 if detail.waiting_for_workers

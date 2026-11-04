@@ -237,7 +237,7 @@ async def run_facts(
                 output_bytes=size if size is not None else _json_bytes(output),
             )
         )
-    return RunFacts(
+    facts = RunFacts(
         run=_run_namespace(run, pipeline, base_url=base_url),
         pipeline=PipelineFacts(code=pipeline.code, name=pipeline.name, version=version.version),
         params=shown(dict(run.params)),
@@ -260,6 +260,22 @@ async def run_facts(
         url=f"{base_url.rstrip('/')}/runs/{run.id}" if base_url else None,
         rendered_at=rendered_at,
     )
+    return _with_failure(run, facts)
+
+
+def _with_failure(run: Run, facts: RunFacts) -> RunFacts:
+    """Write where a failing run went wrong onto its ``run`` namespace, as the top-level names say it."""
+    found = alerting.failure_reason(run, facts)
+    if found is None:
+        return facts
+    namespace: JsonMap = {
+        **facts.run,
+        "error": found.error,
+        "error_code": found.code,
+        "error_params": dict(found.params or {}),
+        "failed_step": found.step,
+    }
+    return facts.model_copy(update={"run": namespace})
 
 
 def _json_bytes(output: JsonMap | None) -> int | None:

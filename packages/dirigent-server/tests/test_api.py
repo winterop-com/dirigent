@@ -588,6 +588,28 @@ def test_a_rule_naming_a_connection_no_notifier_sends_through_is_refused(client:
     assert "'http'" in refused.json()["detail"]
 
 
+def test_a_rule_reading_a_name_an_alert_is_never_given_is_kept_and_warned_about(client: TestClient) -> None:
+    declared = client.post(
+        f"{PREFIX}/alert-rules",
+        json={"code": "page-ops", "event": "run_failed", "template": "{{ run.pipeline }} {{ run.eror_code }}"},
+    )
+    assert declared.status_code == 201
+    [warning] = declared.json()["warnings"]
+    assert (warning["location"], warning["code"], warning["params"]["name"]) == (
+        "template",
+        "alert.template_name_unknown",
+        "run.eror_code",
+    )
+    assert "error_code" in warning["message"]
+    rewritten = client.patch(f"{PREFIX}/alert-rules/page-ops", json={"body": "{{ failing_stp }}"})
+    assert [issue["params"]["name"] for issue in rewritten.json()["warnings"]] == ["run.eror_code", "failing_stp"]
+    fixed = client.patch(
+        f"{PREFIX}/alert-rules/page-ops",
+        json={"template": "{{ run.error_code }}", "body": "{{ failing_step }} {{ run.failed_step }}"},
+    )
+    assert fixed.json()["warnings"] == []
+
+
 def test_a_patch_re_points_a_rule_and_the_sender_follows(client: TestClient) -> None:
     client.post(
         f"{PREFIX}/connections",
@@ -1201,8 +1223,24 @@ def test_the_runs_listing_names_the_step_a_run_failed_at(client: TestClient) -> 
     rows = client.get(f"{PREFIX}/runs").json()["items"]
     failed = next(row for row in rows if row["id"] == str(run_id))
     assert failed["failed_step"] == "greet"
-    healthy = client.get(f"{PREFIX}/runs/{run_id}").json()["run"]
-    assert healthy["failed_step"] is None, "the detail renders the DAG; the row is the listing's own"
+
+
+def test_a_run_read_alone_says_what_the_listing_says_about_its_failed_step(client: TestClient) -> None:
+    apply_document(client, DOCUMENT)
+    run_id = UUID(client.post(f"{PREFIX}/pipelines/api-demo/$run", json={"params": {}}).json()["run_id"])
+    rows_written(
+        client,
+        sa.update(StepAttempt)
+        .where(StepAttempt.run_id == run_id)
+        .values(status=AttemptStatus.FAILED, error="the host refused the connection", error_code="http.refused"),
+        sa.update(Run).where(Run.id == run_id).values(status=RunStatus.FAILED, finished_at=datetime.now(UTC)),
+    )
+    listed = next(row for row in client.get(f"{PREFIX}/runs").json()["items"] if row["id"] == str(run_id))
+    alone = client.get(f"{PREFIX}/runs/{run_id}").json()["run"]
+    fields = ("error", "error_code", "failed_step")
+    assert {name: alone[name] for name in fields} == {name: listed[name] for name in fields}
+    assert alone["failed_step"] == "greet"
+    assert alone["error_code"] == "http.refused"
 
 
 def test_the_runs_listing_says_what_the_step_a_run_failed_at_said(client: TestClient) -> None:

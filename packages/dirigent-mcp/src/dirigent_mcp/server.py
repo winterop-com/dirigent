@@ -811,7 +811,9 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         or `pipeline` (the one `pipeline` names). `connection` is the slack, email or webhook
         connection it delivers through; without one it writes to the process log. `template`
         is the subject and `body` the body, Jinja over the run's facts. `throttle`, such as `15m`,
-        is the least time between two of its messages.
+        is the least time between two of its messages. A name the subject or body reads that an
+        alert is never given renders empty; the rule is still created, and `warnings` names each
+        one (`alert.template_name_unknown`) with the names that are given.
         """
         return await call(
             lambda dg: dg.alerts.create_rule(
@@ -837,7 +839,11 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         importance: Importance | None = None,
         connection: str | None = None,
     ) -> Any:
-        """Rewrite what an alert rule says or re-point where it delivers; what is not given is left as it is."""
+        """Rewrite what an alert rule says or re-point where it delivers; what is not given is left as it is.
+
+        A name the subject or body reads that an alert is never given is answered in `warnings`,
+        as at creation.
+        """
         return await call(
             lambda dg: dg.alerts.update_rule(
                 code, template=template, body=body, importance=importance, connection=connection
@@ -846,12 +852,12 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
     @tool(TOGGLES)
     async def pause_alert_rule(code: str) -> Any:
-        """Hold an alert rule's deliveries until it is resumed."""
+        """Pause an alert rule: it ignores every event until it is resumed, and nothing is queued meanwhile."""
         return await call(lambda dg: dg.alerts.set_rule_paused(code, paused=True))
 
     @tool(TOGGLES)
     async def resume_alert_rule(code: str) -> Any:
-        """Let a paused alert rule deliver again."""
+        """Resume a paused alert rule; an event from while it was paused is not raised now."""
         return await call(lambda dg: dg.alerts.set_rule_paused(code, paused=False))
 
     @tool(REMOVES)

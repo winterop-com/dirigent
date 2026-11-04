@@ -86,7 +86,9 @@ The context is the run's facts, the same ones `dg runs report` summarises.
 | `run.id` | The run's uuid, as a string |
 | `run.status` | `succeeded`, `failed`, `completed_with_errors`, or `cancelled` |
 | `run.pipeline` | The pipeline's code |
-| `run.error` | Why it ended badly, or a cancellation's reason; null otherwise |
+| `run.error` | Why it ended badly: for a run that failed or completed with errors, what failed, the same line as an alert's `error`; a cancellation's reason; null otherwise |
+| `run.error_code` / `run.error_params` | The dotted code of that refusal and the specifics it rendered, when it has them |
+| `run.failed_step` | The first step that failed, for a run that failed or completed with errors; null otherwise |
 | `params` | The parameters the run resolved to, defaults filled in, so `{{ params.period }}` reads one |
 | `run.params` | The same parameters, under the run |
 | `run.trigger` | The trigger's label, or its kind when it has no label |
@@ -192,15 +194,29 @@ once `DIRIGENT_RETENTION_RUNS` is set.
 ## The same context, in an alert
 
 An alert rule reads these facts too. Its `template` is the subject and its `body` is the body,
-both Jinja over this context plus the names that say where a failing run went wrong:
+both Jinja over this context plus the names that say where a failing run went wrong. These are
+every name an alert template is given:
 
 | Name | What it is |
 | --- | --- |
-| `failing_step` | The first step that failed, for a run that failed or completed with errors; null otherwise |
+| `run` | The run: `id`, `status`, `pipeline`, `error`, `error_code`, `error_params`, `failed_step`, `params`, `trigger`, `started_at`, `finished_at`, `duration_ms`, `window_start`, `window_end`, `trace_id`, `url`, `report_url`, as in the table above |
+| `pipeline` | `code`, `name` and `version` of the pipeline version the run pinned |
+| `params` | The parameters the run resolved to |
+| `steps` / `step` | Each step's facts in order, and the same by name |
+| `items` / `items_total` / `items_failed` | The fan-out elements, how many there were, and how many failed |
+| `url` | The run in the web UI, the same as `run.url` |
+| `rendered_at` | When the alert was raised |
+| `failing_step` | The first step that failed, for a run that failed or completed with errors; null otherwise. The same as `run.failed_step` |
 | `failing_item` | The key of the first fan-out element that failed in that step, when an element failed |
-| `error` | What failed, on one line and cut at 300 characters: the element's refusal, else the step's, else the run's own. For a block that raised something it did not explain, it is what the block raised. It is read from the attempt as stored, already scrubbed of the step's secrets |
-| `error_code` | The dotted code of that refusal, when it has one |
+| `error` | What failed, on one line and cut at 300 characters: the element's refusal, else the step's, else the run's own. For a block that raised something it did not explain, it is what the block raised. It is read from the attempt as stored, already scrubbed of the step's secrets. The same as `run.error` |
+| `error_code` | The dotted code of that refusal, when it has one. The same as `run.error_code` |
 | `report` | The run's rendered report document when it has one, so a rule can carry the whole page rather than a link to it |
+
+A rule whose `template` or `body` reads a name outside this table, or a field of `run` or
+`pipeline` that is not one, is still created or changed, and the answer carries a
+`warnings` entry for each such name, as `alert.template_name_unknown`, listing what is
+given instead. The rule's reads carry the same `warnings`, so a rule written before the check
+says so too.
 
 ```bash
 dg alerts rules create nightly-failed --event run_failed --connection ops-slack \

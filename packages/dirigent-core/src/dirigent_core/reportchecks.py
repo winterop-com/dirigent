@@ -13,7 +13,7 @@ import jinja2.meta
 from jinja2 import nodes
 
 from dirigent_client.schemas import Catalog, ValidationIssue
-from dirigent_common import JsonMap
+from dirigent_common import JsonMap, Message
 from dirigent_common.templating import ENVIRONMENT
 from dirigent_core.engine.definition import PipelineDefinition
 from dirigent_core.messages import (
@@ -36,6 +36,7 @@ RUN_FIELDS: Final = frozenset(
         "error",
         "error_code",
         "error_params",
+        "failed_step",
         "params",
         "trigger",
         "started_at",
@@ -126,13 +127,13 @@ def report_warnings(definition: PipelineDefinition) -> list[ValidationIssue]:
             if step.block == RENDER_BLOCK
         )
     elif definition.report.template is not None:
-        warnings.extend(_unknown_names(definition.report.template, "report.template", _report_context(definition)))
+        warnings.extend(unknown_names(definition.report.template, "report.template", _report_context(definition)))
     for name, step in definition.steps.items():
         template = step.config.get("template") if step.block == RENDER_BLOCK else None
         values = step.config.get("values", {})
         if isinstance(template, str) and isinstance(values, dict):
             given: dict[str, frozenset[str] | None] = {key: None for key in cast("dict[str, Any]", values)}
-            warnings.extend(_unknown_names(template, f"steps.{name}.config.template", given))
+            warnings.extend(unknown_names(template, f"steps.{name}.config.template", given))
     return warnings
 
 
@@ -153,7 +154,12 @@ def _declared_params(schema: JsonMap) -> frozenset[str] | None:
     return frozenset(cast("dict[str, Any]", properties)) if isinstance(properties, dict) else None
 
 
-def _unknown_names(source: str, location: str, given: Mapping[str, frozenset[str] | None]) -> list[ValidationIssue]:
+def unknown_names(
+    source: str,
+    location: str,
+    given: Mapping[str, frozenset[str] | None],
+    message: Message = TEMPLATE_NAME_UNKNOWN,
+) -> list[ValidationIssue]:
     """Warn on each name and first field a template reads that its context does not have."""
     try:
         tree = ENVIRONMENT.parse(source)
@@ -161,9 +167,10 @@ def _unknown_names(source: str, location: str, given: Mapping[str, frozenset[str
         return []
     free = jinja2.meta.find_undeclared_variables(tree)
     unknown: dict[str, str] = {}
+    names = f"; it is given {', '.join(sorted(given))}" if given else ""
     for name in sorted(free):
         if name not in given:
-            unknown.setdefault(name, "")
+            unknown.setdefault(name, names)
     for root, field in _reads(tree):
         if root not in free or root not in given:
             continue
@@ -172,10 +179,7 @@ def _unknown_names(source: str, location: str, given: Mapping[str, frozenset[str
             continue
         hint = f"; {root} has {', '.join(sorted(fields))}" if fields else f"; {root} has nothing"
         unknown.setdefault(f"{root}.{field}", hint)
-    return [
-        ValidationIssue.of(TEMPLATE_NAME_UNKNOWN, location=location, name=name, hint=hint)
-        for name, hint in unknown.items()
-    ]
+    return [ValidationIssue.of(message, location=location, name=name, hint=hint) for name, hint in unknown.items()]
 
 
 def _reads(tree: nodes.Template) -> Iterator[tuple[str, str]]:

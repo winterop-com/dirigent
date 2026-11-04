@@ -345,6 +345,16 @@ def alerts_rules_create(
         body=created.body is not None,
         throttle=created.throttle,
     )
+    for warning in created.warnings:
+        emit_fact(
+            "alert_rule.warning",
+            level="warning",
+            message=f"{warning.location}: {warning.message}",
+            rule=created.code,
+            location=warning.location,
+            issue=warning.code,
+            params=warning.params,
+        )
 
 
 @alerts_rules_app.command("delete")
@@ -357,13 +367,13 @@ def alerts_rules_delete(ctx: typer.Context, code: Annotated[str, typer.Argument(
 
 @alerts_rules_app.command("pause")
 def alerts_rules_pause(ctx: typer.Context, code: Annotated[str, typer.Argument()]) -> None:
-    """Hold a rule's deliveries; the rule itself is left as it was declared."""
+    """Pause a rule: it ignores every event until resumed, and nothing is queued for it meanwhile."""
     _set_rule_paused(ctx, code, paused=True)
 
 
 @alerts_rules_app.command("resume")
 def alerts_rules_resume(ctx: typer.Context, code: Annotated[str, typer.Argument()]) -> None:
-    """Let a held rule deliver again."""
+    """Resume a paused rule, so it hears the events that come after; none from while it was paused."""
     _set_rule_paused(ctx, code, paused=False)
 
 

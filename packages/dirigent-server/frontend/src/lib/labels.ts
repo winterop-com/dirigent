@@ -113,7 +113,7 @@ const action = {
     copy: {
         done: 'Copied',
     },
-    /** Hold what a thing fires or delivers, and let it go again. */
+    /** Stop a thing firing or raising anything until it is resumed, and resume it. */
     pause: 'Pause',
     resume: 'Resume',
     /** Let an account sign in, or stop it. */
@@ -1004,6 +1004,8 @@ const refused = {
         bad_template: 'The template in {field} is not valid Jinja: {detail}',
         target_has_no_notifier:
             'Connection {code} is of kind {kind}, which no installed notifier delivers through. Installed: {installed}.',
+        template_name_unknown:
+            '{name} is not something an alert template is given, so it renders empty{hint}.',
         unknown_connection: 'No connection coded {code}.',
     },
     artifacts: {
