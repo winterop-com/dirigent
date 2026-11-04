@@ -101,8 +101,15 @@ CANNOT_PROMPT_SET = CLI.define("cannot_prompt_set", "--json cannot prompt for {f
 
 CANNOT_PROMPT_SECRET = CLI.define(
     "cannot_prompt_secret",
-    "dg connection set-secret asks for each secret at a terminal, without echoing it, and nobody is at one here",
+    "dg connection set-secret asks for each secret at a terminal, without echoing it, and nobody is at one here;"
+    " pipe one secret in instead: op read ... | dg connection set-secret CODE FIELD --stdin",
 )
+
+STDIN_TAKES_ONE_FIELD = CLI.define(
+    "stdin_takes_one_field", "--stdin reads one secret, so it takes exactly one FIELD, not {count}"
+)
+
+EMPTY_SECRET_ON_STDIN = CLI.define("empty_secret_on_stdin", "--stdin read no secret for {field}; stdin was empty")
 
 NOT_A_SECRET_FIELD = CLI.define(
     "not_a_secret_field", "{field} is not a secret field of connection {code}, whose secret fields are {fields}"
@@ -191,12 +198,12 @@ GUARD_REFUSED = CLI.define("guard_refused", "{detail}")
 
 UNSAFE_FOR_THIS_RUN = CLI.define(
     "unsafe_for_this_run",
-    "for this run only: dg run --local ... --enable-unsafe shell.run",
+    "for this run only: dg run --local ... --enable-unsafe {blocks}",
 )
 
 UNSAFE_FOR_THE_INSTANCE = CLI.define(
     "unsafe_for_the_instance",
-    "for the instance:  export DIRIGENT_ENABLED_UNSAFE_BLOCKS='[\"shell.run\"]'",
+    "for the instance:  export DIRIGENT_ENABLED_UNSAFE_BLOCKS='{allowlist}'",
 )
 
 NOT_A_RUN_STATUS = CLI.define("not_a_run_status", "{value} is not a run status ({allowed})")

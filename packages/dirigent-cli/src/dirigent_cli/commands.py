@@ -44,6 +44,7 @@ from dirigent_cli.messages import (
     CANNOT_PROMPT_SET,
     CONCURRENCY_REFUSED,
     DOCUMENT_INVALID,
+    EMPTY_SECRET_ON_STDIN,
     GUARD_REFUSED,
     INIT_CANCELLED,
     INIT_REFUSED,
@@ -91,6 +92,7 @@ from dirigent_cli.messages import (
     SET_DG_TOKEN,
     SOURCE_REFUSED,
     STARTER_TAG_NEEDED,
+    STDIN_TAKES_ONE_FIELD,
     STRICT_NEEDS_WATCH,
     TOKEN_EXPIRY_INVALID,
     TRIGGERS_DOCUMENT_NOT_RUNNABLE,
@@ -444,9 +446,19 @@ def apply_command(
             pruned = dg.call(dg.pipelines.prune(keep, dry_run=dry_run))
     if state_of(ctx).json_output:
         emit_records("apply", [result for result, _ in results])
+        refused = [(result, label) for result, label in results if result.plan.action is PlanAction.INVALID]
+        for result, label in refused:
+            emit_fact(
+                "validation",
+                level="error",
+                message="invalid",
+                code=result.plan.code,
+                document=label,
+                problems=[issue.issue().model_dump(mode="json") for issue in result.plan.issues],
+            )
         if pruned is not None:
             emit_records("prune", [pruned])
-        if any(result.plan.action is PlanAction.INVALID for result, _ in results):
+        if refused:
             raise typer.Exit(code=1)
         return
     accepted = all(_print_plan(result, origin) for result, origin in results)
@@ -1639,12 +1651,13 @@ async def _stream_local(
                 case LocalOutcome():
                     outcome = item
     except LocalError as error:
+        unsafe = list(error.unsafe_blocks)
         remedies = (
             [
-                Issue.of(UNSAFE_FOR_THIS_RUN),
-                Issue.of(UNSAFE_FOR_THE_INSTANCE),
+                Issue.of(UNSAFE_FOR_THIS_RUN, blocks=",".join(unsafe)),
+                Issue.of(UNSAFE_FOR_THE_INSTANCE, allowlist=json.dumps(unsafe, separators=(",", ":"))),
             ]
-            if "DIRIGENT_ENABLED_UNSAFE_BLOCKS" in str(error)
+            if unsafe
             else []
         )
         refuse(GUARD_REFUSED, status=GUARD_EXIT, title="Refused", problems=remedies, detail=str(error))
@@ -2914,6 +2927,13 @@ def connection_set_secret(
         list[str] | None,
         typer.Argument(metavar="[FIELD]...", help="The secret fields to set; every one the kind declares if none."),
     ] = None,
+    from_stdin: Annotated[
+        bool,
+        typer.Option(
+            "--stdin",
+            help="Read the one FIELD's value from stdin instead of prompting; one trailing newline is dropped.",
+        ),
+    ] = False,
 ) -> None:
     """Set a connection's secrets, prompting for each without echoing it.
 
@@ -2922,8 +2942,20 @@ def connection_set_secret(
     for, then every other secret the kind declares. A secret prompt answered blank keeps what
     is stored. The connection's settings are sent back with the secrets, so the server
     validates them whole, and that completes a connection created awaiting its secrets.
+
+    With ``--stdin`` and exactly one ``FIELD``, nothing is prompted: the whole of stdin is that
+    field's value, so a script or an agent's shell can pipe it in, as
+    ``op read ... | dg connection set-secret CODE FIELD --stdin``.
     """
-    if not at_a_terminal() or json_mode():
+    named = list(field_names or ())
+    piped: str | None = None
+    if from_stdin:
+        if len(named) != 1:
+            fail(STDIN_TAKES_ONE_FIELD, count=len(named))
+        piped = _one_secret_from_stdin()
+        if not piped:
+            fail(EMPTY_SECRET_ON_STDIN, field=named[0])
+    elif not at_a_terminal() or json_mode():
         fail(CANNOT_PROMPT_SECRET)
     refuse_a_server_a_project_named(state_of(ctx))
     with client_for(state_of(ctx)) as dg:
@@ -2934,7 +2966,10 @@ def connection_set_secret(
         held = {name: value for name, value in row.config.items() if value is not None}
         given = dict(held)
         asked = list(field_names or ())
-        if not field_names:
+        if piped is not None:
+            given[asked[0]] = piped
+            asked = []
+        elif not field_names:
             entry = _connection_entry(dg.call(dg.blocks.catalog()), row.kind)
             properties = cast("dict[str, Any]", entry.config_schema.get("properties") or {})
             choose_a_credential(entry, given, properties, interactive=True, offered=True)
@@ -2956,6 +2991,12 @@ def connection_set_secret(
         awaiting_secrets=updated.awaiting_secrets,
         set=typed,
     )
+
+
+def _one_secret_from_stdin() -> str:
+    """Read all of stdin as one secret, dropping the single trailing newline an echo or a file ends with."""
+    text = sys.stdin.read()
+    return text.removesuffix("\n").removesuffix("\r")
 
 
 @connection_app.command("show")

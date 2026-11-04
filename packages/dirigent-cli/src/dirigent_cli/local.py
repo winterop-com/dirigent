@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunStatus, TriggerKind
+from dirigent_client.schemas import ValidationIssue
 from dirigent_common import JsonMap
 from dirigent_core import migrations, wakeups
 from dirigent_core.config import Settings, get_settings
@@ -27,6 +28,7 @@ from dirigent_core.engine.definition import PipelineDefinition
 from dirigent_core.engine.runs import RunCreationError, RunWindow
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import in_execution_order
+from dirigent_core.messages import STEP_UNSAFE_BLOCK
 from dirigent_core.models import ArtifactRef, Connection, LogEntry, Run, RunItem, StepAttempt, utcnow
 from dirigent_core.pipelines import apply_document
 from dirigent_core.plugins import load_plugin_host
@@ -57,7 +59,16 @@ TERMINAL: Final = (
 
 
 class LocalError(Exception):
-    """A local run could not be set up; the message says what was wrong with the input."""
+    """A local run could not be set up; the message says what was wrong with the input.
+
+    ``unsafe_blocks`` names every block the instance refused to run because the allowlist does
+    not name it, in sorted order; it is empty for every other refusal.
+    """
+
+    def __init__(self, message: str, *, unsafe_blocks: Sequence[str] = ()) -> None:
+        """Hold the message, and the unsafe blocks a remedy has to name."""
+        super().__init__(message)
+        self.unsafe_blocks = tuple(unsafe_blocks)
 
 
 #: How long a fan-out element's key may be before the stream labels it by position instead.
@@ -708,7 +719,8 @@ async def run_document(
                 if not applied.plan.ok:
                     raise LocalError(
                         "the document does not validate against the installed catalog:\n"
-                        + "\n".join(f"  {issue}" for issue in applied.plan.issues)
+                        + "\n".join(f"  {issue}" for issue in applied.plan.issues),
+                        unsafe_blocks=_unsafe_blocks(definition, applied.plan.issues),
                     )
                 version = await _current_version(session, definition.code)
                 try:
@@ -747,6 +759,18 @@ async def run_document(
     finally:
         if not leave:
             shutil.rmtree(held, ignore_errors=True)
+
+
+def _unsafe_blocks(definition: PipelineDefinition, issues: Sequence[ValidationIssue]) -> list[str]:
+    """Name every block a plan refused because the unsafe-block allowlist does not name it."""
+    named: set[str] = set()
+    for issue in issues:
+        if issue.code != STEP_UNSAFE_BLOCK.code:
+            continue
+        step = definition.steps.get(issue.location.removeprefix("steps.").removesuffix(".block"))
+        if step is not None and step.block is not None:
+            named.add(step.block)
+    return sorted(named)
 
 
 def _parse_supporting(text: str) -> PipelineDefinition:

@@ -687,8 +687,9 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         conversation. A kind that cannot work without a secret awaits it, and nothing uses the
         connection until an admin has supplied it; one whose credential is optional is usable at
         once. Answers the connection, `secrets_to_supply` (what it awaits), `optional_secrets`
-        (what a usable one could still be given), and `supply_with`: who supplies them, and the
-        command they run or the screen they open to do it.
+        (what a usable one could still be given), and `supply_with`: who supplies them, the
+        command they run at a terminal, `piped`, the form a script runs to hand one FIELD over on
+        stdin, or the screen they open to do it.
         """
 
         async def created(dg: Dirigent) -> Any:
@@ -700,6 +701,7 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
             supply = {
                 "by": "an admin of this instance",
                 "command": f"dg --url {origin} connection set-secret {made.code}",
+                "piped": f"op read ... | dg --url {origin} connection set-secret {made.code} FIELD --stdin",
                 "screen": f"{origin}/connections/{made.code}",
             }
             return {

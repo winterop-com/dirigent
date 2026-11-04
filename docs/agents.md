@@ -216,7 +216,7 @@ text that is not a document, and the file is not opened.
 | `rotate_source_token` | Mint an endpoint source a new token or signing secret, shown once, shutting out every caller of the old one |
 | `list_connections`, `get_connection`, `check_connection` | The connections a document can name, every secret redacted, and whether one's system answers (admin only) |
 | `list_connection_kinds`, `get_connection_kind` | The connection kinds the instance holds, each one's required, secret and plain fields and its credential forms; `get_connection_kind` reads one field by field, with its type, default and credential form |
-| `create_connection` | Create a connection with its settings alone, awaiting the secrets an admin supplies, and answer which they are and the `dg connection set-secret` command that sets them (operator or admin) |
+| `create_connection` | Create a connection with its settings alone, awaiting the secrets an admin supplies, and answer which they are and the `dg connection set-secret` command that sets them, at a terminal or piped with `--stdin` (operator or admin) |
 | `list_schemas`, `get_schema` | The named JSON Schemas a document can reference |
 | `create_schema`, `update_schema`, `delete_schema` | Store, rewrite or remove a named schema (admin only); one a pipeline references is not removed |
 | `list_audit` | Who changed what: every administrative change, newest first, with the fields an update changed and never a value (admin only, and offered to an admin token alone) |
@@ -257,7 +257,8 @@ bigger than a document, or paste the pages it names.
   With an operator token its `create_connection` stores a connection's settings alone and refuses
   a secret field by name. A connection that cannot work without a secret then awaits it, used by
   nothing and refused by a check, until an admin sets it with `dg connection set-secret CODE`, which prompts at a
-  terminal without echoing, or by editing it on the Connections screen. `dg connection create`
+  terminal without echoing, or `op read ... | dg connection set-secret CODE FIELD --stdin` from a
+  script, or by editing it on the Connections screen. `dg connection create`
   makes a whole one yourself, as an admin.
 - **Blocks that run code on a worker.** `shell.run`, `docker.*` and their kind are refused until
   the instance allowlists them in `enabled_unsafe_blocks`. That allowlist is yours to set.
