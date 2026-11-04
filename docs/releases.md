@@ -17,6 +17,31 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## Unreleased
+
+**Plan warns on a misspelt output field.** A reference such as `${steps.fetch.output.statuss}`,
+or a report template reading `step.fetch.output.statuss`, whose step's block publishes a closed
+output schema without that field, is warned about as `document.output_field_unknown`, naming
+the fields the output has. A read into an open value, a mapping or a list is not judged, and
+nothing is refused.
+
+**A bare number where text is wanted is told to be quoted.** `period: [202501, 202502]` was
+refused as "is not valid under any of the given schemas"; it now says "202501 and 202502 are
+numbers; write each quoted, as '202501'". A value that fits no branch of a union names the
+shapes the field takes, or where the nearest one refused it, in a step's config, a parameter
+schema, a carried schema and a run's parameters alike.
+
+**Plan refuses a storage source outside the artifact root.** A `file://` uri that resolves
+outside the instance's artifact root planned clean and then failed every poll; plan refuses it
+at `steps.<source>.source.uri` with the same `artifacts.outside_root`.
+
+**Breaking: a `pipeline.run` child that ends badly fails the step with a code of its own.** A
+strict step whose child ends `completed_with_errors` fails as `base.child_completed_with_errors`,
+classed `rejected` and not retried; a child that ends `failed` or `cancelled` fails it as
+`base.child_run_ended`. Both carry the child's `run`, `pipeline`, `status` and
+`child_error_code` in their params. Both were `run.remote_job_said`, classed `unknown`, so a
+reply or an alert matching that code for a child run now matches these.
+
 ## 0.34.0
 
 Released 2026-11-03. Every package in the workspace moves to 0.34.0 together, and so do
