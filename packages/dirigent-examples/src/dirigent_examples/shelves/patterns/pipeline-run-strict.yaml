@@ -20,7 +20,11 @@
 #   lenient  strict: false against a child that ends completed_with_errors. The step SUCCEEDS,
 #            and its output carries the child's real status -- so "succeeded" here is the
 #            step's outcome, not a claim about the child.
-#   strict   strict: true against the same thing. The step FAILS.
+#   strict   strict: true against the same thing. The step FAILS as
+#            base.child_completed_with_errors, with the child's run id and status in its
+#            params, so a reply's ${steps.strict.error.code} or an alert tells it apart
+#            from a child that ended failed (base.child_run_ended). It is not retried: the
+#            child's outcome is settled, and a retry would only start another child.
 #   verdict  all_done, so the run has an outcome to report whichever way the pair went. It
 #            reads only the lenient step's output: the strict one failed, so it has none.
 #

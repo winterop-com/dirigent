@@ -6,8 +6,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_block_base.messages import CHILD_RUN_GONE, NOT_A_RUN_HANDLE, WAITER_CANCELLED
-from dirigent_common import BlockModel, EntityName
+from dirigent_block_base.messages import (
+    CHILD_COMPLETED_WITH_ERRORS,
+    CHILD_RUN_ENDED,
+    CHILD_RUN_GONE,
+    NOT_A_RUN_HANDLE,
+    WAITER_CANCELLED,
+)
+from dirigent_common import BlockModel, EntityName, JsonMap
 from dirigent_plugin import (
     BlockFailure,
     ErrorClass,
@@ -102,7 +108,11 @@ class PipelineRunOperator(Operator[PipelineRunConfig, PipelineRunOutput]):
         )
 
     async def probe(self, handle: RemoteHandle, config: PipelineRunConfig, ctx: StepContext) -> ProbeResult:
-        """Read where the child run has got to, and map its state onto this step's."""
+        """Read where the child run has got to, and map its state onto this step's.
+
+        A child that ended in a way that fails the step fails it with a code of its own,
+        naming the child run and what it settled as.
+        """
         snapshot = await ctx.runs.snapshot(_run_id(handle))
         if snapshot is None:
             return ProbeResult(status=ProbeStatus.GONE, message=f"this instance no longer holds run {handle.ref}")
@@ -116,14 +126,19 @@ class PipelineRunOperator(Operator[PipelineRunConfig, PipelineRunOutput]):
             case RunState.SUCCEEDED:
                 return ProbeResult(status=ProbeStatus.SUCCEEDED, message=f"run {handle.ref} succeeded")
             case RunState.COMPLETED_WITH_ERRORS:
-                tolerated = f"run {handle.ref} finished with errors its own pipeline tolerated"
                 if config.strict:
-                    return ProbeResult(status=ProbeStatus.FAILED, message=f"{tolerated}, and strict is set")
+                    raise BlockFailure(
+                        CHILD_COMPLETED_WITH_ERRORS,
+                        error_class=ErrorClass.REJECTED,
+                        **_child_params(handle, snapshot),
+                    )
+                tolerated = f"run {handle.ref} finished with errors its own pipeline tolerated"
                 return ProbeResult(status=ProbeStatus.SUCCEEDED, message=tolerated)
             case RunState.FAILED | RunState.CANCELLED:
-                return ProbeResult(
-                    status=ProbeStatus.FAILED,
-                    message=f"run {handle.ref} {snapshot.state.value}: {snapshot.error or 'no reason was recorded'}",
+                raise BlockFailure(
+                    CHILD_RUN_ENDED,
+                    reason=snapshot.error or "no reason was recorded",
+                    **_child_params(handle, snapshot),
                 )
 
     async def fetch(self, handle: RemoteHandle, config: PipelineRunConfig, ctx: StepContext) -> PipelineRunOutput:
@@ -157,6 +172,16 @@ def _run_id(handle: RemoteHandle) -> UUID:
         return UUID(handle.ref)
     except ValueError as error:
         raise BlockFailure(NOT_A_RUN_HANDLE, error_class=ErrorClass.REJECTED, handle=repr(handle.ref)) from error
+
+
+def _child_params(handle: RemoteHandle, snapshot: RunSnapshot) -> JsonMap:
+    """The child a failure is about: its run, its pipeline, what it settled as, and the code it ended with."""
+    return {
+        "run": handle.ref,
+        "pipeline": snapshot.pipeline or handle.meta.get(PIPELINE_META, ""),
+        "status": snapshot.state.value,
+        "child_error_code": snapshot.error_code,
+    }
 
 
 def _progress_message(snapshot: RunSnapshot) -> str:
