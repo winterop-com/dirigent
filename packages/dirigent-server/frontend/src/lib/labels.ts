@@ -1003,7 +1003,7 @@ const refused = {
     alert: {
         bad_template: 'The template in {field} is not valid Jinja: {detail}',
         declared:
-            "Alert rule {code} is declared by pipeline {pipeline}'s document. Edit its alerts: section and apply it again; pausing and resuming it stay allowed here.",
+            'Alert rule {code} is declared in the document of pipeline {pipeline}. Edit its alerts: section and apply it again.',
         owned_elsewhere:
             'Alert rule {code} already exists, declared by {owner}. A rule code is unique across the instance.',
         target_has_no_notifier:
@@ -3398,9 +3398,8 @@ const alerting = {
     /** When a rule last delivered anything. */
     last_sent: 'Last sent',
     /** A rule its pipeline's document declares: the chip, and why it is not edited or deleted here. */
-    declared: 'In document',
-    declared_why: (pipeline: string) =>
-        `Declared by the document of ${pipeline}: change it there and apply it again. Pausing stays allowed.`,
+    declared: 'declared',
+    declared_why: (pipeline: string) => `Declared in the document of ${pipeline}. Edit it there.`,
     /** The panel's list of what this rule has sent lately. */
     recent_deliveries: 'Recent deliveries',
     deliveries_empty: 'Nothing sent.',
