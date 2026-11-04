@@ -54,6 +54,7 @@ from dirigent_core.messages import (
     TOO_MANY_TAGS,
     UNKNOWN_DEPENDENCY,
 )
+from dirigent_core.schemaerrors import describe
 from dirigent_plugin import BLOCK_ID_PATTERN, reference_fields
 from dirigent_plugin.sources import SOURCE_KIND_PATTERN
 
@@ -755,7 +756,7 @@ class PipelineDefinition(BaseModel):
                 validator.validate(resolved)
         except SchemaValidationError as error:
             location = "/".join(str(part) for part in error.absolute_path) or "(root)"
-            raise ParameterError(PARAMETER_INVALID, location=location, detail=error.message) from error
+            raise ParameterError(PARAMETER_INVALID, location=location, detail=describe(error)) from error
         except EvaluationOverrun as error:
             raise ParameterError(PARAMETER_UNCHECKED, timeout=format_duration(error.within)) from error
         except Exception as error:

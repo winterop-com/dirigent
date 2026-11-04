@@ -130,6 +130,8 @@ from dirigent_core.messages import (
     WRONG_DOCUMENT_KIND,
     WRONG_FORMAT,
 )
+from dirigent_core.schemaerrors import describe
+from dirigent_core.storage import Storage
 from dirigent_plugin import MediaPlace, accepted_connections, media_places_of, reference_fields, sql_values_of
 
 #: What a caller that names no connections holds: none.
@@ -431,6 +433,7 @@ def validate_against_catalog(
     format_checker: FormatChecker | None = None,
     target: TriggerTarget | None = None,
     source_kinds: Mapping[str, Any] | None = None,
+    storage: Storage | None = None,
 ) -> list[ValidationIssue]:
     """Check a document against what this instance actually has, reporting everything at once.
 
@@ -450,11 +453,12 @@ def validate_against_catalog(
     holding no host can know. ``target`` is the pipeline a triggers document names, as the
     instance holds it now; on the offline path there is none to read, and only the clocks and
     the codes are checked. ``source_kinds`` is the source kinds the instance knows; unset, the
-    built-in ones.
+    built-in ones. ``storage`` is the instance's storage, whose artifact root a storage source's
+    location is checked against; unset, as offline, it is not checked.
     """
     from dirigent_core.reportchecks import report_issues
     from dirigent_core.sources.kinds import built_in_kinds
-    from dirigent_core.sources.rules import source_issues
+    from dirigent_core.sources.rules import source_issues, storage_location_issues
 
     kinds = source_kinds if source_kinds is not None else built_in_kinds()
     checker = format_checker if format_checker is not None else base_format_checker()
@@ -489,6 +493,8 @@ def validate_against_catalog(
     issues.extend(_reference_issues(definition))
     issues.extend(_trigger_issues(definition, checker, check_params=not malformed_params))
     issues.extend(source_issues(definition, kinds))
+    if storage is not None:
+        issues.extend(storage_location_issues(definition, kinds, storage))
     issues.extend(report_issues(definition, catalog if check_blocks else None))
     if check_blocks:
         issues.extend(
@@ -535,7 +541,7 @@ def _params_schema_issues(definition: PipelineDefinition) -> list[ValidationIssu
                 PARAMS_SCHEMA_INVALID,
                 location="params",
                 at=f" at {where}" if where else "",
-                detail=error.message,
+                detail=describe(error),
             )
         ]
     return []
@@ -582,7 +588,7 @@ def _carried_schema_issues(definition: PipelineDefinition) -> list[ValidationIss
                     CARRIED_SCHEMA_INVALID,
                     location=f"schemas.{code}",
                     at=f" at {where}" if where else "",
-                    detail=error.message,
+                    detail=describe(error),
                 )
             )
     return issues
@@ -1010,7 +1016,7 @@ def _config_issues(step: str, config: JsonMap, schema: JsonMap) -> list[Validati
             message, limit = missed
             issues.append(ValidationIssue.of(message, location=location, limit=limit, loc=parts))
             continue
-        issues.append(ValidationIssue.of(STEP_CONFIG_INVALID, location=location, detail=error.message))
+        issues.append(ValidationIssue.of(STEP_CONFIG_INVALID, location=location, detail=describe(error)))
     return issues
 
 
