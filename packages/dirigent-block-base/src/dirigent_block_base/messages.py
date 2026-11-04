@@ -10,6 +10,13 @@ TEMPLATE_REFUSED = BASE.define("template_refused", "{detail}")
 
 CHILD_RUN_GONE = BASE.define("child_run_gone", "run {run} disappeared before its result could be read")
 
+CHILD_COMPLETED_WITH_ERRORS = BASE.define(
+    "child_completed_with_errors",
+    "run {run} of {pipeline} ended {status}, with errors its own pipeline tolerated, and strict is set",
+)
+
+CHILD_RUN_ENDED = BASE.define("child_run_ended", "run {run} of {pipeline} ended {status}: {reason}")
+
 NOT_A_RUN_HANDLE = BASE.define("not_a_run_handle", "the handle {handle} does not name a run")
 
 WAITER_CANCELLED = BASE.define("waiter_cancelled", "the run waiting on it was cancelled")

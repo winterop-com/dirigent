@@ -289,19 +289,25 @@ class FileStorageBackend(StorageBackend):
 
     def matches(self, uri: str) -> list[Path]:
         """Expand a listing URI into the sorted set of files it names."""
+        base = self.listing_base(uri)
+        _, remainder = parse_uri(uri)
+        if not any(character in remainder for character in GLOB_CHARACTERS):
+            if base.is_file():
+                return [base]
+            if not base.is_dir():
+                return []
+            return sorted(child for child in base.rglob("*") if child.is_file())
+        pattern = str(local_path(remainder))
+        return sorted(path for path in base.rglob("*") if path.is_file() and path.full_match(pattern))
+
+    def listing_base(self, uri: str) -> Path:
+        """Resolve where listing a URI starts, its deepest fixed directory for a glob, or refuse it."""
         scheme, remainder = parse_uri(uri)
         if scheme != self.scheme:
             raise UnknownScheme(scheme, [self.scheme])
         if not any(character in remainder for character in GLOB_CHARACTERS):
-            path = self.path_for(uri)
-            if path.is_file():
-                return [path]
-            if not path.is_dir():
-                return []
-            return sorted(child for child in path.rglob("*") if child.is_file())
-        pattern = str(local_path(remainder))
-        base = self.path_for(f"file://{_fixed_prefix(pattern)}")
-        return sorted(path for path in base.rglob("*") if path.is_file() and path.full_match(pattern))
+            return self.path_for(uri)
+        return self.path_for(f"file://{_fixed_prefix(str(local_path(remainder)))}")
 
     async def list(self, uri: str) -> AsyncIterator[StatResult]:
         """List the files under a prefix, or the files matching a glob pattern."""
@@ -413,6 +419,16 @@ class Storage:
     def list(self, uri: str) -> AsyncIterator[StatResult]:
         """List the objects under a URI prefix or matching a glob."""
         return self.backend_for(uri).list(uri)
+
+    def check_listing(self, uri: str) -> None:
+        """Refuse a listing URI whose location the backend would refuse, without listing or configuring anything.
+
+        Only the ``file://`` backend can say this without reaching anything, so a URI of any
+        other scheme passes.
+        """
+        backend = self._backends.get(parse_uri(uri)[0])
+        if isinstance(backend, FileStorageBackend):
+            backend.listing_base(uri)
 
     async def delete(self, uri: str) -> None:
         """Remove the object at a URI."""

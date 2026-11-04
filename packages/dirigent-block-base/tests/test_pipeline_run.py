@@ -125,14 +125,16 @@ async def test_a_tolerated_child_succeeds_by_default_and_fails_under_strict(ctx:
     handle = handle_for(run_id)
 
     lenient = await PipelineRunOperator().probe(handle, PipelineRunConfig(pipeline="child"), ctx.as_context())
-    strict = await PipelineRunOperator().probe(
-        handle, PipelineRunConfig(pipeline="child", strict=True), ctx.as_context()
-    )
+    with pytest.raises(BlockFailure) as strict:
+        await PipelineRunOperator().probe(handle, PipelineRunConfig(pipeline="child", strict=True), ctx.as_context())
 
     assert lenient.status is ProbeStatus.SUCCEEDED
     assert "tolerated" in (lenient.message or "")
-    assert strict.status is ProbeStatus.FAILED
-    assert "strict is set" in (strict.message or "")
+    assert strict.value.code == "base.child_completed_with_errors"
+    assert strict.value.error_class is ErrorClass.REJECTED
+    assert strict.value.params["run"] == str(run_id)
+    assert strict.value.params["pipeline"] == "child"
+    assert strict.value.params["status"] == "completed_with_errors"
 
 
 @pytest.mark.parametrize("state", [RunState.FAILED, RunState.CANCELLED])
@@ -140,18 +142,25 @@ async def test_a_failed_or_cancelled_child_fails_the_step_and_carries_its_reason
     ctx: FakeContext, state: RunState
 ) -> None:
     run_id = ctx.runs.hold("child", state)
-    ctx.runs.snapshots[run_id] = ctx.runs.snapshots[run_id].model_copy(update={"error": "the load step failed"})
+    ctx.runs.snapshots[run_id] = ctx.runs.snapshots[run_id].model_copy(
+        update={"error": "the load step failed", "error_code": "run.step_failed"}
+    )
 
-    probe = await PipelineRunOperator().probe(handle_for(run_id), PipelineRunConfig(pipeline="child"), ctx.as_context())
+    with pytest.raises(BlockFailure) as failure:
+        await PipelineRunOperator().probe(handle_for(run_id), PipelineRunConfig(pipeline="child"), ctx.as_context())
 
-    assert probe.status is ProbeStatus.FAILED
-    assert "the load step failed" in (probe.message or "")
+    assert failure.value.code == "base.child_run_ended"
+    assert failure.value.error_class is ErrorClass.UNKNOWN
+    assert failure.value.params["reason"] == "the load step failed"
+    assert failure.value.params["status"] == state.value
+    assert failure.value.params["child_error_code"] == "run.step_failed"
 
 
 async def test_a_failed_child_with_no_recorded_reason_still_explains_itself(ctx: FakeContext) -> None:
     run_id = ctx.runs.hold("child", RunState.FAILED)
-    probe = await PipelineRunOperator().probe(handle_for(run_id), PipelineRunConfig(pipeline="child"), ctx.as_context())
-    assert "no reason was recorded" in (probe.message or "")
+    with pytest.raises(BlockFailure) as failure:
+        await PipelineRunOperator().probe(handle_for(run_id), PipelineRunConfig(pipeline="child"), ctx.as_context())
+    assert failure.value.params["reason"] == "no reason was recorded"
 
 
 async def test_a_child_this_instance_no_longer_holds_reads_as_gone(ctx: FakeContext) -> None:

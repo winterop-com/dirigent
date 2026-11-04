@@ -1248,9 +1248,28 @@ def test_a_parameter_schema_that_is_not_a_schema_is_refused_at_apply(host: Plugi
     issues = validate_against_catalog(definition, host.catalog())
     assert [issue.location for issue in issues] == ["params"]
     assert "not itself valid JSON Schema at type" in issues[0].message
-    assert "'objcet' is not valid under any of the given schemas" in issues[0].message
+    assert "'objcet' is none of what this field takes: one of 'array', 'boolean'" in issues[0].message
     offline = validate_against_catalog(definition, host.catalog(), check_blocks=False)
     assert [issue.location for issue in offline] == ["params"], "the offline path has no catalog and checks it anyway"
+
+
+@pytest.mark.parametrize(
+    ("written", "said"),
+    [
+        ("text: 202501", "202501 is a number; write it quoted, '202501'"),
+        ("text: true", "true is a boolean; write it quoted, 'true'"),
+        ("text: [a]", "['a'] is none of what this field takes: a string or null"),
+    ],
+)
+def test_a_bare_scalar_where_text_is_wanted_is_told_to_be_quoted(written: str, said: str) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: periods\n"
+        f"steps:\n  a:\n    block: storage.write\n    config:\n      target: file:///a.txt\n      {written}\n"
+    )
+    issues = validate_against_catalog(definition, load_plugin_host().catalog())
+    assert [(issue.code, issue.location, issue.params) for issue in issues] == [
+        ("document.step_config_invalid", "steps.a.config.text", {"detail": said})
+    ]
 
 
 def test_a_parameter_schema_that_is_one_and_a_document_without_any_are_both_accepted(host: PluginHost) -> None:

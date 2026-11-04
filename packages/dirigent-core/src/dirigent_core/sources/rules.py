@@ -19,6 +19,8 @@ from dirigent_core.engine.definition import (
     TriggerRule,
     TriggerSpecs,
 )
+from dirigent_core.engine.references import ReferenceScope, resolve
+from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     JOIN_OF_SOURCES,
     REPLACE_ON_HELD,
@@ -33,6 +35,8 @@ from dirigent_core.messages import (
     SOURCE_POLL_TOO_LONG,
     UNKNOWN_KIND,
 )
+from dirigent_core.sources.storage import StorageSource
+from dirigent_core.storage import OutsideRoot, Storage
 from dirigent_plugin.sources import AnySource, PolledSource, ReceivedSource, SourceHosting
 
 #: The moment a sample is made whole at, which only its ``received_at`` default reads.
@@ -316,3 +320,36 @@ def _first_line(error: Exception) -> str:
         return f"{where}: {first['msg']}" if where else str(first["msg"])
     text = str(error).strip()
     return text.splitlines()[0] if text else type(error).__name__
+
+
+def storage_location_issues(
+    definition: PipelineDefinition, kinds: Mapping[str, AnySource], storage: Storage
+) -> list[ValidationIssue]:
+    """Refuse a storage source whose ``uri`` every poll would refuse, because it resolves outside the artifact root.
+
+    The uri is resolved the way a poll resolves it, with ``${artifacts}`` and nothing else in
+    scope; one that reads anything more, or that the instance cannot address, is left to the
+    rules that say so.
+    """
+    issues: list[ValidationIssue] = []
+    scope = ReferenceScope(artifacts=storage.artifact_root)
+    for name in definition.sources:
+        node = definition.steps[name].source
+        if node is None or not isinstance(kinds.get(node.kind), StorageSource):
+            continue
+        uri = node.config.get("uri")
+        if not isinstance(uri, str):
+            continue
+        try:
+            resolved = resolve(uri, scope)
+            if isinstance(resolved, str):
+                storage.check_listing(resolved)
+        except OutsideRoot as error:
+            issues.append(
+                ValidationIssue(
+                    location=f"steps.{name}.source.uri", message=str(error), code=error.code, params=error.params
+                )
+            )
+        except DomainError:
+            continue
+    return issues

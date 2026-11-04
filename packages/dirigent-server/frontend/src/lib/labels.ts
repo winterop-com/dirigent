@@ -1065,6 +1065,8 @@ const refused = {
         report_step_not_a_block: 'report.from names {step}, which is a {form} and hands on no text.',
         report_template_and_step: 'A report takes a template or a step whose text it is, not both.',
         template_name_unknown: '{name} is not something this template is given, so it renders empty{hint}.',
+        output_field_unknown:
+            '{reference} reads {field}, and the output of step {step} ({block}) has no such field. It has {fields}.',
         carried_connections:
             'This document carries its own connections ({named}), which an instance will not store. Create them on the instance and let the document name them under requires.connections.',
         reference_bracket_index:
