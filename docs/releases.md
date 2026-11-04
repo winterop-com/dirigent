@@ -17,7 +17,57 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
-## Unreleased
+## 0.35.0
+
+Released 2026-11-04. Every package in the workspace moves to 0.35.0 together, and so do
+`dirigent-dhis2`, `dirigent-contrib`, `dirigent-fhir` and `dirigent-integration`.
+
+**Before upgrading.** The baseline migration is edited in place, so `dg db upgrade` does not carry
+this release's schema: `alert_rules` gains a `declared` column. Recreate the state
+(`dg dev --wipe-state`, or a fresh database), or add the column by hand. Three changes break a
+caller, each marked **Breaking** below: a `pipeline.run` child that ends badly fails with codes
+of its own, a connection created awaiting its secrets has its settings validated, and in
+`dirigent-dhis2` the metadata export's `counts` is `totals`.
+
+**A pipeline document declares its own alert rules.** A top-level `alerts:` mapping, keyed by
+rule code, takes what a pipeline-scoped rule takes through the API: `event`, `connection`,
+`template`, `body`, `importance`, `throttle`, `active`, `name` and `description`. Plan refuses a
+connection the instance does not hold or no notifier delivers through, and a code another owner
+holds (`alert.owned_elsewhere`), and warns on a template name the alert context does not give.
+Its diff carries `alerts_added`, `alerts_removed` and `alerts_changed`. Apply creates, rewrites
+and deletes the rules the document declares and leaves every other rule alone; pausing is
+instance state and survives an apply. A declared rule is updated or deleted only through its
+document (`alert.declared`, 409); pause and resume stay open, and the rule carries `declared`.
+The shipped `alerts-declared` example shows one.
+
+**`dg connection set-secret CODE FIELD --stdin` reads the secret from a pipe**, as in
+`op read ... | dg connection set-secret dhis2-play basic_password --stdin`, so an agent's shell
+can complete a connection created over MCP. The answer of the MCP `create_connection` names that
+form under `supply_with.piped`.
+
+**A refused `dg apply` writes a `validation` record** at `error`, with the document and its
+`problems`, after its `apply` record, so a filter on the refusal kinds sees it.
+
+**The unsafe-block remedies name every refused block**, as
+`--enable-unsafe docker.run,shell.run`, not `shell.run` alone.
+
+**A run read on its own names the step it failed at.** `get_run`, `dg runs show` and a run's
+cancel, pause and resume answer the failed step's `error`, `error_code` and `failed_step`, as the
+listing did. The Run tab leaves a failure to the failure card beside it.
+
+**Alert templates see the failure under `run` too.** `run.error`, `run.error_code`,
+`run.error_params` and a new `run.failed_step` carry what the top-level `error`, `error_code` and
+`failing_step` do. Creating or changing a rule warns on a template name the alert context never
+gives (`alert.template_name_unknown`, answered under the rule's `warnings` and as
+`alert_rule.warning` records), and `docs/reports.md` lists every name a template is given.
+
+**Breaking: a connection created awaiting its secrets has its settings validated.** A setting the
+kind refuses, such as a `sql` url with no driver, is refused at create over the API and MCP with
+the same reason the CLI gives, unless supplying the secrets would cure it. A `sql` connection to
+SQLite is then complete at once rather than awaiting a password.
+
+**Pausing an alert rule is described as what it does:** a paused rule ignores events until it is
+resumed, and nothing is queued meanwhile.
 
 **Plan warns on a misspelt output field.** A reference such as `${steps.fetch.output.statuss}`,
 or a report template reading `step.fetch.output.statuss`, whose step's block publishes a closed
