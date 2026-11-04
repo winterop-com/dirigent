@@ -49,7 +49,7 @@ uvx --from dirigent-cli --with dirigent-dhis2 dg dev
 
 The command is in the `dirigent-cli` package, so `uvx` is always given `--from dirigent-cli`:
 `uvx dirigent` does not resolve to it. A pack pins its dirigent packages at its own version, so
-name one release for both, `--from dirigent-cli==0.34.0 --with dirigent-dhis2==0.34.0`, or
+name one release for both, `--from dirigent-cli==0.35.0 --with dirigent-dhis2==0.35.0`, or
 leave both unpinned and let the resolver match them.
 
 **From source**, which is what a contributor does:
