@@ -250,7 +250,9 @@ before the next poll waits. A poll is all or nothing: when a run cannot be made 
 inputs it found, none of them is kept, the cursor stays, and the poll is retried after the
 backoff, so an input is never skipped. For the same reason a pipeline with a polled source
 may not say `concurrency: skip` or `replace`, which would drop an input already taken. Its config is resolved with `${artifacts}` in scope and nothing
-else, since there is no run yet.
+else, since there is no run yet. Plan resolves its `uri` the same way and refuses a `file://`
+one outside the artifact root as `artifacts.outside_root`, the refusal every poll of it would
+meet.
 
 A `kafka` or `rabbitmq` source, from the queues pack, is held rather than polled: one worker
 keeps a consumer open on its topic or queue under a lease it renews, and each message becomes

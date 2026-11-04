@@ -334,6 +334,32 @@ async def test_a_source_looks_under_the_instance_root_it_names_as_artifacts(
     assert len(outcome.runs) == 1
 
 
+@pytest.mark.parametrize("uri", ["file://{outside}/*.csv", "file://{outside}", "${{artifacts}}/../elsewhere/*.csv"])
+async def test_a_source_outside_the_artifact_root_is_refused_at_plan_as_every_poll_would_refuse_it(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path, uri: str
+) -> None:
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    text = landing(inbox_of(tmp_path)).replace(
+        f"uri: file://{inbox_of(tmp_path)}/*.csv", f"uri: {uri.format(outside=outside)}"
+    )
+    async with session_scope(sessions) as session:
+        applied = await apply_document(session, services, load_text(text), dry_run=True)
+    assert applied.plan.action is PlanAction.INVALID
+    assert [(issue.code, issue.location) for issue in applied.plan.issues] == [
+        ("artifacts.outside_root", "steps.arrived.source.uri")
+    ]
+
+
+async def test_a_source_of_a_scheme_the_root_does_not_govern_is_not_refused_for_where_it_points(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    text = landing(inbox_of(tmp_path)).replace("file://", "nowhere://")
+    async with session_scope(sessions) as session:
+        applied = await apply_document(session, services, load_text(text), dry_run=True)
+    assert "artifacts.outside_root" not in [issue.code for issue in applied.plan.issues]
+
+
 async def test_an_input_no_run_can_be_made_of_fails_the_poll_and_keeps_the_cursor(
     sessions: async_sessionmaker[AsyncSession],
     services: EngineServices,
