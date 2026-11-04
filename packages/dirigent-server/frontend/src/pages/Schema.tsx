@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 
 import { Chip } from '@/components/ds/Chip'
 import { Code } from '@/components/ds/Code'
+import { CodeFrame } from '@/components/ds/CodeFrame'
 import { FormField } from '@/components/ds/FormField'
 import { Notice } from '@/components/ds/Notice'
 import { PageHeader } from '@/components/ds/PageHeader'
@@ -45,6 +46,7 @@ import {
     whyKept,
     type SchemaOut,
 } from '@/lib/schemas'
+import { fillPanel } from '@/lib/panels'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 
 /** The media type that asks for the meta-schema of the draft the server validates with. */
@@ -58,10 +60,11 @@ const SETTLE_MS = 350
  * schema itself in the editor it is corrected in; trying a value against it is a window of its
  * own.
  *
- * THE PAGE IS THE SCHEMA. What is edited here is what `SchemaUpdate` carries -- the name, the
- * description and the body -- so the body has the height of the screen and the details sit
- * beside it. The code is fixed: the route addresses the schema by it, so it is the heading and
- * never a box.
+ * THE PAGE IS THE SCHEMA. The body has the whole page, as a pipeline's document has its
+ * editor; the name, the description and the pipelines that check against it are the right
+ * panel's Details, as a pipeline's are. All three are what `SchemaUpdate` carries, and one Save
+ * sends what changed. The code is fixed: the route addresses the schema by it, so it is the
+ * heading and never a box.
  *
  * TRYING A VALUE IS A WINDOW. `Try a value` opens the schema beside a value and what checking
  * the one against the other found, as large as the screen allows. The check is a run's:
@@ -190,6 +193,29 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
             })
     }
 
+    const mayWrite = write.may
+    const details = useMemo(
+        () => (
+            <Details
+                named={named}
+                description={description}
+                usedBy={schema.used_by}
+                mayWrite={mayWrite}
+                onNamed={setNamed}
+                onDescription={setDescription}
+            />
+        ),
+        [description, mayWrite, named, schema.used_by],
+    )
+
+    useEffect(
+        () =>
+            fillPanel([{ id: 'details', label: LABELS.schemas.details_heading, render: () => details }], {
+                screen: `schema:${schema.code}`,
+            }),
+        [details, schema.code],
+    )
+
     const schemaPane = (className: string) => (
         <CodePane
             value={text}
@@ -237,47 +263,9 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                     },
                 ]}
             />
-            <div className="space-y-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 pb-6">
                 {problem !== null && <Refusal problem={problem} />}
-                <div className="grid min-w-0 gap-3 lg:h-[calc(100dvh-12rem)] lg:min-h-96 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-                    <Panel title={LABELS.schemas.details_heading} bodyClassName="space-y-4">
-                        <FormField
-                            id="schema-name"
-                            label={LABELS.word.name.label}
-                            help={LABELS.schemas.name_hint}
-                        >
-                            <Input
-                                id="schema-name"
-                                value={named}
-                                disabled={!write.may}
-                                onChange={(event) => {
-                                    setNamed(event.target.value)
-                                }}
-                            />
-                        </FormField>
-                        <FormField id="schema-description" label={LABELS.word.description}>
-                            <Textarea
-                                id="schema-description"
-                                className="max-h-64 min-h-28"
-                                value={description}
-                                placeholder={LABELS.schemas.description_placeholder}
-                                disabled={!write.may}
-                                onChange={(event) => {
-                                    setDescription(event.target.value)
-                                }}
-                            />
-                        </FormField>
-                        <CheckedBy codes={schema.used_by} />
-                    </Panel>
-                    <Panel
-                        title={LABELS.word.schema.label}
-                        inset={false}
-                        className="flex flex-col"
-                        bodyClassName="flex min-h-0 flex-1 flex-col"
-                    >
-                        {schemaPane('h-96 min-h-72 lg:h-auto lg:min-h-0 lg:flex-1')}
-                    </Panel>
-                </div>
+                <CodeFrame className="min-h-96 flex-1">{schemaPane('min-h-0 flex-1')}</CodeFrame>
             </div>
             <Dialog open={trying} onOpenChange={setTrying}>
                 <DialogContent
@@ -339,6 +327,51 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                 </DialogContent>
             </Dialog>
         </>
+    )
+}
+
+/** The right panel's Details: the name, the description, and who checks against the shape. */
+function Details({
+    named,
+    description,
+    usedBy,
+    mayWrite,
+    onNamed,
+    onDescription,
+}: {
+    named: string
+    description: string
+    usedBy: readonly string[]
+    mayWrite: boolean
+    onNamed: (text: string) => void
+    onDescription: (text: string) => void
+}) {
+    return (
+        <div className="space-y-4 p-4">
+            <FormField id="schema-name" label={LABELS.word.name.label} help={LABELS.schemas.name_hint}>
+                <Input
+                    id="schema-name"
+                    value={named}
+                    disabled={!mayWrite}
+                    onChange={(event) => {
+                        onNamed(event.target.value)
+                    }}
+                />
+            </FormField>
+            <FormField id="schema-description" label={LABELS.word.description}>
+                <Textarea
+                    id="schema-description"
+                    className="max-h-80 min-h-28"
+                    value={description}
+                    placeholder={LABELS.schemas.description_placeholder}
+                    disabled={!mayWrite}
+                    onChange={(event) => {
+                        onDescription(event.target.value)
+                    }}
+                />
+            </FormField>
+            <CheckedBy codes={usedBy} />
+        </div>
     )
 }
 

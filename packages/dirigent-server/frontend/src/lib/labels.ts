@@ -72,11 +72,6 @@ const action = {
         verb: 'Update',
         busy: 'Updating',
     },
-    /** Write a shape to the instance, which is what a schema is created by. */
-    store: {
-        verb: 'Store',
-        busy: 'Storing',
-    },
     /** Write the document to the instance. */
     apply: 'Apply',
     /** Check the document against the instance without writing it. */
@@ -3092,20 +3087,14 @@ const schemas = {
     reload: 'Read the schemas listing again',
     empty: 'No schemas.',
 
-    /**
-     * The dialog's line, written around the three JSON Schema keywords it names.
-     *
-     * The keywords are drawn in the code face between these two fragments, so they are the
-     * standard's words rather than this product's and are not part of either.
-     */
-    identity: {
-        lead: "Its code, title and description come from the schema's own",
-        and: ' and ',
+    /** The new-schema dialog: the code it is named by, and why Create is shut. */
+    create: {
+        code_hint: 'lower case, digits and hyphens',
+        code_needed: 'Give the schema a code.',
+        code_shape: 'A code is lower case letters, digits and hyphens, starting with a letter or digit.',
     },
     /** What the editor is called, for whoever is not reading the screen. */
     editor_label: 'the schema',
-    /** The code box, which is only for a schema that names no `$id`. */
-    code_placeholder: 'taken from $id when left blank',
     /** A body the browser could not read as JSON, said where it was typed. */
     unreadable: (error: string) => `The schema is not readable JSON: ${error}`,
 

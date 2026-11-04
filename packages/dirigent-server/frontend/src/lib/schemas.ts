@@ -75,9 +75,16 @@ export function readSchema(code: string): Promise<SchemaOut> {
 }
 
 /** Store a JSON Schema, letting the server take its identity from the schema's own keywords. */
-export function createSchema(body: JsonMap, code: string | null): Promise<SchemaOut> {
+export function createSchema(
+    body: JsonMap,
+    code: string | null,
+    name: string | null = null,
+    description: string | null = null,
+): Promise<SchemaOut> {
     const payload: JsonMap = { body }
     if (code !== null && code !== '') payload.code = code
+    if (name !== null) payload.name = name
+    if (description !== null) payload.description = description
     return apiSend<SchemaOut>('/schemas', 'POST', payload)
 }
 

@@ -1,53 +1,25 @@
 import { useState } from 'react'
 
+import { DialogShell } from '@/components/ds/DialogShell'
+import { FormField } from '@/components/ds/FormField'
 import { Refusal } from '@/components/Refusal'
-import { CodeFrame } from '@/components/ds/CodeFrame'
-import { CodePane } from '@/components/pipeline/CodePane'
-import { Button } from '@/components/ui/button'
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
-import { local, refusalOf } from '@/lib/refusal'
+import { refusalOf } from '@/lib/refusal'
 import { createSchema, type SchemaOut } from '@/lib/schemas'
 
-const PLACEHOLDER = `{
-  "$id": "org-unit",
-  "title": "Organisation unit",
-  "type": "object",
-  "required": ["id", "displayName"],
-  "properties": {
-    "id": { "type": "string" },
-    "displayName": { "type": "string" }
-  }
-}`
+/** What a schema's code may be: lower case, digits and hyphens, starting with a letter or digit. */
+const CODE = /^[a-z0-9][a-z0-9-]{0,199}$/
 
 /**
- * The JSON Schema keywords a stored schema takes its code, name and description from. They are
- * the standard's words, drawn in the code face wherever this dialog names one.
- */
-const KEYWORDS = { code: '$id', name: 'title', about: 'description' } as const
-
-/**
- * Write a JSON Schema and store it.
+ * A new schema by its code, its name and its description; the body is written on its own page.
  *
- * A SCHEMA IS AUTHORED HERE, not fetched: the box is the schema itself, written to say what a
- * payload should look like. Its code, name and description come from the schema's own `$id`,
- * `title` and `description` -- so a well-formed schema needs nothing else, and the code box is
- * only for a schema that names no `$id`.
- *
- * THE REFUSAL IS THE SERVER'S. A body that is not itself valid JSON Schema, or one that names
- * no code any way, arrives as a problem document and is shown as one, because the server's
- * sentence names the fault and this dialog could only paraphrase it.
+ * WHAT IS ASKED HERE IS WHAT IDENTIFIES IT. The code is what every `validate.schema` step and
+ * every `requires.schemas` entry will name, so it is the one required box. The body starts as an
+ * object schema naming that code as its `$id`, and the page the dialog lands on is where its shape
+ * is written.
  */
 export function NewSchema({
     open,
@@ -58,25 +30,41 @@ export function NewSchema({
     onOpenChange: (open: boolean) => void
     onCreated: (row: SchemaOut) => void
 }) {
-    const [text, setText] = useState('')
     const [code, setCode] = useState('')
+    const [named, setNamed] = useState('')
+    const [description, setDescription] = useState('')
+    const [touched, setTouched] = useState(false)
     const [problem, setProblem] = useState<Problem | null>(null)
-    const [saving, setSaving] = useState(false)
+    const [creating, setCreating] = useState(false)
 
-    const store = () => {
+    const wanted = code.trim()
+    const why =
+        wanted === ''
+            ? LABELS.schemas.create.code_needed
+            : CODE.test(wanted)
+              ? undefined
+              : LABELS.schemas.create.code_shape
+
+    const reset = () => {
+        setCode('')
+        setNamed('')
+        setDescription('')
+        setTouched(false)
         setProblem(null)
-        let body: JsonMap
-        try {
-            body = JSON.parse(text || '{}') as JsonMap
-        } catch (error) {
-            setProblem(local(LABELS.schemas.unreadable(String(error))))
-            return
+    }
+
+    const create = () => {
+        setProblem(null)
+        const body: JsonMap = {
+            $schema: 'https://json-schema.org/draft/2020-12/schema',
+            $id: wanted,
+            type: 'object',
+            properties: {},
         }
-        setSaving(true)
-        void createSchema(body, code.trim() || null)
+        setCreating(true)
+        void createSchema(body, wanted, named.trim() || null, description.trim() || null)
             .then((row) => {
-                setText('')
-                setCode('')
+                reset()
                 onOpenChange(false)
                 onCreated(row)
             })
@@ -84,63 +72,68 @@ export function NewSchema({
                 setProblem(refusalOf(error))
             })
             .finally(() => {
-                setSaving(false)
+                setCreating(false)
             })
     }
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            {/* The footer carries the way out, so the corner's own is not drawn as well. */}
-            <DialogContent
-                className="flex h-[80vh] w-[min(56rem,90vw)] max-w-[min(56rem,90vw)] flex-col gap-3 sm:max-w-[min(56rem,90vw)]"
-                showCloseButton={false}
+        <DialogShell
+            open={open}
+            onOpenChange={(next) => {
+                if (!next) reset()
+                onOpenChange(next)
+            }}
+            title={LABELS.schemas.new}
+            confirm={{
+                label: LABELS.action.create.verb,
+                busyLabel: LABELS.action.create.busy,
+                busy: creating,
+                why,
+                onConfirm: create,
+            }}
+        >
+            <FormField
+                id="new-schema-code"
+                label={LABELS.word.code}
+                mono
+                required
+                hint={LABELS.schemas.create.code_hint}
+                error={touched ? (why ?? null) : null}
             >
-                <DialogHeader>
-                    <DialogTitle>{LABELS.schemas.new}</DialogTitle>
-                    <DialogDescription>
-                        {LABELS.schemas.identity.lead} <code>{KEYWORDS.code}</code>,{' '}
-                        <code>{KEYWORDS.name}</code>
-                        {LABELS.schemas.identity.and}
-                        <code>{KEYWORDS.about}</code>.
-                    </DialogDescription>
-                </DialogHeader>
-                <CodeFrame className="min-h-0 flex-1">
-                    <CodePane
-                        value={text}
-                        mediaType="application/schema+json"
-                        path="new-schema"
-                        label={LABELS.schemas.editor_label}
-                        placeholder={PLACEHOLDER}
-                        className="h-full min-h-0"
-                        onChange={setText}
-                    />
-                </CodeFrame>
-                <div className="grid gap-1.5">
-                    <Label htmlFor="schema-code">{LABELS.word.code}</Label>
-                    <Input
-                        id="schema-code"
-                        className="font-mono"
-                        placeholder={LABELS.schemas.code_placeholder}
-                        value={code}
-                        onChange={(event) => {
-                            setCode(event.target.value)
-                        }}
-                    />
-                </div>
-                {problem !== null && <Refusal problem={problem} />}
-                <DialogFooter>
-                    <DialogClose
-                        render={
-                            <Button variant="ghost" size="sm">
-                                {LABELS.action.cancel}
-                            </Button>
-                        }
-                    />
-                    <Button size="sm" disabled={saving} onClick={store}>
-                        {saving ? LABELS.action.store.busy : LABELS.action.store.verb}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                <Input
+                    id="new-schema-code"
+                    className="font-mono"
+                    value={code}
+                    autoFocus
+                    onChange={(event) => {
+                        setCode(event.target.value)
+                    }}
+                    onBlur={() => {
+                        setTouched(true)
+                    }}
+                />
+            </FormField>
+            <FormField id="new-schema-name" label={LABELS.word.name.label}>
+                <Input
+                    id="new-schema-name"
+                    value={named}
+                    onChange={(event) => {
+                        setNamed(event.target.value)
+                    }}
+                />
+            </FormField>
+            <FormField id="new-schema-description" label={LABELS.word.description}>
+                <Textarea
+                    id="new-schema-description"
+                    className="min-h-20"
+                    value={description}
+                    placeholder={LABELS.schemas.description_placeholder}
+                    onChange={(event) => {
+                        setDescription(event.target.value)
+                    }}
+                />
+            </FormField>
+            {problem !== null && <Refusal problem={problem} />}
+        </DialogShell>
     )
 }

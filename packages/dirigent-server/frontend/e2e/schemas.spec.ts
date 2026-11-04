@@ -72,11 +72,11 @@ test('a link straight to a schema opens its page', async ({ page }) => {
 
 test('the schema box completes against the meta-schema', async ({ page }) => {
     await signIn(page)
+    await seedSchema(page.request)
 
-    await page.goto('/schemas')
-    await page.getByRole('button', { name: LABELS.schemas.new }).click()
-
-    const editor = await theSchemaBox(page)
+    await page.goto('/schemas/e2e-org-unit')
+    const editor = schemaEditor(page)
+    await writeInEditor(page, editor, '')
     await editor.locator('.view-lines').click()
     await expect(editor.locator('textarea').first()).toBeFocused()
 
@@ -94,34 +94,27 @@ test('the schema box completes against the meta-schema', async ({ page }) => {
     await expect(suggestions).toContainText('properties')
 })
 
-test('the schema box marks a value the draft does not take', async ({ page }) => {
-    await signIn(page)
-
-    await page.goto('/schemas')
-    await page.getByRole('button', { name: LABELS.schemas.new }).click()
-
-    const editor = await theSchemaBox(page)
-    // An unknown key is not marked -- 2020-12 says nothing about keys it does not know -- so
-    // what the meta-schema refuses is a value: `type` takes one of the seven names or a list
-    // of them, and never a number.
-    await writeInEditor(page, editor, '{ "type": 3 }')
-
-    await expect(editor.locator('.squiggly-warning, .squiggly-error').first()).toBeVisible({
-        timeout: 15_000,
-    })
-})
-
-test('a schema created in the dialog lands on its own page', async ({ page }) => {
+test('a new schema is named in the dialog and opens on its own page', async ({ page }) => {
     await signIn(page)
     await removeSchema(page.request, 'e2e-created-shape')
 
     await page.goto('/schemas')
     await page.getByRole('button', { name: LABELS.schemas.new }).click()
-    const editor = await theSchemaBox(page)
-    await writeInEditor(page, editor, '{ "$id": "e2e-created-shape", "type": "object" }')
-    await page.getByRole('dialog').getByRole('button', { name: LABELS.action.store.verb }).click()
+    const dialog = page.getByRole('dialog')
+    const create = dialog.getByRole('button', { name: LABELS.action.create.verb, exact: true })
+    // Create is shut until there is a code, and says why.
+    await expect(create).toBeDisabled()
+    await dialog.getByLabel(LABELS.word.code).fill('E2E shape')
+    await dialog.getByLabel(LABELS.word.name.label).click()
+    await expect(dialog.getByText(LABELS.schemas.create.code_shape)).toBeVisible()
+
+    await dialog.getByLabel(LABELS.word.code).fill('e2e-created-shape')
+    await dialog.getByLabel(LABELS.word.name.label).fill('Created in the dialog')
+    await create.click()
 
     await expect(page).toHaveURL(/\/schemas\/e2e-created-shape$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Created in the dialog' })).toBeVisible()
+    await expect(schemaEditor(page).locator('.view-lines')).toContainText('e2e-created-shape')
     await removeSchema(page.request, 'e2e-created-shape')
 })
 
@@ -134,8 +127,8 @@ test('a stored schema is relabelled on its page', async ({ page }) => {
     // Nothing changed is nothing to send, and the shut control says so.
     await expect(save).toBeDisabled()
 
-    // The name is a display title with no identity, so it is a box; the code is the heading.
-    await page.getByLabel(LABELS.word.name.label).fill('Org unit, corrected')
+    // The name is a display title with no identity, so it is a box in Details; the code is the heading.
+    await (await details(page)).getByLabel(LABELS.word.name.label).fill('Org unit, corrected')
     await save.click()
     await expect(page.getByRole('heading', { level: 1, name: 'Org unit, corrected' })).toBeVisible()
     await expect(save).toBeDisabled()
@@ -210,7 +203,8 @@ test("the tester's schema is the page's, and its value is kept between openings"
         window.getByTestId('code-editor').nth(0),
         JSON.stringify({ ...SCHEMA, required: ['id', 'tried'] }, null, 2),
     )
-    await page.keyboard.press('Escape')
+    // Escape inside an editor is the editor's; the window's own close is what shuts it.
+    await window.locator('[data-slot="dialog-close"]').click()
     await expect(window).toBeHidden()
     await expect(schemaEditor(page).locator('.view-lines')).toContainText('tried')
 
@@ -239,8 +233,8 @@ test('a shape a pipeline names cannot be deleted, and the shut control says whic
 
     await page.goto('/schemas/e2e-org-unit')
 
-    // The pipelines that check against it are named, each a link to its pipeline.
-    await expect(page.getByRole('link', { name: 'e2e-schema-dependant' })).toBeVisible()
+    // The pipelines that check against it are named in Details, each a link to its pipeline.
+    await expect((await details(page)).getByRole('link', { name: 'e2e-schema-dependant' })).toBeVisible()
 
     // A control that would be refused says so before it is pressed.
     const remove = page.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
@@ -277,7 +271,7 @@ test('the same shape is still corrected in place while that pipeline names it', 
     expect(read.used_by).toEqual(['e2e-schema-dependant'])
 })
 
-test("the page's schema box is checked against the meta-schema, like the dialog", async ({ page }) => {
+test("the page's schema box marks a value the draft does not take", async ({ page }) => {
     await signIn(page)
     await seedSchema(page.request)
 
@@ -292,16 +286,22 @@ test("the page's schema box is checked against the meta-schema, like the dialog"
     })
 })
 
+/** The right panel's Details, opened where the reader's preference left it shut. */
+async function details(page: Page): Promise<Locator> {
+    const panel = page.getByRole('tabpanel', { name: LABELS.schemas.details_heading })
+    // A shut panel stays in the page, inert, so whether it is open is read off its container.
+    const aside = page.locator('aside').filter({ has: panel })
+    await expect(aside).toBeAttached()
+    if ((await aside.getAttribute('inert')) !== null) {
+        await page.getByRole('button', { name: LABELS.shell.toggle_panel }).click()
+    }
+    await expect(aside).not.toHaveAttribute('inert')
+    return panel
+}
+
 /** The page's schema editor, its only one. */
 function schemaEditor(page: Page): Locator {
     return page.getByRole('main').getByTestId('code-editor').nth(0)
-}
-
-/** The dialog's one editor, once the chunk monaco lives in has landed. */
-async function theSchemaBox(page: Page): Promise<Locator> {
-    const editor = page.getByRole('dialog').getByTestId('code-editor')
-    await expect(editor.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
-    return editor
 }
 
 /**
