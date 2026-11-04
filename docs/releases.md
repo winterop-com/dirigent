@@ -17,6 +17,56 @@ to PyPI through trusted publishing and, once the `ghcr` environment allows it, b
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.
 
+## 0.36.0
+
+Released 2026-11-04. Every package in the workspace moves to 0.36.0 together, and so do
+`dirigent-dhis2`, `dirigent-contrib`, `dirigent-fhir` and `dirigent-integration`.
+
+**Before upgrading.** Nothing in the database changes, so an instance on 0.35.0 upgrades in place.
+Two changes can refuse what 0.35 accepted, each marked **Breaking** below: a schema's `$ref` to a
+code the instance does not hold is refused at plan, and a schema another schema references can no
+longer be deleted.
+
+**A `$ref` reaches another stored schema.** A schema can point at another one the instance holds,
+by code: `{"$ref": "station-code"}`, with `station-code#/$defs/x` pointing inside it. The reference
+is resolved against the referring schema's `$id` first, as JSON Schema resolves every `$ref`; a bare
+code reaches the schema stored under it, and an address (`https://example.org/schemas/unit.json`)
+reaches a stored schema only when that schema's own `$id` is that address, so a link to an outside
+schema that ends in a stored code is not quietly checked against the local one. A run pins every
+schema its document names and every one they reach this way, `validate.schema` follows them, and a
+pipeline that checks against a schema through another's `$ref` is listed among its users. Nothing
+is ever fetched. `docs/json-schema.md` has the rules.
+
+**Breaking: references are checked.** Plan refuses a reference that reaches no stored schema
+(`document.schema_reference_unknown`, at the place the document names the schema), and deleting a
+schema another one references is refused (`schema.referenced`, naming them).
+
+**A value is checked against a schema without a run.** `POST /api/v1/schemas/$check` checks a value
+against a stored schema or an unsaved body, the way `validate.schema` does, answering every failure
+with its JSON pointer into the value, the keyword that refused it and the readable reason.
+`dg schema check CODE [FILE|-]` and the MCP tool `check_schema` say the same. Any signed-in
+account may use it; it writes nothing.
+
+**A schema has a page of its own.** A row on the Schemas screen opens `/schemas/<code>`: the schema
+in an editor the height of the page, in a Schema panel with its window, and Details in the side
+panel, which starts shut, holding the rendered description, Edit for the name and the description
+with a Save of their own, and the pipelines that check against it. `Try a value` opens a full-screen
+tester: the schema, a value, and what the check found, each failure marked in the value where it is,
+checked as it is typed against the schema text in the editor, saved or not. `Generate an example`
+builds a value from the schema -- its own examples, default or const where it has them, else its
+types, enums, bounds, formats, local `$ref`s and simple patterns. New asks for the code, the name and
+the description and opens the new schema's page.
+
+**The window button is at the top.** Every pane that opens in a window has its button in its panel's
+head where there is one, as the graph and the schema editor do, and otherwise in its own top-right
+corner, rather than at the foot of the pane. The side panel's toggle sits at the screen's right
+edge, at the end of the top bar while the panel is shut and of the panel's strip while it is open,
+and the rail can be collapsed from beside the logo.
+
+**In `dirigent-dhis2`:** `dhis2-period` takes every DHIS2 period type -- bi-weekly, the weekly
+types starting on another day, bi-monthly, six-monthly (and from April or November), quarterly from
+November, and the financial years. It took yearly, monthly, daily, quarterly and weekly alone.
+
 ## 0.35.0
 
 Released 2026-11-04. Every package in the workspace moves to 0.35.0 together, and so do
