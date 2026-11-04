@@ -12,7 +12,7 @@ import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { Refusal } from '@/components/Refusal'
-import { WindowedPane } from '@/components/WindowedPane'
+import { WindowButton, WindowedPane } from '@/components/WindowedPane'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -123,6 +123,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
     const [answer, setAnswer] = useState<CheckAnswer | null>(null)
     const [reveal, setReveal] = useState<{ start: number; end: number } | null>(null)
     const [trying, setTrying] = useState(false)
+    const [windowed, setWindowed] = useState(false)
     const [removing, setRemoving] = useState(false)
     const { save, busy, problem, setProblem } = useSchemaSave(schema, onSaved)
     const write = useMayWrite('admin')
@@ -319,17 +320,28 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                     },
                 ]}
             />
-            <div className="flex min-h-0 flex-1 flex-col gap-3 pb-6">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
                 {problem !== null && <Refusal problem={problem} />}
                 <Panel
                     title={LABELS.word.schema.label}
                     inset={false}
                     className="flex min-h-96 flex-1 flex-col"
                     bodyClassName="flex min-h-0 flex-1 flex-col"
+                    aside={
+                        <WindowButton
+                            name={LABELS.schemas.window_title(schema.code)}
+                            onOpen={() => {
+                                setWindowed(true)
+                            }}
+                        />
+                    }
                 >
                     <WindowedPane
                         name={LABELS.schemas.window_title(schema.code)}
                         frame="none"
+                        button="none"
+                        open={windowed}
+                        onOpenChange={setWindowed}
                         className="min-h-0 flex-1"
                         windowed={schemaPane('min-h-0 flex-1')}
                     >

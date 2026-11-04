@@ -20,18 +20,31 @@ import { LABELS } from '@/lib/labels'
  * takes all the screen there is, less a gutter; a reference for the language sits beside the
  * editor when the caller has one, and stacks below it on a narrow screen.
  *
- * THE BUTTON SITS WHERE NO TEXT DOES, and this is the only place it is drawn: in a strip of its
- * own under the pane, at the bottom-right corner of the box. The pane scrolls above the strip, so
- * a line that runs to the right edge, wherever the pane is scrolled to, ends before the button
- * rather than under it. Every pane that offers a window -- a source field, a report document, an
- * alert body, a block of produced JSON -- takes the button, the corner and the window from here,
- * so there is one corner to learn.
+ * THE BUTTON IS AT THE TOP, WHERE THE EYE STARTS. A pane in a panel with a head hands its
+ * button to the head, beside the panel's other tools: the caller draws `WindowButton` in the
+ * head, holds `open`, and passes `button="none"`. A pane with no head keeps the button inside its
+ * own top-right corner, in a row of no height held to the top of whatever scrolls it, so it stays
+ * on screen down a long document and covers no more than the end of the first line. This is the
+ * only place the gesture is written, so there is one corner to learn.
  *
  * TWO EDITORS OVER ONE BUFFER READ THE SAME BUFFER. Monaco holds one model per path, so a
  * source pane and its window name the same one: what is typed in either is what the other
  * shows, and closing the window loses nothing. The caller hands over both panes for that
  * reason rather than this moving one.
  */
+/** The button that opens a pane's window, for a panel head to stand beside its other tools. */
+export function WindowButton({ name, onOpen }: { name: string; onOpen: () => void }) {
+    return (
+        <IconButton
+            icon={ICONS.open_in_window}
+            label={LABELS.shell.open_in_window(name)}
+            size="sm"
+            className="text-muted-foreground"
+            onClick={onOpen}
+        />
+    )
+}
+
 export function WindowedPane({
     name,
     frame = 'field',
@@ -41,12 +54,15 @@ export function WindowedPane({
     windowed,
     aside,
     held,
+    button = 'corner',
+    open,
+    onOpenChange,
 }: {
     /** What the content is called: the window's title, and what the button names. */
     name: string
     /**
-     * What the box around the pane and the button's strip is: a code editor's field, an inset
-     * of reference material, or nothing where the pane fills a panel of its own.
+     * What the box around the pane is: a code editor's field, an inset of reference material,
+     * or nothing where the pane fills a panel of its own.
      */
     frame?: 'field' | 'inset' | 'none'
     /** How the box is sized and laid out. */
@@ -59,35 +75,46 @@ export function WindowedPane({
     /** What sits beside the pane in the window: a reference for what is being written. */
     aside?: ReactNode
     /**
-     * For a pane that grows with its content: the button's strip is held to the foot of the
-     * scroller the pane sits in, on that scroller's ground -- a panel's, or the right panel's.
+     * For a pane that grows with its content: the button is held to the top of the scroller the
+     * pane sits in, on that scroller's ground -- a panel's, or the right panel's.
      */
     held?: 'panel' | 'sidebar'
+    /** Where the button is: the pane's own top-right corner, or nowhere, where a head draws it. */
+    button?: 'corner' | 'none'
+    /** Whether the window is open, for a caller whose head holds the button. */
+    open?: boolean
+    onOpenChange?: (open: boolean) => void
 }) {
-    const [wide, setWide] = useState(false)
+    const [own, setOwn] = useState(false)
+    const wide = open ?? own
+    const setWide = onOpenChange ?? setOwn
     const inPlace = (
         <>
+            {button === 'corner' && (
+                <div
+                    className={cn(
+                        'dg-window-corner pointer-events-none sticky top-0 z-10 flex h-0 justify-end overflow-visible',
+                        held === undefined ? 'pr-5' : 'pr-2',
+                    )}
+                    data-held={held}
+                >
+                    <IconButton
+                        icon={ICONS.open_in_window}
+                        label={LABELS.shell.open_in_window(name)}
+                        size="xs"
+                        variant="outline"
+                        className={cn(
+                            'pointer-events-auto mt-1.5 text-faint',
+                            held === 'panel' && 'bg-panel-ground',
+                            held === 'sidebar' && 'bg-sidebar',
+                        )}
+                        onClick={() => {
+                            setWide(true)
+                        }}
+                    />
+                </div>
+            )}
             <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-            <div
-                className={cn(
-                    'dg-window-strip flex shrink-0 justify-end p-1.5 pt-0',
-                    held !== undefined && 'pt-1.5',
-                    held === 'panel' && 'bg-panel-ground',
-                    held === 'sidebar' && 'bg-sidebar',
-                )}
-                data-held={held}
-            >
-                <IconButton
-                    icon={ICONS.open_in_window}
-                    label={LABELS.shell.open_in_window(name)}
-                    size="xs"
-                    variant="outline"
-                    className="text-faint"
-                    onClick={() => {
-                        setWide(true)
-                    }}
-                />
-            </div>
         </>
     )
     return (
