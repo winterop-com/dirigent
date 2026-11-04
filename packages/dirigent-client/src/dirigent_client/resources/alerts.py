@@ -60,7 +60,7 @@ class Alerts(Resource):
         return await self._one(AlertRuleOut, "POST", "/alert-rules", json=request_body(payload))
 
     async def set_rule_paused(self, code: str, *, paused: bool) -> AlertRuleOut:
-        """Hold a rule's deliveries, or let them resume."""
+        """Pause a rule, so it ignores every event and queues nothing until resumed, or resume it."""
         return await self.update_rule(code, paused=paused)
 
     async def update_rule(

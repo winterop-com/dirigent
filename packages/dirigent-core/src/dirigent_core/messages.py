@@ -644,6 +644,11 @@ DUPLICATE_RULE = ALERT.define("duplicate_rule", "an alert rule coded {code} alre
 
 BAD_ALERT_TEMPLATE = ALERT.define("bad_template", "{field} is not a Jinja template: {detail}")
 
+ALERT_TEMPLATE_NAME_UNKNOWN = ALERT.define(
+    "template_name_unknown",
+    "{name} is not something an alert template is given, so it renders empty{hint}",
+)
+
 SCOPE_NEEDS_PIPELINE = ALERT.define(
     "scope_needs_pipeline", "a pipeline-scoped rule has to name the pipeline it watches"
 )

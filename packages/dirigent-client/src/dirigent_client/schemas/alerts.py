@@ -7,6 +7,7 @@ from pydantic import Field
 
 from dirigent_client.enums import AlertEvent, AlertScope, Importance, NotificationEvent, NotificationStatus
 from dirigent_client.schemas.common import RequestModel, WireModel
+from dirigent_client.schemas.pipelines import ValidationIssue
 from dirigent_common import EntityName
 from dirigent_common.durations import Duration
 
@@ -16,6 +17,8 @@ LOG_NOTIFIER = "log"
 SUBJECT_HELP = "Subject, a Jinja template over the run's facts."
 
 BODY_HELP = "Body, a Jinja template over the run's facts; `report` is the run's report document when it has one."
+
+PAUSED_HELP = "A paused rule ignores every event until it is resumed; nothing is queued for it meanwhile."
 
 IMPORTANCE_HELP = "The least importance a pipeline must carry before this rule fires; absent fires for every one."
 
@@ -76,15 +79,17 @@ class AlertRuleOut(WireModel):
     paused: bool = False
     last_sent_at: datetime | None = None
     created_at: datetime
+    warnings: list[ValidationIssue] = Field(default_factory=list[ValidationIssue])
+    """Each name the subject or the body reads that an alert is never given, which renders empty."""
 
 
 class AlertRuleUpdate(RequestModel):
-    """What a PATCH may change about an alert rule: whether it is held, and what it says.
+    """What a PATCH may change about an alert rule: whether it is paused, and what it says.
 
     Every field is optional, and a field a caller leaves out is left as it was.
     """
 
-    paused: bool | None = None
+    paused: bool | None = Field(default=None, description=PAUSED_HELP)
     template: str | None = Field(default=None, description=SUBJECT_HELP)
     body: str | None = Field(default=None, description=BODY_HELP)
     importance: Importance | None = Field(default=None, description=IMPORTANCE_HELP)

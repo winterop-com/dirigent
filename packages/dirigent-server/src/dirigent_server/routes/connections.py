@@ -11,7 +11,8 @@ waived only where it wants a secret, nothing opens the connection, and the first
 config the model accepts whole completes it.
 """
 
-from typing import Any, NoReturn, cast
+from collections.abc import Mapping
+from typing import Any, Final, NoReturn, cast
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Response, status
@@ -190,14 +191,47 @@ def refuse_secrets(given: list[str], message: Message, status_code: int) -> None
         )
 
 
+#: What each secret is validated as when asking whether supplying the secrets cures a settings problem.
+STAND_IN_SECRET: Final = "stand-in-secret"
+
+
+def refuse_unless_at_a_secret(error: ValidationError, secrets: list[str], *, whole: bool) -> None:
+    """Refuse the problems not at a secret field; ``whole`` counts a problem of the model as a whole among them."""
+    errors = cast("list[dict[str, Any]]", error.errors(include_input=False))
+    kept = [item for item in errors if (item["loc"] or whole) and not _at_a_secret(item, secrets)]
+    if kept:
+        refuse_invalid(kept, error)
+
+
+def _at_a_secret(item: Mapping[str, Any], secrets: list[str]) -> bool:
+    """Say whether one of the model's problems is at a secret field."""
+    location = cast("tuple[Any, ...]", item["loc"])
+    return bool(location) and location[0] in secrets
+
+
+def refuse_what_no_secret_cures(model: type[BaseModel], config: JsonMap, secrets: list[str]) -> None:
+    """Refuse settings the model refuses whichever secrets are supplied: all of them, or any one alone."""
+    supplies = [secrets, *([name] for name in secrets)] if len(secrets) > 1 else [secrets]
+    refused: list[ValidationError] = []
+    for supplied in supplies:
+        try:
+            model.model_validate({**config, **dict.fromkeys(supplied, STAND_IN_SECRET)})
+        except ValidationError as error:
+            if not all(_at_a_secret(item, secrets) for item in error.errors(include_input=False)):
+                refused.append(error)
+                continue
+        return
+    refuse_unless_at_a_secret(refused[0], secrets, whole=True)
+
+
 def hold_settings(services: EngineServices, kind_id: str, config: JsonMap) -> tuple[JsonMap, bool]:
     """Validate a connection's settings without its secrets: its public half, and whether it awaits them.
 
     A secret field given a value is refused by name. The model's problems are refused except
-    those at a secret field and those of the model as a whole, which a missing secret may
-    cause. It awaits its secrets where the model refuses it without them, or where its kind
-    requires one of its credential forms and none is complete; otherwise it is stored whole,
-    and usable as it is.
+    those at a secret field, and a problem of the model as a whole is refused unless supplying
+    its secrets, all of them or any one alone, cures it. It awaits its secrets where the model
+    refuses it without them, or where its kind requires one of its credential forms and none is
+    complete; otherwise it is stored whole, and usable as it is.
     """
     contributed = services.host.connection_kinds[kind_id]
     model = contributed.config_model
@@ -207,10 +241,8 @@ def hold_settings(services: EngineServices, kind_id: str, config: JsonMap) -> tu
     try:
         validated = model.model_validate(config)
     except ValidationError as error:
-        errors = cast("list[dict[str, Any]]", error.errors(include_input=False))
-        kept = [item for item in errors if item["loc"] and item["loc"][0] not in secrets]
-        if kept:
-            refuse_invalid(kept, error)
+        refuse_unless_at_a_secret(error, secrets, whole=False)
+        refuse_what_no_secret_cures(model, config, secrets)
         return {**config, **dict.fromkeys(secrets)}, True
     public, _, _ = services.secrets.encrypt_config(model, validated)
     return public, contributed.credential_required and bool(contributed.credential_forms)

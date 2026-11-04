@@ -124,7 +124,7 @@ async def _context(session: AsyncSession, run: Run) -> tuple[Pipeline, PipelineV
     return pipeline, version, load_definition(version.ordered_document)
 
 
-def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed: FailedStep | None = None) -> RunOut:
+def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed: FailedStep | None) -> RunOut:
     """Render a run row with the names a client actually wants to see.
 
     A run row holds an error of its own only when it was cancelled, so a run that failed in a
@@ -157,6 +157,12 @@ def _render_run(run: Run, pipeline: Pipeline, version: PipelineVersion, failed: 
         else None,
         created_at=run.created_at,
     )
+
+
+async def _render_one(session: AsyncSession, run: Run, pipeline: Pipeline, version: PipelineVersion) -> RunOut:
+    """Render one run as the listing does, naming the failed step of a run that did not end well."""
+    failed = (await failing_steps(session, [run.id])).get(run.id) if run.status in UNWELL else None
+    return _render_run(run, pipeline, version, failed)
 
 
 def _dag(
@@ -330,7 +336,7 @@ async def get_run(run_id: UUID, session: SessionDep, principal: PrincipalDep) ->
     items = await item_counts(session, run_id)
     unmet = await unmet_worker_tags(session, run.worker_tags) if run.status is RunStatus.QUEUED else []
     return RunDetail(
-        run=_render_run(run, pipeline, version),
+        run=await _render_one(session, run, pipeline, version),
         dag=_dag(definition, attempts, items),
         items_total=sum(sum(of_step.values()) for of_step in items.values()),
         attempts_total=sum(counts.total for counts in attempts.values()),
@@ -492,7 +498,7 @@ async def cancel(run_id: UUID, session: SessionDep, services: ServicesDep, princ
         run = await _run_row(session, run_id)
         pipeline, version, _ = await _context(session, run)
         await cancel_run(session, services, run, CANCELLED_BY, refuse_settled=True, principal=principal.label)
-        return _render_run(run, pipeline, version)
+        return await _render_one(session, run, pipeline, version)
 
     return await retried_on_deadlock(session, cancel_once)
 
@@ -505,7 +511,7 @@ async def pause(run_id: UUID, session: SessionDep, principal: OperatorDep) -> Ru
         run = await _run_row(session, run_id)
         pipeline, version, _ = await _context(session, run)
         await pause_run(session, run)
-        return _render_run(run, pipeline, version)
+        return await _render_one(session, run, pipeline, version)
 
     return await retried_on_deadlock(session, pause_once)
 
@@ -518,7 +524,7 @@ async def resume(run_id: UUID, session: SessionDep, principal: OperatorDep) -> R
         run = await _run_row(session, run_id)
         pipeline, version, _ = await _context(session, run)
         await resume_run(session, run)
-        return _render_run(run, pipeline, version)
+        return await _render_one(session, run, pipeline, version)
 
     return await retried_on_deadlock(session, resume_once)
 
@@ -901,7 +907,9 @@ async def _story_read(
                 .where(Run.id == run_id)
             )
         ).all()
-        rendered = next((_render_run(run, pipeline, version) for run, pipeline, version in found), None)
+        rendered = None
+        for run, pipeline, version in found:
+            rendered = await _render_one(session, run, pipeline, version)
         if not await principal_stands(session, principal):
             return None
     return attempts, spilled, page, rendered, read_labels

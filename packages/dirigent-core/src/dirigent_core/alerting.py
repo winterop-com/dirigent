@@ -10,7 +10,7 @@ import json
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Final, cast
+from typing import TYPE_CHECKING, Final, NamedTuple, cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -31,6 +31,7 @@ from dirigent_client.enums import (
     RunItemStatus,
     RunStatus,
 )
+from dirigent_client.schemas import ValidationIssue
 from dirigent_client.schemas.alerts import LOG_NOTIFIER, TEST_BODY, TEST_SUBJECT
 from dirigent_common import (
     EntityName,
@@ -53,6 +54,7 @@ from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import (
+    ALERT_TEMPLATE_NAME_UNKNOWN,
     ALERT_UNKNOWN_CONNECTION,
     ALERT_UNKNOWN_PIPELINE,
     ALERT_VERSION_GONE,
@@ -74,6 +76,7 @@ from dirigent_core.models import (
     Run,
     utcnow,
 )
+from dirigent_core.reportchecks import REPORT_CONTEXT, unknown_names
 from dirigent_core.secrets import ConnectionAwaitingSecrets, unset_secrets
 from dirigent_plugin import AlertMessage, Notifier
 
@@ -164,6 +167,7 @@ def build_context(
             "error": run.error,
             "error_code": run.error_code,
             "error_params": dict(run.error_params or {}),
+            "failed_step": None,
             "params": shown(dict(run.params)),
             "trigger": run.triggered_by_label or run.triggered_by_kind.value,
             "started_at": run.started_at.isoformat() if run.started_at else None,
@@ -240,6 +244,27 @@ def check_templates(*, template: str | None = None, body: str | None = None) -> 
             compile_template(source)
         except TemplateError as error:
             raise AlertError(BAD_ALERT_TEMPLATE, field=field, detail=str(error)) from error
+
+
+#: Every name an alert's subject and body are given: a run's report facts, where it went wrong, and its report.
+ALERT_CONTEXT: Final[Mapping[str, frozenset[str] | None]] = {
+    **REPORT_CONTEXT,
+    "failing_step": None,
+    "failing_item": None,
+    "error": None,
+    "error_code": None,
+    "report": None,
+}
+
+
+def template_warnings(*, template: str | None = None, body: str | None = None) -> list[ValidationIssue]:
+    """Warn on each name a subject or a body reads that an alert is never given, which renders empty."""
+    return [
+        issue
+        for field, source in (("template", template), ("body", body))
+        if source is not None
+        for issue in unknown_names(source, field, ALERT_CONTEXT, ALERT_TEMPLATE_NAME_UNKNOWN)
+    ]
 
 
 async def _scope_pipeline(session: AsyncSession, request: AlertRuleRequest) -> UUID | None:
@@ -321,7 +346,10 @@ async def matching_rules(
 
 
 async def set_paused(session: AsyncSession, rule: AlertRule, *, paused: bool) -> AlertRule:
-    """Hold a rule's deliveries, or let them resume; the rule itself is left as declared."""
+    """Pause a rule, so it ignores every event until resumed, or resume it; the rule itself is left as declared.
+
+    Nothing is queued for a paused rule: an event it would have matched is not raised later.
+    """
     if rule.paused is paused:
         return rule
     rule.paused = paused
@@ -583,9 +611,31 @@ def failure_of(run: Run, facts: "RunFacts") -> JsonMap:
     run's own error, which is what a run that failed outside every step carries. A run that did
     not fail names nothing.
     """
-    named: JsonMap = {"failing_step": None, "failing_item": None, "error": None, "error_code": None}
+    found = failure_reason(run, facts)
+    if found is None:
+        return {"failing_step": None, "failing_item": None, "error": None, "error_code": None}
+    return {
+        "failing_step": found.step,
+        "failing_item": found.item,
+        "error": found.error,
+        "error_code": found.code,
+    }
+
+
+class FailureReason(NamedTuple):
+    """Where a failing run went wrong and what was said there, cut to the line an alert carries."""
+
+    step: str | None
+    item: str | None
+    error: str | None
+    code: str | None
+    params: JsonMap | None
+
+
+def failure_reason(run: Run, facts: "RunFacts") -> FailureReason | None:
+    """Find what ``failure_of`` names, with the params of the refusal; nothing for a run that did not fail."""
     if run.status not in FAILING:
-        return named
+        return None
     step = next((one for one in facts.steps if one.outcome == "failed"), None)
     item = next(
         (
@@ -605,12 +655,13 @@ def failure_of(run: Run, facts: "RunFacts") -> JsonMap:
     else:
         error, code, params = run.error, run.error_code, run.error_params
     failing_step = step.step if step is not None else (item.failing_step if item is not None else None)
-    return {
-        "failing_step": failing_step,
-        "failing_item": item.key if item is not None else None,
-        "error": _said(error, code, params),
-        "error_code": code if error else None,
-    }
+    return FailureReason(
+        step=failing_step,
+        item=item.key if item is not None else None,
+        error=_said(error, code, params),
+        code=code if error else None,
+        params=dict(params) if error and params else None,
+    )
 
 
 def _said(error: str | None, code: str | None, params: Mapping[str, JsonValue] | None) -> str | None:

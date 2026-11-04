@@ -238,6 +238,16 @@ async def test_a_kind_requiring_a_credential_awaits_it(operator: MCPServer) -> N
     assert {"webhook_url", "bot_token"} <= set(created["secrets_to_supply"])
 
 
+async def test_settings_the_kind_refuses_whatever_the_secrets_are_refused_with_its_hint(operator: MCPServer) -> None:
+    with pytest.raises(ToolError, match="names no driver") as refused:
+        await operator.call_tool(
+            "create_connection", {"kind": "sql", "code": "local-db", "settings": {"url": "sqlite:////tmp/x.db"}}
+        )
+
+    assert "sqlite+aiosqlite" in str(refused.value)
+    assert (await call(operator, "list_connections"))["items"] == []
+
+
 async def test_a_secret_handed_to_create_connection_is_refused_by_name_and_never_repeated(
     admin: MCPServer,
 ) -> None:
@@ -461,6 +471,11 @@ async def test_an_alert_rule_is_created_changed_paused_resumed_and_deleted(opera
 
     changed = await call(operator, "update_alert_rule", code="on-failure", template="{{ run.pipeline }} failed")
     assert changed["template"] == "{{ run.pipeline }} failed"
+    assert changed["warnings"] == []
+    misspelt = await call(operator, "update_alert_rule", code="on-failure", template="{{ run.errror_code }}")
+    assert [(issue["code"], issue["params"]["name"]) for issue in misspelt["warnings"]] == [
+        ("alert.template_name_unknown", "run.errror_code")
+    ]
     assert (await call(operator, "pause_alert_rule", code="on-failure"))["paused"] is True
     assert (await call(operator, "resume_alert_rule", code="on-failure"))["paused"] is False
 

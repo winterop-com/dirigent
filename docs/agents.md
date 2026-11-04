@@ -221,7 +221,7 @@ text that is not a document, and the file is not opened.
 | `create_schema`, `update_schema`, `delete_schema` | Store, rewrite or remove a named schema (admin only); one a pipeline references is not removed |
 | `list_audit` | Who changed what: every administrative change, newest first, with the fields an update changed and never a value (admin only, and offered to an admin token alone) |
 | `list_alert_rules`, `get_alert_rule` | What alerts on what, and where it sends |
-| `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`, `resume_alert_rule`, `delete_alert_rule` | Declare an alert rule, change what it says or where it sends, hold or release its deliveries, remove it |
+| `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`, `resume_alert_rule`, `delete_alert_rule` | Declare an alert rule, change what it says or where it sends, pause it (it ignores every event, and queues nothing, until it is resumed) or resume it, remove it |
 | `list_alert_deliveries` | The alert queue, newest first, narrowed to a run or a `status`, as `dg alerts queue` shows it |
 | `list_schedules`, `pause_schedule`, `resume_schedule` | The clocks |
 | `list_schedule_firings` | What a schedule actually did, newest first, including the firings it skipped |

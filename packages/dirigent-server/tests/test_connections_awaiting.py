@@ -45,6 +45,28 @@ class VaultKind(ConnectionKind):
         return HealthReport(healthy=True, detail="answered")
 
 
+class EitherConfig(BlockModel):
+    """A kind taking exactly one of two secrets, as a DHIS2 connection takes a token or a password."""
+
+    endpoint: str
+    api_token: SecretStr | None = None
+    password: SecretStr | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> "EitherConfig":
+        if (self.api_token is None) == (self.password is None):
+            raise ValueError("an either connection takes an api_token or a password, and not both")
+        return self
+
+
+class EitherKind(ConnectionKind):
+    id: ClassVar[str] = "either"
+    config_model: ClassVar[type[BaseModel]] = EitherConfig
+
+    async def check(self, config: BaseModel) -> HealthReport:
+        return HealthReport(healthy=True)
+
+
 class PlainConfig(BlockModel):
     """A kind that declares no secret at all."""
 
@@ -62,7 +84,7 @@ class PlainKind(ConnectionKind):
 class VaultPlugin:
     @extension
     def contribute(self) -> Contribution:
-        return Contribution(connection_kinds=[VaultKind(), PlainKind()])
+        return Contribution(connection_kinds=[VaultKind(), EitherKind(), PlainKind()])
 
 
 @pytest.fixture
@@ -142,6 +164,32 @@ async def test_a_setting_the_model_refuses_is_still_refused(admin: httpx2.AsyncC
     assert refused.status_code == 422, refused.text
     assert refused.json()["code"] == "server.connection_config_invalid"
     assert "endpoint" in refused.json()["detail"]
+
+
+async def test_a_setting_the_model_refuses_whatever_the_secrets_is_refused_by_the_kinds_own_hint(
+    admin: httpx2.AsyncClient, operator: httpx2.AsyncClient
+) -> None:
+    for client in (admin, operator):
+        refused = await _awaiting(client, "local-db", "sql", {"url": "sqlite:////tmp/x.db"})
+        assert refused.status_code == 422, refused.text
+        assert refused.json()["code"] == "server.connection_config_invalid"
+        assert "names no driver" in refused.json()["detail"]
+        assert "sqlite+aiosqlite" in refused.json()["detail"]
+    assert (await admin.get(f"{PREFIX}/connections")).json()["items"] == []
+
+
+async def test_a_kind_taking_one_secret_of_several_awaits_it_though_all_together_are_refused(
+    admin: httpx2.AsyncClient,
+) -> None:
+    created = await _awaiting(admin, "either", "either", {"endpoint": "https://either.invalid"})
+    assert created.status_code == 201, created.text
+    assert created.json()["awaiting_secrets"] is True
+
+
+async def test_a_secret_the_settings_do_not_need_is_not_awaited(operator: httpx2.AsyncClient) -> None:
+    created = await _create(operator, "local-db", "sql", {"url": "sqlite+aiosqlite:////tmp/x.db"})
+    assert created.status_code == 201, created.text
+    assert created.json()["awaiting_secrets"] is False, "sqlite opens with no password"
 
 
 async def test_a_check_is_refused_until_a_person_completes_it(admin: httpx2.AsyncClient) -> None:

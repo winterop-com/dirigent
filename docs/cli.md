@@ -1088,6 +1088,7 @@ verb and whose fields are the identity of what changed:
 | `source.secret_set` | `dg source set-secret` | `code`, `pipeline`, and the `fingerprint` of the secret it now holds, a short hash keyed by the instance and none of the secret |
 | `source.called` | `dg source call` | `code`, `pipeline`, `method`, `url`, and the `status` and `body` it was answered with |
 | `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
+| `alert_rule.warning` | `dg alerts rules create` | One per name the rule's `template` or `body` reads that an alert is never given: the `rule`, the `location` (`template` or `body`), the `issue` code `alert.template_name_unknown`, and its `params` |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
 | `notification.retried` | `dg alerts retry` | `notification_id`, `notifier`, `subject`, `attempt`, `available_at` |
 | `connection.created` / `.updated` | `dg connection create`, `dg connection ensure`, `dg connection set-secret` | `code`, `connection_kind`, `name`, `description`, and the `config` with every secret field redacted; from `set-secret`, also `awaiting_secrets` and the fields it `set` |
@@ -1665,7 +1666,9 @@ way.
 facts; `--body-file` reads the body from a file instead, and naming both is refused. A rule
 with neither says `{{ run.pipeline }} run {{ run.status }}` over the run's facts one per line.
 Both are compiled when the rule is created, so a template that does not compile is refused
-here with the line it broke on. [Report documents](reports.md) is the context reference.
+here with the line it broke on. A name either reads that an alert is never given is not
+refused but warned about, one `alert_rule.warning` record per name, saying what is given
+instead. [Report documents](reports.md#the-same-context-in-an-alert) lists every name.
 
 `--importance` is the least a pipeline's document must declare before the rule fires:
 `routine`, `normal` or `critical`. A rule without it fires whatever the pipeline is worth, so
@@ -1687,10 +1690,11 @@ rather than any run's, in the queue, in the webhook payload's `event` and in the
 `event_kind`; its templates still render over a stand-in run, so a template can be tried before
 a rule carries it.
 
-`dg alerts rules pause` holds a rule's deliveries and `resume` lets them go again. Pausing is
-instance state on the row rather than something the rule declares, so a rule held here keeps
-holding when the document that declared it is applied again, and the engine skips it when it
-decides what a settled run owes.
+`dg alerts rules pause` makes a rule ignore every event until `resume`, and nothing is queued
+for it meanwhile: a run that settles while the rule is paused raises nothing through it, then or
+after it is resumed. Pausing is instance state on the row rather than something the rule
+declares, so a rule paused here stays paused when the document that declared it is applied
+again, and the engine skips it when it decides what a settled run owes.
 
 `dg alerts retry` takes a notification's id and makes that row due now: the backoff goes, the
 attempt counter starts over, and a worker claims it on its next pass. A row a worker is

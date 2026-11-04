@@ -412,6 +412,20 @@ def test_a_rule_names_the_least_importance_it_fires_for(server: str) -> None:
     assert rows_of("alerts", "rules", "list")[0]["importance"] == "critical"
 
 
+def test_a_rule_reading_a_name_an_alert_is_never_given_is_created_with_a_warning(server: str) -> None:
+    created = machine("alerts", "rules", "create", "page-ops", "--event", "run_failed", "--template", "{{ run.eror }}")
+    assert created.exit_code == 0, created.output
+    assert only(created.stdout, "alert_rule.created")["code"] == "page-ops"
+    warned = only(created.stdout, "alert_rule.warning")
+    assert (warned["rule"], warned["location"], warned["issue"]) == (
+        "page-ops",
+        "template",
+        "alert.template_name_unknown",
+    )
+    assert warned["params"]["name"] == "run.eror"
+    assert warned["level"] == "warning"
+
+
 def test_an_importance_that_is_not_one_is_refused_by_name(server: str) -> None:
     refused = invoke(
         "alerts",
