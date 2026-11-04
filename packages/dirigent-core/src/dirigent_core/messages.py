@@ -302,6 +302,11 @@ TEMPLATE_NAME_UNKNOWN = DOCUMENT.define(
     "{name} is not something this template is given, so it renders empty{hint}",
 )
 
+OUTPUT_FIELD_UNKNOWN = DOCUMENT.define(
+    "output_field_unknown",
+    "{reference} reads {field}, and the output of step {step} ({block}) has no such field: it has {fields}",
+)
+
 TOO_MANY_TAGS = DOCUMENT.define(
     "too_many_tags", "a document declares at most {maximum} tags, and this one declares {counted}"
 )

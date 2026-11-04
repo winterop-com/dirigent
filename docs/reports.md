@@ -71,8 +71,11 @@ A name the facts do not have renders empty, so a typo is silent at the run. Plan
 `document.template_name_unknown`, about any its context does not have: an unknown top-level
 name, a field of `run` or `pipeline` that is not one, `step.<name>` for a step the document
 does not declare, and `params.<name>` for a parameter its schema does not list. A
-`report.render` template is checked against the keys of its literal `values`. A warning never
-refuses the document, and the render stays as lenient as it was.
+`report.render` template is checked against the keys of its literal `values`. A read of
+`step.<name>.output.<field>` whose block publishes a closed output schema without that field
+is warned about as `document.output_field_unknown`, naming the fields the output does have;
+a read into an open value, a mapping or a list is not judged. A warning never refuses the
+document, and the render stays as lenient as it was.
 
 ## What a template may read
 

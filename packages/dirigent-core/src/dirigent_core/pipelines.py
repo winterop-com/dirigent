@@ -64,6 +64,7 @@ from dirigent_core.models import (
     Schedule,
     StepAttempt,
 )
+from dirigent_core.outputchecks import output_field_warnings
 from dirigent_core.registry import live_worker_tags
 from dirigent_core.reportchecks import report_warnings
 from dirigent_core.schemas import schema_codes
@@ -245,6 +246,7 @@ async def plan_apply(
         blocks=services.host.blocks,
         format_checker=services.format_checker,
         source_kinds=services.sources,
+        storage=services.storage,
     )
     pipeline = await find_pipeline(session, definition.code)
     if not issues and pipeline is not None:
@@ -259,7 +261,11 @@ async def plan_apply(
             current_version=pipeline.current_version if pipeline else None,
             issues=issues,
         )
-    warnings = [*worker_routing_issues(definition, await live_worker_tags(session)), *report_warnings(definition)]
+    warnings = [
+        *worker_routing_issues(definition, await live_worker_tags(session)),
+        *report_warnings(definition),
+        *output_field_warnings(definition, services.host.catalog()),
+    ]
     if pipeline is None or pipeline.current_version is None:
         return PipelinePlan(
             code=definition.code, action=PlanAction.CREATE, digest=digest, next_version=1, warnings=warnings
@@ -409,6 +415,7 @@ async def revalidate(
         blocks=services.host.blocks,
         format_checker=services.format_checker,
         source_kinds=services.sources,
+        storage=services.storage,
     )
 
 
