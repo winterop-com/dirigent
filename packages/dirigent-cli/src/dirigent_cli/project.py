@@ -933,7 +933,9 @@ tools rather than `uv run dg`. A document is passed as its text.
 - Connections: `list_connections`, `get_connection`, and `create_connection`, which stores
   a connection's settings alone and refuses every secret field. Never ask for or pass a
   secret: tell the person that an admin runs the `supply_with` command it answers,
-  `dg connection set-secret CODE`, which prompts for each secret at their terminal.
+  `dg connection set-secret CODE`, which prompts for each secret at their terminal. Outside
+  one, a secret is piped from where it is kept, so it never passes through you:
+  `op read ... | dg connection set-secret CODE FIELD --stdin`.
 - Alerts and schedules: `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`,
   `resume_alert_rule`, `delete_alert_rule`, `list_alert_deliveries`, `list_schedule_firings`.
 - Every answer is bounded in size. A cut one carries a `truncated` note saying how to ask for
@@ -945,9 +947,10 @@ Outside a terminal, which is every agent's shell, every `dg` command writes NDJS
 record per line, each with a `kind`. Select with `jq`, for example
 `uv run dg run --local pipelines/NAME.yaml | jq -c 'select(.kind == "run")'`.
 
-- A document that does not validate is a `validation` record with `message` `invalid` and
-  `problems[]`, each with a stable `code`, a `message` and the `location` in the document it is
-  about. Fix what `location` names, then validate again.
+- A document that does not validate, at `dg validate` or `dg apply`, is a `validation` record
+  at `level` `error`, with `message` `invalid`, the `document` it was, and `problems[]`, each
+  with a stable `code`, a `message` and the `location` in the document it is about. Fix what
+  `location` names, then validate again.
 - Anything else refused is a record of kind `error`, with a stable `code`, the `params` it was
   built from, and `problems[]` where there is more than one thing to say.
 - A run's stream is `run`, `step`, `log` and `output` records, and the closing `run` record

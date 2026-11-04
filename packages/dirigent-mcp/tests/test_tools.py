@@ -206,6 +206,7 @@ async def test_a_connection_is_created_awaiting_the_secrets_a_person_supplies(ad
     assert created["supply_with"] == {
         "by": "an admin of this instance",
         "command": "dg --url http://testserver connection set-secret vault",
+        "piped": "op read ... | dg --url http://testserver connection set-secret vault FIELD --stdin",
         "screen": "http://testserver/connections/vault",
     }
     assert (await call(admin, "get_connection", code="vault"))["awaiting_secrets"] is True

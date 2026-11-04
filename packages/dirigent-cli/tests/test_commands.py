@@ -648,6 +648,22 @@ def test_apply_refuses_an_invalid_document_and_exits_non_zero(tmp_path: Path, se
     result = machine("apply", str(path))
     assert result.exit_code == 1
     assert rows(result.stdout, "apply")[0]["plan"]["action"] == "invalid"
+    refused = only(result.stdout, "validation")
+    assert (refused["level"], refused["message"], refused["code"], refused["document"]) == (
+        "error",
+        "invalid",
+        "cli-demo",
+        str(path),
+    )
+    assert {problem["code"] for problem in refused["problems"]} == {"document.step_block_missing"}
+
+
+def test_apply_says_nothing_of_validation_for_a_document_it_takes(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "demo.yaml"
+    path.write_text(DOCUMENT)
+    result = machine("apply", str(path))
+    assert result.exit_code == 0, result.output
+    assert of_kind(records(result.stdout), "validation") == []
 
 
 def test_apply_refuses_a_record_file_by_name_and_says_how_the_document_is_written(tmp_path: Path, server: str) -> None:
@@ -1999,7 +2015,47 @@ def test_set_secret_with_nobody_at_a_terminal_is_refused(server: str) -> None:
     machine("connection", "create", "http", "ops-api", "--set", "base_url=https://ops.example.org")
     refused = machine("connection", "set-secret", "ops-api")
     assert refused.exit_code == 1
-    assert "asks for each secret at a terminal" in refusal(refused.stdout)["message"]
+    assert refusal(refused.stdout)["code"] == "cli.cannot_prompt_secret"
+
+
+@pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
+def test_set_secret_reads_one_field_from_stdin_and_completes_the_connection(server: str) -> None:
+    create_awaiting(server, "vault", "secretful", {"endpoint": "https://vault.example.org"})
+
+    completed = runner.invoke(
+        app, hoist_globals(["connection", "set-secret", "vault", "api_token", "--stdin"]), input="t0ken\n"
+    )
+
+    assert completed.exit_code == 0, completed.output
+    assert "t0ken" not in completed.output
+    updated = only(completed.stdout, "connection.updated")
+    assert (updated["set"], updated["awaiting_secrets"], updated["config"]["api_token"]) == (
+        ["api_token"],
+        False,
+        "***",
+    )
+
+
+@pytest.mark.parametrize(
+    ("named", "piped", "code"),
+    [
+        ([], "t0ken", "cli.stdin_takes_one_field"),
+        (["api_token", "spare_token"], "t0ken", "cli.stdin_takes_one_field"),
+        (["api_token"], "\n", "cli.empty_secret_on_stdin"),
+        (["api_token"], "", "cli.empty_secret_on_stdin"),
+    ],
+)
+@pytest.mark.parametrize("extra_plugins", SECRETFUL, indirect=True)
+def test_set_secret_from_stdin_takes_one_field_and_a_value(
+    server: str, named: list[str], piped: str, code: str
+) -> None:
+    create_awaiting(server, "vault", "secretful", {"endpoint": "https://vault.example.org"})
+
+    refused = runner.invoke(app, hoist_globals(["connection", "set-secret", "vault", *named, "--stdin"]), input=piped)
+
+    assert refused.exit_code == 1
+    assert refusal(refused.stdout)["code"] == code
+    assert only(machine("connection", "show", "vault").stdout, "connection")["fields"]["awaiting_secrets"] is True
 
 
 def test_system_info_and_the_worker_registry(server: str) -> None:

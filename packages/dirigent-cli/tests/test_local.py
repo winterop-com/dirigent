@@ -190,6 +190,23 @@ def test_the_remedy_for_an_unsafe_block_is_offered_to_a_person(tmp_path: Path) -
     assert "--enable-unsafe shell.run" in plain(result.output)
 
 
+def test_the_remedy_for_unsafe_blocks_names_every_one_refused(tmp_path: Path) -> None:
+    document = HELLO + "  boxed:\n    block: docker.run\n    config:\n      image: alpine\n"
+    result = invoke("run", "--local", str(write(tmp_path, document)))
+    assert result.exit_code == GUARD_EXIT
+    remedies = {problem["code"]: problem["params"] for problem in refusal(result.stdout)["problems"]}
+    assert remedies == {
+        "cli.unsafe_for_this_run": {"blocks": "docker.run,shell.run"},
+        "cli.unsafe_for_the_instance": {"allowlist": '["docker.run","shell.run"]'},
+    }
+
+
+def test_a_refusal_with_no_unsafe_block_offers_no_unsafe_remedy(tmp_path: Path) -> None:
+    result = invoke("run", "--local", str(write(tmp_path, HELLO.replace("shell.run", "nope.gone"))))
+    assert result.exit_code == GUARD_EXIT
+    assert refusal(result.stdout).get("problems") in (None, [])
+
+
 def test_the_allowlist_is_added_to_rather_than_turned_off(tmp_path: Path) -> None:
     result = invoke("run", "--local", str(write(tmp_path, HELLO)), "--enable-unsafe", "docker.run")
     assert result.exit_code == GUARD_EXIT, "allowing a different block must not allow this one"
