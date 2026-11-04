@@ -1,0 +1,92 @@
+# Alert rules that travel with the pipeline they watch: the document's own `alerts:` section.
+#
+# A rule can be created by hand -- `dg alerts rules create`, the API, an MCP tool -- or declared
+# here, beside the steps it is about. A declared rule is keyed by its code, like a step, and it
+# takes the fields a pipeline-scoped rule takes through the API: `event`, `connection`,
+# `template`, `body`, `importance`, `throttle`, `active`, `name` and `description`. Its scope is
+# always this pipeline, so there is no `scope:` and no `pipeline:` to write.
+#
+# THE DOCUMENT OWNS THEM. `dg apply` creates the rules, rewrites the ones that changed, and
+# removes the ones this document no longer declares; `dg apply --dry-run` names them as
+# `alerts_added`, `alerts_removed` and `alerts_changed`. Changing or deleting one by hand is
+# refused, naming this pipeline. Pausing is the exception: `dg alerts rules pause` is an
+# operator's choice on the instance, and the next apply keeps it.
+#
+# NO SECRET IS HERE. A rule that delivers somewhere names the connection by code, and the
+# connection's kind names the sender:
+#
+#   dg connection create ops-slack --kind slack ...
+#   connection: ops-slack                        # under a rule, below
+#
+# These two name none, so they write to the process log, which every instance has, and the
+# document applies anywhere without a connection to create first.
+#
+# Hop by hop:
+#
+#   load     a playground.generate step with fail_until: 1, so its one attempt fails.
+#   publish  waits on the load, and is skipped when it fails.
+#
+# EXPECT THIS RUN TO FAIL, which is what raises `alerts-declared-failed`. Pass -p fail_until=0
+# and the run succeeds instead; `alerts-declared-recovered` is `active: false`, so it raises
+# nothing until the document turns it on.
+#
+#   dg apply examples/patterns/alerts-declared.yaml
+#   dg alerts rules list                           # both rules, declared by this document
+#   dg run alerts-declared                         # fails; the failure rule raises
+#   dg alerts queue                                # the message, on the log channel
+
+format: dirigent/v1
+kind: pipeline
+code: alerts-declared
+name: Alert rules declared in the document
+description: |
+  Fail a load on purpose, and raise the alert rule this document declares.
+
+  The `alerts:` section is the pipeline's own alert rules, keyed by rule code. An apply
+  creates, rewrites and removes them; the API refuses to, and a paused rule stays paused.
+
+tags: [patterns, playground, alerts]
+
+requires:
+  blocks:
+    - playground.generate
+
+params:
+  type: object
+  properties:
+    fail_until:
+      type: integer
+      description: How many of the load's attempts fail; 1 fails it, 0 makes it succeed.
+      default: 1
+      enum: [0, 1]
+
+steps:
+  load:
+    block: playground.generate
+    config:
+      fail_until: "${params.fail_until}"
+      rows: 3
+      seed: 6
+
+  publish:
+    block: playground.generate
+    depends_on: [load]
+    config:
+      rows: 1
+      seed: 7
+
+alerts:
+  alerts-declared-failed:
+    name: The load failed
+    event: run_failed
+    template: "{{ run.pipeline }} failed at {{ run.finished_at }}"
+    body: |
+      {{ run.pipeline }} {{ run.status }} after {{ run.duration_ms }} ms.
+      {% if run.url %}{{ run.url }}{% endif %}
+    # At most one message an hour, however often the pipeline fails in between.
+    throttle: 1h
+
+  alerts-declared-recovered:
+    event: run_succeeded
+    # Declared and switched off: the rule exists on the instance and raises nothing.
+    active: false

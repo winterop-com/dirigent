@@ -117,6 +117,20 @@ one rule pages for the critical failures while another logs every failure there 
 mirrored onto the pipeline row at apply, so what an alert matches is what the current document
 says. Nothing else reads it yet.
 
+A document may declare its own **alert rules** in an `alerts:` section keyed by rule code, each
+watching this pipeline and naming its connection by code:
+
+```yaml
+alerts:
+  nightly-failed:
+    event: run_failed
+    connection: ops-slack
+    throttle: 1h
+```
+
+The document owns them: an apply creates, rewrites and removes them, the API and `dg` refuse to
+change or delete one, and pausing one stays an operator's choice that an apply keeps.
+
 Detail: [design.md section 12](design.md#12-defining-pipelines-one-model-two-editors) for the
 document format, the code and step-name grammars, and what an apply does;
 [operations.md](operations.md#alerting-and-notifications) for the rule that reads an

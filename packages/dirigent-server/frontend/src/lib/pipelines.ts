@@ -148,6 +148,10 @@ export interface DiffSummary {
     requires_changed: boolean
     /** The `report:` section, its template or the step its text comes from. */
     report_changed: boolean
+    /** The codes of the rules the `alerts:` section declares now and did not before. */
+    alerts_added: string[]
+    alerts_removed: string[]
+    alerts_changed: string[]
     settings_changed: boolean
 }
 

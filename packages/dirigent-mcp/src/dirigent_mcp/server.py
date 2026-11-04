@@ -783,7 +783,10 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
     @tool(READS)
     async def list_alert_rules(after: str | None = None, limit: int = DEFAULT_LIMIT) -> Any:
-        """List the alert rules: what event each listens for, where it sends, and whether it is paused."""
+        """List the alert rules: what event each listens for, where it sends, and whether it is paused.
+
+        A rule with `declared` true belongs to its pipeline's document, under `alerts:`.
+        """
         return await call(lambda dg: dg.alerts.rules(after=after, limit=limit))
 
     @tool(READS)
@@ -813,7 +816,8 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         is the subject and `body` the body, Jinja over the run's facts. `throttle`, such as `15m`,
         is the least time between two of its messages. A name the subject or body reads that an
         alert is never given renders empty; the rule is still created, and `warnings` names each
-        one (`alert.template_name_unknown`) with the names that are given.
+        one (`alert.template_name_unknown`) with the names that are given. A rule for one pipeline
+        can instead be declared in that pipeline's document, under `alerts:`, and applied with it.
         """
         return await call(
             lambda dg: dg.alerts.create_rule(
@@ -842,7 +846,8 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         """Rewrite what an alert rule says or re-point where it delivers; what is not given is left as it is.
 
         A name the subject or body reads that an alert is never given is answered in `warnings`,
-        as at creation.
+        as at creation. A rule its pipeline's document declares (`declared` true) is refused:
+        edit the document.
         """
         return await call(
             lambda dg: dg.alerts.update_rule(
@@ -862,7 +867,10 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
 
     @tool(REMOVES)
     async def delete_alert_rule(code: str) -> Any:
-        """Remove an alert rule, so it raises nothing more."""
+        """Remove an alert rule, so it raises nothing more.
+
+        A rule its pipeline's document declares (`declared` true) is refused: edit the document.
+        """
 
         async def removed(dg: Dirigent) -> Any:
             await dg.alerts.delete_rule(code)

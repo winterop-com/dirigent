@@ -953,6 +953,23 @@ an apply writes from the document, so the rule costs the query nothing extra. Pa
 the log rather than replacing it: a rule at `critical` and a rule with no importance both
 raise on a critical run, and only the second raises on an ordinary one.
 
+**A pipeline's document may declare its own rules.** A top-level `alerts:` section, keyed by
+rule code, takes the fields a pipeline-scoped rule takes through the API -- `event`,
+`connection`, `template`, `body`, `importance`, `throttle`, `active`, `name`, `description` --
+and the scope is always that pipeline. The connection is named by code, so no credential is in
+the document. Plan refuses a connection the instance does not hold or that no installed
+notifier delivers through, and a code another owner already holds, naming the owner: a rule
+code is unique across the instance. Plan's diff names the rules as `alerts_added`,
+`alerts_removed` and `alerts_changed`. Apply reconciles: it creates the declared rules,
+rewrites the ones that differ, and removes the ones this pipeline's document declared before
+and no longer does. A declared rule is marked `declared` on the row and on the wire, and
+nothing but an apply changes or removes it: the API, `dg` and the MCP tools refuse with
+`alert.declared`. Pausing is instance state, so it stays allowed and an apply keeps it. A rule
+created through the API is never reached by an apply, even one scoped to the same pipeline.
+Declared rules follow the pipeline's other owned rows: deactivating the pipeline, by hand or by
+`dg apply --prune`, keeps them, and they raise nothing because the pipeline starts no runs;
+deleting the pipeline deletes them.
+
 ### Delivery semantics
 
 **Raising and settling are one commit.** When a run reaches a terminal status, the same
@@ -1349,6 +1366,13 @@ requires:                              # the preflight a shared document declare
   workers: [docker]                    # capability tags a worker must carry to claim this
 
 report: {}                             # a settled run renders the built-in markdown document
+
+alerts:                                # optional; rules for this pipeline, keyed by rule code
+  daily-climate-load-failed:
+    event: run_failed
+    connection: ops-webhook            # by code; the connection's kind names the notifier
+    template: "{{ run.pipeline }} failed"
+    throttle: 1h
 ```
 
 Every construct above is exercised by a runnable document under `examples/`, one concept per
@@ -1398,6 +1422,9 @@ Reading guide for the choices above:
   the built-in document, and `report.template` is a Jinja template over the run's facts that
   is compiled at apply, so a syntax error is refused at `report.template` rather than at the
   first settlement. A document that declares no `report:` renders nothing.
+- `alerts:` is the pipeline's own alert rules, keyed by rule code, each scoped to this pipeline.
+  The document owns them: an apply creates, rewrites and removes them, the API refuses to, and
+  a paused one stays paused. [Section 9](#9-alerting) says what plan checks.
 - A document may **carry** what it names, in top-level `connections:` and `schemas:` sections
   keyed by code, so that it runs on its own under `dg run --local` and satisfies its own
   references without a `requires` entry. A carried code resolves before any the instance

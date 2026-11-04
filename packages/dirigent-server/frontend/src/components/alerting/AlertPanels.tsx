@@ -70,6 +70,8 @@ export function RulePanel({
     const [editingCode, setEditingCode] = useState<string | null>(null)
     const editing = editingCode === rule.code
     const write = useMayWrite()
+    const declared = rule.declared ? LABELS.alerting.declared_why(rule.pipeline ?? '') : undefined
+    const rewrite = { may: write.may && declared === undefined, why: write.why ?? declared }
     const floor = importanceNote(rule.importance)
 
     const read = useCallback((after: string | null) => readNotifications(NO_FILTERS, after), [])
@@ -99,6 +101,7 @@ export function RulePanel({
             <Head thing={rule}>
                 {rule.paused && <Chip>{LABELS.state.armed.paused}</Chip>}
                 {!rule.active && <Chip>{LABELS.state.armed.off}</Chip>}
+                {rule.declared && <Chip>{LABELS.alerting.declared}</Chip>}
             </Head>
             <Description text={rule.description} />
 
@@ -135,12 +138,12 @@ export function RulePanel({
                                 ) : (
                                     <span className="font-mono text-xs break-all">{rule.template}</span>
                                 )}
-                                <Refusable why={write.why}>
+                                <Refusable why={rewrite.why}>
                                     <Button
                                         variant="ghost"
                                         size="xs"
-                                        disabled={!write.may}
-                                        title={write.why}
+                                        disabled={!rewrite.may}
+                                        title={rewrite.why}
                                         onClick={() => {
                                             setEditingCode(rule.code)
                                         }}
@@ -191,13 +194,13 @@ export function RulePanel({
                         {LABELS.action.asks(LABELS.action.send_test)}
                     </Button>
                 </Refusable>
-                <Refusable why={write.why}>
+                <Refusable why={rewrite.why}>
                     <Button
                         variant="outline"
                         size="sm"
                         className="destructive-action ml-auto"
-                        disabled={busy || !write.may}
-                        title={write.why}
+                        disabled={busy || !rewrite.may}
+                        title={rewrite.why}
                         onClick={remove}
                     >
                         {LABELS.action.delete.verb}

@@ -330,6 +330,13 @@ def _print_plan(result: ApplyResult, origin: str) -> bool:
         ):
             if changed:
                 console.print(f"  [dim]steps {label}:[/] {escape(', '.join(changed))}")
+        for label, changed in (
+            ("added", diff.alerts_added),
+            ("removed", diff.alerts_removed),
+            ("changed", diff.alerts_changed),
+        ):
+            if changed:
+                console.print(f"  [dim]alerts {label}:[/] {escape(', '.join(changed))}")
         for label, flag in (
             ("params", diff.params_changed),
             ("triggers", diff.triggers_changed),

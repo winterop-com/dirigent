@@ -48,12 +48,14 @@ from dirigent_common import (
 from dirigent_common.depth import shown
 from dirigent_core import audit
 from dirigent_core.database import is_deadlock, session_scope
-from dirigent_core.engine.definition import load_definition
+from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import (
+    ALERT_DECLARED,
+    ALERT_OWNED_ELSEWHERE,
     ALERT_TEMPLATE_NAME_UNKNOWN,
     ALERT_UNKNOWN_CONNECTION,
     ALERT_UNKNOWN_PIPELINE,
@@ -128,6 +130,13 @@ class NotificationInFlight(AlertError):
 
     status = 409
     message = NOTIFICATION_IN_FLIGHT
+
+
+class DeclaredRule(AlertError):
+    """A rule a pipeline's document declares was asked to change or go through the API."""
+
+    status = 409
+    message = ALERT_DECLARED
 
 
 class AlertRuleRequest(BaseModel):
@@ -307,12 +316,142 @@ async def _target(session: AsyncSession, services: EngineServices, code: str | N
     return connection.kind, connection.id
 
 
+async def refuse_declared(session: AsyncSession, rule: AlertRule) -> None:
+    """Refuse to rewrite or remove by hand a rule its pipeline's document declares."""
+    if not rule.declared:
+        return
+    pipeline = await session.get(Pipeline, rule.pipeline_id) if rule.pipeline_id else None
+    raise DeclaredRule(code=repr(rule.code), pipeline=repr(pipeline.code if pipeline else "?"))
+
+
 async def delete_rule(session: AsyncSession, rule: AlertRule) -> None:
     """Remove an alert rule; the notifications it already raised are kept."""
+    await refuse_declared(session, rule)
     code, rule_id = rule.code, rule.id
     await session.delete(rule)
     await session.flush()
     await audit.record(session, AuditAction.DELETED, AuditSubject.ALERT_RULE, code=code, subject_id=rule_id)
+
+
+async def declared_rule_issues(
+    session: AsyncSession, services: EngineServices, pipeline: Pipeline | None, definition: PipelineDefinition
+) -> list[ValidationIssue]:
+    """Refuse the ``alerts:`` a document declares that this instance could not hold for it.
+
+    A code another owner already holds is refused, naming the owner, since a rule code is unique
+    across the instance; so is a connection the instance does not hold, or one of a kind no
+    installed notifier delivers through.
+    """
+    if not definition.alerts:
+        return []
+    held = {
+        row.code: row
+        for row in (
+            await session.execute(sa.select(AlertRule).where(AlertRule.code.in_(sorted(definition.alerts))))
+        ).scalars()
+    }
+    named = sorted({spec.connection for spec in definition.alerts.values() if spec.connection is not None})
+    kinds = {
+        code: kind
+        for code, kind in await session.execute(
+            sa.select(Connection.code, Connection.kind).where(Connection.code.in_(named))
+        )
+    }
+    issues: list[ValidationIssue] = []
+    for code, spec in definition.alerts.items():
+        row = held.get(code)
+        if row is not None and not (pipeline is not None and row.declared and row.pipeline_id == pipeline.id):
+            issues.append(
+                ValidationIssue.of(
+                    ALERT_OWNED_ELSEWHERE,
+                    location=f"alerts.{code}",
+                    code=repr(code),
+                    owner=await _owner_of(session, row),
+                )
+            )
+        if spec.connection is None:
+            continue
+        kind = kinds.get(spec.connection)
+        if kind is None:
+            issues.append(
+                ValidationIssue.of(
+                    ALERT_UNKNOWN_CONNECTION, location=f"alerts.{code}.connection", code=repr(spec.connection)
+                )
+            )
+        elif kind not in services.host.notifiers:
+            installed = ", ".join(sorted(services.host.notifiers)) or "none are installed"
+            issues.append(
+                ValidationIssue.of(
+                    TARGET_HAS_NO_NOTIFIER,
+                    location=f"alerts.{code}.connection",
+                    code=repr(spec.connection),
+                    kind=repr(kind),
+                    installed=installed,
+                )
+            )
+    return issues
+
+
+async def _owner_of(session: AsyncSession, rule: AlertRule) -> str:
+    """Name whoever declared a rule, in the words a refusal is read in."""
+    if not rule.declared:
+        return "hand, through the API"
+    pipeline = await session.get(Pipeline, rule.pipeline_id) if rule.pipeline_id else None
+    return f"the document of pipeline {pipeline.code if pipeline else '?'!r}"
+
+
+async def reconcile_declared_rules(
+    session: AsyncSession, services: EngineServices, pipeline: Pipeline, definition: PipelineDefinition
+) -> None:
+    """Make the rules this pipeline's document owns exactly the ones its ``alerts:`` declares.
+
+    A declared rule is created, rewritten where it differs, and removed when the document no
+    longer declares it. Whether a rule is paused is instance state and is left as it is. A rule
+    created through the API is never reached, even one scoped to this pipeline.
+    """
+    rows = await session.execute(
+        sa.select(AlertRule).where(AlertRule.pipeline_id == pipeline.id, AlertRule.declared.is_(True))
+    )
+    existing = {row.code: row for row in rows.scalars()}
+    for code, spec in definition.alerts.items():
+        notifier, connection_id = await _target(session, services, spec.connection)
+        wanted: dict[str, object] = {
+            "name": spec.name,
+            "description": spec.description,
+            "event": spec.event,
+            "scope": AlertScope.PIPELINE,
+            "pipeline_id": pipeline.id,
+            "importance": spec.importance,
+            "notifier": notifier,
+            "connection_id": connection_id,
+            "template": spec.template,
+            "body": spec.body,
+            "throttle_seconds": int(spec.throttle.total_seconds()),
+            "active": spec.active,
+        }
+        row = existing.get(code)
+        if row is None:
+            rule = AlertRule(code=code, declared=True, **wanted)
+            session.add(rule)
+            await session.flush()
+            await audit.record(session, AuditAction.CREATED, AuditSubject.ALERT_RULE, code=code, subject_id=rule.id)
+            continue
+        fields = [field for field, value in wanted.items() if getattr(row, field) != value]
+        if not fields:
+            continue
+        for field in fields:
+            setattr(row, field, wanted[field])
+        await session.flush()
+        await audit.record(
+            session, AuditAction.UPDATED, AuditSubject.ALERT_RULE, code=code, subject_id=row.id, fields=fields
+        )
+    for code, row in existing.items():
+        if code in definition.alerts:
+            continue
+        rule_id = row.id
+        await session.delete(row)
+        await session.flush()
+        await audit.record(session, AuditAction.DELETED, AuditSubject.ALERT_RULE, code=code, subject_id=rule_id)
 
 
 def _satisfied_levels(importance: Importance) -> list[Importance]:
@@ -373,6 +512,8 @@ async def update_rule(
     worker can dispatch on.
     """
     named = {name: value for name, value in changes.items() if name in UPDATABLE}
+    if set(named) - {"paused"}:
+        await refuse_declared(session, rule)
     before = {
         "template": rule.template,
         "body": rule.body,

@@ -1073,7 +1073,7 @@ verb and whose fields are the identity of what changed:
 | `validation` | `dg validate`, `dg pipeline validate`, and `dg apply` for each document it refuses | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` and the `warnings[]` that refuse nothing, such as a `report.render` step no `report:` reads; a record with warnings is at `warning` level |
 | `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid`, and the files in a directory `skipped` as not documents |
-| `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an update's `diff` (`steps_added`, `steps_removed`, `steps_changed`, and `params_changed`, `triggers_changed`, `requires_changed`, `report_changed` and `settings_changed`, the last for the name, description, tags, concurrency, priority or importance), an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once. An invalid one is followed by a `validation` record at `error` level |
+| `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an update's `diff` (`steps_added`, `steps_removed`, `steps_changed`, `alerts_added`, `alerts_removed`, `alerts_changed`, and `params_changed`, `triggers_changed`, `requires_changed`, `report_changed` and `settings_changed`, the last for the name, description, tags, concurrency, priority or importance), an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once. An invalid one is followed by a `validation` record at `error` level |
 | `prune` | `dg apply --prune` | The reconcile: under `fields`, the pipelines `pruned`, the `trigger_documents_removed` that went with them, and `dry_run` |
 | `prune` | `dg prune` | The retention sweep, in flat fields rather than under `fields`: `total`, `dry_run`, and a count per family; a sweep that ran adds the `artifacts` it deleted from storage |
 | `backfill` | `dg backfill` | `pipeline`, `schedule`, `dry_run`, `windows_total`, `runs_created`, and `windows[]` of `window_start`, `window_end` and the `run_id` each became |
@@ -1701,6 +1701,13 @@ for it meanwhile: a run that settles while the rule is paused raises nothing thr
 after it is resumed. Pausing is instance state on the row rather than something the rule
 declares, so a rule paused here stays paused when the document that declared it is applied
 again, and the engine skips it when it decides what a settled run owes.
+
+**A rule may belong to a document.** A pipeline document's `alerts:` section declares rules for
+that pipeline, and `dg apply` creates, rewrites and removes them with it. The listing's
+`declared by` column names the pipeline whose document holds such a rule, and the `alert_rule`
+records carry `declared: true`. `dg alerts rules delete` and every update of one are refused
+with `alert.declared`, naming the pipeline: edit its document and apply it again. Pausing and
+resuming stay here. A rule created with `dg alerts rules create` is never touched by an apply.
 
 `dg alerts retry` takes a notification's id and makes that row due now: the backoff goes, the
 attempt counter starts over, and a worker claims it on its next pass. A row a worker is
