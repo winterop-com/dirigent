@@ -266,13 +266,16 @@ ALERT_CONTEXT: Final[Mapping[str, frozenset[str] | None]] = {
 }
 
 
-def template_warnings(*, template: str | None = None, body: str | None = None) -> list[ValidationIssue]:
-    """Warn on each name a subject or a body reads that an alert is never given, which renders empty."""
+def template_warnings(*, template: str | None = None, body: str | None = None, at: str = "") -> list[ValidationIssue]:
+    """Warn on each name a subject or a body reads that an alert is never given, which renders empty.
+
+    ``at`` is what each warning's location is prefixed with, before ``template`` or ``body``.
+    """
     return [
         issue
         for field, source in (("template", template), ("body", body))
         if source is not None
-        for issue in unknown_names(source, field, ALERT_CONTEXT, ALERT_TEMPLATE_NAME_UNKNOWN)
+        for issue in unknown_names(source, f"{at}{field}", ALERT_CONTEXT, ALERT_TEMPLATE_NAME_UNKNOWN)
     ]
 
 
@@ -390,6 +393,15 @@ async def declared_rule_issues(
                 )
             )
     return issues
+
+
+def declared_rule_warnings(definition: PipelineDefinition) -> list[ValidationIssue]:
+    """Warn on each name a declared rule's subject or body reads that an alert is never given."""
+    return [
+        issue
+        for code, spec in definition.alerts.items()
+        for issue in template_warnings(template=spec.template, body=spec.body, at=f"alerts.{code}.")
+    ]
 
 
 async def _owner_of(session: AsyncSession, rule: AlertRule) -> str:

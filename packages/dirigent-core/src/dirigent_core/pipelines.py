@@ -27,7 +27,7 @@ from dirigent_client.schemas import (
 )
 from dirigent_common import JsonMap
 from dirigent_core import audit
-from dirigent_core.alerting import declared_rule_issues, reconcile_declared_rules
+from dirigent_core.alerting import declared_rule_issues, declared_rule_warnings, reconcile_declared_rules
 from dirigent_core.connections import hold_connections
 from dirigent_core.documents import (
     digest_of,
@@ -272,6 +272,7 @@ async def plan_apply(
     warnings = [
         *worker_routing_issues(definition, await live_worker_tags(session)),
         *report_warnings(definition),
+        *declared_rule_warnings(definition),
         *output_field_warnings(definition, services.host.catalog()),
     ]
     if pipeline is None or pipeline.current_version is None:

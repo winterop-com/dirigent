@@ -959,7 +959,9 @@ rule code, takes the fields a pipeline-scoped rule takes through the API -- `eve
 and the scope is always that pipeline. The connection is named by code, so no credential is in
 the document. Plan refuses a connection the instance does not hold or that no installed
 notifier delivers through, and a code another owner already holds, naming the owner: a rule
-code is unique across the instance. Plan's diff names the rules as `alerts_added`,
+code is unique across the instance. A name a declared rule's `template` or `body` reads that an
+alert is never given is a warning at `alerts.<code>.template` or `alerts.<code>.body`, as
+`alert.template_name_unknown`, the same check a rule created through the API answers with. Plan's diff names the rules as `alerts_added`,
 `alerts_removed` and `alerts_changed`. Apply reconciles: it creates the declared rules,
 rewrites the ones that differ, and removes the ones this pipeline's document declared before
 and no longer does. A declared rule is marked `declared` on the row and on the wire, and

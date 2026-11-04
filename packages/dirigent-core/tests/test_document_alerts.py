@@ -197,6 +197,22 @@ async def test_plan_refuses_a_connection_the_instance_does_not_hold(
     ]
 
 
+@pytest.mark.usefixtures("desk")
+async def test_plan_warns_on_a_name_a_declared_rule_reads_that_an_alert_is_never_given(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    misspelt = DOCUMENT.replace('"{{ run.pipeline }} failed"', '"{{ run.pipelin }} failed"').replace(
+        "  nightly-logged:\n", '  nightly-logged:\n    body: "{{ nonsense }}"\n'
+    )
+    async with session_scope(sessions) as session:
+        plan = await plan_apply(session, services, load_pipeline_text(misspelt))
+    assert plan.action is PlanAction.CREATE
+    assert [(issue.location, issue.code, issue.params["name"]) for issue in plan.warnings] == [
+        ("alerts.nightly-failed.template", "alert.template_name_unknown", "run.pipelin"),
+        ("alerts.nightly-logged.body", "alert.template_name_unknown", "nonsense"),
+    ]
+
+
 def test_a_template_that_does_not_compile_is_refused_by_the_document() -> None:
     with pytest.raises(DocumentError, match=r"alerts\.nightly-failed\.template"):
         load_pipeline_text(DOCUMENT.replace('"{{ run.pipeline }} failed"', '"{{ run.pipeline "'))
