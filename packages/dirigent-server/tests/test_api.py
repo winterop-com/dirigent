@@ -566,6 +566,64 @@ def test_a_rule_delivers_through_the_notifier_its_connections_kind_names(client:
     assert listed[0]["paused"] is False
 
 
+ALERTED = """
+format: dirigent/v1
+kind: pipeline
+code: alerted
+steps:
+  only:
+    block: value.const
+    config: { value: 1 }
+alerts:
+  alerted-failed:
+    event: run_failed
+    connection: ops-webhook
+"""
+
+
+def test_a_rule_a_document_declares_is_refused_a_patch_and_a_delete_but_pauses(client: TestClient) -> None:
+    client.post(
+        f"{PREFIX}/connections",
+        json={"code": "ops-webhook", "kind": "webhook", "config": {"url": "https://ops.example.org/hooks"}},
+    )
+    applied = client.post(f"{PREFIX}/pipelines/$apply", json={"document": yaml.safe_load(ALERTED)})
+    assert applied.status_code == 200
+    read = client.get(f"{PREFIX}/alert-rules/alerted-failed").json()
+    assert (read["declared"], read["pipeline"], read["notifier"]) == (True, "alerted", "webhook")
+
+    for refused in (
+        client.patch(f"{PREFIX}/alert-rules/alerted-failed", json={"template": "changed"}),
+        client.delete(f"{PREFIX}/alert-rules/alerted-failed"),
+    ):
+        assert refused.status_code == 409
+        assert refused.json()["code"] == "alert.declared"
+        assert refused.json()["params"] == {"code": "'alerted-failed'", "pipeline": "'alerted'"}
+    paused = client.patch(f"{PREFIX}/alert-rules/alerted-failed", json={"paused": True})
+    assert paused.status_code == 200
+    assert paused.json()["paused"] is True
+
+    reapplied = client.post(
+        f"{PREFIX}/pipelines/$apply", json={"document": yaml.safe_load(ALERTED + "    throttle: 1h\n")}
+    )
+    assert reapplied.json()["plan"]["diff"]["alerts_changed"] == ["alerted-failed"]
+    again = client.get(f"{PREFIX}/alert-rules/alerted-failed").json()
+    assert (again["throttle"], again["paused"]) == ("1h", True)
+
+
+def test_a_document_cannot_declare_a_rule_code_already_held_by_hand(client: TestClient) -> None:
+    client.post(f"{PREFIX}/alert-rules", json={"code": "alerted-failed", "event": "run_failed"})
+    planned = client.post(
+        f"{PREFIX}/pipelines/$apply",
+        json={"document": yaml.safe_load(ALERTED.replace("    connection: ops-webhook\n", "")), "dry_run": True},
+    )
+    assert planned.status_code == 200
+    plan = planned.json()["plan"]
+    assert plan["action"] == "invalid"
+    assert [(issue["location"], issue["code"]) for issue in plan["issues"]] == [
+        ("alerts.alerted-failed", "alert.owned_elsewhere")
+    ]
+
+
 def test_a_rule_naming_no_connection_delivers_to_the_log(client: TestClient) -> None:
     declared = client.post(f"{PREFIX}/alert-rules", json={"code": "page-ops", "event": "run_failed"})
     assert declared.status_code == 201

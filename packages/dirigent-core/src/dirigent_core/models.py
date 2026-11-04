@@ -634,6 +634,9 @@ class AlertRule(Entity):
     paused: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     """Instance state rather than document state: an apply rewrites the rule and leaves this."""
 
+    declared: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    """Declared by the ``alerts:`` of the document of the pipeline it is scoped to, which owns it."""
+
     last_sent_at: Mapped[datetime | None] = mapped_column(Timestamp)
 
 

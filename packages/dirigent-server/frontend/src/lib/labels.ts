@@ -1002,6 +1002,10 @@ const refusal = {
 const refused = {
     alert: {
         bad_template: 'The template in {field} is not valid Jinja: {detail}',
+        declared:
+            'Alert rule {code} is declared in the document of pipeline {pipeline}. Edit its alerts: section and apply it again.',
+        owned_elsewhere:
+            'Alert rule {code} already exists, declared by {owner}. A rule code is unique across the instance.',
         target_has_no_notifier:
             'Connection {code} is of kind {kind}, which no installed notifier delivers through. Installed: {installed}.',
         template_name_unknown:
@@ -1945,6 +1949,18 @@ const editor = {
         triggers_changed: 'the triggers changed',
         requires_changed: 'what it requires of the instance changed',
         report_changed: 'the report changed',
+        alerts_added: {
+            one: (rules: string) => `alert rule added: ${rules}`,
+            many: (rules: string) => `alert rules added: ${rules}`,
+        },
+        alerts_removed: {
+            one: (rules: string) => `alert rule removed: ${rules}`,
+            many: (rules: string) => `alert rules removed: ${rules}`,
+        },
+        alerts_changed: {
+            one: (rules: string) => `alert rule changed: ${rules}`,
+            many: (rules: string) => `alert rules changed: ${rules}`,
+        },
         settings_changed: 'the name, description, tags, concurrency, priority or importance changed',
         /** A plan that would write a version, and change nothing a reader would scan for. */
         no_changes: 'No changes from the stored version.',
@@ -3381,6 +3397,9 @@ const alerting = {
     match_note: (event: string, where: string) => `${event} — ${where}`,
     /** When a rule last delivered anything. */
     last_sent: 'Last sent',
+    /** A rule its pipeline's document declares: the chip, and why it is not edited or deleted here. */
+    declared: 'declared',
+    declared_why: (pipeline: string) => `Declared in the document of ${pipeline}. Edit it there.`,
     /** The panel's list of what this rule has sent lately. */
     recent_deliveries: 'Recent deliveries',
     deliveries_empty: 'Nothing sent.',

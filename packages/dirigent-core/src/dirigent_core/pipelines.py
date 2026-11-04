@@ -27,6 +27,7 @@ from dirigent_client.schemas import (
 )
 from dirigent_common import JsonMap
 from dirigent_core import audit
+from dirigent_core.alerting import declared_rule_issues, declared_rule_warnings, reconcile_declared_rules
 from dirigent_core.connections import hold_connections
 from dirigent_core.documents import (
     digest_of,
@@ -196,6 +197,7 @@ async def get_version(session: AsyncSession, pipeline: Pipeline, version: int | 
 def diff_definitions(current: PipelineDefinition, incoming: PipelineDefinition) -> DiffSummary:
     """Summarise what changed between two definitions, at the granularity a plan shows."""
     before, after = set(current.steps), set(incoming.steps)
+    held, declared = set(current.alerts), set(incoming.alerts)
     return DiffSummary(
         steps_added=sorted(after - before),
         steps_removed=sorted(before - after),
@@ -204,6 +206,9 @@ def diff_definitions(current: PipelineDefinition, incoming: PipelineDefinition) 
         triggers_changed=current.triggers != incoming.triggers,
         requires_changed=current.requires != incoming.requires,
         report_changed=current.report != incoming.report,
+        alerts_added=sorted(declared - held),
+        alerts_removed=sorted(held - declared),
+        alerts_changed=sorted(code for code in held & declared if current.alerts[code] != incoming.alerts[code]),
         settings_changed=(
             current.name != incoming.name
             or current.description != incoming.description
@@ -223,6 +228,7 @@ def changed_parts(diff: DiffSummary) -> list[str]:
         "triggers": diff.triggers_changed,
         "requires": diff.requires_changed,
         "report": diff.report_changed,
+        "alerts": bool(diff.alerts_added or diff.alerts_removed or diff.alerts_changed),
         "settings": diff.settings_changed,
     }
     return [part for part, changed in parts.items() if changed]
@@ -253,6 +259,8 @@ async def plan_apply(
         issues = await owner_issues(session, pipeline, definition.triggers, owner=None)
     if not issues:
         issues = await claimed_route_issues(session, definition, services.sources)
+    if not issues:
+        issues = await declared_rule_issues(session, services, pipeline, definition)
     if issues:
         return PipelinePlan(
             code=definition.code,
@@ -264,6 +272,7 @@ async def plan_apply(
     warnings = [
         *worker_routing_issues(definition, await live_worker_tags(session)),
         *report_warnings(definition),
+        *declared_rule_warnings(definition),
         *output_field_warnings(definition, services.host.catalog()),
     ]
     if pipeline is None or pipeline.current_version is None:
@@ -333,7 +342,13 @@ async def apply_document(
     if not dry_run:
         # Held from before the plan reads which connections exist until this version commits, so
         # a delete either finished first and the plan refuses, or waits and then sees this version.
-        await hold_connections(session, connections_named(dump_definition(definition), services.host.catalog()))
+        await hold_connections(
+            session,
+            [
+                *connections_named(dump_definition(definition), services.host.catalog()),
+                *(spec.connection for spec in definition.alerts.values() if spec.connection is not None),
+            ],
+        )
     plan = await plan_apply(session, services, definition)
     if dry_run or plan.action in (PlanAction.INVALID, PlanAction.UNCHANGED):
         # An unchanged document still reconciles its triggers: the digest covers the
@@ -351,6 +366,7 @@ async def apply_document(
                 definition,
                 pause_created=paused,
             )
+            await reconcile_declared_rules(session, services, pipeline, definition)
         if pipeline is not None and dry_run and plan.action is not PlanAction.INVALID:
             triggers = await retiring_schedules(session, pipeline, definition)
             sources = await retiring_sources(session, pipeline, definition)
@@ -368,6 +384,7 @@ async def apply_document(
     sources = await reconcile_sources(
         session, services.settings, services.sources, services.secrets, pipeline, definition, pause_created=paused
     )
+    await reconcile_declared_rules(session, services, pipeline, definition)
     created = plan.action is PlanAction.CREATE
     await audit.record(
         session,

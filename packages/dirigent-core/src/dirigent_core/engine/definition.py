@@ -11,7 +11,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
-from dirigent_client.enums import Importance, RunPriority, StepKind
+from dirigent_client.enums import AlertEvent, Importance, RunPriority, StepKind
 from dirigent_client.schemas import Catalog, Requirements
 from dirigent_common import (
     LOCAL_REFERENCES,
@@ -529,6 +529,47 @@ class ReportSpec(BaseModel):
         return template
 
 
+class AlertSpec(BaseModel):
+    """An alert rule a pipeline document declares for itself, keyed by the rule's code.
+
+    The rule watches this pipeline and no other. Only the declaration travels: whether the rule
+    is paused is instance state, which is why there is no ``paused`` field here.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: str | None = None
+    description: str | None = None
+    event: AlertEvent
+    importance: Importance | None = None
+    """The least importance this pipeline must carry before the rule fires; absent fires always."""
+
+    connection: EntityName | None = None
+    """The connection the rule delivers through, whose kind names the sender; absent is the log."""
+
+    template: Annotated[str | None, Field(json_schema_extra={"contentMediaType": TEMPLATE_MEDIA_TYPE})] = None
+    """The subject, a Jinja template over the run's facts."""
+
+    body: Annotated[str | None, Field(json_schema_extra={"contentMediaType": TEMPLATE_MEDIA_TYPE})] = None
+    """The body, a Jinja template over the run's facts; ``report`` is the run's report document."""
+
+    throttle: Duration = timedelta(0)
+    """At most one message per window for this pipeline."""
+
+    active: bool = True
+
+    @field_validator("template", "body")
+    @classmethod
+    def _check_template(cls, template: str | None) -> str | None:
+        """Refuse a subject or a body that does not compile, at apply rather than at settlement."""
+        if template is not None:
+            try:
+                compile_template(template)
+            except TemplateError as error:
+                raise ValueError(TEMPLATE_REFUSED.render(detail=str(error))) from error
+        return template
+
+
 class ConnectionDefinition(BaseModel):
     """A connection a document carries with it, rather than naming one the instance holds.
 
@@ -582,6 +623,9 @@ class PipelineDefinition(BaseModel):
     requires: Requirements = Field(default_factory=Requirements)
     report: ReportSpec | None = None
     """The document a settled run renders from its own facts; absent renders nothing."""
+
+    alerts: dict[EntityName, AlertSpec] = Field(default_factory=dict[str, AlertSpec])
+    """The alert rules this pipeline declares for itself, keyed by rule code."""
 
     connections: dict[EntityName, ConnectionDefinition] = Field(default_factory=dict[str, "ConnectionDefinition"])
     """Connections the document brings, for a run with no instance to name them on."""
@@ -826,6 +870,9 @@ def canonical_document(definition: "Document") -> JsonMap:
     if isinstance(definition, PipelineDefinition):
         steps = cast("JsonMap", tagged["steps"])
         tagged["steps"] = {name: _with_source_ordered(steps[name]) for name in definition.topological_order()}
+        if definition.alerts:
+            alerts = cast("JsonMap", tagged["alerts"])
+            tagged["alerts"] = {code: alerts[code] for code in sorted(definition.alerts)}
     return cast("JsonMap", _canonicalize(tagged))
 
 

@@ -20,6 +20,9 @@ function diff(over: Partial<DiffSummary> = {}): DiffSummary {
         triggers_changed: false,
         requires_changed: false,
         report_changed: false,
+        alerts_added: [],
+        alerts_removed: [],
+        alerts_changed: [],
         settings_changed: false,
         ...over,
     }
@@ -125,6 +128,22 @@ describe('what a diff amounts to', () => {
         expect(changesIn(diff({ settings_changed: true, triggers_changed: true }))).toEqual([
             'the triggers changed',
             'the name, description, tags, concurrency, priority or importance changed',
+        ])
+    })
+
+    test('names the alert rules the document added, removed and changed', () => {
+        expect(
+            changesIn(
+                diff({
+                    alerts_added: ['page-ops'],
+                    alerts_removed: ['old', 'older'],
+                    alerts_changed: ['log'],
+                }),
+            ),
+        ).toEqual([
+            'alert rule added: page-ops',
+            'alert rules removed: old, older',
+            'alert rule changed: log',
         ])
     })
 

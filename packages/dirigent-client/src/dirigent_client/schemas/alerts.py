@@ -77,6 +77,10 @@ class AlertRuleOut(WireModel):
     throttle: str
     active: bool
     paused: bool = False
+    declared: bool = False
+    """Declared by the ``alerts:`` of its pipeline's document, which is the only place it changes;
+    pausing and resuming it stay allowed."""
+
     last_sent_at: datetime | None = None
     created_at: datetime
     warnings: list[ValidationIssue] = Field(default_factory=list[ValidationIssue])

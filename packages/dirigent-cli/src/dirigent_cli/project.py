@@ -938,6 +938,8 @@ tools rather than `uv run dg`. A document is passed as its text.
   `op read ... | dg connection set-secret CODE FIELD --stdin`.
 - Alerts and schedules: `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`,
   `resume_alert_rule`, `delete_alert_rule`, `list_alert_deliveries`, `list_schedule_firings`.
+  A pipeline's own rules belong in its document's `alerts:` section; one declared there
+  (`declared` true) changes only by applying the document, though it still pauses.
 - Every answer is bounded in size. A cut one carries a `truncated` note saying how to ask for
   less, and a long text is read on from `next_offset`.
 

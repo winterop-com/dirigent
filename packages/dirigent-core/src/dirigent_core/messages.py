@@ -667,6 +667,17 @@ TARGET_HAS_NO_NOTIFIER = ALERT.define(
     "connection {code} is of kind {kind}, which no installed notifier delivers through ({installed})",
 )
 
+ALERT_DECLARED = ALERT.define(
+    "declared",
+    "alert rule {code} is declared by the document of pipeline {pipeline}: edit its alerts: section and apply "
+    "it again; pausing and resuming it stay allowed",
+)
+
+ALERT_OWNED_ELSEWHERE = ALERT.define(
+    "owned_elsewhere",
+    "alert rule {code} already exists, declared by {owner}; a rule code is unique across the instance",
+)
+
 ALERT_VERSION_GONE = ALERT.define("version_gone", "run {run} pins a pipeline version that is gone")
 
 NOTIFIER_NOT_ON_WORKER = ALERT.define("notifier_not_on_worker", "notifier {notifier} is not installed on this worker")

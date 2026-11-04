@@ -466,6 +466,38 @@ async def test_only_a_rule_and_a_schema_are_deleted_and_every_rewrite_says_it_de
         assert hints is not None and hints.destructive_hint and not hints.read_only_hint, name
 
 
+WITH_AN_ALERT = """
+format: dirigent/v1
+kind: pipeline
+code: mcp-alerted
+steps:
+  greet:
+    block: value.const
+    config:
+      value: hello
+alerts:
+  mcp-alerted-failed:
+    event: run_failed
+    throttle: 15m
+"""
+
+
+async def test_a_rule_a_document_declares_is_read_and_paused_but_not_rewritten(operator: MCPServer) -> None:
+    applied = await call(operator, "apply_document", document=WITH_AN_ALERT)
+    assert applied["plan"]["action"] == "create"
+    rule = await call(operator, "get_alert_rule", code="mcp-alerted-failed")
+    assert (rule["declared"], rule["scope"], rule["pipeline"]) == (True, "pipeline", "mcp-alerted")
+    assert (await call(operator, "pause_alert_rule", code="mcp-alerted-failed"))["paused"] is True
+    with pytest.raises(ToolError, match="declared by the document of pipeline 'mcp-alerted'"):
+        await operator.call_tool("update_alert_rule", {"code": "mcp-alerted-failed", "template": "changed"})
+    with pytest.raises(ToolError, match="declared by the document of pipeline 'mcp-alerted'"):
+        await operator.call_tool("delete_alert_rule", {"code": "mcp-alerted-failed"})
+
+    dropped = await call(operator, "apply_document", document=WITH_AN_ALERT.split("alerts:")[0])
+    assert dropped["plan"]["diff"]["alerts_removed"] == ["mcp-alerted-failed"]
+    assert (await call(operator, "list_alert_rules"))["items"] == []
+
+
 async def test_an_alert_rule_is_created_changed_paused_resumed_and_deleted(operator: MCPServer) -> None:
     created = await call(operator, "create_alert_rule", code="on-failure", event="run_failed", throttle="15m")
     assert (created["code"], created["throttle"], created["paused"]) == ("on-failure", "15m", False)

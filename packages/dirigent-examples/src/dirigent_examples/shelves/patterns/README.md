@@ -127,6 +127,7 @@ local run is handed with `--also-apply examples/patterns/pipeline-run-child.yaml
 | [log-levels.yaml](log-levels.yaml) | `--log-level PATTERN=LEVEL`, a run setting rather than a document one | `succeeded` |
 | [priority-layered.yaml](priority-layered.yaml) | `priority` on the document, on a schedule, and on one ad hoc run | `succeeded` |
 | [importance-critical.yaml](importance-critical.yaml) | `importance` beside `priority`, and the alert rule that reads it | `succeeded` |
+| [alerts-declared.yaml](alerts-declared.yaml) | Alert rules in the document's own `alerts:`, which an apply owns | `failed` |
 | [connections-referenced-vs-carried.yaml](connections-referenced-vs-carried.yaml) | Named, carried, and absolute; needs `--connections` and a `dg dev` | `succeeded` |
 
 ## Running them

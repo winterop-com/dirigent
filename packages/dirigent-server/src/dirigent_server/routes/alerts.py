@@ -59,6 +59,7 @@ def render(rule: AlertRule, pipeline: str | None, connection: str | None = None)
         throttle=format_duration(timedelta(seconds=rule.throttle_seconds)),
         active=rule.active,
         paused=rule.paused,
+        declared=rule.declared,
         last_sent_at=rule.last_sent_at,
         created_at=rule.created_at,
         warnings=template_warnings(template=rule.template, body=rule.body),
@@ -140,6 +141,7 @@ async def add_rule(
     operation_id="updateAlertRule",
     summary="Change an alert rule",
     response_model=AlertRuleOut,
+    responses={409: {"description": "A pipeline's document declares this rule; only pausing it is allowed here."}},
 )
 async def change_rule(
     code: str, payload: AlertRuleUpdate, session: SessionDep, services: ServicesDep, principal: OperatorDep
@@ -150,7 +152,8 @@ async def change_rule(
     meanwhile. Pausing is instance state on the row rather than something the rule declares, so
     a rule an operator paused stays paused when the document that declared it is applied again.
     A field the caller left out is left as it was, and a rewritten subject or body is answered
-    with the same warnings as at creation.
+    with the same warnings as at creation. A rule a pipeline's document declares is changed by
+    applying that document, so anything but pausing it is refused here.
     """
     rule = await _rule_or_404(session, code)
     await update_rule(session, services, rule, payload.model_dump(exclude_unset=True))
@@ -162,9 +165,13 @@ async def change_rule(
     operation_id="deleteAlertRule",
     summary="Delete an alert rule",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={409: {"description": "A pipeline's document declares this rule; remove it there."}},
 )
 async def remove_rule(code: str, session: SessionDep, principal: OperatorDep) -> Response:
-    """Remove an alert rule; the notifications it already raised are kept."""
+    """Remove an alert rule; the notifications it already raised are kept.
+
+    A rule a pipeline's document declares is removed by applying that document without it.
+    """
     await delete_rule(session, await _rule_or_404(session, code))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

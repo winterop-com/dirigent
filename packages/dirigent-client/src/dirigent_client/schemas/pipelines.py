@@ -349,6 +349,12 @@ class DiffSummary(WireModel):
     report_changed: bool = False
     """The ``report:`` section differs, the template or the step its text comes from."""
 
+    alerts_added: list[str] = Field(default_factory=list[str])
+    """The codes of the alert rules the ``alerts:`` section declares that it did not before."""
+
+    alerts_removed: list[str] = Field(default_factory=list[str])
+    alerts_changed: list[str] = Field(default_factory=list[str])
+
     settings_changed: bool = False
     """Name, description, tags, concurrency policy, priority or importance differs."""
 
@@ -363,6 +369,9 @@ class DiffSummary(WireModel):
             or self.triggers_changed
             or self.requires_changed
             or self.report_changed
+            or self.alerts_added
+            or self.alerts_removed
+            or self.alerts_changed
             or self.settings_changed
         )
 

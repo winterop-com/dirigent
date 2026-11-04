@@ -256,7 +256,7 @@ def alerts_rules_list(
         return emit_records("alert_rule", rows)
     table(
         "alert rules",
-        ["code", "name", "event", "scope", "target", "throttle", "active", "last sent"],
+        ["code", "name", "event", "scope", "target", "throttle", "active", "declared by", "last sent"],
         [
             [
                 escape(row.code),
@@ -266,6 +266,7 @@ def alerts_rules_list(
                 escape(row.connection or LOG_NOTIFIER),
                 throttle_note(row.throttle),
                 render_bool(row.active),
+                escape(f"{row.pipeline} document") if row.declared and row.pipeline else "-",
                 moment(row.last_sent_at),
             ]
             for row in rows

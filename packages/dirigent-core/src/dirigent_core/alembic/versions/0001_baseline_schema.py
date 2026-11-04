@@ -294,6 +294,7 @@ def upgrade() -> None:
         sa.Column("throttle_seconds", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("active", sa.Boolean(), server_default=sa.true(), nullable=False),
         sa.Column("paused", sa.Boolean(), server_default=sa.false(), nullable=False),
+        sa.Column("declared", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("last_sent_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column(
             "created_at",

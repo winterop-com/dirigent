@@ -45,7 +45,8 @@ converter's `source` and `target`), `execute` (shell and docker), `sql`, `git`, 
 `fan-out`, `graph`, `failure`, `retry`, `timeout`, `concurrency`, `params`, `references`,
 `rules`, `priority`, `window`, `composition`, `credential`,
 `outputs`, `filter`, `map`, `relay`, `csv`, `parquet`, `jq`, `sparql`, `geocode`, `briefing`,
-`observability`, `conventions`, `report` for a document that declares a `report:` section, so
+`observability`, `conventions`, `alerts` for a document that declares an `alerts:` section,
+`report` for a document that declares a `report:` section, so
 every run of it writes its own account of itself, or renders a page of its own with
 `report.render`, and `starter` for a document `dg pipeline new` may copy into a project: a real
 multi-step flow on a real source. A source's name is never a tag: the pipeline's `code` and

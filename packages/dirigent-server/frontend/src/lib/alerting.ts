@@ -78,6 +78,8 @@ export interface AlertRuleOut {
     active: boolean
     /** Held by an operator rather than declared by the rule, and kept across a re-apply. */
     paused: boolean
+    /** Declared by its pipeline's document under `alerts:`, which is the only place it changes. */
+    declared: boolean
     last_sent_at: string | null
     created_at: string
 }
