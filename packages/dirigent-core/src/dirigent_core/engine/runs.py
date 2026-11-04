@@ -91,7 +91,8 @@ from dirigent_core.messages import (
     STEP_FAILED,
     STEP_REFUSED,
 )
-from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, RunItem, Schema, StepAttempt, utcnow
+from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, RunItem, StepAttempt, utcnow
+from dirigent_core.schemas import held_bodies, reference_closure
 from dirigent_core.storage import scratch_prefix
 from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, StartedRun, published_config_schema
 
@@ -542,8 +543,8 @@ async def _pin_schemas(session: AsyncSession, services: EngineServices, version:
 
     A run checks against these bodies for as long as it lives, so editing a stored schema
     changes what the next run of a pipeline checks against and never what one already started
-    does. Only the codes the document names are read: a run holds the shapes it checks
-    against, not the table.
+    does. Only the codes the document names are pinned, with every schema they reach through
+    ``$ref``: a run holds the shapes it checks against, not the table.
 
     Applying a document that names a schema the instance does not hold is refused, and so is
     removing one a stored pipeline names, so a code with no body here is a state no apply can
@@ -552,14 +553,12 @@ async def _pin_schemas(session: AsyncSession, services: EngineServices, version:
     named = schemas_named(version.document, services.host.catalog())
     if not named:
         return {}
-    rows = await session.execute(sa.select(Schema).where(Schema.code.in_(sorted(named))))
-    pinned = {row.code: dict(row.body) for row in rows.scalars()}
-    missing = sorted(named - set(pinned))
+    bodies = await held_bodies(session)
+    reached, missing = reference_closure(named, bodies)
     if missing:
-        codes = await session.execute(sa.select(Schema.code))
-        held = ", ".join(sorted(code for (code,) in codes.all())) or "none are held"
-        raise RunCreationError(RUN_SCHEMA_NOT_HELD, code=repr(missing[0]), held=held)
-    return pinned
+        held = ", ".join(sorted(bodies)) or "none are held"
+        raise RunCreationError(RUN_SCHEMA_NOT_HELD, code=repr(sorted(missing)[0]), held=held)
+    return {code: bodies[code] for code in reached}
 
 
 async def cancel_run(

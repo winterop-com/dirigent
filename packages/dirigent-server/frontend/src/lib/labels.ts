@@ -66,17 +66,11 @@ const action = {
     save: {
         verb: 'Save',
         busy: 'Saving',
-        done: 'Saved.',
     },
     /** Replace what is stored with what is in front of the reader. */
     update: {
         verb: 'Update',
         busy: 'Updating',
-    },
-    /** Write a shape to the instance, which is what a schema is created by. */
-    store: {
-        verb: 'Store',
-        busy: 'Storing',
     },
     /** Write the document to the instance. */
     apply: 'Apply',
@@ -1107,6 +1101,8 @@ const refused = {
             '{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a value lands in it is not known. Close it or write it another way, or pass the value through argv.',
         step_reference_in_sql:
             '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
+        schema_reference_unknown:
+            'Schema {schema} references {ref} with $ref, which reaches no schema this instance holds ({held}). A $ref names a held schema by its code, or by its exact $id.',
         step_schema_interpolated:
             '{code} is resolved once the run has started, and a schema is named by its code. A run takes the shapes its document names when it starts, so write the code this step checks against.',
         unsatisfied: 'The document does not satisfy {format}.',
@@ -1223,8 +1219,15 @@ const refused = {
         unknown_timezone: '{name} is not an IANA timezone this host knows. Try UTC or Europe/Oslo.',
     },
     schema: {
+        check_names_one:
+            'A value is checked against one schema. Give its code or its body, not both and not neither.',
         in_use: 'Schema {code} cannot be removed while it is named by {users}. Each must stop naming it first.',
+        referenced:
+            'Schema {code} cannot be removed while {referrers} reference it with $ref. Each must stop referencing it first.',
         invalid: 'This is not a valid JSON Schema{at}: {detail}',
+        reference_unresolved:
+            "The schema's $ref {ref} names no schema this instance holds. A $ref reaches the schema itself and the schemas held here by code, and nothing is ever fetched.",
+        value_unchecked: 'The value was not checked against the schema within {timeout}.',
         no_code:
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
     },
@@ -3076,41 +3079,25 @@ const examples = {
     use_as_starter: 'Use as template',
 } as const
 
-/** What the schemas screen says: the listing, the schema in the panel, and the dialog that writes one. */
+/** What the schemas screens say: the listing, a schema's own page, and the dialog that writes one. */
 const schemas = {
     /** The dialog that stores a shape, and the two controls that open it. */
     new: 'New schema',
     /** The palette's row for reading the listing again. */
     reload: 'Read the schemas listing again',
     empty: 'No schemas.',
-    /** Over the schema body in the panel. */
-    body_title: (code: string) => `${code} · schema`,
 
-    /**
-     * The dialog's line, written around the three JSON Schema keywords it names.
-     *
-     * The keywords are drawn in the code face between these two fragments, so they are the
-     * standard's words rather than this product's and are not part of either.
-     */
-    identity: {
-        lead: "Its code, title and description come from the schema's own",
-        and: ' and ',
+    /** The new-schema dialog: the code it is named by, and why Create is shut. */
+    create: {
+        code_hint: 'lower case, digits and hyphens',
+        code_needed: 'Give the schema a code.',
+        code_shape: 'A code is lower case letters, digits and hyphens, starting with a letter or digit.',
     },
     /** What the editor is called, for whoever is not reading the screen. */
     editor_label: 'the schema',
-    /** The code box, which is only for a schema that names no `$id`. */
-    code_placeholder: 'taken from $id when left blank',
     /** A body the browser could not read as JSON, said where it was typed. */
     unreadable: (error: string) => `The schema is not readable JSON: ${error}`,
 
-    /**
-     * Under the name box: that the name is stored beside the schema rather than read out of it.
-     *
-     * A create reads the schema's own `title`; an update does not, so the two can part company
-     * and the box is what decides which one the screen reads. That is semantics the control
-     * cannot show, which is the only thing a hint is for.
-     */
-    name_hint: 'Stored beside the schema. Editing title in the body does not move it.',
     /** The description box, which is the schema's own `description` as it was stored. */
     description_placeholder: 'What this shape is for. Markdown is rendered.',
     /** Why editing the body is a decision rather than a correction, over the names it reaches. */
@@ -3126,27 +3113,6 @@ const schemas = {
     body_in_flight: 'A run in flight keeps the shape it started with.',
 
     /**
-     * The row over the stored pipelines that check against this code, which states how many.
-     *
-     * It reads as the count of what the line above it governs, so the two are one reading: the
-     * shape every pipeline naming the code checks against, and how many of them there are. The
-     * names themselves are under the row, which is what makes the count the same height at one
-     * dependant and at fifty.
-     */
-    used_by: {
-        /**
-         * Where nothing names the code at all.
-         *
-         * It stands where the count stands and at the height the count has, so the verbs under it
-         * are in one place on a shape nothing checks against and on one ten pipelines do. It is
-         * also what says why Delete is live here and shut on the shape beside it.
-         */
-        none: 'No pipeline checks against it',
-        one: (count: string) => `${count} pipeline checks against it`,
-        many: (count: string) => `${count} pipelines check against it`,
-    },
-
-    /**
      * Why the delete control is shut, worn by the wrapper around it.
      *
      * Removing a shape a stored pipeline names is refused, and a control that cannot act says so
@@ -3155,6 +3121,62 @@ const schemas = {
     in_use: {
         one: (names: string) => `${names} names this shape, so it cannot be removed.`,
         many: (names: string) => `${names} name this shape, so it cannot be removed.`,
+    },
+
+    /** Over the name, the description and the pipelines that check against the schema. */
+    details_heading: 'Details',
+    /** Where a schema carries no description. */
+    no_description: 'This schema carries no description.',
+    /** The schema editor's own window, around the code. */
+    window_title: (code: string) => `${code} · schema`,
+    /** What turns the name and the description in Details into boxes. */
+    edit_details: 'Edit the name and the description',
+    /** Over the pipelines that check against the schema, each a link to its pipeline. */
+    checked_by: 'Checked by',
+    /** The toolbar verb that opens the tester, and the tester window's title around the code. */
+    try_value: 'Try a value',
+    try_title: (code: string) => `Try a value against ${code}`,
+
+    /**
+     * The screen a value is tried on: the schema beside the value, and what checking the one
+     * against the other found, said as a `validate.schema` step would.
+     */
+    tester: {
+        /** Over the value editor, and what it is called for whoever is not reading the screen. */
+        value_heading: 'Value',
+        value_label: 'the value to check',
+        /** Over what the check found. */
+        result_heading: 'Check',
+        /** Puts a value made from the schema in the value editor: its own examples where it has them. */
+        example: 'Generate an example',
+        /** Why that is shut. */
+        no_example: 'The schema is not a readable JSON object, so no example can be made from it.',
+        /** Why Save is shut while the editor holds what is stored. */
+        unchanged: 'The schema is as stored.',
+        /** The verdict, as a chip. */
+        valid: 'valid',
+        invalid: 'invalid',
+        /** The body of a check the value passed. */
+        fits: 'The value fits the schema.',
+        /** How many places the value fails, beside the verdict. */
+        failures: {
+            one: (count: string) => `${count} failure`,
+            many: (count: string) => `${count} failures`,
+        },
+        /** Past the hundred a check lists. */
+        omitted: (count: string) => `and ${count} more`,
+        /** A check in flight with nothing to show yet. */
+        checking: 'Checking',
+        /** Where a failure is of the whole value, which has no pointer of its own. */
+        root: 'the value',
+        /** What the list of failures is called, for whoever is not reading the screen. */
+        failures_label: 'Where the value fails',
+        /** Under a failure: what pressing it does. */
+        show_failure: (pointer: string) => `Show ${pointer} in the value`,
+        /** A schema that is JSON but not an object, which no check takes. */
+        not_an_object: 'The schema is not an object.',
+        /** A value the browser could not read as JSON, said instead of asking the server. */
+        value_unreadable: (error: string) => `The value is not readable JSON: ${error}`,
     },
 } as const
 

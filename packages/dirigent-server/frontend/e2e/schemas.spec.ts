@@ -1,15 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { counted, LABELS } from '../src/lib/labels.ts'
-import {
-    apiPrefix,
-    applyDocument,
-    applyExample,
-    belowTheFold,
-    removeSchema,
-    signIn,
-    writeInEditor,
-} from './support.ts'
+import { LABELS } from '../src/lib/labels.ts'
+import { apiPrefix, applyDocument, removeSchema, signIn, writeInEditor } from './support.ts'
 
 /**
  * The Schemas screen, against a real instance.
@@ -24,14 +16,16 @@ import {
  * browser can say whether that arrived: the worker, the completion it answers with and the
  * marker it puts on a wrong value are the real thing here or they are nothing.
  *
- * AND THAT A SHAPE SOMEBODY GOT WRONG CAN BE PUT RIGHT. The panel is a form over
- * `PATCH /schemas/{code}`, so what these assert is the round trip: what the boxes send, what the
- * row behind them then says, and that the code is not among the things it sends.
+ * AND THAT A SHAPE SOMEBODY GOT WRONG CAN BE PUT RIGHT. A schema's page is a form over
+ * `PATCH /schemas/{code}`, so what these assert is the round trip: what the boxes send, what is
+ * then stored, and that the code is not among the things it sends.
  *
  * AND THAT THE TWO HALVES ANSWER DIFFERENTLY UNDER A DEPENDENCY. Removing a shape a stored
- * pipeline names is refused and correcting one is not, so the panel has to draw both at once: a
- * Delete that is shut and says which pipeline shut it, beside a Save that still works. Whether a
- * disabled control carries a reachable reason is a question only a browser answers.
+ * pipeline names is refused and correcting one is not, so the page draws both at once: a Delete
+ * that is shut and says which pipeline shut it, beside a Save that still works.
+ *
+ * AND THAT A VALUE IS TRIED AGAINST THE TEXT IN THE EDITOR, saved or not, on the page and in the
+ * full-screen window over the same two buffers.
  */
 
 const SCHEMA = {
@@ -52,7 +46,7 @@ async function seedSchema(request: APIRequestContext): Promise<void> {
     expect(created.ok(), await created.text()).toBe(true)
 }
 
-test('a schema reads as its own identity and shows its body', async ({ page }) => {
+test("a schema row opens the schema's own page", async ({ page }) => {
     await signIn(page)
     await seedSchema(page.request)
 
@@ -63,59 +57,26 @@ test('a schema reads as its own identity and shows its body', async ({ page }) =
     await expect(row).toContainText('e2e-org-unit')
 
     await row.click()
-    const panel = page.locator('aside')
-    // The body is on screen -- a property name a reader can see, proving the schema is drawn.
-    await expect(panel.getByText('properties', { exact: false })).toBeVisible()
-})
-
-test('a link straight to a schema opens that schema', async ({ page }) => {
-    await signIn(page)
-    await seedSchema(page.request)
-
-    // The address is the selection, so nothing has to be found on the listing first.
-    await page.goto('/schemas/e2e-org-unit')
-
-    const panel = page.locator('aside')
-    await expect(panel.getByText('properties', { exact: false })).toBeVisible()
-    await expect(page.getByRole('row').filter({ hasText: 'Organisation unit' })).toBeVisible()
-})
-
-test('a link that opened a schema leaves the next screen starting closed', async ({ page }) => {
-    await signIn(page)
-    await seedSchema(page.request)
-    await applyExample(page.request, 'examples/transform/std-convert-fan-out.yaml')
-
-    await page.goto('/schemas/e2e-org-unit')
-    await expect(page.locator('aside').getByText('properties', { exact: false })).toBeVisible()
-
-    // The link opened the panel for that visit; the reader never toggled it, so the editor
-    // draws the way a first visit does.
-    await page.goto('/pipelines/std-convert-fan-out/edit')
-    await expect(page.locator('.react-flow__node').first()).toBeVisible()
-    const panel = page
-        .locator('aside')
-        .filter({ has: page.getByRole('tab', { name: LABELS.word.step.label }) })
-    await expect(panel).toBeAttached()
-    await expect(panel).toHaveAttribute('inert')
-})
-
-test('choosing a row writes its code into the address', async ({ page }) => {
-    await signIn(page)
-    await seedSchema(page.request)
-
-    await page.goto('/schemas')
-    await page.getByRole('row').filter({ hasText: 'Organisation unit' }).click()
-
     await expect(page).toHaveURL(/\/schemas\/e2e-org-unit$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Organisation unit' })).toBeVisible()
+    await expect(schemaEditor(page).locator('.view-lines')).toContainText('properties')
+})
+
+test('a link straight to a schema opens its page', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    await page.goto('/schemas/e2e-org-unit')
+    await expect(schemaEditor(page).locator('.view-lines')).toContainText('properties')
 })
 
 test('the schema box completes against the meta-schema', async ({ page }) => {
     await signIn(page)
+    await seedSchema(page.request)
 
-    await page.goto('/schemas')
-    await page.getByRole('button', { name: LABELS.schemas.new }).click()
-
-    const editor = await theSchemaBox(page)
+    await page.goto('/schemas/e2e-org-unit')
+    const editor = schemaEditor(page)
+    await writeInEditor(page, editor, '')
     await editor.locator('.view-lines').click()
     await expect(editor.locator('textarea').first()).toBeFocused()
 
@@ -133,39 +94,47 @@ test('the schema box completes against the meta-schema', async ({ page }) => {
     await expect(suggestions).toContainText('properties')
 })
 
-test('the schema box marks a value the draft does not take', async ({ page }) => {
+test('a new schema is named in the dialog and opens on its own page', async ({ page }) => {
     await signIn(page)
+    await removeSchema(page.request, 'e2e-created-shape')
 
     await page.goto('/schemas')
     await page.getByRole('button', { name: LABELS.schemas.new }).click()
+    const dialog = page.getByRole('dialog')
+    const create = dialog.getByRole('button', { name: LABELS.action.create.verb, exact: true })
+    // Create is shut until there is a code, and says why.
+    await expect(create).toBeDisabled()
+    await dialog.getByLabel(LABELS.word.code).fill('E2E shape')
+    await dialog.getByLabel(LABELS.word.name.label).click()
+    await expect(dialog.getByText(LABELS.schemas.create.code_shape)).toBeVisible()
 
-    const editor = await theSchemaBox(page)
-    // An unknown key is not marked -- 2020-12 says nothing about keys it does not know -- so
-    // what the meta-schema refuses is a value: `type` takes one of the seven names or a list
-    // of them, and never a number.
-    await writeInEditor(page, editor, '{ "type": 3 }')
+    await dialog.getByLabel(LABELS.word.code).fill('e2e-created-shape')
+    await dialog.getByLabel(LABELS.word.name.label).fill('Created in the dialog')
+    await create.click()
 
-    await expect(editor.locator('.squiggly-warning, .squiggly-error').first()).toBeVisible({
-        timeout: 15_000,
-    })
+    await expect(page).toHaveURL(/\/schemas\/e2e-created-shape$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Created in the dialog' })).toBeVisible()
+    await expect(schemaEditor(page).locator('.view-lines')).toContainText('e2e-created-shape')
+    await removeSchema(page.request, 'e2e-created-shape')
 })
 
-test('a stored schema is relabelled in the panel, and the row follows', async ({ page }) => {
+test('a stored schema is relabelled in its Details, which store it themselves', async ({ page }) => {
     await signIn(page)
     await seedSchema(page.request)
 
     await page.goto('/schemas/e2e-org-unit')
-    const panel = page.locator('aside')
+    const save = page.getByRole('button', { name: LABELS.action.save.verb, exact: true })
+    // Nothing changed is nothing to send, and the shut control says so.
+    await expect(save).toBeDisabled()
 
-    // The name is a display title with no identity, so it is a box; the code is the heading.
-    await panel.getByLabel(LABELS.word.name.label).fill('Org unit, corrected')
-    await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
-    await expect(panel.getByText(LABELS.action.save.done)).toBeVisible()
-
-    // The row is the same row, folded over with what the save answered rather than re-read: the
-    // panel would empty under the hands that pressed Save if the listing were read again.
-    await expect(page.getByRole('row').filter({ hasText: 'Org unit, corrected' })).toBeVisible()
-    await expect(page).toHaveURL(/\/schemas\/e2e-org-unit$/)
+    // The name is a display title with no identity, so it is a box in Details; the code is the heading.
+    const panel = await details(page)
+    await panel.getByRole('button', { name: LABELS.schemas.edit_details }).click()
+    await panel.getByLabel(LABELS.word.name.label, { exact: true }).fill('Org unit, corrected')
+    await panel.getByRole('button', { name: LABELS.action.save.verb, exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Org unit, corrected' })).toBeVisible()
+    await expect(panel.getByLabel(LABELS.word.name.label, { exact: true })).toBeHidden()
+    await expect(save).toBeDisabled()
 
     const prefix = await apiPrefix(page.request)
     const read = await (await page.request.get(`${prefix}/schemas/e2e-org-unit`)).json()
@@ -173,24 +142,90 @@ test('a stored schema is relabelled in the panel, and the row follows', async ({
     expect(read.body.title).toBe('Organisation unit')
 })
 
-test('a shape somebody got wrong is corrected in the panel it is read in', async ({ page }) => {
+test('cancelling an edit of the Details puts them back', async ({ page }) => {
     await signIn(page)
     await seedSchema(page.request)
 
     await page.goto('/schemas/e2e-org-unit')
-    const panel = page.locator('aside')
+    const panel = await details(page)
+    await panel.getByRole('button', { name: LABELS.schemas.edit_details }).click()
+    await panel.getByLabel(LABELS.word.description, { exact: true }).fill('Something else')
+    await panel.getByRole('button', { name: LABELS.action.cancel, exact: true }).click()
+    await expect(panel.getByText(SCHEMA.description)).toBeVisible()
+    await expect(page.getByRole('button', { name: LABELS.action.save.verb, exact: true })).toBeDisabled()
+})
 
-    const editor = panel.getByTestId('code-editor')
+test('a shape somebody got wrong is corrected on its page', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    await page.goto('/schemas/e2e-org-unit')
+    const editor = schemaEditor(page)
     await expect(editor.locator('.view-lines')).toContainText('properties')
     await writeInEditor(page, editor, JSON.stringify({ ...SCHEMA, required: ['id', 'displayName'] }, null, 2))
 
-    await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
-    await expect(panel.getByText(LABELS.action.save.done)).toBeVisible()
+    const save = page.getByRole('button', { name: LABELS.action.save.verb, exact: true })
+    await save.click()
+    await expect(save).toBeDisabled()
 
     const prefix = await apiPrefix(page.request)
     const read = await (await page.request.get(`${prefix}/schemas/e2e-org-unit`)).json()
     expect(read.body.required).toEqual(['id', 'displayName'])
     expect(read.code).toBe('e2e-org-unit')
+})
+
+test('a value is tried against the text in the schema editor, saved or not', async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    await page.goto('/schemas/e2e-org-unit')
+    await page.getByRole('button', { name: LABELS.schemas.try_value, exact: true }).click()
+    const window = page.getByRole('dialog')
+
+    const [schema, value] = [
+        window.getByTestId('code-editor').nth(0),
+        window.getByTestId('code-editor').nth(1),
+    ]
+    const result = window.getByRole('region', { name: LABELS.schemas.tester.result_heading })
+
+    await writeInEditor(page, value, '{"id": 7}')
+    await expect(result.getByText(LABELS.schemas.tester.invalid, { exact: true })).toBeVisible()
+    await expect(result.getByRole('button', { name: /^\/id type / })).toBeVisible()
+
+    await writeInEditor(page, value, '{"id": "ou-1"}')
+    await expect(result.getByText(LABELS.schemas.tester.fits)).toBeVisible()
+
+    // The schema editor's own text is what is checked against, before anything is saved.
+    await writeInEditor(page, schema, JSON.stringify({ ...SCHEMA, required: ['id', 'level'] }, null, 2))
+    await expect(result.getByText(LABELS.schemas.tester.invalid, { exact: true })).toBeVisible()
+    const prefix = await apiPrefix(page.request)
+    const read = await (await page.request.get(`${prefix}/schemas/e2e-org-unit`)).json()
+    expect(read.body.required).toEqual(['id'])
+
+    await writeInEditor(page, value, '{"id": ')
+    await expect(result.getByText(/^The value is not readable JSON/)).toBeVisible()
+})
+
+test("the tester's schema is the page's, and its value is kept between openings", async ({ page }) => {
+    await signIn(page)
+    await seedSchema(page.request)
+
+    await page.goto('/schemas/e2e-org-unit')
+    await page.getByRole('button', { name: LABELS.schemas.try_value, exact: true }).click()
+    const window = page.getByRole('dialog')
+    await writeInEditor(page, window.getByTestId('code-editor').nth(1), '{"id": 7}')
+    await writeInEditor(
+        page,
+        window.getByTestId('code-editor').nth(0),
+        JSON.stringify({ ...SCHEMA, required: ['id', 'tried'] }, null, 2),
+    )
+    // Escape inside an editor is the editor's; the window's own close is what shuts it.
+    await window.locator('[data-slot="dialog-close"]').click()
+    await expect(window).toBeHidden()
+    await expect(schemaEditor(page).locator('.view-lines')).toContainText('tried')
+
+    await page.getByRole('button', { name: LABELS.schemas.try_value, exact: true }).click()
+    await expect(window.getByTestId('code-editor').nth(1).locator('.view-lines')).toContainText('"id": 7')
 })
 
 /** A pipeline whose gate validates against the seeded schema, so the code is named by a version. */
@@ -213,30 +248,14 @@ test('a shape a pipeline names cannot be deleted, and the shut control says whic
     await applyDocument(page.request, NAMING)
 
     await page.goto('/schemas/e2e-org-unit')
-    const panel = page.locator('aside')
 
-    // The row above the body counts them, because its height cannot be the instance's to
-    // decide; the names are a press away, because saving is a decision made on their behalf.
-    const naming = panel.getByRole('button', {
-        name: LABELS.schemas.used_by.one('1'),
-        exact: true,
-    })
-    await expect(naming).toHaveAttribute('aria-expanded', 'false')
-    await expect(panel.getByText('e2e-schema-dependant', { exact: false })).toBeHidden()
+    // The pipelines that check against it are named in Details, each a link to its pipeline.
+    await expect((await details(page)).getByRole('link', { name: 'e2e-schema-dependant' })).toBeVisible()
 
-    await naming.click()
-    await expect(naming).toHaveAttribute('aria-expanded', 'true')
-    await expect(panel.getByText('e2e-schema-dependant', { exact: false })).toBeVisible()
-
-    // What a press opened a press takes back.
-    await naming.click()
-    await expect(panel.getByText('e2e-schema-dependant', { exact: false })).toBeHidden()
-
-    // A control that would be refused says so before it is pressed. The reason rides on the
-    // wrapper, because a disabled button takes no pointer events.
-    const remove = panel.getByRole('button', { name: LABELS.action.delete.verb })
+    // A control that would be refused says so before it is pressed.
+    const remove = page.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
     await expect(remove).toBeDisabled()
-    await expect(remove.locator('xpath=..')).toHaveAttribute(
+    await expect(page.locator('[title*="cannot be removed"]').first()).toHaveAttribute(
         'title',
         /e2e-schema-dependant.*cannot be removed/,
     )
@@ -252,16 +271,15 @@ test('the same shape is still corrected in place while that pipeline names it', 
     await applyDocument(page.request, NAMING)
 
     await page.goto('/schemas/e2e-org-unit')
-    const panel = page.locator('aside')
-
-    const editor = panel.getByTestId('code-editor')
+    const editor = schemaEditor(page)
     await expect(editor.locator('.view-lines')).toContainText('properties')
     await writeInEditor(page, editor, JSON.stringify({ ...SCHEMA, required: ['id', 'code'] }, null, 2))
 
     // Save is not shut by the dependency: correcting the shape every pipeline should now
-    // validate against is what this panel is for.
-    await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
-    await expect(panel.getByText(LABELS.action.save.done)).toBeVisible()
+    // validate against is what the page is for.
+    const save = page.getByRole('button', { name: LABELS.action.save.verb, exact: true })
+    await save.click()
+    await expect(save).toBeDisabled()
 
     const prefix = await apiPrefix(page.request)
     const read = await (await page.request.get(`${prefix}/schemas/e2e-org-unit`)).json()
@@ -269,14 +287,12 @@ test('the same shape is still corrected in place while that pipeline names it', 
     expect(read.used_by).toEqual(['e2e-schema-dependant'])
 })
 
-test('the panel box is checked against the meta-schema, like the dialog it was written in', async ({
-    page,
-}) => {
+test("the page's schema box marks a value the draft does not take", async ({ page }) => {
     await signIn(page)
     await seedSchema(page.request)
 
     await page.goto('/schemas/e2e-org-unit')
-    const editor = page.locator('aside').getByTestId('code-editor')
+    const editor = schemaEditor(page)
     // `type` takes one of the seven names or a list of them, and never a number: the draft is
     // what says so, and only a browser can say the worker holding it arrived.
     await writeInEditor(page, editor, '{ "type": 3 }')
@@ -286,11 +302,22 @@ test('the panel box is checked against the meta-schema, like the dialog it was w
     })
 })
 
-/** The dialog's one editor, once the chunk monaco lives in has landed. */
-async function theSchemaBox(page: Page): Promise<Locator> {
-    const editor = page.getByRole('dialog').getByTestId('code-editor')
-    await expect(editor.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
-    return editor
+/** The right panel's Details, opened where the reader's preference left it shut. */
+async function details(page: Page): Promise<Locator> {
+    const panel = page.getByRole('tabpanel', { name: LABELS.schemas.details_heading })
+    // A shut panel stays in the page, inert, so whether it is open is read off its container.
+    const aside = page.locator('aside').filter({ has: panel })
+    await expect(aside).toBeAttached()
+    if ((await aside.getAttribute('inert')) !== null) {
+        await page.getByRole('button', { name: LABELS.shell.toggle_panel }).click()
+    }
+    await expect(aside).not.toHaveAttribute('inert')
+    return panel
+}
+
+/** The page's schema editor, its only one. */
+function schemaEditor(page: Page): Locator {
+    return page.getByRole('main').getByTestId('code-editor').nth(0)
 }
 
 /**
@@ -405,105 +432,4 @@ test.describe('a listing whose titles run long', () => {
         }
         expect(cut).toEqual([])
     })
-})
-
-/** A stored pipeline naming the seeded schema, one per dependant the panel is measured with. */
-function dependant(at: number): Record<string, unknown> {
-    return {
-        format: 'dirigent/v1',
-        kind: 'pipeline',
-        code: `e2e-fold-dependant-${String(at).padStart(2, '0')}`,
-        requires: { schemas: ['e2e-org-unit'] },
-        steps: {
-            gate: {
-                block: 'validate.schema',
-                config: { input: { id: 'x' }, schema: 'e2e-org-unit' },
-            },
-        },
-    }
-}
-
-/**
- * Put the schema on the instance with exactly this many stored pipelines naming it.
- *
- * `seedSchema` clears whatever named the code last, so each count is measured against the
- * dependants it asked for and not the ones the count before it left behind.
- */
-async function seedDependants(request: APIRequestContext, many: number): Promise<void> {
-    await seedSchema(request)
-    for (let at = 0; at < many; at += 1) {
-        await applyDocument(request, dependant(at))
-    }
-}
-
-/**
- * THE VERBS ARE NEVER THE PART AN INSTANCE PUSHES OFF THE SCREEN. How many pipelines name a
- * stored schema is the instance's to decide, and listed above Save that count decided where Save
- * was: ten of them put both verbs 114px under the fold of a 1024x768 panel and three put them
- * 60px under it, while the body they were said to be about has a fixed height and moves nothing.
- * What stands above the verbs now is one row stating the number, which is one row at every count
- * -- so every reading here is the same whatever the count, and that, rather than the sign of any
- * one of them, is the fix.
- *
- * THE SHORT DESKTOP IS THE BINDING ONE. The two viewports this product is reviewed at are
- * 1024x768 and 390x844, so the phone is 76px taller: its narrower column costs wrapped lines and
- * the extra height more than pays for them. The same held of the apply dialog.
- */
-test('the verbs stay on screen however many pipelines name the shape', async ({ page }) => {
-    await signIn(page)
-
-    const readings = new Map<string, number[]>()
-    for (const many of [0, 3, 10]) {
-        await page.setViewportSize({ width: 1024, height: 768 })
-        await seedDependants(page.request, many)
-        await page.goto('/schemas/e2e-org-unit')
-
-        // The rail is an aside too, and below 768px the panel is a sheet rather than an aside, so
-        // the container is whichever of them holds this panel's own Save.
-        const panel = page.locator('aside, [data-panel-sheet]').filter({
-            has: page.getByRole('button', { name: LABELS.action.save.verb, exact: true }),
-        })
-        await expect(panel).toBeVisible()
-
-        // The row above the body is what holds its height: a press at one dependant or more, and
-        // at nought one line rather than a control that opens nothing.
-        if (many === 0) {
-            await expect(panel.getByText(LABELS.schemas.used_by.none)).toBeVisible()
-            await expect(panel.getByRole('button', { name: LABELS.schemas.used_by.none })).toHaveCount(0)
-        } else {
-            await expect(
-                panel.getByRole('button', {
-                    name: counted(many, LABELS.schemas.used_by)(String(many)),
-                    exact: true,
-                }),
-            ).toHaveAttribute('aria-expanded', 'false')
-        }
-
-        for (const size of [
-            { width: 1024, height: 768 },
-            { width: 390, height: 844 },
-        ]) {
-            await page.setViewportSize(size)
-            const where = `${String(size.width)}x${String(size.height)}`
-            await expect(panel).toBeVisible()
-            for (const control of [LABELS.action.save.verb, LABELS.action.delete.verb]) {
-                // Polled rather than read once: a viewport that has just changed is a layout
-                // still settling, and a reading taken mid-reflow is a different layout's.
-                await expect
-                    .poll(async () => belowTheFold(panel, control), {
-                        message: `${control} at ${where}, ${String(many)} naming the shape`,
-                        timeout: 10_000,
-                    })
-                    .toBeLessThanOrEqual(0)
-                const key = `${where} ${control}`
-                readings.set(key, [...(readings.get(key) ?? []), await belowTheFold(panel, control)])
-            }
-        }
-    }
-
-    // One reading per viewport and control however many name the shape: the dependants cannot
-    // move a verb any more, because what is drawn above one is a count rather than a list.
-    for (const [key, seen] of readings) {
-        expect(new Set(seen).size, `${key}: ${seen.join(', ')}`).toBe(1)
-    }
 })

@@ -55,6 +55,7 @@ const Connections = lazy(() =>
     import('@/pages/Connections').then((module) => ({ default: module.Connections })),
 )
 const Schemas = lazy(() => import('@/pages/Schemas').then((module) => ({ default: module.Schemas })))
+const Schema = lazy(() => import('@/pages/Schema').then((module) => ({ default: module.Schema })))
 const Triggers = lazy(() => import('@/pages/Triggers').then((module) => ({ default: module.Triggers })))
 
 /**
@@ -117,9 +118,10 @@ function Loading() {
  * ADDING A SCREEN: a `<Route>` here and an entry in `NAV` (lib/nav). The rail is drawn from that
  * array and the command palette offers every entry in it, so nothing else has to be told.
  *
- * A LISTING WHOSE ROW OPENS A PANEL IS ADDRESSED AT THAT ROW. `schemas/:code` and
- * `connections/:code` are the listing screen with a row chosen, the way `pipelines/:code` is the
- * editor on one pipeline, so what somebody is reading is a link they can send.
+ * A LISTING WHOSE ROW OPENS A PANEL IS ADDRESSED AT THAT ROW. `connections/:code` is the
+ * listing screen with a row chosen, and `schemas/:code` the page of one schema, the way
+ * `pipelines/:code` is the editor on one pipeline, so what somebody is reading is a link they can
+ * send.
  *
  * THE ROOT IS THE HOME SCREEN. It answers "how is this instance doing" before anybody has
  * picked a noun, which is a question no listing answers and the one somebody arriving with no
@@ -241,7 +243,7 @@ export default function App() {
                     path="schemas/:code"
                     element={
                         <Suspense fallback={<Loading />}>
-                            <Schemas />
+                            <Schema />
                         </Suspense>
                     }
                 />

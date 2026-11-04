@@ -1945,12 +1945,10 @@ html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-backgrou
     }
 }
 
-/* A pane's window strip held to the foot of the scroller it sits in. Inside the page's scroller
-   it stands in the scroller's foot padding, at the window's edge, so nothing scrolls beneath it. */
-.dg-window-strip[data-held] {
-    position: sticky;
-    bottom: calc(-1 * var(--page-foot, 0px));
-    z-index: 10;
+/* A pane's window button held to the top of the scroller it sits in, so it stays on screen down a
+   long document. */
+.dg-window-corner[data-held] {
+    top: 0.25rem;
 }
 
 /* ---------------------------------------------------------------------------

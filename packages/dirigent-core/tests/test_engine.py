@@ -3892,6 +3892,34 @@ async def test_a_run_is_refused_where_a_schema_its_document_names_is_not_held(
     assert refused.value.params["held"] == "some-other-shape"
 
 
+async def test_a_run_pins_the_schemas_its_schemas_reference(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A shape reached through ``$ref`` is checked against as the run started, like the one named."""
+    async with session_scope(sessions) as session:
+        await store_schema(session, {"type": "string"}, code="ou-code")
+        await store_schema(session, {"properties": {"code": {"$ref": "ou-code"}}}, code="ou-shape")
+        await store_schema(session, {"type": "integer"}, code="unrelated")
+        version = await save_pipeline(session, gated("one"))
+        run = await create_run(session, services, version)
+
+    assert run is not None
+    assert sorted(run.schemas) == ["ou-code", "ou-shape"]
+
+
+async def test_a_run_is_refused_where_a_schema_it_names_references_a_code_not_held(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        await store_schema(session, {"properties": {"code": {"$ref": "ou-code"}}}, code="ou-shape")
+        version = await save_pipeline(session, gated("one"))
+        with pytest.raises(RunCreationError) as refused:
+            await create_run(session, services, version)
+
+    assert refused.value.code == "run.schema_not_held"
+    assert refused.value.params["code"] == "'ou-code'"
+
+
 async def test_a_child_run_holds_its_own_shapes_rather_than_its_parent_s(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

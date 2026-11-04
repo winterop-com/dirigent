@@ -1,9 +1,9 @@
 import { ReactFlowProvider } from '@xyflow/react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { Panel } from '@/components/ds/Panel'
 import { PageCanvasTools, type CanvasFrame } from '@/components/graph/GraphCanvas'
-import { WindowedPane } from '@/components/WindowedPane'
+import { WindowButton, WindowedPane } from '@/components/WindowedPane'
 import type { LayoutChoice } from '@/lib/dag-layout'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -42,19 +42,34 @@ export function GraphPanel({
     children?: ReactNode
 }) {
     const filled = frame === 'filled'
+    const [wide, setWide] = useState(false)
+    const windowName = LABELS.shell.graph_window(name)
     return (
         <ReactFlowProvider>
             <Panel
                 title={LABELS.pipelines.page.graph}
                 tone="graph"
                 inset={false}
-                aside={<PageCanvasTools frame={frame} layout={layout} onLayout={onLayout} />}
+                aside={
+                    <span className="flex items-center gap-0.5">
+                        <PageCanvasTools frame={frame} layout={layout} onLayout={onLayout} />
+                        <WindowButton
+                            name={windowName}
+                            onOpen={() => {
+                                setWide(true)
+                            }}
+                        />
+                    </span>
+                }
                 className={cn(filled && 'flex flex-1 flex-col', className)}
                 bodyClassName={cn(filled && 'flex min-h-0 flex-1 flex-col')}
             >
                 <WindowedPane
-                    name={LABELS.shell.graph_window(name)}
+                    name={windowName}
                     frame="none"
+                    button="none"
+                    open={wide}
+                    onOpenChange={setWide}
                     className={cn(filled && 'flex-1')}
                     windowed={
                         <ReactFlowProvider>

@@ -37,7 +37,7 @@ import {
     VIEW_GROUP,
     type PaletteAction,
 } from '@/lib/palette'
-import { railHidden, toggleRail, togglePanel } from '@/lib/panels'
+import { panelOpen, railHidden, toggleRail, togglePanel } from '@/lib/panels'
 import { screenStatus, type StatusTone } from '@/lib/screen-status'
 import { modifierLabel, applePlatform } from '@/lib/shortcuts'
 import { MODE_ICONS, MODES, MODE_LABELS } from '@/lib/theme'
@@ -84,6 +84,7 @@ export function AppShell() {
     const auth = useStore(authStore)
     const hidden = useStore(railHidden)
     const filled = useStore(panelTabs).length > 0
+    const panelShown = useStore(panelOpen)
     const navigate = useNavigate()
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
@@ -309,16 +310,16 @@ export function AppShell() {
                             paletteOpen.set(true)
                         }}
                     />
-                    {filled && (
+                    <ServerStatusButton onOpen={openServerPane} />
+                    {filled && !panelShown && (
                         <IconButton
                             icon={ICONS.panel}
                             label={TOGGLE_PANEL_LABEL}
                             size="sm"
-                            className="hidden text-muted-foreground md:inline-flex"
+                            className="-mr-2 hidden text-muted-foreground md:inline-flex"
                             onClick={togglePanel}
                         />
                     )}
-                    <ServerStatusButton onOpen={openServerPane} />
                 </header>
 
                 <main className="flex min-h-0 w-full flex-1 flex-col">

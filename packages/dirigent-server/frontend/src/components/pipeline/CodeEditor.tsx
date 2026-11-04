@@ -305,6 +305,16 @@ function stateMetaSchemas(): void {
     })
 }
 
+/** A range of the buffer a check refused, by character offset, and why. */
+export interface EditorMark {
+    start: number
+    end: number
+    message: string
+}
+
+/** Whose marks a check sets, apart from the language's own. */
+const MARK_OWNER = 'dirigent-check'
+
 export function CodeEditor({
     value,
     schema,
@@ -314,6 +324,9 @@ export function CodeEditor({
     placeholder,
     className,
     readOnly = false,
+    marks,
+    reveal,
+    wrap = false,
     onChange,
 }: {
     value: string
@@ -332,6 +345,12 @@ export function CodeEditor({
     className?: string
     /** A buffer nobody may type into, which is what a viewer of produced data asks for. */
     readOnly?: boolean
+    /** Ranges of the buffer a check refused, by character offset, each saying why on hover. */
+    marks?: readonly EditorMark[]
+    /** A range to select and bring into view; a new object moves there again. */
+    reveal?: { start: number; end: number } | null
+    /** Long lines wrap at the pane's edge instead of running past it. */
+    wrap?: boolean
     onChange?: (text: string) => void
 }) {
     const host = useRef<HTMLDivElement | null>(null)
@@ -359,6 +378,7 @@ export function CodeEditor({
             fontSize: 12,
             lineNumbers: 'on',
             tabSize: 2,
+            wordWrap: wrap ? 'on' : 'off',
             renderLineHighlight: highlight ? 'line' : 'none',
             bracketPairColorization: { enabled: false },
             scrollbar: { alwaysConsumeMouseWheel: false },
@@ -387,6 +407,44 @@ export function CodeEditor({
         // The editor is created once. What flows in afterwards is handled by the effects below.
         // oxlint-disable-next-line react/exhaustive-deps
     }, [])
+
+    // A check's marks are the buffer's own diagnostics, under an owner of their own so the
+    // language's marks beside them are left as they are.
+    useEffect(() => {
+        const model = editor.current?.getModel()
+        if (model === null || model === undefined || marks === undefined) return
+        monaco.editor.setModelMarkers(
+            model,
+            MARK_OWNER,
+            marks.map((mark) => {
+                const from = model.getPositionAt(mark.start)
+                const to = model.getPositionAt(Math.max(mark.end, mark.start + 1))
+                return {
+                    severity: monaco.MarkerSeverity.Error,
+                    message: mark.message,
+                    startLineNumber: from.lineNumber,
+                    startColumn: from.column,
+                    endLineNumber: to.lineNumber,
+                    endColumn: to.column,
+                }
+            }),
+        )
+        return () => {
+            if (!model.isDisposed()) monaco.editor.setModelMarkers(model, MARK_OWNER, [])
+        }
+    }, [marks])
+
+    useEffect(() => {
+        const shown = editor.current
+        const model = shown?.getModel()
+        if (shown === null || shown === undefined || model === null || model === undefined || !reveal) return
+        const from = model.getPositionAt(reveal.start)
+        const to = model.getPositionAt(reveal.end)
+        const range = new monaco.Range(from.lineNumber, from.column, to.lineNumber, to.column)
+        shown.setSelection(range)
+        shown.revealRangeInCenterIfOutsideViewport(range)
+        shown.focus()
+    }, [reveal])
 
     // The preference is read by every editor there is, including the read-only ones, and an open
     // one takes the change without being rebuilt: a remount would lose the caret and the fold

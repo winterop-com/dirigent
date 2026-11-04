@@ -961,19 +961,21 @@ step config field whose schema says it carries a program are the same Monaco aga
 reported a round trip later. Each pane names its own buffer, because monaco holds one model per
 uri and two panes sharing a name would share a document.
 
-**A pane too small for what it holds opens in a window, and the button is in the bottom-right
-corner of the pane.** `components/WindowedPane` is where that gesture is written once -- the
-button, its corner, and the window, which is the viewport less a gutter -- and every pane that
-offers one comes through it: a config field carrying a program, a value edited as JSON, a
-report document, an alert body, an example's source, the block of produced JSON on a run's
-step and a schema's page, and the graph on a run's page and a pipeline's. The button stands in a strip of its own under the pane, inside the
-box, and the pane scrolls above it: a line that runs to the right edge, wherever the pane is
-scrolled to, ends before the button rather than under it. **A pane that grows with what it holds
-rather than scrolling -- a report document -- holds its strip to the foot of the scroller it sits
-in**, on that scroller's ground, so the button is on screen wherever the reader has scrolled to
-rather than at the end of a long document; the run's Report tab and a pipeline page's Report panel
-are the two. A panel clips its corners with `overflow: clip` rather than `hidden` for this reason:
-a hidden overflow is a scroller of its own, and a strip held to it would never move.
+**A pane too small for what it holds opens in a window, and the button is at the top.** `components/WindowedPane`
+is where that gesture is written once -- the button, its place, and the window, which is the
+viewport less a gutter -- and every pane that offers one comes through it: a config field carrying a
+program, a value edited as JSON, a report document, an alert body, an example's source, the block of
+produced JSON on a run's step, a schema's page, and the graph on a run's page and a pipeline's. **A
+pane in a panel with a head hands the button to the head**, beside the panel's other tools
+(`WindowButton`, with `button="none"` on the pane). **A pane with no head keeps it inside its own
+top-right corner**, in a row of no height held to the top of whatever scrolls it, so the button is on
+screen wherever the reader has scrolled to and covers no more than the end of the first line. A
+panel clips its corners with `overflow: clip` rather than `hidden` for this reason: a hidden overflow
+is a scroller of its own, and a button held to it would never move.
+
+**The side panel's toggle is at the screen's right edge.** While the panel is shut it is the last
+control in the top bar; while it is open it is the last control in the panel's own strip, over the
+panel it shuts. The rail's own collapse is beside the logo.
 
 **A field that names a thing shows the thing.** A string property carrying `x-dirigent-ref` holds
 the code of a connection or a schema, and under the box the form draws what that code resolves to,
@@ -991,10 +993,10 @@ never repeated: the box above the row already holds it.
 `application/schema+json` is what asks for it: a buffer holding a schema document is checked
 against JSON Schema 2020-12, the draft the server validates with, so its keywords complete as
 they are typed and a value the draft does not take is marked where it was written. Two buffers
-hold one -- the dialog a schema is written in, and the panel a stored one is corrected in -- so a
-shape is fixed in the editor it was authored in rather than read in one place and rewritten in
-another. What that panel may change is what `SchemaUpdate` carries: the name, the description and
-the body. The `code` is the heading and never a box, because the route addresses the schema by it
+hold one -- the dialog a schema is written in, and the schema's own page at `/schemas/<code>`,
+where a stored one is corrected beside a value it is tried against -- so a shape is fixed in the
+editor it was authored in rather than read in one place and rewritten in another. What that page
+may change is what `SchemaUpdate` carries: the name, the description and the body. The `code` is the heading and never a box, because the route addresses the schema by it
 and every `validate.schema` step and `requires.schemas` entry names it.
 
 **The label is the key.** What is being edited is a document, and the word an author writes in it

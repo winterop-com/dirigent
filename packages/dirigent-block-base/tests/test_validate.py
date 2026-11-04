@@ -53,6 +53,24 @@ async def test_a_schema_keeps_the_references_it_holds_itself(ctx: FakeContext) -
     assert isinstance(output, ValidateSchemaOutput)
 
 
+async def test_a_reference_reaches_another_schema_the_run_holds_by_code(ctx: FakeContext) -> None:
+    ctx.schemas["station-code"] = {"type": "string", "pattern": "^[A-Z]{3}[0-9]{2}$"}
+    ctx.schemas["reading"] = {"properties": {"station": {"$ref": "station-code"}}}
+    output = await call_block(ValidateSchemaOperator(), {"input": {"station": "OSL01"}, "schema": "reading"}, ctx)
+    assert isinstance(output, ValidateSchemaOutput)
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(ValidateSchemaOperator(), {"input": {"station": "oslo"}, "schema": "reading"}, ctx)
+    assert raised.value.code == "base.value_refused"
+    assert "$.station" in raised.value.message
+
+
+async def test_a_reference_to_a_code_the_run_does_not_hold_is_refused(ctx: FakeContext) -> None:
+    ctx.schemas["reading"] = {"properties": {"station": {"$ref": "station-code"}}}
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(ValidateSchemaOperator(), {"input": {"station": "OSL01"}, "schema": "reading"}, ctx)
+    assert raised.value.code == "base.schema_reference_unresolved"
+
+
 async def test_a_missing_field_is_rejected_naming_the_root(ctx: FakeContext) -> None:
     ctx.schemas["ou-shape"] = SCHEMA
     with pytest.raises(BlockFailure) as raised:
@@ -384,15 +402,15 @@ async def test_a_cancelled_step_stops_its_check_at_the_next_keyword(
         release.wait(10)
         return True
 
-    evaluate = validate._earliest_error  # pyright: ignore[reportPrivateUsage]
+    evaluate = validate.value_errors
 
-    def observed(*arguments: Any) -> Any:
+    def observed(*arguments: Any, **named: Any) -> Any:
         try:
-            return evaluate(*arguments)
+            return evaluate(*arguments, **named)
         finally:
             finished.set()
 
-    monkeypatch.setattr(validate, "_earliest_error", observed)
+    monkeypatch.setattr(validate, "value_errors", observed)
     ctx.formats["held"] = held
     ctx.schemas["slow"] = {"items": {"format": "held"}}
     task = asyncio.ensure_future(

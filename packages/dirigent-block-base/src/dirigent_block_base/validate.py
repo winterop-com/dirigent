@@ -3,22 +3,20 @@
 import asyncio
 import threading
 from datetime import timedelta
-from typing import Any, ClassVar
+from typing import ClassVar
 
-from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, Field, JsonValue
 
 from dirigent_block_base.messages import SCHEMA_REFERENCE_UNRESOLVED, VALUE_REFUSED, VALUE_UNCHECKED
 from dirigent_common import (
-    LOCAL_REFERENCES,
     BlockModel,
     Duration,
     EvaluationOverrun,
     Issue,
+    JsonMap,
     Unresolvable,
-    ValueValidator,
-    bounded_evaluation,
     format_duration,
+    value_errors,
 )
 from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, SchemaRef, StepContext
 
@@ -70,14 +68,29 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
         """Validate, then hand the value on; refuse it naming the place it is wrong.
 
         The schema is the body of the named one -- a code no instance holds fails the run at
-        the gate rather than passing the value on. The check runs on a thread and stops at its
+        the gate rather than passing the value on -- and a ``$ref`` in it reaches the other
+        schemas the run pinned by code. The check runs on a thread and stops at its
         ``timeout``, or as soon as the step is cancelled, so it never runs on behind the step.
         """
         schema = ctx.schema(config.json_schema)
-        validator = ValueValidator(schema, format_checker=ctx.format_checker(), registry=LOCAL_REFERENCES)
+
+        def held(code: str) -> JsonMap | None:
+            try:
+                return ctx.schema(code)
+            except (BlockFailure, LookupError):
+                return None
+
         stopped = threading.Event()
         try:
-            first = await asyncio.to_thread(_earliest_error, validator, config.input, config.timeout, stopped)
+            errors = await asyncio.to_thread(
+                value_errors,
+                schema,
+                config.input,
+                format_checker=ctx.format_checker(),
+                within=config.timeout,
+                stopped=stopped,
+                held=held,
+            )
         except Unresolvable as error:
             raise BlockFailure(SCHEMA_REFERENCE_UNRESOLVED, error_class=ErrorClass.REJECTED, ref=error.ref) from error
         except EvaluationOverrun as error:
@@ -86,7 +99,8 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
             ) from error
         finally:
             stopped.set()
-        if first is not None:
+        if errors:
+            first = errors[0]
             raise BlockFailure(
                 VALUE_REFUSED, error_class=ErrorClass.REJECTED, location=first.json_path, detail=first.message
             )
@@ -100,17 +114,3 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
         instance holds, and a carried code satisfies its own reference.
         """
         return []
-
-
-def _earliest_error(
-    validator: Any, value: JsonValue, within: timedelta, stopped: threading.Event
-) -> SchemaValidationError | None:
-    """Evaluate a whole value on a thread, until ``within`` passes or ``stopped`` is set."""
-    with bounded_evaluation(within, stopped):
-        errors: Any = validator.iter_errors(value)
-        return min(errors, key=_where, default=None)
-
-
-def _where(error: SchemaValidationError) -> str:
-    """The path a failure is reported at, so the first error named is the earliest one."""
-    return error.json_path

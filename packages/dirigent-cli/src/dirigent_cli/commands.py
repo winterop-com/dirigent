@@ -13,7 +13,7 @@ from uuid import UUID
 
 import typer
 import yaml
-from pydantic import TypeAdapter, ValidationError
+from pydantic import JsonValue, TypeAdapter, ValidationError
 from rich.markup import escape
 
 from dirigent_cli import schemas, starters
@@ -99,6 +99,7 @@ from dirigent_cli.messages import (
     UNKNOWN_CONNECTION_KIND,
     UNSAFE_FOR_THE_INSTANCE,
     UNSAFE_FOR_THIS_RUN,
+    VALUE_UNREADABLE,
 )
 from dirigent_cli.messages import WINDOW_GRAMMAR as WINDOW_GRAMMAR_MESSAGE
 from dirigent_cli.output import (
@@ -3203,6 +3204,46 @@ def schema_show(ctx: typer.Context, code: Annotated[str, typer.Argument()]) -> N
         },
     )
     console.print_json(data=row.body)
+
+
+@schema_app.command("check")
+def schema_check(
+    ctx: typer.Context,
+    code: Annotated[str, typer.Argument(help="The stored schema to check the value against.")],
+    reference: Annotated[
+        str, typer.Argument(help="A JSON or YAML file holding the value, or - for standard input.")
+    ] = "-",
+) -> None:
+    """Check a value against a stored schema the way a validate.schema step would, naming every failure.
+
+    Nothing is written. A value that does not fit exits 1, so a script can stop on it.
+    """
+    value = _read_value(reference)
+    with client_for(state_of(ctx)) as dg:
+        answer = dg.call(dg.schemas.check(value, code=code))
+    emit_fact(
+        "schema.checked",
+        level="info" if answer.valid else "error",
+        message="valid" if answer.valid else "invalid",
+        code=code,
+        valid=answer.valid,
+        errors=[error.model_dump(mode="json") for error in answer.errors],
+        omitted=answer.omitted,
+    )
+    if not answer.valid:
+        raise typer.Exit(code=1)
+
+
+def _read_value(reference: str) -> JsonValue:
+    """Read the value a check is asked about from a file, a URL, or standard input."""
+    try:
+        document = read_document(reference)
+    except SourceError as error:
+        fail(SOURCE_REFUSED, detail=str(error))
+    try:
+        return cast("JsonValue", bounded_load(document.text))
+    except yaml.YAMLError as error:
+        fail(VALUE_UNREADABLE, label=document.label, detail=str(error))
 
 
 @schema_app.command("delete")

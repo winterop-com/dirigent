@@ -762,6 +762,27 @@ def test_schema_delete_is_refused_while_a_pipeline_names_it(tmp_path: Path, serv
     assert machine("schema", "show", "gate-shape").exit_code == 0
 
 
+def test_schema_check_writes_a_record_naming_every_place_the_value_fails(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "reading.json"
+    path.write_text(
+        '{"$id": "reading", "type": "object", "required": ["id"],'
+        ' "properties": {"age": {"type": "integer", "minimum": 0}}}'
+    )
+    assert machine("schema", "create", str(path)).exit_code == 0
+    value = tmp_path / "value.yaml"
+    value.write_text("age: -1\n")
+
+    refused = machine("schema", "check", "reading", str(value))
+    assert refused.exit_code == 1, refused.output
+    record = only(refused.stdout, "schema.checked")
+    assert (record["code"], record["valid"], record["level"]) == ("reading", False, "error")
+    assert [(one["at"], one["keyword"]) for one in record["errors"]] == [("", "required"), ("/age", "minimum")]
+
+    fits = runner.invoke(app, ["schema", "check", "reading", "-"], input='{"id": "a", "age": 3}')
+    assert fits.exit_code == 0, fits.output
+    assert only(fits.stdout, "schema.checked")["valid"] is True
+
+
 def test_schema_create_refuses_a_body_that_is_not_a_schema(tmp_path: Path, server: str) -> None:
     path = tmp_path / "broken.json"
     path.write_text('{"$id": "broken", "type": "not-a-type"}')

@@ -162,6 +162,11 @@ def _audit_line(record: Record) -> Record:
     }
 
 
+def _checked_line(record: Record) -> Record:
+    """A value checked against a schema on one line: the schema, and whether it fits."""
+    return {name: record.get(name) for name in ("at", "level", "kind", "message", "code")}
+
+
 #: Record kinds that carry a row under ``fields``, and the line each one reads as.
 def _summary_line(record: Record) -> Record:
     """A runs summary on one line: how many pipelines ran, with the rows drawn beneath it."""
@@ -174,6 +179,7 @@ LINES: Final[Mapping[str, Callable[[Record], Record]]] = {
     "profile": _profile_line,
     "runs.summary": _summary_line,
     "audit": _audit_line,
+    "schema.checked": _checked_line,
 }
 
 
@@ -515,6 +521,27 @@ def _schema_edited(record: Record) -> RenderableType | None:
     parts: list[RenderableType] = [f"\n{SCHEMA_REACHES}:"]
     parts.extend(f"  [yellow]-[/] {escape(one)}" for one in named)
     parts.append(f"\n{IN_FLIGHT_KEEPS_ITS_SHAPE}")
+    return Group(*parts)
+
+
+def _schema_checked(record: Record) -> RenderableType | None:
+    """Render every place a checked value fails its schema, and how many more there were."""
+    errors = _mappings(record, "errors")
+    if not errors:
+        return None
+    parts: list[RenderableType] = [
+        build_table(
+            "where the value fails",
+            ["at", "keyword", "message"],
+            [
+                [escape(str(one.get("at")) or "-"), escape(str(one.get("keyword"))), escape(str(one.get("message")))]
+                for one in errors
+            ],
+        )
+    ]
+    omitted = record.get("omitted")
+    if isinstance(omitted, int) and omitted > 0:
+        parts.append(muted(f"and {omitted} more"))
     return Group(*parts)
 
 
@@ -895,5 +922,6 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "instance.initialised": _initialised,
     "pipeline.created": _created,
     "schema.updated": _schema_edited,
+    "schema.checked": _schema_checked,
     "profile": _resolved_profile,
 }

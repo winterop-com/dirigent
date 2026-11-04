@@ -274,11 +274,42 @@ the same three parts wherever it appears, so it is written once:
 the named subschema. A `$ref` may point anywhere in the document, and a `$def` may `$ref` another,
 so a shape composes out of named parts.
 
-It may not point out of the document. A `$ref` to a URL is never fetched, because a schema is
-validated on the server and the workers and a fetch would be a request from their network to an
-address the document chose. One to a JSON Schema draft's own metaschema resolves, because those
-ship with the validator. Anything else fails where it is used: a pipeline's `params` refuses the
-run, and `validate.schema` fails the step as `rejected`.
+## Reuse across schemas: a $ref to another stored schema
+
+A schema the instance holds can point at another one it holds, by code:
+
+```json
+{
+  "$id": "weather-reading",
+  "type": "object",
+  "properties": {"station": {"$ref": "station-code"}}
+}
+```
+
+`station-code` is the code of a stored schema, and `station-code#/$defs/x` points inside it. The
+reference is resolved against the referring schema's `$id` first, the way JSON Schema resolves
+every `$ref`, and then reaches a stored schema in one of two ways:
+
+- **A bare code** -- `station-code`, or `station-code.json` -- reaches the schema stored under
+  that code. This is what a reference in a schema whose `$id` is itself a code (or absent) gives.
+- **An address** -- `https://example.org/schemas/station-code.json`, or a relative `$ref` inside
+  a schema whose `$id` is such an address -- reaches a stored schema only when that schema's own
+  `$id` is exactly that address. A link to some other schema whose address happens to end in a
+  stored code reaches nothing, so it is refused rather than checked against a local shape it
+  never meant.
+
+A run takes every schema its document names and every one they reach this way when it starts,
+so editing either changes the next run and never one in flight. Plan refuses a reference that
+reaches no stored schema (`document.schema_reference_unknown`, at the place the document names
+the schema), a schema another one references cannot be deleted (`schema.referenced`), and a
+pipeline that checks against a schema through another's `$ref` is listed among the pipelines
+using it. The Schemas screen's tester and `dg schema check` follow the same references.
+
+Nothing is ever fetched. A `$ref` to a URL that reaches no stored schema is not retrieved,
+because a schema is validated on the server and the workers and a fetch would be a request from
+their network to an address the document chose. One to a JSON Schema draft's own metaschema
+resolves, because those ship with the validator. Anything else fails where it is used: a
+pipeline's `params` refuses the run, and `validate.schema` fails the step as `rejected`.
 
 ## format: the string that is really a date, or a site id
 
@@ -406,7 +437,7 @@ Draft 2020-12 is the full language; the working set, by what a keyword is doing:
 | Strings | `minLength`, `maxLength`, `pattern`, `format` |
 | A fixed value | `enum`, `const` |
 | Combining | `allOf`, `anyOf`, `oneOf`, `not`, `if`/`then`/`else` |
-| Reuse | `$defs`, `$ref` (a JSON Pointer, `#/$defs/name`) |
+| Reuse | `$defs`, `$ref` (a JSON Pointer, `#/$defs/name`, or a stored schema's code or exact `$id`) |
 | Identity | `$id` (-> code), `title` (-> name), `description` (-> body), `$schema`, `$comment` |
 
 [`examples/schemas/`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/schemas) and

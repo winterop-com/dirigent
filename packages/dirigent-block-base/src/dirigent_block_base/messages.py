@@ -30,7 +30,8 @@ VALUE_UNCHECKED = BASE.define(
 
 SCHEMA_REFERENCE_UNRESOLVED = BASE.define(
     "schema_reference_unresolved",
-    "the schema's $ref {ref} is not in the schema itself, and a schema's references are never fetched",
+    "the schema's $ref {ref} names no schema this instance holds; a $ref reaches the schema "
+    "itself and the schemas held here by code, and nothing is ever fetched",
 )
 
 

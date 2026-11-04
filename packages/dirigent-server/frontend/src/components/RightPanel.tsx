@@ -1,9 +1,11 @@
 import { useRef } from 'react'
 
+import { IconButton } from '@/components/ds/IconButton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import {
     clampPanelWidth,
@@ -14,6 +16,7 @@ import {
     panelTabs,
     panelWidth,
     setPanelWidth,
+    togglePanel,
 } from '@/lib/panels'
 import { cn } from '@/lib/utils'
 
@@ -135,6 +138,15 @@ export function RightPanel() {
                                         </TabsTrigger>
                                     ))}
                                 </TabsList>
+                                {open && (
+                                    <IconButton
+                                        icon={ICONS.panel}
+                                        label={LABELS.shell.toggle_panel}
+                                        size="sm"
+                                        className="ml-auto text-muted-foreground"
+                                        onClick={togglePanel}
+                                    />
+                                )}
                             </div>
                             {tabs.map((tab) => (
                                 <TabsContent

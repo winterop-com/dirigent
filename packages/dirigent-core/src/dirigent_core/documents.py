@@ -39,6 +39,7 @@ from dirigent_common import (
     credential_parameter_in,
     password_in,
     plain_fields_of,
+    reference_targets,
     userinfo_in,
     validation_issue,
     validation_issues,
@@ -103,6 +104,7 @@ from dirigent_core.messages import (
     REQUIRED_SCHEMA_MISSING,
     SCHEDULE_PARAMS_REFUSED,
     SCHEDULE_REFUSED,
+    SCHEMA_REFERENCE_UNKNOWN,
     STEP_BLOCK_MISSING,
     STEP_CONFIG_INVALID,
     STEP_CONNECTION_FOR_ALERTS,
@@ -428,7 +430,7 @@ def validate_against_catalog(
     check_blocks: bool = True,
     unsafe_allowed: Iterable[str] | None = None,
     storage_schemes: Iterable[str] | None = None,
-    schemas: Iterable[str] | None = None,
+    schemas: Iterable[str] | Mapping[str, JsonMap] | None = None,
     blocks: Mapping[str, Any] | None = None,
     format_checker: FormatChecker | None = None,
     target: TriggerTarget | None = None,
@@ -454,7 +456,9 @@ def validate_against_catalog(
     instance holds it now; on the offline path there is none to read, and only the clocks and
     the codes are checked. ``source_kinds`` is the source kinds the instance knows; unset, the
     built-in ones. ``storage`` is the instance's storage, whose artifact root a storage source's
-    location is checked against; unset, as offline, it is not checked.
+    location is checked against; unset, as offline, it is not checked. ``schemas`` given as a
+    mapping holds each schema's body, so a ``$ref`` from a schema the document names to a code
+    the instance does not hold is refused as well.
     """
     from dirigent_core.reportchecks import report_issues
     from dirigent_core.sources.kinds import built_in_kinds
@@ -495,6 +499,9 @@ def validate_against_catalog(
     issues.extend(source_issues(definition, kinds))
     if storage is not None:
         issues.extend(storage_location_issues(definition, kinds, storage))
+    if check_blocks and isinstance(schemas, Mapping):
+        bodies = {**cast("Mapping[str, JsonMap]", schemas), **definition.schemas}
+        issues.extend(_schema_reference_issues(definition, catalog, bodies))
     issues.extend(report_issues(definition, catalog if check_blocks else None))
     if check_blocks:
         issues.extend(
@@ -509,6 +516,52 @@ def validate_against_catalog(
                 connection_kinds,
             )
         )
+    return issues
+
+
+def _schema_reference_issues(
+    definition: PipelineDefinition, catalog: Catalog, bodies: Mapping[str, JsonMap]
+) -> list[ValidationIssue]:
+    """Refuse a schema the document checks against whose ``$ref`` reaches a code nothing holds.
+
+    Each code is followed from where the document names it -- ``requires.schemas``, a step's
+    schema field, or a schema it carries -- through every schema it reaches, and a reference to
+    a code neither the instance nor the document holds is refused at that place. A code that is
+    itself not held is the requirement's or the step's own refusal, so it is not said twice.
+    """
+    named: list[tuple[str, str]] = [
+        (f"requires.schemas.{index}", code) for index, code in enumerate(definition.requires.schemas)
+    ]
+    for name in sorted(definition.steps):
+        step = definition.steps[name]
+        entry = catalog.block(step.block) if step.block is not None else None
+        if entry is None:
+            continue
+        for key in sorted(reference_fields(entry.config_schema, "schema") & set(step.config)):
+            code = step.config[key]
+            if isinstance(code, str) and not has_reference(code):
+                named.append((f"steps.{name}.config.{key}", code))
+    named.extend((f"schemas.{code}", code) for code in sorted(definition.schemas))
+    held = ", ".join(sorted(bodies)) or "none are held"
+    issues: list[ValidationIssue] = []
+    for location, start in named:
+        if start not in bodies:
+            continue
+        seen: set[str] = set()
+        waiting = [start]
+        while waiting:
+            code = waiting.pop()
+            if code in seen:
+                continue
+            seen.add(code)
+            targets, unreached = reference_targets(bodies[code], bodies.get)
+            waiting.extend(sorted(targets))
+            issues.extend(
+                ValidationIssue.of(
+                    SCHEMA_REFERENCE_UNKNOWN, location=location, schema=repr(code), ref=repr(ref), held=held
+                )
+                for ref in sorted(unreached)
+            )
     return issues
 
 

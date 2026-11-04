@@ -24,14 +24,15 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import timedelta
 from functools import lru_cache
-from typing import Any, Final
+from typing import Any, Final, cast
 
 import regex
-from jsonschema import Draft202012Validator, ValidationError
+from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from jsonschema.validators import extend as extend_validator  # pyright: ignore[reportUnknownVariableType]
 from pydantic import JsonValue
 
 from dirigent_common.durations import format_duration
+from dirigent_common.schema_references import LOCAL_REFERENCES, held_references
 
 #: The keyword signature the library calls: validator, the keyword's value, instance, schema.
 type Keyword = Callable[[Any, Any, Any, Any], Any]
@@ -335,4 +336,43 @@ ValueValidator: Final[Any] = extend_validator(  # pyright: ignore[reportUnknownV
     version="draft2020-12",
 )
 
-__all__ = ["EvaluationOverrun", "ValueValidator", "bounded_evaluation", "canonical_json", "matches_whole"]
+
+def value_errors(
+    schema: Any,
+    value: Any,
+    *,
+    format_checker: FormatChecker,
+    within: timedelta,
+    stopped: threading.Event | None = None,
+    held: Callable[[str], Any | None] | None = None,
+) -> list[ValidationError]:
+    """Every way ``value`` fails ``schema``, earliest path first, as a ``validate.schema`` gate evaluates it.
+
+    A ``$ref`` leads into the schema itself, the bundled drafts and, where ``held`` is given, the
+    schema it answers for a code; one that leads anywhere else raises ``Unresolvable`` as the
+    evaluation reaches it.
+
+    Raises:
+        EvaluationOverrun: The evaluation passed ``within``, or ``stopped`` was set.
+    """
+    built: Callable[..., Any] = cast("Callable[..., Any]", ValueValidator)
+    registry = LOCAL_REFERENCES if held is None else held_references(held)
+    validator = built(schema, format_checker=format_checker, registry=registry)
+    with bounded_evaluation(within, stopped):
+        errors = cast("Iterator[ValidationError]", validator.iter_errors(value))
+        return sorted(errors, key=_where)
+
+
+def _where(error: ValidationError) -> str:
+    """The path a failure is reported at, which orders them."""
+    return error.json_path
+
+
+__all__ = [
+    "EvaluationOverrun",
+    "ValueValidator",
+    "bounded_evaluation",
+    "canonical_json",
+    "matches_whole",
+    "value_errors",
+]

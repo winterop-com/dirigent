@@ -195,9 +195,30 @@ SCHEMA_NO_CODE = SCHEMA.define(
 
 SCHEMA_INVALID = SCHEMA.define("invalid", "this is not a valid JSON Schema{at}: {detail}")
 
+SCHEMA_CHECK_NAMES_ONE = SCHEMA.define(
+    "check_names_one",
+    "a value is checked against one schema: give its code or its body, not both and not neither",
+)
+
+SCHEMA_REFERENCE_UNRESOLVED = SCHEMA.define(
+    "reference_unresolved",
+    "the schema's $ref {ref} names no schema this instance holds; a $ref reaches the schema "
+    "itself and the schemas held here by code, and nothing is ever fetched",
+)
+
+SCHEMA_VALUE_UNCHECKED = SCHEMA.define(
+    "value_unchecked",
+    "the value was not checked against the schema within {timeout}",
+)
+
 SCHEMA_IN_USE = SCHEMA.define(
     "in_use",
     "schema {code} cannot be removed while it is named by {users}; each must stop naming it first",
+)
+
+SCHEMA_REFERENCED = SCHEMA.define(
+    "referenced",
+    "schema {code} cannot be removed while {referrers} reference it with $ref; each must stop referencing it first",
 )
 
 PARAMETER = Catalogue("parameter")
@@ -374,6 +395,12 @@ STORAGE_SCHEME_MISSING = DOCUMENT.define("storage_scheme_missing", "no storage b
 REQUIRED_SCHEMA_MISSING = DOCUMENT.define(
     "required_schema_missing",
     "no schema coded {code} exists on this instance ({held})",
+)
+
+SCHEMA_REFERENCE_UNKNOWN = DOCUMENT.define(
+    "schema_reference_unknown",
+    "schema {schema} references {ref} with $ref, which reaches no schema this instance holds "
+    "({held}); a $ref names a held schema by its code, or by its exact $id",
 )
 
 STEP_BLOCK_MISSING = DOCUMENT.define(
