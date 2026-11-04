@@ -3142,12 +3142,13 @@ const schemas = {
         many: (names: string) => `${names} name this shape, so it cannot be removed.`,
     },
 
-    /** Before the pipelines that check against the schema, each a link to its pipeline. */
+    /** Over the name, the description and the pipelines that check against the schema. */
+    details_heading: 'Details',
+    /** Over the pipelines that check against the schema, each a link to its pipeline. */
     checked_by: 'Checked by',
-    /** The button that shows the schema and the value alone, as large as the screen allows. */
-    full_screen: 'Show the schema and the value full screen',
-    /** The full-screen window's title, around the schema's code. */
-    full_screen_title: (code: string) => `${code}: schema and value`,
+    /** The toolbar verb that opens the tester, and the tester window's title around the code. */
+    try_value: 'Try a value',
+    try_title: (code: string) => `Try a value against ${code}`,
 
     /**
      * The screen a value is tried on: the schema beside the value, and what checking the one

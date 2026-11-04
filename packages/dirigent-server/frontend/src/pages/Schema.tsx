@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 
 import { Chip } from '@/components/ds/Chip'
 import { Code } from '@/components/ds/Code'
-import { IconButton } from '@/components/ds/IconButton'
+import { FormField } from '@/components/ds/FormField'
 import { Notice } from '@/components/ds/Notice'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
@@ -13,12 +13,10 @@ import { Refusal } from '@/components/Refusal'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useSchemaSave } from '@/hooks/use-schema-save'
-import { ICONS } from '@/lib/icons'
 import { headingOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
@@ -56,25 +54,25 @@ const SCHEMA_MEDIA_TYPE = 'application/schema+json'
 const SETTLE_MS = 350
 
 /**
- * One stored schema: its name and description, the schema beside a value, and what checking the
- * one against the other found.
+ * One stored schema: its name, its description, the pipelines that check against it, and the
+ * schema itself in the editor it is corrected in; trying a value against it is a window of its
+ * own.
  *
- * THE CHECK IS A RUN'S. `POST /schemas/$check` evaluates the value the way a `validate.schema`
- * step does, against the text in the schema editor rather than what is stored, so a shape is
- * tried before it is saved.
+ * THE PAGE IS THE SCHEMA. What is edited here is what `SchemaUpdate` carries -- the name, the
+ * description and the body -- so the body has the height of the screen and the details sit
+ * beside it. The code is fixed: the route addresses the schema by it, so it is the heading and
+ * never a box.
+ *
+ * TRYING A VALUE IS A WINDOW. `Try a value` opens the schema beside a value and what checking
+ * the one against the other found, as large as the screen allows. The check is a run's:
+ * `POST /schemas/$check` evaluates the value the way a `validate.schema` step does, against the
+ * text in the schema editor rather than what is stored, so a shape is tried before it is saved.
+ * The window's schema editor names the page's buffer, so what is typed in either is what the
+ * other shows, and the value is kept between one opening and the next.
  *
  * TEXT THAT IS NOT JSON IS SAID WHERE IT WAS TYPED, and nothing is asked of the server for it.
- *
- * EVERY FAILURE IS MARKED WHERE IT IS. Each is a mark on the value editor at the place its pointer
- * names, and pressing one in the list selects that place.
- *
- * THE FULL-SCREEN WINDOW NAMES THE SAME TWO BUFFERS. Monaco holds one model per path, so what is
- * typed in the window is what the page shows when it closes, and the reverse. A mark belongs to
- * the model, so only the page's value editor sets them: the window draws them over the same model,
- * and closing it clears nothing.
- *
- * THE CODE IS FIXED. The route addresses the schema by it and `SchemaUpdate` has no member for
- * it, so it is the heading and never a box.
+ * EVERY FAILURE IS MARKED WHERE IT IS: a mark on the value at the place its pointer names, and
+ * pressing one in the list selects that place.
  */
 export function Schema() {
     const { code = '' } = useParams()
@@ -116,7 +114,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
     })
     const [answer, setAnswer] = useState<CheckAnswer | null>(null)
     const [reveal, setReveal] = useState<{ start: number; end: number } | null>(null)
-    const [wide, setWide] = useState(false)
+    const [trying, setTrying] = useState(false)
     const [removing, setRemoving] = useState(false)
     const { save, busy, problem, setProblem } = useSchemaSave(schema, onSaved)
     const write = useMayWrite('admin')
@@ -125,8 +123,9 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
     const input = useMemo(() => checkInput(text, value), [text, value])
     const shown = shownCheck(input, answer, text, value)
 
+    // Nothing is checked while the window is shut: there is no value on the page to check.
     useEffect(() => {
-        if (input.kind !== 'ready') return
+        if (!trying || input.kind !== 'ready') return
         let live = true
         const timer = setTimeout(() => {
             void checkSchema(input.body, input.value).then(
@@ -142,7 +141,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
             live = false
             clearTimeout(timer)
         }
-    }, [input, text, value])
+    }, [input, text, trying, value])
 
     const sample = useMemo(() => {
         const parsed = readJson(text)
@@ -203,19 +202,6 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
             onChange={edited}
         />
     )
-    const valuePane = (className: string, owned: boolean) => (
-        <CodePane
-            value={value}
-            mediaType="application/json"
-            path={`schemas/${schema.code}/value`}
-            label={LABELS.schemas.tester.value_label}
-            wrap
-            className={className}
-            marks={owned ? marks : undefined}
-            reveal={owned !== wide ? reveal : null}
-            onChange={setValue}
-        />
-    )
 
     return (
         <>
@@ -223,25 +209,13 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                 title={heading.title}
                 code={heading.code}
                 trail={[{ label: LABELS.screen.schemas.name, to: '/schemas' }]}
-                aside={
-                    <IconButton
-                        icon={ICONS.open_in_window}
-                        label={LABELS.schemas.full_screen}
-                        variant="outline"
-                        onClick={() => {
-                            setWide(true)
-                        }}
-                    />
-                }
                 actions={[
                     {
-                        id: 'example',
-                        label: LABELS.schemas.tester.example,
+                        id: 'try',
+                        label: LABELS.schemas.try_value,
                         variant: 'outline',
-                        disabled: sample === undefined,
-                        why: sample === undefined ? LABELS.schemas.tester.no_example : undefined,
                         onClick: () => {
-                            setValue(JSON.stringify(sample, null, 2))
+                            setTrying(true)
                         },
                     },
                     {
@@ -265,58 +239,67 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
             />
             <div className="space-y-3">
                 {problem !== null && <Refusal problem={problem} />}
-                <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-                    <div className="space-y-1.5">
-                        <Label htmlFor="schema-name">{LABELS.word.name.label}</Label>
-                        <Input
+                <div className="grid min-w-0 gap-3 lg:h-[calc(100dvh-12rem)] lg:min-h-96 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+                    <Panel title={LABELS.schemas.details_heading} bodyClassName="space-y-4">
+                        <FormField
                             id="schema-name"
-                            value={named}
-                            disabled={!write.may}
-                            title={LABELS.schemas.name_hint}
-                            onChange={(event) => {
-                                setNamed(event.target.value)
-                            }}
-                        />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="schema-description">{LABELS.word.description}</Label>
-                        <Textarea
-                            id="schema-description"
-                            className="min-h-9"
-                            rows={1}
-                            value={description}
-                            placeholder={LABELS.schemas.description_placeholder}
-                            disabled={!write.may}
-                            onChange={(event) => {
-                                setDescription(event.target.value)
-                            }}
-                        />
-                    </div>
-                </div>
-                <CheckedBy codes={schema.used_by} />
-                <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-                    <Panel title={LABELS.word.schema.label} inset={false}>
-                        {schemaPane('h-72 min-h-72 lg:h-96')}
+                            label={LABELS.word.name.label}
+                            help={LABELS.schemas.name_hint}
+                        >
+                            <Input
+                                id="schema-name"
+                                value={named}
+                                disabled={!write.may}
+                                onChange={(event) => {
+                                    setNamed(event.target.value)
+                                }}
+                            />
+                        </FormField>
+                        <FormField id="schema-description" label={LABELS.word.description}>
+                            <Textarea
+                                id="schema-description"
+                                className="max-h-64 min-h-28"
+                                value={description}
+                                placeholder={LABELS.schemas.description_placeholder}
+                                disabled={!write.may}
+                                onChange={(event) => {
+                                    setDescription(event.target.value)
+                                }}
+                            />
+                        </FormField>
+                        <CheckedBy codes={schema.used_by} />
                     </Panel>
-                    <Panel title={LABELS.schemas.tester.value_heading} inset={false}>
-                        {valuePane('h-72 min-h-72 lg:h-96', true)}
+                    <Panel
+                        title={LABELS.word.schema.label}
+                        inset={false}
+                        className="flex flex-col"
+                        bodyClassName="flex min-h-0 flex-1 flex-col"
+                    >
+                        {schemaPane('h-96 min-h-72 lg:h-auto lg:min-h-0 lg:flex-1')}
                     </Panel>
                 </div>
-                <Result shown={shown} onShow={show} />
             </div>
-            <Dialog open={wide} onOpenChange={setWide}>
+            <Dialog open={trying} onOpenChange={setTrying}>
                 <DialogContent
                     finalFocus={false}
                     className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-3 sm:max-w-none"
                 >
-                    <div className="flex items-center gap-3 pr-8">
-                        <DialogTitle className="font-mono text-sm">
-                            {LABELS.schemas.full_screen_title(schema.code)}
-                        </DialogTitle>
-                        <Verdict shown={shown} />
+                    <div className="flex flex-wrap items-center gap-2 pr-8">
+                        <DialogTitle className="text-sm">{LABELS.schemas.try_title(schema.code)}</DialogTitle>
                         <Button
+                            variant="outline"
                             size="sm"
                             className="ml-auto"
+                            disabled={sample === undefined}
+                            title={sample === undefined ? LABELS.schemas.tester.no_example : undefined}
+                            onClick={() => {
+                                setValue(JSON.stringify(sample, null, 2))
+                            }}
+                        >
+                            {LABELS.schemas.tester.example}
+                        </Button>
+                        <Button
+                            size="sm"
                             disabled={busy || saveWhy !== undefined}
                             title={saveWhy}
                             onClick={send}
@@ -324,23 +307,35 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                             {busy ? LABELS.action.save.busy : LABELS.action.save.verb}
                         </Button>
                     </div>
-                    <div className="grid min-h-0 flex-1 gap-3 md:grid-cols-2">
-                        <div className="dg-frame flex min-h-0 flex-col">{schemaPane('min-h-0 flex-1')}</div>
-                        <div className="dg-frame flex min-h-0 flex-col">
-                            {valuePane('min-h-0 flex-1', false)}
-                        </div>
-                    </div>
-                    {shown.kind === 'checked' && !shown.check.valid && (
-                        <div className="max-h-40 shrink-0 overflow-y-auto border-t border-border">
-                            <Failures
-                                errors={shown.check.errors}
-                                omitted={shown.check.omitted}
-                                onShow={show}
+                    <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,22rem)]">
+                        <Panel
+                            title={LABELS.word.schema.label}
+                            inset={false}
+                            className="flex min-h-0 flex-col"
+                            bodyClassName="flex min-h-0 flex-1 flex-col"
+                        >
+                            {schemaPane('min-h-48 flex-1')}
+                        </Panel>
+                        <Panel
+                            title={LABELS.schemas.tester.value_heading}
+                            inset={false}
+                            className="flex min-h-0 flex-col"
+                            bodyClassName="flex min-h-0 flex-1 flex-col"
+                        >
+                            <CodePane
+                                value={value}
+                                mediaType="application/json"
+                                path={`schemas/${schema.code}/value`}
+                                label={LABELS.schemas.tester.value_label}
+                                wrap
+                                className="min-h-48 flex-1"
+                                marks={marks}
+                                reveal={reveal}
+                                onChange={setValue}
                             />
-                        </div>
-                    )}
-                    {shown.kind === 'unreadable' && <Notice tone="warning">{shown.sentence}</Notice>}
-                    {shown.kind === 'refused' && <Refusal problem={shown.problem} />}
+                        </Panel>
+                        <Result shown={shown} onShow={show} />
+                    </div>
                 </DialogContent>
             </Dialog>
         </>
@@ -351,17 +346,21 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
 function CheckedBy({ codes }: { codes: readonly string[] }) {
     if (codes.length === 0) return null
     return (
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span>{LABELS.schemas.checked_by}</span>
-            {codes.map((code) => (
-                <Link key={code} to={`/pipelines/${encodeURIComponent(code)}`} className="hover:underline">
-                    <Code value={code} tone="body" />
-                </Link>
-            ))}
-            <span>
+        <div className="space-y-1.5">
+            <p className="text-sm font-medium">{LABELS.schemas.checked_by}</p>
+            <ul className="space-y-1">
+                {codes.map((code) => (
+                    <li key={code}>
+                        <Link to={`/pipelines/${encodeURIComponent(code)}`} className="hover:underline">
+                            <Code value={code} tone="body" />
+                        </Link>
+                    </li>
+                ))}
+            </ul>
+            <p className="text-xs text-muted-foreground">
                 {LABELS.schemas.body_warning} {LABELS.schemas.body_in_flight}
-            </span>
-        </p>
+            </p>
+        </div>
     )
 }
 
@@ -384,6 +383,8 @@ function Result({ shown, onShow }: { shown: CheckShown; onShow: (error: SchemaVi
             meta={total > 0 ? counted(total, LABELS.schemas.tester.failures)(String(total)) : undefined}
             aside={<Verdict shown={shown} />}
             inset={shown.kind !== 'checked' || shown.check.valid}
+            className="flex min-h-0 flex-col"
+            bodyClassName="min-h-0 flex-1 overflow-y-auto"
         >
             {shown.kind === 'unreadable' && <Notice tone="warning">{shown.sentence}</Notice>}
             {shown.kind === 'checking' && (
@@ -415,21 +416,23 @@ function Failures({
                 <li key={`${error.at} ${error.schema_at} ${error.message}`}>
                     <button
                         type="button"
-                        className="grid w-full min-w-0 grid-cols-[minmax(0,14rem)_auto_minmax(0,1fr)] items-baseline gap-3 px-4 py-2 text-left hover:bg-muted focus-visible:bg-muted focus-visible:outline-none max-md:grid-cols-[minmax(0,1fr)_auto] max-md:py-3"
+                        className="flex w-full min-w-0 flex-col gap-1 px-4 py-2 text-left hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
                         title={LABELS.schemas.tester.show_failure(pointerLabel(error.at))}
                         onClick={() => {
                             onShow(error)
                         }}
                     >
-                        {error.at === '' ? (
-                            <span className="truncate text-xs text-muted-foreground">
-                                {pointerLabel(error.at)}
-                            </span>
-                        ) : (
-                            <Code value={error.at} tone="body" />
-                        )}
-                        <Chip tone="mono">{error.keyword}</Chip>
-                        <span className="min-w-0 text-sm break-words max-md:col-span-2">{error.message}</span>
+                        <span className="flex min-w-0 items-center justify-between gap-3">
+                            {error.at === '' ? (
+                                <span className="truncate text-xs text-muted-foreground">
+                                    {pointerLabel(error.at)}
+                                </span>
+                            ) : (
+                                <Code value={error.at} tone="body" />
+                            )}
+                            <Chip tone="mono">{error.keyword}</Chip>
+                        </span>
+                        <span className="min-w-0 text-sm break-words">{error.message}</span>
                     </button>
                 </li>
             ))}

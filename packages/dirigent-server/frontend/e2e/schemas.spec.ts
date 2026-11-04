@@ -170,9 +170,14 @@ test('a value is tried against the text in the schema editor, saved or not', asy
     await seedSchema(page.request)
 
     await page.goto('/schemas/e2e-org-unit')
+    await page.getByRole('button', { name: LABELS.schemas.try_value, exact: true }).click()
+    const window = page.getByRole('dialog')
 
-    const [schema, value] = [schemaEditor(page), valueEditor(page)]
-    const result = page.getByRole('region', { name: LABELS.schemas.tester.result_heading })
+    const [schema, value] = [
+        window.getByTestId('code-editor').nth(0),
+        window.getByTestId('code-editor').nth(1),
+    ]
+    const result = window.getByRole('region', { name: LABELS.schemas.tester.result_heading })
 
     await writeInEditor(page, value, '{"id": 7}')
     await expect(result.getByText(LABELS.schemas.tester.invalid, { exact: true })).toBeVisible()
@@ -192,25 +197,25 @@ test('a value is tried against the text in the schema editor, saved or not', asy
     await expect(result.getByText(/^The value is not readable JSON/)).toBeVisible()
 })
 
-test('the full-screen window holds the same two buffers', async ({ page }) => {
+test("the tester's schema is the page's, and its value is kept between openings", async ({ page }) => {
     await signIn(page)
     await seedSchema(page.request)
 
     await page.goto('/schemas/e2e-org-unit')
-    await writeInEditor(page, valueEditor(page), '{"id": 7}')
-
-    await page.getByRole('button', { name: LABELS.schemas.full_screen }).click()
+    await page.getByRole('button', { name: LABELS.schemas.try_value, exact: true }).click()
     const window = page.getByRole('dialog')
-    await expect(window.getByText(LABELS.schemas.tester.invalid, { exact: true })).toBeVisible()
-    const inWindow = window.getByTestId('code-editor').nth(1)
-    await expect(inWindow.locator('.view-lines')).toContainText('"id": 7')
-
-    // What is typed in the window is what the page shows once it closes.
-    await writeInEditor(page, inWindow, '{"id": "ou-1"}')
-    await expect(window.getByText(LABELS.schemas.tester.valid, { exact: true })).toBeVisible()
+    await writeInEditor(page, window.getByTestId('code-editor').nth(1), '{"id": 7}')
+    await writeInEditor(
+        page,
+        window.getByTestId('code-editor').nth(0),
+        JSON.stringify({ ...SCHEMA, required: ['id', 'tried'] }, null, 2),
+    )
     await page.keyboard.press('Escape')
     await expect(window).toBeHidden()
-    await expect(valueEditor(page).locator('.view-lines')).toContainText('"ou-1"')
+    await expect(schemaEditor(page).locator('.view-lines')).toContainText('tried')
+
+    await page.getByRole('button', { name: LABELS.schemas.try_value, exact: true }).click()
+    await expect(window.getByTestId('code-editor').nth(1).locator('.view-lines')).toContainText('"id": 7')
 })
 
 /** A pipeline whose gate validates against the seeded schema, so the code is named by a version. */
@@ -287,14 +292,9 @@ test("the page's schema box is checked against the meta-schema, like the dialog"
     })
 })
 
-/** The page's schema editor: the first of its two. */
+/** The page's schema editor, its only one. */
 function schemaEditor(page: Page): Locator {
     return page.getByRole('main').getByTestId('code-editor').nth(0)
-}
-
-/** The page's value editor: the second of its two. */
-function valueEditor(page: Page): Locator {
-    return page.getByRole('main').getByTestId('code-editor').nth(1)
 }
 
 /** The dialog's one editor, once the chunk monaco lives in has landed. */
