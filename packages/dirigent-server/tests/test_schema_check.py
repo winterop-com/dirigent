@@ -76,11 +76,38 @@ def test_a_reference_inside_the_schema_is_followed(client: TestClient) -> None:
     assert [(one["at"], one["schema_at"]) for one in answer["errors"]] == [("/id", "/properties/id/type")]
 
 
-def test_a_reference_to_another_stored_schema_is_refused_as_a_run_refuses_it(client: TestClient) -> None:
-    """A run follows a ``$ref`` inside its schema and fetches nothing, so neither does the check."""
+def test_a_reference_to_another_stored_schema_is_followed_by_its_code(client: TestClient) -> None:
+    """A ``$ref`` naming a held code reaches that schema, as a run's reaches the ones it pinned."""
     stored(client, READING)
     body = {"type": "object", "properties": {"reading": {"$ref": "reading"}}}
-    assert refused(client, 422, body=body, value={"reading": {"id": "a"}}) == "schema.reference_unresolved"
+    assert checked(client, body=body, value={"reading": {"id": "a"}})["valid"] is True
+    answer = checked(client, body=body, value={"reading": {}})
+    assert [(one["at"], one["keyword"]) for one in answer["errors"]] == [("/reading", "required")]
+
+
+def test_an_address_reaches_a_held_schema_only_through_its_exact_id(client: TestClient) -> None:
+    """A link to some outside schema that ends in a held code is not quietly checked against it."""
+    stored(client, READING)
+    stored(client, {"$id": "https://example.org/schemas/unit.json", "type": "object", "required": ["id"]})
+    sibling = {"$id": "https://example.org/schemas/wrapper.json", "properties": {"unit": {"$ref": "unit.json"}}}
+    assert checked(client, body=sibling, value={"unit": {}})["valid"] is False
+    outside = {"properties": {"reading": {"$ref": "https://other.example/schemas/reading.json"}}}
+    assert refused(client, 422, body=outside, value={"reading": {}}) == "schema.reference_unresolved"
+
+
+def test_a_reference_to_a_code_nothing_holds_is_refused(client: TestClient) -> None:
+    body = {"type": "object", "properties": {"reading": {"$ref": "no-such-shape"}}}
+    assert refused(client, 422, body=body, value={"reading": {}}) == "schema.reference_unresolved"
+
+
+def test_a_schema_another_references_cannot_be_deleted(client: TestClient) -> None:
+    stored(client, READING)
+    stored(client, {"$id": "wrapper", "properties": {"reading": {"$ref": "reading"}}})
+    answer = client.delete(f"{PREFIX}/schemas/reading")
+    assert answer.status_code == 409
+    assert answer.json()["code"] == "schema.referenced"
+    assert client.delete(f"{PREFIX}/schemas/wrapper").status_code == 204
+    assert client.delete(f"{PREFIX}/schemas/reading").status_code == 204
 
 
 def test_a_body_that_is_not_a_schema_is_refused_before_the_value_is_read(client: TestClient) -> None:
@@ -105,3 +132,20 @@ def test_failures_past_a_hundred_are_counted(client: TestClient) -> None:
 def test_a_viewer_may_check(client: TestClient, viewer: TestClient) -> None:
     stored(client, READING)
     assert checked(viewer, code="reading", value={"id": "a"})["valid"] is True
+
+
+def test_a_pipeline_naming_a_schema_uses_the_ones_it_references(client: TestClient) -> None:
+    stored(client, READING)
+    stored(client, {"$id": "wrapper", "properties": {"reading": {"$ref": "reading"}}})
+    document = {
+        "format": "dirigent/v1",
+        "code": "wrapped-gate",
+        "requires": {"schemas": ["wrapper"]},
+        "steps": {
+            "gate": {"block": "validate.schema", "config": {"input": {"reading": {"id": "a"}}, "schema": "wrapper"}}
+        },
+    }
+    applied = client.post(f"{PREFIX}/pipelines/$apply", json={"document": document})
+    assert applied.status_code in (200, 201), applied.text
+    assert client.get(f"{PREFIX}/schemas/reading").json()["used_by"] == ["wrapped-gate"]
+    assert client.get(f"{PREFIX}/schemas/wrapper").json()["used_by"] == ["wrapped-gate"]

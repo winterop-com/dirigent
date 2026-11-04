@@ -30,12 +30,15 @@ from dirigent_core.messages import SCHEMA_CHECK_NAMES_ONE
 from dirigent_core.models import Schema
 from dirigent_core.schemas import (
     SchemaInUse,
+    SchemaReferenced,
     SchemaRefused,
     check_valid_schema,
     check_value,
+    held_bodies,
     record_schema_update,
     resolve_identity,
     schema_fields,
+    schema_referrers,
     schema_users,
 )
 from dirigent_server.dependencies import ServicesDep, SessionDep
@@ -127,7 +130,9 @@ async def check_schema(
     """Check a value against a stored schema or an unsaved body, the way a ``validate.schema`` step would.
 
     Nothing is written. A body is checked to be a valid JSON Schema first, as storing it would
-    be, and every failure of the value is answered rather than the first a step stops at.
+    be, and every failure of the value is answered rather than the first a step stops at. A
+    ``$ref`` reaches the schemas the instance holds by code, as a run's reaches the ones it
+    pinned.
     """
     if (payload.code is None) == (payload.body is None):
         raise SchemaRefused(SCHEMA_CHECK_NAMES_ONE)
@@ -136,7 +141,7 @@ async def check_schema(
         schema = payload.body
     else:
         schema = (await find(session, cast("str", payload.code))).body
-    return await check_value(schema, payload.value, services.format_checker)
+    return await check_value(schema, payload.value, services.format_checker, await held_bodies(session))
 
 
 @router.get("/schemas/{code}", operation_id="getSchema", summary="Read a schema", response_model=SchemaOut)
@@ -184,7 +189,7 @@ async def update_schema(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_schema(code: str, session: SessionDep, services: ServicesDep, principal: AdminDep) -> Response:
-    """Remove a schema, refusing one a stored pipeline still names.
+    """Remove a schema, refusing one a stored pipeline still names or another schema references.
 
     Applying a document that names a schema the instance does not hold is already refused, so
     a delete that went through here would leave behind exactly the state no apply is allowed
@@ -196,6 +201,9 @@ async def delete_schema(code: str, session: SessionDep, services: ServicesDep, p
     named = (await schema_users(session, services.host.catalog())).get(code, [])
     if named:
         raise SchemaInUse(code, named)
+    referrers = await schema_referrers(session, code)
+    if referrers:
+        raise SchemaReferenced(code, referrers)
     await session.delete(row)
     await session.flush()
     await audit.record(session, AuditAction.DELETED, AuditSubject.SCHEMA, code=code, subject_id=row.id)

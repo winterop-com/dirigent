@@ -68,7 +68,7 @@ from dirigent_core.models import (
 from dirigent_core.outputchecks import output_field_warnings
 from dirigent_core.registry import live_worker_tags
 from dirigent_core.reportchecks import report_warnings
-from dirigent_core.schemas import schema_codes
+from dirigent_core.schemas import held_bodies
 from dirigent_core.sources.rows import claimed_route_issues, reconcile_sources, retiring_sources
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues, retiring_schedules
 
@@ -248,7 +248,7 @@ async def plan_apply(
         pipelines=await pipeline_codes(session),
         unsafe_allowed=services.settings.enabled_unsafe_blocks,
         storage_schemes=services.storage.schemes,
-        schemas=await schema_codes(session),
+        schemas=await held_bodies(session),
         blocks=services.host.blocks,
         format_checker=services.format_checker,
         source_kinds=services.sources,
@@ -428,7 +428,7 @@ async def revalidate(
         pipelines=await pipeline_codes(session),
         unsafe_allowed=services.settings.enabled_unsafe_blocks,
         storage_schemes=services.storage.schemes,
-        schemas=await schema_codes(session),
+        schemas=await held_bodies(session),
         blocks=services.host.blocks,
         format_checker=services.format_checker,
         source_kinds=services.sources,

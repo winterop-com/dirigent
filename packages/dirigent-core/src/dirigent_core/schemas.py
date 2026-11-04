@@ -14,7 +14,7 @@ A schema is checked to be a valid schema of that draft before it is stored.
 import asyncio
 import re
 import threading
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import timedelta
 from typing import Final
 from uuid import UUID
@@ -27,7 +27,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AuditAction, AuditSubject
 from dirigent_client.schemas import Catalog, SchemaCheck, SchemaViolation
-from dirigent_common import EvaluationOverrun, Issue, JsonMap, Unresolvable, format_duration, value_errors
+from dirigent_common import (
+    EvaluationOverrun,
+    Issue,
+    JsonMap,
+    Unresolvable,
+    format_duration,
+    reference_targets,
+    schema_code_of,
+    value_errors,
+)
 from dirigent_common.messages import TEXT_UNSTORABLE
 from dirigent_common.storable import is_storable
 from dirigent_core import audit
@@ -38,6 +47,7 @@ from dirigent_core.messages import (
     SCHEMA_INVALID,
     SCHEMA_NO_CODE,
     SCHEMA_REFERENCE_UNRESOLVED,
+    SCHEMA_REFERENCED,
     SCHEMA_VALUE_UNCHECKED,
 )
 from dirigent_core.models import Pipeline, PipelineVersion, Schema
@@ -49,6 +59,20 @@ _CODE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$")
 
 class SchemaRefused(DomainError):
     """A schema that cannot be stored, and the reason a caller can show."""
+
+
+class SchemaReferenced(DomainError):
+    """A schema was asked to be removed while another stored schema still references it."""
+
+    status = 409
+    message = SCHEMA_REFERENCED
+
+    def __init__(self, code: str, referrers: Sequence[str]) -> None:
+        """Say which schemas reference it, so what has to change is in the refusal."""
+        named = ", ".join(referrers)
+        said = f"schema {named}" if len(referrers) == 1 else f"schemas {named}"
+        super().__init__(code=repr(code), referrers=said)
+        self.referrers = list(referrers)
 
 
 class SchemaInUse(DomainError):
@@ -72,9 +96,7 @@ def code_from_id(schema_id: str) -> str | None:
     segment that is not a usable code yields nothing, and the caller falls back to a filename
     or refuses.
     """
-    tail = schema_id.rstrip("/").rsplit("/", 1)[-1]
-    tail = re.sub(r"\.(json|yaml|yml)$", "", tail)
-    return tail if _CODE_PATTERN.match(tail) else None
+    return schema_code_of(schema_id)
 
 
 def resolve_identity(
@@ -137,17 +159,29 @@ CHECK_WITHIN: Final = timedelta(seconds=10)
 MAX_VIOLATIONS: Final = 100
 
 
-async def check_value(schema: JsonMap, value: JsonValue, format_checker: FormatChecker) -> SchemaCheck:
+async def check_value(
+    schema: JsonMap,
+    value: JsonValue,
+    format_checker: FormatChecker,
+    held: Mapping[str, JsonMap] | None = None,
+) -> SchemaCheck:
     """Check a value against a schema with the evaluation a ``validate.schema`` step makes, naming every failure.
 
     The schema is not checked here: a stored one was checked when it was stored, and a body is
-    checked by the caller first. A ``$ref`` is followed inside the schema and nowhere else,
-    which is what a run does, so one naming another stored schema is refused as a run would.
+    checked by the caller first. A ``$ref`` is followed inside the schema and into ``held``, the
+    schemas the instance holds by code, which is what a run does with the ones it pinned.
     """
+    lookup: Callable[[str], JsonMap | None] = (held or {}).get
     stopped = threading.Event()
     try:
         errors = await asyncio.to_thread(
-            value_errors, schema, value, format_checker=format_checker, within=CHECK_WITHIN, stopped=stopped
+            value_errors,
+            schema,
+            value,
+            format_checker=format_checker,
+            within=CHECK_WITHIN,
+            stopped=stopped,
+            held=lookup,
         )
     except Unresolvable as error:
         raise SchemaRefused(SCHEMA_REFERENCE_UNRESOLVED, ref=error.ref) from error
@@ -229,8 +263,49 @@ async def schema_codes(session: AsyncSession) -> set[str]:
     return {code for (code,) in rows.all()}
 
 
+async def held_bodies(session: AsyncSession) -> dict[str, JsonMap]:
+    """The body of every schema the instance holds, by code: what a ``$ref`` may reach."""
+    rows = await session.execute(sa.select(Schema.code, Schema.body))
+    return {code: dict(body) for code, body in rows.all()}
+
+
+def reference_closure(codes: Iterable[str], bodies: Mapping[str, JsonMap]) -> tuple[set[str], set[str]]:
+    """The codes reached from ``codes`` through ``$ref``, the starting ones included, and what reaches nothing.
+
+    Answers what is held among them, and every starting code and reference that reaches no
+    schema in ``bodies``, so a caller can pin the first and refuse over the second.
+    """
+    reached: set[str] = set()
+    missing: set[str] = set()
+    waiting = list(codes)
+    while waiting:
+        code = waiting.pop()
+        if code in reached or code in missing:
+            continue
+        body = bodies.get(code)
+        if body is None:
+            missing.add(code)
+            continue
+        reached.add(code)
+        targets, unreached = reference_targets(body, bodies.get)
+        missing |= unreached
+        waiting.extend(targets)
+    return reached, missing
+
+
+async def schema_referrers(session: AsyncSession, code: str) -> list[str]:
+    """Every other stored schema whose ``$ref`` names this code."""
+    bodies = await held_bodies(session)
+    return sorted(
+        other for other, body in bodies.items() if other != code and code in reference_targets(body, bodies.get)[0]
+    )
+
+
 async def schema_users(session: AsyncSession, catalog: Catalog) -> dict[str, list[str]]:
-    """Which stored pipelines name each schema code, by the code they name it under.
+    """Which stored pipelines check against each schema code, by name or through another's ``$ref``.
+
+    A pipeline naming a schema that references another checks against both, so it is a user of
+    each.
 
     Only each pipeline's current version is asked. A past version is history: holding a schema
     back because a version nobody applies any more once named it would make a code undeletable
@@ -244,10 +319,13 @@ async def schema_users(session: AsyncSession, catalog: Catalog) -> dict[str, lis
         .join(PipelineVersion, PipelineVersion.pipeline_id == Pipeline.id)
         .where(PipelineVersion.version == Pipeline.current_version)
     )
+    bodies = await held_bodies(session)
     users: dict[str, set[str]] = {}
     for code, document in (await session.execute(statement)).all():
-        for named in schemas_named(document, catalog):
-            users.setdefault(named, set()).add(code)
+        named = schemas_named(document, catalog)
+        reached, _ = reference_closure(named, bodies)
+        for one in named | reached:
+            users.setdefault(one, set()).add(code)
     return {named: sorted(pipelines) for named, pipelines in users.items()}
 
 
@@ -258,10 +336,17 @@ async def all_schemas(session: AsyncSession) -> list[Schema]:
 
 
 async def delete_schema(session: AsyncSession, code: str) -> bool:
-    """Remove a schema; report whether one was there to remove."""
+    """Remove a schema; report whether one was there to remove.
+
+    Raises:
+        SchemaReferenced: Another stored schema references it with ``$ref``.
+    """
     row = await find_schema(session, code)
     if row is None:
         return False
+    referrers = await schema_referrers(session, code)
+    if referrers:
+        raise SchemaReferenced(code, referrers)
     await session.delete(row)
     await session.flush()
     await audit.record(session, AuditAction.DELETED, AuditSubject.SCHEMA, code=code, subject_id=row.id)

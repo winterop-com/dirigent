@@ -1106,6 +1106,8 @@ const refused = {
             '{field} holds a reference, and its quoting cannot be read past {opener} on line {line}, so where a value lands in it is not known. Close it or write it another way, or pass the value through argv.',
         step_reference_in_sql:
             '{reference} is inside {field}, and a value reaches SQL only as a bound parameter. Write a placeholder such as :name there, and give the reference to params.',
+        schema_reference_unknown:
+            'Schema {schema} references {ref} with $ref, which reaches no schema this instance holds ({held}). A $ref names a held schema by its code, or by its exact $id.',
         step_schema_interpolated:
             '{code} is resolved once the run has started, and a schema is named by its code. A run takes the shapes its document names when it starts, so write the code this step checks against.',
         unsatisfied: 'The document does not satisfy {format}.',
@@ -1225,9 +1227,11 @@ const refused = {
         check_names_one:
             'A value is checked against one schema. Give its code or its body, not both and not neither.',
         in_use: 'Schema {code} cannot be removed while it is named by {users}. Each must stop naming it first.',
+        referenced:
+            'Schema {code} cannot be removed while {referrers} reference it with $ref. Each must stop referencing it first.',
         invalid: 'This is not a valid JSON Schema{at}: {detail}',
         reference_unresolved:
-            "The schema's $ref {ref} is not in the schema itself, and a schema's references are never fetched.",
+            "The schema's $ref {ref} names no schema this instance holds. A $ref reaches the schema itself and the schemas held here by code, and nothing is ever fetched.",
         value_unchecked: 'The value was not checked against the schema within {timeout}.',
         no_code:
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',

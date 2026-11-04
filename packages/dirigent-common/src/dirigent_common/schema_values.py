@@ -32,7 +32,7 @@ from jsonschema.validators import extend as extend_validator  # pyright: ignore[
 from pydantic import JsonValue
 
 from dirigent_common.durations import format_duration
-from dirigent_common.schema_references import LOCAL_REFERENCES
+from dirigent_common.schema_references import LOCAL_REFERENCES, held_references
 
 #: The keyword signature the library calls: validator, the keyword's value, instance, schema.
 type Keyword = Callable[[Any, Any, Any, Any], Any]
@@ -344,17 +344,20 @@ def value_errors(
     format_checker: FormatChecker,
     within: timedelta,
     stopped: threading.Event | None = None,
+    held: Callable[[str], Any | None] | None = None,
 ) -> list[ValidationError]:
     """Every way ``value`` fails ``schema``, earliest path first, as a ``validate.schema`` gate evaluates it.
 
-    A ``$ref`` leads into the schema itself and the bundled drafts and nowhere else, so one that
-    leads anywhere else raises ``Unresolvable`` as the evaluation reaches it.
+    A ``$ref`` leads into the schema itself, the bundled drafts and, where ``held`` is given, the
+    schema it answers for a code; one that leads anywhere else raises ``Unresolvable`` as the
+    evaluation reaches it.
 
     Raises:
         EvaluationOverrun: The evaluation passed ``within``, or ``stopped`` was set.
     """
     built: Callable[..., Any] = cast("Callable[..., Any]", ValueValidator)
-    validator = built(schema, format_checker=format_checker, registry=LOCAL_REFERENCES)
+    registry = LOCAL_REFERENCES if held is None else held_references(held)
+    validator = built(schema, format_checker=format_checker, registry=registry)
     with bounded_evaluation(within, stopped):
         errors = cast("Iterator[ValidationError]", validator.iter_errors(value))
         return sorted(errors, key=_where)

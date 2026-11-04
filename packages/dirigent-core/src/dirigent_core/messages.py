@@ -202,7 +202,8 @@ SCHEMA_CHECK_NAMES_ONE = SCHEMA.define(
 
 SCHEMA_REFERENCE_UNRESOLVED = SCHEMA.define(
     "reference_unresolved",
-    "the schema's $ref {ref} is not in the schema itself, and a schema's references are never fetched",
+    "the schema's $ref {ref} names no schema this instance holds; a $ref reaches the schema "
+    "itself and the schemas held here by code, and nothing is ever fetched",
 )
 
 SCHEMA_VALUE_UNCHECKED = SCHEMA.define(
@@ -213,6 +214,11 @@ SCHEMA_VALUE_UNCHECKED = SCHEMA.define(
 SCHEMA_IN_USE = SCHEMA.define(
     "in_use",
     "schema {code} cannot be removed while it is named by {users}; each must stop naming it first",
+)
+
+SCHEMA_REFERENCED = SCHEMA.define(
+    "referenced",
+    "schema {code} cannot be removed while {referrers} reference it with $ref; each must stop referencing it first",
 )
 
 PARAMETER = Catalogue("parameter")
@@ -389,6 +395,12 @@ STORAGE_SCHEME_MISSING = DOCUMENT.define("storage_scheme_missing", "no storage b
 REQUIRED_SCHEMA_MISSING = DOCUMENT.define(
     "required_schema_missing",
     "no schema coded {code} exists on this instance ({held})",
+)
+
+SCHEMA_REFERENCE_UNKNOWN = DOCUMENT.define(
+    "schema_reference_unknown",
+    "schema {schema} references {ref} with $ref, which reaches no schema this instance holds "
+    "({held}); a $ref names a held schema by its code, or by its exact $id",
 )
 
 STEP_BLOCK_MISSING = DOCUMENT.define(

@@ -13,6 +13,7 @@ from dirigent_common import (
     Duration,
     EvaluationOverrun,
     Issue,
+    JsonMap,
     Unresolvable,
     format_duration,
     value_errors,
@@ -67,10 +68,18 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
         """Validate, then hand the value on; refuse it naming the place it is wrong.
 
         The schema is the body of the named one -- a code no instance holds fails the run at
-        the gate rather than passing the value on. The check runs on a thread and stops at its
+        the gate rather than passing the value on -- and a ``$ref`` in it reaches the other
+        schemas the run pinned by code. The check runs on a thread and stops at its
         ``timeout``, or as soon as the step is cancelled, so it never runs on behind the step.
         """
         schema = ctx.schema(config.json_schema)
+
+        def held(code: str) -> JsonMap | None:
+            try:
+                return ctx.schema(code)
+            except (BlockFailure, LookupError):
+                return None
+
         stopped = threading.Event()
         try:
             errors = await asyncio.to_thread(
@@ -80,6 +89,7 @@ class ValidateSchemaOperator(Operator[ValidateSchemaConfig, ValidateSchemaOutput
                 format_checker=ctx.format_checker(),
                 within=config.timeout,
                 stopped=stopped,
+                held=held,
             )
         except Unresolvable as error:
             raise BlockFailure(SCHEMA_REFERENCE_UNRESOLVED, error_class=ErrorClass.REJECTED, ref=error.ref) from error

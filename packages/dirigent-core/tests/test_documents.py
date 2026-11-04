@@ -762,6 +762,42 @@ def test_a_step_naming_a_schema_no_instance_holds_and_no_document_carries_is_ref
     assert validate_against_catalog(definition, host.catalog(), schemas=["ou-shape"]) == []
 
 
+def test_a_schema_reference_to_a_code_nothing_holds_is_refused_where_the_schema_is_named(
+    host: PluginHost,
+) -> None:
+    """A ``$ref`` is followed from each place the document names a schema, through every one it reaches."""
+    definition = load_text(
+        "format: dirigent/v1\ncode: wrapped\nrequires: {schemas: [wrapper]}\nsteps:\n"
+        "  a: { block: test.echo, config: {value: hi, schema: wrapper} }\n"
+    )
+    held = {"wrapper": {"properties": {"inner": {"$ref": "middle"}}}, "middle": {"$ref": "station-code"}}
+    refused = validate_against_catalog(definition, host.catalog(), schemas=held)
+    assert [(issue.code, issue.location) for issue in refused] == [
+        ("document.schema_reference_unknown", "requires.schemas.0"),
+        ("document.schema_reference_unknown", "steps.a.config.schema"),
+    ]
+    assert "schema 'middle' references 'station-code'" in refused[0].message
+    outward = {"wrapper": {"$ref": "https://example.org/schemas/station-code.json"}, "station-code": {}}
+    assert [issue.code for issue in validate_against_catalog(definition, host.catalog(), schemas=outward)] == [
+        "document.schema_reference_unknown",
+        "document.schema_reference_unknown",
+    ], "an address reaches a held schema only through its exact $id"
+    assert validate_against_catalog(definition, host.catalog(), schemas={**held, "station-code": {}}) == []
+
+
+def test_a_carried_schema_may_reference_a_held_one(host: PluginHost) -> None:
+    definition = load_text(
+        "format: dirigent/v1\ncode: carried-ref\n"
+        "schemas:\n  ou-shape: {properties: {code: {$ref: ou-code}}}\n"
+        "steps:\n  a: { block: test.echo, config: {value: hi, schema: ou-shape} }\n"
+    )
+    assert [issue.location for issue in validate_against_catalog(definition, host.catalog(), schemas={})] == [
+        "steps.a.config.schema",
+        "schemas.ou-shape",
+    ]
+    assert validate_against_catalog(definition, host.catalog(), schemas={"ou-code": {"type": "string"}}) == []
+
+
 def test_a_step_whose_schema_is_a_reference_is_refused_at_apply(host: PluginHost) -> None:
     """A run pins the bodies its document names, and a ``${...}`` names no code until too late."""
     definition = load_text(

@@ -90,7 +90,15 @@ from dirigent_common.redaction import (
     secrets_of,
     spellings,
 )
-from dirigent_common.schema_references import LOCAL_REFERENCES, Unresolvable
+from dirigent_common.schema_references import (
+    LOCAL_REFERENCES,
+    Unresolvable,
+    held_references,
+    held_target,
+    outward_references,
+    reference_targets,
+    schema_code_of,
+)
 from dirigent_common.schema_values import EvaluationOverrun, ValueValidator, bounded_evaluation, value_errors
 from dirigent_common.schemas import BlockModel, CredentialForm, HealthReport, HttpConnectionConfig
 from dirigent_common.sizes import (
@@ -111,6 +119,11 @@ from dirigent_common.versions import API_VERSION
 
 __all__ = [
     "LOCAL_REFERENCES",
+    "held_references",
+    "held_target",
+    "outward_references",
+    "reference_targets",
+    "schema_code_of",
     "REDACTED",
     "BoundedLoader",
     "EvaluationOverrun",
