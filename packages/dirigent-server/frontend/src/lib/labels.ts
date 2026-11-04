@@ -3098,14 +3098,6 @@ const schemas = {
     /** A body the browser could not read as JSON, said where it was typed. */
     unreadable: (error: string) => `The schema is not readable JSON: ${error}`,
 
-    /**
-     * Under the name box: that the name is stored beside the schema rather than read out of it.
-     *
-     * A create reads the schema's own `title`; an update does not, so the two can part company
-     * and the box is what decides which one the screen reads. That is semantics the control
-     * cannot show, which is the only thing a hint is for.
-     */
-    name_hint: 'Stored beside the schema. Editing title in the body does not move it.',
     /** The description box, which is the schema's own `description` as it was stored. */
     description_placeholder: 'What this shape is for. Markdown is rendered.',
     /** Why editing the body is a decision rather than a correction, over the names it reaches. */
@@ -3133,6 +3125,11 @@ const schemas = {
 
     /** Over the name, the description and the pipelines that check against the schema. */
     details_heading: 'Details',
+    /** Where a schema carries no description. */
+    no_description: 'This schema carries no description.',
+    /** What edits the name and the description in Details, and what ends that. */
+    edit_details: 'Edit the name and the description',
+    done_editing: 'Done',
     /** Over the pipelines that check against the schema, each a link to its pipeline. */
     checked_by: 'Checked by',
     /** The toolbar verb that opens the tester, and the tester window's title around the code. */
@@ -3149,10 +3146,10 @@ const schemas = {
         value_label: 'the value to check',
         /** Over what the check found. */
         result_heading: 'Check',
-        /** Puts the schema's own sample in the value editor. */
-        example: 'Start from example',
+        /** Puts a value made from the schema in the value editor: its own examples where it has them. */
+        example: 'Generate an example',
         /** Why that is shut. */
-        no_example: 'This schema declares no examples, default or const to start from.',
+        no_example: 'The schema is not a readable JSON object, so no example can be made from it.',
         /** Why Save is shut while the editor holds what is stored. */
         unchanged: 'The schema is as stored.',
         /** The verdict, as a chip. */

@@ -99,27 +99,176 @@ function canonical(value: unknown): string {
     return JSON.stringify(value)
 }
 
+/** A sample string for each `format` a schema may name; one it does not name is an empty string. */
+const FORMAT_SAMPLES: Readonly<Record<string, string>> = {
+    'date-time': '2026-01-01T12:00:00Z',
+    date: '2026-01-01',
+    time: '12:00:00Z',
+    duration: 'P1D',
+    email: 'someone@example.org',
+    'idn-email': 'someone@example.org',
+    hostname: 'example.org',
+    'idn-hostname': 'example.org',
+    ipv4: '192.0.2.1',
+    ipv6: '2001:db8::1',
+    uri: 'https://example.org/',
+    'uri-reference': 'https://example.org/',
+    iri: 'https://example.org/',
+    'iri-reference': 'https://example.org/',
+    uuid: '00000000-0000-4000-8000-000000000000',
+    'json-pointer': '/a',
+    regex: '.*',
+}
+
 /**
- * A value to start trying from, out of what the schema itself says, or nothing where it says none.
+ * A value to start trying from, made out of the schema itself.
  *
- * The schema's first `examples` entry, else its `default`, else its `const`; an object schema
- * with none of those is the object its properties would make out of theirs.
+ * WHAT THE SCHEMA OFFERS COMES FIRST, at every depth: a subschema's first `examples` entry, else
+ * its `default`, else its `const`. Where it offers none, the value is built from what it asks for:
+ * the first `enum` choice, the first branch of an `anyOf` or `oneOf`, every property of an object,
+ * as many items as `minItems` asks of an array, a number inside its bounds, and a string of its
+ * `format` and at least its `minLength`. A `$ref` into the schema itself is followed. A `pattern`
+ * made of character classes, `\d`, `\w`, literals and counts is matched; any other is left an
+ * empty string for the check to name.
  */
-export function sampleOf(schema: unknown, depth = 0): unknown {
-    if (!isObject(schema) || depth > 8) return undefined
+export function sampleOf(schema: unknown, root: unknown = schema, depth = 0): unknown {
+    if (schema === true) return {}
+    if (!isObject(schema) || depth > 12) return undefined
     if (Array.isArray(schema.examples) && schema.examples.length > 0) return schema.examples[0]
     if ('default' in schema) return schema.default
     if ('const' in schema) return schema.const
-    if (!isObject(schema.properties)) return undefined
-    const made: JsonMap = {}
-    for (const [key, property] of Object.entries(schema.properties)) {
-        const sample = sampleOf(property, depth + 1)
-        if (sample !== undefined) made[key] = sample as JsonMap[string]
+    if (Array.isArray(schema.enum) && schema.enum.length > 0) return schema.enum[0]
+    if (typeof schema.$ref === 'string') return sampleOf(pointed(root, schema.$ref), root, depth + 1)
+    for (const branch of ['allOf', 'anyOf', 'oneOf'] as const) {
+        const branches = schema[branch]
+        if (Array.isArray(branches) && branches.length > 0) {
+            if (branch !== 'allOf') return sampleOf(branches[0], root, depth + 1)
+            return merged(branches.map((one) => sampleOf(one, root, depth + 1)))
+        }
     }
-    return Object.keys(made).length === 0 ? undefined : made
+    const type = Array.isArray(schema.type) ? schema.type.find((one) => one !== 'null') : schema.type
+    if (type === 'object' || (type === undefined && isObject(schema.properties))) {
+        const made: JsonMap = {}
+        const properties = isObject(schema.properties) ? schema.properties : {}
+        for (const [key, property] of Object.entries(properties)) {
+            const sample = sampleOf(property, root, depth + 1)
+            if (sample !== undefined) made[key] = sample as JsonMap[string]
+        }
+        return made
+    }
+    if (type === 'array') {
+        const wanted = typeof schema.minItems === 'number' ? Math.max(1, schema.minItems) : 1
+        const one = Array.isArray(schema.prefixItems)
+            ? undefined
+            : sampleOf(schema.items ?? {}, root, depth + 1)
+        if (Array.isArray(schema.prefixItems)) {
+            return schema.prefixItems.map((item) => sampleOf(item, root, depth + 1) ?? null)
+        }
+        return Array.from({ length: wanted }, () => one ?? null)
+    }
+    if (type === 'integer' || type === 'number') return numberIn(schema, type === 'integer')
+    if (type === 'boolean') return false
+    if (type === 'null') return null
+    if (type === 'string') {
+        const formatted = typeof schema.format === 'string' ? FORMAT_SAMPLES[schema.format] : undefined
+        const patterned = typeof schema.pattern === 'string' ? patternSample(schema.pattern) : undefined
+        const sample = patterned ?? formatted ?? ''
+        const least = typeof schema.minLength === 'number' ? schema.minLength : 0
+        return sample.length >= least ? sample : sample.padEnd(least, 'x')
+    }
+    return undefined
 }
 
-/** The text a value editor starts from: the schema's own sample, or an empty object. */
+/** One character each class a simple pattern may hold stands for. */
+const CLASS_SAMPLES: Readonly<Record<string, string>> = { d: '0', w: 'a', s: ' ' }
+
+/**
+ * A string a simple `pattern` matches, or nothing for one beyond it.
+ *
+ * What it reads is a run of atoms -- a character class (`[A-Z]`, `[a-z0-9_]`), `\d`, `\w`, `.`,
+ * or a literal character -- each with an optional count (`{3}`, `{2,4}`, `+`, `*`, `?`), between
+ * an optional `^` and `$`. An alternation, a group or a lookaround is not read, and nothing is
+ * made.
+ */
+function patternSample(pattern: string): string | undefined {
+    let source = pattern
+    if (source.startsWith('^')) source = source.slice(1)
+    if (source.endsWith('$') && !source.endsWith('\\$')) source = source.slice(0, -1)
+    let made = ''
+    let at = 0
+    while (at < source.length) {
+        let one: string | undefined
+        const here = source.charAt(at)
+        if (here === '[') {
+            const shut = source.indexOf(']', at + 1)
+            if (shut === -1 || source.charAt(at + 1) === '^') return undefined
+            const inside = source.slice(at + 1, shut)
+            one = inside.length >= 3 && inside.charAt(1) === '-' ? inside.charAt(0) : inside.charAt(0)
+            if (one === '\\') one = CLASS_SAMPLES[inside.charAt(1)] ?? inside.charAt(1)
+            at = shut + 1
+        } else if (here === '\\') {
+            const next = source.charAt(at + 1)
+            one = CLASS_SAMPLES[next] ?? next
+            at += 2
+        } else if (here === '.') {
+            one = 'a'
+            at += 1
+        } else if ('()|'.includes(here)) {
+            return undefined
+        } else {
+            one = here
+            at += 1
+        }
+        let times = 1
+        const count = /^\{(\d+)(?:,(\d*))?\}/.exec(source.slice(at))
+        if (count !== null) {
+            times = Number(count[1])
+            at += count[0].length
+        } else if (source.charAt(at) === '+') {
+            at += 1
+        } else if (source.charAt(at) === '*' || source.charAt(at) === '?') {
+            times = 0
+            at += 1
+        }
+        made += one.repeat(times)
+    }
+    return made
+}
+
+/** A number inside a schema's bounds: its minimum where it has one, else zero moved inside them. */
+function numberIn(schema: Record<string, unknown>, whole: boolean): number {
+    const floor = typeof schema.minimum === 'number' ? schema.minimum : undefined
+    const above = typeof schema.exclusiveMinimum === 'number' ? schema.exclusiveMinimum : undefined
+    const ceiling = typeof schema.maximum === 'number' ? schema.maximum : undefined
+    let value = floor ?? (above === undefined ? 0 : above + (whole ? 1 : 0.5))
+    if (ceiling !== undefined && value > ceiling) value = ceiling
+    if (floor === undefined && above === undefined && ceiling !== undefined && ceiling < 0) value = ceiling
+    return whole ? Math.ceil(value) : value
+}
+
+/** The subschema a `$ref` into the schema itself points at, or nothing for one that leaves it. */
+function pointed(root: unknown, ref: string): unknown {
+    if (!ref.startsWith('#')) return undefined
+    let at: unknown = root
+    for (const part of ref
+        .slice(1)
+        .split('/')
+        .filter((one) => one !== '')) {
+        const key = decodeURIComponent(part).replaceAll('~1', '/').replaceAll('~0', '~')
+        if (!isObject(at)) return undefined
+        at = at[key]
+    }
+    return at
+}
+
+/** What several `allOf` branches make together: their objects merged, else the first value. */
+function merged(samples: readonly unknown[]): unknown {
+    const objects = samples.filter(isObject)
+    if (objects.length > 0) return Object.assign({}, ...objects) as unknown
+    return samples.find((one) => one !== undefined)
+}
+
+/** The text a value editor starts from: a sample made from the schema, or an empty object. */
 export function sampleText(schema: unknown): string {
     return JSON.stringify(sampleOf(schema) ?? {}, null, 2)
 }

@@ -128,7 +128,9 @@ test('a stored schema is relabelled on its page', async ({ page }) => {
     await expect(save).toBeDisabled()
 
     // The name is a display title with no identity, so it is a box in Details; the code is the heading.
-    await (await details(page)).getByLabel(LABELS.word.name.label).fill('Org unit, corrected')
+    const panel = await details(page)
+    await panel.getByRole('button', { name: LABELS.schemas.edit_details }).click()
+    await panel.getByLabel(LABELS.word.name.label).fill('Org unit, corrected')
     await save.click()
     await expect(page.getByRole('heading', { level: 1, name: 'Org unit, corrected' })).toBeVisible()
     await expect(save).toBeDisabled()

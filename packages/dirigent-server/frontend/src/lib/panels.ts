@@ -237,7 +237,7 @@ export function fillPanel(tabs: readonly PanelTab[], owner?: PanelOwner): () => 
         // last screen raised comes down rather than being carried across.
         if (!visitOpenPending) {
             panelSheet.set(false)
-            panelOpen.set(preferredOpen)
+            panelOpen.set(owner.shut === true ? false : preferredOpen)
         }
     }
     if (owner !== undefined) visitOpenPending = false
@@ -259,6 +259,8 @@ export interface PanelOwner {
     screen: string
     /** The tab this screen starts on; the first tab when unsaid. */
     open?: string
+    /** A screen whose panel is reference beside the work starts with it shut, whatever was preferred. */
+    shut?: boolean
 }
 
 let lastScreen: string | null = null

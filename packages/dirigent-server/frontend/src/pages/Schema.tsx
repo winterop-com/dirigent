@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router'
 
 import { Chip } from '@/components/ds/Chip'
 import { Code } from '@/components/ds/Code'
+import { Description } from '@/components/Description'
+import { Section } from '@/components/run/Panel'
 import { CodeFrame } from '@/components/ds/CodeFrame'
 import { FormField } from '@/components/ds/FormField'
 import { Notice } from '@/components/ds/Notice'
@@ -212,6 +214,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
         () =>
             fillPanel([{ id: 'details', label: LABELS.schemas.details_heading, render: () => details }], {
                 screen: `schema:${schema.code}`,
+                shut: true,
             }),
         [details, schema.code],
     )
@@ -330,7 +333,13 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
     )
 }
 
-/** The right panel's Details: the name, the description, and who checks against the shape. */
+/**
+ * The right panel's Details: what the schema is called and for, and who checks against it.
+ *
+ * IT READS LIKE A PIPELINE'S PANE, and is a form only when asked to be. The name and code are the
+ * page's heading, so the pane opens on the rendered description; `Edit` turns the name and the
+ * description into boxes, and the page's Save sends them with the body.
+ */
 function Details({
     named,
     description,
@@ -346,30 +355,59 @@ function Details({
     onNamed: (text: string) => void
     onDescription: (text: string) => void
 }) {
+    const [editing, setEditing] = useState(false)
+    const toggle = (
+        <Button
+            variant={editing ? 'outline' : 'ghost'}
+            size="sm"
+            className="shrink-0"
+            aria-label={editing ? undefined : LABELS.schemas.edit_details}
+            title={editing ? undefined : LABELS.schemas.edit_details}
+            onClick={() => {
+                setEditing(!editing)
+            }}
+        >
+            {editing ? LABELS.schemas.done_editing : LABELS.action.edit}
+        </Button>
+    )
     return (
-        <div className="space-y-4 p-4">
-            <FormField id="schema-name" label={LABELS.word.name.label} help={LABELS.schemas.name_hint}>
-                <Input
-                    id="schema-name"
-                    value={named}
-                    disabled={!mayWrite}
-                    onChange={(event) => {
-                        onNamed(event.target.value)
-                    }}
-                />
-            </FormField>
-            <FormField id="schema-description" label={LABELS.word.description}>
-                <Textarea
-                    id="schema-description"
-                    className="max-h-80 min-h-28"
-                    value={description}
-                    placeholder={LABELS.schemas.description_placeholder}
-                    disabled={!mayWrite}
-                    onChange={(event) => {
-                        onDescription(event.target.value)
-                    }}
-                />
-            </FormField>
+        <div className="flex flex-col gap-4 p-4">
+            {editing ? (
+                <>
+                    <FormField id="schema-name" label={LABELS.word.name.label}>
+                        <Input
+                            id="schema-name"
+                            value={named}
+                            onChange={(event) => {
+                                onNamed(event.target.value)
+                            }}
+                        />
+                    </FormField>
+                    <FormField id="schema-description" label={LABELS.word.description}>
+                        <Textarea
+                            id="schema-description"
+                            className="max-h-80 min-h-28"
+                            value={description}
+                            placeholder={LABELS.schemas.description_placeholder}
+                            onChange={(event) => {
+                                onDescription(event.target.value)
+                            }}
+                        />
+                    </FormField>
+                    <div className="flex justify-end">{toggle}</div>
+                </>
+            ) : (
+                <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                        {description.trim() === '' ? (
+                            <p className="text-sm text-muted-foreground">{LABELS.schemas.no_description}</p>
+                        ) : (
+                            <Description text={description} />
+                        )}
+                    </div>
+                    {mayWrite && toggle}
+                </div>
+            )}
             <CheckedBy codes={usedBy} />
         </div>
     )
@@ -379,9 +417,11 @@ function Details({
 function CheckedBy({ codes }: { codes: readonly string[] }) {
     if (codes.length === 0) return null
     return (
-        <div className="space-y-1.5">
-            <p className="text-sm font-medium">{LABELS.schemas.checked_by}</p>
-            <ul className="space-y-1">
+        <Section title={LABELS.schemas.checked_by}>
+            <ul
+                className="space-y-1"
+                title={`${LABELS.schemas.body_warning} ${LABELS.schemas.body_in_flight}`}
+            >
                 {codes.map((code) => (
                     <li key={code}>
                         <Link to={`/pipelines/${encodeURIComponent(code)}`} className="hover:underline">
@@ -390,10 +430,7 @@ function CheckedBy({ codes }: { codes: readonly string[] }) {
                     </li>
                 ))}
             </ul>
-            <p className="text-xs text-muted-foreground">
-                {LABELS.schemas.body_warning} {LABELS.schemas.body_in_flight}
-            </p>
-        </div>
+        </Section>
     )
 }
 

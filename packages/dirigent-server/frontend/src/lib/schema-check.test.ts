@@ -116,15 +116,44 @@ describe('the value a tester starts from', () => {
         expect(sampleOf({ const: 4 })).toBe(4)
     })
 
-    test('is made of what the properties offer where the schema offers nothing itself', () => {
+    test('is built from what the schema asks for where it offers no example', () => {
         const schema = {
-            properties: { id: { examples: ['ou-1'] }, level: { default: 2 }, name: { type: 'string' } },
+            type: 'object',
+            $defs: { unit: { type: 'string', enum: ['kg', 'g'] } },
+            properties: {
+                id: { examples: ['ou-1'] },
+                level: { type: 'integer', minimum: 2 },
+                weight: { type: 'number', exclusiveMinimum: 0, maximum: 10 },
+                unit: { $ref: '#/$defs/unit' },
+                seen: { type: 'string', format: 'date-time' },
+                code: { type: 'string', minLength: 3 },
+                tags: { type: 'array', items: { type: 'string' }, minItems: 2 },
+                active: { type: 'boolean' },
+                either: { anyOf: [{ type: 'null' }, { type: 'string' }] },
+            },
         }
-        expect(sampleOf(schema)).toEqual({ id: 'ou-1', level: 2 })
+        expect(sampleOf(schema)).toEqual({
+            id: 'ou-1',
+            level: 2,
+            weight: 0.5,
+            unit: 'kg',
+            seen: '2026-01-01T12:00:00Z',
+            code: 'xxx',
+            tags: ['', ''],
+            active: false,
+            either: null,
+        })
     })
 
-    test('is an empty object where nothing is offered', () => {
-        expect(sampleOf({ type: 'object' })).toBeUndefined()
+    test('matches a simple pattern, and leaves one beyond it empty', () => {
+        expect(sampleOf({ type: 'string', pattern: '^[A-Z]{3}[0-9]{2}$' })).toBe('AAA00')
+        expect(sampleOf({ type: 'string', pattern: '^OU-\\d+$' })).toBe('OU-0')
+        expect(sampleOf({ type: 'string', pattern: '^[a-z][a-z0-9-]{0,10}$' })).toBe('a')
+        expect(sampleOf({ type: 'string', pattern: '^(a|b)$' })).toBe('')
+    })
+
+    test('is an empty object for an object schema with no properties', () => {
+        expect(sampleOf({ type: 'object' })).toEqual({})
         expect(sampleText({ type: 'object' })).toBe('{}')
     })
 })
