@@ -991,10 +991,10 @@ never repeated: the box above the row already holds it.
 `application/schema+json` is what asks for it: a buffer holding a schema document is checked
 against JSON Schema 2020-12, the draft the server validates with, so its keywords complete as
 they are typed and a value the draft does not take is marked where it was written. Two buffers
-hold one -- the dialog a schema is written in, and the panel a stored one is corrected in -- so a
-shape is fixed in the editor it was authored in rather than read in one place and rewritten in
-another. What that panel may change is what `SchemaUpdate` carries: the name, the description and
-the body. The `code` is the heading and never a box, because the route addresses the schema by it
+hold one -- the dialog a schema is written in, and the schema's own page at `/schemas/<code>`,
+where a stored one is corrected beside a value it is tried against -- so a shape is fixed in the
+editor it was authored in rather than read in one place and rewritten in another. What that page
+may change is what `SchemaUpdate` carries: the name, the description and the body. The `code` is the heading and never a box, because the route addresses the schema by it
 and every `validate.schema` step and `requires.schemas` entry names it.
 
 **The label is the key.** What is being edited is a document, and the word an author writes in it

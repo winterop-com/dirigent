@@ -370,7 +370,7 @@ function UpdateSchema({
                     <p className="text-xs text-muted-foreground">
                         {counted(item.usedBy.length, words.update_used_by)(item.usedBy.join(', '))}
                     </p>
-                    {/* The Schemas panel's own sentence, drawn rather than said twice: one fact
+                    {/* The schema page's own sentence, drawn rather than said twice: one fact
                         lives in one label wherever it is read. */}
                     <p className="text-xs text-muted-foreground">{LABELS.schemas.body_in_flight}</p>
                 </>

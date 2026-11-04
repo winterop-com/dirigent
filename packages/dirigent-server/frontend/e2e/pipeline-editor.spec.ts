@@ -1419,7 +1419,9 @@ test('a field naming a schema the instance holds opens it, and links to its scre
     // AND THE THING HAS A SCREEN OF ITS OWN, at an address that can be sent.
     await panel.getByRole('link', { name: LABELS.editor.reference_row.open_schema }).click()
     await expect(page).toHaveURL(new RegExp(`/schemas/${REFERENCE_SCHEMA}$`))
-    await expect(page.locator('aside').getByText('properties', { exact: false })).toBeVisible()
+    await expect(
+        page.getByRole('main').getByTestId('code-editor').first().locator('.view-lines'),
+    ).toContainText('properties')
 })
 
 test('a field naming a connection reads its kind and where its last check left it', async ({

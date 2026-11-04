@@ -14,6 +14,30 @@
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
 import { counted, LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
+import { createStore } from '@/lib/store'
+
+/**
+ * The schema text typed and not yet saved, by code, for as long as the tab is open.
+ *
+ * The panel and the screen a value is tried on edit the same schema, and moving between them is
+ * not a reason to lose what was typed: each opens on the draft where there is one.
+ */
+export const schemaDrafts = createStore<Readonly<Record<string, string>>>({})
+
+/** The text a schema editor opens on: the draft where one is held, else the stored body. */
+export function draftOf(code: string, stored: string): string {
+    return schemaDrafts.get()[code] ?? stored
+}
+
+/** Hold what an editor now says, or let the draft go where it says what is stored. */
+export function holdDraft(code: string, text: string, stored: string): void {
+    schemaDrafts.update((drafts) => {
+        if (text !== stored) return drafts[code] === text ? drafts : { ...drafts, [code]: text }
+        if (!(code in drafts)) return drafts
+        const { [code]: _spent, ...rest } = drafts
+        return rest
+    })
+}
 
 /** A schema as every response shows it: the identity quartet and the schema body. `SchemaOut`. */
 export interface SchemaOut {

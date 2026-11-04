@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
-import { createSchema } from '@/lib/schemas'
+import { createSchema, type SchemaOut } from '@/lib/schemas'
 
 const PLACEHOLDER = `{
   "$id": "org-unit",
@@ -56,7 +56,7 @@ export function NewSchema({
 }: {
     open: boolean
     onOpenChange: (open: boolean) => void
-    onCreated: () => void
+    onCreated: (row: SchemaOut) => void
 }) {
     const [text, setText] = useState('')
     const [code, setCode] = useState('')
@@ -74,11 +74,11 @@ export function NewSchema({
         }
         setSaving(true)
         void createSchema(body, code.trim() || null)
-            .then(() => {
+            .then((row) => {
                 setText('')
                 setCode('')
                 onOpenChange(false)
-                onCreated()
+                onCreated(row)
             })
             .catch((error: unknown) => {
                 setProblem(refusalOf(error))
