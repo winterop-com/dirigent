@@ -22,6 +22,10 @@ export const COPY_RUN_LABEL = LABELS.runs.copy_run_id
  * reading "not windowed" or "not traced" on every one of them would be a column of nothing. Each
  * row appears only where there is something to read in it.
  *
+ * A FAILURE IS SAID ONCE. A run that failed or completed with errors has the screen's failure card
+ * beside this pane, naming the step and what it said, so the pane carries only a reason the card
+ * does not: a cancellation's.
+ *
  * AND IT IS THE ONE INSTANT HERE READ EXACTLY. Created, started and finished are read by how
  * recent they are; a window is what a step filtered its query on, so it reads as the two
  * instants themselves, with the pair as the wire wrote them on hover.
@@ -29,6 +33,7 @@ export const COPY_RUN_LABEL = LABELS.runs.copy_run_id
 export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly AttemptOut[] }) {
     const params = Object.entries(run.params)
     const started = startedAs(run)
+    const troubled = run.status === 'failed' || run.status === 'completed_with_errors'
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
@@ -38,7 +43,9 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                 </span>
             </div>
 
-            {run.error !== null && <p className="text-xs break-words text-critical">{run.error}</p>}
+            {run.error !== null && !troubled && (
+                <p className="text-xs break-words text-critical">{run.error}</p>
+            )}
 
             <Section title={LABELS.word.trigger.label}>
                 <p className="text-xs">
