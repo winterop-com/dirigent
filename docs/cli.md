@@ -1101,6 +1101,7 @@ verb and whose fields are the identity of what changed:
 | `schema.created` | `dg schema create` | `code`, `name` |
 | `schema.updated` | `dg schema update` | `code`, `name` as it now stands, `changed[]` naming which of `name`, `description` and `body` the request said anything about, and `used_by[]`, the stored pipelines that validate against the shape from their next attempt |
 | `schema.deleted` | `dg schema delete` | `code` |
+| `schema.checked` | `dg schema check` | `code`, `valid`, `errors[]` -- one per place the value fails, earliest first, each with `at` (a JSON Pointer into the value, empty for the value itself), the `keyword` that refused it, `schema_at` (the way through the schema to that keyword) and the `message` -- and `omitted`, how many failures past the hundred listed; an invalid value is at `error` level and exits 1 |
 | `trigger_document.deleted` | `dg trigger-document delete` | `code`, and that its `schedules` went with it |
 | `token.revoked` | `dg admin token revoke` | `id` |
 | `token.issued` | `dg auth login`, `dg admin token create` | `username`, the token's `name`, and the `token` itself, once; a login adds the `url`, a mint the `id`, the `prefix` and its `expires_at` |
@@ -1293,6 +1294,7 @@ dg pipeline new STARTER [--code X] [--dir DIR] [--local]   # copy a starter into
 dg schema list | show CODE | delete CODE
 dg schema create FILE|- [--code CODE] [--name TEXT] [--description TEXT]
 dg schema update CODE [FILE|-] [--name TEXT] [--description TEXT]   # a label given empty is cleared
+dg schema check CODE [FILE|-]                     # where a JSON or YAML value fails the stored schema
 
 # Connect
 dg connection list | show CODE | check CODE | delete CODE

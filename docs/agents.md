@@ -218,6 +218,7 @@ text that is not a document, and the file is not opened.
 | `list_connection_kinds`, `get_connection_kind` | The connection kinds the instance holds, each one's required, secret and plain fields and its credential forms; `get_connection_kind` reads one field by field, with its type, default and credential form |
 | `create_connection` | Create a connection with its settings alone, awaiting the secrets an admin supplies, and answer which they are and the `dg connection set-secret` command that sets them, at a terminal or piped with `--stdin` (operator or admin) |
 | `list_schemas`, `get_schema` | The named JSON Schemas a document can reference |
+| `check_schema` | Check a value against a named schema, or against a schema body that is not stored, the way a `validate.schema` step would: every failure, with a JSON Pointer into the value, the keyword that refused it and why |
 | `create_schema`, `update_schema`, `delete_schema` | Store, rewrite or remove a named schema (admin only); one a pipeline references is not removed |
 | `list_audit` | Who changed what: every administrative change, newest first, with the fields an update changed and never a value (admin only, and offered to an admin token alone) |
 | `list_alert_rules`, `get_alert_rule` | What alerts on what, and where it sends |

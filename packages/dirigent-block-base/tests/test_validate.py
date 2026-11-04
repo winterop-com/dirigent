@@ -384,15 +384,15 @@ async def test_a_cancelled_step_stops_its_check_at_the_next_keyword(
         release.wait(10)
         return True
 
-    evaluate = validate._earliest_error  # pyright: ignore[reportPrivateUsage]
+    evaluate = validate.value_errors
 
-    def observed(*arguments: Any) -> Any:
+    def observed(*arguments: Any, **named: Any) -> Any:
         try:
-            return evaluate(*arguments)
+            return evaluate(*arguments, **named)
         finally:
             finished.set()
 
-    monkeypatch.setattr(validate, "_earliest_error", observed)
+    monkeypatch.setattr(validate, "value_errors", observed)
     ctx.formats["held"] = held
     ctx.schemas["slow"] = {"items": {"format": "held"}}
     task = asyncio.ensure_future(

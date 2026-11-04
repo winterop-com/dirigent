@@ -709,6 +709,34 @@ def test_a_changed_schema_nothing_depends_on_draws_nothing_beneath_its_line() ->
     assert "lonely" in printed(Console().render(edited))
 
 
+def test_a_checked_value_draws_where_it_fails_beneath_a_line_naming_the_schema() -> None:
+    checked = make(
+        "schema.checked",
+        at=AT,
+        level="error",
+        message="invalid",
+        code="reading",
+        valid=False,
+        errors=[
+            {"at": "", "keyword": "required", "schema_at": "/required", "message": "'id' is a required property"},
+            {"at": "/age", "keyword": "minimum", "schema_at": "/properties/age/minimum", "message": "-1 is less"},
+        ],
+        omitted=3,
+    )
+    drawn = printed(Console().render(checked))
+    line, beneath = drawn.splitlines()[0], "\n".join(drawn.splitlines()[1:])
+    assert "code=reading" in line
+    assert "errors" not in line
+    assert "/age" in beneath
+    assert "minimum" in beneath
+    assert "and 3 more" in beneath
+
+
+def test_a_value_that_fits_draws_nothing_beneath_its_line() -> None:
+    fits = make("schema.checked", at=AT, message="valid", code="reading", valid=True, errors=[], omitted=0)
+    assert summaries.beneath(fits) is None
+
+
 def test_a_source_reads_as_its_state_its_step_and_what_it_has_taken() -> None:
     listed = make(
         "source",

@@ -17,18 +17,22 @@ view.
 """
 
 from collections.abc import Sequence
+from typing import cast
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AuditAction, AuditSubject
-from dirigent_client.schemas import Page, SchemaIn, SchemaOut, SchemaUpdate
+from dirigent_client.schemas import CheckSchemaRequest, Page, SchemaCheck, SchemaIn, SchemaOut, SchemaUpdate
 from dirigent_core import audit
+from dirigent_core.messages import SCHEMA_CHECK_NAMES_ONE
 from dirigent_core.models import Schema
 from dirigent_core.schemas import (
     SchemaInUse,
+    SchemaRefused,
     check_valid_schema,
+    check_value,
     record_schema_update,
     resolve_identity,
     schema_fields,
@@ -109,6 +113,30 @@ async def create_schema(
     await audit.record(session, AuditAction.CREATED, AuditSubject.SCHEMA, code=row.code, subject_id=row.id)
     users = await schema_users(session, services.host.catalog())
     return render(row, users.get(row.code, ()))
+
+
+@router.post(
+    "/schemas/$check",
+    operation_id="checkSchema",
+    summary="Check a value against a schema",
+    response_model=SchemaCheck,
+)
+async def check_schema(
+    payload: CheckSchemaRequest, session: SessionDep, services: ServicesDep, principal: PrincipalDep
+) -> SchemaCheck:
+    """Check a value against a stored schema or an unsaved body, the way a ``validate.schema`` step would.
+
+    Nothing is written. A body is checked to be a valid JSON Schema first, as storing it would
+    be, and every failure of the value is answered rather than the first a step stops at.
+    """
+    if (payload.code is None) == (payload.body is None):
+        raise SchemaRefused(SCHEMA_CHECK_NAMES_ONE)
+    if payload.body is not None:
+        check_valid_schema(payload.body)
+        schema = payload.body
+    else:
+        schema = (await find(session, cast("str", payload.code))).body
+    return await check_value(schema, payload.value, services.format_checker)
 
 
 @router.get("/schemas/{code}", operation_id="getSchema", summary="Read a schema", response_model=SchemaOut)

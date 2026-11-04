@@ -195,6 +195,21 @@ SCHEMA_NO_CODE = SCHEMA.define(
 
 SCHEMA_INVALID = SCHEMA.define("invalid", "this is not a valid JSON Schema{at}: {detail}")
 
+SCHEMA_CHECK_NAMES_ONE = SCHEMA.define(
+    "check_names_one",
+    "a value is checked against one schema: give its code or its body, not both and not neither",
+)
+
+SCHEMA_REFERENCE_UNRESOLVED = SCHEMA.define(
+    "reference_unresolved",
+    "the schema's $ref {ref} is not in the schema itself, and a schema's references are never fetched",
+)
+
+SCHEMA_VALUE_UNCHECKED = SCHEMA.define(
+    "value_unchecked",
+    "the value was not checked against the schema within {timeout}",
+)
+
 SCHEMA_IN_USE = SCHEMA.define(
     "in_use",
     "schema {code} cannot be removed while it is named by {users}; each must stop naming it first",

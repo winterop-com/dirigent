@@ -11,25 +11,37 @@ The draft is JSON Schema 2020-12, the one every other validity check in this eng
 A schema is checked to be a valid schema of that draft before it is stored.
 """
 
+import asyncio
 import re
-from collections.abc import Sequence
+import threading
+from collections.abc import Iterable, Sequence
+from datetime import timedelta
+from typing import Final
 from uuid import UUID
 
 import sqlalchemy as sa
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from jsonschema.exceptions import SchemaError
+from pydantic import JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AuditAction, AuditSubject
-from dirigent_client.schemas import Catalog
-from dirigent_common import Issue, JsonMap
+from dirigent_client.schemas import Catalog, SchemaCheck, SchemaViolation
+from dirigent_common import EvaluationOverrun, Issue, JsonMap, Unresolvable, format_duration, value_errors
 from dirigent_common.messages import TEXT_UNSTORABLE
 from dirigent_common.storable import is_storable
 from dirigent_core import audit
 from dirigent_core.engine.definition import schemas_named
 from dirigent_core.errors import DomainError
-from dirigent_core.messages import SCHEMA_IN_USE, SCHEMA_INVALID, SCHEMA_NO_CODE
+from dirigent_core.messages import (
+    SCHEMA_IN_USE,
+    SCHEMA_INVALID,
+    SCHEMA_NO_CODE,
+    SCHEMA_REFERENCE_UNRESOLVED,
+    SCHEMA_VALUE_UNCHECKED,
+)
 from dirigent_core.models import Pipeline, PipelineVersion, Schema
+from dirigent_core.schemaerrors import describe
 
 #: The code a schema is given when it names none: a slug drawn from ``$id`` or a filename.
 _CODE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$")
@@ -116,6 +128,50 @@ def check_valid_schema(body: JsonMap) -> None:
         where = "/".join(str(part) for part in error.absolute_path)
         at = f" at {where}" if where else ""
         raise SchemaRefused(SCHEMA_INVALID, at=at, detail=error.message) from error
+
+
+#: How long checking one value may take, which is a ``validate.schema`` step's own default.
+CHECK_WITHIN: Final = timedelta(seconds=10)
+
+#: How many failures one check lists; the rest are counted.
+MAX_VIOLATIONS: Final = 100
+
+
+async def check_value(schema: JsonMap, value: JsonValue, format_checker: FormatChecker) -> SchemaCheck:
+    """Check a value against a schema with the evaluation a ``validate.schema`` step makes, naming every failure.
+
+    The schema is not checked here: a stored one was checked when it was stored, and a body is
+    checked by the caller first. A ``$ref`` is followed inside the schema and nowhere else,
+    which is what a run does, so one naming another stored schema is refused as a run would.
+    """
+    stopped = threading.Event()
+    try:
+        errors = await asyncio.to_thread(
+            value_errors, schema, value, format_checker=format_checker, within=CHECK_WITHIN, stopped=stopped
+        )
+    except Unresolvable as error:
+        raise SchemaRefused(SCHEMA_REFERENCE_UNRESOLVED, ref=error.ref) from error
+    except EvaluationOverrun as error:
+        raise SchemaRefused(SCHEMA_VALUE_UNCHECKED, timeout=format_duration(error.within)) from error
+    finally:
+        stopped.set()
+    listed = [_violation(error) for error in errors[:MAX_VIOLATIONS]]
+    return SchemaCheck(valid=not errors, errors=listed, omitted=max(len(errors) - MAX_VIOLATIONS, 0))
+
+
+def _violation(error: ValidationError) -> SchemaViolation:
+    """One failure as the wire carries it, said in the words a refused value is said in."""
+    return SchemaViolation(
+        at=_pointer(error.absolute_path),
+        keyword=str(error.validator),
+        schema_at=_pointer(error.absolute_schema_path),
+        message=describe(error),
+    )
+
+
+def _pointer(parts: Iterable[object]) -> str:
+    """Write a path as a JSON Pointer, escaping ``~`` and ``/`` in each part."""
+    return "".join("/" + str(part).replace("~", "~0").replace("/", "~1") for part in parts)
 
 
 async def find_schema(session: AsyncSession, code: str) -> Schema | None:

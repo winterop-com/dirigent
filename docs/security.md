@@ -326,9 +326,10 @@ may, and an operator everything a viewer may.
 
 - A **viewer** may read. Every `GET`, the run event stream, a pipeline export and a run report,
   and the two routes that act on the caller's own credential: `POST /api/v1/auth/logout` and
-  `POST /api/v1/auth/password`. `POST /api/v1/pipelines/{code}/$validate` and
-  `POST /api/v1/schedules/$preview` are reads as well -- they report what a stored version would
-  fail on and when a clock would fire, and write nothing. Anything else that writes
+  `POST /api/v1/auth/password`. `POST /api/v1/pipelines/{code}/$validate`,
+  `POST /api/v1/schedules/$preview` and `POST /api/v1/schemas/$check` are reads as well -- they
+  report what a stored version would fail on, when a clock would fire and where a value fails a
+  schema, and write nothing. Anything else that writes
   is a `403`.
 - An **operator** may in addition change pipelines and runs: apply, prune, activate, deactivate,
   run, backfill, cancel, retry, every schedule and source operation, deleting a triggers

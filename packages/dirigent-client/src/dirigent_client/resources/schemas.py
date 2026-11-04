@@ -1,7 +1,9 @@
 """Schemas: named JSON Schemas an instance holds, addressable by code and referenced by name."""
 
+from pydantic import JsonValue
+
 from dirigent_client.resources.base import CLEAR, Clear, Resource, edit_body, query, request_body, segment
-from dirigent_client.schemas import Page, SchemaIn, SchemaOut, SchemaUpdate
+from dirigent_client.schemas import CheckSchemaRequest, Page, SchemaCheck, SchemaIn, SchemaOut, SchemaUpdate
 from dirigent_common import JsonMap
 
 
@@ -63,3 +65,11 @@ class Schemas(Resource):
     async def delete(self, code: str) -> None:
         """Remove a schema."""
         await self._transport.request("DELETE", f"/schemas/{segment(code)}")
+
+    async def check(self, value: JsonValue, *, code: str | None = None, body: JsonMap | None = None) -> SchemaCheck:
+        """Check a value against a stored schema by its code, or against a body that is not stored.
+
+        Give exactly one of ``code`` and ``body``. Nothing is written either way.
+        """
+        payload = CheckSchemaRequest(value=value, code=code, body=body)
+        return await self._one(SchemaCheck, "POST", "/schemas/$check", json=request_body(payload))

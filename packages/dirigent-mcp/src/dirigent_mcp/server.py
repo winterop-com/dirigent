@@ -29,7 +29,7 @@ from mcp.server import MCPServer
 from mcp.server.context import CallNext, HandlerResult, ServerRequestContext
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError
 from mcp.types import ToolAnnotations
-from pydantic import TypeAdapter
+from pydantic import JsonValue, TypeAdapter
 from starlette.requests import Request
 
 from dirigent_client import (
@@ -750,6 +750,16 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
     async def get_schema(code: str) -> Any:
         """Read one named JSON Schema, the schema itself included."""
         return await call(lambda dg: dg.schemas.get(code))
+
+    @tool(READS)
+    async def check_schema(value: JsonValue, code: str | None = None, body: JsonMap | None = None) -> Any:
+        """Check a value against a named JSON Schema by `code`, or against a schema `body` that is not stored.
+
+        Give exactly one of the two. The check is the one a `validate.schema` step makes, and the
+        answer lists every failure: `at` is a JSON Pointer into the value, `keyword` and `schema_at`
+        say what in the schema refused it. Nothing is written.
+        """
+        return await call(lambda dg: dg.schemas.check(value, code=code, body=body))
 
     @tool(CREATES, needs=Offers.ADMINISTERING)
     async def create_schema(

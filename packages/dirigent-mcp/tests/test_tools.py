@@ -320,6 +320,19 @@ async def test_a_schema_is_listed_and_read(operator: MCPServer, clients: dict[Us
     assert (await call(operator, "get_schema", code="reading"))["body"]["properties"] == body["properties"]
 
 
+async def test_a_value_is_checked_against_a_stored_schema_or_an_unsaved_one(
+    operator: MCPServer, clients: dict[UserRole, Dirigent]
+) -> None:
+    body = {"type": "object", "properties": {"station": {"type": "string"}}}
+    await clients[UserRole.ADMIN].schemas.create(body, code="reading")
+
+    refused = await call(operator, "check_schema", code="reading", value={"station": 7})
+    assert (refused["valid"], [one["at"] for one in refused["errors"]]) == (False, ["/station"])
+    assert (await call(operator, "check_schema", body={"type": "object"}, value={"station": 7}))["valid"] is True
+    with pytest.raises(ToolError, match=r"\[schema.check_names_one\]"):
+        await operator.call_tool("check_schema", {"value": {}})
+
+
 async def test_an_alert_rule_is_listed_and_read(operator: MCPServer, clients: dict[UserRole, Dirigent]) -> None:
     await clients[UserRole.ADMIN].alerts.create_rule("on-failure", event=AlertEvent.RUN_FAILED, throttle="15m")
 
@@ -437,6 +450,7 @@ READING_TOOLS = {
     "get_attempt_output",
     "list_schedule_firings",
     "list_alert_deliveries",
+    "check_schema",
 }
 
 

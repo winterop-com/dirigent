@@ -1125,6 +1125,7 @@ GET           /api/v1/blocks                 # catalog: operators, sensors, sche
 GET           /api/v1/blocks/{id}            # one block's published schemas
 GET           /api/v1/connection-kinds       # every connection kind's fields; + /{kind}
 GET/POST      /api/v1/schemas                # named JSON Schemas; + /{code}, PATCH, DELETE
+POST          /api/v1/schemas/$check         # where a value fails a stored or an unsaved schema
 GET           /api/v1/examples               # the installed corpus; filters: tag, shelf, plugin, starter
 GET           /api/v1/examples/{code}        # one document, with its source text
 GET           /api/v1/schema/document        # dirigent/v1 composed with this catalog's configs

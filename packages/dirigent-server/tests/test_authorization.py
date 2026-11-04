@@ -72,14 +72,15 @@ VIEWER_ALLOWED = [
 ]
 
 #: Unsafe-method routes that stay open to a viewer: two act on the caller's own credential, one
-#: hands one out, one reports what a stored version would fail on, and one is arithmetic over a
-#: clock in the body. None of them writes anything.
+#: hands one out, one reports what a stored version would fail on, one is arithmetic over a
+#: clock in the body, and one checks a value against a schema. None of them writes anything.
 READ_SHAPED_WRITES = {
     "/auth/login",
     "/auth/logout",
     "/auth/password",
     "/pipelines/{code}/$validate",
     "/schedules/$preview",
+    "/schemas/$check",
 }
 
 

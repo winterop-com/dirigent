@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import Field
+from pydantic import Field, JsonValue
 
 from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_common import EntityName, JsonMap
@@ -58,3 +58,45 @@ class SchemaOut(WireModel):
     A reader deciding whether to change a shape is deciding for these pipelines, so every
     response carries them rather than leaving a surface to ask a second time. Empty means
     nothing stored names it, and editing or removing it is nobody else's business."""
+
+
+class CheckSchemaRequest(RequestModel):
+    """A value, and the schema to check it against: a stored one by its code, or a body not yet stored.
+
+    Exactly one of ``code`` and ``body`` is given. A body is what an editor holds before it is
+    saved, and is checked to be a valid JSON Schema before the value is checked against it.
+    """
+
+    value: JsonValue
+    """The value to check. An explicit null is a value like any other and is checked as one."""
+
+    code: str | None = None
+    body: JsonMap | None = None
+
+
+class SchemaViolation(WireModel):
+    """One way a value fails a schema: where in the value, which keyword refused it, and why."""
+
+    at: str
+    """A JSON Pointer into the value, empty for the value itself."""
+
+    keyword: str
+    """The keyword that refused it, such as ``required`` or ``minimum``."""
+
+    schema_at: str
+    """The way through the schema to the keyword that refused it, as a JSON Pointer. A ``$ref``
+    is walked through in place, so past one the pointer names the path the check took rather
+    than where the keyword is written."""
+
+    message: str
+
+
+class SchemaCheck(WireModel):
+    """What checking a value against a schema found, with the validator a ``validate.schema`` step uses."""
+
+    valid: bool
+    errors: list[SchemaViolation] = Field(default_factory=list[SchemaViolation])
+    """Every way the value fails, earliest place in the value first, a hundred at most."""
+
+    omitted: int = 0
+    """How many more failures there were past the ones listed."""

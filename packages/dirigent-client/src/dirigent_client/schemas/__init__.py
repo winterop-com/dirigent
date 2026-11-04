@@ -92,7 +92,14 @@ from dirigent_client.schemas.runs import (
     StepFailures,
     StepReport,
 )
-from dirigent_client.schemas.schemas import SchemaIn, SchemaOut, SchemaUpdate
+from dirigent_client.schemas.schemas import (
+    CheckSchemaRequest,
+    SchemaCheck,
+    SchemaIn,
+    SchemaOut,
+    SchemaUpdate,
+    SchemaViolation,
+)
 from dirigent_client.schemas.sources import (
     EndpointInput,
     InputAccepted,
@@ -209,9 +216,12 @@ __all__ = [
     "ScheduleOut",
     "SchedulePreview",
     "SchedulePreviewRequest",
+    "CheckSchemaRequest",
+    "SchemaCheck",
     "SchemaIn",
     "SchemaOut",
     "SchemaUpdate",
+    "SchemaViolation",
     "SourceEntry",
     "StatsWindow",
     "StepReport",

@@ -125,6 +125,10 @@ PAYLOADS: dict[str, Any] = {
     "/connections": {"items": [CONNECTION], "next": None},
     "/connections/warehouse": CONNECTION,
     "/connections/warehouse/$check": {"healthy": True, "detail": "200 OK"},
+    "/schemas/$check": {
+        "valid": False,
+        "errors": [{"at": "/age", "keyword": "minimum", "schema_at": "/properties/age/minimum", "message": "-1 < 0"}],
+    },
     "/blocks": {"api_version": 1, "blocks": []},
     "/examples": {"items": [EXAMPLE], "next": None},
     "/examples/open-meteo-weekly-report": {**EXAMPLE, "source": "format: dirigent/v1\n", "path": "open-data/x.yaml"},
@@ -258,6 +262,7 @@ ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] =
     ("connections.update", lambda dg: dg.connections.update("warehouse", config={}), "PATCH", "/connections/warehouse"),
     ("connections.delete", lambda dg: dg.connections.delete("warehouse"), "DELETE", "/connections/warehouse"),
     ("connections.check", lambda dg: dg.connections.check("warehouse"), "POST", "/connections/warehouse/$check"),
+    ("schemas.check", lambda dg: dg.schemas.check({"age": -1}, code="reading"), "POST", "/schemas/$check"),
     (
         "examples.list",
         lambda dg: dg.examples.list(tags=["starter"], shelf="open-data", starter=True),
@@ -446,6 +451,15 @@ async def test_a_secret_travels_as_its_value_rather_than_as_its_mask() -> None:
         assert recorder.last[3] == {"secret": "shh"}
         await dg.admin.users.create("new", "another password", role=UserRole.ADMIN)
         assert recorder.last[3]["password"] == "another password"
+
+
+async def test_a_check_sends_the_value_and_one_schema_and_reads_every_failure() -> None:
+    recorder = Recorder(_answer)
+    async with client_of(recorder) as dg:
+        answer = await dg.schemas.check(None, body={"type": "object"})
+    assert recorder.last[3] == {"value": None, "code": None, "body": {"type": "object"}}
+    assert [(one.at, one.keyword) for one in answer.errors] == [("/age", "minimum")]
+    assert (answer.valid, answer.omitted) == (False, 0)
 
 
 async def test_only_the_arguments_a_caller_supplied_reach_the_query_string() -> None:

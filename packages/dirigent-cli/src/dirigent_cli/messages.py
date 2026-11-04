@@ -223,6 +223,8 @@ NOT_A_BLOCK_KIND = CLI.define("not_a_block_kind", "{kind} is not a block kind ({
 
 SCHEMA_UNREADABLE = CLI.define("schema_unreadable", "{label} is not readable JSON or YAML: {detail}")
 
+VALUE_UNREADABLE = CLI.define("value_unreadable", "{label} is not readable JSON or YAML: {detail}")
+
 SCHEMA_NOT_AN_OBJECT = CLI.define(
     "schema_not_an_object",
     "{label} is not a JSON Schema: a schema is an object, and this is {kind}",
