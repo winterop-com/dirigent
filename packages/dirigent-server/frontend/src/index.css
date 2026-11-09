@@ -5,6 +5,24 @@
    imports is this app's own CSS, drawn in the library's tokens. */
 @import '@winterop-com/sokkel-ui/styles-base.css';
 @import '@winterop-com/sokkel-ui/sources/Link.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/badge.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/button.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/card.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/combobox.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/command.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/dialog.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/dropdown-menu.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/input.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/input-group.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/kbd.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/label.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/select.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/sonner.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/switch.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/table.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/tabs.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/textarea.css';
+@import '@winterop-com/sokkel-ui/sources/primitives/tooltip.css';
 @import '@winterop-com/sokkel-ui/themes/amber.css';
 @import '@winterop-com/sokkel-ui/themes/paper.css';
 @import '@winterop-com/sokkel-ui/themes/contrast.css';
@@ -334,7 +352,7 @@
 /* ---------------------------------------------------------------------------
    THE COMMAND PALETTE.
 
-   The generated `components/ui/command` files are pristine, so what this app wants of them is
+   The command primitive is sokkel-ui's, so what this app wants of it is
    said here against their slots: a search row that is a row rather than a boxed input, shelf
    headings that read as headings, and a selected row that wears the identity colour on its
    left edge -- because choosing is an action, and that is the one colour this app spends on

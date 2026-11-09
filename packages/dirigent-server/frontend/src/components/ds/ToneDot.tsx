@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
 import { isNews, saysWord, TONE_FILL, type Say, type Tone } from '@/lib/design-system'
 import { statusLabel, statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'

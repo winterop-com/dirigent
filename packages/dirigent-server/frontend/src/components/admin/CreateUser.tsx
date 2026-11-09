@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Refusal } from '@/components/Refusal'
 import { RoleSelect } from '@/components/admin/RoleSelect'
 import { FormField } from '@/components/ds/FormField'
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
     DialogClose,
@@ -11,9 +11,9 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { type Problem } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'

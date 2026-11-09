@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Switch } from '@/components/ui/switch'
+import { Switch } from '@winterop-com/sokkel-ui/primitives/switch'
 import { cn } from '@/lib/utils'
 
 /**

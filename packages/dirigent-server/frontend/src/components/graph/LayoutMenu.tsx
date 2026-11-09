@@ -9,7 +9,7 @@ import {
     DropdownMenuRadioItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import type { EdgeRouting, LayoutChoice, LayoutDirection, LayoutSpacing } from '@/lib/dag-layout'
 import { LABELS } from '@/lib/labels'
 

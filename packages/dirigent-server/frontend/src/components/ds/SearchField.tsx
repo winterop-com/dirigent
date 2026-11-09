@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 
-import { Input } from '@/components/ui/input'
-import { Kbd } from '@/components/ui/kbd'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import { Kbd } from '@winterop-com/sokkel-ui/primitives/kbd'
 import { clearShown, escapeFrom } from '@/lib/design-system'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'

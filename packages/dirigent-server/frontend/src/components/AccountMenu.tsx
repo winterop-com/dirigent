@@ -1,7 +1,7 @@
 import { useTheme } from 'next-themes'
 import { useNavigate } from 'react-router'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -13,8 +13,8 @@ import {
     DropdownMenuSubContent,
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { Kbd } from '@/components/ui/kbd'
+} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
+import { Kbd } from '@winterop-com/sokkel-ui/primitives/kbd'
 import { useStore } from '@/hooks/use-store'
 import { authStore, signOut } from '@/lib/auth'
 import { ICONS } from '@/lib/icons'

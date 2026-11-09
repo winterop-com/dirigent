@@ -3,9 +3,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { IconButton } from '@/components/ds/IconButton'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@winterop-com/sokkel-ui/primitives/select'
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useStore } from '@/hooks/use-store'
 import { ApiError } from '@/lib/api'

@@ -1,7 +1,7 @@
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import type { Paged } from '@/lib/paging'

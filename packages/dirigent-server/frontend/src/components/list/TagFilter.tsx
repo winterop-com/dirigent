@@ -1,13 +1,13 @@
 import { ChevronDown } from 'lucide-react'
 
 import { TagChip } from '@/components/TagChip'
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
     DropdownMenuContent,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import { LABELS } from '@/lib/labels'
 import { Chip } from '@/components/ds/Chip'
 

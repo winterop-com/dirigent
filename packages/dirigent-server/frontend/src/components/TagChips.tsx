@@ -5,7 +5,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import { foldTags, linesFor, roomFor } from '@/lib/tag-fold'
 import { counted, LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'

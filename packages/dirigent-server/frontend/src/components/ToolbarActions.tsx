@@ -3,13 +3,13 @@ import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } fro
 import { SplitButton, type SplitItem } from '@/components/ds/SplitButton'
 import { Refusable } from '@/components/Refusable'
 import { useSmallScreen } from '@/hooks/use-small-screen'
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import { nextForm, TABLE, type Form } from '@/lib/card-form'
 import { ICONS, type Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'

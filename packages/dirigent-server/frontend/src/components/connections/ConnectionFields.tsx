@@ -2,10 +2,16 @@ import { SecretField } from '@/components/connections/SecretField'
 import { Mark } from '@/components/Mark'
 import { Refusal } from '@/components/Refusal'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import { Label } from '@winterop-com/sokkel-ui/primitives/label'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@winterop-com/sokkel-ui/primitives/select'
+import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { useStore } from '@/hooks/use-store'
 import { type ConnectionDraftForm } from '@/hooks/use-connection-draft'
 import { type SurfaceEntry } from '@/lib/connections'

@@ -4,7 +4,7 @@ import { CodeFrame } from '@/components/ds/CodeFrame'
 import { IconButton } from '@/components/ds/IconButton'
 import { Inset } from '@/components/ds/Inset'
 import { ICONS } from '@/lib/icons'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@winterop-com/sokkel-ui/primitives/dialog'
 import { cn } from '@/lib/utils'
 import { LABELS } from '@/lib/labels'
 

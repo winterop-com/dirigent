@@ -6,8 +6,7 @@ icon button, a heading, a field -- and ``src/lib/icons.ts`` holds the one mark e
 wears. That is only true while pages reach for them, so this reads the sources as text and
 refuses the shapes a hand-built copy leaves behind. ``docs/ui-conventions.md``, "Design system".
 
-Refused, under ``src/pages`` and ``src/components`` but not ``components/ui`` (the generated
-primitives) or ``components/ds`` (the system itself):
+Refused, under ``src/pages`` and ``src/components`` but not ``components/ds`` (the system itself):
 
 * ``word-chip``: a hand-typed word chip, one class string holding ``rounded-sm``, ``border``,
   ``px-1.5`` and ``text-xs``. That shape is ``Chip``.
@@ -41,9 +40,6 @@ SRC = REPO_ROOT / "packages" / "dirigent-server" / "frontend" / "src"
 
 #: Where the rules apply.
 ROOTS: Final = (SRC / "pages", SRC / "components")
-
-#: The generated primitives, never checked.
-PRIMITIVES: Final = SRC / "components" / "ui"
 
 #: The design system itself, checked for the icon import alone.
 SYSTEM: Final = SRC / "components" / "ds"
@@ -85,14 +81,12 @@ def source_files() -> list[Path]:
     """Every file the rules read, in a stable order.
 
     Returns:
-        The .ts/.tsx files under the roots, the primitives and the tests excluded.
+        The .ts/.tsx files under the roots, the tests excluded.
     """
     found: list[Path] = []
     for root in ROOTS:
         for path in root.rglob("*"):
             if path.suffix not in SUFFIXES or ".test." in path.name:
-                continue
-            if PRIMITIVES in path.parents:
                 continue
             found.append(path)
     return sorted(found)

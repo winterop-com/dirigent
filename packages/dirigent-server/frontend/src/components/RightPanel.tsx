@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 
 import { IconButton } from '@/components/ds/IconButton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@winterop-com/sokkel-ui/primitives/tabs'
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
 import { useStore } from '@/hooks/use-store'
 import { formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'

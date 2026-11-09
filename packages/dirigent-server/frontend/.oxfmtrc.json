@@ -10,5 +10,5 @@
         "stylesheet": "src/index.css",
         "functions": ["cn", "cva"]
     },
-    "ignorePatterns": ["dist", "src/components/ui", "components.json"]
+    "ignorePatterns": ["dist"]
 }

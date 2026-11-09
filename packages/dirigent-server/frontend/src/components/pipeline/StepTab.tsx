@@ -4,9 +4,15 @@ import { KindChip } from '@/components/KindChip'
 import { Disclosure } from '@/components/pipeline/Disclosure'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
 import { Section } from '@/components/run/Panel'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import { Label } from '@winterop-com/sokkel-ui/primitives/label'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@winterop-com/sokkel-ui/primitives/select'
 import type { JsonMap, Problem } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
 import type { ConnectionOut } from '@/lib/connections'

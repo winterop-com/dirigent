@@ -1,13 +1,13 @@
 import { ChevronDown, RefreshCw } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuRadioGroup,
     DropdownMenuRadioItem,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import { useStore } from '@/hooks/use-store'
 import { REFRESH_CHOICES, refreshLabel, refreshSeconds, setRefreshSeconds } from '@/lib/refresh'
 import { LABELS } from '@/lib/labels'

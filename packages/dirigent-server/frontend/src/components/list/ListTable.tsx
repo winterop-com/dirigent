@@ -7,8 +7,15 @@ import {
 } from 'react'
 
 import { ListFormProvider } from '@/components/list/ListForm'
-import { Button } from '@/components/ui/button'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@winterop-com/sokkel-ui/primitives/table'
 import { useCardForm } from '@/hooks/use-card-form'
 import { useSmallScreen, useSmallWindow } from '@/hooks/use-small-screen'
 import { cardFacts, type CardColumn } from '@/lib/card-form'

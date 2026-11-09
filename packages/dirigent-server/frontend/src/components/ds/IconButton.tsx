@@ -1,8 +1,8 @@
 import type { ComponentProps } from 'react'
 
-import { Button } from '@/components/ui/button'
-import { Kbd } from '@/components/ui/kbd'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { Kbd } from '@winterop-com/sokkel-ui/primitives/kbd'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
 import { iconButtonTip } from '@/lib/design-system'
 import type { Icon } from '@/lib/icons'
 import { cn } from '@/lib/utils'

@@ -8,7 +8,7 @@ import {
     CommandInput,
     CommandItem,
     CommandList,
-} from '@/components/ui/command'
+} from '@winterop-com/sokkel-ui/primitives/command'
 import { useRead } from '@/hooks/use-read'
 import {
     missingCount,

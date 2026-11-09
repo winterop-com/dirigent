@@ -9,9 +9,9 @@ import {
     ComboboxList,
     ComboboxTrigger,
     useComboboxAnchor,
-} from '@/components/ui/combobox'
+} from '@winterop-com/sokkel-ui/primitives/combobox'
 import { Mark } from '@/components/Mark'
-import { InputGroupAddon, InputGroupButton } from '@/components/ui/input-group'
+import { InputGroupAddon, InputGroupButton } from '@winterop-com/sokkel-ui/primitives/input-group'
 import { matchesOption, type PickerOption } from '@/lib/picker'
 import { LABELS } from '@/lib/labels'
 

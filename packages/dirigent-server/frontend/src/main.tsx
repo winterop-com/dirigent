@@ -5,8 +5,8 @@ import { BrowserRouter, Link as RouterLink } from 'react-router'
 
 import { LinkProvider, type RoutedLinkProps } from '@winterop-com/sokkel-ui/Link'
 
-import { Toaster } from '@/components/ui/sonner'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from '@winterop-com/sokkel-ui/primitives/sonner'
+import { TooltipProvider } from '@winterop-com/sokkel-ui/primitives/tooltip'
 
 import App from '@/App'
 import '@/index.css'

@@ -10,7 +10,7 @@ import {
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import { addStepAsked, relayoutAsked } from '@/lib/canvas-actions'
 import { StepNode, type DocumentNode } from '@/components/pipeline/StepNode'
 import { useRead } from '@/hooks/use-read'
