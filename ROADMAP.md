@@ -16,10 +16,11 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
    frontend still draws its own: 20 shadcn primitives in `src/components/ui`, `src/components/ds`
    with the `/design` gallery, and the screens built on them. One pattern per PR, every PR pinned
    to the same published library version, and no release cut per PR. Each its own slice:
-   - **Install and theme.** The packages are served from GitHub Packages, so `bun install` needs
-     a token that reads packages on a checkout, in CI and in the image build `release.yaml`
-     runs, while this repository is public. The library sets in Geist where dirigent sets in IBM
-     Plex Sans and JetBrains Mono; the theme settles which, then the conventions say so.
+   - **Install and theme.** The packages are public on GitHub Packages, which asks for a token
+     even to read: `GITHUB_TOKEN` with `packages: read` in CI, passed as a build secret to the
+     image build `release.yaml` runs, and `gh auth token` on a checkout. The library sets in IBM
+     Plex Sans and Plex Mono where dirigent's code face is JetBrains Mono, and has no `dirigent`
+     theme; the theme settles both, then the conventions say so.
    - **Primitives, then patterns, then screens.** Swap `components/ui` for the library's, then
      the shapes `components/ds` holds, then each screen: listings onto its tables, forms onto
      its schema form, the editor onto its code editor, run and pipeline graphs onto
