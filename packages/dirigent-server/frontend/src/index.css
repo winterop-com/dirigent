@@ -944,12 +944,6 @@
     font-weight: 600;
 }
 
-/* The generated small button says `0.8rem`, which is not on the scale. */
-[data-slot='button'].text-\[0\.8rem\] {
-    font-size: var(--text-sm);
-    line-height: var(--text-sm--line-height);
-}
-
 /* A SECONDARY BUTTON IS RAISED, NOT EDGED. The generated outline variant is drawn on the raised
    rung with no line in the dark mode, and with a hairline ring in the light one, where the raised
    rung is white on a near-white surface. */

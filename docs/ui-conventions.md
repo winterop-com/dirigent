@@ -138,9 +138,8 @@ word added to a box inherits its size and no word on a canvas can come out at th
 arrives as `text-[17px]` or as `text-lg`. The check has no allowlist -- it knows `text-title`,
 `text-page`, `text-stat`, `text-wordmark`, `text-lockup`, `text-display` and the two graph sizes by name, and
 reads `index.css` itself so another size cannot be minted there either. A named
-exception can be counted; an allowlist is a check people argue with. A size a library primitive
-carries is said back onto the scale in `index.css`, against its slot: the small button's `0.8rem`
-is `text-sm`.
+exception can be counted; an allowlist is a check people argue with. A library primitive that
+carries a size off the scale is fixed in sokkel-ui.
 
 A relative size composes with the scale rather than escaping it, so `text-[0.85em]` on code inside
 a sentence is deliberate and passes.
