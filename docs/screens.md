@@ -83,6 +83,6 @@ plan.
 
 `make docs-shots` drives a seeded instance in a real browser, runs the showcase documents to the
 states each picture needs, and writes the nine files into `docs/images/screens/`. They are the
-`dirigent` palette in dark mode at 1440x900, and the script refuses to take a picture of a screen
+`amber` palette in dark mode at 1440x900, and the script refuses to take a picture of a screen
 that scrolls sideways at that width. **They are re-shot on each release**, so what is on this
 page is what the version you installed looks like.

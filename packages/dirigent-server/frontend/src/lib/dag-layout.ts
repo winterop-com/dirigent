@@ -57,7 +57,7 @@ export const FACE_SIZE: Record<TextFace, number> = {
 /**
  * A width read off the characters, for where no font can be measured.
  *
- * JetBrains Mono advances 0.6em per character, so a mono width is exact; the sans is given the
+ * IBM Plex Mono advances 0.6em per character, so a mono width is exact; the sans is given the
  * width of its wider letters, so a width read in Node is never narrower than the page's.
  */
 export const measureByCharacters: Measure = (text, face) =>

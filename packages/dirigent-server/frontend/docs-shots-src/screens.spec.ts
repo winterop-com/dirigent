@@ -239,11 +239,11 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
     await signIn(page)
     await seedingSettled(page)
 
-    // Dark, and the dirigent palette: the page is one palette throughout, and the contrast and
+    // Dark, and the amber palette: the page is one palette throughout, and the contrast and
     // paper palettes are somebody's accessibility choice rather than the product's face.
     await page.evaluate(() => {
         localStorage.setItem('theme', 'dark')
-        localStorage.setItem('dirigent.palette', 'dirigent')
+        localStorage.setItem('dirigent.palette', 'amber')
         // The drawer remembers being open, and a console under the graph is not what the run
         // pictures are of.
         localStorage.setItem('dirigent.terminalOpen', 'false')

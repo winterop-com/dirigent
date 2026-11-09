@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
@@ -19,6 +20,11 @@ import {
 
 const PALETTE_JS = fileURLToPath(new URL('../../public/palette.js', import.meta.url))
 const INDEX_CSS = fileURLToPath(new URL('../index.css', import.meta.url))
+
+/** The library's file for one theme, as the package's exports map resolves it. */
+function themeFile(name: string): string {
+    return createRequire(import.meta.url).resolve(`@winterop-com/sokkel-ui/themes/${name}.css`)
+}
 
 /** The palette names the pre-paint script knows about. */
 function namesInPaletteScript(script: string): string[] {
@@ -44,26 +50,28 @@ describe('the palette axis', () => {
     })
 
     test('knows the three palettes this build ships, and nothing else', () => {
-        for (const name of ['dirigent', 'paper', 'contrast']) expect(isPaletteName(name)).toBe(true)
-        for (const name of ['light', 'dark', 'Paper', 'high-contrast', ''])
+        for (const name of ['amber', 'paper', 'contrast']) expect(isPaletteName(name)).toBe(true)
+        for (const name of ['dirigent', 'light', 'dark', 'Paper', 'high-contrast', ''])
             expect(isPaletteName(name)).toBe(false)
     })
 
     // The order is the setting's order on screen, quiet to loud, and the swatches render the
     // array as it stands.
     test('lists them quiet to loud, each with a label', () => {
-        expect(PALETTE_NAMES).toEqual(['dirigent', 'paper', 'contrast'])
+        expect(PALETTE_NAMES).toEqual(['amber', 'paper', 'contrast'])
         for (const palette of PALETTES) expect(palette.label.length).toBeGreaterThan(0)
     })
 
-    // A swatch card paints its strips from the tokens of the palette it stands for, by scoping
-    // itself with `data-palette`. That only works while index.css hangs every palette off that
-    // attribute as well as off `data-theme`, both halves, the base palette included.
-    test('index.css scopes every palette to a swatch as well as to the document', () => {
+    // A palette paints only once its theme file is imported, and a swatch card paints its strips
+    // by scoping itself with `data-theme-scope`, which that file hangs the theme off as well as
+    // off `data-theme`, in both modes.
+    test('index.css imports every palette, and each scopes itself to a swatch', () => {
         const css = readFileSync(INDEX_CSS, 'utf8')
         for (const name of PALETTE_NAMES) {
-            expect(css).toContain(`[data-palette='${name}'] {`)
-            expect(css).toContain(`.dark [data-palette='${name}'] {`)
+            expect(css).toContain(`@import '@winterop-com/sokkel-ui/themes/${name}.css';`)
+            const theme = readFileSync(themeFile(name), 'utf8')
+            expect(theme).toContain(`[data-theme-scope='${name}'] {`)
+            expect(theme).toContain(`.dark [data-theme-scope='${name}'] {`)
         }
     })
 
@@ -75,21 +83,21 @@ describe('the palette axis', () => {
 
 describe('the arrows over the swatch cards', () => {
     test('move forward and back through the palettes in the order they are listed', () => {
-        expect(paletteAfter('dirigent', 'ArrowRight')).toBe('paper')
+        expect(paletteAfter('amber', 'ArrowRight')).toBe('paper')
         expect(paletteAfter('paper', 'ArrowDown')).toBe('contrast')
         expect(paletteAfter('contrast', 'ArrowLeft')).toBe('paper')
-        expect(paletteAfter('paper', 'ArrowUp')).toBe('dirigent')
+        expect(paletteAfter('paper', 'ArrowUp')).toBe('amber')
     })
 
     test('wrap at both ends, because a radio group is a ring', () => {
-        expect(paletteAfter('contrast', 'ArrowRight')).toBe('dirigent')
-        expect(paletteAfter('dirigent', 'ArrowLeft')).toBe('contrast')
+        expect(paletteAfter('contrast', 'ArrowRight')).toBe('amber')
+        expect(paletteAfter('amber', 'ArrowLeft')).toBe('contrast')
     })
 
     // Space and Enter choose what already has focus, and every other key is the browser's.
     test('answer nothing to a key this control does not move on', () => {
         for (const key of [' ', 'Enter', 'Tab', 'Escape', 'a']) {
-            expect(paletteAfter('dirigent', key)).toBeNull()
+            expect(paletteAfter('amber', key)).toBeNull()
         }
     })
 })

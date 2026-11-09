@@ -215,7 +215,7 @@ async function open(page: Page, mode: string, at: string): Promise<void> {
     await page.setViewportSize(OPENING)
     await page.evaluate((theme) => {
         localStorage.setItem('theme', theme)
-        localStorage.setItem('dirigent.palette', 'dirigent')
+        localStorage.setItem('dirigent.palette', 'amber')
     }, mode)
     await page.goto(at)
 }

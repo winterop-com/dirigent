@@ -22,7 +22,7 @@ wrong is changed on this page first and in the code second.
 | --- | --- | --- |
 | Build | vite 8, TypeScript 7 with project references | `tsc -b` gates the build, because vite strips types without checking them |
 | UI | React 19, react-router 7 with `BrowserRouter` | The server answers a navigation nothing claimed with the shell, so paths stay clean and a deep link can be pasted |
-| Styling | Tailwind v4, CSS-first | There is no `tailwind.config.js` and there must not be one -- the theme lives in `src/index.css` under `@theme` |
+| Styling | Tailwind v4, CSS-first, entered through sokkel-ui's `styles-base.css` | There is no `tailwind.config.js` and there must not be one. The tokens, themes, fonts and base styles are [sokkel-ui](https://github.com/winterop-com/sokkel-ui)'s; `src/index.css` imports them, one `sources/<module>.css` line per library module the app imports, and then this app's own CSS |
 | Components | shadcn on **Base UI** (`@base-ui/react`), style `base-nova` | The generated files in `src/components/ui/` are pristine and never hand-edited |
 | Graphs | `@xyflow/react` for the canvas, `elkjs` for the layout | React Flow draws what it is given and decides no geometry; elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
 | Editor | `monaco-editor` with `monaco-yaml` | A pipeline document is YAML checked against a schema, and squiggling an unknown key where an apply would refuse it needs a language server rather than a textarea. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, and a config field whose schema says it carries a program |
@@ -31,7 +31,7 @@ wrong is changed on this page first and in the code second.
 | Palette | cmdk | |
 | Toasts | sonner | |
 | Mode | next-themes, `class` strategy | |
-| Fonts | IBM Plex Sans and JetBrains Mono, self-hosted through `@fontsource` | No CDN: a UI served from a private network has to work on one |
+| Fonts | IBM Plex Sans and IBM Plex Mono, self-hosted through `@fontsource`, which sokkel-ui brings | No CDN: a UI served from a private network has to work on one |
 | Lint | oxlint, plus `scripts/check_ui_classes.py` and `scripts/check_ui_system.py` | A JS linter cannot see inside a `className`, so the type scale and the design system get checks of their own |
 | Format | oxfmt, pinned exactly, configured in `.oxfmtrc.json` | Prettier's output from the linter's own project, and it sorts Tailwind classes against `src/index.css` rather than guessing at the theme |
 | Tests | vitest in `environment: node`, playwright for the browser | |
@@ -95,7 +95,7 @@ unformatted file fails the gate before anything else is read.
 `make ui` builds the bundle, `make ui-dev` serves it with hot reload against a running `dg dev`,
 `make ui-lint` and `make ui-test` are the gate, `make ui-e2e` drives a real server in a browser
 and `make ui-shots` photographs every screen for the gallery. `make docs-shots` is the other camera:
-nine screens, the `dirigent` palette in dark mode at 1440x900, shot against the showcase shelf
+nine screens, the `amber` palette in dark mode at 1440x900, shot against the showcase shelf
 and committed under `docs/images/screens/` because [Screens](screens.md) renders them. `make ui-static` puts the built
 bundle where the server wheel packages it, and it comes before every e2e run and every live
 review, because that packaged copy is what a checkout's `dg dev` serves. The gate is wired into
@@ -105,7 +105,7 @@ failure.
 ## Five type sizes, and the named sizes outside them
 
 The scale is 12px, 13px, 14px, 15px and 26px. Nothing arrives beside it without a name. The faces
-stay IBM Plex Sans and JetBrains Mono; what moved is that a page now has a heading somebody can
+are IBM Plex Sans and IBM Plex Mono; what moved is that a page now has a heading somebody can
 find from across the room, and that the working size of a dense screen is a step under its prose.
 
 | Class | Size | What wears it |
@@ -147,8 +147,9 @@ a sentence is deliberate and passes.
 
 ## Tokens
 
-Everything colour is a CSS custom property in `src/index.css`, exposed to Tailwind through
-`@theme inline`. Nothing anywhere else may write a colour.
+Everything colour is a CSS custom property defined by sokkel-ui's tokens and themes, exposed to
+Tailwind through the library's `@theme inline`. Nothing in this app may write a colour; a token
+the app needs and the library lacks is added in sokkel-ui.
 
 **Two theme axes, kept apart.** The **mode** is light or dark: next-themes owns it, writes it as a
 `dark` class on `<html>`, and follows the operating system until somebody says otherwise. The
@@ -156,16 +157,14 @@ Everything colour is a CSS custom property in `src/index.css`, exposed to Tailwi
 writes it as `data-theme` on the same element, and a small script, `public/palette.js`, applies it
 before the first paint so there is no flash. Neither axis knows about the other.
 
-**A palette is two blocks of CSS and one row, and nothing else in the app learns it exists.** The
-blocks are `html[data-theme='<name>']` and `html.dark[data-theme='<name>']` in `index.css`, beside
-the base ones; the row is in `PALETTES` in `src/lib/theme.ts`, carrying the name and the label.
-**Each block answers to `[data-palette='<name>']` as well**, base palette included, so an element
-inside the app can be painted in a palette the document is not wearing -- which is what a swatch
-card is, and why a swatch cannot drift from the tokens it stands for. A test asserts the pre-paint script's list and that array
-agree. Because a palette's selector outranks `.dark`, a token the base sets in both `:root` and
-`.dark` has to be set in both halves of a palette that touches it at all -- a token set in the
-light half alone leaks into the dark mode. A token a palette does not touch falls through to the
-base, which is how a palette that only moves its surfaces keeps the status and kind hues.
+**A palette is one of sokkel-ui's themes: one import and one row, and nothing else in the app
+learns it exists.** The import is the theme's file, `@winterop-com/sokkel-ui/themes/<name>.css`,
+in `index.css`; the row is in `PALETTES` in `src/lib/theme.ts`, carrying the name and the label. A
+theme file hangs off `html[data-theme='<name>']` and **answers to `[data-theme-scope='<name>']` as
+well**, so an element inside the app can be painted in a palette the document is not wearing --
+which is what a swatch card is, and why a swatch cannot drift from the tokens it stands for. A
+test asserts the pre-paint script's list and that array agree, and that every palette is
+imported. A theme dirigent needs that the library lacks is added in sokkel-ui, never here.
 
 **Both axes are chosen on the settings dialog's Theme pane.** Appearance is
 Light, Dark and System, one segmented control rather than a menu, because a choice from a fixed
@@ -180,8 +179,8 @@ Appearance rows are the third door to it. **The top strip carries no mode flip**
 stands on every screen, and a control said twice on one screen has to earn the second time, which a
 two-way flip that cannot reach System does not.
 
-**Three palettes ship, ordered quiet to loud: `dirigent`, `paper`, `contrast`.** The default is
-the Flow first palette: neutral blue-grey surfaces, softly raised, in a dark and a light mode;
+**Three palettes ship, ordered quiet to loud: `amber`, `paper`, `contrast`.** The default is
+`amber`: the library's neutral blue-grey surfaces under an amber accent, in a dark and a light mode;
 `paper` is the same app on warm paper with warm ink; `contrast` is white on black and black on
 white with every line and every ink pushed to meet 4.5:1. **The amber is the brand in every one of
 them**, and a palette moves its lightness only where its own ground needs it. **The surface ladder

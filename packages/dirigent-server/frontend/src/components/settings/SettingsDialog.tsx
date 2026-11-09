@@ -248,7 +248,7 @@ const SWATCH_STRIPS = ['bg-background', 'bg-card', 'bg-border', 'bg-foreground',
  * One card per palette, and the card is the radio.
  *
  * WHAT A PALETTE LOOKS LIKE IS THE SWATCH, NOT A SENTENCE. Each card scopes itself with
- * `data-palette`, which index.css hangs that palette's own token block off, so the five strips
+ * `data-theme-scope`, which the palette's theme file hangs its own token block off, so the five strips
  * are the real ground, surface, line, ink and accent -- in the appearance in force, and right
  * without anybody copying a colour when a token moves.
  *
@@ -305,7 +305,7 @@ function PaletteSwatches({ value, onChoose }: { value: PaletteName; onChoose: (n
                         }}
                     >
                         <span
-                            data-palette={palette.name}
+                            data-theme-scope={palette.name}
                             className="flex h-8 overflow-hidden rounded-sm border border-border"
                         >
                             {SWATCH_STRIPS.map((strip) => (
