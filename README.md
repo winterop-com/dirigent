@@ -319,6 +319,11 @@ make docs           # serve the documentation site on 127.0.0.1:3334 (dirigent i
 make docs-build     # build the site, failing on any warning
 ```
 
+The web UI is built on [sokkel-ui](https://github.com/winterop-com/sokkel-ui), whose packages
+are served by GitHub Packages, which asks for a token even to read a public package. The `make`
+targets that install the UI or build the image take it from `GITHUB_TOKEN`, or from the
+signed-in `gh` CLI when that is unset; nothing is written to disk.
+
 `make gate` is the whole thing in one command, and CI splits it. A pull request runs the
 static half over the whole repository and only the suites its diff can reach:
 `scripts/affected_suites.py` reads the packages' own dependency declarations and answers with

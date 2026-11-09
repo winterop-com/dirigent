@@ -2,9 +2,15 @@ FROM oven/bun:1.4-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd2
 
 WORKDIR /frontend
 
-COPY packages/dirigent-server/frontend/package.json packages/dirigent-server/frontend/bun.lock ./
-RUN --mount=type=cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
+COPY packages/dirigent-server/frontend/package.json \
+     packages/dirigent-server/frontend/bun.lock \
+     packages/dirigent-server/frontend/bunfig.toml \
+     ./
+# GitHub Packages serves the @winterop-com packages and asks for a token even to read them,
+# given to the build as the `github_token` secret and never written to a layer.
+RUN --mount=type=secret,id=github_token,required=true \
+    --mount=type=cache,target=/root/.bun/install/cache \
+    GITHUB_TOKEN="$(cat /run/secrets/github_token)" bun install --frozen-lockfile
 
 # playwright.config.ts is here because tsconfig.e2e.json is a reference of the root project
 # that `tsc -b` builds, and a reference with no inputs at all is an error; the specs it also

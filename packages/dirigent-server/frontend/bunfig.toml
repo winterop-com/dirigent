@@ -1,0 +1,4 @@
+# @winterop-com packages come from GitHub Packages, which asks for a token even to read a public
+# package. CI passes the job's own token; `make` passes the signed-in gh CLI's.
+[install.scopes]
+"@winterop-com" = { url = "https://npm.pkg.github.com/", token = "$GITHUB_TOKEN" }

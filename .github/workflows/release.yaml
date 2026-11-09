@@ -21,6 +21,10 @@ jobs:
   build:
     name: build the distributions
     runs-on: ubuntu-24.04
+    # `packages: read` lets bun install the @winterop-com UI packages from GitHub Packages.
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -54,6 +58,8 @@ jobs:
 
       - name: Build the bundle into the server package
         run: make ui-static
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # One dist directory per package, so the publish job for a package uploads its own
       # files and nothing else.
@@ -160,3 +166,6 @@ jobs:
         - registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # The Dockerfile's `github_token` secret, which installs the @winterop-com UI packages.
+      build-secrets: |
+        github_token: ${{ toJSON(secrets.GITHUB_TOKEN) }}

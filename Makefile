@@ -121,9 +121,13 @@ FRONTEND ?= packages/dirigent-server/frontend
 #: Empty when bun is not installed, which is what lets the Python-only lanes skip the UI gate.
 BUN := $(shell command -v bun 2>/dev/null)
 
+#: The token GitHub Packages serves the @winterop-com UI packages to: the environment's, else
+#: the signed-in gh CLI's. GitHub asks for one even to read a public package.
+PACKAGES_TOKEN = $${GITHUB_TOKEN:-$$(gh auth token 2>/dev/null)}
+
 #: A frozen install touches no tracked file and is what makes a gate mean anything: the linter
 #: has to be present before it can refuse.
-FRONTEND_INSTALL = cd $(FRONTEND) && bun install --frozen-lockfile
+FRONTEND_INSTALL = cd $(FRONTEND) && GITHUB_TOKEN="$(PACKAGES_TOKEN)" bun install --frozen-lockfile
 
 ui: ## Build the web UI bundle into $(FRONTEND)/dist, which the server serves from a checkout
 	$(FRONTEND_INSTALL) && bun run build
@@ -184,7 +188,7 @@ ui-wheel: ## Build the server wheel and prove it carries the UI bundle
 	@echo "the wheel carries dirigent_server/static/"
 
 docker-build: .env ## Build the image
-	$(COMPOSE) build $(BUILD_FLAGS)
+	GITHUB_TOKEN="$(PACKAGES_TOKEN)" $(COMPOSE) build $(BUILD_FLAGS)
 
 docker-push: export DIRIGENT_VERSION := $(VERSION)
 docker-push: export DIRIGENT_REVISION := $(shell git rev-parse --short HEAD)

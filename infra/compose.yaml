@@ -8,6 +8,8 @@ x-dirigent: &dirigent
       DIRIGENT_VERSION: ${DIRIGENT_VERSION:-local}
       DIRIGENT_REVISION: ${DIRIGENT_REVISION:-unknown}
       DIRIGENT_PACKS: ${DIRIGENT_PACKS:-}
+    secrets:
+      - github_token
   image: dirigent:local
   restart: unless-stopped
   environment: &dirigent-env
@@ -232,3 +234,9 @@ volumes:
 
 networks:
   docker:
+
+# The token the image build installs the @winterop-com UI packages with; `make docker-build`
+# takes it from the signed-in gh CLI when GITHUB_TOKEN is unset.
+secrets:
+  github_token:
+    environment: GITHUB_TOKEN
