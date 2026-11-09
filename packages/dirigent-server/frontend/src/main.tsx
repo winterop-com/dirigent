@@ -1,7 +1,9 @@
 import { ThemeProvider } from 'next-themes'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router'
+import { BrowserRouter, Link as RouterLink } from 'react-router'
+
+import { LinkProvider, type RoutedLinkProps } from '@winterop-com/sokkel-ui/Link'
 
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -26,6 +28,11 @@ window.addEventListener('vite:preloadError', (event) => {
     window.location.reload()
 })
 
+/** How the library draws an internal link: through the router, so a press moves without a reload. */
+function routedLink({ href, ...props }: RoutedLinkProps) {
+    return <RouterLink to={href} {...props} />
+}
+
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         {/* The mode axis. `class` matches the `.dark` variant index.css defines, and the palette
@@ -35,7 +42,9 @@ createRoot(document.getElementById('root')!).render(
                 chasing the pointer. */}
             <TooltipProvider delay={600}>
                 <BrowserRouter>
-                    <App />
+                    <LinkProvider render={routedLink}>
+                        <App />
+                    </LinkProvider>
                 </BrowserRouter>
                 <Toaster richColors />
             </TooltipProvider>

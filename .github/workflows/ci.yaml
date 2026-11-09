@@ -226,6 +226,10 @@ jobs:
   browser:
     name: browser lane
     runs-on: ubuntu-24.04
+    # `packages: read` lets bun install the @winterop-com UI packages from GitHub Packages.
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -248,9 +252,13 @@ jobs:
       # oxfmt, oxlint and vitest run here and nowhere else in CI: the check job has no bun.
       - name: UI gate
         run: make ui-gate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build the bundle
         run: make ui
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install the browser
         run: cd packages/dirigent-server/frontend && bunx playwright install --with-deps chromium
@@ -264,6 +272,10 @@ jobs:
   compose:
     name: compose
     runs-on: ubuntu-24.04
+    # `packages: read` lets the image build install the @winterop-com UI packages.
+    permissions:
+      contents: read
+      packages: read
     env:
       # An anonymous pull is rate-limited by the address it comes from, and a runner shares
       # that address with every other job on the machine. Set both repository secrets and the
@@ -298,7 +310,9 @@ jobs:
           } | sort -u | xargs python3 scripts/pull_images.py
 
       - name: Build the image
-        run: docker build -t dirigent:local -f infra/Dockerfile .
+        run: docker build --secret id=github_token,env=GITHUB_TOKEN -t dirigent:local -f infra/Dockerfile .
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Start the stack
         run: |
