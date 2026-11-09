@@ -320,7 +320,7 @@ test('a small button is on the type scale', async ({ page }) => {
     await page.goto('/')
     const small = page.locator('[data-slot="button"].text-\\[0\\.8rem\\]').first()
     await expect(small).toBeVisible()
-    await expect(small).toHaveCSS('font-size', '13px')
+    await expect(small).toHaveCSS('font-size', '15px')
 })
 
 test('a new connection has one way out, and it says Cancel', async ({ page }) => {

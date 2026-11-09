@@ -104,21 +104,23 @@ failure.
 
 ## Five type sizes, and the named sizes outside them
 
-The scale is 12px, 13px, 14px, 15px and 26px. Nothing arrives beside it without a name. The faces
-are IBM Plex Sans and IBM Plex Mono; what moved is that a page now has a heading somebody can
-find from across the room, and that the working size of a dense screen is a step under its prose.
+The scale is sokkel-ui's: 13px, 15px, 16px and 24px, with a section heading at the prose size and
+a heavier weight. Nothing arrives beside it without a name. The faces are IBM Plex Sans and IBM
+Plex Mono; a page has a heading somebody can find from across the room, and the working size of a
+dense screen is a step under its prose. A size dirigent needs that the library does not have is
+added in sokkel-ui.
 
 | Class | Size | What wears it |
 | --- | --- | --- |
-| `text-xs` | 12px | Codes in mono, chips, counts, timestamps, a status word -- anything read at a glance rather than as prose |
-| `text-sm` | 13px | The working size: a control's word, a rail entry, a row's description, a fact, a table cell |
-| `text-base` | 14px | Prose: a description's body, a failure's message, a dialog's sentence, the command palette's search field |
-| `text-title` | 15px | A section heading and a listing row's title, at weight 600 |
-| `text-page` | 26px | A page heading, at weight 500, and nothing else on any screen |
-| `text-stat` | 28px mono | A stat's number, and nothing else on any screen |
+| `text-xs` | 13px | Codes in mono, chips, counts, timestamps, a status word -- anything read at a glance rather than as prose |
+| `text-sm` | 15px | The working size: a control's word, a rail entry, a row's description, a fact, a table cell |
+| `text-base` | 16px | Prose: a description's body, a failure's message, a dialog's sentence, the command palette's search field |
+| `text-title` | 16px | A section heading and a listing row's title, at weight 600 |
+| `text-page` | 24px | A page heading, at weight 500, and nothing else on any screen |
+| `text-stat` | 32px | A stat's number, and nothing else on any screen |
 | `text-wordmark` | 48px | The login brand lockup's wordmark, and nothing else on any screen |
 | `text-lockup` | 20px | The rail's wordmark beside the mark, at weight 600, and nothing else on any screen |
-| `text-display` | 36px | The sign-in heading, and nothing else on any screen |
+| `text-display` | 48px | The sign-in heading, and nothing else on any screen |
 | `--text-graph-title` | 12px | A step's title on a graph, in mono at weight 500, and nothing else on any screen |
 | `--text-graph-small` | 11px | Every other word drawn on a graph: the block or what a source listens to, a badge, a count, a duration, a fan-out's strip, words standing over an empty canvas |
 

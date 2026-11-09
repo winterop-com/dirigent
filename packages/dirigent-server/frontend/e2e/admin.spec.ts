@@ -261,7 +261,7 @@ test('a palette is chosen from its swatch, by pointer and by the arrows', async 
     await page.keyboard.press('ArrowRight')
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'contrast')
     await page.keyboard.press('ArrowRight')
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dirigent')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'amber')
 })
 
 test('the password form expands under its row and states the refusal there', async ({ page }) => {
