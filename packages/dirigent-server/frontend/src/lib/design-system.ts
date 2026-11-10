@@ -7,6 +7,7 @@
  */
 
 import type { ChipWords } from '@winterop-com/sokkel-ui/Chip'
+import type { CodeSchemaWords } from '@winterop-com/sokkel-ui/CodeEditor'
 import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
 import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
 import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
@@ -16,6 +17,7 @@ import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
 import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
 import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
+import type { WindowedPaneWords } from '@winterop-com/sokkel-ui/WindowedPane'
 
 import { LABELS } from '@/lib/labels'
 import { statusLabel, statusTokens } from '@/lib/status'
@@ -127,6 +129,14 @@ export const TOOLBAR_WORDS: ToolbarWords = {
     more: LABELS.shell.more_actions,
     moreWays: LABELS.shell.more_ways,
 }
+
+/** What a pane's window button and its window's close say, the button naming the pane. */
+export function windowWords(name: string): Partial<WindowedPaneWords> {
+    return { expand: LABELS.shell.open_in_window(name), close: LABELS.shell.close_window }
+}
+
+/** What an editor's schema check says that is not an issue: the word beside a deprecated key. */
+export const SCHEMA_CHECK_WORDS: Partial<CodeSchemaWords> = { deprecated: LABELS.editor.deprecated_key }
 
 /**
  * How a verb is shut: with its sentence where there is one, which keeps it reachable and says why,

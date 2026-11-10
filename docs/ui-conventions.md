@@ -60,8 +60,9 @@ the one `React.lazy` reaching `components/pipeline/CodeEditor`, so opening a pip
 fetch an editor and opening its source tab or a jq step does. That wrapper is the whole of what
 dirigent adds to the library's editor: the language a media type is read in, the library's JSON
 Schema 2020-12 meta-schema (`JSON_SCHEMA_2020_12`) for a schema document, carried in the bundle
-rather than fetched, the reader's caret-line preference, and the marks and reveal the schema tester
-draws in its own offsets. The library reads
+rather than fetched, the reader's caret-line preference, the word the schema check says beside a
+deprecated key (`SCHEMA_CHECK_WORDS`), and the marks and reveal the schema tester draws in its own
+offsets. The library reads
 JSON, YAML, jq, SQL, shell and Jinja itself and loads SQL, shell and Jinja the first time a
 buffer shows one; FHIRPath and CQL are dirigent's, written as CodeMirror stream parsers in
 `lib/program-grammars` and handed to the library's `defineLanguage`. The schema checker, ajv,
@@ -970,22 +971,36 @@ an expression has to look for elsewhere. A name written in backticks or in CQL's
 **A document is written in one editor wherever it is written.** The editor's source pane is
 checked and completed against `GET /schema/document` -- a key no block takes is squiggled where
 it was typed rather than reported a round trip later -- and a step config field whose schema says
-it carries a program is the same editor in the program's language. **A pane and its window are
+it carries a program is the same editor in the program's language. The check is the library's,
+and says one thing per fault: an empty `config:` is marked at the key, a value in the wrong format
+says only the format it expected, a key the schema deprecates is offered last and struck through
+with "deprecated" beside it, and a union of a type and a `${...}` string is offered as that type
+("integer or null"). **A pane and its window are
 two views of one buffer**: `hooks/use-code-buffer` holds the text as a shared document both
 editors draw, so what is typed in either shows in the other, one undo history serves both, and
 closing the window loses nothing.
 
-**A pane too small for what it holds opens in a window, and the button is at the top.** `components/WindowedPane`
-is where that gesture is written once -- the button, its place, and the window, which is the
-viewport less a gutter -- and every pane that offers one comes through it: a config field carrying a
-program, a value edited as JSON, a report document, an alert body, an example's source, the block of
-produced JSON on a run's step, a schema's page, and the graph on a run's page and a pipeline's. **A
-pane in a panel with a head hands the button to the head**, beside the panel's other tools
-(`WindowButton`, with `button="none"` on the pane). **A pane with no head keeps it inside its own
-top-right corner**, in a row of no height held to the top of whatever scrolls it, so the button is on
-screen wherever the reader has scrolled to and covers no more than the end of the first line. A
-panel clips its corners with `overflow: clip` rather than `hidden` for this reason: a hidden overflow
-is a scroller of its own, and a button held to it would never move.
+**A pane too small for what it holds opens in a window, and the button is at the top.** sokkel-ui's
+`WindowedPane` is where that gesture is written once -- the button, its place, and the window, which
+is the viewport less a margin -- and every pane that offers one comes through it: a config field
+carrying a program, a value edited as JSON, a report document, an alert body, an example's source,
+the block of produced JSON on a run's step, a schema's page, the pipeline source pane, and the graph
+on a run's page and a pipeline's. Its words come from `windowWords(name)` in `lib/design-system`:
+the button says "Open <name> in a window", and the window's close says "Close the window". **The
+pane stays in place while its window is open** (`keepPane`): the window draws its own copy, an
+editor's over the same shared document, so nothing on the page moves and the pane shows every edit
+made in the window. **A program's window carries its language's reference beside the editor**
+(`aside`), split and resizable, and stacked under it on a narrow window. **A pane in a panel with a
+head hands the button to the head**, beside the panel's other tools: the pane wraps the whole panel
+with `button="none"`, draws the panel only where it is the pane, and the head carries
+`WindowedPaneButton`. **A pane with no head keeps the button over its own top-right corner**, shown
+while the pointer is over the pane or focus is in it and always on touch; a pane that grows with a
+long document holds it to the top of whatever scrolls it (`button="sticky"`), so the button is on
+screen wherever the reader has scrolled to. A block of produced JSON is the exception: its lines
+run to the edge and scroll sideways, so it sets `WindowedPaneButton` in a column of its own at the
+box's right edge, always shown, and no line runs under it. A panel clips its corners with `overflow: clip` rather
+than `hidden` for this reason: a hidden overflow is a scroller of its own, and a button held to it
+would never move. Reference material in a pane is set inset (`frame="inset"`).
 
 **The side panel's toggle is at the screen's right edge.** While the panel is shut it is the last
 control in the top bar; while it is open it is the last control in the panel's own strip, over the
@@ -1261,7 +1276,8 @@ on its right edge is the dialog's, keyed by the row's id.
 **General holds the behaviour preferences**, each one a store the screens read rather than a
 copy this dialog keeps: which clock every timestamp is read against, whether a log pane opens
 following its tail, and whether an editor marks the row the caret is on (`CodeEditor`'s
-`activeLine`, off by default, in every editor and its window). A preference defaults
+`activeLine`, off by default, in every editor and its window, read-only ones included: a
+read-only editor takes focus on a click or Tab, so it is a tab stop and shows its caret's row). A preference defaults
 to what this app did before it existed, so nothing moves under a reader who has never opened
 this dialog, and an editor already on screen takes the change without being rebuilt.
 
@@ -1997,8 +2013,8 @@ own rather than merged into a trunk. The choice is held by the screen and nowher
 storage, not in the address -- so the next screen, and the next visit, open on the default. The
 editor has no such control, because a document's arrangement there is the author's.
 
-**A view opens in a window.** Under a canvas on a page stands `WindowedPane`'s strip with the
-window's button. The window is a stage: the wheel zooms, the ground pans, and its corner carries
+**A view opens in a window.** The window's button stands in the canvas panel's head, after the
+layout control. The window is a stage: the wheel zooms, the ground pans, and its corner carries
 the zoom, the fit and the layout, which is the same choice as the page's. A box chosen in the
 window is chosen on the page -- the address and the panel follow it -- and the window stays open
 until it is dismissed.

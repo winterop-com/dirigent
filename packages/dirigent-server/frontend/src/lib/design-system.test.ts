@@ -9,6 +9,7 @@ import {
     GALLERY_INDEX,
     isNews,
     LINK_WORDS,
+    SCHEMA_CHECK_WORDS,
     saysWord,
     SEARCH_PLACEHOLDER,
     SEARCH_WORDS,
@@ -16,6 +17,7 @@ import {
     shutWith,
     splitWords,
     TOOLBAR_WORDS,
+    windowWords,
 } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 
@@ -54,6 +56,19 @@ describe('a verb on a strip', () => {
         expect(shutWith(true, 'Viewers cannot')).toEqual({ reason: 'Viewers cannot' })
         expect(shutWith(true, null)).toEqual({ disabled: true })
         expect(shutWith(true)).toEqual({ disabled: true })
+    })
+})
+
+describe('a pane with a window', () => {
+    test("names the pane on its button, and its window closes in this app's words", () => {
+        expect(windowWords('report.md')).toEqual({
+            expand: LABELS.shell.open_in_window('report.md'),
+            close: LABELS.shell.close_window,
+        })
+    })
+
+    test("an editor's schema check says deprecated beside a deprecated key", () => {
+        expect(SCHEMA_CHECK_WORDS).toEqual({ deprecated: LABELS.editor.deprecated_key })
     })
 })
 

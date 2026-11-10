@@ -27,6 +27,7 @@
 @import '@winterop-com/sokkel-ui/sources/SwitchField.css';
 @import '@winterop-com/sokkel-ui/sources/TextLink.css';
 @import '@winterop-com/sokkel-ui/sources/Toolbar.css';
+@import '@winterop-com/sokkel-ui/sources/WindowedPane.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/badge.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/button.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/card.css';
@@ -926,12 +927,6 @@ html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-backgrou
         min-height: var(--spacing-panel-head);
         padding-block: 0.25rem;
     }
-}
-
-/* A pane's window button held to the top of the scroller it sits in, so it stays on screen down a
-   long document. */
-.dg-window-corner[data-held] {
-    top: 0.25rem;
 }
 
 /* ---------------------------------------------------------------------------
