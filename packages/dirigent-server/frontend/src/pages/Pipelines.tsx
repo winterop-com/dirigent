@@ -168,11 +168,11 @@ export function Pipelines() {
                     id: 'new',
                     label: NEW_PIPELINE_LABEL,
                     face: LABELS.action.new,
+                    moreLabel: LABELS.pipelines.more_ways,
                     ...shutWith(!write.may, write.why),
                     onSelect: () => {
                         void navigate(NEW_PIPELINE_PATH)
                     },
-                    moreWays: LABELS.pipelines.more_ways,
                     more: [
                         {
                             label: FROM_STARTER_LABEL,
