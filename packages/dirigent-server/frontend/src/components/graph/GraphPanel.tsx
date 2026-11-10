@@ -62,7 +62,7 @@ export function GraphPanel({
                             actions={
                                 <span className="flex items-center gap-0.5">
                                     <PageCanvasTools frame={frame} layout={layout} onLayout={onLayout} />
-                                    <WindowedPaneButton className="text-muted-foreground" />
+                                    <WindowedPaneButton size="icon-sm" className="text-muted-foreground" />
                                 </span>
                             }
                             className={cn(filled && 'flex min-h-0 flex-1 flex-col')}

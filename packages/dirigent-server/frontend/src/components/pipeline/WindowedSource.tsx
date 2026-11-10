@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 
 import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
+import { useControlledDocument } from '@winterop-com/sokkel-ui/CodeEditor'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { useCodeBuffer } from '@/hooks/use-code-buffer'
 import { windowWords } from '@/lib/design-system'
 
 /**
@@ -38,7 +38,7 @@ export function WindowedSource({
     onBlur?: () => void
     onChange: (text: string) => void
 }) {
-    const buffer = useCodeBuffer(value, onChange)
+    const buffer = useControlledDocument(value, onChange)
     return (
         <div className="contents" onBlur={onBlur}>
             <WindowedPane

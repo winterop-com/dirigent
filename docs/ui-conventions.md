@@ -974,11 +974,13 @@ it was typed rather than reported a round trip later -- and a step config field 
 it carries a program is the same editor in the program's language. The check is the library's,
 and says one thing per fault: an empty `config:` is marked at the key, a value in the wrong format
 says only the format it expected, a key the schema deprecates is offered last and struck through
-with "deprecated" beside it, and a union of a type and a `${...}` string is offered as that type
-("integer or null"). **A pane and its window are
-two views of one buffer**: `hooks/use-code-buffer` holds the text as a shared document both
-editors draw, so what is typed in either shows in the other, one undo history serves both, and
-closing the window loses nothing.
+with "deprecated" beside it, a union of a type and a `${...}` string is offered as that type
+("integer or null"), and a reference to a definition with no type reads "any", never the
+definition's name, so `http.request`'s `body` is "any or null". **A pane and its window are two
+views of one buffer**: sokkel-ui's `useControlledDocument` holds the text as a shared document
+both editors draw, kept in step with the value the page holds, so what is typed in either shows in
+the other and is reported once, a value changed elsewhere replaces the text without coming back as
+an edit, one undo history serves both, and closing the window loses nothing.
 
 **A pane too small for what it holds opens in a window, and the button is at the top.** sokkel-ui's
 `WindowedPane` is where that gesture is written once -- the button, its place, and the window, which
@@ -993,7 +995,7 @@ made in the window. **A program's window carries its language's reference beside
 (`aside`), split and resizable, and stacked under it on a narrow window. **A pane in a panel with a
 head hands the button to the head**, beside the panel's other tools: the pane wraps the whole panel
 with `button="none"`, draws the panel only where it is the pane, and the head carries
-`WindowedPaneButton`. **A pane with no head keeps the button over its own top-right corner**, shown
+`WindowedPaneButton` at `size="icon-sm"`, the size of a head's other tools. **A pane with no head keeps the button over its own top-right corner**, shown
 while the pointer is over the pane or focus is in it and always on touch; a pane that grows with a
 long document holds it to the top of whatever scrolls it (`button="sticky"`), so the button is on
 screen wherever the reader has scrolled to. A block of produced JSON is the exception: its lines
@@ -1256,8 +1258,10 @@ step's name or its `params`.
 with the library's `registerSchemaFormats` once, in `main.tsx`, for every schema check the library makes:
 `humane-duration` and `size` as the server parses them, `ulid`, `uuid4`, `uuid7`, the hex digests
 and `base64` as its format checker reads them, and `storage-uri` as any string, because the schemes
-are this instance's backends' and only an apply knows them. A format nobody registered, such as a
-pack's, is not checked and says nothing.
+are this instance's backends' and only an apply knows them. A value that fails one says what was
+expected in the words a field's hint uses, `LABELS.form.format` -- "Expected a duration such as 30s
+or 5m", "Expected a version 7 UUID" -- never the format's name. A format nobody registered, such as
+a pack's, is not checked and says nothing.
 
 ## The palette is a registry
 

@@ -10,6 +10,11 @@ function check(name: string, value: string): boolean {
     return format instanceof RegExp ? format.test(value) : format(value)
 }
 
+function say(name: string): string | undefined {
+    const format = DIRIGENT_FORMATS[name]
+    return typeof format === 'object' && !(format instanceof RegExp) ? format.say : undefined
+}
+
 describe('humane-duration', () => {
     it.each(['30s', '1h30m', '250ms', '1.5d', '2w', '90', '0.5', ' 5m '])('accepts %j', (value) => {
         expect(isHumaneDuration(value)).toBe(true)
@@ -55,5 +60,21 @@ describe('the rest of dirigent formats', () => {
         expect(check('base64', '')).toBe(true)
         expect(check('base64', 'aGk=')).toBe(true)
         expect(check('base64', 'aGk')).toBe(false)
+    })
+})
+
+describe('what a value in the wrong format says', () => {
+    it('reads the words a person types, never the format name', () => {
+        expect(say('humane-duration')).toBe('Expected a duration such as 30s or 5m')
+        expect(say('size')).toBe('Expected bytes, or a size such as 16KB or 2MB')
+        expect(say('uuid7')).toBe('Expected a version 7 UUID')
+        expect(say('sha256')).toBe('Expected a SHA-256 digest in hex')
+    })
+
+    it('gives every format that can fail words of its own', () => {
+        for (const [name, format] of Object.entries(DIRIGENT_FORMATS)) {
+            if (format === true) continue
+            expect(say(name), name).toMatch(/^Expected \S/)
+        }
     })
 })

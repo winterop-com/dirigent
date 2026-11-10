@@ -163,7 +163,7 @@ describe('the shapes the shipped catalog publishes', () => {
             },
         })
         expect(field).toMatchObject({ kind: 'text', fallback: '32mb', help: 'How much is read into memory.' })
-        expect(field.hint).toBe('bytes, or a size such as 1mb')
+        expect(field.hint).toBe('bytes, or a size such as 16KB or 2MB')
     })
 
     test('an optional string is one nullable text field, not a union of two', () => {

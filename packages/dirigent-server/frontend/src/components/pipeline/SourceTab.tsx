@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
+import { useControlledDocument } from '@winterop-com/sokkel-ui/CodeEditor'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { useCodeBuffer } from '@/hooks/use-code-buffer'
 import type { JsonMap } from '@/lib/api'
 import { windowWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
@@ -70,7 +70,7 @@ export function SourceTab({
         }
     }, [])
 
-    const buffer = useCodeBuffer(text, (next) => {
+    const buffer = useControlledDocument(text, (next) => {
         typed.current = true
         setText(next)
         if (timer.current !== null) clearTimeout(timer.current)
