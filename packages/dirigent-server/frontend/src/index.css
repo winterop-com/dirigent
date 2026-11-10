@@ -4,6 +4,7 @@
    missing. Each theme the app offers is its own file, worn on <html data-theme>. What follows the
    imports is this app's own CSS, drawn in the library's tokens. */
 @import '@winterop-com/sokkel-ui/styles-base.css';
+@import '@winterop-com/sokkel-ui/sources/CodeEditor.css';
 @import '@winterop-com/sokkel-ui/sources/CopyButton.css';
 @import '@winterop-com/sokkel-ui/sources/DialogShell.css';
 @import '@winterop-com/sokkel-ui/sources/IconButton.css';
@@ -300,13 +301,6 @@
     background-color: var(--panel-ground);
 }
 .dg-inset {
-    background-color: var(--background);
-}
-.dg-frame {
-    min-width: 0;
-    overflow: hidden;
-    border: 1px solid var(--input);
-    border-radius: var(--radius-control);
     background-color: var(--background);
 }
 [data-slot='combobox-content'][class~='w-(--anchor-width)'],

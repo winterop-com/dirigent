@@ -138,20 +138,13 @@ export function ExamplePanel({
                         windowed={
                             <CodePane
                                 value={source}
-                                path={`example-${code}-window`}
                                 label={LABELS.examples.source_pane_windowed(SOURCE_LABEL)}
                                 className="min-h-0 flex-1"
                                 readOnly
                             />
                         }
                     >
-                        <CodePane
-                            value={source}
-                            path={`example-${code}`}
-                            label={SOURCE_LABEL}
-                            className="h-72 min-h-40"
-                            readOnly
-                        />
+                        <CodePane value={source} label={SOURCE_LABEL} className="h-72 min-h-40" readOnly />
                     </WindowedPane>
                 )}
             </Section>

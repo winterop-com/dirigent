@@ -3,7 +3,7 @@ import { ICONS } from '@/lib/icons'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { MarkdownLine } from '@/components/Markdown'
-import { CodePane } from '@/components/pipeline/CodePane'
+import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
@@ -15,7 +15,6 @@ import {
     SelectValue,
 } from '@winterop-com/sokkel-ui/primitives/select'
 import { Switch } from '@winterop-com/sokkel-ui/primitives/switch'
-import { WindowedPane } from '@/components/WindowedPane'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { ReferenceRow } from '@/components/pipeline/ReferenceRow'
 import type { JsonMap } from '@/lib/api'
@@ -656,40 +655,22 @@ function TextControl({
         onChange(parsed.value)
     }
 
-    // A program and a value edited as JSON are the same pane at two heights, and both open in
-    // a window: `WindowedPane` owns that gesture, and the window and the box name one path, so
-    // monaco hands them one buffer and closing the window loses nothing.
     if (field.kind === 'code' || field.kind === 'json') {
         const mediaType = field.kind === 'json' ? 'application/json' : field.mediaType
-        const path = `config/${field.name}`
         return (
-            <WindowedPane
+            <WindowedSource
                 name={field.name}
-                onBlur={onTouch}
+                label={field.name}
+                windowLabel={LABELS.form.in_window(field.name)}
+                value={text}
+                mediaType={mediaType}
+                placeholder={field.placeholder}
+                className={field.kind === 'json' ? 'h-32 min-h-24' : 'h-48 min-h-32'}
+                readOnly={disabled}
                 aside={field.kind === 'code' ? <ProgramReference mediaType={mediaType} /> : undefined}
-                windowed={
-                    <CodePane
-                        value={text}
-                        mediaType={mediaType}
-                        path={path}
-                        label={LABELS.form.in_window(field.name)}
-                        className="min-h-0 flex-1"
-                        readOnly={disabled}
-                        onChange={write}
-                    />
-                }
-            >
-                <CodePane
-                    value={text}
-                    mediaType={mediaType}
-                    path={path}
-                    label={field.name}
-                    placeholder={field.placeholder}
-                    className={field.kind === 'json' ? 'h-32 min-h-24' : 'h-48 min-h-32'}
-                    readOnly={disabled}
-                    onChange={write}
-                />
-            </WindowedPane>
+                onBlur={onTouch}
+                onChange={write}
+            />
         )
     }
     return (

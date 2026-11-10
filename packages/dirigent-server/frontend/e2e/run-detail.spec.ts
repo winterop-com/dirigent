@@ -88,7 +88,7 @@ test('choosing a step on the graph opens it in the panel', async ({ page }) => {
     // fetched when first asked for.
     await panel.getByLabel('Open parse · output in a window').click()
     const window = page.getByRole('dialog')
-    await expect(window.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
+    await expect(window.locator('.cm-editor')).toBeVisible({ timeout: 30_000 })
     await page.keyboard.press('Escape')
     await expect(window).toBeHidden()
 

@@ -112,29 +112,11 @@ export default defineConfig({
     base: '/',
     plugins: [react(), tailwindcss(), precompress(), appearanceScript()],
     resolve: {
-        alias: [
-            { find: '@', replacement: path.resolve(import.meta.dirname, './src') },
-            /*
-             * monaco-yaml's worker imports monaco's worker by its path before 0.57, which the
-             * package no longer exports; this names the same module where it lives now.
-             */
-            {
-                find: 'monaco-editor/esm/vs/editor/editor.worker.js',
-                replacement: 'monaco-editor/editor/editor.worker.js',
-            },
-        ],
+        alias: [{ find: '@', replacement: path.resolve(import.meta.dirname, './src') }],
     },
     server: { proxy },
     build: {
         outDir: 'dist',
         emptyOutDir: true,
-        /*
-         * Two bundles here are whole engines, each fetched by the screens that need one and by
-         * nothing else: monaco's editor chunk, behind `CodePane`, and elk's layout worker,
-         * behind `components/graph/elk`. The worker is not a chunk and is not counted against
-         * this; monaco's chunk is the only one over the default 500 kB, and this is what clears
-         * it. Every other chunk, the entry included, stays far under.
-         */
-        chunkSizeWarningLimit: 2500,
     },
 })
