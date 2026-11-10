@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
 
-import { rowsOf, settingsRows } from '@/lib/settings'
+import { settingsRows } from '@/lib/settings'
 import {
     APPEARANCE_DEFAULTS,
     APPEARANCE_OFFER,
@@ -89,7 +89,7 @@ describe('the palette axis', () => {
     })
 
     test('the settings dialog offers the choice, in the theme category', () => {
-        const rows = rowsOf(settingsRows(false), 'theme')
+        const rows = settingsRows(false).filter((row) => row.category === 'theme')
         expect(rows.map((row) => row.id)).toEqual(['theme:appearance', 'theme:palette'])
     })
 })

@@ -206,14 +206,14 @@ test('the settings search reaches across every category', async ({ page }) => {
     await openSettings(page)
     const dialog = page.getByRole('dialog')
 
-    await dialog.getByLabel(LABELS.settings.search).fill('password')
+    await dialog.getByRole('searchbox').fill('password')
     await expect(dialog.getByRole('button', { name: LABELS.word.account.label, exact: true })).toBeVisible()
     await expect(
         dialog.getByRole('button', { name: LABELS.settings.category.general, exact: true }),
     ).toHaveCount(0)
 
     // One box across the renamed groups: a palette is a Theme row and a chord is a Shortcuts one.
-    await dialog.getByLabel(LABELS.settings.search).fill('palette')
+    await dialog.getByRole('searchbox').fill('palette')
     await expect(
         dialog.getByRole('button', { name: LABELS.settings.category.theme, exact: true }),
     ).toBeVisible()
@@ -221,8 +221,9 @@ test('the settings search reaches across every category', async ({ page }) => {
         dialog.getByRole('button', { name: LABELS.settings.category.shortcuts, exact: true }),
     ).toBeVisible()
 
-    await dialog.getByLabel(LABELS.settings.search).fill('stroopwafel')
-    await expect(dialog.getByText(LABELS.settings.no_match)).toBeVisible()
+    await dialog.getByRole('searchbox').fill('stroopwafel')
+    // The nav's own line is the phone's; the pane's is the one a wide screen shows.
+    await expect(dialog.getByText(LABELS.settings.no_match).filter({ visible: true })).toHaveCount(1)
 })
 
 test('the nav is three groups and About is not one of them', async ({ page }) => {

@@ -19,6 +19,7 @@ import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
 import type { ServerMenuWords } from '@winterop-com/sokkel-ui/ServerMenu'
 import type { ShellWords } from '@winterop-com/sokkel-ui/Shell'
+import type { SettingsDialogWords } from '@winterop-com/sokkel-ui/SettingsDialog'
 import type { SidePanelWords } from '@winterop-com/sokkel-ui/SidePanel'
 import type { TopBarWords } from '@winterop-com/sokkel-ui/TopBar'
 import type { ShortcutsDialogWords } from '@winterop-com/sokkel-ui/ShortcutsDialog'
@@ -265,4 +266,16 @@ export function accountWords(username: string): Partial<AccountMenuWords> {
         system: LABELS.shell.mode.system,
         signOut: LABELS.action.sign_out,
     }
+}
+
+/** What the settings dialog says: its title, its search, the footer's note and Done, and its two ways out. */
+export const SETTINGS_WORDS: Partial<SettingsDialogWords> = {
+    title: LABELS.settings.title,
+    search: SEARCH_PLACEHOLDER,
+    clear: LABELS.shell.clear_search,
+    noMatch: LABELS.settings.no_match,
+    saved: LABELS.settings.saved,
+    done: LABELS.settings.done,
+    close: LABELS.settings.close,
+    back: LABELS.settings.back,
 }
