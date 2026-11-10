@@ -14,6 +14,7 @@ import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
+import type { SignInWords } from '@winterop-com/sokkel-ui/SignIn'
 import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
 import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
@@ -133,6 +134,18 @@ export const TOOLBAR_WORDS: ToolbarWords = {
 /** What a pane's window button and its window's close say, the button naming the pane. */
 export function windowWords(name: string): Partial<WindowedPaneWords> {
     return { expand: LABELS.shell.open_in_window(name), close: LABELS.shell.close_window }
+}
+
+/** What the sign-in screen says: its title and button, its two fields, the reveal toggle and the seam. No placeholders: the labels name the fields. */
+export const SIGN_IN_WORDS: Partial<SignInWords> = {
+    title: LABELS.action.sign_in.verb,
+    submit: LABELS.action.sign_in.verb,
+    busy: LABELS.action.sign_in.busy,
+    user: LABELS.word.username,
+    password: LABELS.word.password,
+    show: LABELS.login.show_password,
+    hide: LABELS.login.hide_password,
+    seam: LABELS.login.seam,
 }
 
 /** What an editor's schema check says that is not an issue: the word beside a deprecated key. */

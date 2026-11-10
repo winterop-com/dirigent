@@ -10,7 +10,6 @@ lucide-import	packages/dirigent-server/frontend/src/components/RefreshControl.ts
 lucide-import	packages/dirigent-server/frontend/src/components/alerting/ChannelStrip.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/list/Choice.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/list/TagFilter.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/login/BrandPane.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/AddStepMenu.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/Disclosure.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/StepNode.tsx	1
@@ -22,7 +21,6 @@ lucide-import	packages/dirigent-server/frontend/src/components/triggers/NewTrigg
 lucide-import	packages/dirigent-server/frontend/src/pages/Connections.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/Dashboard.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/Examples.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/pages/Login.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/PipelineEditor.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/Runs.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/Schemas.tsx	1
