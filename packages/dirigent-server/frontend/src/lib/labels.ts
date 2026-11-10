@@ -838,6 +838,8 @@ const shell = {
     open_in_window: (name: string) => `Open ${name} in a window`,
     /** What the pane inside that window is called. */
     in_window: (name: string) => `${name}, in a window`,
+    /** The button that closes that window. */
+    close_window: 'Close the window',
     /** The way out of a screen and into the requests behind it. */
     api_docs: (section: string) => `The ${section} section of this instance's API documentation`,
 
@@ -1619,6 +1621,8 @@ const editor = {
     not_configured: 'not configured',
     /** The name the same pane takes when it is opened in a window of its own. */
     in_window: (pane: string) => `${pane}, in a window`,
+    /** Beside a key the schema marks deprecated, among the words offered while typing. */
+    deprecated_key: 'deprecated',
     /** The name the skeleton document gives itself. */
     new_document_name: 'My pipeline',
 

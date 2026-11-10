@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { WindowedPane } from '@/components/WindowedPane'
+import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { useCodeBuffer } from '@/hooks/use-code-buffer'
 import type { JsonMap } from '@/lib/api'
+import { windowWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { toYaml } from '@/lib/pipeline-document'
 
@@ -83,19 +84,6 @@ export function SourceTab({
         return <p className="p-4 text-sm text-muted-foreground">{LABELS.editor.no_document}</p>
     }
 
-    // The pane in place and the pane in the window are two views of one buffer: what is typed in
-    // either is what the other shows, and closing the window loses nothing.
-    const pane = (windowed: boolean) => (
-        <CodePane
-            doc={buffer}
-            schema={schema}
-            label={windowed ? LABELS.editor.in_window(LABELS.editor.source.pane) : LABELS.editor.source.pane}
-            variant="pane"
-            className="min-h-0 flex-1"
-            readOnly={readOnly}
-        />
-    )
-
     return (
         <div className="flex h-full min-h-0 flex-col">
             {parseError !== null && (
@@ -104,13 +92,28 @@ export function SourceTab({
                     <p className="mt-1">{LABELS.editor.source.stale}</p>
                 </div>
             )}
+            {/* The pane stays in place under its window, and the two are views of one buffer: what
+                is typed in either is what the other shows, and closing the window loses nothing. */}
             <WindowedPane
-                name={LABELS.editor.source.pane}
-                frame="none"
-                className="min-h-0 flex-1 bg-background"
-                windowed={pane(true)}
+                title={<span className="font-mono">{LABELS.editor.source.pane}</span>}
+                keepPane
+                className="flex min-h-0 flex-1 flex-col bg-background"
+                words={windowWords(LABELS.editor.source.pane)}
             >
-                {pane(false)}
+                {(where) => (
+                    <CodePane
+                        doc={buffer}
+                        schema={schema}
+                        label={
+                            where === 'window'
+                                ? LABELS.editor.in_window(LABELS.editor.source.pane)
+                                : LABELS.editor.source.pane
+                        }
+                        variant="pane"
+                        className="min-h-0 flex-1"
+                        readOnly={readOnly}
+                    />
+                )}
             </WindowedPane>
         </div>
     )

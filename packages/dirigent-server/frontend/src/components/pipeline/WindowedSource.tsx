@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react'
 
+import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { WindowedPane } from '@/components/WindowedPane'
 import { useCodeBuffer } from '@/hooks/use-code-buffer'
+import { windowWords } from '@/lib/design-system'
 
 /**
- * A program in a field-sized box that opens in a window. The box and the window are two views of
- * one buffer: what is typed in either is what the other shows, and closing the window loses
- * nothing.
+ * A program in a field-sized box that opens in a window. The box stays in place while the window
+ * is open, and the two are views of one buffer: what is typed in either is what the other shows,
+ * and closing the window loses nothing.
  */
 export function WindowedSource({
     name,
@@ -39,28 +40,34 @@ export function WindowedSource({
 }) {
     const buffer = useCodeBuffer(value, onChange)
     return (
-        <WindowedPane
-            name={name}
-            onBlur={onBlur}
-            aside={aside}
-            windowed={
-                <CodePane
-                    doc={buffer}
-                    mediaType={mediaType}
-                    label={windowLabel}
-                    className="min-h-0 flex-1"
-                    readOnly={readOnly}
-                />
-            }
-        >
-            <CodePane
-                doc={buffer}
-                mediaType={mediaType}
-                label={label}
-                placeholder={placeholder}
-                className={className}
-                readOnly={readOnly}
-            />
-        </WindowedPane>
+        <div className="contents" onBlur={onBlur}>
+            <WindowedPane
+                title={<span className="font-mono">{name}</span>}
+                keepPane
+                aside={aside}
+                words={windowWords(name)}
+            >
+                {(where) =>
+                    where === 'pane' ? (
+                        <CodePane
+                            doc={buffer}
+                            mediaType={mediaType}
+                            label={label}
+                            placeholder={placeholder}
+                            className={className}
+                            readOnly={readOnly}
+                        />
+                    ) : (
+                        <CodePane
+                            doc={buffer}
+                            mediaType={mediaType}
+                            label={windowLabel}
+                            className="min-h-0 flex-1"
+                            readOnly={readOnly}
+                        />
+                    )
+                }
+            </WindowedPane>
+        </div>
     )
 }

@@ -1,10 +1,11 @@
 import { ReactFlowProvider } from '@xyflow/react'
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 import { Section } from '@winterop-com/sokkel-ui/Section'
+import { WindowedPane, WindowedPaneButton } from '@winterop-com/sokkel-ui/WindowedPane'
 import { PageCanvasTools, type CanvasFrame } from '@/components/graph/GraphCanvas'
-import { WindowButton, WindowedPane } from '@/components/WindowedPane'
 import type { LayoutChoice } from '@/lib/dag-layout'
+import { windowWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
@@ -42,47 +43,45 @@ export function GraphPanel({
     children?: ReactNode
 }) {
     const filled = frame === 'filled'
-    const [wide, setWide] = useState(false)
     const windowName = LABELS.shell.graph_window(name)
     return (
-        <ReactFlowProvider>
-            <Section
-                title={LABELS.pipelines.page.graph}
-                tone="graph"
-                flush
-                actions={
-                    <span className="flex items-center gap-0.5">
-                        <PageCanvasTools frame={frame} layout={layout} onLayout={onLayout} />
-                        <WindowButton
-                            name={windowName}
-                            onOpen={() => {
-                                setWide(true)
-                            }}
-                        />
-                    </span>
-                }
-                className={cn(filled ? 'flex flex-1 flex-col' : 'shrink-0', className)}
-                bodyClassName={cn(filled && 'flex min-h-0 flex-1 flex-col')}
-            >
-                <WindowedPane
-                    name={windowName}
-                    frame="none"
-                    button="none"
-                    open={wide}
-                    onOpenChange={setWide}
-                    className={cn(filled && 'flex-1')}
-                    windowed={
-                        <ReactFlowProvider>
-                            <div className="relative min-h-0 flex-1" data-graph-window>
-                                <div className="absolute inset-0">{canvas('window')}</div>
+        <WindowedPane
+            title={windowName}
+            keepPane
+            button="none"
+            className={cn(filled ? 'flex flex-1 flex-col' : 'shrink-0', className)}
+            words={windowWords(windowName)}
+        >
+            {(where) =>
+                where === 'pane' ? (
+                    <ReactFlowProvider>
+                        <Section
+                            title={LABELS.pipelines.page.graph}
+                            tone="graph"
+                            flush
+                            actions={
+                                <span className="flex items-center gap-0.5">
+                                    <PageCanvasTools frame={frame} layout={layout} onLayout={onLayout} />
+                                    <WindowedPaneButton className="text-muted-foreground" />
+                                </span>
+                            }
+                            className={cn(filled && 'flex min-h-0 flex-1 flex-col')}
+                            bodyClassName={cn(filled && 'flex min-h-0 flex-1 flex-col')}
+                        >
+                            <div className={cn('flex min-w-0 flex-col', filled && 'min-h-0 flex-1')}>
+                                {canvas(frame)}
                             </div>
-                        </ReactFlowProvider>
-                    }
-                >
-                    {canvas(frame)}
-                </WindowedPane>
-                {children}
-            </Section>
-        </ReactFlowProvider>
+                            {children}
+                        </Section>
+                    </ReactFlowProvider>
+                ) : (
+                    <ReactFlowProvider>
+                        <div className="relative min-h-0 flex-1" data-graph-window>
+                            <div className="absolute inset-0">{canvas('window')}</div>
+                        </div>
+                    </ReactFlowProvider>
+                )
+            }
+        </WindowedPane>
     )
 }

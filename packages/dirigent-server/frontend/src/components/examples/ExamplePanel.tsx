@@ -7,7 +7,7 @@ import { Fact, Section } from '@/components/run/Panel'
 import { TagChip } from '@/components/TagChip'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import { WindowedPane } from '@/components/WindowedPane'
+import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
 import { useRead } from '@/hooks/use-read'
 import {
     carriesNote,
@@ -17,6 +17,7 @@ import {
     type Holdings,
     type Requirement,
 } from '@/lib/examples'
+import { windowWords } from '@/lib/design-system'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { STARTER_TAG } from '@/lib/starters'
@@ -133,18 +134,28 @@ export function ExamplePanel({
                     </PageState>
                 ) : (
                     <WindowedPane
-                        name={SOURCE_LABEL}
+                        title={<span className="font-mono">{SOURCE_LABEL}</span>}
                         frame="inset"
-                        windowed={
-                            <CodePane
-                                value={source}
-                                label={LABELS.examples.source_pane_windowed(SOURCE_LABEL)}
-                                className="min-h-0 flex-1"
-                                readOnly
-                            />
-                        }
+                        keepPane
+                        words={windowWords(SOURCE_LABEL)}
                     >
-                        <CodePane value={source} label={SOURCE_LABEL} className="h-72 min-h-40" readOnly />
+                        {(where) =>
+                            where === 'pane' ? (
+                                <CodePane
+                                    value={source}
+                                    label={SOURCE_LABEL}
+                                    className="h-72 min-h-40"
+                                    readOnly
+                                />
+                            ) : (
+                                <CodePane
+                                    value={source}
+                                    label={LABELS.examples.source_pane_windowed(SOURCE_LABEL)}
+                                    className="min-h-0 flex-1"
+                                    readOnly
+                                />
+                            )
+                        }
                     </WindowedPane>
                 )}
             </Section>

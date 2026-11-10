@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 
+import { WindowedPane, WindowedPaneButton } from '@winterop-com/sokkel-ui/WindowedPane'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { WindowedPane } from '@/components/WindowedPane'
+import { windowWords } from '@/lib/design-system'
 import { tokenizeJson, type JsonTokenKind } from '@/lib/json-tokens'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -29,34 +30,51 @@ const HUES: Record<JsonTokenKind, string | undefined> = {
  * surface with less room to give narrows it through `className` and says what it measured;
  * nothing leaves it off.
  *
- * `className` sizes the scrolling text; the window button's strip is under it, inside the box,
- * so the one control here is never the part a height cuts off.
+ * `className` sizes the scrolling text; the window button stands in a column of its own at the
+ * box's right edge, so no line of text, scrolled anywhere, runs under it, and a height never cuts
+ * it off.
  */
 export function JsonBlock({ title, text, className }: { title: string; text: string; className?: string }) {
     const tokens = useMemo(() => tokenizeJson(text), [text])
     return (
         <WindowedPane
-            name={title}
+            title={<span className="font-mono">{title}</span>}
             frame="inset"
-            windowed={
-                <CodePane
-                    value={text}
-                    mediaType="application/json"
-                    label={LABELS.shell.in_window(title)}
-                    readOnly
-                    className="min-h-0 flex-1"
-                />
-            }
+            keepPane
+            button="none"
+            words={windowWords(title)}
         >
-            <pre className={cn('max-h-72 overflow-auto p-2 font-mono text-xs', className)}>
-                {tokens.map((token, at) => (
-                    // The list is stable for a given text, so the position is the identity.
-                    // oxlint-disable-next-line no-array-index-key
-                    <span key={at} className={HUES[token.kind]}>
-                        {token.text}
-                    </span>
-                ))}
-            </pre>
+            {(where) =>
+                where === 'pane' ? (
+                    <div className="flex min-w-0">
+                        <pre
+                            className={cn(
+                                'max-h-72 min-w-0 flex-1 overflow-auto p-2 font-mono text-xs',
+                                className,
+                            )}
+                        >
+                            {tokens.map((token, at) => (
+                                // The list is stable for a given text, so the position is the identity.
+                                // oxlint-disable-next-line no-array-index-key
+                                <span key={at} className={HUES[token.kind]}>
+                                    {token.text}
+                                </span>
+                            ))}
+                        </pre>
+                        <div className="shrink-0 p-1">
+                            <WindowedPaneButton className="text-faint" />
+                        </div>
+                    </div>
+                ) : (
+                    <CodePane
+                        value={text}
+                        mediaType="application/json"
+                        label={LABELS.shell.in_window(title)}
+                        readOnly
+                        className="min-h-0 flex-1"
+                    />
+                )
+            }
         </WindowedPane>
     )
 }
