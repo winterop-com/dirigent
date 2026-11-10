@@ -2,20 +2,23 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
+        <!--
+          sokkel-ui's pre-paint script: writes the stored scheme and palette on <html> before the
+          first paint, and the palette in its `data-theme` where nothing is stored yet. It has to
+          stay a same-origin file, because the server's policy refuses inline script, and a classic
+          script with neither async nor defer, so it runs before anything is drawn. `vite-ignore`
+          leaves the tag as written, and the build drops the attribute.
+        -->
+        <script
+            src="/appearance.js"
+            data-theme="amber"
+            data-themes="amber paper contrast"
+            vite-ignore
+        ></script>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <title>dirigent</title>
         <meta name="description" content="Build and operate pipelines on a dirigent instance." />
         <link rel="icon" type="image/png" href="/favicon-32.png" />
-        <!--
-          The palette, before the first paint.
-
-          There are two theme axes. next-themes writes the light/dark class itself, ahead of the
-          body, and this is the other one: the palette, written as `data-theme` off the same
-          storage key lib/theme.ts uses. Reading it in React would mean the attribute arrives one
-          frame after the document does, and every load would flash the default under whatever
-          was actually chosen. A classic script blocks parsing, so it runs before the body.
-        -->
-        <script src="/palette.js"></script>
     </head>
     <body>
         <div id="root"></div>

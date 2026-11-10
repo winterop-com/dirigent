@@ -1,5 +1,4 @@
 import { Check, RefreshCw } from 'lucide-react'
-import { useTheme } from 'next-themes'
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
@@ -8,6 +7,7 @@ import { Refusal } from '@/components/Refusal'
 import { SEARCH_PLACEHOLDER } from '@/components/ds/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { Dot, TONE } from '@/components/ServerStatusButton'
+import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@winterop-com/sokkel-ui/primitives/dialog'
@@ -37,13 +37,13 @@ import {
 import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { readSystemInfo, type SystemInfo } from '@/lib/system'
 import {
-    choosePalette,
+    APPEARANCE_DEFAULTS,
+    APPEARANCE_OFFER,
     MODE_LABELS,
     MODES,
     paletteAfter,
+    paletteOf,
     PALETTES,
-    paletteStore,
-    type Mode,
     type PaletteName,
 } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
@@ -61,10 +61,10 @@ export const SETTINGS_TITLE = LABELS.settings.title
  * category is one function with a test, and not a traversal of markup. What a row puts on its
  * right edge is this file's, keyed by the row's id.
  *
- * NOTHING HERE IS A COPY OF A SETTING. Appearance writes next-themes, which is the same store
- * the toggle in the header writes; times writes `lib/times`, which the formatters consult; the
- * log preference writes `lib/preferences`, which the log pane reads. A dialog that held its own
- * copy of a setting would be a second answer to the same question.
+ * NOTHING HERE IS A COPY OF A SETTING. The Theme pane writes sokkel-ui's appearance, which is the
+ * same store the account menu's Appearance writes; times writes `lib/times`, which the formatters
+ * consult; the log preference writes `lib/preferences`, which the log pane reads. A dialog that
+ * held its own copy of a setting would be a second answer to the same question.
  *
  * SIGN OUT IS ALSO IN THE ACCOUNT MENU, which is what opens this dialog.
  */
@@ -203,9 +203,7 @@ function Row({ row, children, under }: { row: SettingsRow; children?: ReactNode;
 
 /** The look: the two axes, one row each. */
 function ThemePane({ rows }: { rows: SettingsRow[] }) {
-    const { theme, setTheme } = useTheme()
-    const mode = (theme ?? 'system') as Mode
-    const palette = useStore(paletteStore)
+    const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
 
     return (
         <div>
@@ -215,9 +213,11 @@ function ThemePane({ rows }: { rows: SettingsRow[] }) {
                         <Row key={row.id} row={row}>
                             <Segmented
                                 label={LABELS.settings.row.appearance}
-                                value={mode}
+                                value={settings.scheme}
                                 options={MODES.map((one) => ({ value: one, label: MODE_LABELS[one] }))}
-                                onChoose={setTheme}
+                                onChoose={(scheme) => {
+                                    setSettings({ ...settings, scheme })
+                                }}
                             />
                         </Row>
                     )
@@ -228,9 +228,9 @@ function ThemePane({ rows }: { rows: SettingsRow[] }) {
                         row={row}
                         under={
                             <PaletteSwatches
-                                value={palette}
-                                onChoose={(name) => {
-                                    choosePalette(name)
+                                value={paletteOf(settings.theme)}
+                                onChoose={(theme) => {
+                                    setSettings({ ...settings, theme })
                                 }}
                             />
                         }

@@ -121,12 +121,11 @@ test('the seams hold in the light palette as they do in the dark one', async ({ 
     // doing: without this the default would answer light and the choice would go untested.
     await page.emulateMedia({ colorScheme: 'dark' })
     await page.evaluate(() => {
-        localStorage.setItem('theme', 'light')
+        localStorage.setItem('sokkel-ui-scheme', 'light')
     })
     await page.reload()
     await expect(page.getByRole('heading', { name: LABELS.screen.pipelines.name })).toBeVisible()
     // The palette this test is named for is really the one on the page.
-    await expect(page.locator('html')).toHaveClass(/light/)
     await expect(page.locator('html')).not.toHaveClass(/dark/)
 
     const strips = await topStrips(page)
@@ -213,8 +212,8 @@ test('the account menu is walked by keyboard, Appearance included', async ({ pag
     await expect(page.getByRole('menuitemradio', { name: LABELS.shell.mode.system })).toBeChecked()
     await expect(light).toBeFocused()
     await page.keyboard.press('Enter')
-    await expect(page.locator('html')).toHaveClass(/light/)
-    expect(await page.evaluate(() => localStorage.getItem('theme'))).toBe('light')
+    await expect(page.locator('html')).not.toHaveClass(/dark/)
+    expect(await page.evaluate(() => localStorage.getItem('sokkel-ui-scheme'))).toBe('light')
 
     await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')

@@ -14,7 +14,7 @@ import { RightPanel } from '@/components/RightPanel'
 import { panelTabs } from '@/lib/panels'
 import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { ServerStatusButton } from '@/components/ServerStatusButton'
-import { useTheme } from 'next-themes'
+import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 
 import { Code } from '@/components/ds/Code'
 import { IconButton } from '@/components/ds/IconButton'
@@ -88,7 +88,7 @@ export function AppShell() {
     const navigate = useNavigate()
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
-    const { setTheme } = useTheme()
+    const { setScheme } = useScheme()
     const [settingsAsked, setSettingsAsked] = useState(false)
     const [settingsPane, setSettingsPane] = useState<string | null>(null)
     const [problem, setProblem] = useState<Problem | null>(null)
@@ -239,7 +239,7 @@ export function AppShell() {
                 icon: MODE_ICONS[mode],
                 keywords: ['theme', 'appearance', mode],
                 run: () => {
-                    setTheme(mode)
+                    setScheme(mode)
                 },
             })),
             ...(signedIn
@@ -257,7 +257,7 @@ export function AppShell() {
                   ]
                 : []),
         ]
-    }, [hidden, navigate, openSettings, role, setTheme, signedIn])
+    }, [hidden, navigate, openSettings, role, setScheme, signedIn])
 
     useEffect(() => registerActions(actions), [actions])
 

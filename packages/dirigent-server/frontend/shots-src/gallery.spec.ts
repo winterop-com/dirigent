@@ -38,7 +38,7 @@ test('the gallery', async ({ page }) => {
     // The login page, before any session exists.
     for (const mode of ['dark', 'light']) {
         await page.goto('/login')
-        await page.evaluate((theme) => localStorage.setItem('theme', theme), mode)
+        await page.evaluate((theme) => localStorage.setItem('sokkel-ui-scheme', theme), mode)
         await page.goto('/login')
         await shot(page, mode, 'login', false)
     }
@@ -72,7 +72,7 @@ test('the gallery', async ({ page }) => {
         // The drawer remembers being open, so the pass that opened it would leave every run
         // frame of the next pass with a console under the graph and shoot a shut drawer here.
         await page.evaluate((theme) => {
-            localStorage.setItem('theme', theme)
+            localStorage.setItem('sokkel-ui-scheme', theme)
             localStorage.setItem('dirigent.terminalOpen', 'false')
         }, mode)
 
