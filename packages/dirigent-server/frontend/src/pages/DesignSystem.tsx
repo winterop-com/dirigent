@@ -19,7 +19,7 @@ import { SwitchField } from '@winterop-com/sokkel-ui/SwitchField'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { KindChip } from '@/components/KindChip'
 import { PageState } from '@/components/PageState'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
@@ -201,12 +201,25 @@ function GalleryIndex({
     )
 }
 
-/** One variant or state inside a section, under its group heading. */
-function Specimen({ title, children }: { title: string; children: ReactNode }) {
+/**
+ * One variant or state inside a section, under its group heading. `small` sets the row on one small
+ * line, so a bare dot and a dot saying its small word stand on the same line.
+ */
+function Specimen({
+    title,
+    small = false,
+    children,
+}: {
+    title: string
+    small?: boolean
+    children: ReactNode
+}) {
     return (
         <div className="space-y-3 p-4">
             <GroupLabel as="h3">{title}</GroupLabel>
-            <div className="flex min-w-0 flex-wrap items-start gap-3">{children}</div>
+            <div className={cn('flex min-w-0 flex-wrap items-start gap-3', small && 'text-xs')}>
+                {children}
+            </div>
         </div>
     )
 }
@@ -291,7 +304,7 @@ export function DesignSystem() {
                                     {...itemOf(pipeline)}
                                     as="span"
                                     description={SAMPLE.pipeline.description}
-                                    chips={<StatusChip status="succeeded" />}
+                                    chips={<StatusChip dot status="succeeded" />}
                                 />
                             </div>
                             <div className="w-80 min-w-0">
@@ -461,24 +474,24 @@ export function DesignSystem() {
                             <KindChip kind="sql" />
                             <KindChip kind="cron" />
                             {RUN_STATUSES.map((status) => (
-                                <StatusChip key={status} status={status} />
+                                <StatusChip dot key={status} status={status} />
                             ))}
-                            <StatusChip status="failed" label={SAMPLE.status_override} />
+                            <StatusChip dot status="failed" label={SAMPLE.status_override} />
                         </Specimen>
                     </Shelf>
 
                     <Shelf id="dots">
-                        <Specimen title={VARIANT.tone_dots}>
+                        <Specimen title={VARIANT.tone_dots} small>
                             {TONES.map((tone) => (
                                 <Dot key={tone} {...dotOf({ tone, label: SAMPLE.tone[tone] })} />
                             ))}
                         </Specimen>
-                        <Specimen title={VARIANT.always}>
+                        <Specimen title={VARIANT.always} small>
                             {TONES.map((tone) => (
                                 <Dot key={tone} {...dotOf({ tone, label: SAMPLE.tone[tone] }, 'always')} />
                             ))}
                         </Specimen>
-                        <Specimen title={VARIANT.status_dots}>
+                        <Specimen title={VARIANT.status_dots} small>
                             {RUN_STATUSES.map((status) => (
                                 <Dot key={status} {...dotOf({ status })} />
                             ))}

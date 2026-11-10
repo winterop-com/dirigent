@@ -2,14 +2,16 @@
  * The state machines, as the UI reads them.
  *
  * The strings are `RunStatus`, `AttemptStatus`, `RunItemStatus` and the engine's `StepOutcome`
- * off the wire, unchanged. Each indexes a `--status-<name>` token in index.css directly, so
- * there is no translation table between a status and the colour it is drawn in -- a status this
- * bundle has never heard of falls back to the neutral one rather than rendering uncoloured.
+ * off the wire, unchanged. Each is drawn in one color from `LOOKS`, a `--status-<name>` token, and
+ * said in one word from the catalogue; `STATUSES` hands both to sokkel-ui's status parts. A status
+ * this bundle has never heard of falls back to the neutral pair rather than rendering uncolored.
  *
  * TERMINAL IS A DECISION, NOT A LOOK. What is terminal decides whether the event stream stays
  * open, whether Cancel is offered, and whether a replayed frame is allowed to move a state
  * backwards. It is stated once here and read everywhere else.
  */
+
+import type { StatusColor, StatusMap } from '@winterop-com/sokkel-ui/StatusChip'
 
 import { LABELS } from '@/lib/labels'
 
@@ -88,23 +90,28 @@ const TERMINAL_STEP: ReadonlySet<string> = new Set(['succeeded', 'failed', 'skip
 /** The attempt states nothing will move an attempt out of. */
 const TERMINAL_ATTEMPT: ReadonlySet<string> = new Set(['succeeded', 'failed', 'skipped', 'cancelled'])
 
-/** Every status that has a `--status-<name>` token, which is the union of the machines above. */
-const TOKENS: ReadonlySet<string> = new Set([
-    'pending',
-    'queued',
-    'running',
-    'waiting',
-    'succeeded',
-    'completed_with_errors',
-    'failed',
-    'skipped',
-    'cancelled',
-    'sending',
-    'sent',
-])
+/**
+ * The color each state is drawn in, and whether it is happening now, so its dot pulses. `paused`
+ * is held rather than going, so it takes the not-started color; a delivery's `sending` and
+ * `sent` are drawn as the run states they mean.
+ */
+const LOOKS: Readonly<Record<string, { color: StatusColor; live?: boolean }>> = {
+    pending: { color: 'pending' },
+    queued: { color: 'queued', live: true },
+    running: { color: 'running', live: true },
+    waiting: { color: 'waiting', live: true },
+    paused: { color: 'pending' },
+    succeeded: { color: 'succeeded' },
+    completed_with_errors: { color: 'completed_with_errors' },
+    failed: { color: 'failed' },
+    skipped: { color: 'skipped' },
+    cancelled: { color: 'cancelled' },
+    sending: { color: 'running', live: true },
+    sent: { color: 'succeeded' },
+}
 
 /** Where the neutral pair sits, for a status this bundle was built before. */
-const FALLBACK = 'pending'
+const FALLBACK: StatusColor = 'pending'
 
 /** Report whether a run has settled, which is what closes the event stream. */
 export function runSettled(status: string): boolean {
@@ -122,7 +129,8 @@ export function attemptSettled(status: string): boolean {
 }
 
 /**
- * The custom properties `.status-chip` and the graph node read: the state's hue and its ink.
+ * The custom properties the graph node, an attempt's rail and a progress line read: the state's
+ * hue and its ink.
  *
  * The wire spells a state with underscores and CSS spells a custom property with hyphens, so
  * `completed_with_errors` indexes `--status-completed-with-errors`. An undefined custom property
@@ -130,8 +138,13 @@ export function attemptSettled(status: string): boolean {
  * pair rather than a name that resolves to no colour.
  */
 export function statusTokens(status: string): { '--chip': string; '--chip-ink': string } {
-    const name = (TOKENS.has(status) ? status : FALLBACK).replaceAll('_', '-')
+    const name = colorOf(status).replaceAll('_', '-')
     return { '--chip': `var(--status-${name})`, '--chip-ink': `var(--status-${name}-ink)` }
+}
+
+/** The color a state is drawn in, the neutral pair for one this bundle does not know. */
+function colorOf(status: string): StatusColor {
+    return Object.hasOwn(LOOKS, status) ? LOOKS[status].color : FALLBACK
 }
 
 /** What each state of the two machines is called, keyed by the wire's own value. */
@@ -150,3 +163,11 @@ const WORDS: Readonly<Record<string, string>> = {
 export function statusLabel(status: string): string {
     return WORDS[status] ?? status.replaceAll('_', ' ')
 }
+
+/**
+ * Every state this app names, in its words and its color, for the `StatusProvider` around the app:
+ * a `StatusChip` or a `Dot` given a status reads it from there.
+ */
+export const STATUSES: StatusMap = Object.fromEntries(
+    Object.entries(LOOKS).map(([status, look]) => [status, { label: statusLabel(status), ...look }]),
+)

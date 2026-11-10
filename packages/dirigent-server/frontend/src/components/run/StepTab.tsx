@@ -7,7 +7,7 @@ import { KindChip } from '@/components/KindChip'
 import { LogPane } from '@/components/run/LogPane'
 import { ProgressLine } from '@/components/run/ProgressLine'
 import { Copyable, Fact, Section } from '@/components/run/Panel'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { asJson, countedHeading, elapsedBetween, formatBytes, formatDuration, shortenUri } from '@/lib/format'
 import {
     attemptOrder,
@@ -85,7 +85,7 @@ export function StepTab({
         <div className="flex min-h-0 flex-col gap-4 p-4">
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    <StatusChip status={nodeTone(view)} />
+                    <StatusChip dot status={nodeTone(view)} />
                     <span className={cn('truncate text-sm font-semibold', !heading.named && 'font-mono')}>
                         {heading.title}
                     </span>
@@ -379,7 +379,7 @@ function AttemptRow({
             style={statusTokens(attempt.status) as CSSProperties}
         >
             <div className="flex items-center gap-2">
-                <StatusChip status={attempt.status} />
+                <StatusChip dot status={attempt.status} />
                 <button
                     type="button"
                     aria-pressed={chosen}

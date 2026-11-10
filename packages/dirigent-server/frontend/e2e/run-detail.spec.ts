@@ -11,6 +11,7 @@ import {
     ranToCompletion,
     signIn,
     startRun,
+    statusChip,
 } from './support.ts'
 
 /**
@@ -57,7 +58,7 @@ test('a run reads as its graph, its steps, and the state it settled in', async (
     await expect(page.locator('.react-flow__node')).toHaveCount(STEPS.length)
 
     // THE STATE IT SETTLED IN, on the chip in the topbar strip.
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+    await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
 })
@@ -193,7 +194,7 @@ test('a live run keeps every edge, however often the stream redraws it', async (
         await new Promise<void>((resolve) => {
             const tick = () => {
                 counts.push(document.querySelectorAll('.react-flow__edge').length)
-                const settled = document.querySelector('.status-chip[data-status="running"]') === null
+                const settled = document.querySelector('main .animate-live') === null
                 const elapsed = performance.now() - started
                 if (elapsed > 30_000 || (settled && elapsed > 2_000)) {
                     resolve()
@@ -208,7 +209,7 @@ test('a live run keeps every edge, however often the stream redraws it', async (
 
     expect(watch.frames).toBeGreaterThan(60)
     expect(watch.edgeless, 'frames the graph was drawn without all three of its edges').toBe(0)
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible()
+    await expect(statusChip(page, 'succeeded').first()).toBeVisible()
     await expect(page.locator('.react-flow__edge')).toHaveCount(3)
 })
 
@@ -249,7 +250,7 @@ test('an edge moves while its downstream step is reading, and stills when the ru
     await expect(page.locator('.react-flow__edge.dg-edge-flowing')).toHaveCount(2, { timeout: 30_000 })
 
     // A terminal run has no motion anywhere on it, and neither has one opened again.
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+    await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
     await expect(page.locator('.react-flow__edge.dg-edge-flowing')).toHaveCount(0)
@@ -286,9 +287,9 @@ test('the header says the run is running while it still is, without a reload', a
     // moment to be read: that one is over before the graph it drew has finished drawing.
     await expect(page.getByText(LABELS.state.stream.live, { exact: true })).toBeVisible()
 
-    const chip = page.getByRole('main').locator('.status-chip').first()
-    await expect(chip).toHaveAttribute('data-status', 'running', { timeout: 15_000 })
-    await expect(chip).toHaveAttribute('data-status', 'succeeded', { timeout: 30_000 })
+    const main = page.getByRole('main')
+    await expect(statusChip(main, 'running').first()).toBeVisible({ timeout: 15_000 })
+    await expect(statusChip(main, 'succeeded').first()).toBeVisible({ timeout: 30_000 })
 })
 
 test('an edge is lit rather than moving for somebody who asked for less motion', async ({ page }) => {
@@ -314,7 +315,7 @@ test('a graph is laid out in the order its steps were written, in flight and onc
     await expect(page.locator('.react-flow__node')).toHaveCount(RACE_STEPS.length)
     expect(await drawnOrder(page)).toEqual(RACE_STEPS)
 
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+    await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
     await page.reload()
@@ -461,7 +462,7 @@ test("a step output's window button covers none of its text, however long its li
 
     await page.goto(`/runs/${runId}`)
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+    await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
 
@@ -548,7 +549,7 @@ test('a fan-out over a step output waits for it, then draws its items as they ar
 
     await expect(each.getByText('3 items', { exact: true })).toBeVisible({ timeout: 30_000 })
     await expect(each.getByText('waits for list', { exact: true })).toHaveCount(0)
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+    await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
     await expect(each.locator('.step-node')).toHaveAttribute('data-outcome', 'succeeded')

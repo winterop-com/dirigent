@@ -479,3 +479,21 @@ export async function openSettings(page: Page): Promise<void> {
         .click()
     await page.getByRole('menuitem', { name: LABELS.shell.settings, exact: true }).click()
 }
+
+/** The word a status chip says for a state: the catalogue's, else the wire's own value. */
+function statusWord(status: string): string {
+    const run = LABELS.state.run as Record<string, { chip: string } | undefined>
+    const attempt = LABELS.state.attempt as Record<string, string | undefined>
+    return run[status]?.chip ?? attempt[status] ?? status
+}
+
+/** A status chip, found by the word it says for one state. */
+export function statusChip(scope: Page | Locator, status: string): Locator {
+    return scope.getByText(statusWord(status), { exact: true })
+}
+
+/** Any run state's chip, by the words they say. */
+export function anyRunStatus(scope: Page | Locator): Locator {
+    const words = Object.values(LABELS.state.run).map((forms) => forms.chip)
+    return scope.getByText(new RegExp(`^(${words.join('|')})$`))
+}

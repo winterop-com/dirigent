@@ -153,12 +153,14 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
 
 test('a bare status dot stays a dot, and is not grown to a finger', async ({ page }) => {
     // REVERT-PROOF: a bare dot is its own tooltip's trigger, and the finger rule for triggers
-    // drew it as a 44px disc.
+    // drew it as a 44px disc. The rule grows the box around the disc; the disc keeps its size.
     await page.goto('/design')
-    const dots = page.locator('[data-gallery="dots"] [role="img"]')
+    const dots = page.locator('[data-gallery="dots"] [role="img"] > [aria-hidden]')
     await expect(dots.first()).toBeVisible()
     for (const dot of await dots.all()) {
-        expect((await dot.boundingBox())?.height ?? 0).toBeLessThanOrEqual(10)
+        const box = await dot.boundingBox()
+        expect(box?.height ?? 0).toBeLessThanOrEqual(10)
+        expect(box?.width ?? 0).toBeLessThanOrEqual(10)
     }
 })
 

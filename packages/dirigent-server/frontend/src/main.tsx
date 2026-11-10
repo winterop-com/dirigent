@@ -4,12 +4,14 @@ import { BrowserRouter, Link as RouterLink } from 'react-router'
 
 import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
 import { isInternalLink, LinkProvider, type RoutedLinkProps } from '@winterop-com/sokkel-ui/Link'
+import { StatusProvider } from '@winterop-com/sokkel-ui/StatusProvider'
 
 import { Toaster } from '@winterop-com/sokkel-ui/primitives/sonner'
 import { TooltipProvider } from '@winterop-com/sokkel-ui/primitives/tooltip'
 
 import App from '@/App'
 import { servedByInstance } from '@/lib/docs'
+import { STATUSES } from '@/lib/status'
 import { registerDirigentFormats } from '@/lib/schema-formats'
 import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER } from '@/lib/theme'
 import '@/index.css'
@@ -57,7 +59,9 @@ createRoot(document.getElementById('root')!).render(
         <TooltipProvider delay={600}>
             <BrowserRouter>
                 <LinkProvider render={routedLink} internal={routedHere}>
-                    <App />
+                    <StatusProvider statuses={STATUSES}>
+                        <App />
+                    </StatusProvider>
                 </LinkProvider>
             </BrowserRouter>
             <Toaster richColors />

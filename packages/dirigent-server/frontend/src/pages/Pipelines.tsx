@@ -13,7 +13,7 @@ import { MiniGraph } from '@/components/graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageState } from '@/components/PageState'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { ICONS } from '@/lib/icons'
@@ -323,11 +323,15 @@ function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
                 </Chip>
             ))}
             {row.active_runs > 0 ? (
-                <StatusChip status="running" label={LABELS.word.in_flight.counted(String(row.active_runs))} />
+                <StatusChip
+                    dot
+                    status="running"
+                    label={LABELS.word.in_flight.counted(String(row.active_runs))}
+                />
             ) : (
                 row.last_run !== null && (
                     <span className="inline-flex items-center gap-2 text-xs">
-                        <StatusChip status={row.last_run.status} />
+                        <StatusChip dot status={row.last_run.status} />
                         <Instant
                             at={row.last_run.finished_at ?? row.last_run.started_at}
                             className="text-muted-foreground"

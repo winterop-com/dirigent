@@ -5,7 +5,7 @@ import { Field, TargetPicker } from '@/components/alerting/fields'
 import { Instant } from '@/components/Instant'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
@@ -176,7 +176,7 @@ function Delivery({ row }: { row: NotificationOut }) {
         <div data-testid="test-delivery" aria-live="polite">
             <Surface tone="well" pad className="space-y-2">
                 <p className="flex flex-wrap items-center gap-2">
-                    <StatusChip status={row.status} />
+                    <StatusChip dot status={row.status} />
                     <span className="text-sm">{row.subject}</span>
                 </p>
                 <p className="text-xs text-muted-foreground">

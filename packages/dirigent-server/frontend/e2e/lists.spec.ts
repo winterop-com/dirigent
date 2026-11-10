@@ -1,7 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { applyDocument, applyExample, ranToCompletion, signIn, startRun } from './support.ts'
+import {
+    anyRunStatus,
+    applyDocument,
+    applyExample,
+    ranToCompletion,
+    signIn,
+    startRun,
+    statusChip,
+} from './support.ts'
 
 /**
  * The two listing screens, against a real instance this suite applied documents to and ran one
@@ -102,8 +110,8 @@ test('the pipelines listing carries the identity, the shape and the last run', a
     await expect(rowOf(page, RAN.title).locator('svg.mini-graph')).toBeVisible()
 
     // The one that ran says how it went; the one that has not run says nothing there at all.
-    await expect(rowOf(page, RAN.title).locator('.status-chip')).toBeVisible()
-    await expect(rowOf(page, IDLE.title).locator('.status-chip')).toHaveCount(0)
+    await expect(statusChip(rowOf(page, RAN.title), 'succeeded')).toBeVisible()
+    await expect(anyRunStatus(rowOf(page, IDLE.title))).toHaveCount(0)
 
     // The row is the link to the pipeline's page.
     await rowOf(page, RAN.title).click()
@@ -195,7 +203,7 @@ test('a run on the listing wears its state, and the row opens it', async ({ page
     // NOTHING DRAWS THE ID. A run row is headed by its pipeline and opened by the row itself.
     const row = runRowOf(page, RAN.code)
     await expect(row).not.toContainText(runId.slice(-8))
-    await expect(row.locator('.status-chip[data-status="succeeded"]')).toBeVisible()
+    await expect(statusChip(row, 'succeeded')).toBeVisible()
 
     // TITLE ELSE CODE, HERE TOO. A run row carries its pipeline's code and nothing else, so the
     // screen reads the names and heads the row the way the pipelines listing heads its own --

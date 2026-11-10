@@ -13,11 +13,13 @@ import { HealthPanel } from '@/components/overview/HealthPanel'
 import { RunsChart } from '@/components/overview/RunsChart'
 import { PageState } from '@/components/PageState'
 import { RefreshControl } from '@/components/RefreshControl'
-import { StatusChip, StatusDot } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
+import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import { readConnections } from '@/lib/connections'
+import { dotOf } from '@/lib/design-system'
 import { elapsedBetween, formatDuration } from '@/lib/format'
 import {
     healthNote,
@@ -358,7 +360,7 @@ function TroubledRow({ entry }: { entry: LookEntry }) {
                     </p>
                 )}
                 <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs">
-                    <StatusChip status={run.status} />
+                    <StatusChip dot status={run.status} />
                     <Instant
                         className="text-muted-foreground"
                         at={run.finished_at ?? run.started_at ?? run.created_at}
@@ -380,7 +382,7 @@ function RecentRow({ run, name }: { run: RunOut; name: string | null }) {
             to={`/runs/${run.id}`}
             className="flex items-center gap-4 border-t border-border px-5 py-2.5 first:border-t-0 hover:bg-muted"
         >
-            <StatusDot status={run.status} />
+            <Dot {...dotOf({ status: run.status }, 'never')} />
             <PipelineTitle code={run.pipeline} name={name} />
             <span className="w-16 shrink-0 text-right font-mono text-xs text-muted-foreground">
                 {took === null ? null : formatDuration(took)}

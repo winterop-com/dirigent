@@ -5,7 +5,7 @@ import { Section } from '@winterop-com/sokkel-ui/Section'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Instant } from '@/components/Instant'
 import { ReportDocumentPane } from '@/components/run/ReportDocument'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { useRead } from '@/hooks/use-read'
 import type { Problem } from '@/lib/api'
 import { readReportDocument } from '@/lib/artifacts'
@@ -80,7 +80,7 @@ function RunLine({ run }: { run: RunOut }) {
             className="flex min-w-0 items-center gap-4 border-t border-border px-4 py-2 first:border-t-0 hover:bg-muted"
         >
             <span className="w-36 shrink-0">
-                <StatusChip status={run.status} />
+                <StatusChip dot status={run.status} />
             </span>
             <span
                 className="hidden min-w-0 flex-1 truncate text-xs sm:block"

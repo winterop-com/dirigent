@@ -22,6 +22,8 @@
 @import '@winterop-com/sokkel-ui/sources/SecretReveal.css';
 @import '@winterop-com/sokkel-ui/sources/Section.css';
 @import '@winterop-com/sokkel-ui/sources/SplitButton.css';
+@import '@winterop-com/sokkel-ui/sources/StatusChip.css';
+@import '@winterop-com/sokkel-ui/sources/StatusProvider.css';
 @import '@winterop-com/sokkel-ui/sources/SwitchField.css';
 @import '@winterop-com/sokkel-ui/sources/TextLink.css';
 @import '@winterop-com/sokkel-ui/sources/Toolbar.css';
@@ -80,32 +82,6 @@
     line-height: 1.75rem;
     font-weight: 600;
     letter-spacing: -0.03em;
-}
-
-/* ---------------------------------------------------------------------------
-   A STATUS CHIP.
-
-   One fill rule for every state, so a run's status reads the same in a table row, in a
-   heading, and in the run graph: the state's own hue at 14% alpha, its ink on top, and a
-   hairline of the same hue to hold the shape against a card that is nearly as dark.
-
-   `skipped` is the exception and the exception is the point -- a skipped step did not
-   happen, so it is drawn in neutral with a dashed edge rather than being given a colour it
-   has not earned.
-   --------------------------------------------------------------------------- */
-.status-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    color: var(--chip-ink);
-    font-weight: 500;
-    font-size: var(--text-xs);
-    line-height: var(--text-xs--line-height);
-    white-space: nowrap;
-}
-.status-chip[data-status='skipped'] {
-    border-style: dashed;
-    background-color: transparent;
 }
 
 /* ---------------------------------------------------------------------------
@@ -585,7 +561,7 @@
    is drawn in the ink family: a halo of the foreground, which is a step out of every surface in
    either palette and is confusable with no state.
 
-   `--chip` is set on the element from the status token, exactly as `.status-chip` takes it.
+   `--chip` is set on the element from the status token `lib/status` maps the state to.
    --------------------------------------------------------------------------- */
 .step-node {
     position: relative;
@@ -689,37 +665,6 @@
     overflow: visible;
 }
 
-/* The dot a run's status chip leads with. */
-.status-dot {
-    display: inline-block;
-    width: 0.5rem;
-    height: 0.5rem;
-    flex: none;
-    border-radius: 9999px;
-    background-color: var(--chip);
-}
-
-/* Lowercase text carries its weight below the line box's center, so an exactly centered dot
-   reads high; one pixel down puts it on the optical center. */
-.status-chip > .status-dot {
-    position: relative;
-    top: 1px;
-}
-
-/* A run that is still going, said once rather than by every chip on the screen animating. */
-.status-chip[data-live='true'] .status-dot {
-    animation: status-pulse 1.6s ease-in-out infinite;
-}
-@keyframes status-pulse {
-    0%,
-    100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.35;
-    }
-}
-
 /* A left bar in a state's hue: an attempt row in the panel, and the item rows under it. */
 .status-rail {
     border-left: 2px solid var(--chip);
@@ -754,9 +699,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .status-chip[data-live='true'] .status-dot {
-        animation: none;
-    }
     .progress-line-fill {
         transition: none;
     }
@@ -876,14 +818,14 @@
        right-click menus -- anchors a zero-sized trigger under the cursor, and a finger never
        lands on it because nothing draws it.
 
-       AN IMAGE THAT EXPLAINS ITSELF ON HOVER IS NOT A CONTROL. A bare status dot is its own
-       tooltip's trigger, and grown to a finger it would be drawn as a 44px disc. */
+       A BARE DOT IS ITS OWN TOOLTIP'S TRIGGER, and grows here like any trigger: sokkel-ui draws
+       it as a box a line tall with the disc centered, so the box grows and the disc does not. */
     [data-slot='button'],
     [data-slot='dialog-close'],
     [data-slot='tabs-trigger'],
     [data-slot='select-trigger'],
     [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
-    [data-slot='tooltip-trigger']:not([role='img']),
+    [data-slot='tooltip-trigger'],
     [data-slot='input'],
     [data-slot='command-input'],
     [data-slot='dropdown-menu-item'],
@@ -899,7 +841,7 @@
     [data-slot='button'],
     [data-slot='dialog-close'],
     [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
-    [data-slot='tooltip-trigger']:not([role='img']) {
+    [data-slot='tooltip-trigger'] {
         min-inline-size: var(--spacing-finger);
     }
     /* The canvas's cluster is the graph library's button rather than one of ours, and a zoom
@@ -960,12 +902,11 @@ html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-backgrou
 }
 
 /* ---------------------------------------------------------------------------
-   THE KIND AND STATUS CHIPS.
+   THE KIND CHIP.
 
-   Every chip is 20px tall on the chip radius: sokkel-ui's `Chip` states it in its classes, and the
-   kind and status chips state it here.
+   Every chip is 20px tall on the chip radius: sokkel-ui's `Chip` and `StatusChip` state it in
+   their classes, and the kind chip states it here.
    --------------------------------------------------------------------------- */
-.status-chip,
 .kind-chip {
     box-sizing: border-box;
     height: 1.25rem;
