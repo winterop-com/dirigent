@@ -22,6 +22,7 @@
 @import '@winterop-com/sokkel-ui/sources/PageHeader.css';
 @import '@winterop-com/sokkel-ui/sources/Rail.css';
 @import '@winterop-com/sokkel-ui/sources/ResizeHandle.css';
+@import '@winterop-com/sokkel-ui/sources/SchemeChoice.css';
 @import '@winterop-com/sokkel-ui/sources/SearchField.css';
 @import '@winterop-com/sokkel-ui/sources/SecretReveal.css';
 @import '@winterop-com/sokkel-ui/sources/Section.css';
@@ -38,6 +39,7 @@
 @import '@winterop-com/sokkel-ui/sources/StatusProvider.css';
 @import '@winterop-com/sokkel-ui/sources/SwitchField.css';
 @import '@winterop-com/sokkel-ui/sources/TextLink.css';
+@import '@winterop-com/sokkel-ui/sources/ThemeCards.css';
 @import '@winterop-com/sokkel-ui/sources/Toolbar.css';
 @import '@winterop-com/sokkel-ui/sources/TopBar.css';
 @import '@winterop-com/sokkel-ui/sources/WindowedPane.css';

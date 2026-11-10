@@ -1,12 +1,14 @@
-import { Check, RefreshCw } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
+import { RefreshCw } from 'lucide-react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 import { Surface } from '@winterop-com/sokkel-ui/Section'
+import { SchemeChoice } from '@winterop-com/sokkel-ui/SchemeChoice'
 import { SettingsDialog as LibrarySettingsDialog } from '@winterop-com/sokkel-ui/SettingsDialog'
+import { ThemeCards } from '@winterop-com/sokkel-ui/ThemeCards'
 import { Refusal } from '@/components/Refusal'
-import { LINK_WORDS, SETTINGS_WORDS } from '@/lib/design-system'
+import { LINK_WORDS, SCHEME_WORDS, SETTINGS_WORDS, THEME_CARDS_WORDS } from '@/lib/design-system'
 import { Segmented } from '@/components/Segmented'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import { STATUS_CSS } from '@winterop-com/sokkel-ui/lib/status'
@@ -36,16 +38,7 @@ import {
 } from '@/lib/settings'
 import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { readSystemInfo, type SystemInfo } from '@/lib/system'
-import {
-    APPEARANCE_DEFAULTS,
-    APPEARANCE_OFFER,
-    MODE_LABELS,
-    MODES,
-    paletteAfter,
-    paletteOf,
-    PALETTES,
-    type PaletteName,
-} from '@/lib/theme'
+import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER, PALETTES } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
@@ -117,7 +110,7 @@ function controlOf(row: SettingsRow, context: Context): RowControl {
         case 'theme:appearance':
             return { control: <ModeControl /> }
         case 'theme:palette':
-            return { control: <PaletteSwatches />, layout: 'below' }
+            return { control: <PaletteCards />, layout: 'below' }
         case 'general:times':
             return { control: <TimesControl /> }
         case 'general:tails':
@@ -178,95 +171,28 @@ function controlOf(row: SettingsRow, context: Context): RowControl {
 function ModeControl() {
     const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
     return (
-        <Segmented
-            label={LABELS.settings.row.appearance}
+        <SchemeChoice
             value={settings.scheme}
-            options={MODES.map((one) => ({ value: one, label: MODE_LABELS[one] }))}
-            onChoose={(scheme) => {
+            onValueChange={(scheme) => {
                 setSettings({ ...settings, scheme })
             }}
+            words={SCHEME_WORDS}
         />
     )
 }
 
-/** The tokens a swatch shows, ground first and accent last: the ladder plus the two inks. */
-const SWATCH_STRIPS = ['bg-background', 'bg-card', 'bg-border', 'bg-foreground', 'bg-brand']
-
-/**
- * One card per palette, and the card is the radio: one tab stop for the group, the arrows move and
- * choose, Space and Enter choose what has focus. Each card scopes itself with `data-theme-scope`,
- * so its strips are that palette's own ground, surface, line, ink and accent.
- */
-function PaletteSwatches() {
+/** One card per palette, each a small page in that palette's own tokens. */
+function PaletteCards() {
     const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
-    const value = paletteOf(settings.theme)
-    const cards = useRef<(HTMLButtonElement | null)[]>([])
-    const at = Math.max(
-        0,
-        PALETTES.findIndex((one) => one.name === value),
-    )
-
-    const choose = (theme: PaletteName) => {
-        setSettings({ ...settings, theme })
-    }
-
-    const move = (key: string) => {
-        const next = paletteAfter(value, key)
-        if (next === null) return false
-        choose(next)
-        cards.current[PALETTES.findIndex((one) => one.name === next)]?.focus()
-        return true
-    }
-
     return (
-        <div role="radiogroup" aria-label={LABELS.settings.row.palette} className="flex w-full gap-2">
-            {PALETTES.map((palette, index) => {
-                const chosen = palette.name === value
-                return (
-                    <button
-                        key={palette.name}
-                        ref={(element) => {
-                            cards.current[index] = element
-                        }}
-                        type="button"
-                        role="radio"
-                        aria-checked={chosen}
-                        tabIndex={index === at ? 0 : -1}
-                        className={cn(
-                            'flex max-w-32 min-w-0 flex-1 flex-col gap-1.5 rounded-md border p-1.5 text-left',
-                            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                            chosen
-                                ? 'border-foreground ring-1 ring-foreground'
-                                : 'border-border hover:bg-accent',
-                        )}
-                        onClick={() => {
-                            choose(palette.name)
-                        }}
-                        onKeyDown={(event) => {
-                            if (move(event.key)) {
-                                event.preventDefault()
-                            } else if (event.key === ' ' || event.key === 'Enter') {
-                                event.preventDefault()
-                                choose(palette.name)
-                            }
-                        }}
-                    >
-                        <span
-                            data-theme-scope={palette.name}
-                            className="flex h-8 overflow-hidden rounded-sm border border-border"
-                        >
-                            {SWATCH_STRIPS.map((strip) => (
-                                <span key={strip} className={cn('flex-1', strip)} />
-                            ))}
-                        </span>
-                        <span className="flex items-center gap-1 text-xs">
-                            {palette.label}
-                            {chosen && <Check className="size-3 text-foreground" aria-hidden />}
-                        </span>
-                    </button>
-                )
-            })}
-        </div>
+        <ThemeCards
+            value={settings.theme}
+            onValueChange={(theme) => {
+                setSettings({ ...settings, theme })
+            }}
+            themes={PALETTES.map((palette) => ({ value: palette.name, label: palette.label }))}
+            words={THEME_CARDS_WORDS}
+        />
     )
 }
 
