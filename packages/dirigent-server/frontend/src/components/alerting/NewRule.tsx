@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 
 import { Field, TargetPicker } from '@/components/alerting/fields'
-import { CodePane } from '@/components/pipeline/CodePane'
+import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Picker } from '@/components/Picker'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@/components/Segmented'
-import { WindowedPane } from '@/components/WindowedPane'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
@@ -46,8 +45,7 @@ import { firstShut } from '@/lib/roles'
 /** What a rule is declared with when nobody says otherwise: no window at all. */
 const NO_THROTTLE = '0s'
 
-/** Which buffer the body pane edits, and what a screen reader and a test call it. */
-const BODY_PATH = 'alert-rule/new/body'
+/** What a screen reader and a test call the body pane. */
 const BODY_LABEL = LABELS.alerting.body_pane
 
 /**
@@ -239,30 +237,17 @@ export function NewRule({
                     <div className="space-y-2">
                         <Label>{LABELS.word.body}</Label>
                         <p className="text-xs text-faint">{BODY_HINT}</p>
-                        <WindowedPane
+                        <WindowedSource
                             name={BODY_LABEL}
+                            label={BODY_LABEL}
+                            windowLabel={LABELS.alerting.body_pane_windowed(BODY_LABEL)}
+                            value={body}
+                            mediaType={TEMPLATE_MEDIA_TYPE}
+                            placeholder={LABELS.alerting.body_placeholder}
+                            className="h-40 min-h-32"
                             aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
-                            windowed={
-                                <CodePane
-                                    value={body}
-                                    mediaType={TEMPLATE_MEDIA_TYPE}
-                                    path={BODY_PATH}
-                                    label={LABELS.alerting.body_pane_windowed(BODY_LABEL)}
-                                    className="min-h-0 flex-1"
-                                    onChange={setBody}
-                                />
-                            }
-                        >
-                            <CodePane
-                                value={body}
-                                mediaType={TEMPLATE_MEDIA_TYPE}
-                                path={BODY_PATH}
-                                label={BODY_LABEL}
-                                placeholder={LABELS.alerting.body_placeholder}
-                                className="h-40 min-h-32"
-                                onChange={setBody}
-                            />
-                        </WindowedPane>
+                            onChange={setBody}
+                        />
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

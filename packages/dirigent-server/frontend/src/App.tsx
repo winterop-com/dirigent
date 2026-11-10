@@ -32,7 +32,7 @@ const RunDetail = lazy(() => import('@/pages/RunDetail').then((module) => ({ def
 
 /**
  * The pipeline editor draws the same graph and adds an editor to it, so it is a lazy route for
- * the same reason -- and Monaco, which only its source pane needs, is a chunk inside that one.
+ * the same reason -- and the code editor, which only its source pane needs, is a chunk inside that one.
  *
  * It is mounted at two addresses: one pipeline, and `pipelines/$new`, which is the same screen
  * with no pipeline behind it. A static segment outranks a dynamic one, so a document that has

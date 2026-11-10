@@ -1,8 +1,7 @@
 import { useRef } from 'react'
 
-import { CodePane } from '@/components/pipeline/CodePane'
 import { Segmented } from '@/components/Segmented'
-import { WindowedPane } from '@/components/WindowedPane'
+import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import type { JsonMap } from '@/lib/api'
 import { REPORTS_DOCS_URL } from '@/lib/docs'
@@ -13,8 +12,7 @@ import { Notice } from '@/components/ds/Notice'
 /** The media type a report template carries. `TEMPLATE_MEDIA_TYPE` in dirigent_common. */
 export const TEMPLATE_MEDIA_TYPE = 'text/x-jinja'
 
-/** Which buffer this pane edits, and what a screen reader and a test call it. */
-const TEMPLATE_PATH = 'report/template'
+/** What a screen reader and a test call this pane. */
 const TEMPLATE_LABEL = 'report.template'
 
 /** What the section asks for, which is the choice the control offers. */
@@ -101,36 +99,20 @@ export function ReportPane({
             {disabled !== undefined && <Notice tone="warning">{disabled}</Notice>}
 
             {choice === 'own' && (
-                <WindowedPane
+                <WindowedSource
                     name={TEMPLATE_LABEL}
+                    label={TEMPLATE_LABEL}
+                    windowLabel={LABELS.editor.in_window(TEMPLATE_LABEL)}
+                    value={section.template ?? ''}
+                    mediaType={TEMPLATE_MEDIA_TYPE}
+                    placeholder={LABELS.editor.report.placeholder}
+                    className="h-64 min-h-40"
+                    readOnly={disabled !== undefined}
                     aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
-                    windowed={
-                        <CodePane
-                            value={section.template ?? ''}
-                            mediaType={TEMPLATE_MEDIA_TYPE}
-                            path={TEMPLATE_PATH}
-                            label={LABELS.editor.in_window(TEMPLATE_LABEL)}
-                            className="min-h-0 flex-1"
-                            readOnly={disabled !== undefined}
-                            onChange={(text) => {
-                                onChange('own', text)
-                            }}
-                        />
-                    }
-                >
-                    <CodePane
-                        value={section.template ?? ''}
-                        mediaType={TEMPLATE_MEDIA_TYPE}
-                        path={TEMPLATE_PATH}
-                        label={TEMPLATE_LABEL}
-                        placeholder={LABELS.editor.report.placeholder}
-                        className="h-64 min-h-40"
-                        readOnly={disabled !== undefined}
-                        onChange={(text) => {
-                            onChange('own', text)
-                        }}
-                    />
-                </WindowedPane>
+                    onChange={(text) => {
+                        onChange('own', text)
+                    }}
+                />
             )}
         </div>
     )

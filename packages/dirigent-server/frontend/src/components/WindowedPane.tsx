@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react'
 
-import { CodeFrame } from '@/components/ds/CodeFrame'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { Inset } from '@/components/ds/Inset'
 import { ICONS } from '@/lib/icons'
@@ -27,10 +26,8 @@ import { LABELS } from '@/lib/labels'
  * on screen down a long document and covers no more than the end of the first line. This is the
  * only place the gesture is written, so there is one corner to learn.
  *
- * TWO EDITORS OVER ONE BUFFER READ THE SAME BUFFER. Monaco holds one model per path, so a
- * source pane and its window name the same one: what is typed in either is what the other
- * shows, and closing the window loses nothing. The caller hands over both panes for that
- * reason rather than this moving one.
+ * THE WINDOW DRAWS ITS OWN VIEW. The pane stays in place while the window is open, so the caller
+ * hands over both; two code editors over one buffer are two views of one shared document.
  */
 /** The button that opens a pane's window, for a panel head to stand beside its other tools. */
 export function WindowButton({ name, onOpen }: { name: string; onOpen: () => void }) {
@@ -48,7 +45,7 @@ export function WindowButton({ name, onOpen }: { name: string; onOpen: () => voi
 
 export function WindowedPane({
     name,
-    frame = 'field',
+    frame = 'none',
     className,
     onBlur,
     children,
@@ -62,10 +59,10 @@ export function WindowedPane({
     /** What the content is called: the window's title, and what the button names. */
     name: string
     /**
-     * What the box around the pane is: a code editor's field, an inset of reference material,
-     * or nothing where the pane fills a panel of its own.
+     * What the box around the pane is: an inset of reference material, or nothing, where the pane
+     * draws its own box or fills a panel of its own.
      */
-    frame?: 'field' | 'inset' | 'none'
+    frame?: 'inset' | 'none'
     /** How the box is sized and laid out. */
     className?: string
     onBlur?: () => void
@@ -121,16 +118,12 @@ export function WindowedPane({
     )
     return (
         <>
-            {frame === 'field' ? (
-                <CodeFrame className={className} onBlur={onBlur}>
-                    {inPlace}
-                </CodeFrame>
-            ) : frame === 'inset' ? (
+            {frame === 'inset' ? (
                 <div onBlur={onBlur} className="contents">
                     <Inset className={cn('flex flex-col', className)}>{inPlace}</Inset>
                 </div>
             ) : (
-                <div className={cn('flex flex-col', className)} onBlur={onBlur}>
+                <div className={cn('flex min-w-0 flex-col', className)} onBlur={onBlur}>
                     {inPlace}
                 </div>
             )}

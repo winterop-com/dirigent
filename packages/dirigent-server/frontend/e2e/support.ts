@@ -256,35 +256,28 @@ export async function ranToFailure(request: APIRequestContext, runId: string): P
 }
 
 /**
- * Write a whole document into a Monaco editor, the way somebody puts one there.
+ * Write a whole document into a code editor, the way somebody puts one there.
  *
- * IT IS NOT A CONTROL WITH A VALUE. Monaco draws its own lines and reads a hidden textarea for
- * input, so `fill` writes into a box nothing reads and asserts a value nothing holds.
+ * IT IS NOT A CONTROL WITH A VALUE. The editor draws its own lines in an editable region, so
+ * `fill` is not what a person does to it.
  *
  * IT REPLACES WHAT IS THERE. A pane opened on a document already holds one, and text pasted
  * into the middle of it is not the document the spec wrote.
  *
- * IT IS A PASTE, NOT KEYSTROKES. Typing a document in character by character is typing, and
- * Monaco indents what is typed: every line after the first arrives under the last one's indent,
- * and the YAML that lands is not the YAML the spec wrote. A paste is inserted as it stands,
- * which is what somebody pasting a document gets.
+ * IT IS A PASTE, NOT KEYSTROKES. The editor indents what is typed and closes brackets, so a
+ * document typed in character by character is not the YAML the spec wrote. A paste is inserted
+ * as it stands, which is what somebody pasting a document gets.
  *
  * The chunk is fetched when the pane first mounts, so this waits for the editor to arrive.
  */
 export async function writeInEditor(page: Page, editor: Locator, text: string): Promise<void> {
-    await expect(editor.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
-    const input = editor.locator('textarea').first()
-    await editor.locator('.view-lines').click()
+    const input = editor.locator('.cm-content')
+    await expect(input).toBeVisible({ timeout: 30_000 })
+    await input.click()
     await expect(input).toBeFocused()
-    // The suite's device profile carries a Windows user agent, so monaco binds select-all to
-    // Control on every host, a mac included.
-    await page.keyboard.press('Control+a')
-    // A real paste replaces the selection; a synthetic one is inserted at the caret, so a pane
-    // that already holds a document is emptied rather than left for the new text to land inside.
-    if ((await editor.locator('.view-lines').innerText()).trim() !== '') {
-        await expect(editor.locator('.selected-text').first()).toBeVisible()
-        await page.keyboard.press('Backspace')
-    }
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.press('Backspace')
+    if (text === '') return
     await input.evaluate((node, written) => {
         const carried = new DataTransfer()
         carried.setData('text/plain', written)

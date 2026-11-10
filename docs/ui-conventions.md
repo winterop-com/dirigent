@@ -25,7 +25,7 @@ wrong is changed on this page first and in the code second.
 | Styling | Tailwind v4, CSS-first, entered through sokkel-ui's `styles-base.css` | There is no `tailwind.config.js` and there must not be one. The tokens, themes, fonts and base styles are [sokkel-ui](https://github.com/winterop-com/sokkel-ui)'s; `src/index.css` imports them, one `sources/<module>.css` line per library module the app imports, and then this app's own CSS |
 | Components | sokkel-ui's primitives, shadcn `base-nova` on **Base UI** (`@base-ui/react`) | Imported from `@winterop-com/sokkel-ui/primitives/*`. A primitive that needs an option dirigent lacks gets it in sokkel-ui |
 | Graphs | `@xyflow/react` for the canvas, `elkjs` for the layout | React Flow draws what it is given and decides no geometry; elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
-| Editor | `monaco-editor` with `monaco-yaml` | A pipeline document is YAML checked against a schema, and squiggling an unknown key where an apply would refuse it needs a language server rather than a textarea. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, and a config field whose schema says it carries a program |
+| Editor | sokkel-ui's `CodeEditor`, on CodeMirror 6 | A pipeline document is YAML checked against a schema as it is typed, and the library's editor checks and completes JSON and YAML against JSON Schema 2020-12 itself, with ajv. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, a schema, and a config field whose schema says it carries a program |
 | YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
 | Markdown | `marked`, for its lexer only | A description is authored markdown and has to render as prose. Nothing here produces an HTML string, so what is drawn is a token tree React escapes -- see `lib/markdown` |
 | Palette | cmdk | |
@@ -52,18 +52,20 @@ of reads nothing else composes; connections, triggers, schemas, blocks and examp
 carrying the forms, the dialogs and the panels nothing else uses; and the three admin screens,
 which most readers of this app are never offered.
 
-**A chunk inside a lazy route is the same rule again.** Monaco is larger than everything else
-this app depends on, and every pane in this app that writes source or windows it mounts
-`components/pipeline/CodePane`: the editor's source pane, a step config field whose schema
-published a `contentMediaType`, a schema document, an alert rule's expression, an example's text,
-and the read-only window a produced value is opened in. `CodePane` is the one `React.lazy`
-reaching `CodeEditor`, so opening a pipeline does not fetch an editor and opening its source tab
-or a jq step does. `monaco-editor` as a whole registers every language it ships, so what is
-imported by path is the api entry, the suggest controller a schema-checked buffer cannot do
-without, and the languages a field can carry -- YAML, shell, twig, SQL and JSON. jq, FHIRPath and
-CQL have no monaco grammar, so `lib/program-grammars` writes each as a Monarch tokeniser and
-`CodeEditor` registers them. Its three web workers are
-`?worker` imports, which vite emits as chunks of their own.
+**A chunk inside a lazy route is the same rule again.** Every pane in this app that writes
+source or windows it mounts `components/pipeline/CodePane`: the editor's source pane, a step
+config field whose schema published a `contentMediaType`, a schema document, an alert rule's
+body, an example's text, and the read-only window a produced value is opened in. `CodePane` is
+the one `React.lazy` reaching `components/pipeline/CodeEditor`, so opening a pipeline does not
+fetch an editor and opening its source tab or a jq step does. That wrapper is the whole of what
+dirigent adds to the library's editor: the language a media type is read in, the JSON Schema
+2020-12 meta-schema a schema document is checked against, carried in the bundle rather than
+fetched, and the marks and reveal the schema tester draws in its own offsets. The library reads
+JSON, YAML, jq, SQL, shell and Jinja itself and loads SQL, shell and Jinja the first time a
+buffer shows one; FHIRPath and CQL are dirigent's, written as CodeMirror stream parsers in
+`lib/program-grammars` and handed to the library's `defineLanguage`. The schema checker, ajv,
+compiles each schema into a function, which is why the UI policy's `script-src` carries
+`'unsafe-eval'`; the policy for the API viewers does not.
 
 **An engine is fetched when the screen that needs it mounts, and not with the screen's code.**
 elk is the second of them: `components/graph/elk` is the one dynamic import of
@@ -81,10 +83,8 @@ first source tab, jq step or output window of a session opens against a chunk th
 landed, and the first canvas is placed by a worker that is already running. Nothing waits on
 either, each happens once, and the login screen is outside the shell and asks for none of it.
 
-**`build.chunkSizeWarningLimit` clears monaco and nothing else.** Monaco's chunk is the one this
-bundle has that is over vite's default 500 kB; elk's worker is larger still and is not a chunk at
-all. Every other chunk, the entry included, stays far under the limit, so the warning still means
-something when one of them grows.
+**No chunk is over vite's default 500 kB, and the limit stays the default.** elk's worker is
+larger and is not a chunk at all, so the warning still means something when a chunk grows.
 
 **oxfmt owns whitespace, quotes, semicolons and the order of Tailwind classes**, at four spaces,
 single quotes outside JSX, no semicolons and a print width of 110. Nothing about that is worth an
@@ -232,11 +232,11 @@ panels rather than two headings over two cards.
 that belongs together -- a form opened under its row, a sample -- on the panel ground, edged in
 `--panel-line`. An `Inset` is reference material -- a block of JSON, a code block in a
 description, a log -- on the page's own ground, edged the same way, so a preview reads as cut into
-the surface it is on. A code editor is a field, so `CodeFrame` edges it the way every field is
-edged -- the `--input` hairline at the control's corner -- around the editor's own ground, and
-`WindowedPane` puts every pane that opens in a window inside one. A box that says how something is going is a `Notice`,
+the surface it is on. A code editor is a field, and the library's editor edges itself the way every
+field is edged -- the `--input` hairline at the control's corner -- unless it fills a panel of its
+own. A box that says how something is going is a `Notice`,
 and a refusal off the wire is `Refusal`. No screen types a border, a corner and a ground onto a
-`div` of its own: the boxes are `.dg-well`, `.dg-inset` and `.dg-frame` in `index.css`, beside
+`div` of its own: the boxes are `.dg-well` and `.dg-inset` in `index.css`, beside
 `.dg-panel`.
 
 **The rest of the ladder.** `--sidebar` is the rail, a rung under `--background`, the page.
@@ -948,29 +948,26 @@ table back.
 `contentMediaType` -- `application/jq` for the three jq verbs, `text/x-shellscript` for the shell
 string `shell.run` and `docker.run` take, `application/sql` for a query, `text/x-jinja` for a
 report's template, `application/x-compose+yaml` for an inline compose file, `application/fhirpath`
-for the FHIR pack's FHIRPath verbs, `text/cql` for its CQL library -- gets the same Monaco a
+for the FHIR pack's FHIRPath verbs, `text/cql` for its CQL library -- gets the same editor a
 document is written in, through the same `CodePane`, so a jq program is read on the lines it was
 written on. `dirigent_common.programs` is where the
 seven are spelled, and the schema is what decides this and nothing else: every other string stays
 one line, however long a value it holds.
 
-Each of the seven is highlighted in its own grammar and in the house inks, the same in every one:
-a keyword and a number wear the warning ink, a string the good ink, a function -- and jq's
-`.path` -- the info ink, a comment and the punctuation the muted ink, and a name bound from
-outside the program -- jq's `$name`, FHIRPath's `%name` and `$this` -- `--binding-ink`, because
-it is the one thing a reader of an expression has to look for elsewhere. It is the kind family's
-hue with more chroma than a kind ink, oklch 0.7/0.18 dark and 0.48/0.17 light, because a thin mono
-glyph at the kind ink's chroma reads as the foreground beside it. Every palette holds it at 6:1 or
-better on the editor's ground and 2:1 or better against the text, so none overrides it. Any other
-name is
-foreground, and so is one written in backticks or in CQL's double quotes, `define "Numerator"`
-included: the quotes are what tell it from a string, which is green.
+Each of the seven is highlighted in its own grammar and in the theme's code inks, the
+`--code-*` tokens sokkel-ui draws every highlighted block in, so a program reads the same in an
+editor and in a description's code block. A name bound from outside the program -- jq's `$name`,
+FHIRPath's `%name` and `$this` -- wears the variable ink, because it is the one thing a reader of
+an expression has to look for elsewhere. A name written in backticks or in CQL's double quotes,
+`define "Numerator"` included, is a name and not a string.
 
-**A document is written in one editor wherever it is written.** The editor's source pane and a
-step config field whose schema says it carries a program are the same Monaco against the same
-`GET /schema/document` -- a key no block takes is squiggled where it was typed rather than
-reported a round trip later. Each pane names its own buffer, because monaco holds one model per
-uri and two panes sharing a name would share a document.
+**A document is written in one editor wherever it is written.** The editor's source pane is
+checked and completed against `GET /schema/document` -- a key no block takes is squiggled where
+it was typed rather than reported a round trip later -- and a step config field whose schema says
+it carries a program is the same editor in the program's language. **A pane and its window are
+two views of one buffer**: `hooks/use-code-buffer` holds the text as a shared document both
+editors draw, so what is typed in either shows in the other, one undo history serves both, and
+closing the window loses nothing.
 
 **A pane too small for what it holds opens in a window, and the button is at the top.** `components/WindowedPane`
 is where that gesture is written once -- the button, its place, and the window, which is the
@@ -1222,8 +1219,10 @@ canonicalises it.
 
 **The editor's schema comes from the instance.** `GET /schema/document` answers with
 `dirigent/v1` composed with this instance's own block config schemas, one `if`/`then` case per
-installed block, so monaco-yaml marks a config key the named block does not take at the character
-it was typed at. An instance with a plugin another lacks answers with a different schema, which is
+installed block, so the editor marks a config key the named block does not take at the character
+it was typed at, and completes a step's `config` from the block it names. Every value position in
+a config also takes a `${...}` reference as an alternative, which is where the server defers one,
+so a reference is never marked. An instance with a plugin another lacks answers with a different schema, which is
 the point: the editor refuses exactly what that instance's apply would.
 
 ## The palette is a registry
@@ -2436,7 +2435,7 @@ keeps its own name in the code. A specimen stands on the section's card with no 
 | `SectionHeading` | A heading inside a screen. `section` is sentence case at `text-sm font-semibold`; `group` is the one faint uppercase label over a run of rows. An optional `aside` and `link` |
 | `FactList`, `Fact` | Facts about one thing. `grid` is a term column beside a value column, a panel's and a dialog's, whose term is a key in mono where `termMono` says so; `row` is small facts wrapping on one line, a heading's strip |
 | `FormField`, `SwitchField` | Every field: a prose label or a mono key, the required word in body ink, a hint, the default, help in one ink, an error, one 6px gap. `SwitchField` (sokkel-ui) is a boolean setting as a row, the whole row its label, `explain` on a help mark and `reason` under the label while it is shut |
-| `Notice`, `Well`, `Inset`, `CodeFrame` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a group that belongs together, on the panel ground at 8px. `Inset` is reference material -- JSON, a code block, a log -- on the page's ground. `CodeFrame` is a code editor drawn as the field it is, and `WindowedPane` puts its pane in one. A refusal off the wire is still `Refusal` |
+| `Notice`, `Well`, `Inset` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a group that belongs together, on the panel ground at 8px. `Inset` is reference material -- JSON, a code block, a log -- on the page's ground. A code editor draws its own field. A refusal off the wire is still `Refusal` |
 | `DialogShell` (sokkel-ui) | Every dialog, `words={DIALOG_WORDS}`: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one confirm that stays reachable while shut, or of `actions` on a dialog that reads one thing. `closeOnOutsidePress={false}` for a form somebody is typing in |
 | `ConfirmDialog` (sokkel-ui) | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. `Question` draws the question around the code, `detail` is the one line, and a refusal off the wire is one short `RefusalLine`, with no box and no second naming of the thing. A verb that cannot go without one value holds that one field: a password reset's new password. No such verb is immediate. Its confirm wears sokkel-ui's destructive tint, the critical ink on its wash, as every verb that takes something away does |
 | `SecretReveal` (sokkel-ui) | A secret the server answers with once: the value whole in mono on its own field, wrapped rather than cut, a copy button that says it copied and resets, and the line in the warning ink saying it is shown once. `secretWords` names the copy button for the secret and says that line |

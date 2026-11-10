@@ -23,8 +23,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      theme; the theme settles both, then the conventions say so.
    - **Primitives, then patterns, then screens.** Swap `components/ui` for the library's, then
      the shapes `components/ds` holds, then each screen: listings onto its tables, forms onto
-     its schema form, the editor onto its code editor, run and pipeline graphs onto
-     `sokkel-ui-graph`. Every screen it touches gets the `ui-review` pass in both palettes.
+     its schema form, run and pipeline graphs onto `sokkel-ui-graph`. Every screen it touches gets the `ui-review` pass in both palettes.
    - **Only dirigent's stays here.** `components/ds`, the `/design` gallery and
      `scripts/check_ui_system.py` go once nothing uses them; `docs/ui-conventions.md` keeps the
      conventions about dirigent's own data and points at sokkel-ui for the rest.

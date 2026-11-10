@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { WindowedPane } from '@/components/WindowedPane'
 import { CodePane } from '@/components/pipeline/CodePane'
+import { useCodeBuffer } from '@/hooks/use-code-buffer'
 import type { JsonMap } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import { toYaml } from '@/lib/pipeline-document'
@@ -26,9 +27,6 @@ import { toYaml } from '@/lib/pipeline-document'
  * and orders the steps topologically; this renders the document as it stands, in the order it is
  * held in, so what is edited and what is read back are the same thing. An apply canonicalises it.
  */
-
-/** Which buffer this pane edits. */
-const DOCUMENT_PATH = 'document'
 
 /** How long after the last keystroke the text is read as a document. */
 const SETTLE_MS = 250
@@ -71,30 +69,30 @@ export function SourceTab({
         }
     }, [])
 
+    const buffer = useCodeBuffer(text, (next) => {
+        typed.current = true
+        setText(next)
+        if (timer.current !== null) clearTimeout(timer.current)
+        timer.current = setTimeout(() => {
+            typed.current = false
+            onWrite(next)
+        }, SETTLE_MS)
+    })
+
     if (document === null) {
         return <p className="p-4 text-sm text-muted-foreground">{LABELS.editor.no_document}</p>
     }
 
-    // The pane in place and the pane in the window name one path, so monaco hands them a single
-    // model: what is typed in either is what the other shows, and closing the window loses
-    // nothing.
+    // The pane in place and the pane in the window are two views of one buffer: what is typed in
+    // either is what the other shows, and closing the window loses nothing.
     const pane = (windowed: boolean) => (
         <CodePane
-            value={text}
+            doc={buffer}
             schema={schema}
-            path={DOCUMENT_PATH}
             label={windowed ? LABELS.editor.in_window(LABELS.editor.source.pane) : LABELS.editor.source.pane}
+            variant="pane"
             className="min-h-0 flex-1"
             readOnly={readOnly}
-            onChange={(next) => {
-                typed.current = true
-                setText(next)
-                if (timer.current !== null) clearTimeout(timer.current)
-                timer.current = setTimeout(() => {
-                    typed.current = false
-                    onWrite(next)
-                }, SETTLE_MS)
-            }}
         />
     )
 

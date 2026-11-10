@@ -225,7 +225,7 @@ test('a file picked on the listing lands in the new-document editor, and applyin
     // comments and all, because nothing has re-rendered it from the document yet.
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)
     await page.locator('aside').getByRole('tab', { name: LABELS.word.source }).click()
-    const lines = page.getByTestId('code-editor').locator('.view-lines')
+    const lines = page.locator('[data-slot="code-editor"]').locator('.cm-content')
     await expect(lines).toContainText('typed-in-the-browser')
     await expect(lines).toContainText(TYPED_COMMENT)
 

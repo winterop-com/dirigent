@@ -124,8 +124,12 @@ def test_a_viewer_escapes_the_address_it_is_served_under(settings: Settings, adm
 def test_no_policy_allows_framing_or_a_script_from_elsewhere() -> None:
     for policy in (UI_POLICY, DOCS_POLICY):
         assert "frame-ancestors 'none'" in policy
-    assert "script-src 'self';" in UI_POLICY
-    assert "unsafe-eval" not in UI_POLICY + DOCS_POLICY
+    assert "script-src 'self' 'unsafe-eval';" in UI_POLICY
+    assert "unsafe-eval" not in DOCS_POLICY
+
+
+def test_the_shell_starts_workers_only_from_its_own_origin() -> None:
+    assert "worker-src 'self';" in UI_POLICY
 
 
 def test_the_shell_loads_no_inline_script_the_policy_would_block() -> None:
