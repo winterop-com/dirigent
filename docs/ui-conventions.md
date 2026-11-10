@@ -164,7 +164,7 @@ the library's `appearance.js` writes the stored look so there is no flash: index
 the top of `<head>`, right after the charset, as
 `<script src="/appearance.js" data-theme="amber" vite-ignore>`, and the `data-theme` there is the
 palette a browser with nothing stored starts in, which a test holds equal to `DEFAULT_PALETTE`. **It
-is a same-origin file and never inline**, because the server's policy is `script-src 'self'`;
+is a same-origin file and never inline**, because the server's policy allows scripts only from `'self'`;
 `vite.config.ts` emits the library's built file beside index.html and the dev server answers the
 same bytes, and `vite-ignore` keeps Vite from taking the tag for a module to bundle.
 `src/lib/theme.ts` holds the names, the labels and the defaults, and stores nothing.
