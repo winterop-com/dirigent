@@ -387,7 +387,7 @@ export function DesignSystem() {
                                     <TopBar
                                         trail={[{ label: LABELS.screen.pipelines.name, href: '/pipelines' }]}
                                         trailEnds="ancestor"
-                                        onSearch={() => {}}
+                                        palette={false}
                                         words={TOP_BAR_WORDS}
                                     />
                                 </div>

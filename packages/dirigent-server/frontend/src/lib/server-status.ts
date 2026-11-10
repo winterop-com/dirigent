@@ -133,6 +133,29 @@ export async function checkServer(
     fetcher: (path: string) => Promise<Response> = rootFetch,
     info: InfoReader = readSystemInfo,
 ): Promise<void> {
+    asking += 1
+    try {
+        await ask(fetcher, info)
+    } finally {
+        asking -= 1
+    }
+}
+
+/** How many asks are in flight, so a recheck never stacks on one. */
+let asking = 0
+
+/**
+ * Ask again unless an ask is already in flight, as the dot's tooltip does when it opens; the ask
+ * it started, or null where it left the one in flight to answer.
+ */
+export function recheckServer(
+    fetcher: (path: string) => Promise<Response> = rootFetch,
+    info: InfoReader = readSystemInfo,
+): Promise<void> | null {
+    return asking === 0 ? checkServer(fetcher, info) : null
+}
+
+async function ask(fetcher: (path: string) => Promise<Response>, info: InfoReader): Promise<void> {
     const previous = serverStatus.get()
     // Only the readiness read may say offline. The version and identity reads are
     // enrichment: one of them failing in a restart window must not override an answer

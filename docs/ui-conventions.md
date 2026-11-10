@@ -1357,8 +1357,9 @@ window under 1280px.
 **The account stands in the window's bottom-left corner, at the start of the status line**, and
 the whole row is the control: sokkel-ui's `AccountMenu`, its avatar the username's first letter,
 the username beside it, and the account's role muted after that (`detail`), a plain word as a role
-is everywhere. **This is the one place a code stands in the UI face.** The username
-is the account's code, and wherever it is addressed -- the accounts listing, the Account pane, a
+is everywhere. The username keeps its room: on a row narrower than 13rem, the rail's own 168px
+included, the role leaves the row and is said only in the menu's head. **This is the one place a
+code stands in the UI face.** The username is the account's code, and wherever it is addressed -- the accounts listing, the Account pane, a
 token's owner -- it is mono; here it is the reader's own name said back to them. The menu opens
 upward: its head is the username and the role with the instance's name and environment under it, then
 Settings, Keyboard shortcuts with `?`, the mode as Light, Dark and System with the one in force
@@ -1394,12 +1395,14 @@ appears, and the body and a docked terminal end at one right edge, the same edge
 true of the session rather than of the screen stands beside the crumb.
 
 **The dot is the whole of what it says while the instance is well**, sokkel-ui's `ServerMenu`,
-`quiet`. Its accessible name is the instance's name and environment from `/system/info`, the
-version and the state; its tooltip lists every check with its own dot, state and detail.
+`quiet`. Its accessible name is the instance's name from `/system/info`, the version and the
+state. Its tooltip is headed by the name, the environment (`environment`) and the version, with
+when it was last asked under them (`checkedAt`), and lists every check with its own dot, state
+and detail; opening it asks again (`recheck`) unless an ask is already in flight.
 **Words appear only when something is wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unreachable, retrying`{ .label }, beside the dot.
 `SERVER_STATES` in `lib/server-status` is the map of states it is drawn from, and the dot pulses
-while the instance is still being asked. It re-asks on a slow clock and when the tab comes back. A
-press opens the settings dialog's Server pane (`onPress`), which is what a finger has where there
+while the instance is still being asked. It re-asks on a slow clock, when the tab comes back, and as
+its tooltip opens. A press opens the settings dialog's Server pane (`onPress`), which is what a finger has where there
 is nothing to hover with, and where the checks' times and the Recheck button are.
 
 ## Small screens
@@ -2450,7 +2453,9 @@ page that asked. **The gallery is named for what somebody is looking for, not fo
 it**: Text (Titles, Headings, Links), Marks (Labels, Status dots, Icons), Controls (Buttons, Search,
 Form fields, Switches), Containers (Notices, Dialogs, Lists of facts), with an index beside them
 that follows the scroll and a plain sentence under a heading only where it adds a fact. A component
-keeps its own name in the code. A specimen stands on the section's card with no frame of its own.
+keeps its own name in the code. A specimen stands on the section's card with no frame of its own,
+and a `TopBar` specimen draws no palette button (`palette={false}`): the page's own top bar holds
+the one palette.
 
 | Component | When |
 | --- | --- |

@@ -202,9 +202,7 @@ test('the palette button is a glyph, and the chord it would have drawn is not', 
     await expect(page.getByRole('dialog')).toBeVisible()
 })
 
-// sokkel-ui's `TopBar` draws its palette button 32px square on a phone (`max-md:size-8`); the
-// library has to grow it to a finger before this passes.
-test.fixme('the palette button is a finger square', async ({ page }) => {
+test('the palette button is a finger square', async ({ page }) => {
     const palette = page.getByRole('button', { name: LABELS.shell.palette_button })
     const box = await palette.boundingBox()
     expect(box?.width ?? 0).toBeGreaterThanOrEqual(42)

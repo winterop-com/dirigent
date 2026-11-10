@@ -8,6 +8,7 @@
 @import '@winterop-com/sokkel-ui/sources/Callout.css';
 @import '@winterop-com/sokkel-ui/sources/Chip.css';
 @import '@winterop-com/sokkel-ui/sources/CodeEditor.css';
+@import '@winterop-com/sokkel-ui/sources/CommandPalette.css';
 @import '@winterop-com/sokkel-ui/sources/CopyButton.css';
 @import '@winterop-com/sokkel-ui/sources/DescriptionList.css';
 @import '@winterop-com/sokkel-ui/sources/DialogShell.css';
@@ -24,7 +25,10 @@
 @import '@winterop-com/sokkel-ui/sources/SearchField.css';
 @import '@winterop-com/sokkel-ui/sources/SecretReveal.css';
 @import '@winterop-com/sokkel-ui/sources/Section.css';
+@import '@winterop-com/sokkel-ui/sources/ServerMenu.css';
 @import '@winterop-com/sokkel-ui/sources/Shell.css';
+@import '@winterop-com/sokkel-ui/sources/ShortcutsDialog.css';
+@import '@winterop-com/sokkel-ui/sources/SidePanel.css';
 @import '@winterop-com/sokkel-ui/sources/SignIn.css';
 @import '@winterop-com/sokkel-ui/sources/SignInArt.css';
 @import '@winterop-com/sokkel-ui/sources/SplitButton.css';
@@ -34,6 +38,7 @@
 @import '@winterop-com/sokkel-ui/sources/SwitchField.css';
 @import '@winterop-com/sokkel-ui/sources/TextLink.css';
 @import '@winterop-com/sokkel-ui/sources/Toolbar.css';
+@import '@winterop-com/sokkel-ui/sources/TopBar.css';
 @import '@winterop-com/sokkel-ui/sources/WindowedPane.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/badge.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/button.css';
