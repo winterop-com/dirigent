@@ -410,7 +410,8 @@ test('the source tab marks a key the schema does not take, on its line', async (
 /**
  * A STEP'S CONFIG IS THE BLOCK'S. The schema decides each step's `config` by the block it names,
  * so completion offers that block's keys and a check refuses what that block does not take --
- * and a `${...}` reference, which the run fills in, is never refused.
+ * and a `${...}` reference, which the run fills in, is never refused. Only the two keys at fault
+ * are marked: not `format`, `kind`, `params` or the step that holds them.
  */
 test("the source tab completes and checks a step's config from the block it names", async ({ page }) => {
     await signIn(page)
@@ -441,7 +442,16 @@ test("the source tab completes and checks a step's config from the block it name
         page,
         editor,
         [
-            ...head,
+            'format: dirigent/v1',
+            'kind: pipeline',
+            'code: e2e-config-checked',
+            'params:',
+            '  type: object',
+            '  properties:',
+            '    verb:',
+            '      type: string',
+            'steps:',
+            '  one:',
             '    block: http.request',
             '    config:',
             '      url: http://127.0.0.1:9/checked',
@@ -452,16 +462,15 @@ test("the source tab completes and checks a step's config from the block it name
         ].join('\n'),
     )
     await expect
-        .poll(() => markedLines(editor), { timeout: 15_000 })
-        .toEqual(expect.arrayContaining(['follow_redirects: 3', 'not_a_config_key: 1']))
-    expect(await markedLines(editor)).not.toContain('method: ${params.verb}')
+        .poll(async () => (await markedLines(editor)).toSorted(), { timeout: 15_000 })
+        .toEqual(['follow_redirects: 3', 'not_a_config_key: 1'])
 })
 
 /** The text of every drawn line the editor's check marked, trimmed. */
 async function markedLines(editor: Locator): Promise<string[]> {
     return editor.evaluate((node) => [
         ...new Set(
-            [...node.querySelectorAll('.cm-lintRange-warning, .cm-lintRange-error')].map((mark) =>
+            [...node.querySelectorAll('.cm-lintRange, .cm-lintPoint')].map((mark) =>
                 (mark.closest('.cm-line')?.textContent ?? '').trim(),
             ),
         ),

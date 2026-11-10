@@ -58,9 +58,10 @@ config field whose schema published a `contentMediaType`, a schema document, an 
 body, an example's text, and the read-only window a produced value is opened in. `CodePane` is
 the one `React.lazy` reaching `components/pipeline/CodeEditor`, so opening a pipeline does not
 fetch an editor and opening its source tab or a jq step does. That wrapper is the whole of what
-dirigent adds to the library's editor: the language a media type is read in, the JSON Schema
-2020-12 meta-schema a schema document is checked against, carried in the bundle rather than
-fetched, and the marks and reveal the schema tester draws in its own offsets. The library reads
+dirigent adds to the library's editor: the language a media type is read in, the library's JSON
+Schema 2020-12 meta-schema (`JSON_SCHEMA_2020_12`) for a schema document, carried in the bundle
+rather than fetched, the reader's caret-line preference, and the marks and reveal the schema tester
+draws in its own offsets. The library reads
 JSON, YAML, jq, SQL, shell and Jinja itself and loads SQL, shell and Jinja the first time a
 buffer shows one; FHIRPath and CQL are dirigent's, written as CodeMirror stream parsers in
 `lib/program-grammars` and handed to the library's `defineLanguage`. The schema checker, ajv,
@@ -1224,6 +1225,18 @@ it was typed at, and completes a step's `config` from the block it names. Every 
 a config also takes a `${...}` reference as an alternative, which is where the server defers one,
 so a reference is never marked. An instance with a plugin another lacks answers with a different schema, which is
 the point: the editor refuses exactly what that instance's apply would.
+**A refusal is marked once, where it is.** Where a value fails every branch of a choice -- the
+document's pipeline or triggers, a block's `if`/`then` case -- the library reports only the branch
+that fits it, the one whose `kind` or other constant matches, else the one with the fewest errors,
+so a key a block does not take marks that key and nothing around it: not `format`, `kind`, the
+step's name or its `params`.
+
+**dirigent's own formats are checked by the server's rules.** `lib/schema-formats` registers them
+with the library's `registerSchemaFormats` once, in `main.tsx`, for every schema check the library makes:
+`humane-duration` and `size` as the server parses them, `ulid`, `uuid4`, `uuid7`, the hex digests
+and `base64` as its format checker reads them, and `storage-uri` as any string, because the schemes
+are this instance's backends' and only an apply knows them. A format nobody registered, such as a
+pack's, is not checked and says nothing.
 
 ## The palette is a registry
 
@@ -1241,7 +1254,8 @@ on its right edge is the dialog's, keyed by the row's id.
 
 **General holds the behaviour preferences**, each one a store the screens read rather than a
 copy this dialog keeps: which clock every timestamp is read against, whether a log pane opens
-following its tail, and whether an editor marks the row the caret is on. A preference defaults
+following its tail, and whether an editor marks the row the caret is on (`CodeEditor`'s
+`activeLine`, off by default, in every editor and its window). A preference defaults
 to what this app did before it existed, so nothing moves under a reader who has never opened
 this dialog, and an editor already on screen takes the change without being rebuilt.
 

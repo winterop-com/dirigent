@@ -71,6 +71,7 @@ PERFORMANCE OF THIS SOFTWARE.
 ## BSD 3-Clause
 
 - `fast-uri` -- Copyright (c) 2011-2021, Gary Court; Copyright (c) 2021-present The Fastify team
+- The JSON Schema 2020-12 meta-schema, as `@winterop-com/sokkel-ui` carries it -- Copyright (c) 2022 JSON Schema Specification Authors
 
 ```
 Redistribution and use in source and binary forms, with or without

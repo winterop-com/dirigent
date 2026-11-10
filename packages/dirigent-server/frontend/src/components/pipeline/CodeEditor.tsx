@@ -8,11 +8,12 @@ import {
     type CodeMark,
     type SharedDocument,
 } from '@winterop-com/sokkel-ui/CodeEditor'
+import { JSON_SCHEMA_2020_12 } from '@winterop-com/sokkel-ui/json-schema'
 
+import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
+import { highlightLine } from '@/lib/preferences'
 import { cqlParser, fhirpathParser } from '@/lib/program-grammars'
-
-import metaSchema from './json-schema-2020-12.json'
 
 /**
  * The editor every piece of source in this app is written in: a pipeline document, a schema, and
@@ -22,7 +23,8 @@ import metaSchema from './json-schema-2020-12.json'
  * /schema/document` answers with `dirigent/v1` composed with this instance's own block config
  * schemas, so a key no block takes is marked where it was typed. A buffer holding
  * `application/schema+json` is checked against the JSON Schema 2020-12 meta-schema, carried
- * rather than fetched.
+ * rather than fetched. The row under the caret is shaded only when the reader's preference asks
+ * for it.
  *
  * The language comes from the media type the field's schema published, YAML when none is named.
  * FHIRPath and CQL are this app's own grammars; every other media type is the editor's to read,
@@ -98,7 +100,8 @@ export function CodeEditor({
     onChange?: (text: string) => void
 }) {
     const language = languageOf(mediaType)
-    const checkedAgainst = mediaType === SCHEMA_DOCUMENT ? (metaSchema as JsonMap) : (schema ?? undefined)
+    const activeLine = useStore(highlightLine)
+    const checkedAgainst = mediaType === SCHEMA_DOCUMENT ? JSON_SCHEMA_2020_12 : (schema ?? undefined)
     const codeMarks = useMemo<readonly CodeMark[] | undefined>(
         () =>
             marks?.map((mark) => ({
@@ -127,6 +130,7 @@ export function CodeEditor({
             marks={codeMarks}
             reveal={range}
             wrap={wrap}
+            activeLine={activeLine}
             size="sm"
             variant={variant}
             search
