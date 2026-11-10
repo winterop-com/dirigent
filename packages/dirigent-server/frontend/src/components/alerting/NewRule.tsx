@@ -8,7 +8,7 @@ import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@/components/Segmented'
 import { WindowedPane } from '@/components/WindowedPane'
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
     DialogClose,
@@ -16,8 +16,8 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
+} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { useMayWrite } from '@/hooks/use-may-write'
 import {
     ANY_IMPORTANCE,

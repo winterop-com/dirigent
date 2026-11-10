@@ -1,7 +1,7 @@
 import { Check, Copy } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 
 /** One labelled fact, as a row of a two-column definition list. */
 export function Fact({ term, detail }: { term: string; detail: ReactNode }) {

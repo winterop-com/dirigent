@@ -1,4 +1,10 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@winterop-com/sokkel-ui/primitives/select'
 import { type UserRole } from '@/lib/auth'
 import { ROLE_HINTS, USER_ROLES } from '@/lib/users'
 

@@ -4,11 +4,17 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { MarkdownLine } from '@/components/Markdown'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Switch } from '@/components/ui/switch'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import { Label } from '@winterop-com/sokkel-ui/primitives/label'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@winterop-com/sokkel-ui/primitives/select'
+import { Switch } from '@winterop-com/sokkel-ui/primitives/switch'
 import { WindowedPane } from '@/components/WindowedPane'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { ReferenceRow } from '@/components/pipeline/ReferenceRow'

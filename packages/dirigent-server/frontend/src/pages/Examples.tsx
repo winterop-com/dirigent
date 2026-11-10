@@ -12,7 +12,7 @@ import { SearchField } from '@/components/ds/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { TagChip } from '@/components/TagChip'
 import { TagChips } from '@/components/TagChips'
-import { Badge } from '@/components/ui/badge'
+import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { useRead } from '@/hooks/use-read'
 import {
     anythingFiltered,

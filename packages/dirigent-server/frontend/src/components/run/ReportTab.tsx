@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { Fact, Section } from '@/components/run/Panel'
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { ReportDocumentPane } from '@/components/run/ReportDocument'
 import { StatusChip } from '@/components/run/StatusChip'
 import { ApiError, type Problem } from '@/lib/api'

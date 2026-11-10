@@ -1,5 +1,5 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Kbd, KbdGroup } from '@/components/ui/kbd'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@winterop-com/sokkel-ui/primitives/dialog'
+import { Kbd, KbdGroup } from '@winterop-com/sokkel-ui/primitives/kbd'
 import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { LABELS } from '@/lib/labels'
 

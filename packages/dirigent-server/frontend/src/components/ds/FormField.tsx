@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Label } from '@/components/ui/label'
+import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 

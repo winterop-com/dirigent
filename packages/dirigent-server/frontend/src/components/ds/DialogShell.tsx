@@ -1,7 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 
 import { Refusable } from '@/components/Refusable'
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
     DialogClose,
@@ -10,7 +10,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
+} from '@winterop-com/sokkel-ui/primitives/dialog'
 import { DIALOG_WIDTHS, type DialogWidth } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'

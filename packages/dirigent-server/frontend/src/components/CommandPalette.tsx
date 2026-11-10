@@ -11,8 +11,8 @@ import {
     CommandItem,
     CommandList,
     CommandShortcut,
-} from '@/components/ui/command'
-import { Kbd, KbdGroup } from '@/components/ui/kbd'
+} from '@winterop-com/sokkel-ui/primitives/command'
+import { Kbd, KbdGroup } from '@winterop-com/sokkel-ui/primitives/kbd'
 import { useStore } from '@/hooks/use-store'
 import { NEUTRAL_GLYPH } from '@/lib/glyphs'
 import { ICONS } from '@/lib/icons'

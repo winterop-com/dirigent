@@ -5,7 +5,7 @@ import { Instant } from '@/components/Instant'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { StatusChip } from '@/components/run/StatusChip'
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
     DialogClose,
@@ -14,7 +14,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
+} from '@winterop-com/sokkel-ui/primitives/dialog'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { LOG_TARGET, targetChosen, targetOptions } from '@/lib/alert-form'
 import { deliverySettled, readNotification, sendTest, type NotificationOut } from '@/lib/alerting'

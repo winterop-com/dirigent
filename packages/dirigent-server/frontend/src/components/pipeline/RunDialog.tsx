@@ -2,10 +2,16 @@ import { useMemo, useRef, useState } from 'react'
 
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
 import { Refusable } from '@/components/Refusable'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import { Label } from '@winterop-com/sokkel-ui/primitives/label'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@winterop-com/sokkel-ui/primitives/select'
 import {
     Dialog,
     DialogContent,
@@ -13,7 +19,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
+} from '@winterop-com/sokkel-ui/primitives/dialog'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useStore } from '@/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'

@@ -11,9 +11,9 @@ import {
     DropdownMenuSubContent,
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import { SEARCH_PLACEHOLDER } from '@/components/ds/SearchField'
-import { Input } from '@/components/ui/input'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { blockShelves, searchBlocks, type BlockCrumb } from '@/lib/add-step'
 import { catalogUnread, type BlockEntry } from '@/lib/blocks'
 import { LABELS } from '@/lib/labels'

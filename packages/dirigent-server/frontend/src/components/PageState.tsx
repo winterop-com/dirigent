@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent } from '@winterop-com/sokkel-ui/primitives/card'
 import type { Problem } from '@/lib/api'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'

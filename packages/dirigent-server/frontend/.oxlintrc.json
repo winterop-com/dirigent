@@ -23,7 +23,7 @@
         "react/exhaustive-deps": "warn",
         "react/react-in-jsx-scope": "off"
     },
-    "ignorePatterns": ["node_modules", "dist", "src/components/ui"],
+    "ignorePatterns": ["node_modules", "dist"],
     "overrides": [
         {
             "files": ["e2e/**", "shots-src/**", "docs-shots-src/**", "*.config.ts"],

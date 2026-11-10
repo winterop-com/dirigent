@@ -23,7 +23,7 @@ wrong is changed on this page first and in the code second.
 | Build | vite 8, TypeScript 7 with project references | `tsc -b` gates the build, because vite strips types without checking them |
 | UI | React 19, react-router 7 with `BrowserRouter` | The server answers a navigation nothing claimed with the shell, so paths stay clean and a deep link can be pasted |
 | Styling | Tailwind v4, CSS-first, entered through sokkel-ui's `styles-base.css` | There is no `tailwind.config.js` and there must not be one. The tokens, themes, fonts and base styles are [sokkel-ui](https://github.com/winterop-com/sokkel-ui)'s; `src/index.css` imports them, one `sources/<module>.css` line per library module the app imports, and then this app's own CSS |
-| Components | shadcn on **Base UI** (`@base-ui/react`), style `base-nova` | The generated files in `src/components/ui/` are pristine and never hand-edited |
+| Components | sokkel-ui's primitives, shadcn `base-nova` on **Base UI** (`@base-ui/react`) | Imported from `@winterop-com/sokkel-ui/primitives/*`. A primitive that needs an option dirigent lacks gets it in sokkel-ui |
 | Graphs | `@xyflow/react` for the canvas, `elkjs` for the layout | React Flow draws what it is given and decides no geometry; elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
 | Editor | `monaco-editor` with `monaco-yaml` | A pipeline document is YAML checked against a schema, and squiggling an unknown key where an apply would refuse it needs a language server rather than a textarea. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, and a config field whose schema says it carries a program |
 | YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
@@ -38,7 +38,7 @@ wrong is changed on this page first and in the code second.
 | Packages | **bun**, always. Never npm, yarn, or pnpm | |
 
 **Base UI is the primitive layer, and app code never imports it.** Pages and components import
-from `@/components/ui/*` and nothing else reaches for `@base-ui/react` directly. That boundary is
+from `@winterop-com/sokkel-ui/primitives/*` and nothing else reaches for `@base-ui/react` directly. That boundary is
 what lets the component layer be swapped without a change anywhere above it, and other apps in
 this family are on a different primitive underneath the same imports.
 
@@ -88,8 +88,7 @@ something when one of them grows.
 
 **oxfmt owns whitespace, quotes, semicolons and the order of Tailwind classes**, at four spaces,
 single quotes outside JSX, no semicolons and a print width of 110. Nothing about that is worth an
-opinion in review: run `make ui-fmt`. The generated files in `src/components/ui/` and
-`components.json` are ignored, as they are in oxlint. `make ui-lint` runs the check first, so an
+opinion in review: run `make ui-fmt`. `make ui-lint` runs the check first, so an
 unformatted file fails the gate before anything else is read.
 
 `make ui` builds the bundle, `make ui-dev` serves it with hot reload against a running `dg dev`,
@@ -139,10 +138,8 @@ word added to a box inherits its size and no word on a canvas can come out at th
 arrives as `text-[17px]` or as `text-lg`. The check has no allowlist -- it knows `text-title`,
 `text-page`, `text-stat`, `text-wordmark`, `text-lockup`, `text-display` and the two graph sizes by name, and
 reads `index.css` itself so another size cannot be minted there either. A named
-exception can be counted; an allowlist is a check people argue with. It skips
-`src/components/ui/`, because those files are generated and regenerating them is how they are
-fixed. A size one of them carries is said back onto the scale in `index.css`, against its slot: the
-small button's `0.8rem` is `text-sm`.
+exception can be counted; an allowlist is a check people argue with. A library primitive that
+carries a size off the scale is fixed in sokkel-ui.
 
 A relative size composes with the scale rather than escaping it, so `text-[0.85em]` on code inside
 a sentence is deliberate and passes.
@@ -1884,8 +1881,8 @@ costs.
 
 **Where a stock behaviour exists, it is the behaviour.** A menu that marks a choice puts the
 mark in a reserved gutter on the left, in the same column on every row, and hangs off its own
-trigger. The generated files in `src/components/ui/` are pristine, so what this app wants of
-them is said in `index.css` against their slots, never by editing them.
+trigger. The primitives are sokkel-ui's, so what this app wants of them is said in `index.css`
+against their slots, or added to the library.
 
 ## A graph fits what it draws
 

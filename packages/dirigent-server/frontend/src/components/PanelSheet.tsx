@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 
 import { IconButton } from '@/components/ds/IconButton'
 import { ICONS } from '@/lib/icons'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@winterop-com/sokkel-ui/primitives/tabs'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
 import { closeSheet, openPanelTab, panelSheet, panelTab, panelTabs } from '@/lib/panels'

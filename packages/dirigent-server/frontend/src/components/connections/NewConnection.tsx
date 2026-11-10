@@ -1,6 +1,6 @@
 import { ConnectionFields } from '@/components/connections/ConnectionFields'
 import { Refusable } from '@/components/Refusable'
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
     DialogClose,
@@ -9,7 +9,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
+} from '@winterop-com/sokkel-ui/primitives/dialog'
 import { useConnectionDraft } from '@/hooks/use-connection-draft'
 import { type ConnectionOut, type SurfaceEntry } from '@/lib/connections'
 import { LABELS } from '@/lib/labels'

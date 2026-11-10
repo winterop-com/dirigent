@@ -1,8 +1,8 @@
 import { type ReactNode } from 'react'
 
 import { Picker } from '@/components/Picker'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
 

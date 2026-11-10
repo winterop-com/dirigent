@@ -318,9 +318,9 @@ test('a column heading is a label, whatever face its cells are in', async ({ pag
 test('a small button is on the type scale', async ({ page }) => {
     await signIn(page)
     await page.goto('/')
-    const small = page.locator('[data-slot="button"].text-\\[0\\.8rem\\]').first()
+    const small = page.locator('[data-slot="button"].h-7').first()
     await expect(small).toBeVisible()
-    await expect(small).toHaveCSS('font-size', '15px')
+    await expect(small).toHaveCSS('font-size', '13px')
 })
 
 test('a new connection has one way out, and it says Cancel', async ({ page }) => {

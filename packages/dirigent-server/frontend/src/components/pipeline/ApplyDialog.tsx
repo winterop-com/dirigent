@@ -5,7 +5,7 @@ import { CarriedOffer } from '@/components/pipeline/CarriedOffer'
 import { PlanReading } from '@/components/pipeline/PlanReading'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
-import { Button } from '@/components/ui/button'
+import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useMayWrite } from '@/hooks/use-may-write'
 import {
     Dialog,
@@ -14,7 +14,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from '@/components/ui/dialog'
+} from '@winterop-com/sokkel-ui/primitives/dialog'
 import { type JsonMap, type Problem } from '@/lib/api'
 import {
     carriedCodes,

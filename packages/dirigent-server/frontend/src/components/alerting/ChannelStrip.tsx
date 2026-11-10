@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 
 import { Panel } from '@/components/ds/Panel'
 import { Mark } from '@/components/Mark'
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import {
     channelCode,
