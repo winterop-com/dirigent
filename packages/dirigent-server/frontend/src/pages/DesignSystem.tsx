@@ -5,7 +5,7 @@ import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Question } from '@/components/Question'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
-import { Fact, FactList } from '@/components/ds/FactList'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { describedBy, FormField } from '@/components/ds/FormField'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { Notice } from '@/components/ds/Notice'
@@ -13,7 +13,7 @@ import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
-import { SectionHeading } from '@/components/ds/SectionHeading'
+import { GroupLabel } from '@winterop-com/sokkel-ui/GroupLabel'
 import { SwitchField } from '@winterop-com/sokkel-ui/SwitchField'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { ToneDot } from '@/components/ds/ToneDot'
@@ -164,9 +164,9 @@ function GalleryIndex({
         >
             {GALLERY_INDEX.map(({ group, sections }) => (
                 <div key={group} className="min-w-0 space-y-1">
-                    <SectionHeading tier="group" className="px-2">
+                    <GroupLabel as="h3" className="px-2">
                         {COPY.group[group]}
-                    </SectionHeading>
+                    </GroupLabel>
                     <ul className="flex flex-wrap gap-0.5 lg:flex-col">
                         {sections.map((section) => (
                             <li key={section}>
@@ -202,7 +202,7 @@ function GalleryIndex({
 function Specimen({ title, children }: { title: string; children: ReactNode }) {
     return (
         <div className="space-y-3 p-4">
-            <SectionHeading tier="group">{title}</SectionHeading>
+            <GroupLabel as="h3">{title}</GroupLabel>
             <div className="flex min-w-0 flex-wrap items-start gap-3">{children}</div>
         </div>
     )
@@ -298,17 +298,9 @@ export function DesignSystem() {
                     <Section id="headings">
                         <Specimen title={VARIANT.tiers}>
                             <div className="w-full max-w-xl space-y-4">
-                                <SectionHeading
-                                    aside={SAMPLE.runs_count}
-                                    link={{ to: '/runs', label: SAMPLE.all_runs }}
-                                >
-                                    {SAMPLE.recent_runs}
-                                </SectionHeading>
-                                <SectionHeading tier="group" aside={<Chip>{SAMPLE.word_managed}</Chip>}>
-                                    {SAMPLE.yesterday}
-                                </SectionHeading>
+                                <GroupLabel as="h3">{SAMPLE.yesterday}</GroupLabel>
                                 <Narrow>
-                                    <SectionHeading>{SAMPLE.long.name}</SectionHeading>
+                                    <GroupLabel as="h3">{SAMPLE.long.name}</GroupLabel>
                                 </Narrow>
                             </div>
                         </Specimen>
@@ -743,38 +735,42 @@ export function DesignSystem() {
                     <Section id="facts">
                         <Specimen title={VARIANT.grid}>
                             <div className="w-80 min-w-0">
-                                <FactList>
-                                    <Fact term={LABELS.word.kind.term}>
-                                        <KindChip kind="http" />
-                                    </Fact>
-                                    <Fact term={SAMPLE.fact_owner} mono>
-                                        {SAMPLE.fact_owner_value}
-                                    </Fact>
-                                    <Fact term={SAMPLE.fact_schedule} mono>
-                                        {SAMPLE.fact_schedule_value}
-                                    </Fact>
-                                    <Fact
-                                        term={SAMPLE.fact_address}
-                                        mono
-                                        truncate
-                                        title={SAMPLE.fact_address_value}
-                                    >
-                                        {SAMPLE.fact_address_value}
-                                    </Fact>
-                                    <Fact term={SAMPLE.fact_description}>{SAMPLE.long.description}</Fact>
-                                </FactList>
+                                <DescriptionList
+                                    items={[
+                                        { term: LABELS.word.kind.term, value: <KindChip kind="http" /> },
+                                        {
+                                            term: SAMPLE.fact_owner,
+                                            value: SAMPLE.fact_owner_value,
+                                            code: true,
+                                        },
+                                        {
+                                            term: SAMPLE.fact_schedule,
+                                            value: SAMPLE.fact_schedule_value,
+                                            code: true,
+                                        },
+                                        {
+                                            term: SAMPLE.fact_address,
+                                            value: SAMPLE.fact_address_value,
+                                            code: true,
+                                        },
+                                        { term: SAMPLE.fact_description, value: SAMPLE.long.description },
+                                    ]}
+                                />
                             </div>
                         </Specimen>
                         <Specimen title={VARIANT.row}>
-                            <FactList variant="row">
-                                <Fact term={LABELS.word.kind.term}>{SAMPLE.fact_kind_value}</Fact>
-                                <Fact term={SAMPLE.fact_owner} mono>
-                                    {SAMPLE.fact_owner_value}
-                                </Fact>
-                                <Fact term={SAMPLE.fact_schedule} mono>
-                                    {SAMPLE.fact_schedule_value}
-                                </Fact>
-                            </FactList>
+                            <DescriptionList
+                                layout="row"
+                                items={[
+                                    { term: LABELS.word.kind.term, value: SAMPLE.fact_kind_value },
+                                    { term: SAMPLE.fact_owner, value: SAMPLE.fact_owner_value, code: true },
+                                    {
+                                        term: SAMPLE.fact_schedule,
+                                        value: SAMPLE.fact_schedule_value,
+                                        code: true,
+                                    },
+                                ]}
+                            />
                         </Specimen>
                     </Section>
                 </div>

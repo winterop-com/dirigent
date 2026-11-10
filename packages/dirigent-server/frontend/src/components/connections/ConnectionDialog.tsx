@@ -12,7 +12,7 @@ import { Question } from '@/components/Question'
 import { RefusalLine } from '@/components/Refusal'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
-import { Fact, FactList } from '@/components/ds/FactList'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { Notice } from '@/components/ds/Notice'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
@@ -258,45 +258,48 @@ function ConnectionFacts({
                 </Notice>
             )}
             <Description text={connection.description} />
-            <FactList>
-                <Fact term={LABELS.word.health}>
-                    <span className="flex min-w-0 flex-col gap-1">
-                        <span className="flex items-center gap-2">
-                            <HealthSaid view={view} />
-                            {view.checkedAt !== null && (
-                                <span className="text-xs text-muted-foreground">
-                                    {LABELS.word.checked.term} <Instant at={view.checkedAt} />
+            <DescriptionList
+                termWidth="9rem"
+                items={[
+                    {
+                        term: LABELS.word.health,
+                        value: (
+                            <span className="flex min-w-0 flex-col gap-1">
+                                <span className="flex items-center gap-2">
+                                    <HealthSaid view={view} />
+                                    {view.checkedAt !== null && (
+                                        <span className="text-xs text-muted-foreground">
+                                            {LABELS.word.checked.term} <Instant at={view.checkedAt} />
+                                        </span>
+                                    )}
                                 </span>
-                            )}
-                        </span>
-                        {view.detail !== null && (
-                            <span className="text-xs break-words text-muted-foreground">{view.detail}</span>
-                        )}
-                    </span>
-                </Fact>
-                {facts.map((fact) => (
-                    <Fact key={fact.name} term={fact.name} termMono mono={fact.value !== null}>
-                        {fact.value === null ? (
-                            <span className="text-faint">{LABELS.connections.secret_not_set}</span>
-                        ) : (
-                            <span className="text-xs break-all">{fact.value}</span>
-                        )}
-                    </Fact>
-                ))}
-                {users !== null && isUsed(users) && (
-                    <Fact term={LABELS.connections.used_by_term}>
-                        <UsedBy users={users} />
-                    </Fact>
-                )}
-                <Fact term={LABELS.word.created.label}>
-                    <Instant at={connection.created_at} />
-                </Fact>
-                {separatelyUpdated(connection.created_at, connection.updated_at) && (
-                    <Fact term={LABELS.word.updated.label}>
-                        <Instant at={connection.updated_at} />
-                    </Fact>
-                )}
-            </FactList>
+                                {view.detail !== null && (
+                                    <span className="text-xs break-words text-muted-foreground">
+                                        {view.detail}
+                                    </span>
+                                )}
+                            </span>
+                        ),
+                    },
+                    ...facts.map((fact) => ({
+                        term: <InlineCode value={fact.name} tone="muted" bare size="xs" />,
+                        code: fact.value !== null,
+                        value:
+                            fact.value === null ? (
+                                <span className="text-faint">{LABELS.connections.secret_not_set}</span>
+                            ) : (
+                                <span className="text-xs break-all">{fact.value}</span>
+                            ),
+                    })),
+                    ...(users !== null && isUsed(users)
+                        ? [{ term: LABELS.connections.used_by_term, value: <UsedBy users={users} /> }]
+                        : []),
+                    { term: LABELS.word.created.label, value: <Instant at={connection.created_at} /> },
+                    ...(separatelyUpdated(connection.created_at, connection.updated_at)
+                        ? [{ term: LABELS.word.updated.label, value: <Instant at={connection.updated_at} /> }]
+                        : []),
+                ]}
+            />
         </>
     )
 }

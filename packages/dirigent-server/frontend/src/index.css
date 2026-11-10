@@ -5,7 +5,9 @@
    imports is this app's own CSS, drawn in the library's tokens. */
 @import '@winterop-com/sokkel-ui/styles-base.css';
 @import '@winterop-com/sokkel-ui/sources/CopyButton.css';
+@import '@winterop-com/sokkel-ui/sources/DescriptionList.css';
 @import '@winterop-com/sokkel-ui/sources/DialogShell.css';
+@import '@winterop-com/sokkel-ui/sources/GroupLabel.css';
 @import '@winterop-com/sokkel-ui/sources/IconButton.css';
 @import '@winterop-com/sokkel-ui/sources/InlineCode.css';
 @import '@winterop-com/sokkel-ui/sources/Link.css';

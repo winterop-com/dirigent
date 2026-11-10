@@ -9,7 +9,7 @@ import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Question } from '@/components/Question'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
-import { Fact, FactList } from '@/components/ds/FactList'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { FormField } from '@/components/ds/FormField'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
@@ -256,18 +256,18 @@ export function AccountDialog({
 /** What the dialog reads first. The role is a word, and an email and a sign-in are said where they exist. */
 function AccountFacts({ user }: { user: UserOut }) {
     return (
-        <FactList>
-            <Fact term={LABELS.word.role}>
-                <span title={ROLE_HINTS[user.role]}>{user.role}</span>
-            </Fact>
-            {user.email !== null && <Fact term={LABELS.word.email}>{user.email}</Fact>}
-            <Fact term={LABELS.word.last_signed_in.label}>
-                {user.last_login_at === null ? LABELS.word.never : <Instant at={user.last_login_at} />}
-            </Fact>
-            <Fact term={LABELS.word.created.label}>
-                <Instant at={user.created_at} />
-            </Fact>
-        </FactList>
+        <DescriptionList
+            items={[
+                { term: LABELS.word.role, value: <span title={ROLE_HINTS[user.role]}>{user.role}</span> },
+                ...(user.email === null ? [] : [{ term: LABELS.word.email, value: user.email }]),
+                {
+                    term: LABELS.word.last_signed_in.label,
+                    value:
+                        user.last_login_at === null ? LABELS.word.never : <Instant at={user.last_login_at} />,
+                },
+                { term: LABELS.word.created.label, value: <Instant at={user.created_at} /> },
+            ]}
+        />
     )
 }
 

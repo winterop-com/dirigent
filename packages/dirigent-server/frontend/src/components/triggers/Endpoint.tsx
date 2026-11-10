@@ -4,7 +4,7 @@ import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Question } from '@/components/Question'
 import { RefusalLine } from '@/components/Refusal'
-import { Fact, FactList } from '@/components/ds/FactList'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Inset } from '@/components/ds/Inset'
 import { Refusable } from '@/components/Refusable'
@@ -72,18 +72,24 @@ export function SourceFacts({
     const auth = authLine(source)
     return (
         <div className="space-y-3">
-            <FactList>
-                {listens !== null && (
-                    <Fact term={LABELS.triggers.source.listens}>
-                        {source.url_path === null ? (
-                            <span className="font-mono break-all">{listens}</span>
-                        ) : (
-                            <EndpointAddress source={source} />
-                        )}
-                    </Fact>
-                )}
-                {auth !== null && <Fact term={LABELS.triggers.source.auth}>{auth}</Fact>}
-            </FactList>
+            <DescriptionList
+                items={[
+                    ...(listens === null
+                        ? []
+                        : [
+                              {
+                                  term: LABELS.triggers.source.listens,
+                                  value:
+                                      source.url_path === null ? (
+                                          <span className="font-mono break-all">{listens}</span>
+                                      ) : (
+                                          <EndpointAddress source={source} />
+                                      ),
+                              },
+                          ]),
+                    ...(auth === null ? [] : [{ term: LABELS.triggers.source.auth, value: auth }]),
+                ]}
+            />
             <NewToken source={source} body={body} onReplaced={onReplaced} />
         </div>
     )

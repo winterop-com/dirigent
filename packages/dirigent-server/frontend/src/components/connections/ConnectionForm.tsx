@@ -1,5 +1,5 @@
 import { SecretField } from '@/components/connections/SecretField'
-import { SectionHeading } from '@/components/ds/SectionHeading'
+import { GroupLabel } from '@winterop-com/sokkel-ui/GroupLabel'
 import { FormField } from '@/components/ds/FormField'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
 import { Refusal } from '@/components/Refusal'
@@ -42,7 +42,7 @@ export function ConnectionForm({ connection, form }: { connection: ConnectionOut
             </FormField>
 
             <div className="space-y-3">
-                <SectionHeading tier="group">{LABELS.connections.settings_heading}</SectionHeading>
+                <GroupLabel as="h3">{LABELS.connections.settings_heading}</GroupLabel>
                 <SchemaForm
                     fields={form.fields}
                     values={form.values}
@@ -55,7 +55,7 @@ export function ConnectionForm({ connection, form }: { connection: ConnectionOut
 
             {connection.secret_fields.length > 0 && (
                 <div className="space-y-3">
-                    <SectionHeading tier="group">{LABELS.connections.secrets_heading}</SectionHeading>
+                    <GroupLabel as="h3">{LABELS.connections.secrets_heading}</GroupLabel>
                     <div className="grid gap-4 sm:grid-cols-2">
                         {connection.secret_fields.map((name) => (
                             <SecretField
