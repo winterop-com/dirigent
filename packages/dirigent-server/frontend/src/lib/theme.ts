@@ -19,7 +19,7 @@
  * has to name `DEFAULT_PALETTE`; a test holds the two equal.
  */
 
-import type { ThemeSettings } from '@winterop-com/sokkel-ui/lib/appearance'
+import type { AppearanceOffer, ThemeSettings } from '@winterop-com/sokkel-ui/lib/appearance'
 
 import { ICONS, type Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
@@ -70,6 +70,9 @@ export const DEFAULT_PALETTE: PaletteName = 'amber'
 export const APPEARANCE_DEFAULTS: Partial<ThemeSettings> = { theme: DEFAULT_PALETTE }
 
 export const PALETTE_NAMES: PaletteName[] = PALETTES.map((palette) => palette.name)
+
+/** The themes `useAppearance` may wear; a stored one outside them gives way to the default. */
+export const APPEARANCE_OFFER: AppearanceOffer = { themes: PALETTE_NAMES }
 
 /** The palette a stored theme names; a theme this build does not offer reads as the default. */
 export function paletteOf(theme: string): PaletteName {

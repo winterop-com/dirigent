@@ -7,6 +7,7 @@ import { describe, expect, test } from 'vitest'
 import { rowsOf, settingsRows } from '@/lib/settings'
 import {
     APPEARANCE_DEFAULTS,
+    APPEARANCE_OFFER,
     DEFAULT_PALETTE,
     PALETTE_NAMES,
     PALETTES,
@@ -39,6 +40,14 @@ describe('the pre-paint script', () => {
         expect(tag).toBeDefined()
         expect(/data-theme="([^"]*)"/.exec(tag ?? '')?.[1]).toBe(DEFAULT_PALETTE)
         expect(APPEARANCE_DEFAULTS.theme).toBe(DEFAULT_PALETTE)
+    })
+
+    // A stored theme outside the offered ones gives way before the first paint only if the script
+    // offers the same themes the app does.
+    test('offers the palettes the app offers', () => {
+        const tag = scriptTags(readFileSync(INDEX_HTML, 'utf8')).find((one) => one.includes('/appearance.js'))
+        expect(/data-themes="([^"]*)"/.exec(tag ?? '')?.[1].split(' ')).toEqual(PALETTE_NAMES)
+        expect(APPEARANCE_OFFER.themes).toEqual(PALETTE_NAMES)
     })
 
     test('is the first script the document loads, and a classic one', () => {

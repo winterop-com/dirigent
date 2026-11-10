@@ -174,8 +174,10 @@ in `index.css`; the row is in `PALETTES` in `src/lib/theme.ts`, carrying the nam
 theme file hangs off `html[data-theme='<name>']` and **answers to `[data-theme-scope='<name>']` as
 well**, so an element inside the app can be painted in a palette the document is not wearing --
 which is what a swatch card is, and why a swatch cannot drift from the tokens it stands for. A
-test asserts every palette is imported. A stored theme outside `PALETTES` reads as the default on
-the Theme pane. A theme dirigent needs that the library lacks is added in sokkel-ui, never here.
+test asserts every palette is imported. `PALETTES` is also the list the app offers the library,
+in `APPEARANCE_OFFER` and in the pre-paint script's `data-themes`, so a stored theme outside it gives
+way to amber before the first paint. A theme dirigent needs that the library lacks is added in
+sokkel-ui, never here.
 
 **Both axes are chosen on the settings dialog's Theme pane.** Appearance is Light, Dark and System,
 one segmented control rather than a menu, because a choice from a fixed set of three is one control

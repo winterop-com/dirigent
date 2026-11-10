@@ -12,7 +12,7 @@ import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
 import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
 import { highlightLine } from '@/lib/preferences'
-import { APPEARANCE_DEFAULTS } from '@/lib/theme'
+import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER } from '@/lib/theme'
 import { PROGRAM_GRAMMARS } from '@/lib/program-grammars'
 import { cn } from '@/lib/utils'
 
@@ -358,7 +358,7 @@ export function CodeEditor({
     const host = useRef<HTMLDivElement | null>(null)
     const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
     const emitted = useRef(value)
-    const { settings, resolved } = useAppearance(APPEARANCE_DEFAULTS)
+    const { settings, resolved } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
     const highlight = useStore(highlightLine)
 
     useSchema(schema)

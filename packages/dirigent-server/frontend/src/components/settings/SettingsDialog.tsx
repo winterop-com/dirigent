@@ -38,6 +38,7 @@ import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { readSystemInfo, type SystemInfo } from '@/lib/system'
 import {
     APPEARANCE_DEFAULTS,
+    APPEARANCE_OFFER,
     MODE_LABELS,
     MODES,
     paletteAfter,
@@ -202,7 +203,7 @@ function Row({ row, children, under }: { row: SettingsRow; children?: ReactNode;
 
 /** The look: the two axes, one row each. */
 function ThemePane({ rows }: { rows: SettingsRow[] }) {
-    const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS)
+    const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
 
     return (
         <div>
