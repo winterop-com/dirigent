@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { applyExample, signIn, startRun } from './support.ts'
+import { applyExample, DEV_USERNAME, signIn, startRun } from './support.ts'
 
 /**
  * Every screen at the size of a phone.
@@ -243,22 +243,19 @@ test('the channels are folded behind their own heading, and open as a table', as
     await expect(door).toBeVisible()
 })
 
-test('a card control has no label row, and stands at the card content edge', async ({ page }) => {
+test('an account card labels its facts, and New token stands on a line of its own at their edge', async ({
+    page,
+}) => {
     await page.goto('/admin/users')
-    const card = page.getByRole('listitem').filter({ hasText: 'admin' }).first()
-    const control = card.getByRole('button', { name: LABELS.users.new_token })
+    const control = page.getByRole('button', { name: LABELS.users.new_token_for(DEV_USERNAME), exact: true })
+    const card = page.getByRole('row').filter({ has: control })
     await expect(control).toBeVisible()
 
-    // Every label on the card says something.
-    const labels = await card.locator('dt').allTextContents()
-    expect(labels.length).toBeGreaterThan(0)
-    for (const label of labels) expect(label.trim()).not.toBe('')
+    // Its line holds the control and nothing else: no label beside it.
+    await expect(control.locator('xpath=..')).toHaveText(LABELS.users.new_token)
 
-    // The button's left edge is the card's content edge, where the head starts.
-    const edge = await card.evaluate((item) => {
-        const style = getComputedStyle(item)
-        return item.getBoundingClientRect().left + parseFloat(style.paddingLeft)
-    })
+    // The control starts where the labelled facts do.
     const left = (await control.boundingBox())?.x ?? -1
+    const edge = (await card.getByText(LABELS.word.role, { exact: true }).boundingBox())?.x ?? -2
     expect(Math.abs(left - edge)).toBeLessThanOrEqual(1)
 })

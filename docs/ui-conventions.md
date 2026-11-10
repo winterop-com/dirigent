@@ -529,7 +529,10 @@ has yet to reach, and saying "fired" of it would be a second untruth in place of
 Every screen that draws a listing draws it with one component. `components/list/ListTable` is
 the panel, the heading row, the hairline between rows, the row that reaches for the next page and
 the count, along the foot or in the title bar where the listing has a title; a screen decides its
-columns and what each cell says, and nothing else. Where a row opens
+columns and what each cell says, and nothing else. **Users is the one listing on sokkel-ui's
+`DataTable` instead**, `variant="list"`, the first listing moved onto the library: the same panel,
+heads stuck over rows that scroll inside it, the next page asked for as the rows near their end and
+the count along the foot, with the table's own column sizing rather than `lib/column-width`. Where a row opens
 something -- a trigger's history beside the table, a connection's dialog over it -- the screen passes
 `onSelect`, and the row answers Enter and Space as well as a click, because a row only a pointer
 can open is a row some people cannot. **The column header is sticky**: rows scroll beneath it
@@ -607,7 +610,7 @@ did not see stays in the question as one line. `GET /connections` carries nothin
 credential, because a listing would have to walk every document for every row.
 
 **An account opens the same way, and is the trial's second use.** A press on the row, anywhere but its
-chevron, opens one dialog over the listing that reads first: the title, the role, the email where
+chevron, or Enter on the row the arrows reached, opens one dialog over the listing that reads first: the title, the role, the email where
 there is one, when it last signed in and when it was made. Its footer is `Deactivate` (or `Activate`),
 and `Reset password` and `Edit` at the other end. `Edit` is the same dialog at the same width: name and
 email side by side, the role as one compact select with what each role may do on its option, a footer
@@ -1479,7 +1482,10 @@ facts at the card's content edge, where the head starts, rather than in the valu
 a blank. `cardFacts` in `lib/card-form` is that split. What a row does
 as a table it does here: a row that opens a panel opens it, and a row that is a link is one. The
 card is the whole listing's form, header row and column widths included, so nothing on a narrow
-table has to be told how to shrink.
+table has to be told how to shrink. Users draws its narrow form through `DataTable`, which stacks a
+list whose box is under 576px into one row per account: the heading, a line per fact after its
+column's name, and `New token`{ .label } on a line of its own at the edge the facts start from. Its tokens
+stack the same way under it.
 
 **A column with nothing in it for that row is left out of the card, label and all -- and the
 cell is what says so, by returning `null`.** A component that renders nothing is an element all
@@ -1816,16 +1822,18 @@ The step panel's engine groups are the same gesture at rest: the row is the grou
 and its fields open under it rather than in a pane of their own.
 
 **An account's tokens are listed under its row.** A token authenticates as one account, so it is
-filed there rather than in a second table with an Account column. A chevron at the head of the row
-opens and shuts it, with a tooltip saying which, and does nothing else; pressing the rest of the
-row opens the account's dialog, and the heading's own tooltip says so. Several accounts may stand
-open. What opens is the same `ListTable` every
-listing is, inset under the row and reading `GET /users/{username}/tokens` when it is opened and
-not before. It keeps a cursor of its own and is capped at 24rem with its heading stuck, so an
-account holding hundreds does not push every other account off the page. A closed row says how many
-live tokens it holds, from one read of `GET /tokens`, and says nothing at all where that read did
-not reach the end, because a number off part of a listing is not a count. An account with none
-draws `No tokens.`{ .label } when opened. **`New token`{ .label } is on the row**, so a token is never made for the
+filed there rather than in a second table with an Account column. They are the row's `detail` in
+`DataTable`: the table's own chevron at the head of the row opens and shuts it, named `Show tokens`{ .label }
+or `Hide tokens`{ .label }, and does nothing else, and the right and left arrows do the same on the row
+the arrows reached; pressing the rest of the row opens the account's dialog, and the heading's own
+tooltip says so. Several accounts may stand open. What opens is a `DataTable` list of its own, set
+under the row and reading `GET /users/{username}/tokens` when it is opened and not before. It keeps
+a cursor of its own, asks for the next page as its rows near their end, and is capped at 24rem with
+its heads stuck, so an account holding hundreds does not push every other account off the page. A
+closed row says how many live tokens it holds, from one read of `GET /tokens`, and says nothing at
+all where that read did not reach the end, because a number off part of a listing is not a count.
+An account with none draws `No tokens.`{ .label } when opened, with no heads over it and no count
+under it. **`New token`{ .label } is on the row**, so a token is never made for the
 wrong account, and the row opens to show what it made.
 
 **A token row is its name, the three times it has, and Revoke.** There is no Prefix column: the name
@@ -2492,6 +2500,7 @@ the one palette.
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
 | `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A listing is `ListTable`, which draws the same panel |
+| `DataTable` (sokkel-ui) | The Users listing and the tokens under each account, `variant="list"`, `resizable={false}`: grid tracks per column, a cell's control pressed on its own without opening the row, `onOpen` for the dialog a row opens, `detail` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead`, and `empty` for the one line a listing with no rows says. Its words come from `tableWords` |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface

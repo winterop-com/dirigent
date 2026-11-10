@@ -96,7 +96,7 @@ test('an account is made, and then turned off', async ({ page }) => {
     await expect(rowOf(page, username).getByText('viewer', { exact: true })).not.toHaveClass(/chip/)
 
     // The chevron opens the tokens and nothing else; the rest of the row opens the dialog.
-    await page.getByRole('button', { name: LABELS.users.show_tokens(username) }).click()
+    await rowOf(page, username).getByRole('button', { name: LABELS.users.show_tokens, exact: true }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(rowOf(page, username).getByTitle(LABELS.users.open_account(username))).toBeVisible()
     await rowOf(page, username).click()
@@ -381,7 +381,7 @@ test('a token is made on its account, listed under it, and revoked after a quest
     await expect(rowOf(page, username)).toBeVisible()
 
     // An account with none says so when it is opened.
-    await page.getByRole('button', { name: LABELS.users.show_tokens(username) }).click()
+    await rowOf(page, username).getByRole('button', { name: LABELS.users.show_tokens, exact: true }).click()
     await expect(page.getByText(LABELS.users.tokens_empty, { exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: LABELS.users.new_token_for(username) }).click()
@@ -427,7 +427,7 @@ test('two live tokens sharing a name show their prefix, and revoking one leaves 
     expect(first.ok() && second.ok()).toBe(true)
     const heads = [(await first.json()) as { prefix: string }, (await second.json()) as { prefix: string }]
 
-    await page.getByRole('button', { name: LABELS.users.show_tokens(username) }).click()
+    await rowOf(page, username).getByRole('button', { name: LABELS.users.show_tokens, exact: true }).click()
     for (const head of heads) {
         await expect(page.getByText(LABELS.users.token_prefix(head.prefix), { exact: true })).toBeVisible()
     }
@@ -464,7 +464,7 @@ test('an account holding many tokens walks them in a box of its own', async ({ p
         expect(made.ok()).toBe(true)
     }
 
-    await page.getByRole('button', { name: LABELS.users.show_tokens(username) }).click()
+    await rowOf(page, username).getByRole('button', { name: LABELS.users.show_tokens, exact: true }).click()
     await expect(tokenRowOf(page, 'many-00')).toBeVisible()
 
     // The list holds its height, so the accounts around it stay where they were.
@@ -472,7 +472,9 @@ test('an account holding many tokens walks them in a box of its own', async ({ p
     const height = (await box.boundingBox())?.height ?? 0
     expect(height).toBeLessThanOrEqual(384)
 
-    // Reaching the foot of the box reads the next page.
-    await box.getByRole('button', { name: LABELS.shell.load_more('50') }).scrollIntoViewIfNeeded()
+    // Reaching the foot of the box reads the next page, by the keyboard as by a scroll.
+    await expect(box).toContainText('50 tokens, more to load')
+    await box.getByRole('grid').focus()
+    await page.keyboard.press('End')
     await expect(box).toContainText('60 tokens')
 })

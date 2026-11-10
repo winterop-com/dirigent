@@ -4,7 +4,7 @@ import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Question } from '@/components/Question'
 import { RefusalLine } from '@/components/Refusal'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
-import { ListTable, type Column } from '@/components/list/ListTable'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { PageState } from '@/components/PageState'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
@@ -14,6 +14,7 @@ import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { DIALOG_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
+import { rowsRead } from '@/lib/paging'
 import { refusalOf } from '@/lib/refusal'
 import { isLive, readAccountTokens, revokeToken, sharedNames, type TokenOut } from '@/lib/users'
 
@@ -60,21 +61,23 @@ export function AccountTokens({
 
     return (
         <div className="flex max-h-96 flex-col" data-account-tokens>
-            <PageState
-                loading={!state.read}
-                problem={state.problem}
-                empty={state.rows.length === 0}
-                emptyMessage={LABELS.users.tokens_empty}
-            >
-                <ListTable
+            <PageState loading={!state.read} problem={state.problem} empty={false}>
+                <DataTable
+                    variant="list"
                     columns={columns}
                     rows={state.rows}
                     rowKey={tokenId}
-                    rowClassName={(token) => (isLive(token, now) ? undefined : 'opacity-60')}
-                    reading={state.reading}
-                    next={state.next}
-                    onMore={more}
-                    noun={LABELS.word.token.count}
+                    hasMore={state.next !== null}
+                    loading={state.reading}
+                    onLoadMore={more}
+                    foot={
+                        state.rows.length === 0
+                            ? undefined
+                            : rowsRead(state.rows.length, LABELS.word.token.count, state.next !== null)
+                    }
+                    empty={LABELS.users.tokens_empty}
+                    columnHeads={state.rows.length > 0}
+                    resizable={false}
                 />
             </PageState>
             <ConfirmDialog
@@ -132,12 +135,12 @@ function tokenColumns(
     shared: ReadonlySet<string>,
     now: number,
     revoke: (token: TokenOut) => void,
-): Column<TokenOut>[] {
+): DataColumn<TokenOut>[] {
     return [
         {
             id: 'name',
             header: LABELS.word.token.label,
-            kind: 'title',
+            width: 'minmax(12rem,1fr)',
             cell: (token) => (
                 <span className="flex min-w-0 items-center gap-2">
                     <ICONS.token className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -152,9 +155,9 @@ function tokenColumns(
         {
             id: 'used',
             header: LABELS.users.last_used_column,
-            className: 'text-xs',
+            width: '7rem',
             cell: (token) => (
-                <span className="text-muted-foreground" title={formatInstant(token.last_used_at)}>
+                <span className="text-xs text-muted-foreground" title={formatInstant(token.last_used_at)}>
                     {token.last_used_at === null ? LABELS.word.never : formatRelative(token.last_used_at)}
                 </span>
             ),
@@ -162,9 +165,9 @@ function tokenColumns(
         {
             id: 'created',
             header: LABELS.word.created.label,
-            className: 'text-xs',
+            width: '6rem',
             cell: (token) => (
-                <span className="text-muted-foreground" title={formatInstant(token.created_at)}>
+                <span className="text-xs text-muted-foreground" title={formatInstant(token.created_at)}>
                     {formatRelative(token.created_at)}
                 </span>
             ),
@@ -172,7 +175,9 @@ function tokenColumns(
         {
             id: 'revoke',
             header: '',
-            className: 'text-right',
+            width: '6rem',
+            align: 'end',
+            stackLabel: false,
             cell: (token) =>
                 token.revoked_at === null ? (
                     <Button

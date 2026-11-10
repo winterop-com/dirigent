@@ -3237,8 +3237,8 @@ const users = {
     new_token_for: (username: string) => `New token for ${username}`,
 
     /** The chevron at the head of an account's row. */
-    show_tokens: (username: string) => `Show the tokens of ${username}`,
-    hide_tokens: (username: string) => `Hide the tokens of ${username}`,
+    show_tokens: 'Show tokens',
+    hide_tokens: 'Hide tokens',
     /** How many live tokens a shut row holds. */
     tokens_held: {
         one: (many: string) => `${many} token`,
