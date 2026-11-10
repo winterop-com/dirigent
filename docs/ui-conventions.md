@@ -172,22 +172,21 @@ learns it exists.** The import is the theme's file, `@winterop-com/sokkel-ui/the
 in `index.css`; the row is in `PALETTES` in `src/lib/theme.ts`, carrying the name and the label. A
 theme file hangs off `html[data-theme='<name>']` and **answers to `[data-theme-scope='<name>']` as
 well**, so an element inside the app can be painted in a palette the document is not wearing --
-which is what a swatch card is, and why a swatch cannot drift from the tokens it stands for. A
-test asserts every palette is imported. `PALETTES` is also the list the app offers the library,
-in `APPEARANCE_OFFER` and in the pre-paint script's `data-themes`, so a stored theme outside it gives
+which is what a palette's card on the Theme pane is, and why a card cannot drift from the tokens it
+stands for. A test asserts every palette is imported. `PALETTES` is also the list the app offers
+the library, in `APPEARANCE_OFFER` and in the pre-paint script's `data-themes`, so a stored theme outside it gives
 way to amber before the first paint. A theme dirigent needs that the library lacks is added in
 sokkel-ui, never here.
 
-**Both axes are chosen on the settings dialog's Theme pane.** Appearance is Light, Dark and System,
-one segmented control rather than a menu, because a choice from a fixed set of three is one control
-and not a list to open. **Palette is three swatch cards**, because what a palette is is what it
-looks like, and a card showing the ground, the surface, the line, the ink and the accent says in one
-glance what a sentence under a segmented control took a paragraph to approximate -- so no palette
-carries a line about itself any more. The cards are the Palette row's control, under its title.
-sokkel-ui's `ThemePicker` is not this pane: its swatch is three dots -- ink, `primary` and a chart
-hue -- on a 28px chip of the ground, with no surface and no line, so the one thing `contrast` changes
-most is the one thing it cannot show; and it draws both axes as one block where the dialog searches
-each as its own row. Neither row holds a copy of what it sets -- both go through
+**Both axes are chosen on the settings dialog's Theme pane, as two rows, each searched on its
+own.** Appearance is sokkel-ui's `SchemeChoice`: System, Light and Dark, in that order, one
+segmented control rather than a menu, because a choice from a fixed set of three is one control and
+not a list to open. **Palette is sokkel-ui's `ThemeCards`, one card per palette**, because what a
+palette is is what it looks like: each card is a small page in that palette's own tokens -- its
+ground, a bordered card on it, a line of ink and one of muted text, the brand -- in the mode the
+app is wearing, so a palette that changes the surfaces and lines shows them as plainly as one that
+changes the accent, and no palette carries a line about itself. The cards are the Palette row's
+control, under its title. Neither row holds a copy of what it sets -- both go through
 `useAppearance`, the one store the root wears and the account menu writes. **The mode is also three
 radio rows in the account menu**, the same three writing the same store, because it is the one
 look somebody changes in passing; the palette's Appearance rows are the third door to it. **The top
@@ -1380,7 +1379,7 @@ included, the role leaves the row and is said only in the menu's head. **This is
 code stands in the UI face.** The username is the account's code, and wherever it is addressed -- the accounts listing, the Account pane, a
 token's owner -- it is mono; here it is the reader's own name said back to them. The menu opens
 upward: its head is the username and the role with the instance's name and environment under it, then
-Settings, Keyboard shortcuts with `?`, the mode as Light, Dark and System with the one in force
+Settings, Keyboard shortcuts with `?`, the mode as System, Light and Dark, in the Theme pane's order, with the one in force
 checked, and Sign out.
 
 **The rail hides whole.** The platform's modifier plus B and the palette's row take it off screen
@@ -1713,12 +1712,11 @@ is words a document carries -- `GET`, `all_success` -- so the row and the trigge
 choice by and it is never on screen: the trigger draws the option, not the token.
 
 **A choice between looks is made on the looks themselves.** Where the values of a setting are
-appearances -- the three palettes -- the control is one card per value showing that value, and
-the card is the radio: `role="radio"` inside a `radiogroup`, one tab stop for the group, the
-arrows moving and choosing in one gesture, Space and Enter choosing what has focus, and a two
-pixel accent ring on the chosen card and on the focused one. The chosen card also carries a check
-in the accent, because a ring alone is a colour doing a mark's job. A swatch is drawn from the
-tokens it stands for and never from a colour written down beside it.
+appearances -- the three palettes -- the control is sokkel-ui's `ThemeCards`, one card per value
+showing that value, and the cards are a radio group: one tab stop for the group, entered at the
+chosen card, the arrows moving and choosing in one gesture, and the library's ring and check on the
+chosen card. A card is drawn from the tokens it stands for and never from a colour written down
+beside it.
 
 ## A surface is inset once, and 16px is the inset
 

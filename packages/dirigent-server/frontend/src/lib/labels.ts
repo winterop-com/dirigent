@@ -775,7 +775,7 @@ const shell = {
         dark: 'Dark',
         system: 'System',
     },
-    /** The colour palettes this build carries, as the Theme pane's swatch cards name them. */
+    /** The colour palettes this build carries, as the Theme pane's cards name them. */
     colours: {
         amber: 'Amber',
         paper: 'Paper',

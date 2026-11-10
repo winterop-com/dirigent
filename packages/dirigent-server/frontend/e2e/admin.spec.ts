@@ -261,7 +261,7 @@ test('the nav is three groups and About is not one of them', async ({ page }) =>
     )
 })
 
-test('a palette is chosen from its swatch, by pointer and by the arrows', async ({ page }) => {
+test('a palette is chosen from its card, by pointer and by the arrows', async ({ page }) => {
     await signIn(page)
     await openSettings(page)
     const dialog = page.getByRole('dialog')
