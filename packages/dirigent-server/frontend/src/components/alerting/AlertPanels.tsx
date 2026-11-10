@@ -5,7 +5,7 @@ import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
 import { Mark } from '@/components/Mark'
-import { CodePane } from '@/components/pipeline/CodePane'
+import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Refusable } from '@/components/Refusable'
 import { Refusal, sayRefusal } from '@/components/Refusal'
@@ -13,7 +13,6 @@ import { StatusChip } from '@/components/run/StatusChip'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
-import { WindowedPane } from '@/components/WindowedPane'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { BODY_HINT, given, SUBJECT_HINT, TEMPLATE_MEDIA_TYPE } from '@/lib/alert-form'
@@ -253,7 +252,6 @@ function RuleText({
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
 
-    const path = `alert-rule/${rule.code}/body`
     const subjectId = `rule-${rule.code}-subject`
 
     const save = () => {
@@ -296,30 +294,17 @@ function RuleText({
             <div className="space-y-2">
                 <Label>{LABELS.word.body}</Label>
                 <p className="text-xs text-faint">{BODY_HINT}</p>
-                <WindowedPane
+                <WindowedSource
                     name={LABELS.alerting.body_pane}
+                    label={LABELS.alerting.body_pane}
+                    windowLabel={LABELS.alerting.body_pane_windowed(LABELS.alerting.body_pane)}
+                    value={body}
+                    mediaType={TEMPLATE_MEDIA_TYPE}
+                    placeholder={LABELS.alerting.body_placeholder}
+                    className="h-40 min-h-32"
                     aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
-                    windowed={
-                        <CodePane
-                            value={body}
-                            mediaType={TEMPLATE_MEDIA_TYPE}
-                            path={path}
-                            label={LABELS.alerting.body_pane_windowed(LABELS.alerting.body_pane)}
-                            className="min-h-0 flex-1"
-                            onChange={setBody}
-                        />
-                    }
-                >
-                    <CodePane
-                        value={body}
-                        mediaType={TEMPLATE_MEDIA_TYPE}
-                        path={path}
-                        label={LABELS.alerting.body_pane}
-                        placeholder={LABELS.alerting.body_placeholder}
-                        className="h-40 min-h-32"
-                        onChange={setBody}
-                    />
-                </WindowedPane>
+                    onChange={setBody}
+                />
             </div>
 
             {problem !== null && <Refusal problem={problem} />}

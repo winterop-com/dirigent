@@ -1412,8 +1412,6 @@ const login = {
     /** The line above the heading. */
     eyebrow: 'Welcome to dirigent',
     subtitle: 'Enter your credentials to continue.',
-    username_placeholder: 'Your username',
-    password_placeholder: 'Your password',
     /** What the reveal toggle says it will do next, which is the opposite of what it has done. */
     show_password: 'Show password',
     hide_password: 'Hide password',

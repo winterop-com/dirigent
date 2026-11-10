@@ -1,310 +1,50 @@
-import * as monaco from 'monaco-editor/editor/editor.api'
-import editorWorker from 'monaco-editor/editor/editor.worker?worker'
-import { createWebWorker as createWorkerByLabel } from 'monaco-editor/internal/common/workers'
-import { jsonDefaults } from 'monaco-editor/languages/features/json/register'
-import jsonWorker from 'monaco-editor/languages/features/json/json.worker?worker'
-import { configureMonacoYaml, type MonacoYaml } from 'monaco-yaml'
-import yamlWorker from 'monaco-yaml/yaml.worker?worker'
-import { useEffect, useRef } from 'react'
+import { useMemo } from 'react'
 
-import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
+import {
+    CodeEditor as LibraryCodeEditor,
+    defineLanguage,
+    languageForMediaType,
+    type CodeLanguage,
+    type CodeMark,
+    type SharedDocument,
+} from '@winterop-com/sokkel-ui/CodeEditor'
+import { JSON_SCHEMA_2020_12 } from '@winterop-com/sokkel-ui/json-schema'
 
 import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
 import { highlightLine } from '@/lib/preferences'
-import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER } from '@/lib/theme'
-import { PROGRAM_GRAMMARS } from '@/lib/program-grammars'
-import { cn } from '@/lib/utils'
-
-import metaSchema from './json-schema-2020-12.json'
-
-import 'monaco-editor/languages/definitions/shell/register'
-import 'monaco-editor/languages/definitions/sql/register'
-import 'monaco-editor/languages/definitions/twig/register'
-import 'monaco-editor/languages/definitions/yaml/register'
+import { cqlParser, fhirpathParser } from '@/lib/program-grammars'
 
 /**
- * The editor every piece of source in this app is written in: a pipeline document, and a config
- * field whose schema says it carries a program.
+ * The editor every piece of source in this app is written in: a pipeline document, a schema, and
+ * a config field whose schema says it carries a program.
  *
- * WHY A LANGUAGE SERVER AND NOT A TEXTAREA. `GET /schema/document` answers with `dirigent/v1`
- * composed with this instance's own block config schemas, so `monaco-yaml` marks a key no block
- * takes at the character it was typed at -- which is the same place an apply refuses it, said
- * before the apply is asked for. A schema-checked buffer is what `schema` asks for; a buffer
- * that names none is edited without one, and the singleton below is left as it was found.
+ * A buffer handed a `schema` is checked and completed against it as it is typed; `GET
+ * /schema/document` answers with `dirigent/v1` composed with this instance's own block config
+ * schemas, so a key no block takes is marked where it was typed. A buffer holding
+ * `application/schema+json` is checked against the JSON Schema 2020-12 meta-schema, carried
+ * rather than fetched. The row under the caret is shaded only when the reader's preference asks
+ * for it.
  *
- * A FIELD IS SOURCE WHEN ITS SCHEMA SAYS SO. A block config field carrying `contentMediaType`
- * holds a program, and `LANGUAGES` is the whole of what this app does with one: the language
- * monaco tokenises it as, and the extension its buffer is named with. A media type monaco has
- * no language for is edited as plain text, which is a mono font and no colour.
- *
- * JQ, FHIRPATH AND CQL ARE THIS APP'S OWN GRAMMARS. Monaco ships none of the three, so
- * `lib/program-grammars` writes each as a Monarch tokeniser and they are registered here. Their
- * token classes are the ones the house theme below already names, and a name bound outside the
- * program -- `$name`, `%name`, `$this` -- wears an ink of its own.
- *
- * IT IS LOADED IN ITS OWN CHUNK. Nothing imports this file by name: `CodePane` beside it is
- * the one dynamic import, and every screen that writes source reaches the editor through it.
- *
- * EVERY EDITOR HAS ITS OWN MODEL. A model is registered under a uri and monaco holds one
- * instance per uri, so two panes sharing a path would share a buffer -- the caller names the
- * buffer it is editing and gets one of its own.
- *
- * MONACO WEARS THE HOUSE PALETTE. It cannot read custom properties itself, so the theme is
- * built from them: each token the theme needs is resolved by the browser off the live page
- * and handed over as a literal, rebuilt when the mode flips. The hues are the ones the
- * step panel's inline JSON already wears, so a value reads the same at every size.
- *
- * ONLY THE EDITOR AND THE LANGUAGES IT HOSTS ARE IMPORTED. `monaco-editor` as a whole registers
- * every language it ships; what is wanted is the editor plus YAML, shell, twig and SQL, so the
- * api entry and those four contributions are imported by path and the rest are never fetched. A
- * language `LANGUAGES` names but nothing imported tokenises as plain text and says nothing. The
- * api entry brings no editor contributions with it either. Monaco's worker helper module carries
- * all of them, and it is imported here rather than reached first through the JSON language,
- * which loads it lazily: a contribution registered after the first editor is built finds none
- * of the services it needs, and that editor has no quick fixes, code lenses or inlay hints.
+ * The language comes from the media type the field's schema published, YAML when none is named.
+ * FHIRPath and CQL are this app's own grammars; every other media type is the editor's to read,
+ * and one it does not know is plain text.
  */
 
-/** Which worker each language runs in. `self` carries this: monaco reads it off the global. */
-const environment: monaco.Environment = {
-    getWorker(_workerId: string, label: string) {
-        if (label === 'yaml') return new yamlWorker()
-        if (label === 'json') return new jsonWorker()
-        return new editorWorker()
-    },
-}
-;(self as unknown as { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = environment
+const FHIRPATH = defineLanguage(fhirpathParser)
+const CQL = defineLanguage(cqlParser)
 
-for (const grammar of PROGRAM_GRAMMARS) {
-    monaco.languages.register({
-        id: grammar.id,
-        extensions: [`.${grammar.extension}`],
-        aliases: [grammar.id],
-    })
-    monaco.languages.setMonarchTokensProvider(grammar.id, grammar.language)
-    monaco.languages.setLanguageConfiguration(grammar.id, grammar.configuration)
+const SCHEMA_DOCUMENT = 'application/schema+json'
+
+const OWN_LANGUAGES: Record<string, CodeLanguage> = {
+    'application/fhirpath': FHIRPATH,
+    'text/cql': CQL,
 }
 
-/** How a buffer is tokenised, what it is named, and whether it holds a schema rather than data. */
-interface Buffer {
-    language: string
-    extension: string
-    /** A buffer that is itself a JSON Schema, which is checked against the draft it is written in. */
-    metaSchema?: boolean
-}
-
-/** What a document pane edits, which is what a caller naming no media type gets. */
-const YAML: Buffer = { language: 'yaml', extension: 'yaml' }
-
-/** A language monaco does not ship: mono, and no colour. */
-const PLAIN: Buffer = { language: 'plaintext', extension: 'txt' }
-
-const LANGUAGES: Record<string, Buffer> = {
-    'text/x-shellscript': { language: 'shell', extension: 'sh' },
-    // Jinja is Twig's grammar in everything a template here writes: the same `{{ }}`, `{% %}`
-    // and `{# #}` delimiters, and monaco ships Twig.
-    'text/x-jinja': { language: 'twig', extension: 'j2' },
-    'application/jq': { language: 'jq', extension: 'jq' },
-    'application/fhirpath': { language: 'fhirpath', extension: 'fhirpath' },
-    'text/cql': { language: 'cql', extension: 'cql' },
-    'application/json': { language: 'json', extension: 'json' },
-    // A schema document rather than a JSON value: the same language, checked against the draft.
-    'application/schema+json': { language: 'json', extension: 'json', metaSchema: true },
-    'application/sql': { language: 'sql', extension: 'sql' },
-    'application/x-compose+yaml': { language: 'yaml', extension: 'yaml' },
-}
-
-/**
- * One css colour as monaco will take it, resolved by the browser.
- *
- * A canvas normalises whatever the stylesheet said -- oklch included -- into bytes, which
- * is the one spelling monaco accepts everywhere.
- */
-function resolvedColor(reference: string): string {
-    const probe = document.createElement('span')
-    probe.style.color = reference
-    probe.style.display = 'none'
-    document.body.appendChild(probe)
-    const said = getComputedStyle(probe).color
-    probe.remove()
-    const canvas = document.createElement('canvas')
-    canvas.width = 1
-    canvas.height = 1
-    const paint = canvas.getContext('2d')
-    if (paint === null) return '#808080'
-    paint.fillStyle = said
-    paint.fillRect(0, 0, 1, 1)
-    const [r, g, b] = paint.getImageData(0, 0, 1, 1).data
-    return `#${[r, g, b].map((part) => part.toString(16).padStart(2, '0')).join('')}`
-}
-
-/** The house theme, read off the live page so it matches whichever palette is standing. */
-function houseTheme(dark: boolean): monaco.editor.IStandaloneThemeData {
-    const ink = {
-        ground: resolvedColor('var(--color-background)'),
-        text: resolvedColor('var(--color-foreground)'),
-        quiet: resolvedColor('var(--color-muted-foreground)'),
-        key: resolvedColor('var(--color-info-ink)'),
-        string: resolvedColor('var(--color-good-ink)'),
-        number: resolvedColor('var(--color-warning-ink)'),
-        accent: resolvedColor('var(--color-accent)'),
-        accentInk: resolvedColor('var(--color-accent-foreground)'),
-        raised: resolvedColor('var(--color-popover)'),
-        hovered: resolvedColor('var(--color-muted)'),
-        raisedInk: resolvedColor('var(--color-popover-foreground)'),
-        edge: resolvedColor('var(--color-border)'),
-        // A name bound outside the program, in the kind family's violet, which is neither a
-        // state's nor an action's.
-        binding: resolvedColor('var(--color-binding-ink)'),
-    }
-    return {
-        base: dark ? 'vs-dark' : 'vs',
-        inherit: true,
-        // The base theme carries its own rules for JSON's and SQL's tokens -- pure red for a
-        // SQL string, magenta for a SQL function -- and a more specific token selector wins
-        // over a general one, so every token those two languages suffix is named here too.
-        rules: [
-            { token: 'string.key.json', foreground: ink.key },
-            { token: 'string.value.json', foreground: ink.string },
-            { token: 'number.json', foreground: ink.number },
-            { token: 'keyword.json', foreground: ink.number },
-            { token: 'delimiter.bracket.json', foreground: ink.quiet },
-            { token: 'delimiter.array.json', foreground: ink.quiet },
-            { token: 'delimiter.colon.json', foreground: ink.quiet },
-            { token: 'delimiter.comma.json', foreground: ink.quiet },
-            { token: 'string.sql', foreground: ink.string },
-            { token: 'string.double.sql', foreground: ink.string },
-            { token: 'number.sql', foreground: ink.number },
-            { token: 'predefined.sql', foreground: ink.key },
-            { token: 'operator.sql', foreground: ink.quiet },
-            { token: 'identifier.quote.sql', foreground: ink.text },
-            { token: 'comment.quote.sql', foreground: ink.quiet },
-            { token: 'type', foreground: ink.key },
-            { token: 'variable', foreground: ink.key },
-            { token: 'variable.binding', foreground: ink.binding },
-            { token: 'string', foreground: ink.string },
-            { token: 'number', foreground: ink.number },
-            { token: 'keyword', foreground: ink.number },
-            { token: 'comment', foreground: ink.quiet },
-            { token: 'delimiter', foreground: ink.quiet },
-        ],
-        colors: {
-            'editor.background': ink.ground,
-            'editor.foreground': ink.text,
-            'editorLineNumber.foreground': ink.quiet,
-            'editorLineNumber.activeForeground': ink.text,
-            'editor.selectionBackground': ink.accent,
-            'editorCursor.foreground': ink.text,
-            // The row the caret is on, drawn only where the preference asked for it: the ink a
-            // row under the pointer wears, and a border the ground's own colour, because
-            // monaco's default is a box outline and a box around one line reads as a selection.
-            'editor.lineHighlightBackground': ink.hovered,
-            'editor.lineHighlightBorder': ink.ground,
-            'editorBracketHighlight.foreground1': ink.quiet,
-            'editorBracketHighlight.foreground2': ink.quiet,
-            'editorBracketHighlight.foreground3': ink.quiet,
-            'editorBracketHighlight.foreground4': ink.quiet,
-            'editorBracketHighlight.foreground5': ink.quiet,
-            'editorBracketHighlight.foreground6': ink.quiet,
-            // A widget stands over the buffer rather than in it, so it wears what every other
-            // raised surface in this app wears.
-            'editorWidget.background': ink.raised,
-            'editorWidget.foreground': ink.raisedInk,
-            'editorWidget.border': ink.edge,
-            'editorSuggestWidget.background': ink.raised,
-            'editorSuggestWidget.foreground': ink.raisedInk,
-            'editorSuggestWidget.border': ink.edge,
-            'editorSuggestWidget.selectedBackground': ink.accent,
-            'editorSuggestWidget.selectedForeground': ink.accentInk,
-            'editorSuggestWidget.highlightForeground': ink.key,
-            'editorSuggestWidget.focusHighlightForeground': ink.key,
-            'symbolIcon.propertyForeground': ink.key,
-            // The row under the pointer, which the suggest widget takes from the list it is.
-            'list.hoverBackground': ink.hovered,
-            'list.hoverForeground': ink.raisedInk,
-        },
-    }
-}
-
-/** How one media type is edited. */
-function bufferOf(mediaType: string | null | undefined): Buffer {
-    if (mediaType === null || mediaType === undefined) return YAML
-    return LANGUAGES[mediaType] ?? PLAIN
-}
-
-/** The uri a model is registered under, which is what the schema's `fileMatch` matches. */
-function modelUri(path: string, buffer: Buffer): string {
-    return `inmemory://dirigent/${path}.${buffer.extension}`
-}
-
-/**
- * Monaco as monaco-yaml is given it, with `createWebWorker` taking a worker by label.
- *
- * Monaco's own `createWebWorker` takes the worker itself, and monaco-yaml names one by label
- * and create data, so without this its worker never starts and a document is edited with no
- * schema, folding or outline. Monaco's languages start theirs through the same helper.
- */
-const yamlMonaco = {
-    ...monaco,
-    editor: { ...monaco.editor, createWebWorker: createWorkerByLabel },
-} as unknown as typeof monaco
-
-/** There may only be one configured instance of monaco-yaml at a time. */
-let configured: MonacoYaml | null = null
-
-/**
- * Point monaco-yaml at the schema this instance published, or take its schemas away.
- *
- * A pane that names no schema at all is not schema-checked and says nothing here, so a program
- * field opening beside a document pane does not take that pane's schema off it.
- */
-function useSchema(schema: JsonMap | null | undefined): void {
-    useEffect(() => {
-        if (schema === undefined) return
-        const schemas =
-            schema === null ? [] : [{ uri: 'inmemory://dirigent/schema.json', fileMatch: ['*'], schema }]
-        if (configured === null) {
-            configured = configureMonacoYaml(yamlMonaco, {
-                enableSchemaRequest: false,
-                validate: true,
-                schemas,
-            })
-            return
-        }
-        void configured.update({ schemas })
-    }, [schema])
-}
-
-/**
- * The draft a schema document is written in, under the uri that draft is published at.
- *
- * It is carried rather than fetched. `enableSchemaRequest` is false, so the worker is given no
- * way to reach the network at all, and the meta-schemas it does carry stop at draft-07 -- 2020-12
- * arrives with the buffer that asks for it or not at all.
- */
-const META_SCHEMA_URI = 'https://json-schema.org/draft/2020-12/schema'
-
-/** Which schema buffers are open, by the uri each one's model is registered under. */
-const metaSchemaBuffers = new Set<string>()
-
-/**
- * Hand monaco the schema buffers open right now.
- *
- * `setDiagnosticsOptions` replaces the whole options object rather than adding to it, so every
- * buffer still open is restated on each call and whatever else monaco was holding is carried
- * over -- a buffer of plain JSON is read exactly as it was before any schema buffer opened.
- */
-function stateMetaSchemas(): void {
-    const held = jsonDefaults.diagnosticsOptions
-    jsonDefaults.setDiagnosticsOptions({
-        ...held,
-        validate: true,
-        enableSchemaRequest: false,
-        schemas:
-            metaSchemaBuffers.size === 0
-                ? []
-                : [{ uri: META_SCHEMA_URI, fileMatch: [...metaSchemaBuffers], schema: metaSchema }],
-    })
+/** The language a buffer of this media type is read in. */
+export function languageOf(mediaType: string | null | undefined): CodeLanguage {
+    if (mediaType === null || mediaType === undefined) return 'yaml'
+    return OWN_LANGUAGES[mediaType] ?? languageForMediaType(mediaType)
 }
 
 /** A range of the buffer a check refused, by character offset, and why. */
@@ -314,37 +54,39 @@ export interface EditorMark {
     message: string
 }
 
-/** Whose marks a check sets, apart from the language's own. */
-const MARK_OWNER = 'dirigent-check'
-
 export function CodeEditor({
     value,
+    doc,
     schema,
     mediaType,
-    path,
     label,
     placeholder,
     className,
+    variant = 'field',
     readOnly = false,
     marks,
     reveal,
     wrap = false,
+    deferred,
     onChange,
 }: {
-    value: string
+    /** The text, for a buffer drawn once; left out when `doc` is given. */
+    value?: string
+    /** A buffer shared with another view of it, such as a pane and its window. */
+    doc?: SharedDocument
     /** The JSON Schema every edit is checked against, null when it could not be read, and nothing
      * at all when this buffer is not schema-checked. */
     schema?: JsonMap | null
     /** What this buffer holds, as the schema published it. YAML when a caller names none. */
     mediaType?: string | null
-    /** Which buffer this is, which is the model it gets. */
-    path: string
     /** What a screen reader and a test call this editor. */
     label: string
     /** What an empty editor shows instead of nothing at all. */
     placeholder?: string
     /** How tall the editor is drawn, which is the one thing its callers disagree about. */
     className?: string
+    /** `field` is boxed like an input; `pane` fills a panel of its own, edge to edge. */
+    variant?: 'field' | 'pane'
     /** A buffer nobody may type into, which is what a viewer of produced data asks for. */
     readOnly?: boolean
     /** Ranges of the buffer a check refused, by character offset, each saying why on hover. */
@@ -353,134 +95,47 @@ export function CodeEditor({
     reveal?: { start: number; end: number } | null
     /** Long lines wrap at the pane's edge instead of running past it. */
     wrap?: boolean
+    /** A value the schema leaves unchecked, because the run fills it in. */
+    deferred?: (value: unknown) => boolean
     onChange?: (text: string) => void
 }) {
-    const host = useRef<HTMLDivElement | null>(null)
-    const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
-    const emitted = useRef(value)
-    const { settings, resolved } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
-    const highlight = useStore(highlightLine)
-
-    useSchema(schema)
-
-    useEffect(() => {
-        if (host.current === null) return
-        const buffer = bufferOf(mediaType)
-        const uri = monaco.Uri.parse(modelUri(path, buffer))
-        const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel(value, buffer.language, uri)
-        if (buffer.metaSchema === true) {
-            metaSchemaBuffers.add(uri.toString())
-            stateMetaSchemas()
-        }
-        const created = monaco.editor.create(host.current, {
-            model,
-            automaticLayout: true,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            fontSize: 12,
-            lineNumbers: 'on',
-            tabSize: 2,
-            wordWrap: wrap ? 'on' : 'off',
-            renderLineHighlight: highlight ? 'line' : 'none',
-            bracketPairColorization: { enabled: false },
-            scrollbar: { alwaysConsumeMouseWheel: false },
-            ariaLabel: label,
-            placeholder,
-            readOnly,
-            // Input goes through monaco's textarea, which carries the field's label; the
-            // experimental edit context takes focus on an element the label does not name.
-            editContext: false,
-        })
-        editor.current = created
-        const watch = model.onDidChangeContent(() => {
-            emitted.current = model.getValue()
-            onChange?.(emitted.current)
-        })
-        return () => {
-            watch.dispose()
-            created.dispose()
-            // Two panes may read one buffer -- a config field and its window -- so the model
-            // is disposed by whichever editor leaves it last, never from under the other.
-            const held = monaco.editor.getEditors().some((other) => other.getModel() === model)
-            if (held) return
-            model.dispose()
-            if (metaSchemaBuffers.delete(uri.toString())) stateMetaSchemas()
-        }
-        // The editor is created once. What flows in afterwards is handled by the effects below.
-        // oxlint-disable-next-line react/exhaustive-deps
-    }, [])
-
-    // A check's marks are the buffer's own diagnostics, under an owner of their own so the
-    // language's marks beside them are left as they are.
-    useEffect(() => {
-        const model = editor.current?.getModel()
-        if (model === null || model === undefined || marks === undefined) return
-        monaco.editor.setModelMarkers(
-            model,
-            MARK_OWNER,
-            marks.map((mark) => {
-                const from = model.getPositionAt(mark.start)
-                const to = model.getPositionAt(Math.max(mark.end, mark.start + 1))
-                return {
-                    severity: monaco.MarkerSeverity.Error,
-                    message: mark.message,
-                    startLineNumber: from.lineNumber,
-                    startColumn: from.column,
-                    endLineNumber: to.lineNumber,
-                    endColumn: to.column,
-                }
-            }),
-        )
-        return () => {
-            if (!model.isDisposed()) monaco.editor.setModelMarkers(model, MARK_OWNER, [])
-        }
-    }, [marks])
-
-    useEffect(() => {
-        const shown = editor.current
-        const model = shown?.getModel()
-        if (shown === null || shown === undefined || model === null || model === undefined || !reveal) return
-        const from = model.getPositionAt(reveal.start)
-        const to = model.getPositionAt(reveal.end)
-        const range = new monaco.Range(from.lineNumber, from.column, to.lineNumber, to.column)
-        shown.setSelection(range)
-        shown.revealRangeInCenterIfOutsideViewport(range)
-        shown.focus()
-    }, [reveal])
-
-    // The preference is read by every editor there is, including the read-only ones, and an open
-    // one takes the change without being rebuilt: a remount would lose the caret and the fold
-    // state of whatever is being read.
-    useEffect(() => {
-        editor.current?.updateOptions({ renderLineHighlight: highlight ? 'line' : 'none' })
-    }, [highlight])
-
-    // A value changed anywhere else -- a config field, a step added, another step chosen -- is
-    // written into the model. What this pane itself typed is already there, and rewriting it
-    // would move the caret.
-    useEffect(() => {
-        const model = editor.current?.getModel()
-        if (model === null || model === undefined) return
-        if (value === emitted.current || value === model.getValue()) return
-        emitted.current = value
-        model.setValue(value)
-    }, [value])
-
-    // The theme is built from the live page's own custom properties, read in the frame after the
-    // new scheme's class and palette are on the root element, so it takes the colors of the look
-    // arriving rather than the one being left.
-    useEffect(() => {
-        const frame = requestAnimationFrame(() => {
-            monaco.editor.defineTheme(
-                'dirigent',
-                houseTheme(document.documentElement.classList.contains('dark')),
-            )
-            monaco.editor.setTheme('dirigent')
-        })
-        return () => {
-            cancelAnimationFrame(frame)
-        }
-    }, [resolved, settings.theme])
-
-    return <div ref={host} className={cn('h-full min-h-64 w-full', className)} data-testid="code-editor" />
+    const language = languageOf(mediaType)
+    const activeLine = useStore(highlightLine)
+    const checkedAgainst = mediaType === SCHEMA_DOCUMENT ? JSON_SCHEMA_2020_12 : (schema ?? undefined)
+    const codeMarks = useMemo<readonly CodeMark[] | undefined>(
+        () =>
+            marks?.map((mark) => ({
+                from: mark.start,
+                to: Math.max(mark.end, mark.start + 1),
+                tone: 'error',
+                message: mark.message,
+            })),
+        [marks],
+    )
+    const range = useMemo(
+        () => (reveal === null || reveal === undefined ? reveal : { from: reveal.start, to: reveal.end }),
+        [reveal],
+    )
+    return (
+        <LibraryCodeEditor
+            value={doc === undefined ? value : undefined}
+            doc={doc}
+            onChange={onChange}
+            language={language}
+            schema={checkedAgainst}
+            deferred={deferred}
+            label={label}
+            placeholder={placeholder}
+            readOnly={readOnly}
+            marks={codeMarks}
+            reveal={range}
+            wrap={wrap}
+            activeLine={activeLine}
+            size="sm"
+            variant={variant}
+            search
+            folding
+            className={className}
+        />
+    )
 }

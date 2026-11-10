@@ -42,7 +42,6 @@ export function JsonBlock({ title, text, className }: { title: string; text: str
                 <CodePane
                     value={text}
                     mediaType="application/json"
-                    path={`window/${title}`}
                     label={LABELS.shell.in_window(title)}
                     readOnly
                     className="min-h-0 flex-1"

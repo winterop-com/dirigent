@@ -316,32 +316,32 @@ test('a config field the schema calls a program is edited as one, and every othe
     const panel = page.locator('aside')
     await expect(panel.getByText('transform.jq', { exact: true })).toBeVisible()
 
-    // Monaco is a chunk of its own, fetched when the first structured field of a session
+    // The editor is a chunk of its own, fetched when the first structured field of a session
     // opens. per_region carries two buffers: its JSON input, and its program.
-    const program = panel.getByTestId('code-editor').filter({ has: page.locator('[data-uri$="program.jq"]') })
-    await expect(program.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
+    const program = panel.getByRole('textbox', { name: 'program', exact: true })
+    await expect(program).toBeVisible({ timeout: 30_000 })
 
     // THE PROGRAM IS ON THE LINES IT WAS WRITTEN ON, and the label is still the key.
-    await expect(program.locator('.view-lines')).toContainText('select(.region == $region)')
-    await expect(program.locator('.view-line').nth(3)).toBeVisible()
-    await expect(panel.getByLabel('program', { exact: true })).toBeVisible()
+    await expect(program).toContainText('select(.region == $region)')
+    await expect(program.locator('.cm-line').nth(3)).toBeVisible()
 
     // The JSON input is a buffer too, coloured where it stands rather than a bare box.
-    await expect(panel.locator('[data-uri$="config/input.json"]')).toBeVisible()
+    const input = panel.getByRole('textbox', { name: 'input', exact: true })
+    await expect(input).toBeVisible()
 
     // The window is a second reader of the same buffer, and closing it leaves the buffer
     // standing: the inline pane still holds the text, and no control keeps a focus ring.
     await panel.getByLabel('Open input in a window').click()
-    await expect(page.getByRole('dialog').locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByRole('dialog').locator('.cm-editor')).toBeVisible({ timeout: 30_000 })
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).toBeHidden()
-    await expect(panel.locator('[data-uri$="config/input.json"] .view-lines')).toContainText('region')
+    await expect(input).toContainText('region')
 
     // A BLOCK WITH NEITHER A PROGRAM NOR A STRUCTURED FIELD GETS NO EDITOR. convert.std has
     // a from, a to, a source and a target, and the schema says every one is a plain string.
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
     await expect(panel.getByLabel('from', { exact: true })).toHaveValue('csv')
-    await expect(panel.getByTestId('code-editor')).toHaveCount(0)
+    await expect(panel.locator('[data-slot="code-editor"]')).toHaveCount(0)
 })
 
 test('editing a config field is unapplied until it is applied, and the topbar counts it', async ({
@@ -380,17 +380,16 @@ test('the source tab holds the same document, in the editor the schema is checke
     const panel = page.locator('aside')
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
 
-    // Monaco is a chunk of its own and is fetched when this tab is opened, so the assertion is
-    // that it arrived and is holding this document rather than an empty buffer.
-    await expect(panel.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
-    await expect(panel.locator('.view-lines')).toContainText(DOCUMENT_PIPELINE)
+    // The editor is a chunk of its own and is fetched when this tab is opened, so the assertion
+    // is that it arrived and is holding this document rather than an empty buffer.
+    await expect(panel.locator('.cm-editor')).toBeVisible({ timeout: 30_000 })
+    await expect(panel.locator('.cm-content')).toContainText(DOCUMENT_PIPELINE)
 })
 
 /**
  * THE SCHEMA IS CHECKED AS THE DOCUMENT IS WRITTEN. A key no pipeline takes is marked on its
- * own line by the YAML worker, before any apply is asked for. Only a browser can say the worker
- * started: a buffer whose worker never arrives still draws, highlights and edits, and says
- * nothing.
+ * own line, before any apply is asked for. Only a browser can say the checker loaded: a buffer
+ * whose checker never arrives still draws, highlights and edits, and says nothing.
  */
 test('the source tab marks a key the schema does not take, on its line', async ({ page }) => {
     await signIn(page)
@@ -401,27 +400,82 @@ test('the source tab marks a key the schema does not take, on its line', async (
 
     const panel = page.locator('aside')
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
-    const editor = panel.getByTestId('code-editor')
+    const editor = panel.locator('[data-slot="code-editor"]')
     const shipped = readFileSync(path.join(repositoryRoot, DOCUMENT_EXAMPLE), 'utf8')
     await writeInEditor(page, editor, `${shipped.trimEnd()}\nnot_a_key: true\n`)
 
-    // The paste leaves the caret at the end, so the last lines are the ones drawn.
-    await expect
-        .poll(
-            () =>
-                editor.evaluate((node) => {
-                    const line = [...node.querySelectorAll<HTMLElement>('.view-line')].find((drawn) =>
-                        (drawn.textContent ?? '').startsWith('not_a_key'),
-                    )
-                    if (line === undefined) return false
-                    return [...node.querySelectorAll('.squiggly-warning, .squiggly-error')].some(
-                        (mark) => (mark.parentElement as HTMLElement | null)?.style.top === line.style.top,
-                    )
-                }),
-            { timeout: 15_000 },
-        )
-        .toBe(true)
+    await expect.poll(() => markedLines(editor), { timeout: 15_000 }).toContain('not_a_key: true')
 })
+
+/**
+ * A STEP'S CONFIG IS THE BLOCK'S. The schema decides each step's `config` by the block it names,
+ * so completion offers that block's keys and a check refuses what that block does not take --
+ * and a `${...}` reference, which the run fills in, is never refused. Only the two keys at fault
+ * are marked: not `format`, `kind`, `params` or the step that holds them.
+ */
+test("the source tab completes and checks a step's config from the block it names", async ({ page }) => {
+    await signIn(page)
+    await page.goto('/pipelines/$new')
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    const editor = panel.locator('[data-slot="code-editor"]')
+    const head = ['format: dirigent/v1', 'kind: pipeline', 'code: e2e-config-checked', 'steps:', '  one:']
+
+    for (const [block, keys] of [
+        ['http.request', ['url', 'method', 'follow_redirects']],
+        ['transform.jq', ['program']],
+        ['convert.std', ['from', 'to']],
+    ] as const) {
+        await writeInEditor(
+            page,
+            editor,
+            [...head, `    block: ${block}`, '    config:', '      '].join('\n'),
+        )
+        await page.keyboard.press('Control+Space')
+        const offered = page.locator('.cm-tooltip-autocomplete')
+        await expect(offered).toBeVisible({ timeout: 15_000 })
+        for (const key of keys) await expect(offered).toContainText(key)
+        await page.keyboard.press('Escape')
+    }
+
+    await writeInEditor(
+        page,
+        editor,
+        [
+            'format: dirigent/v1',
+            'kind: pipeline',
+            'code: e2e-config-checked',
+            'params:',
+            '  type: object',
+            '  properties:',
+            '    verb:',
+            '      type: string',
+            'steps:',
+            '  one:',
+            '    block: http.request',
+            '    config:',
+            '      url: http://127.0.0.1:9/checked',
+            '      method: ${params.verb}',
+            '      follow_redirects: 3',
+            '      not_a_config_key: 1',
+            '',
+        ].join('\n'),
+    )
+    await expect
+        .poll(async () => (await markedLines(editor)).toSorted(), { timeout: 15_000 })
+        .toEqual(['follow_redirects: 3', 'not_a_config_key: 1'])
+})
+
+/** The text of every drawn line the editor's check marked, trimmed. */
+async function markedLines(editor: Locator): Promise<string[]> {
+    return editor.evaluate((node) => [
+        ...new Set(
+            [...node.querySelectorAll('.cm-lintRange, .cm-lintPoint')].map((mark) =>
+                (mark.closest('.cm-line')?.textContent ?? '').trim(),
+            ),
+        ),
+    ])
+}
 
 /** Hold a document on the instance, then ask what replacing it with one plain step would take away. */
 async function planWithoutIt(page: Page, pipeline: string, held: Record<string, unknown>): Promise<Locator> {
@@ -439,7 +493,7 @@ async function planWithoutIt(page: Page, pipeline: string, held: Record<string, 
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
     await writeInEditor(
         page,
-        panel.getByTestId('code-editor'),
+        panel.locator('[data-slot="code-editor"]'),
         [
             'format: dirigent/v1',
             'kind: pipeline',
@@ -492,7 +546,7 @@ test('a token an apply creates is shown once, before the editor moves on', async
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
     await writeInEditor(
         page,
-        panel.getByTestId('code-editor'),
+        panel.locator('[data-slot="code-editor"]'),
         [
             'format: dirigent/v1',
             'kind: pipeline',
@@ -1217,8 +1271,8 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
     await expect(panel.getByRole('tab', { name: LABELS.word.pipeline.label })).toHaveCount(0)
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
 
-    const editor = panel.getByTestId('code-editor')
-    await expect(editor.locator('.view-lines')).toContainText('my-pipeline')
+    const editor = panel.locator('[data-slot="code-editor"]')
+    await expect(editor.locator('.cm-content')).toContainText('my-pipeline')
 
     await writeInEditor(
         page,
@@ -1418,7 +1472,7 @@ test('a field naming a schema the instance holds opens it, and links to its scre
     await panel.getByRole('link', { name: LABELS.editor.reference_row.open_schema }).click()
     await expect(page).toHaveURL(new RegExp(`/schemas/${REFERENCE_SCHEMA}$`))
     await expect(
-        page.getByRole('main').getByTestId('code-editor').first().locator('.view-lines'),
+        page.getByRole('main').locator('[data-slot="code-editor"]').first().locator('.cm-content'),
     ).toContainText('properties')
 })
 
@@ -1476,8 +1530,8 @@ test('a schema the document carries answers the gate before anything the instanc
     await page.getByRole('button', { name: LABELS.pipelines.new }).click()
     const panel = page.locator('aside')
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
-    const editor = panel.getByTestId('code-editor')
-    await expect(editor.locator('.view-lines')).toContainText('my-pipeline')
+    const editor = panel.locator('[data-slot="code-editor"]')
+    await expect(editor.locator('.cm-content')).toContainText('my-pipeline')
     await writeInEditor(page, editor, CARRYING)
 
     await page.locator('.react-flow__node').getByText('check', { exact: true }).click()
@@ -1544,7 +1598,7 @@ test('a carried connection is minted in its own row, and the document is never l
 
     const panel = page.locator('aside')
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
-    const editor = panel.getByTestId('code-editor')
+    const editor = panel.locator('[data-slot="code-editor"]')
     await writeInEditor(page, editor, CARRYING_CONNECTION)
     await expect(page.locator('.react-flow__node').getByText(CARRIED_STEP, { exact: true })).toBeVisible()
 
@@ -1616,7 +1670,7 @@ test('a carried schema that collides with a stored one is updated in its own row
     await page.getByRole('button', { name: LABELS.pipelines.new }).click()
     const panel = page.locator('aside')
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
-    await writeInEditor(page, panel.getByTestId('code-editor'), CARRYING)
+    await writeInEditor(page, panel.locator('[data-slot="code-editor"]'), CARRYING)
 
     await page.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
     const dialog = page.getByRole('dialog')
@@ -1694,7 +1748,7 @@ test("a long stored shape leaves the row's own controls on screen", async ({ pag
     await page.getByRole('button', { name: LABELS.pipelines.new }).click()
     const panel = page.locator('aside')
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
-    await writeInEditor(page, panel.getByTestId('code-editor'), CARRYING)
+    await writeInEditor(page, panel.locator('[data-slot="code-editor"]'), CARRYING)
 
     await page.getByRole('button', { name: LABELS.action.apply, exact: true }).click()
     const dialog = page.getByRole('dialog')

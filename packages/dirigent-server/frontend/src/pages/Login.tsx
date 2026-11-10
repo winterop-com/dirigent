@@ -193,7 +193,6 @@ export function Login() {
                                 autoComplete="username"
                                 autoFocus
                                 required
-                                placeholder={LABELS.login.username_placeholder}
                                 className={FIELD}
                                 value={username}
                                 onChange={(event) => {
@@ -215,7 +214,6 @@ export function Login() {
                                 type={reveal.inputType}
                                 autoComplete="current-password"
                                 required
-                                placeholder={LABELS.login.password_placeholder}
                                 className={`${FIELD} pr-12`}
                                 value={password}
                                 onChange={(event) => {

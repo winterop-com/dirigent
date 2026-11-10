@@ -19,7 +19,7 @@ export function focusedField(): FocusedField | null {
     return {
         tagName: element.tagName,
         isContentEditable: element.isContentEditable,
-        inEditor: element.closest('.monaco-editor') !== null,
+        inEditor: element.closest('.cm-editor') !== null,
     }
 }
 

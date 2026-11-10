@@ -281,7 +281,7 @@ test("a rule's body is written in the dialog and edited in its panel", async ({ 
 
     // The body is a Jinja pane rather than a box: it is written on the lines it was written on,
     // and the window beside it carries the reference for what a template may read.
-    const pane = dialog.getByTestId('code-editor').first()
+    const pane = dialog.locator('[data-slot="code-editor"]').first()
     await writeInEditor(page, pane, 'The run of {{ run.pipeline }} ended {{ run.status }}.')
     await dialog.getByLabel('Open body in a window').click()
     const window = page.getByRole('dialog').filter({ hasText: 'Jinja reference' })
@@ -300,7 +300,11 @@ test("a rule's body is written in the dialog and edited in its panel", async ({ 
     // Editing happens under the facts it is about rather than in a second dialog.
     await panel.getByRole('button', { name: LABELS.action.edit }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
-    await writeInEditor(page, panel.getByTestId('code-editor').first(), 'Rewritten for {{ run.status }}.')
+    await writeInEditor(
+        page,
+        panel.locator('[data-slot="code-editor"]').first(),
+        'Rewritten for {{ run.status }}.',
+    )
     await panel.getByRole('button', { name: LABELS.action.save.verb }).click()
 
     await expect(panel).toContainText('Rewritten for {{ run.status }}.')

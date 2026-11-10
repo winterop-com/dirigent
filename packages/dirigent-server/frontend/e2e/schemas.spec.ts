@@ -12,9 +12,9 @@ import { apiPrefix, applyDocument, removeSchema, saysShut, signIn, writeInEditor
  * way a person would apply one.
  *
  * AND THAT THE BOX KNOWS WHAT IT HOLDS. The dialog edits a schema document rather than a JSON
- * value, so monaco is handed the meta-schema of the draft the server validates with. Only a
- * browser can say whether that arrived: the worker, the completion it answers with and the
- * marker it puts on a wrong value are the real thing here or they are nothing.
+ * value, so the editor is handed the meta-schema of the draft the server validates with. Only a
+ * browser can say whether that arrived: the completion it answers with and the mark it puts on a
+ * wrong value are the real thing here or they are nothing.
  *
  * AND THAT A SHAPE SOMEBODY GOT WRONG CAN BE PUT RIGHT. A schema's page is a form over
  * `PATCH /schemas/{code}`, so what these assert is the round trip: what the boxes send, what is
@@ -59,7 +59,7 @@ test("a schema row opens the schema's own page", async ({ page }) => {
     await row.click()
     await expect(page).toHaveURL(/\/schemas\/e2e-org-unit$/)
     await expect(page.getByRole('heading', { level: 1, name: 'Organisation unit' })).toBeVisible()
-    await expect(schemaEditor(page).locator('.view-lines')).toContainText('properties')
+    await expect(schemaEditor(page).locator('.cm-content')).toContainText('properties')
 })
 
 test('a link straight to a schema opens its page', async ({ page }) => {
@@ -67,7 +67,7 @@ test('a link straight to a schema opens its page', async ({ page }) => {
     await seedSchema(page.request)
 
     await page.goto('/schemas/e2e-org-unit')
-    await expect(schemaEditor(page).locator('.view-lines')).toContainText('properties')
+    await expect(schemaEditor(page).locator('.cm-content')).toContainText('properties')
 })
 
 test('the schema box completes against the meta-schema', async ({ page }) => {
@@ -76,22 +76,26 @@ test('the schema box completes against the meta-schema', async ({ page }) => {
 
     await page.goto('/schemas/e2e-org-unit')
     const editor = schemaEditor(page)
-    await writeInEditor(page, editor, '')
-    await editor.locator('.view-lines').click()
-    await expect(editor.locator('textarea').first()).toBeFocused()
 
-    // One character: monaco closes the brace itself and leaves the caret between the pair,
-    // which is where the draft's own keywords are what may be written next.
-    await page.keyboard.type('{')
-    await page.keyboard.press('Control+Space')
+    // The draft's own keywords at the top, inside a property's schema and inside `items`, which
+    // the meta-schema reaches only through its own references.
+    for (const [text, back] of [
+        ['{}', 1],
+        ['{"properties": {"a": {}}}', 3],
+        ['{"items": {}}', 2],
+    ] as const) {
+        const offered = await completionsAt(page, editor, text, back)
+        await expect(offered).toContainText('$id')
+        await expect(offered).toContainText('properties')
+        await expect(offered).toContainText('minimum')
+        await page.keyboard.press('Escape')
+    }
 
-    // The widget draws the rows it has room for, so what is asserted is a keyword the list
-    // opens on and then the one that is typed for, which narrows the same list to it.
-    const suggestions = page.locator('.suggest-widget')
-    await expect(suggestions).toBeVisible({ timeout: 15_000 })
-    await expect(suggestions).toContainText('$id')
-    await page.keyboard.type('propert')
-    await expect(suggestions).toContainText('properties')
+    // `type` takes one of the draft's seven names.
+    const types = await completionsAt(page, editor, '{"type": }', 1)
+    for (const name of ['array', 'boolean', 'integer', 'null', 'number', 'object', 'string']) {
+        await expect(types).toContainText(name)
+    }
 })
 
 test('a new schema is named in the dialog and opens on its own page', async ({ page }) => {
@@ -115,7 +119,7 @@ test('a new schema is named in the dialog and opens on its own page', async ({ p
 
     await expect(page).toHaveURL(/\/schemas\/e2e-created-shape$/)
     await expect(page.getByRole('heading', { level: 1, name: 'Created in the dialog' })).toBeVisible()
-    await expect(schemaEditor(page).locator('.view-lines')).toContainText('e2e-created-shape')
+    await expect(schemaEditor(page).locator('.cm-content')).toContainText('e2e-created-shape')
     await removeSchema(page.request, 'e2e-created-shape')
 })
 
@@ -162,7 +166,7 @@ test('a shape somebody got wrong is corrected on its page', async ({ page }) => 
 
     await page.goto('/schemas/e2e-org-unit')
     const editor = schemaEditor(page)
-    await expect(editor.locator('.view-lines')).toContainText('properties')
+    await expect(editor.locator('.cm-content')).toContainText('properties')
     await writeInEditor(page, editor, JSON.stringify({ ...SCHEMA, required: ['id', 'displayName'] }, null, 2))
 
     const save = page.getByRole('button', { name: LABELS.action.save.verb, exact: true })
@@ -184,8 +188,8 @@ test('a value is tried against the text in the schema editor, saved or not', asy
     const window = page.getByRole('dialog')
 
     const [schema, value] = [
-        window.getByTestId('code-editor').nth(0),
-        window.getByTestId('code-editor').nth(1),
+        window.locator('[data-slot="code-editor"]').nth(0),
+        window.locator('[data-slot="code-editor"]').nth(1),
     ]
     const result = window.getByRole('region', { name: LABELS.schemas.tester.result_heading })
 
@@ -214,19 +218,21 @@ test("the tester's schema is the page's, and its value is kept between openings"
     await page.goto('/schemas/e2e-org-unit')
     await page.getByRole('button', { name: LABELS.schemas.try_value, exact: true }).click()
     const window = page.getByRole('dialog')
-    await writeInEditor(page, window.getByTestId('code-editor').nth(1), '{"id": 7}')
+    await writeInEditor(page, window.locator('[data-slot="code-editor"]').nth(1), '{"id": 7}')
     await writeInEditor(
         page,
-        window.getByTestId('code-editor').nth(0),
+        window.locator('[data-slot="code-editor"]').nth(0),
         JSON.stringify({ ...SCHEMA, required: ['id', 'tried'] }, null, 2),
     )
     // Escape inside an editor is the editor's; the window's own close is what shuts it.
     await window.locator('[data-slot="dialog-close"]').click()
     await expect(window).toBeHidden()
-    await expect(schemaEditor(page).locator('.view-lines')).toContainText('tried')
+    await expect(schemaEditor(page).locator('.cm-content')).toContainText('tried')
 
     await page.getByRole('button', { name: LABELS.schemas.try_value, exact: true }).click()
-    await expect(window.getByTestId('code-editor').nth(1).locator('.view-lines')).toContainText('"id": 7')
+    await expect(window.locator('[data-slot="code-editor"]').nth(1).locator('.cm-content')).toContainText(
+        '"id": 7',
+    )
 })
 
 /** A pipeline whose gate validates against the seeded schema, so the code is named by a version. */
@@ -269,7 +275,7 @@ test('the same shape is still corrected in place while that pipeline names it', 
 
     await page.goto('/schemas/e2e-org-unit')
     const editor = schemaEditor(page)
-    await expect(editor.locator('.view-lines')).toContainText('properties')
+    await expect(editor.locator('.cm-content')).toContainText('properties')
     await writeInEditor(page, editor, JSON.stringify({ ...SCHEMA, required: ['id', 'code'] }, null, 2))
 
     // Save is not shut by the dependency: correcting the shape every pipeline should now
@@ -291,10 +297,10 @@ test("the page's schema box marks a value the draft does not take", async ({ pag
     await page.goto('/schemas/e2e-org-unit')
     const editor = schemaEditor(page)
     // `type` takes one of the seven names or a list of them, and never a number: the draft is
-    // what says so, and only a browser can say the worker holding it arrived.
+    // what says so.
     await writeInEditor(page, editor, '{ "type": 3 }')
 
-    await expect(editor.locator('.squiggly-warning, .squiggly-error').first()).toBeVisible({
+    await expect(editor.locator('.cm-lintRange-warning, .cm-lintRange-error').first()).toBeVisible({
         timeout: 15_000,
     })
 })
@@ -312,9 +318,20 @@ async function details(page: Page): Promise<Locator> {
     return panel
 }
 
+/** What the editor offers with the caret `back` characters before the end of `text`. */
+async function completionsAt(page: Page, editor: Locator, text: string, back: number): Promise<Locator> {
+    await writeInEditor(page, editor, text)
+    await page.keyboard.press('ControlOrMeta+End')
+    for (let step = 0; step < back; step += 1) await page.keyboard.press('ArrowLeft')
+    await page.keyboard.press('Control+Space')
+    const offered = page.locator('.cm-tooltip-autocomplete')
+    await expect(offered).toBeVisible({ timeout: 15_000 })
+    return offered
+}
+
 /** The page's schema editor, its only one. */
 function schemaEditor(page: Page): Locator {
-    return page.getByRole('main').getByTestId('code-editor').nth(0)
+    return page.getByRole('main').locator('[data-slot="code-editor"]').nth(0)
 }
 
 /**

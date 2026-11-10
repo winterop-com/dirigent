@@ -6,11 +6,10 @@ import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /**
- * The one door to Monaco, which is the only way in for every screen that writes source.
+ * The one door to the code editor, which is the only way in for every screen that writes source.
  *
- * ONE DYNAMIC IMPORT, ONE CHUNK. Every screen that writes source mounts this, so the editor,
- * its schema wiring and its workers are fetched once and no screen holds a copy of the
- * arrangement.
+ * ONE DYNAMIC IMPORT, ONE CHUNK. Every screen that writes source mounts this, so the editor, its
+ * languages and its schema wiring are fetched once and no screen holds a copy of the arrangement.
  *
  * IT IS WARMED WHILE NOBODY IS WAITING. `warmEditor` is that same import, fired once the
  * browser is idle, so the first pane of a session opens against a chunk that is already there.
@@ -39,7 +38,7 @@ export function CodePane({ className, ...rest }: ComponentProps<typeof Editor>) 
     return (
         <Suspense
             fallback={
-                <p className={cn('h-full min-h-64 w-full p-4 text-sm text-muted-foreground', className)}>
+                <p className={cn('h-full min-h-24 w-full p-4 text-sm text-muted-foreground', className)}>
                     {LABELS.editor.source.loading_editor}
                 </p>
             }

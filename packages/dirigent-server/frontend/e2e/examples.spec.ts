@@ -38,7 +38,7 @@ function rowOf(page: Page, code: string): Locator {
 /**
  * Scroll an editor pane until the text asked for is among the lines it is drawing.
  *
- * Monaco puts the lines in view in the DOM and no others, so text under a long header is not
+ * The editor puts the lines in view in the DOM and no others, so text under a long header is not
  * there to assert on until the pane has been scrolled down to it. The pane the wheel turns is
  * whichever one the pointer is over, so the caller hovers it first.
  */
@@ -115,9 +115,9 @@ test('a row opens the shipped document and what it needs of this instance', asyn
     await expect(panel.getByText(LABELS.examples.requirement.here).first()).toBeVisible()
 
     // THE SOURCE IS THE SHIPPED FILE'S OWN TEXT, comments and all.
-    const editor = panel.getByTestId('code-editor').first()
-    await expect(editor.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
-    await expect(editor.locator('.view-lines')).toContainText(STARTER_COMMENT)
+    const editor = panel.locator('[data-slot="code-editor"]').first()
+    await expect(editor.locator('.cm-editor')).toBeVisible({ timeout: 30_000 })
+    await expect(editor.locator('.cm-content')).toContainText(STARTER_COMMENT)
 
     // The verb is offered, because this document opted into being copied.
     await expect(panel.getByRole('button', { name: LABELS.examples.use_as_starter })).toBeVisible()
@@ -148,12 +148,12 @@ test('From a template opens the editor on a copy with the starter tag gone', asy
     await expect(page).toHaveURL(/\/pipelines\/\$new$/)
 
     // A DOCUMENT OPENS ON THE SOURCE THAT HOLDS IT, which is where a code is renamed.
-    const editor = page.getByTestId('code-editor').first()
-    await expect(editor.locator('.monaco-editor')).toBeVisible({ timeout: 30_000 })
+    const editor = page.locator('[data-slot="code-editor"]').first()
+    await expect(editor.locator('.cm-editor')).toBeVisible({ timeout: 30_000 })
 
     // THE PANE HOLDS THE TEXT IT WAS HANDED. A starter is copied for its teaching header, so
     // the header is what the editor opens on, the same text `dg pipeline new` writes to disk.
-    const lines = editor.locator('.view-lines')
+    const lines = editor.locator('.cm-content')
     await expect(lines).toContainText(STARTER_COMMENT, { timeout: 30_000 })
     await editor.hover()
 

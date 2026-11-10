@@ -18,6 +18,7 @@ import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Dialog, DialogContent, DialogTitle } from '@winterop-com/sokkel-ui/primitives/dialog'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
+import { useCodeBuffer } from '@/hooks/use-code-buffer'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useSchemaSave } from '@/hooks/use-schema-save'
@@ -171,6 +172,9 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
         holdDraft(schema.code, next, stored)
     }
 
+    // The page's pane, its window and the tester's copy are three views of one buffer.
+    const buffer = useCodeBuffer(text, edited)
+
     const unchanged =
         holdsStored(text, schema.body) &&
         given(named) === schema.name &&
@@ -274,16 +278,15 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
         [details, schema.code],
     )
 
-    const schemaPane = (className: string) => (
+    const schemaPane = (className: string, variant: 'field' | 'pane') => (
         <CodePane
-            value={text}
+            doc={buffer}
             mediaType={SCHEMA_MEDIA_TYPE}
-            path={`schemas/${schema.code}`}
             label={LABELS.schemas.editor_label}
             readOnly={!write.may}
             wrap
+            variant={variant}
             className={className}
-            onChange={edited}
         />
     )
 
@@ -339,9 +342,9 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                         open={windowed}
                         onOpenChange={setWindowed}
                         className="min-h-0 flex-1"
-                        windowed={schemaPane('min-h-0 flex-1')}
+                        windowed={schemaPane('min-h-0 flex-1', 'field')}
                     >
-                        {schemaPane('min-h-0 flex-1')}
+                        {schemaPane('min-h-0 flex-1', 'pane')}
                     </WindowedPane>
                 </LibrarySection>
             </div>
@@ -380,7 +383,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                             className="flex min-h-0 flex-col"
                             bodyClassName="flex min-h-0 flex-1 flex-col"
                         >
-                            {schemaPane('min-h-48 flex-1')}
+                            {schemaPane('min-h-48 flex-1', 'pane')}
                         </LibrarySection>
                         <LibrarySection
                             title={LABELS.schemas.tester.value_heading}
@@ -391,9 +394,9 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                             <CodePane
                                 value={value}
                                 mediaType="application/json"
-                                path={`schemas/${schema.code}/value`}
                                 label={LABELS.schemas.tester.value_label}
                                 wrap
+                                variant="pane"
                                 className="min-h-48 flex-1"
                                 marks={marks}
                                 reveal={reveal}

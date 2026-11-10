@@ -6,6 +6,7 @@
 @import '@winterop-com/sokkel-ui/styles-base.css';
 @import '@winterop-com/sokkel-ui/sources/Callout.css';
 @import '@winterop-com/sokkel-ui/sources/Chip.css';
+@import '@winterop-com/sokkel-ui/sources/CodeEditor.css';
 @import '@winterop-com/sokkel-ui/sources/CopyButton.css';
 @import '@winterop-com/sokkel-ui/sources/DescriptionList.css';
 @import '@winterop-com/sokkel-ui/sources/DialogShell.css';
@@ -274,14 +275,6 @@
     font-weight: 600;
 }
 
-/* A code editor drawn as the field it is. */
-.dg-frame {
-    min-width: 0;
-    overflow: hidden;
-    border: 1px solid var(--input);
-    border-radius: var(--radius-control);
-    background-color: var(--background);
-}
 [data-slot='combobox-content'][class~='w-(--anchor-width)'],
 [data-slot='dropdown-menu-content'][class~='w-(--anchor-width)'] {
     width: max-content;

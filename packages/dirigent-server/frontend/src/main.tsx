@@ -10,6 +10,7 @@ import { TooltipProvider } from '@winterop-com/sokkel-ui/primitives/tooltip'
 
 import App from '@/App'
 import { servedByInstance } from '@/lib/docs'
+import { registerDirigentFormats } from '@/lib/schema-formats'
 import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER } from '@/lib/theme'
 import '@/index.css'
 
@@ -29,6 +30,8 @@ window.addEventListener('vite:preloadError', (event) => {
     event.preventDefault()
     window.location.reload()
 })
+
+registerDirigentFormats()
 
 /** Wears the stored look on `<html>`, both theme axes, and follows it as it changes. */
 function Appearance() {

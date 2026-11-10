@@ -187,13 +187,13 @@ def install_cross_site_guard(app: FastAPI, settings: Settings) -> None:
         return await call_next(request)
 
 
-#: What the bundle needs: its own scripts and workers, Monaco's blob workers, and the inline
-#: styles Monaco and the graph set on elements.
+#: What the bundle needs: its own scripts and workers, the functions the schema checker compiles
+#: each schema into, and the inline styles the code editor and the graph set on elements.
 UI_POLICY: Final = "; ".join(
     (
         "default-src 'self'",
-        "script-src 'self'",
-        "worker-src 'self' blob:",
+        "script-src 'self' 'unsafe-eval'",
+        "worker-src 'self'",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
         "font-src 'self' data:",
