@@ -742,6 +742,8 @@ const shell = {
         },
         /** The name, and the environment where the environment is worth saying. */
         line: (name: string, environment: string) => `${name} · ${environment}`,
+        /** The tooltip's line saying when the instance was last asked, given how long ago in words. */
+        checked_at: (ago: string) => `Checked ${ago}`,
     },
 
     /** The account menu's row that opens the settings dialog. */

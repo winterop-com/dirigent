@@ -185,13 +185,27 @@ test('the seams hold in the light palette as they do in the dark one', async ({ 
 
 test('the top bar is one dot, named for the instance, and its checks are the tooltip', async ({ page }) => {
     const dot = page.getByRole('button', { name: LABELS.shell.instance.label })
-    // The name and the environment come from `/system/info`; this suite runs `dg dev`.
-    await expect(dot).toHaveAccessibleName(/^Instance: dirigent · local \S+, healthy$/)
+    await expect(dot).toHaveAccessibleName(/^Instance: dirigent \S+, healthy$/)
     await expect(dot).toHaveText('')
     await dot.hover()
     const tip = page.locator('[data-slot="tooltip-content"]')
+    // The name and the environment come from `/system/info`; this suite runs `dg dev`.
+    const head = tip.locator('p').first()
+    await expect(head).toContainText('dirigent')
+    await expect(head).toContainText('local')
+    await expect(head.locator('.font-mono')).toHaveText(/^\S+$/)
+    await expect(tip.locator('time')).toHaveText(
+        new RegExp(`^${LABELS.shell.instance.checked_at('(now|\\d+ seconds? ago)')}$`),
+    )
     await expect(tip).toContainText('database')
     await expect(tip).toContainText(LABELS.state.server.healthy)
+
+    // Once the first ask has settled, opening the tooltip again asks again.
+    await page.mouse.move(0, 0)
+    await expect(tip).toHaveCount(0)
+    const asked = page.waitForRequest('**/health/ready')
+    await dot.hover()
+    await asked
 })
 
 test('pressing the dot opens the settings on the server pane', async ({ page }) => {
@@ -227,11 +241,16 @@ test('the account menu holds the account, the settings, the shortcuts, the mode,
     page,
 }) => {
     const row = page.getByRole('button', { name: /^Account: / })
-    // The username, and the role muted beside it: the development admin is `admin` in both.
-    await expect(row.getByText('admin', { exact: true })).toHaveCount(2)
+    // The development admin is `admin` as username and role. At the rail's own width the row
+    // keeps the username whole and leaves the role to the menu's head.
+    const said = row.getByText('admin', { exact: true })
+    await expect(said.first()).toBeVisible()
+    expect(await said.first().evaluate((name) => name.scrollWidth <= name.clientWidth)).toBe(true)
+    await expect(said.nth(1)).toBeHidden()
     await row.click()
     const menu = page.getByRole('menu')
-    await expect(menu).toContainText('admin')
+    await expect(menu.getByText('admin', { exact: true })).toHaveCount(2)
+    for (const word of await menu.getByText('admin', { exact: true }).all()) await expect(word).toBeVisible()
     // The instance is said once, in the head.
     await expect(menu.getByText('local', { exact: false })).toHaveCount(1)
     await expect(page.getByRole('menuitem', { name: LABELS.shell.settings })).toBeVisible()

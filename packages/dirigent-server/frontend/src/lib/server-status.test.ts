@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import {
     checkServer,
     identityLine,
+    recheckServer,
     SERVER_STATES,
     serverChecks,
     serverStatus,
@@ -151,6 +152,30 @@ test('a failing version read cannot call an answering instance offline', async (
     })
     expect(serverStatus.get().state).toBe('healthy')
     expect(asked).toBeGreaterThan(1)
+})
+
+test('a recheck while an ask is in flight leaves that ask to answer', async () => {
+    let asked = 0
+    let answer: () => void = () => {}
+    const held = new Promise<void>((resolve) => {
+        answer = resolve
+    })
+    const fetcher = (async (path: string) => {
+        asked += 1
+        if (path === '/health/ready') await held
+        return {
+            ok: true,
+            json: async () => ({ status: 'healthy', checks: {}, version: '0.1.0' }),
+        } as Response
+    }) as (path: string) => Promise<Response>
+    const first = checkServer(fetcher, silent)
+    expect(recheckServer(fetcher, silent)).toBeNull()
+    answer()
+    await first
+    const before = asked
+    await recheckServer(fetcher, silent)
+    expect(asked).toBeGreaterThan(before)
+    expect(serverStatus.get().checkedAt).not.toBeNull()
 })
 
 describe('what the top bar says beside its dot', () => {

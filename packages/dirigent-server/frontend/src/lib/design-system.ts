@@ -218,10 +218,11 @@ export const TOP_BAR_WORDS: Partial<TopBarWords> = {
     trail: LABELS.shell.breadcrumb,
 }
 
-/** What the top bar's instance dot is called, before the state it says. */
+/** What the top bar's instance dot is called, before the state it says, and when it was last asked. */
 export const SERVER_MENU_WORDS: Partial<ServerMenuWords> = {
     label: LABELS.shell.instance.label,
     checking: LABELS.state.server.asking,
+    checkedAt: LABELS.shell.instance.checked_at,
 }
 
 /** What the right panel's edge is called. */

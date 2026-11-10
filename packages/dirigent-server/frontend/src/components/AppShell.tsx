@@ -71,6 +71,7 @@ import {
     SERVER_STATES,
     checkServer,
     identityLine,
+    recheckServer,
     serverChecks,
     serverStatus,
 } from '@/lib/server-status'
@@ -398,9 +399,10 @@ function TopStrip({ onServer }: { onServer: () => void }) {
 
 /**
  * How this instance is doing, sokkel-ui's `ServerMenu` as a quiet dot: words beside it only when
- * something is wrong, every check in its tooltip, and a press opening the Server pane.
+ * something is wrong, its tooltip headed by the name, the environment, the version and when it was
+ * last asked over every check, and a press opening the Server pane.
  *
- * The dot re-asks on a slow clock and when the tab comes back.
+ * The dot re-asks on a slow clock, when the tab comes back, and as its tooltip opens.
  */
 function InstanceDot({ onPress }: { onPress: () => void }) {
     const status = useStore(serverStatus)
@@ -421,12 +423,15 @@ function InstanceDot({ onPress }: { onPress: () => void }) {
 
     return (
         <ServerMenu
-            name={identityLine(status)}
+            name={status.name ?? LABELS.shell.wordmark}
+            environment={status.environment ?? undefined}
             version={status.version ?? undefined}
             state={status.state}
             states={SERVER_STATES}
             quiet
             checks={checks}
+            checkedAt={status.checkedAt ?? undefined}
+            recheck={recheckServer}
             onPress={onPress}
             words={SERVER_MENU_WORDS}
         />
