@@ -6,19 +6,20 @@ import { describe, expect, test } from 'vitest'
 
 import { rowsOf, settingsRows } from '@/lib/settings'
 import {
+    APPEARANCE_DEFAULTS,
+    APPEARANCE_OFFER,
     DEFAULT_PALETTE,
     PALETTE_NAMES,
-    PALETTE_STORAGE_KEY,
     PALETTES,
-    isPaletteName,
     MODE_ICONS,
     MODE_LABELS,
     MODES,
     modeOf,
     paletteAfter,
+    paletteOf,
 } from '@/lib/theme'
 
-const PALETTE_JS = fileURLToPath(new URL('../../public/palette.js', import.meta.url))
+const INDEX_HTML = fileURLToPath(new URL('../../index.html', import.meta.url))
 const INDEX_CSS = fileURLToPath(new URL('../index.css', import.meta.url))
 
 /** The library's file for one theme, as the package's exports map resolves it. */
@@ -26,33 +27,45 @@ function themeFile(name: string): string {
     return createRequire(import.meta.url).resolve(`@winterop-com/sokkel-ui/themes/${name}.css`)
 }
 
-/** The palette names the pre-paint script knows about. */
-function namesInPaletteScript(script: string): string[] {
-    const list = /var known = \[([^\]]*)\]/.exec(script)
-    if (list === null) throw new Error('palette.js no longer declares a palette list')
-    return [...list[1].matchAll(/'([^']+)'/g)].map((match) => match[1])
+/** The `<script>` tags in index.html, in document order. */
+function scriptTags(html: string): string[] {
+    return [...html.matchAll(/<script\b[^>]*>/g)].map((match) => match[0])
 }
 
+describe('the pre-paint script', () => {
+    // With nothing stored, the script paints the palette in its own `data-theme` and the app then
+    // wears `APPEARANCE_DEFAULTS`; two different answers flash one palette into the other.
+    test('starts in the palette the app starts in', () => {
+        const tag = scriptTags(readFileSync(INDEX_HTML, 'utf8')).find((one) => one.includes('/appearance.js'))
+        expect(tag).toBeDefined()
+        expect(/data-theme="([^"]*)"/.exec(tag ?? '')?.[1]).toBe(DEFAULT_PALETTE)
+        expect(APPEARANCE_DEFAULTS.theme).toBe(DEFAULT_PALETTE)
+    })
+
+    // A stored theme outside the offered ones gives way before the first paint only if the script
+    // offers the same themes the app does.
+    test('offers the palettes the app offers', () => {
+        const tag = scriptTags(readFileSync(INDEX_HTML, 'utf8')).find((one) => one.includes('/appearance.js'))
+        expect(/data-themes="([^"]*)"/.exec(tag ?? '')?.[1].split(' ')).toEqual(PALETTE_NAMES)
+        expect(APPEARANCE_OFFER.themes).toEqual(PALETTE_NAMES)
+    })
+
+    test('is the first script the document loads, and a classic one', () => {
+        const [first] = scriptTags(readFileSync(INDEX_HTML, 'utf8'))
+        expect(first).toContain('src="/appearance.js"')
+        for (const attribute of ['type=', 'async', 'defer']) expect(first).not.toContain(attribute)
+    })
+})
+
 describe('the palette axis', () => {
-    test('the pre-paint script knows exactly the palettes this module has', () => {
-        const script = readFileSync(PALETTE_JS, 'utf8')
-        expect(namesInPaletteScript(script)).toEqual(PALETTE_NAMES)
+    test('reads each palette this build ships as itself', () => {
+        for (const name of PALETTE_NAMES) expect(paletteOf(name)).toBe(name)
     })
 
-    test('the pre-paint script reads the key this module writes', () => {
-        expect(readFileSync(PALETTE_JS, 'utf8')).toContain(`localStorage.getItem('${PALETTE_STORAGE_KEY}')`)
-    })
-
-    test('a name this build does not have is read as the default rather than refused', () => {
-        expect(isPaletteName('terminal')).toBe(false)
-        expect(isPaletteName(null)).toBe(false)
+    test('reads a theme this build does not ship as the default', () => {
         expect(PALETTE_NAMES).toContain(DEFAULT_PALETTE)
-    })
-
-    test('knows the three palettes this build ships, and nothing else', () => {
-        for (const name of ['amber', 'paper', 'contrast']) expect(isPaletteName(name)).toBe(true)
-        for (const name of ['dirigent', 'light', 'dark', 'Paper', 'high-contrast', ''])
-            expect(isPaletteName(name)).toBe(false)
+        for (const name of ['tidevann', 'dirigent', 'light', 'dark', 'Paper', 'high-contrast', ''])
+            expect(paletteOf(name)).toBe(DEFAULT_PALETTE)
     })
 
     // The order is the setting's order on screen, quiet to loud, and the swatches render the

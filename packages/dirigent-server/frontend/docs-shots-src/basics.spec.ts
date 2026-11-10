@@ -179,8 +179,8 @@ test('the pictures docs/basics.md is built out of', async ({ page }) => {
 
     await signIn(page)
     await page.evaluate(() => {
-        localStorage.setItem('theme', 'dark')
-        localStorage.setItem('dirigent.palette', 'amber')
+        localStorage.setItem('sokkel-ui-scheme', 'dark')
+        localStorage.setItem('sokkel-ui-appearance', JSON.stringify({ theme: 'amber' }))
         localStorage.setItem('dirigent.terminalOpen', 'false')
     })
     const request = page.request

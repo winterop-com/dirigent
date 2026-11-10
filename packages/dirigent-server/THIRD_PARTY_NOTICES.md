@@ -16,7 +16,6 @@ redistributed inside any wheel published here, so they are not listed.
 - `marked` -- Copyright (c) 2018+, MarkedJS (https://github.com/markedjs/); Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
 - `monaco-editor` -- Copyright (c) 2016 - present Microsoft Corporation
 - `monaco-yaml` -- Copyright (c) Microsoft Corporation
-- `next-themes` -- Copyright (c) 2022 Paco Coursey
 - `react` -- Copyright (c) Meta Platforms, Inc. and affiliates
 - `react-dom` -- Copyright (c) Meta Platforms, Inc. and affiliates
 - `react-router` -- Copyright (c) React Training LLC 2015-2019; Copyright (c) Remix Software Inc. 2020-2021; Copyright (c) Shopify Inc. 2022-2023

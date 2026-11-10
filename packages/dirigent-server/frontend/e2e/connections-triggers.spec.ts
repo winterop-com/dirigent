@@ -577,7 +577,7 @@ test('a pinned parameters block stands off the light panel it is drawn on', asyn
     await signIn(page)
     await applyExample(page.request, CRON.file)
     await page.evaluate(() => {
-        localStorage.setItem('theme', 'light')
+        localStorage.setItem('sokkel-ui-scheme', 'light')
     })
 
     await page.goto('/triggers')
