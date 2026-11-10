@@ -311,18 +311,23 @@ both modes in the theme's own dark tokens, with the rail's mark on a tile in the
 `dirigent` and two facts under it: the host the reader typed and the version `/config.json`
 answered with, which an unauthenticated door can know. In a narrow room it becomes a bar over the
 form with the mark, the name and the host, and the art is left out. The seam between the panes is
-dragged (`resizable`), and a double click puts it back; the width lasts as long as the page.
+dragged (`resizable`), and a double click puts it back. The dragged width is kept in this browser
+under `dirigent.login.pane` for the next visit, and putting the seam back forgets it.
 
 **The door's refusal is the server's own sentence**, a wrong password and a rate limit alike,
 said in the library's critical alert over the button. It is the one refusal in the app not drawn
-by `Refusal`, because `SignIn` draws it.
+by `Refusal`, because `SignIn` draws it. After a refusal focus is on the password with its text
+selected, so the next try is typed straight over it.
 
 **The door asks for a username and a password, each led by its icon, with a toggle that shows
-the password.** The fields carry no placeholders: their labels name them. The button is held
-until both are filled and while a try is under way. The username this browser last signed in as
-is filled in on the next visit, kept under `dirigent.username`; the password is never kept by the
-page, and the fields name themselves (`username`, `current-password`) for the browser's password
-manager.
+the password.** The fields carry no placeholders: their labels name them. The door opens with
+focus on the first empty field: the username, or the password when the username is remembered.
+The button is held until both are filled and while a try is under way, and held is
+`aria-disabled`, never `disabled`: the button and the fields keep their focus through a try, and
+the fields are read-only while it runs. The username this browser last signed in as is filled in
+on the next visit, kept under `dirigent.username` only after a good sign-in, so a refused one is
+not remembered; the password is never kept by the page. The fields are named and required, with
+`username` and `current-password` for the browser's password manager.
 
 **The radius ladder is crisp, and it is the floor as well as the ceiling**: 4px for a surface --
 a card, a listing, a panel, a dialog, a menu, a graph's ground -- and for a box on a graph and the

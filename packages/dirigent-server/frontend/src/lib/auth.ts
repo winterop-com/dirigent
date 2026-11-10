@@ -63,8 +63,9 @@ export function isAdmin(state: AuthState): boolean {
  * Ask the server who this browser is.
  *
  * A 401 is the answer "nobody", not a failure: it is how a browser with no cookie, or with an
- * expired one, is told where it stands. Anything else leaves the state as it was, because a
- * server that is briefly unreachable has not signed anybody out.
+ * expired one, is told where it stands, and a sign-in in flight keeps its `working` and `problem`
+ * until it answers. Anything else leaves the state as it was, because a server that is briefly
+ * unreachable has not signed anybody out.
  */
 export async function refreshIdentity(): Promise<void> {
     try {
@@ -72,7 +73,11 @@ export async function refreshIdentity(): Promise<void> {
         authStore.set({ status: 'signed-in', identity, problem: null, working: false })
     } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
-            authStore.set({ status: 'signed-out', identity: null, problem: null, working: false })
+            authStore.update((current) =>
+                current.working
+                    ? { ...current, status: 'signed-out', identity: null }
+                    : { status: 'signed-out', identity: null, problem: null, working: false },
+            )
             return
         }
         throw error

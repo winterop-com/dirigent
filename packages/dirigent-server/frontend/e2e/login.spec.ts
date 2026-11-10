@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { LABELS } from '../src/lib/labels.ts'
+import { DEV_PASSWORD, DEV_USERNAME } from './support.ts'
 
 /**
  * The login screen in a browser: the seam between its two panes, where the stacked form stands on
@@ -9,6 +10,16 @@ import { LABELS } from '../src/lib/labels.ts'
 /** sokkel-ui's `SignIn`: the brand pane is at least 320px, and the form keeps 480px beside it. */
 const BRAND_MIN = 320
 const FORM_ROOM = 480
+
+/** Where this browser keeps the dragged pane width and the username it last signed in as. */
+const PANE_KEY = 'dirigent.login.pane'
+const USERNAME_KEY = 'dirigent.username'
+
+const stored = (page: Page, key: string) => page.evaluate((k) => window.localStorage.getItem(k), key)
+
+const usernameOf = (page: Page) => page.getByLabel(LABELS.word.username)
+const passwordOf = (page: Page) => page.getByLabel(LABELS.word.password, { exact: true })
+const submitOf = (page: Page) => page.getByRole('button', { name: LABELS.action.sign_in.verb })
 
 const seamOf = (page: Page) => page.getByRole('separator', { name: LABELS.login.seam })
 
@@ -53,6 +64,38 @@ test('a double-click on the seam puts the pane back', async ({ page }) => {
     expect(await paneWidth(page)).toBeCloseTo(before, 0)
 })
 
+test('a double-click on the seam puts a dragged pane back, and the next visit opens there', async ({
+    page,
+}) => {
+    await openLogin(page, 1440, 900)
+    const before = await paneWidth(page)
+
+    await dragSeam(page, -100)
+    expect(await paneWidth(page)).toBeCloseTo(before - 100, 0)
+
+    await seamOf(page).dblclick()
+    expect(await paneWidth(page)).toBeCloseTo(before, 0)
+    expect(await stored(page, PANE_KEY)).toBeNull()
+
+    await page.reload()
+    await expect(seamOf(page)).toBeVisible()
+    expect(await paneWidth(page)).toBeCloseTo(before, 0)
+})
+
+test('the dragged width is kept across a reload', async ({ page }) => {
+    await openLogin(page, 1440, 900)
+    const before = await paneWidth(page)
+
+    await dragSeam(page, -100)
+    const dragged = await paneWidth(page)
+    expect(dragged).toBeCloseTo(before - 100, 0)
+    expect(Number(await stored(page, PANE_KEY))).toBeCloseTo(dragged, 0)
+
+    await page.reload()
+    await expect(seamOf(page)).toBeVisible()
+    expect(await paneWidth(page)).toBeCloseTo(dragged, 0)
+})
+
 test('the keys move the seam, and Home and End are the bounds', async ({ page }) => {
     await openLogin(page, 1440, 900)
     const seam = seamOf(page)
@@ -95,17 +138,101 @@ test('the brand pane names the instance this door answers for', async ({ page })
     await expect(pane.getByText(new URL(page.url()).host, { exact: true })).toBeVisible()
 })
 
+test('the door opens on the username', async ({ page }) => {
+    await openLogin(page, 1440, 900)
+    await expect(usernameOf(page)).toBeFocused()
+})
+
+test('the door opens on the password when the username is remembered', async ({ page }) => {
+    await page.addInitScript(
+        ([key, user]) => {
+            window.localStorage.setItem(key, user)
+        },
+        [USERNAME_KEY, DEV_USERNAME],
+    )
+    await openLogin(page, 1440, 900)
+    await expect(usernameOf(page)).toHaveValue(DEV_USERNAME)
+    await expect(passwordOf(page)).toBeFocused()
+})
+
+test('a refusal puts focus on the password with its text selected, and remembers nobody', async ({
+    page,
+}) => {
+    await openLogin(page, 1440, 900)
+    const password = passwordOf(page)
+    const wrong = 'not the password'
+    await usernameOf(page).fill(DEV_USERNAME)
+    await password.fill(wrong)
+    await submitOf(page).click()
+
+    await expect(page.getByRole('alert')).toHaveText(LABELS.refused.server.bad_credentials)
+    await expect(password).toBeFocused()
+    const selected = await password.evaluate((input: HTMLInputElement) => [
+        input.selectionStart,
+        input.selectionEnd,
+    ])
+    expect(selected).toEqual([0, wrong.length])
+    expect(await stored(page, USERNAME_KEY)).toBeNull()
+
+    await page.reload()
+    await expect(usernameOf(page)).toHaveValue('')
+})
+
+test('a try under way holds the form without taking focus from it', async ({ page }) => {
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+        release = resolve
+    })
+    await page.route('**/auth/login', async (route) => {
+        await held
+        await route.continue()
+    })
+    await openLogin(page, 1440, 900)
+    const username = usernameOf(page)
+    const password = passwordOf(page)
+    await username.fill(DEV_USERNAME)
+    await password.fill(DEV_PASSWORD)
+    await password.press('Enter')
+
+    for (const field of [username, password]) {
+        await expect(field).toHaveAttribute('readonly', '')
+        await expect(field).toHaveAttribute('aria-disabled', 'true')
+        await expect(field).not.toHaveAttribute('disabled', /.*/)
+    }
+    await expect(page.locator('button[type="submit"]')).toHaveAttribute('aria-disabled', 'true')
+    await expect(password).toBeFocused()
+
+    release()
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+})
+
+test('a good sign-in remembers the username', async ({ page }) => {
+    await openLogin(page, 1440, 900)
+    await usernameOf(page).fill(DEV_USERNAME)
+    await passwordOf(page).fill(DEV_PASSWORD)
+    await submitOf(page).click()
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/)
+    expect(await stored(page, USERNAME_KEY)).toBe(DEV_USERNAME)
+})
+
 test('the keyboard reaches the fields in order, and the toggle shows the password', async ({ page }) => {
     await openLogin(page, 1440, 900)
-    const username = page.getByLabel(LABELS.word.username)
-    const password = page.getByLabel(LABELS.word.password, { exact: true })
+    const username = usernameOf(page)
+    const password = passwordOf(page)
     await expect(username).toHaveAttribute('autocomplete', 'username')
     await expect(password).toHaveAttribute('autocomplete', 'current-password')
+    await expect(username).toHaveAttribute('name', 'username')
+    await expect(password).toHaveAttribute('name', 'password')
+    await expect(username).toHaveAttribute('required', '')
+    await expect(password).toHaveAttribute('required', '')
     await expect(username).not.toHaveAttribute('placeholder', /./)
     await expect(password).not.toHaveAttribute('placeholder', /./)
 
-    // The button is held until both fields are filled, and a held button takes no focus.
-    await username.fill('admin')
+    // The button is held until both fields are filled: aria-disabled, so it stays in the tab order.
+    await expect(submitOf(page)).toHaveAttribute('aria-disabled', 'true')
+    await expect(submitOf(page)).not.toHaveAttribute('disabled', /.*/)
+    await expect(username).toBeFocused()
+    await page.keyboard.type('admin')
     await page.keyboard.press('Tab')
     await expect(password).toBeFocused()
     await page.keyboard.type('secret')
@@ -115,5 +242,6 @@ test('the keyboard reaches the fields in order, and the toggle shows the passwor
     await page.keyboard.press('Enter')
     await expect(password).toHaveAttribute('type', 'text')
     await page.keyboard.press('Tab')
-    await expect(page.getByRole('button', { name: LABELS.action.sign_in.verb })).toBeFocused()
+    await expect(submitOf(page)).toBeFocused()
+    await expect(submitOf(page)).not.toHaveAttribute('aria-disabled', /.*/)
 })

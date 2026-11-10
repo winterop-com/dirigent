@@ -15,6 +15,9 @@ import { said } from '@/lib/refusal'
 /** Where this browser keeps the username it last signed in as. */
 const USERNAME_STORAGE_KEY = 'dirigent.username'
 
+/** Where this browser keeps the width the brand pane was dragged to. */
+const PANE_STORAGE_KEY = 'dirigent.login.pane'
+
 /**
  * The login screen, sokkel-ui's `SignIn` outside the shell.
  *
@@ -65,6 +68,7 @@ export function Login() {
                 { label: LABELS.word.version.term, value: version ?? '' },
             ]}
             resizable
+            widthKey={PANE_STORAGE_KEY}
             eyebrow={LABELS.login.eyebrow}
             description={LABELS.login.subtitle}
             rememberKey={USERNAME_STORAGE_KEY}
