@@ -4,7 +4,6 @@ import { paletteOpen } from '@/lib/palette'
 import { toggleRail } from '@/lib/panels'
 import {
     applePlatform,
-    focusesSearch,
     opensPalette,
     opensShortcuts,
     togglesRail,
@@ -61,15 +60,6 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 event.preventDefault()
                 onShortcuts()
                 return
-            }
-            if (focusesSearch(press, focusedField())) {
-                // A dialog's own box, where one is open: the page behind it is not what is in front.
-                const scope = document.querySelector('[role="dialog"]') ?? document
-                const box = scope.querySelector<HTMLInputElement>('[data-search-shortcut]:not(:disabled)')
-                if (box === null) return
-                event.preventDefault()
-                box.focus()
-                box.select()
             }
         }
 

@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@winterop-com/sokkel-ui/primitives/tabs'
 import { useDragSize } from '@/hooks/use-drag-size'
 import { useSmallScreen } from '@/hooks/use-small-screen'
@@ -140,12 +140,13 @@ export function RightPanel() {
                                 </TabsList>
                                 {open && (
                                     <IconButton
-                                        icon={ICONS.panel}
                                         label={LABELS.shell.toggle_panel}
-                                        size="sm"
+                                        size="icon-sm"
                                         className="ml-auto text-muted-foreground"
                                         onClick={togglePanel}
-                                    />
+                                    >
+                                        <ICONS.panel aria-hidden />
+                                    </IconButton>
                                 )}
                             </div>
                             {tabs.map((tab) => (

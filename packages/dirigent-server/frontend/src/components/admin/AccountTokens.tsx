@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
+import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { Question } from '@/components/Question'
+import { RefusalLine } from '@/components/Refusal'
 import { Chip } from '@/components/ds/Chip'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageState } from '@/components/PageState'
@@ -10,6 +12,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { type Problem } from '@/lib/api'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { isLive, readAccountTokens, revokeToken, sharedNames, type TokenOut } from '@/lib/users'
@@ -79,31 +82,40 @@ export function AccountTokens({
                 onOpenChange={(next) => {
                     if (!next) setRevoking(null)
                 }}
-                ask={LABELS.users.revoke_ask}
-                code={revoking === null ? '' : tokenSaid(revoking, shared, now)}
-                verb={LABELS.action.revoke}
-                busy={busy}
-                problem={refused}
-                onConfirm={() => {
-                    if (revoking === null) return
-                    setBusy(true)
-                    setRefused(null)
-                    void revokeToken(revoking.id)
-                        .then(
-                            () => {
-                                setRevoking(null)
-                                reload()
-                                onChanged()
-                            },
-                            (error: unknown) => {
-                                setRefused(refusalOf(error))
-                            },
-                        )
-                        .finally(() => {
-                            setBusy(false)
-                        })
+                question={
+                    <Question
+                        ask={LABELS.users.revoke_ask}
+                        code={revoking === null ? '' : tokenSaid(revoking, shared, now)}
+                    />
+                }
+                confirm={{
+                    label: LABELS.action.revoke,
+                    onConfirm: () => {
+                        if (revoking === null) return
+                        setBusy(true)
+                        setRefused(null)
+                        void revokeToken(revoking.id)
+                            .then(
+                                () => {
+                                    setRevoking(null)
+                                    reload()
+                                    onChanged()
+                                },
+                                (error: unknown) => {
+                                    setRefused(refusalOf(error))
+                                },
+                            )
+                            .finally(() => {
+                                setBusy(false)
+                            })
+                    },
+                    destructive: true,
+                    busy: busy,
                 }}
-            />
+                words={DIALOG_WORDS}
+            >
+                {refused === null ? undefined : <RefusalLine problem={refused} />}
+            </ConfirmDialog>
         </div>
     )
 }

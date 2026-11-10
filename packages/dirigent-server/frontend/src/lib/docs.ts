@@ -39,6 +39,12 @@ export const API_LABEL = 'API'
 /** This instance's own OpenAPI document, rendered. It is at the root, whatever the API mounted at. */
 export const API_DOCS_URL = '/docs'
 
+/** Whether an address is a page the server draws rather than a route of this app: the API documentation. */
+export function servedByInstance(href: string): boolean {
+    const path = href.split(/[?#]/, 1)[0]
+    return path === API_DOCS_URL || path.startsWith(`${API_DOCS_URL}/`)
+}
+
 /** Where everything this app does is written down. Outside the instance, so an absolute URL. */
 export const DOCS_URL = 'https://github.com/winterop-com/dirigent/tree/main/docs'
 

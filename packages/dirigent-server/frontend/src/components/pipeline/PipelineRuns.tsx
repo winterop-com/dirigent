@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { Link } from 'react-router'
 
 import { Panel } from '@/components/ds/Panel'
-import { TextLink } from '@/components/ds/TextLink'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Instant } from '@/components/Instant'
 import { ReportDocumentPane } from '@/components/run/ReportDocument'
 import { StatusChip } from '@/components/run/StatusChip'
@@ -46,7 +46,7 @@ export function RecentRuns({
             aside={
                 <TextLink
                     variant="aside"
-                    to={runsLink({ ...EVERY_RUN, pipeline })}
+                    href={runsLink({ ...EVERY_RUN, pipeline })}
                     className="text-xs font-normal"
                 >
                     {LABELS.pipelines.page.all_runs}
@@ -118,7 +118,7 @@ export function LatestReport({ runs, className }: { runs: readonly RunOut[]; cla
             aside={
                 <TextLink
                     variant="aside"
-                    to={runReportLink(latest.id)}
+                    href={runReportLink(latest.id)}
                     title={formatInstant(at)}
                     className="text-xs font-normal"
                 >
@@ -146,7 +146,7 @@ export function LatestReport({ runs, className }: { runs: readonly RunOut[]; cla
                             <TextLink
                                 key={run.id}
                                 variant="inline"
-                                to={runReportLink(run.id)}
+                                href={runReportLink(run.id)}
                                 title={formatInstant(when)}
                             >
                                 {formatRelative(when)}

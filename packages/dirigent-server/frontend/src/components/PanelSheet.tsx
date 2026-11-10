@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { ICONS } from '@/lib/icons'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@winterop-com/sokkel-ui/primitives/tabs'
 import { useSmallScreen } from '@/hooks/use-small-screen'
@@ -84,11 +84,13 @@ export function PanelSheet() {
                                 ))}
                             </TabsList>
                             <IconButton
-                                icon={ICONS.clear}
+                                size="icon"
                                 label={CLOSE_PANEL_LABEL}
                                 onClick={closeSheet}
                                 className="ml-auto shrink-0 text-muted-foreground"
-                            />
+                            >
+                                <ICONS.clear aria-hidden />
+                            </IconButton>
                         </div>
                         {tabs.map((tab) => (
                             <TabsContent

@@ -14,7 +14,7 @@ import {
 } from '@xyflow/react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { LayoutMenu } from '@/components/graph/LayoutMenu'
 import { DirectionContext, RoutedEdge } from '@/components/graph/RoutedEdge'
 import { useSmallScreen } from '@/hooks/use-small-screen'
@@ -471,40 +471,40 @@ export function PageCanvasTools({
     return (
         <span className="flex items-center gap-0.5 font-normal">
             <IconButton
-                icon={ICONS.zoom_out}
                 label={ZOOM_OUT_LABEL}
                 tooltip={filled ? LABELS.shell.zoom_out_filled : LABELS.shell.zoom_out_on_page(modifier)}
-                size="sm"
+                size="icon-sm"
                 className="text-muted-foreground"
                 onClick={step('out')}
-            />
+            >
+                <ICONS.zoom_out aria-hidden />
+            </IconButton>
             <IconButton
-                icon={ICONS.zoom_in}
                 label={ZOOM_IN_LABEL}
                 tooltip={filled ? LABELS.shell.zoom_in_filled : LABELS.shell.zoom_in_on_page(modifier)}
-                size="sm"
+                size="icon-sm"
                 className="text-muted-foreground"
                 onClick={step('in')}
-            />
+            >
+                <ICONS.zoom_in aria-hidden />
+            </IconButton>
             <IconButton
-                icon={ICONS.fit_view}
                 label={FIT_VIEW_LABEL}
-                size="sm"
+                size="icon-sm"
                 className="text-muted-foreground"
                 onClick={() => {
                     void fitCapped(flow)
                 }}
-            />
+            >
+                <ICONS.fit_view aria-hidden />
+            </IconButton>
             <LayoutMenu
                 choice={layout}
                 onChoose={onLayout}
                 trigger={
-                    <IconButton
-                        icon={ICONS.graph_layout}
-                        label={LAYOUT_LABEL}
-                        size="sm"
-                        className="text-muted-foreground"
-                    />
+                    <IconButton label={LAYOUT_LABEL} size="icon-sm" className="text-muted-foreground">
+                        <ICONS.graph_layout aria-hidden />
+                    </IconButton>
                 }
             />
         </span>

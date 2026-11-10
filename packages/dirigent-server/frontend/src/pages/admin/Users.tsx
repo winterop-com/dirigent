@@ -9,7 +9,7 @@ import { CreateToken } from '@/components/admin/CreateToken'
 import { CreateUser } from '@/components/admin/CreateUser'
 import { Chip } from '@/components/ds/Chip'
 import { EntityHeading } from '@/components/ds/EntityHeading'
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
@@ -245,8 +245,7 @@ function userColumns(
                 return (
                     <span className="flex min-w-0 items-center gap-2">
                         <IconButton
-                            icon={ICONS.expand}
-                            size="sm"
+                            size="icon-sm"
                             label={
                                 open
                                     ? LABELS.users.hide_tokens(user.username)
@@ -259,7 +258,9 @@ function userColumns(
                                 event.stopPropagation()
                                 toggle(user.username)
                             }}
-                        />
+                        >
+                            <ICONS.expand aria-hidden />
+                        </IconButton>
                         <span className="min-w-0" title={LABELS.users.open_account(user.username)}>
                             <EntityHeading
                                 variant="row-inline"

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router'
 
 import { AccountMenu } from '@/components/AccountMenu'
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { BrandLink, RailEntry, SectionLabel } from '@/components/Rail'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
@@ -115,12 +115,14 @@ export function NavDrawer({
                 <div className="flex h-shell-top shrink-0 items-center gap-2 px-3.5">
                     <BrandLink />
                     <IconButton
+                        size="icon"
                         ref={close}
-                        icon={ICONS.clear}
                         label={CLOSE_NAV_LABEL}
                         onClick={onClose}
                         className="ml-auto shrink-0 text-muted-foreground"
-                    />
+                    >
+                        <ICONS.clear aria-hidden />
+                    </IconButton>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-3.5 pb-2">

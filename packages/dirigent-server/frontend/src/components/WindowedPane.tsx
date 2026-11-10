@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 
 import { CodeFrame } from '@/components/ds/CodeFrame'
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { Inset } from '@/components/ds/Inset'
 import { ICONS } from '@/lib/icons'
 import { Dialog, DialogContent, DialogTitle } from '@winterop-com/sokkel-ui/primitives/dialog'
@@ -36,12 +36,13 @@ import { LABELS } from '@/lib/labels'
 export function WindowButton({ name, onOpen }: { name: string; onOpen: () => void }) {
     return (
         <IconButton
-            icon={ICONS.open_in_window}
             label={LABELS.shell.open_in_window(name)}
-            size="sm"
+            size="icon-sm"
             className="text-muted-foreground"
             onClick={onOpen}
-        />
+        >
+            <ICONS.open_in_window aria-hidden />
+        </IconButton>
     )
 }
 
@@ -99,9 +100,8 @@ export function WindowedPane({
                     data-held={held}
                 >
                     <IconButton
-                        icon={ICONS.open_in_window}
                         label={LABELS.shell.open_in_window(name)}
-                        size="xs"
+                        size="icon-xs"
                         variant="outline"
                         className={cn(
                             'pointer-events-auto mt-1.5 text-faint',
@@ -111,7 +111,9 @@ export function WindowedPane({
                         onClick={() => {
                             setWide(true)
                         }}
-                    />
+                    >
+                        <ICONS.open_in_window aria-hidden />
+                    </IconButton>
                 </div>
             )}
             <div className="flex min-h-0 flex-1 flex-col">{children}</div>

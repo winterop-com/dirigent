@@ -112,7 +112,11 @@ export function CreateToken({
                             <span className="text-sm font-medium">{issued.name}</span>
                             <Code value={issued.username} />
                         </p>
-                        <SecretReveal value={issued.token} words={secretWords(LABELS.users.token_noun)} />
+                        <SecretReveal
+                            value={issued.token}
+                            words={secretWords(LABELS.users.token_noun)}
+                            autoFocus
+                        />
                     </div>
                 )}
 

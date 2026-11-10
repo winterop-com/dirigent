@@ -1,12 +1,17 @@
 /**
- * The decisions the design-system components in `components/ds` make, as pure functions.
+ * The decisions the design-system components make, as pure functions, and the words sokkel-ui's
+ * components say here.
  *
- * A component draws; what it says, when a word appears beside a dot, and what a key does to a
- * search box are decided here, where a Node test can hold them.
+ * A component draws; what it says and when a word appears beside a dot are decided here, where a
+ * Node test can hold them.
  */
 
 import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
+import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
+import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
+import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
+import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 
 import { LABELS } from '@/lib/labels'
 
@@ -49,54 +54,32 @@ export function isNews(dot: { tone: Tone } | { status: string }): boolean {
     return 'tone' in dot ? NEWS_TONES.has(dot.tone) : NEWS_STATUSES.has(dot.status)
 }
 
-/**
- * What an icon button's tooltip says.
- *
- * A shut button says why it is shut, which is the one fact its own name cannot give; otherwise
- * the tooltip, or the name itself when nothing longer was given.
- */
-export function iconButtonTip({
-    label,
-    tooltip,
-    why,
-}: {
-    label: string
-    tooltip?: string
-    why?: string
-}): string {
-    if (why !== undefined && why !== '') return why
-    return tooltip ?? label
-}
-
 /** What a copy button is called before a press, `copy`, and for a moment after it. */
 export function copyWords(copy: string): CopyButtonWords {
     return { copy, copied: LABELS.action.copy.done }
 }
 
-/** What a secret shown once says: its copy button named for the secret, and that it is shown once. */
+/** What a secret shown once says: its name, its copy button named for it, and that it is shown once. */
 export function secretWords(noun: string): SecretRevealWords {
-    return { ...copyWords(LABELS.shell.copy_secret(noun)), warning: LABELS.shell.shown_once }
+    return { ...copyWords(LABELS.shell.copy_secret(noun)), warning: LABELS.shell.shown_once, secret: noun }
 }
 
-/** Whether a search box offers its clear button: only once there is something to clear. */
-export function clearShown(value: string): boolean {
-    return value !== ''
+/** What a search box says while it is empty, wherever one is drawn. */
+export const SEARCH_PLACEHOLDER = LABELS.shell.search
+
+/** What a search box's clear button is called. */
+export const SEARCH_WORDS: SearchFieldWords = { clear: LABELS.shell.clear_search }
+
+/** The one dismissal word a dialog's footer says. */
+export const DIALOG_WORDS: Partial<DialogShellWords> = { cancel: LABELS.action.cancel }
+
+/** What a link out of this app says to a screen reader after its text. */
+export const LINK_WORDS: TextLinkWords = { newTab: LABELS.shell.new_tab }
+
+/** What a split button's chevron is called: "More ways to create a pipeline". */
+export function splitWords(more: string): SplitButtonWords {
+    return { more }
 }
-
-/** What Escape does in a search box: empties a box with text in it, leaves an empty one. */
-export function escapeFrom(value: string): 'clear' | 'leave' {
-    return value === '' ? 'leave' : 'clear'
-}
-
-/** The widths a dialog may take, and nothing between them. */
-export const DIALOG_WIDTHS = {
-    sm: 'sm:max-w-sm',
-    md: 'sm:max-w-lg',
-    lg: 'sm:max-w-2xl',
-    xl: 'sm:max-w-4xl',
-} as const
-
-export type DialogWidth = keyof typeof DIALOG_WIDTHS
 
 /** One section of the gallery, by the id its heading and its index entry share. */
 export type GallerySection =

@@ -2,7 +2,7 @@ import { ArrowDown } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import {
@@ -303,25 +303,24 @@ export function RunTerminal({
                     <div className="flex-1" />
 
                     <IconButton
-                        icon={ICONS.copy}
                         label={COPY_LINES_LABEL}
-                        size="sm"
+                        size="icon-sm"
                         disabled={shown.length === 0}
                         onClick={copy}
-                    />
+                    >
+                        <ICONS.copy aria-hidden />
+                    </IconButton>
                     <IconButton
-                        icon={ICONS.download}
                         label={DOWNLOAD_LOG_LABEL}
-                        size="sm"
+                        size="icon-sm"
                         disabled={saving}
                         onClick={download}
-                    />
-                    <IconButton
-                        icon={ICONS.close_panel}
-                        label={HIDE_TERMINAL_LABEL}
-                        size="sm"
-                        onClick={toggleTerminal}
-                    />
+                    >
+                        <ICONS.download aria-hidden />
+                    </IconButton>
+                    <IconButton label={HIDE_TERMINAL_LABEL} size="icon-sm" onClick={toggleTerminal}>
+                        <ICONS.close_panel aria-hidden />
+                    </IconButton>
                 </div>
 
                 <div className="relative min-h-0 flex-1">

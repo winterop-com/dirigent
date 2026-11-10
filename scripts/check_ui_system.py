@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Check that no screen hand-builds what the design system already draws.
 
-``src/components/ds`` holds one component per thing every screen draws -- a chip, a dot, an
-icon button, a heading, a field -- and ``src/lib/icons.ts`` holds the one mark each concept
+sokkel-ui and ``src/components/ds`` hold one component per thing every screen draws -- a chip, a
+dot, an icon button, a heading, a field -- and ``src/lib/icons.ts`` holds the one mark each concept
 wears. That is only true while pages reach for them, so this reads the sources as text and
 refuses the shapes a hand-built copy leaves behind. ``docs/ui-conventions.md``, "Design system".
 
@@ -63,7 +63,7 @@ RADIUS: Final = re.compile(r"\brounded(?:-[a-z]+)?-\[")
 
 FIX: Final = {
     "word-chip": "a word on a chip is `Chip` from components/ds/Chip.",
-    "icon-button": "an icon-only button is `IconButton` from components/ds/IconButton, with a label and a tooltip.",
+    "icon-button": "an icon-only button is sokkel-ui's `IconButton`, with a label and a tooltip.",
     "lucide-import": "a mark is `ICONS.<concept>` from lib/icons; add the concept there if it has none.",
     "arbitrary-radius": "a corner is a rung of the radius ladder: rounded-sm, rounded-md or rounded-lg.",
 }

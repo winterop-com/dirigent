@@ -118,19 +118,6 @@ export function togglesTerminal(press: KeyPress, focused: FocusedField | null): 
     return !isTypingField(focused)
 }
 
-/**
- * Whether this press moves the caret into the screen's search box.
- *
- * Bare, like `?`: Shift is how a Nordic layout makes a `/` and is not refused. Never while
- * anything is being typed into, the pipeline editor's own buffer included, where a `/` is a
- * character of the document.
- */
-export function focusesSearch(press: KeyPress, focused: FocusedField | null): boolean {
-    if (press.key !== SEARCH_KEY) return false
-    if (press.ctrlKey || press.metaKey || press.altKey) return false
-    return !isTypingField(focused)
-}
-
 /** Whether this browser runs on an Apple keyboard, which decides how a chord is spelled. */
 export function applePlatform(userAgent: string): boolean {
     return /Mac|iPhone|iPad/.test(userAgent)

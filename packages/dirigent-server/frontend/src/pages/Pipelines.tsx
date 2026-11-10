@@ -5,8 +5,8 @@ import { ApiChip } from '@/components/ApiChip'
 import { Chip } from '@/components/ds/Chip'
 import { Code } from '@/components/ds/Code'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { SearchField } from '@/components/ds/SearchField'
-import { TextLink } from '@/components/ds/TextLink'
+import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Panel } from '@/components/ds/Panel'
 import { MiniGraph } from '@/components/graph/MiniGraph'
 import { Instant } from '@/components/Instant'
@@ -17,6 +17,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { ICONS } from '@/lib/icons'
 import { headingOf, oneLine } from '@/lib/identity'
+import { SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { counted, LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
@@ -217,7 +218,14 @@ export function Pipelines() {
             />
 
             <div className="mb-6 flex flex-wrap items-center gap-2">
-                <SearchField value={needle} label={LABELS.pipelines.search} onChange={setNeedle} />
+                <SearchField
+                    placeholder={SEARCH_PLACEHOLDER}
+                    words={SEARCH_WORDS}
+                    className="w-64"
+                    value={needle}
+                    label={LABELS.pipelines.search}
+                    onChange={setNeedle}
+                />
                 <TagFilter chosen={tags} offered={offered.value ?? []} onChange={setTags} />
             </div>
 
@@ -249,7 +257,7 @@ export function Pipelines() {
                                     <TextLink
                                         variant="aside"
                                         className="text-xs font-normal"
-                                        expanded={allExamples}
+                                        aria-expanded={allExamples}
                                         onPress={toggleExamples}
                                     >
                                         {allExamples

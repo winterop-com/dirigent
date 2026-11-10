@@ -1,11 +1,12 @@
 import { useState } from 'react'
 
-import { DialogShell } from '@/components/ds/DialogShell'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { FormField } from '@/components/ds/FormField'
 import { Refusal } from '@/components/Refusal'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { type JsonMap, type Problem } from '@/lib/api'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { createSchema, type SchemaOut } from '@/lib/schemas'
@@ -78,6 +79,7 @@ export function NewSchema({
 
     return (
         <DialogShell
+            words={DIALOG_WORDS}
             open={open}
             onOpenChange={(next) => {
                 if (!next) reset()

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 import { Refusal } from '@/components/Refusal'
-import { SEARCH_PLACEHOLDER } from '@/components/ds/SearchField'
+import { LINK_WORDS, SEARCH_PLACEHOLDER } from '@/lib/design-system'
 import { Segmented } from '@/components/Segmented'
 import { Dot, TONE } from '@/components/ServerStatusButton'
 import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
@@ -48,7 +48,7 @@ import {
 } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
-import { TextLink } from '@/components/ds/TextLink'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Well } from '@/components/ds/Well'
 
 export const SETTINGS_TITLE = LABELS.settings.title
@@ -626,10 +626,12 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                 )
             })}
             <p className="mt-3 flex gap-4 text-sm">
-                <TextLink variant="external" href={DOCS_URL}>
+                <TextLink variant="inline" external words={LINK_WORDS} href={DOCS_URL}>
                     {LABELS.settings.documentation}
                 </TextLink>
-                <TextLink href={API_DOCS_URL}>{LABELS.settings.api_reference}</TextLink>
+                <TextLink variant="inline" href={API_DOCS_URL}>
+                    {LABELS.settings.api_reference}
+                </TextLink>
             </p>
         </div>
     )

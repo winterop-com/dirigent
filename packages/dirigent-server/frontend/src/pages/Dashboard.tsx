@@ -6,7 +6,7 @@ import { ApiChip } from '@/components/ApiChip'
 import { Code } from '@/components/ds/Code'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
-import { TextLink } from '@/components/ds/TextLink'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { MiniGraph } from '@/components/graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { HealthPanel } from '@/components/overview/HealthPanel'
@@ -291,7 +291,7 @@ function Section({
             meta={count === undefined ? undefined : String(count)}
             aside={
                 link === undefined ? undefined : (
-                    <TextLink variant="aside" to={to} className="text-xs font-normal">
+                    <TextLink variant="aside" href={to} className="text-xs font-normal">
                         {link}
                     </TextLink>
                 )
