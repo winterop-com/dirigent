@@ -3,7 +3,8 @@ import type { CSSProperties } from 'react'
 
 import { StepPorts } from '@/components/graph/StepPorts'
 import { ProgressLine } from '@/components/run/ProgressLine'
-import { StatusDot } from '@/components/run/StatusChip'
+import { Dot } from '@winterop-com/sokkel-ui/Dot'
+import { dotOf } from '@/lib/design-system'
 import { formatDuration } from '@/lib/format'
 import { headingOf } from '@/lib/identity'
 import { ICONS } from '@/lib/icons'
@@ -101,7 +102,7 @@ export function StepNode({ data, selected }: NodeProps<StepNode>) {
                             {counted(view.items, LABELS.runs.node_items)(String(view.items))}
                         </span>
                     )}
-                    <StatusDot status={tone} />
+                    <Dot {...dotOf({ status: tone }, 'never')} />
                 </span>
             </div>
             <div className="flex items-baseline gap-1.5">
@@ -153,7 +154,7 @@ function ItemStrip({ view }: { view: StepView }) {
                     key={item.id}
                     className="flex h-4 max-w-full min-w-0 items-center gap-1 text-muted-foreground"
                 >
-                    <StatusDot status={item.status} />
+                    <Dot {...dotOf({ status: item.status }, 'never')} />
                     <span className="min-w-0 truncate font-mono" title={item.key}>
                         {item.key}
                     </span>

@@ -270,8 +270,9 @@ names a place, and a place is not news. `scripts/check_ui_classes.py` refuses a 
 `--status-completed-with-errors`, `--status-cancelled`, `--status-skipped`. The names are
 `RunStatus` and `AttemptStatus` from `dirigent_client.enums`, so a status string off the wire
 indexes a token with no translation table. Each has an `-ink` twin: the token fills a chip at 14%
-alpha and the ink is what is legible on it -- the `.status-chip` class in `index.css` is that
-rule, written once. A delivery is a machine of its own, so `--status-sending` and `--status-sent`
+alpha and the ink is what is legible on it -- sokkel-ui's `StatusChip` is that rule, written once,
+and `STATUSES` in `lib/status` is the one map of each state's word, color and whether it is live,
+handed to every status part through the `StatusProvider` around the app. A delivery is a machine of its own, so `--status-sending` and `--status-sent`
 are `NotificationStatus`'s live states written as the run states they mean -- in flight is
 running, arrived is succeeded -- and a palette that moves those moves these. `skipped` is drawn
 in neutral with a dashed edge, because a skipped step did not happen and has not earned a
@@ -283,7 +284,7 @@ Four semantic aliases sit over the top for anything that is not a run: `--good` 
 
 **A kind is not a status, and has its own family of hues.** What a thing *is* -- a block kind, a
 connection kind, the clock a schedule fires on -- takes `--kind-<family>` and the `.kind-chip`
-fill rule, which is `.status-chip`'s written once more against tokens that cannot be confused
+fill rule, which is the status chip's written once more against tokens that cannot be confused
 with a state. `lib/kinds` maps a kind to a family and hashes the ones this bundle was built
 before, so the mapping is total and stable; no component writes a tint inline. Every family is
 far from hue 80, because that hue is the identity colour and means action.
@@ -897,8 +898,9 @@ Flow and elk are actually imported -- the canvas with this app's props on it, th
 elk for positions, and the door that fetches the engine -- and both graph components are lazy, so
 the two of them share one async chunk rather than shipping two copies.
 
-**Motion lives on edges, and it means data travelling.** A run's graph is the one place in this
-app that moves, and only while the run is live: an edge out of a step that has produced its output
+**Motion lives on edges, and it means data travelling.** Beside a live state's status dot, which
+breathes while the state is happening, a run's graph is the one place in this app that moves, and
+only while the run is live: an edge out of a step that has produced its output
 into one still reading it is dashed in the ink and travels along its path, and the
 moment a step produces its output every edge out of it into a step that could still read it plays
 one short handover before settling. An edge stills as soon as either end is done -- a source that
@@ -1510,8 +1512,9 @@ header strip, a row that navigates. The canvas's zoom cluster is sized there as 
 the graph library's button rather than one of ours. A menu opened at a point rather than under a
 control -- the canvas's right-click menus -- anchors a zero-sized trigger at the cursor, and
 `data-menu-anchor` keeps the rule off that one, because nothing draws it and no finger lands on
-it. A trigger that is an image -- a bare status dot, its own tooltip's trigger -- is kept off too,
-because grown to a finger the dot is drawn as a 44px disc. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
+it. A bare status dot is its own tooltip's trigger and takes the rule like any other: sokkel-ui
+draws a dot as a box one line tall with the disc centered in it, so the finger grows the box and
+the disc stays 8px. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
 drawn as a square takes the width too, because a 42px tall target 28px wide is a target on one
 axis only. No screen sizes a control for a phone itself.
 
@@ -2445,7 +2448,8 @@ keeps its own name in the code. A specimen stands on the section's card with no 
 | Component | When |
 | --- | --- |
 | `ItemHeading` (sokkel-ui) | Any addressable thing headed by its name and code, given as `{...itemOf(thing)}` so the name is the one `headingOf` finds. `stacked` puts the code under the name, for a listing's lead cell; `inline` beside it, where a row has one line; `size="dialog"` inside a dialog's title, where it is a `span`, with `lead={LABELS.action.edit}` while the dialog edits the thing; `as="span"` wherever the heading is not in the page's outline. A long name gives way before the inline code, which stays on screen. The name, else the code; the code always on screen in mono and never twice; a glyph before it, chips after it, an optional one-line description |
-| `Chip` (sokkel-ui) | A word on a chip: `neutral`, `mono` for a key, `absent` dashed for an absence, `good`, `critical`, `warning`, `info`; `icon` before the word. `onSelect` makes it a button named by `selectLabel`, saying what pressing does ("Filter by finance"); `onRemove` adds an X with its own focus ring, named by `words={chipWords(...)}` from a function of the chip's words ("Stop filtering by finance"). Neither press reaches the row or card around the chip, so a pressable row needs no guard of its own. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` and `StatusChip` stay, on the same 20px and the same radius |
+| `Chip` (sokkel-ui) | A word on a chip: `neutral`, `mono` for a key, `absent` dashed for an absence, `good`, `critical`, `warning`, `info`; `icon` before the word. `onSelect` makes it a button named by `selectLabel`, saying what pressing does ("Filter by finance"); `onRemove` adds an X with its own focus ring, named by `words={chipWords(...)}` from a function of the chip's words ("Stop filtering by finance"). Neither press reaches the row or card around the chip, so a pressable row needs no guard of its own. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` stays, on the same 20px and the same radius |
+| `StatusChip` (sokkel-ui) | A state as a chip, always with `dot`: the state's color on a wash of it, the word from `STATUSES`. A live state's dot pulses -- queued, running, waiting, sending -- and a paused or settled one is still; the pulse stops for somebody who asked for less motion. `label` where a screen names the state in its own terms, such as a count in flight |
 | `Dot` (sokkel-ui) | Every state drawn as a dot, given as `{...dotOf(...)}` from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status, 8px. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `tip` adds a sentence to the tooltip, and `focusable` puts the dot in the tab order where nothing around it is a control. `StatusChip` takes a `label` where a screen names the state in its own terms |
 | `IconButton` (sokkel-ui) | Any button that is an icon and nothing else, the glyph its child, which is why every icon button has a tooltip. Its type requires `label`; the tooltip is the label or a longer `tooltip`, with `reason` under it when it is shut. Sizes `icon-xs`, `icon-sm` and `icon`. Shut with `reason`, never with `disabled`, so it stays reachable; `destructive` tints critical under the pointer |
 | `SearchField` (sokkel-ui) | Every box that narrows a screen, `placeholder={SEARCH_PLACEHOLDER}` and `words={SEARCH_WORDS}`. A leading search glyph, a clear button once there is text, Escape to clear, and the `/` key cap: `/` moves the caret into the screen's one box that binds it, never while another field, the editor or a dialog has focus. A second box on the screen passes `shortcut={false}` |

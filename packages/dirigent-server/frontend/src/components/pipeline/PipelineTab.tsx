@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
 import { Fact, Section } from '@/components/run/Panel'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { TagChip } from '@/components/TagChip'
 import type { JsonMap } from '@/lib/api'
 import { shortDigest } from '@/lib/format'
@@ -222,7 +222,7 @@ export function PipelineTab({
                                     className="row-hover -mx-4 flex items-center gap-2 px-4 py-0.5 text-xs"
                                     to={`/runs/${run.id}`}
                                 >
-                                    <StatusChip status={run.status} />
+                                    <StatusChip dot status={run.status} />
                                     <Instant className="text-faint" at={run.created_at} />
                                 </Link>
                             </li>

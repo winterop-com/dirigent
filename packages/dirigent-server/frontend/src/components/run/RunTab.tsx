@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 
 import { Instant } from '@/components/Instant'
 import { Copyable, Fact, Section } from '@/components/run/Panel'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { asJson, elapsedBetween, formatDuration, formatWindow } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { startedAs, startedBy, type AttemptOut, type RunOut } from '@/lib/runs'
@@ -37,7 +37,7 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
-                <StatusChip status={run.status} />
+                <StatusChip dot status={run.status} />
                 <span className="text-xs text-muted-foreground">
                     {formatDuration(elapsedBetween(run.started_at, run.finished_at))}
                 </span>

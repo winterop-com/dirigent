@@ -6,13 +6,13 @@ import { expect, test, type APIRequestContext, type Locator, type Page } from '@
 import { FIT_MIN_ZOOM } from '../src/lib/dag-layout.ts'
 import { LABELS } from '../src/lib/labels.ts'
 import {
-    DEV_USERNAME,
     apiPrefix,
     applyDocument,
     applyExample,
     belowTheFold,
     canvasSettled,
     clickEdge,
+    DEV_USERNAME,
     dragBy,
     dragFromTo,
     everyNodeIsInView,
@@ -23,6 +23,7 @@ import {
     repositoryRoot,
     saysShut,
     signIn,
+    statusChip,
     writeInEditor,
 } from './support.ts'
 
@@ -670,7 +671,7 @@ test('a document that reads a window is not run until it is given one', async ({
 
     // The run is the pipeline's, and what it carried is a fact about it: the Run tab says so.
     await expect(page).toHaveURL(/\/runs\//)
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+    await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
     await expect((await runFacts(page)).getByText(LABELS.word.window.term, { exact: true })).toBeVisible()
@@ -700,7 +701,7 @@ test('a document that reads no window keeps its window behind a link and runs wi
     await runNow.click()
 
     await expect(page).toHaveURL(/\/runs\//)
-    await expect(page.locator('.status-chip[data-status="succeeded"]').first()).toBeVisible({
+    await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
     const panel = await runFacts(page)

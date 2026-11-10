@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { applyDocument, belowTheFold, ranToCompletion, signIn, startRun } from './support.ts'
+import { applyDocument, belowTheFold, ranToCompletion, signIn, startRun, statusChip } from './support.ts'
 
 /**
  * A pipeline's page says what the pipeline did: its newest runs, and the latest settled run's
@@ -50,7 +50,7 @@ test('a pipeline with runs and a report shows both, each leading to its run', as
     const lines = runs.getByTestId('pipeline-runs').getByRole('link')
     await expect(lines.first()).toHaveAttribute('href', `/runs/${latest}`)
     await expect(lines.nth(1)).toHaveAttribute('href', `/runs/${first}`)
-    await expect(lines.first().locator('.status-chip[data-status="succeeded"]')).toBeVisible()
+    await expect(statusChip(lines.first(), 'succeeded')).toBeVisible()
 
     const report = page.getByRole('region', { name: LABELS.pipelines.page.report })
     await expect(report.getByRole('heading', { name: `Digest of ${REPORTED}` })).toBeVisible()

@@ -9,7 +9,7 @@ import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Refusable } from '@/components/Refusable'
 import { Refusal, sayRefusal } from '@/components/Refusal'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
@@ -216,7 +216,7 @@ export function RulePanel({
                 <ul className="divide-y divide-border">
                     {mine.map((row) => (
                         <li key={row.id} className="row-hover -mx-4 flex items-center gap-2 px-4 py-2">
-                            <StatusChip status={row.status} />
+                            <StatusChip dot status={row.status} />
                             <span className="min-w-0 flex-1 truncate text-xs">{row.subject}</span>
                             <Instant className="shrink-0 text-xs text-faint" at={row.created_at} />
                         </li>
@@ -351,7 +351,7 @@ export function NotificationPanel({
         <div className="space-y-4 p-4">
             <div className="space-y-1">
                 <p className="flex flex-wrap items-center gap-2">
-                    <StatusChip status={notification.status} />
+                    <StatusChip dot status={notification.status} />
                     <span className="text-sm font-semibold">{notification.subject}</span>
                 </p>
             </div>

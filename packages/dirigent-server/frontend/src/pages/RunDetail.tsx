@@ -6,7 +6,7 @@ import { OutputTab } from '@/components/run/OutputTab'
 import { ReportTab } from '@/components/run/ReportTab'
 import { RunTab } from '@/components/run/RunTab'
 import { RunTerminal } from '@/components/run/RunTerminal'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { StepTab } from '@/components/run/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
@@ -590,7 +590,7 @@ export function RunDetail() {
                     />
 
                     <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
-                        <StatusChip status={run.status} className="text-sm" />
+                        <StatusChip dot status={run.status} className="text-sm" />
                         {failedAt !== null && troubled && (
                             <span>
                                 {LABELS.runs.line.at}{' '}

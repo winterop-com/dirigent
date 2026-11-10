@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
 import { RunsByPipeline } from '@/components/run/RunsByPipeline'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented, type Segment } from '@/components/Segmented'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
@@ -185,7 +185,7 @@ export function Runs() {
                 options={RUN_STATUSES.map((status) => ({
                     value: status,
                     label: statusLabel(status),
-                    mark: <StatusChip status={status} />,
+                    mark: <StatusChip dot status={status} />,
                 }))}
                 anything={view.grouped ? LABELS.runs.grouped.any_latest : LABELS.runs.any_status}
                 onChange={(status) => {
@@ -370,7 +370,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
                 const said = detailOf(run)
                 return (
                     <span className="flex min-w-0 items-center gap-2 overflow-hidden">
-                        <StatusChip status={run.status} />
+                        <StatusChip dot status={run.status} />
                         <PriorityMark run={run} />
                         {said !== null && (
                             <span className="truncate text-xs text-muted-foreground" title={said}>

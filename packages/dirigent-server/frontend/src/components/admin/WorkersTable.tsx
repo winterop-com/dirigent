@@ -1,6 +1,6 @@
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageState } from '@/components/PageState'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
@@ -14,8 +14,8 @@ const workerId = (worker: WorkerOut) => worker.id
  * The nodes claiming work, drawn once and shown in two places.
  *
  * A WORKER STATE IS NOT A RUN STATE, and it is drawn in the same chip anyway: `running` indexes
- * a status token and `starting`, `draining` and `stopped` fall back to the neutral pair, which
- * is what `lib/status` does with any state this bundle has no colour for. The alternative was a
+ * a status color and `starting`, `draining` and `stopped` fall back to the neutral one, which
+ * is what the status parts do with any state `lib/status` has no color for. The alternative was a
  * second chip that had to be kept level with the first.
  *
  * TWO WARNINGS SIT BESIDE THE STATE, because neither is a state. A worker the server has
@@ -86,7 +86,7 @@ const COLUMNS: Column<WorkerOut>[] = [
         header: LABELS.word.status,
         cell: (worker) => (
             <span className="flex flex-wrap items-center gap-2">
-                <StatusChip status={worker.status} />
+                <StatusChip dot status={worker.status} />
                 {worker.stale && (
                     <span className="text-xs text-warning" title={formatInstant(worker.last_seen_at)}>
                         {LABELS.workers.last_seen_ago(formatRelative(worker.last_seen_at))}

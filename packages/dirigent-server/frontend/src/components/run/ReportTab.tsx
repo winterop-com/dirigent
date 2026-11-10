@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { Fact, Section } from '@/components/run/Panel'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { ReportDocumentPane } from '@/components/run/ReportDocument'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { ApiError, type Problem } from '@/lib/api'
 import { readReportDocument, renderedText, type RenderedText, type ReportDocument } from '@/lib/artifacts'
 import { formatDuration } from '@/lib/format'
@@ -139,7 +139,7 @@ function Summary({
                         <ul className="mt-2 space-y-1">
                             {report.steps.map((step) => (
                                 <li key={step.step} className="flex items-center gap-2">
-                                    <StatusChip status={step.outcome} />
+                                    <StatusChip dot status={step.outcome} />
                                     <span className="truncate text-sm">{step.step}</span>
                                     {step.warnings > 0 && (
                                         <span className="text-xs text-warning">

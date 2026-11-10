@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyDocument, signIn, startRun } from './support.ts'
+import { apiPrefix, applyDocument, signIn, startRun, statusChip } from './support.ts'
 
 /**
  * The Runs screen grouped by pipeline: one row per pipeline that ran in the window, its states
@@ -75,7 +75,7 @@ test('a pipeline that ran many times is one row, counted by state, with a strip 
     await expect(row.getByLabel(/^\d+ failed$/)).toBeVisible()
     await expect(row.getByLabel(/cancelled$/)).toHaveCount(0)
     await expect(row.getByLabel(/^0 /)).toHaveCount(0)
-    await expect(row.locator('.status-chip[data-status="succeeded"]')).toBeVisible()
+    await expect(statusChip(row, 'succeeded')).toBeVisible()
 
     // The strip reads oldest to newest from left to right; it is laid out from its right end, so
     // the newest is first in the document and this run's six are the first six, each a link.

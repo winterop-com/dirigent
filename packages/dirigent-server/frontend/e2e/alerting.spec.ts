@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, signIn, writeInEditor } from './support.ts'
+import { apiPrefix, signIn, statusChip, writeInEditor } from './support.ts'
 
 /**
  * The alerting screen: the channels, the rules, and the queue.
@@ -373,7 +373,7 @@ test('a test stays open until the row settles, and reaches sent through the log 
     const outcome = dialog.getByTestId('test-delivery')
     await expect(outcome).toBeVisible()
     await expect(outcome).toContainText('e2e test alert')
-    await expect(outcome.locator('.status-chip')).toContainText('sent', { timeout: 30_000 })
+    await expect(statusChip(outcome, 'sent')).toBeVisible({ timeout: 30_000 })
     await expect(outcome).toContainText(LABELS.alerting.delivered)
 
     // And having sent one, the verb is to send another rather than to send.
@@ -390,7 +390,7 @@ test('a delivered notification is put back on the queue, and its attempts start 
     await sendTest(page, subject)
 
     const row = page.getByRole('row').filter({ hasText: subject })
-    await expect(row.locator('.status-chip')).toContainText('sent', { timeout: 30_000 })
+    await expect(statusChip(row, 'sent')).toBeVisible({ timeout: 30_000 })
 
     await row.getByText(subject, { exact: true }).click()
     const panel = page.getByRole('tabpanel')
@@ -399,19 +399,16 @@ test('a delivered notification is put back on the queue, and its attempts start 
     // A retry starts the delivery over rather than adding one try to a spent budget: the row
     // goes back to pending, due now, with its counter at nothing and its last refusal gone.
     await panel.getByRole('button', { name: LABELS.action.retry_now }).click()
-    await expect(panel.locator('.status-chip')).toContainText(LABELS.state.attempt.pending)
+    await expect(statusChip(panel, 'pending').first()).toBeVisible()
     await expect(panel).toContainText('0 of')
 })
 
 test('the queue narrows by status and by notifier', async ({ page }) => {
     const subject = `e2e filter ${String(Date.now())}`
     await sendTest(page, subject)
-    await expect(page.getByRole('row').filter({ hasText: subject }).locator('.status-chip')).toContainText(
-        'sent',
-        {
-            timeout: 30_000,
-        },
-    )
+    await expect(statusChip(page.getByRole('row').filter({ hasText: subject }), 'sent')).toBeVisible({
+        timeout: 30_000,
+    })
 
     await page.getByRole('button', { name: /^Status:/ }).click()
     await page.getByRole('menuitemradio', { name: /failed/ }).click()
@@ -453,7 +450,7 @@ async function sendTest(page: Page, subject: string): Promise<void> {
     await dialog.getByLabel(LABELS.word.subject).fill(subject)
     await dialog.getByRole('button', { name: LABELS.alerting.send, exact: true }).click()
     // Closed only once the row has settled, so the listing behind has been read again with it.
-    await expect(dialog.getByTestId('test-delivery').locator('.status-chip')).toContainText('sent', {
+    await expect(statusChip(dialog.getByTestId('test-delivery'), 'sent')).toBeVisible({
         timeout: 30_000,
     })
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()

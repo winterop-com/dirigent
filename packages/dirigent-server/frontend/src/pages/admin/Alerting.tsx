@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/ds/PageHeader'
 import { shutWith } from '@/lib/design-system'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
-import { StatusChip } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { LOG_TARGET } from '@/lib/alert-form'
@@ -318,7 +318,7 @@ function Alerting() {
                                 options={NOTIFICATION_STATUSES.map((one) => ({
                                     value: one,
                                     label: one,
-                                    mark: <StatusChip status={one} />,
+                                    mark: <StatusChip dot status={one} />,
                                 }))}
                                 onChange={(status) => {
                                     setFilters((held) => ({ ...held, status }))
@@ -545,7 +545,7 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     {
         id: 'status',
         header: LABELS.word.status,
-        cell: (notification) => <StatusChip status={notification.status} />,
+        cell: (notification) => <StatusChip dot status={notification.status} />,
     },
     {
         id: 'subject',

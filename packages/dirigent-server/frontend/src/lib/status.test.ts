@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { attemptSettled, runSettled, statusLabel, statusTokens, stepSettled } from '@/lib/status'
+import { attemptSettled, runSettled, STATUSES, statusLabel, statusTokens, stepSettled } from '@/lib/status'
 
 describe('a run that has settled', () => {
     test('is one of the four the client calls terminal', () => {
@@ -66,5 +66,20 @@ describe('the tokens a status indexes', () => {
 describe('a status as a person reads it', () => {
     test("drops the wire's underscores, which were never a reader's", () => {
         expect(statusLabel('completed_with_errors')).toBe('completed with errors')
+    })
+})
+
+describe('the states handed to the status parts', () => {
+    test('pulse only while something is happening', () => {
+        const live = Object.keys(STATUSES).filter((status) => STATUSES[status].live === true)
+        expect(live.toSorted()).toEqual(['queued', 'running', 'sending', 'waiting'])
+    })
+
+    test('say the words a person reads and draw the color the tokens draw', () => {
+        expect(STATUSES.completed_with_errors).toMatchObject({ label: 'completed with errors' })
+        expect(STATUSES.paused.color).toBe('pending')
+        expect(statusTokens('paused')).toEqual(statusTokens('pending'))
+        expect(STATUSES.sending.color).toBe('running')
+        expect(STATUSES.sent.color).toBe('succeeded')
     })
 })

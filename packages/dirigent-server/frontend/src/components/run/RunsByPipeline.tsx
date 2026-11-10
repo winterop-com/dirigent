@@ -3,7 +3,9 @@ import { Link, useNavigate } from 'react-router'
 
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PipelineRef } from '@/components/PipelineRef'
-import { StatusChip, StatusDot } from '@/components/run/StatusChip'
+import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
+import { Dot } from '@winterop-com/sokkel-ui/Dot'
+import { dotOf } from '@/lib/design-system'
 import { formatDuration, formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import {
@@ -59,7 +61,7 @@ function summaryColumns(): Column<PipelineRuns>[] {
         {
             id: 'latest',
             header: LABELS.runs.grouped.latest,
-            cell: (row) => <StatusChip status={row.latest.status} />,
+            cell: (row) => <StatusChip dot status={row.latest.status} />,
         },
         {
             id: 'counts',
@@ -76,7 +78,7 @@ function summaryColumns(): Column<PipelineRuns>[] {
                                 title={said}
                                 aria-label={said}
                             >
-                                <StatusDot status={status} />
+                                <Dot {...dotOf({ status }, 'never')} />
                                 {runs}
                             </span>
                         )
@@ -138,7 +140,7 @@ function RecentStrip({ runs }: { runs: readonly RecentRun[] }) {
                             event.stopPropagation()
                         }}
                     >
-                        <StatusDot status={run.status} className="pointer-events-none" />
+                        <Dot {...dotOf({ status: run.status }, 'never')} className="pointer-events-none" />
                     </Link>
                 )
             })}
