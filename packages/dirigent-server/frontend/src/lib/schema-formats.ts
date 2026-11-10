@@ -4,10 +4,17 @@
  *
  * `size` is held to the rule an apply reads a size by. `storage-uri` is checked on the server
  * against the schemes this instance's storage backends claim, which the browser does not know, so
- * any string passes it here. A pack's own formats are not registered and go unchecked.
+ * any string passes it here. A pack's own formats are not registered and go unchecked. A value
+ * that fails one says the format's words from `LABELS.form.format`, never the format's name.
  */
 
-import { registerSchemaFormats, type SchemaFormats } from '@winterop-com/sokkel-ui/schema/formats'
+import {
+    registerSchemaFormats,
+    type SchemaFormats,
+    type SchemaFormatTest,
+} from '@winterop-com/sokkel-ui/schema/formats'
+
+import { LABELS } from '@/lib/labels'
 
 /** A bare number, as the server reads one with Python's `float`. */
 const NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i
@@ -53,19 +60,24 @@ function isUuidVersion(version: string): (value: string) => boolean {
     }
 }
 
+/** A format's check, and the sentence a value that fails it reads, from its words in the catalogue. */
+function worded(test: SchemaFormatTest, words: keyof typeof LABELS.form.format) {
+    return { test, say: LABELS.form.expected(LABELS.form.format[words]) }
+}
+
 /** Every format dirigent's server checks beyond the standard set, by the name a schema gives it. */
 export const DIRIGENT_FORMATS: SchemaFormats = {
-    'humane-duration': isHumaneDuration,
-    size: isSize,
+    'humane-duration': worded(isHumaneDuration, 'humane_duration'),
+    size: worded(isSize, 'size'),
     'storage-uri': true,
-    ulid: /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/i,
-    uuid4: isUuidVersion('4'),
-    uuid7: isUuidVersion('7'),
-    md5: /^[0-9a-f]{32}$/i,
-    sha1: /^[0-9a-f]{40}$/i,
-    sha256: /^[0-9a-f]{64}$/i,
-    sha512: /^[0-9a-f]{128}$/i,
-    base64: /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/,
+    ulid: worded(/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/i, 'ulid'),
+    uuid4: worded(isUuidVersion('4'), 'uuid4'),
+    uuid7: worded(isUuidVersion('7'), 'uuid7'),
+    md5: worded(/^[0-9a-f]{32}$/i, 'md5'),
+    sha1: worded(/^[0-9a-f]{40}$/i, 'sha1'),
+    sha256: worded(/^[0-9a-f]{64}$/i, 'sha256'),
+    sha512: worded(/^[0-9a-f]{128}$/i, 'sha512'),
+    base64: worded(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/, 'base64'),
 }
 
 /** Hand dirigent's formats to every schema check in the app. */

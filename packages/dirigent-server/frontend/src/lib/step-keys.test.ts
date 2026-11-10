@@ -71,7 +71,7 @@ describe('the fields', () => {
         for (const name of ['timeout', 'poll', 'deadline']) {
             const field = stepFields.find((one) => one.name === name)
             expect(field?.kind).toBe('text')
-            expect(field?.hint).toBe('a duration such as 30s')
+            expect(field?.hint).toBe('a duration such as 30s or 5m')
         }
     })
 

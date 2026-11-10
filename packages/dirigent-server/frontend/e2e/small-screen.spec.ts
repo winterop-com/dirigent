@@ -157,6 +157,8 @@ test('a bare status dot stays a dot, and is not grown to a finger', async ({ pag
     await page.goto('/design')
     const dots = page.locator('[data-gallery="dots"] [data-slot="dot"][role="img"]')
     await expect(dots.first()).toBeVisible()
+    // The mark is a box one line tall with the disc in its middle: the disc stays a dot, and the
+    // box stays a line rather than a finger.
     for (const dot of await dots.all()) {
         expect((await dot.boundingBox())?.height ?? 0).toBeLessThanOrEqual(24)
         const disc = await dot.locator('> [aria-hidden]').boundingBox()

@@ -2075,13 +2075,23 @@ const form = {
      * format with no words here is shown as the schema spelled it.
      */
     format: {
-        size: 'bytes, or a size such as 1mb',
-        duration: 'a duration such as 30s',
+        size: 'bytes, or a size such as 16KB or 2MB',
+        humane_duration: 'a duration such as 30s or 5m',
+        ulid: 'a ULID',
+        uuid4: 'a version 4 UUID',
+        uuid7: 'a version 7 UUID',
+        md5: 'an MD5 digest in hex',
+        sha1: 'a SHA-1 digest in hex',
+        sha256: 'a SHA-256 digest in hex',
+        sha512: 'a SHA-512 digest in hex',
+        base64: 'base64 text',
         storage_uri: 'a storage URI such as s3://bucket/key',
         date_time: 'a date and time such as 2026-03-01T12:00:00Z',
         time: 'a time of day such as 06:30',
         password: 'a secret',
     },
+    /** What a value in the wrong format says, wherever a schema is checked: the format's words above. */
+    expected: (shape: string) => `Expected ${shape}`,
     /** The one line beside the label. */
     hint: {
         /** The values the schema offered as examples. */
