@@ -318,37 +318,34 @@ export function DesignSystem() {
                                     inPlace
                                     title={LABELS.screen.pipelines.name}
                                     count={SAMPLE.pipelines_count}
-                                    actions={[
+                                    items={[
                                         {
                                             id: 'refresh',
                                             label: LABELS.action.refresh,
-                                            icon: ICONS.refresh,
-                                            onClick: () => {},
-                                        },
-                                        {
-                                            id: 'new',
-                                            label: LABELS.action.new,
-                                            icon: ICONS.create,
-                                            variant: 'default',
-                                            ariaLabel: SAMPLE.new_pipeline,
-                                            onClick: () => {},
-                                            moreLabel: SAMPLE.more_ways,
-                                            more: [
-                                                {
-                                                    id: 'starter',
-                                                    label: SAMPLE.from_starter,
-                                                    icon: ICONS.template,
-                                                    onClick: () => {},
-                                                },
-                                                {
-                                                    id: 'file',
-                                                    label: SAMPLE.from_file,
-                                                    icon: ICONS.upload,
-                                                    onClick: () => {},
-                                                },
-                                            ],
+                                            icon: <ICONS.refresh aria-hidden />,
+                                            onSelect: () => {},
                                         },
                                     ]}
+                                    primary={{
+                                        id: 'new',
+                                        label: SAMPLE.new_pipeline,
+                                        face: LABELS.action.new,
+                                        icon: <ICONS.create aria-hidden />,
+                                        onSelect: () => {},
+                                        moreWays: SAMPLE.more_ways,
+                                        more: [
+                                            {
+                                                label: SAMPLE.from_starter,
+                                                icon: <ICONS.template aria-hidden />,
+                                                onSelect: () => {},
+                                            },
+                                            {
+                                                label: SAMPLE.from_file,
+                                                icon: <ICONS.upload aria-hidden />,
+                                                onSelect: () => {},
+                                            },
+                                        ],
+                                    }}
                                 />
                             </div>
                         </Specimen>
@@ -358,17 +355,13 @@ export function DesignSystem() {
                                     inPlace
                                     title={LABELS.screen.connections.name}
                                     count={SAMPLE.connections_count}
-                                    actions={[
-                                        {
-                                            id: 'new',
-                                            label: LABELS.action.new,
-                                            icon: ICONS.create,
-                                            variant: 'default',
-                                            disabled: true,
-                                            why: SAMPLE.why_admin,
-                                            onClick: () => {},
-                                        },
-                                    ]}
+                                    primary={{
+                                        id: 'new',
+                                        label: LABELS.action.new,
+                                        icon: <ICONS.create aria-hidden />,
+                                        reason: SAMPLE.why_admin,
+                                        onSelect: () => {},
+                                    }}
                                 />
                             </div>
                         </Specimen>
@@ -382,15 +375,12 @@ export function DesignSystem() {
                                     inPlace
                                     title={pipeline.name}
                                     code={pipeline.code}
-                                    actions={[
-                                        {
-                                            id: 'run',
-                                            label: LABELS.action.run,
-                                            icon: ICONS.run,
-                                            variant: 'default',
-                                            onClick: () => {},
-                                        },
-                                    ]}
+                                    primary={{
+                                        id: 'run',
+                                        label: LABELS.action.run,
+                                        icon: <ICONS.run aria-hidden />,
+                                        onSelect: () => {},
+                                    }}
                                 />
                             </div>
                         </Specimen>

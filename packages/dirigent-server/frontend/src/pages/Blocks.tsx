@@ -6,7 +6,7 @@ import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { Chip } from '@/components/ds/Chip'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
@@ -151,7 +151,7 @@ export function Blocks() {
 
     return (
         <>
-            <PageHeader title={LABELS.screen.blocks.name} aside={<ApiChip tag="blocks" />} />
+            <PageHeader title={LABELS.screen.blocks.name} lead={<ApiChip tag="blocks" />} />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
                 <SearchField
@@ -179,7 +179,7 @@ export function Blocks() {
                     {groups.map(([group, members]) => (
                         <Panel
                             key={group}
-                            title={<Code value={group} tone="body" />}
+                            title={<InlineCode value={group} tone="neutral" bare size="xs" />}
                             meta={rowsRead(members.length, LABELS.word.block.count, false)}
                             inset={false}
                         >

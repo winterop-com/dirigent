@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyDocument, removeSchema, signIn, writeInEditor } from './support.ts'
+import { apiPrefix, applyDocument, removeSchema, saysShut, signIn, writeInEditor } from './support.ts'
 
 /**
  * The Schemas screen, against a real instance.
@@ -254,11 +254,7 @@ test('a shape a pipeline names cannot be deleted, and the shut control says whic
 
     // A control that would be refused says so before it is pressed.
     const remove = page.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
-    await expect(remove).toBeDisabled()
-    await expect(page.locator('[title*="cannot be removed"]').first()).toHaveAttribute(
-        'title',
-        /e2e-schema-dependant.*cannot be removed/,
-    )
+    await saysShut(page, remove, /e2e-schema-dependant.*cannot be removed/)
 
     // And the shape is still there, because nothing was sent.
     const prefix = await apiPrefix(page.request)

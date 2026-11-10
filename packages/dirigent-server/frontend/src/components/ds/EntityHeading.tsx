@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { headingOf, oneLine, type Addressable } from '@/lib/identity'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { cn } from '@/lib/utils'
 
 /**
@@ -55,7 +55,8 @@ export function EntityHeading({
             {heading.title}
         </Title>
     )
-    const code = heading.code === null ? null : <Code value={heading.code} />
+    const code =
+        heading.code === null ? null : <InlineCode value={heading.code} tone="muted" bare size="xs" />
     const line =
         description === undefined || description === null || description.trim() === ''
             ? null

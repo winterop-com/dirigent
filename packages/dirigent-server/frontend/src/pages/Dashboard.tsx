@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
@@ -148,7 +148,7 @@ export function Dashboard() {
         <>
             <PageHeader
                 title={LABELS.screen.dashboard.name}
-                aside={
+                lead={
                     <>
                         <ApiChip tag="runs" />
                         <RefreshControl onRefresh={again} />
@@ -312,7 +312,7 @@ function PipelineTitle({ code, name }: { code: string; name: string | null }) {
             >
                 {name ?? code}
             </span>
-            {name !== null && <Code value={code} className="shrink" />}
+            {name !== null && <InlineCode value={code} className="shrink" tone="muted" bare size="xs" />}
         </span>
     )
 }
@@ -338,12 +338,18 @@ function TroubledRow({ entry }: { entry: LookEntry }) {
                     >
                         {entry.name ?? run.pipeline}
                     </span>
-                    {entry.name !== null && <Code value={run.pipeline} />}
+                    {entry.name !== null && <InlineCode value={run.pipeline} tone="muted" bare size="xs" />}
                 </div>
                 {(entry.failedStep !== null || run.error !== null) && (
                     <p className="mt-1.5 text-sm break-words">
                         {entry.failedStep !== null && (
-                            <Code value={entry.failedStep} tone="body" className="font-medium" />
+                            <InlineCode
+                                value={entry.failedStep}
+                                className="font-medium"
+                                tone="neutral"
+                                bare
+                                size="xs"
+                            />
                         )}
                         {entry.failedStep !== null && run.error !== null && (
                             <span className="text-muted-foreground"> · </span>
@@ -357,7 +363,9 @@ function TroubledRow({ entry }: { entry: LookEntry }) {
                         className="text-muted-foreground"
                         at={run.finished_at ?? run.started_at ?? run.created_at}
                     />
-                    {run.error_code !== null && <Code value={run.error_code} />}
+                    {run.error_code !== null && (
+                        <InlineCode value={run.error_code} tone="muted" bare size="xs" />
+                    )}
                 </div>
             </div>
         </Link>

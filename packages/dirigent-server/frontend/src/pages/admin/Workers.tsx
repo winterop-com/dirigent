@@ -63,7 +63,7 @@ function Workers() {
 
     return (
         <>
-            <PageHeader title={LABELS.screen.workers.name} aside={<ApiChip tag="workers" />} />
+            <PageHeader title={LABELS.screen.workers.name} lead={<ApiChip tag="workers" />} />
             <WorkersTable state={workers.state} more={workers.more} empty={LABELS.workers.empty} />
         </>
     )

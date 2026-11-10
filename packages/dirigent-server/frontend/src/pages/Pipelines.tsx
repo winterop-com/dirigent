@@ -3,8 +3,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { Chip } from '@/components/ds/Chip'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { shutWith } from '@/lib/design-system'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Panel } from '@/components/ds/Panel'
@@ -163,39 +164,33 @@ export function Pipelines() {
         <>
             <PageHeader
                 title={LABELS.screen.pipelines.name}
-                actions={[
-                    {
-                        id: 'new',
-                        label: LABELS.action.new,
-                        ariaLabel: NEW_PIPELINE_LABEL,
-                        variant: 'default',
-                        disabled: !write.may,
-                        why: write.why ?? undefined,
-                        onClick: () => {
-                            void navigate(NEW_PIPELINE_PATH)
-                        },
-                        moreLabel: LABELS.pipelines.more_ways,
-                        more: [
-                            {
-                                id: 'starter',
-                                label: FROM_STARTER_LABEL,
-                                icon: ICONS.template,
-                                onClick: () => {
-                                    setPicking(true)
-                                },
-                            },
-                            {
-                                id: 'file',
-                                label: FROM_FILE_LABEL,
-                                icon: ICONS.upload,
-                                onClick: () => {
-                                    filePicker.current?.click()
-                                },
-                            },
-                        ],
+                primary={{
+                    id: 'new',
+                    label: NEW_PIPELINE_LABEL,
+                    face: LABELS.action.new,
+                    ...shutWith(!write.may, write.why),
+                    onSelect: () => {
+                        void navigate(NEW_PIPELINE_PATH)
                     },
-                ]}
-                aside={
+                    moreWays: LABELS.pipelines.more_ways,
+                    more: [
+                        {
+                            label: FROM_STARTER_LABEL,
+                            icon: <ICONS.template aria-hidden />,
+                            onSelect: () => {
+                                setPicking(true)
+                            },
+                        },
+                        {
+                            label: FROM_FILE_LABEL,
+                            icon: <ICONS.upload aria-hidden />,
+                            onSelect: () => {
+                                filePicker.current?.click()
+                            },
+                        },
+                    ],
+                }}
+                lead={
                     <>
                         <ApiChip tag="pipelines" />
                         <input
@@ -377,7 +372,7 @@ function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
                     >
                         {heading.title}
                     </span>
-                    {heading.code !== null && <Code value={heading.code} />}
+                    {heading.code !== null && <InlineCode value={heading.code} tone="muted" bare size="xs" />}
                     {mark !== null && (
                         <Chip tone="critical" title={mark.title}>
                             {mark.label}

@@ -2,11 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
-import { Breadcrumb } from '@/components/Breadcrumb'
-import { PageHead } from '@/components/PageHead'
 import { HealthSaid } from '@/components/connections/Health'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Notice } from '@/components/ds/Notice'
+import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
 import { Instant } from '@/components/Instant'
 import { Markdown } from '@/components/Markdown'
@@ -15,13 +14,13 @@ import { LatestReport, RecentRuns, RECENT_ROWS, REPORT_RUNS } from '@/components
 import { RunDialog } from '@/components/pipeline/RunDialog'
 import { ShapeGraph } from '@/components/pipeline/ShapeGraph'
 import { TagChips } from '@/components/TagChips'
-import { ToolbarActions } from '@/components/ToolbarActions'
 import { EndpointAddress, NewToken } from '@/components/triggers/Endpoint'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import { healthOf, readConnections, type ConnectionOut } from '@/lib/connections'
+import { shutWith } from '@/lib/design-system'
 import { titleOf } from '@/lib/identity'
 import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
@@ -122,55 +121,47 @@ export function PipelinePage() {
     const noVersion = pipeline.document === null
     return (
         <div className="flex min-w-0 flex-col">
-            <PageHead>
-                <Breadcrumb trail={[{ label: LABELS.screen.pipelines.name, to: '/pipelines' }]} />
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="min-w-0">
-                        <h1 className="text-page font-medium tracking-tight">{titleOf(pipeline)}</h1>
-                        <div className="mt-1.5">
-                            <Code value={pipeline.code} />
-                        </div>
-                    </div>
-                    <ToolbarActions
-                        actions={[
-                            {
-                                id: 'edit',
-                                label: LABELS.action.edit,
-                                icon: ICONS.edit,
-                                onClick: () => {
-                                    void navigate(editorPath(pipeline.code))
-                                },
-                            },
-                            {
-                                id: 'validate',
-                                label: LABELS.action.validate,
-                                onClick: validate,
-                                disabled: !write.may || noVersion || validating,
-                                why:
-                                    write.why ??
-                                    (noVersion ? LABELS.editor.canvas.nothing_to_draw : undefined),
-                            },
-                            {
-                                id: 'run',
-                                label: LABELS.action.asks(LABELS.action.run),
-                                icon: ICONS.run,
-                                variant: 'default',
-                                onClick: () => {
-                                    setRunning(true)
-                                },
-                                disabled: !write.may || noVersion || !pipeline.active,
-                                why:
-                                    write.why ??
-                                    (noVersion
-                                        ? LABELS.editor.topbar.not_applied
-                                        : pipeline.active
-                                          ? undefined
-                                          : LABELS.pipelines.deactivated.explained),
-                            },
-                        ]}
-                    />
-                </div>
-            </PageHead>
+            <PageHeader
+                title={titleOf(pipeline)}
+                code={pipeline.code}
+                trail={[{ label: LABELS.screen.pipelines.name, to: '/pipelines' }]}
+                items={[
+                    {
+                        id: 'edit',
+                        label: LABELS.action.edit,
+                        icon: <ICONS.edit aria-hidden />,
+                        onSelect: () => {
+                            void navigate(editorPath(pipeline.code))
+                        },
+                    },
+                    {
+                        id: 'validate',
+                        label: LABELS.action.validate,
+                        onSelect: validate,
+                        ...shutWith(
+                            !write.may || noVersion || validating,
+                            write.why ?? (noVersion ? LABELS.editor.canvas.nothing_to_draw : undefined),
+                        ),
+                    },
+                ]}
+                primary={{
+                    id: 'run',
+                    label: LABELS.action.asks(LABELS.action.run),
+                    icon: <ICONS.run aria-hidden />,
+                    onSelect: () => {
+                        setRunning(true)
+                    },
+                    ...shutWith(
+                        !write.may || noVersion || !pipeline.active,
+                        write.why ??
+                            (noVersion
+                                ? LABELS.editor.topbar.not_applied
+                                : pipeline.active
+                                  ? undefined
+                                  : LABELS.pipelines.deactivated.explained),
+                    ),
+                }}
+            />
 
             {(pipeline.description !== null || pipeline.tags.length > 0) && (
                 <div className="mt-4 max-w-[820px] text-base">
@@ -277,18 +268,18 @@ function ChosenStep({ steps, code }: { steps: readonly StepShape[]; code: string
     const feeds = steps.filter((one) => one.depends_on.includes(code)).map((one) => one.code)
     return (
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1.5 border-t border-border px-5 py-3 text-sm">
-            <Code value={step.code} tone="body" className="text-sm font-medium" />
-            <Code value={step.block} />
+            <InlineCode value={step.code} className="font-medium" tone="neutral" bare size="sm" />
+            <InlineCode value={step.block} tone="muted" bare size="xs" />
             {step.depends_on.length > 0 && (
                 <span className="min-w-0">
                     <span className="text-muted-foreground">{LABELS.pipelines.page.after} </span>
-                    <Code value={step.depends_on.join(', ')} tone="body" />
+                    <InlineCode value={step.depends_on.join(', ')} tone="neutral" bare size="xs" />
                 </span>
             )}
             {feeds.length > 0 && (
                 <span className="min-w-0">
                     <span className="text-muted-foreground">{LABELS.pipelines.page.feeds} </span>
-                    <Code value={feeds.join(', ')} tone="body" />
+                    <InlineCode value={feeds.join(', ')} tone="neutral" bare size="xs" />
                 </span>
             )}
         </div>
@@ -320,7 +311,13 @@ function Blocks({
                     key={block}
                     className="flex flex-wrap items-baseline gap-x-3.5 gap-y-1.5 border-t border-border py-2.5 first:border-t-0"
                 >
-                    <Code value={block} tone="body" className="w-48 shrink-0 font-medium" />
+                    <InlineCode
+                        value={block}
+                        className="w-48 shrink-0 font-medium"
+                        tone="neutral"
+                        bare
+                        size="xs"
+                    />
                     <span className="flex min-w-0 flex-[1_1_160px] flex-wrap gap-1">
                         {codes.map((code) => (
                             <button
@@ -379,7 +376,7 @@ function Triggers({
                         className="-mx-2 flex items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-muted"
                     >
                         <ICONS.schedule className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                        <Code value={schedule.code} tone="body" />
+                        <InlineCode value={schedule.code} tone="neutral" bare size="xs" />
                         <span
                             className={cn(
                                 'min-w-0 flex-1 truncate text-muted-foreground',
@@ -404,7 +401,7 @@ function Triggers({
                     <div key={step.code} className="space-y-1.5 py-2" data-testid="pipeline-source">
                         <div className="flex items-center gap-3 text-sm">
                             <ICONS.source className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                            <Code value={step.code} tone="body" />
+                            <InlineCode value={step.code} tone="neutral" bare size="xs" />
                             <span className="min-w-0 truncate text-muted-foreground">
                                 {LABELS.pipelines.page.listens(step.block)}
                             </span>
@@ -446,9 +443,9 @@ function Reaches({ codes, held }: { codes: readonly string[]; held: readonly Con
                             {row !== undefined && row.name !== null && (
                                 <span className="truncate text-sm font-medium">{row.name}</span>
                             )}
-                            <Code value={code} />
+                            <InlineCode value={code} tone="muted" bare size="xs" />
                         </span>
-                        {row !== undefined && <Code value={row.kind} />}
+                        {row !== undefined && <InlineCode value={row.kind} tone="muted" bare size="xs" />}
                         {row !== undefined && <HealthSaid view={healthOf(row)} />}
                     </Link>
                 )

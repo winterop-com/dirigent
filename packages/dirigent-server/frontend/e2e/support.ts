@@ -42,6 +42,16 @@ export function documentOf(reference: string): Record<string, unknown> {
  * The password label is matched exactly, because the field's own reveal toggle is labelled
  * "Show password" and a substring match takes both.
  */
+/**
+ * That a verb is shut and says why. sokkel-ui says a shut control's reason in its tooltip, which a
+ * pointer and a keyboard both reach, rather than on `title`.
+ */
+export async function saysShut(page: Page, control: Locator, why: string | RegExp): Promise<void> {
+    await expect(control).toBeDisabled()
+    await control.hover()
+    await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText(why)
+}
+
 export async function signIn(page: Page): Promise<void> {
     await signInAs(page, DEV_USERNAME, DEV_PASSWORD)
 }

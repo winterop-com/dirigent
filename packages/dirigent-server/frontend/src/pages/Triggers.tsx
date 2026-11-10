@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { shutWith } from '@/lib/design-system'
 import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
@@ -186,20 +187,16 @@ export function Triggers() {
         <>
             <PageHeader
                 title={LABELS.screen.triggers.name}
-                aside={<ApiChip tag="triggers" />}
-                actions={[
-                    {
-                        id: 'schedule',
-                        label: LABELS.triggers.schedule.new,
-                        variant: 'default',
-                        icon: CalendarPlus,
-                        disabled: !write.may,
-                        why: write.why,
-                        onClick: () => {
-                            setCreating('schedule')
-                        },
+                lead={<ApiChip tag="triggers" />}
+                primary={{
+                    id: 'schedule',
+                    label: LABELS.triggers.schedule.new,
+                    icon: <CalendarPlus aria-hidden />,
+                    ...shutWith(!write.may, write.why),
+                    onSelect: () => {
+                        setCreating('schedule')
                     },
-                ]}
+                }}
             />
 
             <PageState

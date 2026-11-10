@@ -12,6 +12,7 @@ import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
 import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
 import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
+import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
 
 import { LABELS } from '@/lib/labels'
 
@@ -79,6 +80,21 @@ export const LINK_WORDS: TextLinkWords = { newTab: LABELS.shell.new_tab }
 /** What a split button's chevron is called: "More ways to create a pipeline". */
 export function splitWords(more: string): SplitButtonWords {
     return { more }
+}
+
+/** What a strip of verbs says: the menu the ones without room fold into, and a split verb's chevron. */
+export const TOOLBAR_WORDS: ToolbarWords = {
+    more: LABELS.shell.more_actions,
+    moreWays: LABELS.shell.more_ways,
+}
+
+/**
+ * How a verb is shut: with its sentence where there is one, which keeps it reachable and says why,
+ * and quietly where there is none, as while its own request is in flight.
+ */
+export function shutWith(shut: boolean, why?: string | null): { disabled?: boolean; reason?: string } {
+    if (!shut) return {}
+    return why === undefined || why === null ? { disabled: true } : { reason: why }
 }
 
 /** One section of the gallery, by the id its heading and its index entry share. */

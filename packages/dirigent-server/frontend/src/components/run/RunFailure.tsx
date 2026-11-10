@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 
 import { HealthSaid } from '@/components/connections/Health'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Panel } from '@/components/ds/Panel'
 import type { Issue, JsonMap } from '@/lib/api'
 import { healthOf, type ConnectionOut } from '@/lib/connections'
@@ -67,7 +67,7 @@ export function RunFailure({
             }
             meta={code ?? undefined}
         >
-            {block !== null && <Code value={block} />}
+            {block !== null && <InlineCode value={block} tone="muted" bare size="xs" />}
             {problems.length > 0 ? (
                 <ul className="mt-3 space-y-1.5" aria-label={LABELS.runs.failure.problems}>
                     {problems.map((problem, index) => (
@@ -75,7 +75,9 @@ export function RunFailure({
                             key={`${problem.location ?? ''}:${String(index)}`}
                             className="flex min-w-0 items-baseline gap-2.5"
                         >
-                            {problem.location !== null && <Code value={problem.location} tone="body" />}
+                            {problem.location !== null && (
+                                <InlineCode value={problem.location} tone="neutral" bare size="xs" />
+                            )}
                             <span className="min-w-0 text-base break-words">{issueSentence(problem)}</span>
                         </li>
                     ))}
@@ -90,7 +92,7 @@ export function RunFailure({
                 >
                     <span className="min-w-0 flex-1 truncate">
                         {connection.name !== null && <span className="font-medium">{connection.name} </span>}
-                        <Code value={connection.code} />
+                        <InlineCode value={connection.code} tone="muted" bare size="xs" />
                     </span>
                     <HealthSaid view={healthOf(connection)} />
                 </Link>
@@ -101,7 +103,7 @@ export function RunFailure({
                         <div key={key} className="contents">
                             <dt className="text-muted-foreground">{key}</dt>
                             <dd className="min-w-0">
-                                <Code value={said(value)} tone="body" />
+                                <InlineCode value={said(value)} tone="neutral" bare size="xs" />
                             </dd>
                         </div>
                     ))}

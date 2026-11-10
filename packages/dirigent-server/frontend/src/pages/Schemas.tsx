@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { shutWith } from '@/lib/design-system'
 import { PageState } from '@/components/PageState'
 import { NewSchema } from '@/components/schemas/NewSchema'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -79,20 +80,16 @@ export function Schemas() {
         <>
             <PageHeader
                 title={LABELS.screen.schemas.name}
-                aside={<ApiChip tag="schemas" />}
-                actions={[
-                    {
-                        id: 'new',
-                        label: LABELS.action.new,
-                        ariaLabel: LABELS.schemas.new,
-                        variant: 'default',
-                        disabled: !write.may,
-                        why: write.why ?? undefined,
-                        onClick: () => {
-                            setCreating(true)
-                        },
+                lead={<ApiChip tag="schemas" />}
+                primary={{
+                    id: 'new',
+                    label: LABELS.schemas.new,
+                    face: LABELS.action.new,
+                    ...shutWith(!write.may, write.why),
+                    onSelect: () => {
+                        setCreating(true)
                     },
-                ]}
+                }}
             />
             <PageState
                 loading={!state.read}

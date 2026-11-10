@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Question } from '@/components/Question'
 import { RefusalLine } from '@/components/Refusal'
@@ -41,7 +41,13 @@ export function EndpointAddress({ source }: { source: Pick<SourceOut, 'methods' 
     if (url === null || source.methods.length === 0) return null
     return (
         <span className="flex min-w-0 items-start gap-2" data-testid="endpoint-address">
-            <Code value={source.methods.join(', ')} tone="body" className="shrink-0 leading-6" />
+            <InlineCode
+                value={source.methods.join(', ')}
+                className="shrink-0 leading-6"
+                tone="neutral"
+                bare
+                size="xs"
+            />
             {/* The URL wraps rather than truncates, so all of it is on screen. */}
             <code className="min-w-0 flex-1 font-mono text-xs leading-6 break-all">{url}</code>
             <CopyButton value={url} size="icon-xs" words={copyWords(LABELS.triggers.source.copy_url)} />

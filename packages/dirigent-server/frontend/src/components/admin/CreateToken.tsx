@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Refusal } from '@/components/Refusal'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
@@ -110,7 +110,7 @@ export function CreateToken({
                     <div className="space-y-2">
                         <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="text-sm font-medium">{issued.name}</span>
-                            <Code value={issued.username} />
+                            <InlineCode value={issued.username} tone="muted" bare size="xs" />
                         </p>
                         <SecretReveal
                             value={issued.token}

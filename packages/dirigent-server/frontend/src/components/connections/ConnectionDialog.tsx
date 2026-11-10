@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Mark } from '@/components/Mark'
 import { Refusable } from '@/components/Refusable'
 import { ConnectionForm } from '@/components/connections/ConnectionForm'
@@ -91,7 +91,7 @@ export function ConnectionDialog({
             thing={connection}
             lead={editing ? LABELS.action.edit : undefined}
             glyph={<Mark glyph={kindGlyph(connection.kind, marks)} />}
-            chips={<Code value={connection.kind} />}
+            chips={<InlineCode value={connection.kind} tone="muted" bare size="xs" />}
         />
     )
 
@@ -248,7 +248,12 @@ function ConnectionFacts({
                 <Notice tone="warning">
                     <span className="flex min-w-0 flex-col gap-1">
                         <span>{LABELS.connections.awaiting.body}</span>
-                        <Code value={LABELS.connections.awaiting.command(connection.code)} tone="body" />
+                        <InlineCode
+                            value={LABELS.connections.awaiting.command(connection.code)}
+                            tone="neutral"
+                            bare
+                            size="xs"
+                        />
                     </span>
                 </Notice>
             )}

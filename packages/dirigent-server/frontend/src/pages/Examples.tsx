@@ -188,7 +188,7 @@ export function Examples() {
         <>
             <PageHeader
                 title={LABELS.screen.examples.name}
-                aside={
+                lead={
                     <>
                         <ApiChip tag="examples" />
                         {shown.length !== rows.length && (

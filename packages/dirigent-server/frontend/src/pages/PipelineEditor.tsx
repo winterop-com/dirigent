@@ -13,10 +13,11 @@ import { StepTab } from '@/components/pipeline/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageHead } from '@/components/PageHead'
 import { Chip } from '@/components/ds/Chip'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
-import { ToolbarActions } from '@/components/ToolbarActions'
+import { PrimaryAction } from '@/components/ds/PrimaryAction'
+import { Toolbar } from '@winterop-com/sokkel-ui/Toolbar'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
 import { readSchemas, type SchemaOut } from '@/lib/schemas'
@@ -29,6 +30,7 @@ import { authStore } from '@/lib/auth'
 import { catalogUnread, readBlock, readCatalog, type BlockEntry } from '@/lib/blocks'
 import { placeStep, type Placement } from '@/lib/canvas-layout'
 import { headingOf, titleOf } from '@/lib/identity'
+import { shutWith, TOOLBAR_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { cycleRefusal, cycleThrough, withEdge, withoutEdge, withoutStep } from '@/lib/graph-edits'
 import { fillPanel, openPanelTab, type PanelTab } from '@/lib/panels'
@@ -603,71 +605,79 @@ export function PipelineEditor() {
                             : [{ label: heading.title, to: `/pipelines/${code}`, mono: !heading.named }]),
                     ]}
                 />
-                <div className="flex min-h-9 items-center gap-x-2 md:gap-x-3">
-                    {heading === null ? (
-                        <span className="shrink-0 text-sm font-medium">
-                            {LABELS.editor.topbar.new_pipeline}
-                        </span>
-                    ) : (
-                        <Code value={heading.code ?? code} tone="body" />
-                    )}
-                    {/* Hidden below the breakpoint, where the strip has only the room for the
-                    document's identity and the line saying it is read. */}
-                    {matters !== null && (
-                        <Chip tone="critical" title={matters.title} className="hidden md:inline-flex">
-                            {matters.label}
-                        </Chip>
-                    )}
-                    <div className="flex-1" />
-                    {/* THE VERBS THAT WRITE ARE NOT DRAWN BELOW THE BREAKPOINT, and the strip says
-                    so where the first of them would have been. */}
-                    {small && (
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                            {LABELS.editor.topbar.read_only}
-                        </span>
-                    )}
-                    <ToolbarActions
-                        actions={
-                            // NOTHING THAT WRITES, AND NOTHING THAT ASKS THE SERVER ABOUT WHAT
-                            // CANNOT BE WRITTEN: below the breakpoint the strip carries the
-                            // document's identity and the line saying it is read.
+                <div className="flex min-h-9 items-center">
+                    <Toolbar
+                        className="flex-1"
+                        itemVariant="outline"
+                        itemsAlign="end"
+                        words={TOOLBAR_WORDS}
+                        items={
+                            // NOTHING THAT WRITES, AND NOTHING THAT ASKS THE SERVER ABOUT WHAT CANNOT
+                            // BE WRITTEN: below the breakpoint the strip carries the document's
+                            // identity and the line saying it is read.
                             small
-                                ? []
+                                ? undefined
                                 : [
                                       {
                                           id: 'validate',
                                           label: LABELS.action.validate,
-                                          icon: ShieldCheck,
-                                          disabled: sent !== undefined,
-                                          why: sent,
-                                          onClick: () => {
+                                          icon: <ShieldCheck aria-hidden />,
+                                          ...shutWith(sent !== undefined, sent),
+                                          onSelect: () => {
                                               setDialog('validate')
                                           },
                                       },
                                       {
                                           id: 'run',
                                           label: LABELS.action.asks(LABELS.action.run),
-                                          icon: Play,
-                                          disabled: runRefusal !== undefined,
-                                          why: runRefusal,
-                                          onClick: () => {
+                                          icon: <Play aria-hidden />,
+                                          ...shutWith(runRefusal !== undefined, runRefusal),
+                                          onSelect: () => {
                                               setDialog('run')
-                                          },
-                                      },
-                                      {
-                                          id: 'apply',
-                                          label: LABELS.action.apply,
-                                          icon: CheckCircle2,
-                                          variant: applyVariant(edits, creating),
-                                          disabled: applyRefusal !== undefined,
-                                          why: applyRefusal,
-                                          onClick: () => {
-                                              setDialog('apply')
                                           },
                                       },
                                   ]
                         }
-                    />
+                        end={
+                            small ? (
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                    {LABELS.editor.topbar.read_only}
+                                </span>
+                            ) : (
+                                <PrimaryAction
+                                    item={{
+                                        id: 'apply',
+                                        label: LABELS.action.apply,
+                                        icon: <CheckCircle2 aria-hidden />,
+                                        variant: applyVariant(edits, creating),
+                                        ...shutWith(applyRefusal !== undefined, applyRefusal),
+                                        onSelect: () => {
+                                            setDialog('apply')
+                                        },
+                                    }}
+                                />
+                            )
+                        }
+                    >
+                        {heading === null ? (
+                            <span className="shrink-0 text-sm font-medium">
+                                {LABELS.editor.topbar.new_pipeline}
+                            </span>
+                        ) : (
+                            // Below the breakpoint the code gives way to the read-only line rather
+                            // than wrapping the strip onto a second row.
+                            <span className={small ? 'min-w-0 flex-1 basis-0' : 'min-w-0'}>
+                                <InlineCode value={heading.code ?? code} tone="neutral" bare size="xs" />
+                            </span>
+                        )}
+                        {/* Hidden below the breakpoint, where the strip has only the room for the
+                    document's identity and the line saying it is read. */}
+                        {matters !== null && (
+                            <Chip tone="critical" title={matters.title} className="hidden md:inline-flex">
+                                {matters.label}
+                            </Chip>
+                        )}
+                    </Toolbar>
                 </div>
             </PageHead>
 

@@ -11,6 +11,7 @@ import { Instant } from '@/components/Instant'
 import { ANY, Choice } from '@/components/list/Choice'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { shutWith } from '@/lib/design-system'
 import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
@@ -238,31 +239,27 @@ function Alerting() {
         <>
             <PageHeader
                 title={LABELS.screen.alerting.name}
-                aside={<ApiChip tag="alerts" />}
-                actions={[
+                lead={<ApiChip tag="alerts" />}
+                items={[
                     {
                         id: 'test',
                         label: LABELS.action.asks(LABELS.action.send_test),
-                        icon: Send,
-                        variant: 'outline',
-                        disabled: !write.may,
-                        why: write.why,
-                        onClick: () => {
+                        icon: <Send aria-hidden />,
+                        ...shutWith(!write.may, write.why),
+                        onSelect: () => {
                             openTest(EMPTY_TEST)
                         },
                     },
-                    {
-                        id: 'rule',
-                        label: LABELS.alerting.new_rule.button,
-                        icon: BellPlus,
-                        variant: 'default',
-                        disabled: !write.may,
-                        why: write.why,
-                        onClick: () => {
-                            setCreating(true)
-                        },
-                    },
                 ]}
+                primary={{
+                    id: 'rule',
+                    label: LABELS.alerting.new_rule.button,
+                    icon: <BellPlus aria-hidden />,
+                    ...shutWith(!write.may, write.why),
+                    onSelect: () => {
+                        setCreating(true)
+                    },
+                }}
             />
 
             <div className="flex flex-col gap-6">
