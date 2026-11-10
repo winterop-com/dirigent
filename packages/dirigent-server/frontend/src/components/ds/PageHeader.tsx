@@ -37,7 +37,9 @@ export function PageHeader({
 }) {
     const verbs =
         actions === undefined ? (
-            aside
+            aside === undefined ? undefined : (
+                <div className="flex min-h-9 items-center">{aside}</div>
+            )
         ) : (
             <div className="flex min-h-9 min-w-0 items-center justify-end">
                 <ToolbarActions actions={actions} lead={aside} measured />
@@ -46,7 +48,7 @@ export function PageHeader({
     return (
         <PageHead inPlace={inPlace}>
             {trail !== undefined && <Breadcrumb trail={trail} />}
-            <div className="mb-6">
+            <div className="mb-6 *:min-h-9">
                 <LibraryPageHeader
                     title={title}
                     count={count}
