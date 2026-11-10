@@ -79,7 +79,7 @@ test('the corpus is listed, and the Templates filter narrows it to what may be c
 
     // THE SHELF IS ON THE ROW AS THE TAG THE CORPUS GIVES IT, and not as a column of its own:
     // the same word twice on one row is one fact too many.
-    await expect(rowOf(page, STARTER).getByRole('button', { name: 'Filter by recipes' })).toBeVisible()
+    await expect(rowOf(page, STARTER).getByRole('button', { name: 'recipes', exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: LABELS.examples.which.starters, exact: true }).click()
 

@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { Link } from 'react-router'
 
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Instant } from '@/components/Instant'
 import { ReportDocumentPane } from '@/components/run/ReportDocument'
@@ -39,11 +39,11 @@ export function RecentRuns({
     className?: string
 }) {
     return (
-        <Panel
+        <Section
             title={LABELS.pipelines.page.recent_runs}
-            inset={false}
+            flush
             className={className}
-            aside={
+            actions={
                 <TextLink
                     variant="aside"
                     href={runsLink({ ...EVERY_RUN, pipeline })}
@@ -66,7 +66,7 @@ export function RecentRuns({
                     ))}
                 </div>
             )}
-        </Panel>
+        </Section>
     )
 }
 
@@ -111,11 +111,11 @@ export function LatestReport({ runs, className }: { runs: readonly RunOut[]; cla
     const read = useRead(useCallback(() => readReportDocument(latest.id), [latest.id]))
     const at = latest.finished_at ?? latest.started_at ?? latest.created_at
     return (
-        <Panel
+        <Section
             title={LABELS.pipelines.page.report}
-            inset={false}
+            flush
             className={className}
-            aside={
+            actions={
                 <TextLink
                     variant="aside"
                     href={runReportLink(latest.id)}
@@ -155,6 +155,6 @@ export function LatestReport({ runs, className }: { runs: readonly RunOut[]; cla
                     })}
                 </div>
             )}
-        </Panel>
+        </Section>
     )
 }

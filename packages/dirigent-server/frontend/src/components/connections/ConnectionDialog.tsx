@@ -11,9 +11,9 @@ import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Question } from '@/components/Question'
 import { RefusalLine } from '@/components/Refusal'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { EntityHeading } from '@/components/ds/EntityHeading'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
-import { Notice } from '@/components/ds/Notice'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useConnectionEdit } from '@/hooks/use-connection-edit'
@@ -35,6 +35,7 @@ import { separatelyUpdated } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { ICONS } from '@/lib/icons'
 import { DIALOG_WORDS } from '@/lib/design-system'
+import { itemOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
 import { refusalOf } from '@/lib/refusal'
@@ -86,10 +87,10 @@ export function ConnectionDialog({
         write.why ?? (connection.awaiting_secrets ? LABELS.connections.awaiting.check_shut : undefined)
 
     const heading = (
-        <EntityHeading
-            variant="dialog"
-            thing={connection}
-            lead={editing ? LABELS.action.edit : undefined}
+        <ItemHeading
+            {...itemOf(connection)}
+            size="dialog"
+            as="div"
             glyph={<Mark glyph={kindGlyph(connection.kind, marks)} />}
             chips={<InlineCode value={connection.kind} tone="muted" bare size="xs" />}
         />
@@ -245,7 +246,7 @@ function ConnectionFacts({
     return (
         <>
             {connection.awaiting_secrets && (
-                <Notice tone="warning">
+                <Callout tone="warning">
                     <span className="flex min-w-0 flex-col gap-1">
                         <span>{LABELS.connections.awaiting.body}</span>
                         <InlineCode
@@ -255,7 +256,7 @@ function ConnectionFacts({
                             size="xs"
                         />
                     </span>
-                </Notice>
+                </Callout>
             )}
             <Description text={connection.description} />
             <DescriptionList

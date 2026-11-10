@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { Refusal } from '@/components/Refusal'
 import { RoleSelect } from '@/components/admin/RoleSelect'
-import { FormField } from '@/components/ds/FormField'
+import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
@@ -132,7 +132,7 @@ export function CreateUser({
                     />
                 </div>
 
-                <FormField id="new-role" label={LABELS.word.role}>
+                <Field id="new-role" label={LABELS.word.role}>
                     <RoleSelect
                         id="new-role"
                         value={form.role}
@@ -140,7 +140,7 @@ export function CreateUser({
                             setForm((current) => ({ ...current, role }))
                         }}
                     />
-                </FormField>
+                </Field>
 
                 {problem !== null && <Refusal problem={problem} />}
 

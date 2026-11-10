@@ -1,7 +1,7 @@
 import { ReactFlowProvider } from '@xyflow/react'
 import { useState, type ReactNode } from 'react'
 
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageCanvasTools, type CanvasFrame } from '@/components/graph/GraphCanvas'
 import { WindowButton, WindowedPane } from '@/components/WindowedPane'
 import type { LayoutChoice } from '@/lib/dag-layout'
@@ -46,11 +46,11 @@ export function GraphPanel({
     const windowName = LABELS.shell.graph_window(name)
     return (
         <ReactFlowProvider>
-            <Panel
+            <Section
                 title={LABELS.pipelines.page.graph}
                 tone="graph"
-                inset={false}
-                aside={
+                flush
+                actions={
                     <span className="flex items-center gap-0.5">
                         <PageCanvasTools frame={frame} layout={layout} onLayout={onLayout} />
                         <WindowButton
@@ -61,7 +61,7 @@ export function GraphPanel({
                         />
                     </span>
                 }
-                className={cn(filled && 'flex flex-1 flex-col', className)}
+                className={cn(filled ? 'flex flex-1 flex-col' : 'shrink-0', className)}
                 bodyClassName={cn(filled && 'flex min-h-0 flex-1 flex-col')}
             >
                 <WindowedPane
@@ -82,7 +82,7 @@ export function GraphPanel({
                     {canvas(frame)}
                 </WindowedPane>
                 {children}
-            </Panel>
+            </Section>
         </ReactFlowProvider>
     )
 }

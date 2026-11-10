@@ -24,7 +24,7 @@ import {
 } from '@/lib/requirements'
 import type { RunOut } from '@/lib/runs'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 
 /**
  * The pipeline as a whole: what it is, what it takes, what it reaches, and what it has done.
@@ -77,7 +77,7 @@ export function PipelineTab({
                 <h2 className={heading.named ? 'text-sm font-semibold' : 'font-mono text-sm font-semibold'}>
                     {heading.title}
                 </h2>
-                <Chip tone={pipeline.active ? 'good' : 'dashed'}>
+                <Chip tone={pipeline.active ? 'good' : 'absent'}>
                     {pipeline.active ? LABELS.state.armed.active : LABELS.state.armed.deactivated}
                 </Chip>
                 <span className="font-mono text-xs text-faint">
@@ -176,8 +176,8 @@ export function PipelineTab({
                     {requiredChips(document, unmet).map((chip) => (
                         <Chip
                             key={chip.label}
-                            tone={chip.met ? 'mono' : 'critical'}
-                            className={chip.met ? undefined : 'font-mono'}
+                            mono
+                            tone={chip.met ? 'neutral' : 'critical'}
                             title={
                                 chip.met
                                     ? undefined

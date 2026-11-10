@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 
 import { Instant } from '@/components/Instant'
 import { Mark } from '@/components/Mark'
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import type { HealthRow } from '@/lib/home'
@@ -43,10 +43,10 @@ const DOTS: Record<TileTone, string> = {
 export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: string; reading: boolean }) {
     const role = useStore(authStore).identity?.role ?? null
     return (
-        <Panel
+        <Section
             title={LABELS.word.health}
             meta={reading ? LABELS.shell.reading : undefined}
-            inset={false}
+            flush
             bodyClassName="flex flex-col"
         >
             <ul className="max-h-64 grow overflow-y-auto">
@@ -108,6 +108,6 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
             </ul>
 
             <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">{note}</p>
-        </Panel>
+        </Section>
     )
 }

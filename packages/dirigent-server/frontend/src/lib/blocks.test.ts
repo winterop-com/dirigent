@@ -265,7 +265,7 @@ describe('the facts a block carries besides its schemas', () => {
 
     test('marks an unsafe block with a chip whose tone says whether it is enabled', () => {
         expect(unsafeChip(SLEEP)).toBeNull()
-        expect(unsafeChip(SHELL)).toMatchObject({ label: 'unsafe, not enabled', tone: 'dashed' })
+        expect(unsafeChip(SHELL)).toMatchObject({ label: 'unsafe, not enabled', tone: 'absent' })
         expect(unsafeChip({ ...SHELL, unsafe_enabled: true })).toMatchObject({
             label: 'unsafe',
             tone: 'critical',

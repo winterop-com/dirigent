@@ -12,7 +12,7 @@ import { ANY, Choice } from '@/components/list/Choice'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { shutWith } from '@/lib/design-system'
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -265,14 +265,14 @@ function Alerting() {
             <div className="flex flex-col gap-6">
                 <ChannelStrip channels={channels.rows} read={channels.read} />
 
-                <Panel
+                <Section
                     title={LABELS.word.rule.heading}
                     meta={
                         ruleRows.length === 0
                             ? undefined
                             : rowsRead(ruleRows.length, LABELS.word.rule.count, rules.state.next !== null)
                     }
-                    inset={false}
+                    flush
                 >
                     <PageState
                         bare
@@ -296,9 +296,9 @@ function Alerting() {
                             onClose={unchoose}
                         />
                     </PageState>
-                </Panel>
+                </Section>
 
-                <Panel
+                <Section
                     title={LABELS.word.notification.heading}
                     meta={
                         notificationRows.length === 0
@@ -309,7 +309,7 @@ function Alerting() {
                                   notifications.state.next !== null,
                               )
                     }
-                    aside={
+                    actions={
                         <span className="flex gap-2 font-normal">
                             <Choice
                                 label={LABELS.word.status}
@@ -335,7 +335,7 @@ function Alerting() {
                             />
                         </span>
                     }
-                    inset={false}
+                    flush
                 >
                     <PageState
                         bare
@@ -362,7 +362,7 @@ function Alerting() {
                             onClose={unchoose}
                         />
                     </PageState>
-                </Panel>
+                </Section>
             </div>
 
             <NewRule

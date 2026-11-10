@@ -8,7 +8,7 @@ import type { JsonMap } from '@/lib/api'
 import { REPORTS_DOCS_URL } from '@/lib/docs'
 import { LABELS } from '@/lib/labels'
 import { reportIn } from '@/lib/pipeline-document'
-import { Notice } from '@/components/ds/Notice'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
 
 /** The media type a report template carries. `TEMPLATE_MEDIA_TYPE` in dirigent_common. */
 export const TEMPLATE_MEDIA_TYPE = 'text/x-jinja'
@@ -98,7 +98,7 @@ export function ReportPane({
                 </p>
             </div>
 
-            {disabled !== undefined && <Notice tone="warning">{disabled}</Notice>}
+            {disabled !== undefined && <Callout tone="warning">{disabled}</Callout>}
 
             {choice === 'own' && (
                 <WindowedPane

@@ -3669,6 +3669,7 @@ const design = {
         error: 'With an error',
         notices: 'With and without a mark',
         well: 'A group that belongs together',
+        inset: 'Reference material',
         dialogs: 'Open one',
         asks: 'A dialog that asks',
         tells: 'A dialog that tells',
@@ -3701,7 +3702,6 @@ const design = {
         word_none: 'none',
         word_live: 'live',
         word_failing: 'failing',
-        word_edited: 'edited',
         status_override: 'stopped by a rule',
         tone: {
             good: 'healthy',
@@ -3744,6 +3744,7 @@ const design = {
         notice_warning: 'This document is not the version the instance holds.',
         notice_neutral: 'Runs started before the upgrade keep the version they started on.',
         well: 'A block that belongs together, such as a form opened under its row, on the panel ground.',
+        inset: '{"facility": "Badjia", "reports": 12}',
         secret: 'dg_live_4f8a2c9e1b7d6053a8e2f4c1b9d7e6a3',
         secret_name: 'ci-deploy',
         dialog_title: 'New token',

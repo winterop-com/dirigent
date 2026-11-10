@@ -1,5 +1,5 @@
 import { LABELS } from '@/lib/labels'
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 
 /**
  * One tag, drawn the one way this app draws a tag.
@@ -17,22 +17,19 @@ export function TagChip({
     tag,
     className,
     onSelect,
-    label,
 }: {
     tag: string
     className?: string
     /** What clicking this tag asks for, which is always "narrow to this". */
     onSelect?: () => void
-    /** What clicking it is called, for the pointer and for a screen reader. */
-    label?: string
 }) {
-    const said = label ?? LABELS.shell.filter_by_tag(tag)
+    const said = LABELS.shell.filter_by_tag(tag)
     return onSelect === undefined ? (
-        <Chip tone="mono" className={className}>
+        <Chip mono className={className}>
             {tag}
         </Chip>
     ) : (
-        <Chip tone="mono" className={className} onSelect={onSelect} selectLabel={said}>
+        <Chip mono className={className} onSelect={onSelect} title={said}>
             {tag}
         </Chip>
     )

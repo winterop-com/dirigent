@@ -7,8 +7,8 @@ import { AccountTokens } from '@/components/admin/AccountTokens'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { CreateToken } from '@/components/admin/CreateToken'
 import { CreateUser } from '@/components/admin/CreateUser'
-import { Chip } from '@/components/ds/Chip'
-import { EntityHeading } from '@/components/ds/EntityHeading'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
@@ -20,6 +20,7 @@ import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
+import { itemOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -259,12 +260,13 @@ function userColumns(
                             <ICONS.expand aria-hidden />
                         </IconButton>
                         <span className="min-w-0" title={LABELS.users.open_account(user.username)}>
-                            <EntityHeading
-                                variant="row-inline"
-                                thing={{ code: user.username, name: user.name }}
+                            <ItemHeading
+                                {...itemOf({ code: user.username, name: user.name })}
+                                variant="inline"
+                                as="div"
                                 chips={
                                     user.active ? undefined : (
-                                        <Chip tone="dashed">{LABELS.state.armed.deactivated}</Chip>
+                                        <Chip tone="absent">{LABELS.state.armed.deactivated}</Chip>
                                     )
                                 }
                             />

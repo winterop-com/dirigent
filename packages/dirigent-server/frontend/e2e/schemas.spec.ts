@@ -104,11 +104,12 @@ test('a new schema is named in the dialog and opens on its own page', async ({ p
     const create = dialog.getByRole('button', { name: LABELS.action.create.verb, exact: true })
     // Create is shut until there is a code, and says why.
     await expect(create).toBeDisabled()
-    await dialog.getByLabel(LABELS.word.code).fill('E2E shape')
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill('E2E shape')
     await dialog.getByLabel(LABELS.word.name.label).click()
-    await expect(dialog.getByText(LABELS.schemas.create.code_shape)).toBeVisible()
+    // The refusal is the field's issue mark, named by what it says.
+    await expect(dialog.getByRole('button', { name: LABELS.schemas.create.code_shape })).toBeVisible()
 
-    await dialog.getByLabel(LABELS.word.code).fill('e2e-created-shape')
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill('e2e-created-shape')
     await dialog.getByLabel(LABELS.word.name.label).fill('Created in the dialog')
     await create.click()
 

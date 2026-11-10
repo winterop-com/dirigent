@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 
+import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { ConnectionFields } from '@/components/connections/ConnectionFields'
 import { JsonBlock } from '@/components/JsonBlock'
 import { KindChip } from '@/components/KindChip'
@@ -15,7 +16,6 @@ import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { updateSchema, wholeSchema } from '@/lib/schemas'
 import { cn } from '@/lib/utils'
-import { Well } from '@/components/ds/Well'
 
 /** What one carried entry is called on its own line, in the reader's word rather than the wire's. */
 const NOUNS: Readonly<Record<CarriedItem['kind'], string>> = LABELS.editor.carried.noun
@@ -272,7 +272,7 @@ function MintConnection({
     const form = useConnectionDraft(kinds, item.code, item.connectionKind)
 
     return (
-        <Well className="space-y-3">
+        <Surface tone="well" pad className="space-y-3">
             <ConnectionFields
                 form={form}
                 kinds={kinds}
@@ -298,7 +298,7 @@ function MintConnection({
                     </Button>
                 </Refusable>
             </div>
-        </Well>
+        </Surface>
     )
 }
 
@@ -355,7 +355,7 @@ function UpdateSchema({
     }
 
     return (
-        <Well className="space-y-3">
+        <Surface tone="well" pad className="space-y-3">
             <p className="text-xs font-semibold tracking-wide text-faint uppercase">{words.held_heading}</p>
             {/* Narrower than a preview's own height: nine lines is what this dialog's cap leaves
                 on a 768px screen once the sentences below have had their room. */}
@@ -388,7 +388,7 @@ function UpdateSchema({
                     </Button>
                 </Refusable>
             </div>
-        </Well>
+        </Surface>
     )
 }
 

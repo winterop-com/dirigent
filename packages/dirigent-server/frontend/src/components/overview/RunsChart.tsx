@@ -1,4 +1,4 @@
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { chartSummary, stackOf, tallest, type HourBucket } from '@/lib/home'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -55,17 +55,17 @@ export function RunsChart({
     const most = tallest(buckets)
     if (!reading && most === 0) {
         return (
-            <Panel
+            <Section
                 title={LABELS.dashboard.chart.title}
                 meta={LABELS.dashboard.chart.window}
                 className={className}
             >
                 <p className="text-sm text-muted-foreground">{LABELS.dashboard.chart.summary_empty}</p>
-            </Panel>
+            </Section>
         )
     }
     return (
-        <Panel
+        <Section
             title={LABELS.dashboard.chart.title}
             meta={reading ? LABELS.shell.reading : LABELS.dashboard.chart.window}
             className={className}
@@ -114,6 +114,6 @@ export function RunsChart({
                     </li>
                 ))}
             </ul>
-        </Panel>
+        </Section>
     )
 }

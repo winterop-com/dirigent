@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented } from '@/components/Segmented'
-import { TagChip } from '@/components/TagChip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { TagChips } from '@/components/TagChips'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { useRead } from '@/hooks/use-read'
@@ -33,7 +33,7 @@ import {
     type Holdings,
 } from '@/lib/examples'
 import { headingOf, oneLine } from '@/lib/identity'
-import { SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import { chipWords, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { closePanel, fillPanel, openPanelTab } from '@/lib/panels'
@@ -250,13 +250,15 @@ export function Examples() {
                 {/* The Blocks screen links here narrowed to one block, and the chip that says
                     so is the chip that takes it off again. */}
                 {filters.block !== '' && (
-                    <TagChip
-                        tag={filters.block}
-                        label={LABELS.examples.stop_narrowing(filters.block)}
-                        onSelect={() => {
+                    <Chip
+                        mono
+                        words={chipWords(LABELS.examples.stop_narrowing(filters.block))}
+                        onRemove={() => {
                             change({ ...filters, block: '' })
                         }}
-                    />
+                    >
+                        {filters.block}
+                    </Chip>
                 )}
             </div>
 

@@ -1,6 +1,6 @@
 import { SecretField } from '@/components/connections/SecretField'
 import { GroupLabel } from '@winterop-com/sokkel-ui/GroupLabel'
-import { FormField } from '@/components/ds/FormField'
+import { Field } from '@winterop-com/sokkel-ui/Field'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
 import { Refusal } from '@/components/Refusal'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
@@ -19,7 +19,7 @@ import { LABELS } from '@/lib/labels'
 export function ConnectionForm({ connection, form }: { connection: ConnectionOut; form: ConnectionEdit }) {
     return (
         <>
-            <FormField id="connection-name" label={LABELS.word.name.label}>
+            <Field id="connection-name" label={LABELS.word.name.label}>
                 <Input
                     id="connection-name"
                     value={form.named}
@@ -27,9 +27,9 @@ export function ConnectionForm({ connection, form }: { connection: ConnectionOut
                         form.setNamed(event.target.value)
                     }}
                 />
-            </FormField>
+            </Field>
 
-            <FormField id="connection-description" label={LABELS.word.description}>
+            <Field id="connection-description" label={LABELS.word.description}>
                 <Textarea
                     id="connection-description"
                     className="h-20"
@@ -39,7 +39,7 @@ export function ConnectionForm({ connection, form }: { connection: ConnectionOut
                     }}
                     placeholder={LABELS.connections.description_placeholder}
                 />
-            </FormField>
+            </Field>
 
             <div className="space-y-3">
                 <GroupLabel as="h3">{LABELS.connections.settings_heading}</GroupLabel>

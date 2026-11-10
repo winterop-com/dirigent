@@ -31,7 +31,7 @@ import { readWindow, referencesWindow } from '@/lib/run-window'
 import { handEntryOf } from '@/lib/sources'
 import { fieldsOf, maySubmit, validateFields, withUnreadable } from '@/lib/schema-form'
 import { offsetMinutes, timesMode, zoneLabel } from '@/lib/times'
-import { Notice } from '@/components/ds/Notice'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
 
 const ENTRY = LABELS.editor.run.entry
 
@@ -218,11 +218,11 @@ export function RunDialog({
                     )}
 
                     {warnings.length > 0 && (
-                        <Notice tone="warning">
+                        <Callout tone="warning">
                             {warnings.map((line) => (
                                 <p key={line}>{line}</p>
                             ))}
-                        </Notice>
+                        </Callout>
                     )}
 
                     {problem !== null && (

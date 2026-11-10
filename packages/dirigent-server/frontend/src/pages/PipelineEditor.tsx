@@ -12,9 +12,9 @@ import { SourceTab } from '@/components/pipeline/SourceTab'
 import { StepTab } from '@/components/pipeline/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageHead } from '@/components/PageHead'
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { Toolbar } from '@winterop-com/sokkel-ui/Toolbar'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
@@ -679,9 +679,9 @@ export function PipelineEditor() {
                 </div>
             </PageHead>
 
-            <Panel
+            <Section
                 title={LABELS.pipelines.page.graph}
-                inset={false}
+                flush
                 className="mt-3 flex min-h-96 flex-1 flex-col"
                 bodyClassName="relative min-h-0 flex-1"
             >
@@ -746,7 +746,7 @@ export function PipelineEditor() {
                         />
                     </Suspense>
                 )}
-            </Panel>
+            </Section>
 
             {picking && (
                 <Suspense fallback={null}>

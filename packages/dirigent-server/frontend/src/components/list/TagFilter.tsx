@@ -8,8 +8,9 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
+import { chipWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 
 /**
  * The one tag filter, which both listings that have one wear.
@@ -69,8 +70,8 @@ export function TagFilter({
             {chosen.map((tag) => (
                 <Chip
                     key={tag}
-                    tone="mono"
-                    removeLabel={LABELS.shell.stop_filtering_by_tag(tag)}
+                    mono
+                    words={chipWords(LABELS.shell.stop_filtering_by_tag(tag))}
                     onRemove={() => {
                         onChange(chosen.filter((one) => one !== tag))
                     }}

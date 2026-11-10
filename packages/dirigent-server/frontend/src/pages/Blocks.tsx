@@ -5,10 +5,10 @@ import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
 import { ListTable, type Column } from '@/components/list/ListTable'
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { Panel } from '@/components/ds/Panel'
+import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { Fact, Section } from '@/components/run/Panel'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
@@ -177,11 +177,11 @@ export function Blocks() {
             >
                 <div className="flex flex-col gap-6">
                     {groups.map(([group, members]) => (
-                        <Panel
+                        <LibrarySection
                             key={group}
                             title={<InlineCode value={group} tone="neutral" bare size="xs" />}
                             meta={rowsRead(members.length, LABELS.word.block.count, false)}
-                            inset={false}
+                            flush
                         >
                             <ListTable
                                 chrome={{ framed: false }}
@@ -196,18 +196,18 @@ export function Blocks() {
                                 selected={(entry) => `block:${entry.id}` === chosen}
                                 onClose={unchoose}
                             />
-                        </Panel>
+                        </LibrarySection>
                     ))}
 
                     {REGISTRIES.map((registry) => {
                         const rows = registryRows[registry.key]
                         if (rows.length === 0) return null
                         return (
-                            <Panel
+                            <LibrarySection
                                 key={registry.key}
                                 title={registry.title}
                                 meta={rowsRead(rows.length, registry.noun, false)}
-                                inset={false}
+                                flush
                             >
                                 <ListTable
                                     chrome={{ framed: false }}
@@ -225,7 +225,7 @@ export function Blocks() {
                                     selected={(entry) => entryKeyOf(registry.key)(entry) === chosen}
                                     onClose={unchoose}
                                 />
-                            </Panel>
+                            </LibrarySection>
                         )
                     })}
                 </div>

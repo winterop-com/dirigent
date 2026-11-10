@@ -1,7 +1,7 @@
 import { Clock3 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
-import { Well } from '@/components/ds/Well'
+import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Picker } from '@/components/Picker'
 import { SchemaForm } from '@/components/pipeline/SchemaForm'
 import { Refusable } from '@/components/Refusable'
@@ -506,7 +506,7 @@ function ParamsBox({
                     onChoose={params.show}
                 />
             </div>
-            <Well className="p-3">
+            <Surface tone="well" pad>
                 {fields.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                         {chosen ? LABELS.triggers.dialog.no_params : LABELS.triggers.dialog.no_pipeline}
@@ -539,7 +539,7 @@ function ParamsBox({
                         )}
                     </div>
                 )}
-            </Well>
+            </Surface>
         </div>
     )
 }

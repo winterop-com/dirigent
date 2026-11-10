@@ -1,23 +1,22 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Question } from '@/components/Question'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { EntityHeading } from '@/components/ds/EntityHeading'
+import { Dot } from '@winterop-com/sokkel-ui/Dot'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
-import { describedBy, FormField } from '@/components/ds/FormField'
+import { describedBy, Field } from '@winterop-com/sokkel-ui/Field'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
-import { Notice } from '@/components/ds/Notice'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { Panel } from '@/components/ds/Panel'
+import { Section, Surface } from '@winterop-com/sokkel-ui/Section'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { GroupLabel } from '@winterop-com/sokkel-ui/GroupLabel'
 import { SwitchField } from '@winterop-com/sokkel-ui/SwitchField'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
-import { ToneDot } from '@/components/ds/ToneDot'
-import { Well } from '@/components/ds/Well'
 import { KindChip } from '@/components/KindChip'
 import { PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
@@ -27,8 +26,11 @@ import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
 import { Disclosure } from '@/components/pipeline/Disclosure'
 import {
+    chipWords,
     copyWords,
     DIALOG_WORDS,
+    dotOf,
+    FIELD_WORDS,
     GALLERY_INDEX,
     galleryAnchor,
     type GallerySection,
@@ -39,6 +41,7 @@ import {
     type Tone,
 } from '@/lib/design-system'
 import { ICON_GROUPS, ICONS, type IconGroup, type IconName } from '@/lib/icons'
+import { itemOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { RUN_STATUSES } from '@/lib/status'
 import { cn } from '@/lib/utils'
@@ -87,15 +90,15 @@ const SECTION_GAP = 16
 const LINES: Partial<Record<GallerySection, string>> = COPY.line
 
 /** One part of the gallery: a section heading, its sentence, and a card of specimens. */
-function Section({ id, children }: { id: GallerySection; children: ReactNode }) {
+function Shelf({ id, children }: { id: GallerySection; children: ReactNode }) {
     const anchor = galleryAnchor(id)
     const line = LINES[id]
     return (
         <div data-gallery={id}>
-            <Panel id={anchor} title={COPY.section[id]} inset={false} bodyClassName="divide-y divide-border">
+            <Section headingId={anchor} title={COPY.section[id]} flush bodyClassName="divide-y divide-border">
                 {line !== undefined && <p className="px-4 py-3 text-sm text-muted-foreground">{line}</p>}
                 {children}
-            </Panel>
+            </Section>
         </div>
     )
 }
@@ -245,57 +248,64 @@ export function DesignSystem() {
             <div className="lg:flex lg:gap-8">
                 <GalleryIndex reading={reading} onChoose={setReading} />
                 <div className="max-w-5xl min-w-0 flex-1 space-y-8 pb-8">
-                    <Section id="titles">
+                    <Shelf id="titles">
                         <Specimen title={VARIANT.row_stacked}>
                             <Narrow>
-                                <EntityHeading
-                                    thing={pipeline}
+                                <ItemHeading
+                                    {...itemOf(pipeline)}
+                                    as="div"
                                     description={SAMPLE.pipeline.description}
                                     chips={<Chip>{SAMPLE.tag_finance}</Chip>}
                                 />
                             </Narrow>
                             <Narrow>
-                                <EntityHeading thing={bare} />
+                                <ItemHeading {...itemOf(bare)} as="div" />
                             </Narrow>
                             <Narrow>
-                                <EntityHeading thing={long} description={SAMPLE.long.description} />
+                                <ItemHeading
+                                    {...itemOf(long)}
+                                    as="div"
+                                    description={SAMPLE.long.description}
+                                />
                             </Narrow>
                         </Specimen>
                         <Specimen title={VARIANT.row_inline}>
                             <Narrow>
-                                <EntityHeading variant="row-inline" thing={pipeline} />
+                                <ItemHeading {...itemOf(pipeline)} variant="inline" as="div" />
                             </Narrow>
                             <Narrow>
-                                <EntityHeading
-                                    variant="row-inline"
-                                    thing={bare}
+                                <ItemHeading
+                                    {...itemOf(bare)}
+                                    variant="inline"
+                                    as="div"
                                     chips={<KindChip kind="cron" />}
                                 />
                             </Narrow>
                             <Narrow>
-                                <EntityHeading variant="row-inline" thing={long} />
+                                <ItemHeading {...itemOf(long)} variant="inline" as="div" />
                             </Narrow>
                         </Specimen>
                         <Specimen title={VARIANT.panel}>
                             <div className="w-80 min-w-0">
-                                <EntityHeading
-                                    variant="panel"
-                                    thing={pipeline}
+                                <ItemHeading
+                                    {...itemOf(pipeline)}
+                                    as="div"
                                     description={SAMPLE.pipeline.description}
                                     chips={<StatusChip status="succeeded" />}
                                 />
                             </div>
                             <div className="w-80 min-w-0">
-                                <EntityHeading
-                                    variant="panel"
-                                    thing={long}
+                                <ItemHeading
+                                    {...itemOf(long)}
+                                    size="dialog"
+                                    as="div"
                                     description={SAMPLE.long.description}
                                 />
                             </div>
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="headings">
+                    <Shelf id="headings">
                         <Specimen title={VARIANT.tiers}>
                             <div className="w-full max-w-xl space-y-4">
                                 <GroupLabel as="h3">{SAMPLE.yesterday}</GroupLabel>
@@ -376,9 +386,9 @@ export function DesignSystem() {
                                 />
                             </div>
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="links">
+                    <Shelf id="links">
                         <Specimen title={VARIANT.inline}>
                             <p className="text-sm">
                                 {SAMPLE.link_sentence.before}
@@ -401,25 +411,24 @@ export function DesignSystem() {
                                 {SAMPLE.api_docs}
                             </TextLink>
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="labels">
+                    <Shelf id="labels">
                         <Specimen title={VARIANT.tones}>
                             <Chip>{SAMPLE.word_managed}</Chip>
-                            <Chip tone="mono">{SAMPLE.pipeline.code}</Chip>
-                            <Chip tone="dashed">{SAMPLE.word_none}</Chip>
+                            <Chip mono>{SAMPLE.pipeline.code}</Chip>
+                            <Chip tone="absent">{SAMPLE.word_none}</Chip>
                             <Chip tone="good">{SAMPLE.word_live}</Chip>
                             <Chip tone="critical">{SAMPLE.word_failing}</Chip>
-                            <Chip tone="edit">{SAMPLE.word_edited}</Chip>
-                            <Chip icon={ICONS.tag}>{SAMPLE.tag_finance}</Chip>
+                            <Chip icon={<ICONS.tag aria-hidden />}>{SAMPLE.tag_finance}</Chip>
                         </Specimen>
                         <Specimen title={VARIANT.selectable}>
                             {[SAMPLE.tag_finance, SAMPLE.tag_ops, SAMPLE.tag_nightly].map((tag) =>
                                 chosen.includes(tag) ? (
                                     <Chip
                                         key={tag}
-                                        tone="mono"
-                                        removeLabel={LABELS.shell.stop_filtering_by_tag(tag)}
+                                        mono
+                                        words={chipWords(LABELS.shell.stop_filtering_by_tag(tag))}
                                         onRemove={() => {
                                             setChosen(chosen.filter((one) => one !== tag))
                                         }}
@@ -429,8 +438,8 @@ export function DesignSystem() {
                                 ) : (
                                     <Chip
                                         key={tag}
-                                        tone="mono"
-                                        selectLabel={LABELS.shell.filter_by_tag(tag)}
+                                        mono
+                                        title={LABELS.shell.filter_by_tag(tag)}
                                         onSelect={() => {
                                             setChosen([...chosen, tag])
                                         }}
@@ -442,7 +451,7 @@ export function DesignSystem() {
                         </Specimen>
                         <Specimen title={VARIANT.long}>
                             <Narrow>
-                                <Chip title={SAMPLE.long.code} tone="mono">
+                                <Chip title={SAMPLE.long.code} mono>
                                     {SAMPLE.long.code}
                                 </Chip>
                             </Narrow>
@@ -456,35 +465,35 @@ export function DesignSystem() {
                             ))}
                             <StatusChip status="failed" label={SAMPLE.status_override} />
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="dots">
+                    <Shelf id="dots">
                         <Specimen title={VARIANT.tone_dots}>
                             {TONES.map((tone) => (
-                                <ToneDot key={tone} tone={tone} label={SAMPLE.tone[tone]} />
+                                <Dot key={tone} {...dotOf({ tone, label: SAMPLE.tone[tone] })} />
                             ))}
                         </Specimen>
                         <Specimen title={VARIANT.always}>
                             {TONES.map((tone) => (
-                                <ToneDot key={tone} tone={tone} label={SAMPLE.tone[tone]} say="always" />
+                                <Dot key={tone} {...dotOf({ tone, label: SAMPLE.tone[tone] }, 'always')} />
                             ))}
                         </Specimen>
                         <Specimen title={VARIANT.status_dots}>
                             {RUN_STATUSES.map((status) => (
-                                <ToneDot key={status} status={status} />
+                                <Dot key={status} {...dotOf({ status })} />
                             ))}
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="icons">
+                    <Shelf id="icons">
                         <div className="space-y-1 p-4">
                             {(Object.keys(ICON_GROUPS) as IconGroup[]).map((group) => (
                                 <IconShelf key={group} group={group} />
                             ))}
                         </div>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="buttons">
+                    <Shelf id="buttons">
                         <Specimen title={VARIANT.text_buttons}>
                             <Button size="sm">{LABELS.action.new}</Button>
                             <Button size="sm" variant="outline">
@@ -545,9 +554,9 @@ export function DesignSystem() {
                                 <ICONS.run aria-hidden />
                             </IconButton>
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="search">
+                    <Shelf id="search">
                         <Specimen title={VARIANT.empty}>
                             <SearchField
                                 placeholder={SEARCH_PLACEHOLDER}
@@ -580,15 +589,17 @@ export function DesignSystem() {
                                 disabled
                             />
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="forms">
+                    <Shelf id="forms">
                         <Specimen title={VARIANT.prose}>
                             <div className="w-80 min-w-0">
-                                <FormField
+                                <Field
                                     id="ds-name"
                                     label={LABELS.word.name.label}
                                     required
+                                    requiredMark="word"
+                                    words={FIELD_WORDS}
                                     hint={SAMPLE.name_hint}
                                     help={SAMPLE.name_help}
                                     error={nameError}
@@ -596,11 +607,9 @@ export function DesignSystem() {
                                     <Input
                                         id="ds-name"
                                         value={name}
+                                        aria-required
                                         aria-invalid={nameError !== null || undefined}
-                                        aria-describedby={describedBy('ds-name', {
-                                            help: SAMPLE.name_help,
-                                            error: nameError,
-                                        })}
+                                        aria-describedby={describedBy('ds-name', { help: SAMPLE.name_help })}
                                         onChange={(event) => {
                                             setName(event.target.value)
                                         }}
@@ -608,38 +617,52 @@ export function DesignSystem() {
                                             setLeft(true)
                                         }}
                                     />
-                                </FormField>
+                                </Field>
                             </div>
                         </Specimen>
                         <Specimen title={VARIANT.key}>
                             <div className="w-80 min-w-0">
-                                <FormField
+                                <Field
                                     id="ds-base-url"
                                     label={SAMPLE.key_label}
                                     mono
-                                    fallback={SAMPLE.key_default}
+                                    fallback={LABELS.form.default_is(SAMPLE.key_default)}
                                     help={SAMPLE.key_help}
                                 >
-                                    <Input id="ds-base-url" placeholder={SAMPLE.key_default} />
-                                </FormField>
+                                    <Input
+                                        id="ds-base-url"
+                                        placeholder={SAMPLE.key_default}
+                                        aria-describedby={describedBy('ds-base-url', {
+                                            help: SAMPLE.key_help,
+                                            fallback: SAMPLE.key_default,
+                                        })}
+                                    />
+                                </Field>
                             </div>
                         </Specimen>
                         <Specimen title={VARIANT.error}>
                             <div className="w-80 min-w-0">
-                                <FormField
+                                <Field
                                     id="ds-timeout"
                                     label={SAMPLE.timeout_label}
                                     mono
                                     required
+                                    requiredMark="word"
+                                    words={FIELD_WORDS}
                                     error={SAMPLE.timeout_error}
                                 >
-                                    <Input id="ds-timeout" aria-invalid defaultValue={SAMPLE.timeout_value} />
-                                </FormField>
+                                    <Input
+                                        id="ds-timeout"
+                                        aria-required
+                                        aria-invalid
+                                        defaultValue={SAMPLE.timeout_value}
+                                    />
+                                </Field>
                             </div>
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="switches">
+                    <Shelf id="switches">
                         <div className="p-4">
                             <div className="w-full max-w-96 divide-y divide-border">
                                 <SwitchField
@@ -658,25 +681,34 @@ export function DesignSystem() {
                                 />
                             </div>
                         </div>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="notices">
+                    <Shelf id="notices">
                         <Specimen title={VARIANT.notices}>
                             <div className="w-full max-w-xl space-y-2">
-                                <Notice tone="critical" title={SAMPLE.notice_critical_title}>
+                                <Callout tone="critical" title={SAMPLE.notice_critical_title}>
                                     {SAMPLE.notice_critical_body}
-                                </Notice>
-                                <Notice tone="warning">{SAMPLE.notice_warning}</Notice>
-                                <Notice tone="neutral">{SAMPLE.notice_neutral}</Notice>
-                                <Notice tone="neutral" icon={false}>
+                                </Callout>
+                                <Callout tone="warning">{SAMPLE.notice_warning}</Callout>
+                                <Callout tone="neutral">{SAMPLE.notice_neutral}</Callout>
+                                <Callout tone="neutral" icon={false}>
                                     {SAMPLE.notice_neutral}
-                                </Notice>
+                                </Callout>
                             </div>
                         </Specimen>
                         <Specimen title={VARIANT.well}>
-                            <Well className="w-full max-w-xl text-sm text-muted-foreground">
+                            <Surface
+                                tone="well"
+                                pad
+                                className="w-full max-w-xl text-sm text-muted-foreground"
+                            >
                                 {SAMPLE.well}
-                            </Well>
+                            </Surface>
+                        </Specimen>
+                        <Specimen title={VARIANT.inset}>
+                            <Surface tone="inset" pad className="w-full max-w-xl font-mono text-xs">
+                                {SAMPLE.inset}
+                            </Surface>
                         </Specimen>
                         <Specimen title={VARIANT.loading}>
                             <div className="w-full max-w-md">
@@ -692,9 +724,9 @@ export function DesignSystem() {
                                 </PageState>
                             </div>
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="dialogs">
+                    <Shelf id="dialogs">
                         <Specimen title={VARIANT.dialogs}>
                             <Button
                                 variant="outline"
@@ -730,9 +762,9 @@ export function DesignSystem() {
                                 <SecretReveal value={SAMPLE.secret} words={secretWords(SAMPLE.secret_name)} />
                             </div>
                         </Specimen>
-                    </Section>
+                    </Shelf>
 
-                    <Section id="facts">
+                    <Shelf id="facts">
                         <Specimen title={VARIANT.grid}>
                             <div className="w-80 min-w-0">
                                 <DescriptionList
@@ -772,7 +804,7 @@ export function DesignSystem() {
                                 ]}
                             />
                         </Specimen>
-                    </Section>
+                    </Shelf>
                 </div>
             </div>
 
@@ -790,20 +822,23 @@ export function DesignSystem() {
                     },
                 }}
             >
-                <FormField
+                <Field
                     id="ds-dialog-name"
                     label={LABELS.word.name.label}
                     required
+                    requiredMark="word"
+                    words={FIELD_WORDS}
                     help={SAMPLE.name_help}
                 >
                     <Input
                         id="ds-dialog-name"
+                        aria-required
                         value={name}
                         onChange={(event) => {
                             setName(event.target.value)
                         }}
                     />
-                </FormField>
+                </Field>
             </DialogShell>
 
             <DialogShell
