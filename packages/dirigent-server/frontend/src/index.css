@@ -25,6 +25,8 @@
 @import '@winterop-com/sokkel-ui/sources/SecretReveal.css';
 @import '@winterop-com/sokkel-ui/sources/Section.css';
 @import '@winterop-com/sokkel-ui/sources/Shell.css';
+@import '@winterop-com/sokkel-ui/sources/SignIn.css';
+@import '@winterop-com/sokkel-ui/sources/SignInArt.css';
 @import '@winterop-com/sokkel-ui/sources/SplitButton.css';
 @import '@winterop-com/sokkel-ui/sources/StatusChip.css';
 @import '@winterop-com/sokkel-ui/sources/StatusLine.css';
@@ -55,26 +57,6 @@
 @import '@winterop-com/sokkel-ui/themes/paper.css';
 @import '@winterop-com/sokkel-ui/themes/contrast.css';
 @import '@xyflow/react/dist/style.css';
-
-/* ---------------------------------------------------------------------------
-   THE WORDMARK, A NAMED SIZE OUTSIDE THE SCALE.
-
-   The login brand pane draws the product's name beside its tile at the size a mark is drawn
-   at rather than the size a heading is read at. It is set once here so it can be counted:
-   `scripts/check_ui_classes.py` knows this class by name and the login pane is the only
-   place it may be spent.
-
-   Tracked in tighter than the scale's headings, because a word this large opens up.
-
-   An `@utility` rather than a plain class, because the pane reaches this size only once there
-   is a pane wide enough to hold it, and a variant is only written for a utility Tailwind knows.
-   --------------------------------------------------------------------------- */
-@utility text-wordmark {
-    font-size: 3rem;
-    line-height: 1;
-    font-weight: 600;
-    letter-spacing: -0.03em;
-}
 
 /* ---------------------------------------------------------------------------
    A KIND CHIP.

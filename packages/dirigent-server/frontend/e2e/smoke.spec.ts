@@ -15,7 +15,7 @@ test('a deep link is answered with the shell rather than a 404', async ({ page }
 
 test('signing in lands on the dashboard', async ({ page }) => {
     await page.goto('/pipelines')
-    await expect(page.getByRole('heading', { name: 'dirigent', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.action.sign_in.verb })).toBeVisible()
 
     await page.getByLabel(LABELS.word.username).fill(DEV_USERNAME)
     await page.getByLabel(LABELS.word.password, { exact: true }).fill(DEV_PASSWORD)

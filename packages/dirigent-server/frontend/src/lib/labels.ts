@@ -1400,7 +1400,7 @@ const refused = {
 /**
  * What the door says.
  *
- * THE ONE SCREEN ALLOWED AN EYEBROW, A HEADING, A SUBTITLE AND PLACEHOLDERS, which is why this
+ * THE ONE SCREEN ALLOWED AN EYEBROW, A HEADING AND A SUBTITLE, which is why this
  * section holds shapes no other section may: docs/ui-conventions.md says so, and says no other
  * screen may copy any of it.
  */

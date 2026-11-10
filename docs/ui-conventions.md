@@ -119,8 +119,6 @@ added in sokkel-ui.
 | `text-title` | 16px | A section heading and a listing row's title, at weight 600 |
 | `text-page` | 24px | A page heading, at weight 500, and nothing else on any screen |
 | `text-stat` | 32px | A stat's number, and nothing else on any screen |
-| `text-wordmark` | 48px | The login brand lockup's wordmark, and nothing else on any screen |
-| `text-display` | 48px | The sign-in heading, and nothing else on any screen |
 | `--text-graph-title` | 12px | A step's title on a graph, in mono at weight 500, and nothing else on any screen |
 | `--text-graph-small` | 11px | Every other word drawn on a graph: the block or what a source listens to, a badge, a count, a duration, a fan-out's strip, words standing over an empty canvas |
 
@@ -128,8 +126,8 @@ added in sokkel-ui.
 log line, a JSON value. A title, a heading and a sentence are in the sans face, and a code inside a
 sentence is mono at the sentence's own size through `text-[0.88em]`.
 
-The wordmark is a brand mark rather than text: the login screen draws the product's name at
-display size beside its tile, and no other screen may set a heading there.
+The sign-in screen's sizes are sokkel-ui's `SignIn`'s own -- its brand name, its title and its
+eyebrow -- and no screen of this app sets a size there.
 
 A graph has two sizes of its own, because it is drawn at the scale of a diagram rather than of a
 page. They are set on `.step-node` and `.graph-words` in `index.css` rather than on each word, so a
@@ -137,7 +135,7 @@ word added to a box inherits its size and no word on a canvas can come out at th
 
 `scripts/check_ui_classes.py` fails the gate on anything outside them, whether the sixth size
 arrives as `text-[17px]` or as `text-lg`. The check has no allowlist -- it knows `text-title`,
-`text-page`, `text-stat`, `text-wordmark`, `text-display` and the two graph sizes by name, and
+`text-page`, `text-stat` and the two graph sizes by name, and
 reads `index.css` itself so another size cannot be minted there either. A named
 exception can be counted; an allowlist is a check people argue with. A library primitive that
 carries a size off the scale is fixed in sokkel-ui.
@@ -300,56 +298,35 @@ also carries a hairline ring. The light mode's shadows are a fraction of the dar
 a shadow on a pale ground reads as dirt long before it reads as depth. A palette is checked the
 same way, on both of the modes it has.
 
-**The app has one decorative element, and it is on the login screen.** The brand pane carries a
-graph of steps above the lockup, filled in `--terminal-node` and edged in `--terminal-node-edge`
--- one and two surface rungs above the pane's own ground, per palette -- joined by
-`--terminal-graph-edge` and set over arcs in `--terminal-graph-faint`. One run through it is lit
-in `--terminal-accent`, with a glow under the lit links. One step wears `--status-failed`,
-because a graph in which nothing ever goes wrong is not the graph this app draws, and the head,
-the only solid node, wears `--status-completed-with-errors` under its halo: the state a run is
-in when it reaches its end past a failed step, in the same token the run screen gives it. Nowhere else in the app is a shape drawn that does not
-stand for something the reader can act on or read a value from.
+**The app has one decorative element, and it is on the login screen.** The screen is sokkel-ui's
+`SignIn`, and the art over its brand pane is the library's `FlowLines`: a few steps in columns
+joined by curved lines, one run through them lit in the primary and flowing toward the last
+step, which glows. It is the shape every screen behind the door draws, which is what earns it
+the place. Nowhere else in the app is a shape drawn that does not stand for something the reader
+can act on or read a value from.
 
-**The brand pane is bounded.** It is 52% of the window, never under 560px and never past
-1056px, the width at which the graph reaches its largest scale, so a display wider than that
-spends what it gains on the form rather than on the mark. The two columns begin at `lg`, not
-`md`: a window under 1024px cannot hold the pane's floor beside the form and its padding, and a
-pane drawn narrower than its floor squeezes the graph into a strip. Between `lg` and `xl` the
-pane holds that floor and the form column takes what is left; below `lg` the two stack and the
-pane is a strip. The form pane bounds its form the same way and centres it across the column,
-so what a wider window buys that column is spent evenly either side of the one question it
-asks. Down the column it is centred only where the two columns are: stacked, the form stands at
-the top of its section, under the brand strip and the section's own padding, and whatever height
-is over falls below the button. A form centred in what is left under the strip opens a band of
-ground above the greeting, and the greeting is the first thing read on the screen that greets.
+**The door is the library's, and its layout is too.** The brand pane is half the window, dark in
+both modes in the theme's own dark tokens, with the rail's mark on a tile in the primary, the word
+`dirigent` and two facts under it: the host the reader typed and the version `/config.json`
+answered with, which an unauthenticated door can know. In a narrow room it becomes a bar over the
+form with the mark, the name and the host, and the art is left out. The seam between the panes is
+dragged (`resizable`), and a double click puts it back. The dragged width is kept in this browser
+under `dirigent.login.pane` for the next visit, and putting the seam back forgets it.
 
-**The door's refusal takes no room.** A wrong password and a rate limit arrive as problem
-documents, and the sentence is drawn in a critical-edged bar the height of a field, hung below
-the button and positioned out of the flow: the form is centred in its column above `lg`, so a
-notice that took space would move every field the moment somebody got a password wrong. It is
-the one refusal in the app not drawn by `Refusal`, for that reason alone.
+**The door's refusal is the server's own sentence**, a wrong password and a rate limit alike,
+said in the library's critical alert over the button. It is the one refusal in the app not drawn
+by `Refusal`, because `SignIn` draws it. After a refusal focus is on the password with its text
+selected, so the next try is typed straight over it.
 
-**And the seam between the two is dragged.** It is a `separator` like every other dragged edge
-here -- eight pixels of hit area over the line, drawn as nothing until a pointer, a focus ring or
-a drag asks where it is, answering the arrow keys, Home and End as well as the pointer -- and it
-moves between the pane's own two bounds, never past what the form column needs of the window. A
-width somebody chose is that browser's from then on, kept as pixels rather than as a fraction for
-the reason every panel here is: what they dragged it to was a decision about what is in it. A
-double-click on the seam, or Delete on it, gives the pane its clamp back; a window that narrows
-holds the choice inside the new bounds rather than forgetting it. Nothing else on any screen may
-grow a handle this quiet -- a control nobody can find is a control nobody needs, and this one is
-the door's alone.
-
-**That graph is fitted to its box and centred in it.** The box is the pane's width from below the
-top down to a fixed gap above the lockup, and it is measured; the drawing has a shape of its own
--- the table's extent plus its padding -- and it is scaled uniformly to fit, never past 1.5, so a
-wide pane does not magnify it into a poster. A box taller than the fitted drawing gives the rows
-up to 1.3 times their spacing and never the columns anything, because what a taller pane is worth
-is a little more air between the ranks rather than a different graph; whatever height is still
-over is ground, split evenly above and below. A box smaller than the shape needs is the one case
-the drawing is spread across it and shrunk instead, which is what keeps a step's box off the one
-beside it. The lockup and the facts are anchored to the foot of the pane, so neither moves between
-a short pane and a tall one.
+**The door asks for a username and a password, each led by its icon, with a toggle that shows
+the password.** The fields carry no placeholders: their labels name them. The door opens with
+focus on the first empty field: the username, or the password when the username is remembered.
+The button is held until both are filled and while a try is under way, and held is
+`aria-disabled`, never `disabled`: the button and the fields keep their focus through a try, and
+the fields are read-only while it runs. The username this browser last signed in as is filled in
+on the next visit, kept under `dirigent.username` only after a good sign-in, so a refused one is
+not remembered; the password is never kept by the page. The fields are named and required, with
+`username` and `current-password` for the browser's password manager.
 
 **The radius ladder is crisp, and it is the floor as well as the ceiling**: 4px for a surface --
 a card, a listing, a panel, a dialog, a menu, a graph's ground -- and for a box on a graph and the
@@ -2438,10 +2415,10 @@ not go on a settings row.
 every screen for the same pattern in the same change -- the ui-review skill says the same.
 
 **The door greets, and its eyebrow is the one line of text in the app set in the accent.** It is
-the body size, uppercase and tracked out, in `--primary-ink`: the door is the one screen with
+`SignIn`'s eyebrow, uppercase in `--primary-ink`: the door is the one screen with
 nothing on it to act on but the button beneath it, so the colour that means action is free to
-name the product there. The login screen alone carries that eyebrow, a heading, a one-line subtitle,
-placeholders and leading field icons, because it is the one screen a person meets before the
+name the product there. The login screen alone carries that eyebrow, a heading, a one-line subtitle and
+leading field icons, because it is the one screen a person meets before the
 product's own facts are on it: there is no data to read, no title to take a heading from and no
 shell around it, so the screen has to say where somebody has arrived and what to do next. No
 other screen may copy any of it -- an eyebrow over a page title, a subtitle under a heading, a
@@ -2455,7 +2432,7 @@ beside it. A box on a surface whose subject no heading states says what it match
 
 **The brand pane never carries a tagline.** What is on it is the mark, the word `dirigent`, and
 the instance and the version the door answers for. A line saying what the product is for is
-marketing on the one screen whose only question is who is asking, and the graph behind the lockup
+marketing on the one screen whose only question is who is asking, and the graph over the name
 already says what is through the door.
 
 ## Design system
