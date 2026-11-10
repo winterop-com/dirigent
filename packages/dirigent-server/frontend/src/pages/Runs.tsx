@@ -185,7 +185,7 @@ export function Runs() {
                 options={RUN_STATUSES.map((status) => ({
                     value: status,
                     label: statusLabel(status),
-                    mark: <StatusChip dot status={status} />,
+                    mark: <StatusChip status={status} />,
                 }))}
                 anything={view.grouped ? LABELS.runs.grouped.any_latest : LABELS.runs.any_status}
                 onChange={(status) => {
@@ -370,7 +370,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
                 const said = detailOf(run)
                 return (
                     <span className="flex min-w-0 items-center gap-2 overflow-hidden">
-                        <StatusChip dot status={run.status} />
+                        <StatusChip status={run.status} />
                         <PriorityMark run={run} />
                         {said !== null && (
                             <span className="truncate text-xs text-muted-foreground" title={said}>

@@ -323,15 +323,11 @@ function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
                 </Chip>
             ))}
             {row.active_runs > 0 ? (
-                <StatusChip
-                    dot
-                    status="running"
-                    label={LABELS.word.in_flight.counted(String(row.active_runs))}
-                />
+                <StatusChip status="running" label={LABELS.word.in_flight.counted(String(row.active_runs))} />
             ) : (
                 row.last_run !== null && (
                     <span className="inline-flex items-center gap-2 text-xs">
-                        <StatusChip dot status={row.last_run.status} />
+                        <StatusChip status={row.last_run.status} />
                         <Instant
                             at={row.last_run.finished_at ?? row.last_run.started_at}
                             className="text-muted-foreground"

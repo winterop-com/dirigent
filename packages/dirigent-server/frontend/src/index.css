@@ -818,8 +818,9 @@
        right-click menus -- anchors a zero-sized trigger under the cursor, and a finger never
        lands on it because nothing draws it.
 
-       A BARE DOT IS ITS OWN TOOLTIP'S TRIGGER, and grows here like any trigger: sokkel-ui draws
-       it as a box a line tall with the disc centered, so the box grows and the disc does not. */
+       A BARE DOT IS ITS OWN TOOLTIP'S TRIGGER AND IS NOT GROWN. It keeps its own `dot` slot
+       over the trigger's, so `tooltip-trigger` does not reach it, and it stays a line tall in a
+       graph node's 15px row. */
     [data-slot='button'],
     [data-slot='dialog-close'],
     [data-slot='tabs-trigger'],

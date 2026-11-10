@@ -222,7 +222,7 @@ export function PipelineTab({
                                     className="row-hover -mx-4 flex items-center gap-2 px-4 py-0.5 text-xs"
                                     to={`/runs/${run.id}`}
                                 >
-                                    <StatusChip dot status={run.status} />
+                                    <StatusChip status={run.status} />
                                     <Instant className="text-faint" at={run.created_at} />
                                 </Link>
                             </li>

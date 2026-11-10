@@ -61,7 +61,7 @@ function summaryColumns(): Column<PipelineRuns>[] {
         {
             id: 'latest',
             header: LABELS.runs.grouped.latest,
-            cell: (row) => <StatusChip dot status={row.latest.status} />,
+            cell: (row) => <StatusChip status={row.latest.status} />,
         },
         {
             id: 'counts',

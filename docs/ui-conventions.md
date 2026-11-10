@@ -273,7 +273,9 @@ names a place, and a place is not news. `scripts/check_ui_classes.py` refuses a 
 indexes a token with no translation table. Each has an `-ink` twin: the token fills a chip at 14%
 alpha and the ink is what is legible on it -- sokkel-ui's `StatusChip` is that rule, written once,
 and `STATUSES` in `lib/status` is the one map of each state's word, color and whether it is live,
-handed to every status part through the `StatusProvider` around the app. A delivery is a machine of its own, so `--status-sending` and `--status-sent`
+handed to every status part through the `StatusProvider` around the app. The provider gives
+every chip its dot, and draws a state this bundle was built before in the pending pair rather
+than uncolored. A delivery is a machine of its own, so `--status-sending` and `--status-sent`
 are `NotificationStatus`'s live states written as the run states they mean -- in flight is
 running, arrived is succeeded -- and a palette that moves those moves these. `skipped` is drawn
 in neutral with a dashed edge, because a skipped step did not happen and has not earned a
@@ -972,11 +974,13 @@ it was typed rather than reported a round trip later -- and a step config field 
 it carries a program is the same editor in the program's language. The check is the library's,
 and says one thing per fault: an empty `config:` is marked at the key, a value in the wrong format
 says only the format it expected, a key the schema deprecates is offered last and struck through
-with "deprecated" beside it, and a union of a type and a `${...}` string is offered as that type
-("integer or null"). **A pane and its window are
-two views of one buffer**: `hooks/use-code-buffer` holds the text as a shared document both
-editors draw, so what is typed in either shows in the other, one undo history serves both, and
-closing the window loses nothing.
+with "deprecated" beside it, a union of a type and a `${...}` string is offered as that type
+("integer or null"), and a reference to a definition with no type reads "any", never the
+definition's name, so `http.request`'s `body` is "any or null". **A pane and its window are two
+views of one buffer**: sokkel-ui's `useControlledDocument` holds the text as a shared document
+both editors draw, kept in step with the value the page holds, so what is typed in either shows in
+the other and is reported once, a value changed elsewhere replaces the text without coming back as
+an edit, one undo history serves both, and closing the window loses nothing.
 
 **A pane too small for what it holds opens in a window, and the button is at the top.** sokkel-ui's
 `WindowedPane` is where that gesture is written once -- the button, its place, and the window, which
@@ -991,7 +995,7 @@ made in the window. **A program's window carries its language's reference beside
 (`aside`), split and resizable, and stacked under it on a narrow window. **A pane in a panel with a
 head hands the button to the head**, beside the panel's other tools: the pane wraps the whole panel
 with `button="none"`, draws the panel only where it is the pane, and the head carries
-`WindowedPaneButton`. **A pane with no head keeps the button over its own top-right corner**, shown
+`WindowedPaneButton` at `size="icon-sm"`, the size of a head's other tools. **A pane with no head keeps the button over its own top-right corner**, shown
 while the pointer is over the pane or focus is in it and always on touch; a pane that grows with a
 long document holds it to the top of whatever scrolls it (`button="sticky"`), so the button is on
 screen wherever the reader has scrolled to. A block of produced JSON is the exception: its lines
@@ -1254,8 +1258,10 @@ step's name or its `params`.
 with the library's `registerSchemaFormats` once, in `main.tsx`, for every schema check the library makes:
 `humane-duration` and `size` as the server parses them, `ulid`, `uuid4`, `uuid7`, the hex digests
 and `base64` as its format checker reads them, and `storage-uri` as any string, because the schemes
-are this instance's backends' and only an apply knows them. A format nobody registered, such as a
-pack's, is not checked and says nothing.
+are this instance's backends' and only an apply knows them. A value that fails one says what was
+expected in the words a field's hint uses, `LABELS.form.format` -- "Expected a duration such as 30s
+or 5m", "Expected a version 7 UUID" -- never the format's name. A format nobody registered, such as
+a pack's, is not checked and says nothing.
 
 ## The palette is a registry
 
@@ -1528,9 +1534,8 @@ header strip, a row that navigates. The canvas's zoom cluster is sized there as 
 the graph library's button rather than one of ours. A menu opened at a point rather than under a
 control -- the canvas's right-click menus -- anchors a zero-sized trigger at the cursor, and
 `data-menu-anchor` keeps the rule off that one, because nothing draws it and no finger lands on
-it. A bare status dot is its own tooltip's trigger and takes the rule like any other: sokkel-ui
-draws a dot as a box one line tall with the disc centered in it, so the finger grows the box and
-the disc stays 8px. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
+it. A bare status dot is its own tooltip's trigger and is not grown: it keeps its own `dot` slot
+over the trigger's, so it stays one line tall, which a graph node's 15px row needs. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
 drawn as a square takes the width too, because a 42px tall target 28px wide is a target on one
 axis only. No screen sizes a control for a phone itself.
 
@@ -2465,7 +2470,7 @@ keeps its own name in the code. A specimen stands on the section's card with no 
 | --- | --- |
 | `ItemHeading` (sokkel-ui) | Any addressable thing headed by its name and code, given as `{...itemOf(thing)}` so the name is the one `headingOf` finds. `stacked` puts the code under the name, for a listing's lead cell; `inline` beside it, where a row has one line; `size="dialog"` inside a dialog's title, where it is a `span`, with `lead={LABELS.action.edit}` while the dialog edits the thing; `as="span"` wherever the heading is not in the page's outline. A long name gives way before the inline code, which stays on screen. The name, else the code; the code always on screen in mono and never twice; a glyph before it, chips after it, an optional one-line description |
 | `Chip` (sokkel-ui) | A word on a chip: `neutral`, `mono` for a key, `absent` dashed for an absence, `good`, `critical`, `warning`, `info`; `icon` before the word. `onSelect` makes it a button named by `selectLabel`, saying what pressing does ("Filter by finance"); `onRemove` adds an X with its own focus ring, named by `words={chipWords(...)}` from a function of the chip's words ("Stop filtering by finance"). Neither press reaches the row or card around the chip, so a pressable row needs no guard of its own. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` stays, on the same 20px and the same radius |
-| `StatusChip` (sokkel-ui) | A state as a chip, always with `dot`: the state's color on a wash of it, the word from `STATUSES`. A live state's dot pulses -- queued, running, waiting, sending -- and a paused or settled one is still; the pulse stops for somebody who asked for less motion. `label` where a screen names the state in its own terms, such as a count in flight |
+| `StatusChip` (sokkel-ui) | A state as a chip, with the dot the `StatusProvider` gives every chip: the state's color on a wash of it, the word from `STATUSES`. A live state's dot pulses -- queued, running, waiting, sending -- and a paused or settled one is still; the pulse stops for somebody who asked for less motion. `label` where a screen names the state in its own terms, such as a count in flight |
 | `Dot` (sokkel-ui) | Every state drawn as a dot, given as `{...dotOf(...)}` from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status, 8px. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `tip` adds a sentence to the tooltip, and `focusable` puts the dot in the tab order where nothing around it is a control. `StatusChip` takes a `label` where a screen names the state in its own terms |
 | `IconButton` (sokkel-ui) | Any button that is an icon and nothing else, the glyph its child, which is why every icon button has a tooltip. Its type requires `label`; the tooltip is the label or a longer `tooltip`, with `reason` under it when it is shut. Sizes `icon-xs`, `icon-sm` and `icon`. Shut with `reason`, never with `disabled`, so it stays reachable; `destructive` tints critical under the pointer |
 | `SearchField` (sokkel-ui) | Every box that narrows a screen, `placeholder={SEARCH_PLACEHOLDER}` and `words={SEARCH_WORDS}`. A leading search glyph, a clear button once there is text, Escape to clear, and the `/` key cap: `/` moves the caret into the screen's one box that binds it, never while another field, the editor or a dialog has focus. A second box on the screen passes `shortcut={false}` |

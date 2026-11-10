@@ -80,7 +80,7 @@ function RunLine({ run }: { run: RunOut }) {
             className="flex min-w-0 items-center gap-4 border-t border-border px-4 py-2 first:border-t-0 hover:bg-muted"
         >
             <span className="w-36 shrink-0">
-                <StatusChip dot status={run.status} />
+                <StatusChip status={run.status} />
             </span>
             <span
                 className="hidden min-w-0 flex-1 truncate text-xs sm:block"

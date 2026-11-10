@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogTitle } from '@winterop-com/sokkel-ui/prim
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { WindowedPane, WindowedPaneButton } from '@winterop-com/sokkel-ui/WindowedPane'
-import { useCodeBuffer } from '@/hooks/use-code-buffer'
+import { useControlledDocument } from '@winterop-com/sokkel-ui/CodeEditor'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useSchemaSave } from '@/hooks/use-schema-save'
@@ -172,7 +172,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
     }
 
     // The page's pane, its window and the tester's copy are three views of one buffer.
-    const buffer = useCodeBuffer(text, edited)
+    const buffer = useControlledDocument(text, edited)
 
     const unchanged =
         holdsStored(text, schema.body) &&
@@ -334,7 +334,9 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                                 flush
                                 className="flex min-h-0 flex-1 flex-col"
                                 bodyClassName="flex min-h-0 flex-1 flex-col"
-                                actions={<WindowedPaneButton className="text-muted-foreground" />}
+                                actions={
+                                    <WindowedPaneButton size="icon-sm" className="text-muted-foreground" />
+                                }
                             >
                                 {schemaPane('min-h-0 flex-1', 'pane')}
                             </LibrarySection>

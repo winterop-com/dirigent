@@ -318,7 +318,7 @@ function Alerting() {
                                 options={NOTIFICATION_STATUSES.map((one) => ({
                                     value: one,
                                     label: one,
-                                    mark: <StatusChip dot status={one} />,
+                                    mark: <StatusChip status={one} />,
                                 }))}
                                 onChange={(status) => {
                                     setFilters((held) => ({ ...held, status }))
@@ -545,7 +545,7 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     {
         id: 'status',
         header: LABELS.word.status,
-        cell: (notification) => <StatusChip dot status={notification.status} />,
+        cell: (notification) => <StatusChip status={notification.status} />,
     },
     {
         id: 'subject',

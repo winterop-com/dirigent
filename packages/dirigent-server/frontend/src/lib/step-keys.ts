@@ -34,7 +34,7 @@ export const STEP_KEYS = [
 ] as const
 
 /** A duration as somebody writes it, which is the shape `Duration` accepts. */
-const DURATION: JsonMap = { type: 'string', format: 'duration' }
+const DURATION: JsonMap = { type: 'string', format: 'humane-duration' }
 
 /**
  * The step members, as the schema `lib/schema-form` reads.

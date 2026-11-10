@@ -86,7 +86,7 @@ const COLUMNS: Column<WorkerOut>[] = [
         header: LABELS.word.status,
         cell: (worker) => (
             <span className="flex flex-wrap items-center gap-2">
-                <StatusChip dot status={worker.status} />
+                <StatusChip status={worker.status} />
                 {worker.stale && (
                     <span className="text-xs text-warning" title={formatInstant(worker.last_seen_at)}>
                         {LABELS.workers.last_seen_ago(formatRelative(worker.last_seen_at))}

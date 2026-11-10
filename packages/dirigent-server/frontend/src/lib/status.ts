@@ -111,7 +111,7 @@ const LOOKS: Readonly<Record<string, { color: StatusColor; live?: boolean }>> = 
 }
 
 /** Where the neutral pair sits, for a status this bundle was built before. */
-const FALLBACK: StatusColor = 'pending'
+export const FALLBACK: StatusColor = 'pending'
 
 /** Report whether a run has settled, which is what closes the event stream. */
 export function runSettled(status: string): boolean {

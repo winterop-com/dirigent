@@ -304,7 +304,7 @@ export function DesignSystem() {
                                     {...itemOf(pipeline)}
                                     as="span"
                                     description={SAMPLE.pipeline.description}
-                                    chips={<StatusChip dot status="succeeded" />}
+                                    chips={<StatusChip status="succeeded" />}
                                 />
                             </div>
                             <div className="w-80 min-w-0">
@@ -474,9 +474,9 @@ export function DesignSystem() {
                             <KindChip kind="sql" />
                             <KindChip kind="cron" />
                             {RUN_STATUSES.map((status) => (
-                                <StatusChip dot key={status} status={status} />
+                                <StatusChip key={status} status={status} />
                             ))}
-                            <StatusChip dot status="failed" label={SAMPLE.status_override} />
+                            <StatusChip status="failed" label={SAMPLE.status_override} />
                         </Specimen>
                     </Shelf>
 

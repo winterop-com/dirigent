@@ -37,7 +37,7 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center gap-2">
-                <StatusChip dot status={run.status} />
+                <StatusChip status={run.status} />
                 <span className="text-xs text-muted-foreground">
                     {formatDuration(elapsedBetween(run.started_at, run.finished_at))}
                 </span>
