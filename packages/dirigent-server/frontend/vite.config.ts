@@ -1,5 +1,6 @@
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import { promisify } from 'node:util'
 import { brotliCompress, constants, gzip } from 'node:zlib'
@@ -82,9 +83,34 @@ function precompress(): Plugin {
     }
 }
 
+/**
+ * Serves sokkel-ui's pre-paint script at `/appearance.js`, the fixed address index.html loads it
+ * from: emitted beside index.html in a build, answered by the dev server in `vite dev`. The bytes
+ * are the library's own built file.
+ */
+function appearanceScript(): Plugin {
+    const fileName = 'appearance.js'
+    const source = readFileSync(
+        createRequire(import.meta.url).resolve(`@winterop-com/sokkel-ui/${fileName}`),
+        'utf8',
+    )
+    return {
+        name: 'dirigent-appearance-script',
+        configureServer(server) {
+            server.middlewares.use(`/${fileName}`, (_request, response) => {
+                response.setHeader('Content-Type', 'text/javascript')
+                response.end(source)
+            })
+        },
+        generateBundle() {
+            this.emitFile({ type: 'asset', fileName, source })
+        },
+    }
+}
+
 export default defineConfig({
     base: '/',
-    plugins: [react(), tailwindcss(), precompress()],
+    plugins: [react(), tailwindcss(), precompress(), appearanceScript()],
     resolve: {
         alias: [
             { find: '@', replacement: path.resolve(import.meta.dirname, './src') },

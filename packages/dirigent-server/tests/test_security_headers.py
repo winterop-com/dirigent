@@ -131,5 +131,5 @@ def test_no_policy_allows_framing_or_a_script_from_elsewhere() -> None:
 def test_the_shell_loads_no_inline_script_the_policy_would_block() -> None:
     index = Path(__file__).resolve().parents[1] / "frontend" / "index.html"
     html = index.read_text()
-    assert '<script src="/palette.js"></script>' in html
+    assert '<script src="/appearance.js" data-theme="amber" vite-ignore></script>' in html
     assert "<script>" not in html

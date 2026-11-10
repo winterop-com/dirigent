@@ -30,7 +30,7 @@ wrong is changed on this page first and in the code second.
 | Markdown | `marked`, for its lexer only | A description is authored markdown and has to render as prose. Nothing here produces an HTML string, so what is drawn is a token tree React escapes -- see `lib/markdown` |
 | Palette | cmdk | |
 | Toasts | sonner | |
-| Mode | next-themes, `class` strategy | |
+| Mode and palette | sokkel-ui's appearance: `useAppearance`, `useScheme`, and its `appearance.js` before the first paint | |
 | Fonts | IBM Plex Sans and IBM Plex Mono, self-hosted through `@fontsource`, which sokkel-ui brings | No CDN: a UI served from a private network has to work on one |
 | Lint | oxlint, plus `scripts/check_ui_classes.py` and `scripts/check_ui_system.py` | A JS linter cannot see inside a `className`, so the type scale and the design system get checks of their own |
 | Format | oxfmt, pinned exactly, configured in `.oxfmtrc.json` | Prettier's output from the linter's own project, and it sorts Tailwind classes against `src/index.css` rather than guessing at the theme |
@@ -150,11 +150,23 @@ Everything colour is a CSS custom property defined by sokkel-ui's tokens and the
 Tailwind through the library's `@theme inline`. Nothing in this app may write a colour; a token
 the app needs and the library lacks is added in sokkel-ui.
 
-**Two theme axes, kept apart.** The **mode** is light or dark: next-themes owns it, writes it as a
-`dark` class on `<html>`, and follows the operating system until somebody says otherwise. The
-**palette** is which set of colours the app spends inside that mode: `src/lib/theme.ts` owns it,
-writes it as `data-theme` on the same element, and a small script, `public/palette.js`, applies it
-before the first paint so there is no flash. Neither axis knows about the other.
+**Two theme axes, kept apart.** The **mode** is light, dark or system, worn as a `dark` class on
+`<html>`, following the operating system until somebody says otherwise. The **palette** is which
+set of colors the app spends inside that mode, worn as `data-theme` on the same element. Neither
+axis knows about the other.
+
+**sokkel-ui keeps both; dirigent only names what it offers.** `useAppearance(APPEARANCE_DEFAULTS)`
+runs at the root in `src/main.tsx`, and on the Theme pane that writes through it; it stores the
+choice under the library's keys (`sokkel-ui-scheme`, and `sokkel-ui-appearance` as JSON) and writes
+it on `<html>`. A component that needs only the mode reads `useScheme()`. Before the first paint,
+the library's `appearance.js` writes the stored look so there is no flash: index.html loads it at
+the top of `<head>`, right after the charset, as
+`<script src="/appearance.js" data-theme="amber" vite-ignore>`, and the `data-theme` there is the
+palette a browser with nothing stored starts in, which a test holds equal to `DEFAULT_PALETTE`. **It
+is a same-origin file and never inline**, because the server's policy is `script-src 'self'`;
+`vite.config.ts` emits the library's built file beside index.html and the dev server answers the
+same bytes, and `vite-ignore` keeps Vite from taking the tag for a module to bundle.
+`src/lib/theme.ts` holds the names, the labels and the defaults, and stores nothing.
 
 **A palette is one of sokkel-ui's themes: one import and one row, and nothing else in the app
 learns it exists.** The import is the theme's file, `@winterop-com/sokkel-ui/themes/<name>.css`,
@@ -162,21 +174,20 @@ in `index.css`; the row is in `PALETTES` in `src/lib/theme.ts`, carrying the nam
 theme file hangs off `html[data-theme='<name>']` and **answers to `[data-theme-scope='<name>']` as
 well**, so an element inside the app can be painted in a palette the document is not wearing --
 which is what a swatch card is, and why a swatch cannot drift from the tokens it stands for. A
-test asserts the pre-paint script's list and that array agree, and that every palette is
-imported. A theme dirigent needs that the library lacks is added in sokkel-ui, never here.
+test asserts every palette is imported. A stored theme outside `PALETTES` reads as the default on
+the Theme pane. A theme dirigent needs that the library lacks is added in sokkel-ui, never here.
 
-**Both axes are chosen on the settings dialog's Theme pane.** Appearance is
-Light, Dark and System, one segmented control rather than a menu, because a choice from a fixed
-set of three is one control and not a list to open. **Palette is three swatch cards**, because
-what a palette is is what it looks like, and a card showing the ground, the surface, the line,
-the ink and the accent says in one glance what a sentence under a segmented control took a
-paragraph to approximate -- so no palette carries a line about itself any more. Neither row holds
-a copy of what it sets -- Appearance writes next-themes, Palette writes `choosePalette`, and both
-read back through the store. **The mode is also the account menu's Appearance submenu**, the same
-three writing the same store, because it is the one look somebody changes in passing; the palette's
-Appearance rows are the third door to it. **The top strip carries no mode flip**: the account menu
-stands on every screen, and a control said twice on one screen has to earn the second time, which a
-two-way flip that cannot reach System does not.
+**Both axes are chosen on the settings dialog's Theme pane.** Appearance is Light, Dark and System,
+one segmented control rather than a menu, because a choice from a fixed set of three is one control
+and not a list to open. **Palette is three swatch cards**, because what a palette is is what it
+looks like, and a card showing the ground, the surface, the line, the ink and the accent says in one
+glance what a sentence under a segmented control took a paragraph to approximate -- so no palette
+carries a line about itself any more. Neither row holds a copy of what it sets -- both go through
+`useAppearance`, the one store the root wears and the account menu writes. **The mode is also the
+account menu's Appearance submenu**, the same three writing the same store, because it is the one
+look somebody changes in passing; the palette's Appearance rows are the third door to it. **The top
+strip carries no mode flip**: the account menu stands on every screen, and a control said twice on
+one screen has to earn the second time, which a two-way flip that cannot reach System does not.
 
 **Three palettes ship, ordered quiet to loud: `amber`, `paper`, `contrast`.** The default is
 `amber`: the library's neutral blue-grey surfaces under an amber accent, in a dark and a light mode;

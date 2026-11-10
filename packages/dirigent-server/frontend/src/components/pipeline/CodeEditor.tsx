@@ -5,8 +5,9 @@ import { jsonDefaults } from 'monaco-editor/languages/features/json/register'
 import jsonWorker from 'monaco-editor/languages/features/json/json.worker?worker'
 import { configureMonacoYaml, type MonacoYaml } from 'monaco-yaml'
 import yamlWorker from 'monaco-yaml/yaml.worker?worker'
-import { useTheme } from 'next-themes'
 import { useEffect, useRef } from 'react'
+
+import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 
 import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
@@ -356,7 +357,7 @@ export function CodeEditor({
     const host = useRef<HTMLDivElement | null>(null)
     const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
     const emitted = useRef(value)
-    const { resolvedTheme } = useTheme()
+    const { resolved } = useScheme()
     const highlight = useStore(highlightLine)
 
     useSchema(schema)
@@ -464,10 +465,9 @@ export function CodeEditor({
         model.setValue(value)
     }, [value])
 
-    // The theme is built from the live page's own custom properties, and the class next-themes
-    // writes on the root element lands in an effect of its own -- a child's effect runs first,
-    // so reading the colours here would read the mode being left rather than the one arriving.
-    // The rebuild waits for the frame the new class is painted in.
+    // The theme is built from the live page's own custom properties, read in the frame after the
+    // new scheme's class is on the root element, so it takes the colors of the mode arriving
+    // rather than the one being left.
     useEffect(() => {
         const frame = requestAnimationFrame(() => {
             monaco.editor.defineTheme(
@@ -479,7 +479,7 @@ export function CodeEditor({
         return () => {
             cancelAnimationFrame(frame)
         }
-    }, [resolvedTheme])
+    }, [resolved])
 
     return <div ref={host} className={cn('h-full min-h-64 w-full', className)} data-testid="code-editor" />
 }

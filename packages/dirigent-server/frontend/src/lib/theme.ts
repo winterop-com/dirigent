@@ -1,30 +1,30 @@
 /**
- * How this app is painted.
+ * What this app offers on its two theme axes, and what each choice is called.
  *
- * TWO INDEPENDENT AXES, AND KEEPING THEM APART IS THE WHOLE ARRANGEMENT. The **mode** is light
- * or dark: next-themes owns it, writes it as a `dark` class on `<html>`, and follows the
- * operating system until somebody says otherwise. The **palette** is which set of colours the
- * app spends inside that mode: this module owns it, writes it as `data-theme` on the same
- * element, and every palette is designed for both modes. Neither axis knows about the other.
+ * TWO INDEPENDENT AXES. The **mode** is light, dark or system, worn as a `dark` class on `<html>`.
+ * The **palette** is which set of colors the app spends inside that mode, worn as `data-theme` on
+ * the same element, and every palette is designed for both modes. Neither axis knows about the
+ * other.
  *
- * WHERE THE COLOURS ARE. In sokkel-ui. A palette is one of the library's themes: a file of
- * custom-property overrides hung off `html[data-theme='<name>']`, which index.css imports. This
- * module carries the names and nothing else, so offering another theme is one import in
- * index.css plus one row in `PALETTES`. The same blocks answer to `[data-theme-scope='<name>']`,
- * which is what lets the swatch card on the Theme pane paint one palette's tokens while the app
- * is wearing another.
+ * SOKKEL-UI KEEPS BOTH. `useAppearance` stores the choice and writes it on `<html>`, and the
+ * library's `appearance.js`, which index.html loads at the top of `<head>`, writes the stored
+ * choice before the first paint. This module names what dirigent offers and stores nothing.
  *
- * APPLIED BEFORE FIRST PAINT, by public/palette.js, which index.html loads, rather than here. A palette
- * read in a React effect arrives one frame after the document does, and every load flashes the
- * default under whatever was actually chosen. That script reads the same storage key this
- * module writes, so the store below starts on the palette the document is already painted in.
+ * A PALETTE IS ONE OF THE LIBRARY'S THEMES: a file of custom-property overrides hung off
+ * `html[data-theme='<name>']`, imported in index.css, plus one row in `PALETTES`. The same blocks
+ * answer to `[data-theme-scope='<name>']`, which is what lets the swatch card on the Theme pane
+ * paint one palette's tokens while the app is wearing another.
+ *
+ * The pre-paint script takes its default from its own `data-theme` attribute in index.html, which
+ * has to name `DEFAULT_PALETTE`; a test holds the two equal.
  */
+
+import type { ThemeSettings } from '@winterop-com/sokkel-ui/lib/appearance'
 
 import { ICONS, type Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
-import { createStore } from '@/lib/store'
 
-/** The three settings of the mode axis, as next-themes stores them. */
+/** The three settings of the mode axis, as sokkel-ui stores them. */
 export const MODES = ['light', 'dark', 'system'] as const
 
 export type Mode = (typeof MODES)[number]
@@ -43,7 +43,7 @@ export const MODE_ICONS: Record<Mode, Icon> = {
     system: ICONS.system,
 }
 
-/** The setting next-themes holds, read as one of the three; nothing stored yet is System. */
+/** A setting read as one of the three; anything else is System. */
 export function modeOf(theme: string | undefined): Mode {
     return MODES.find((mode) => mode === theme) ?? 'system'
 }
@@ -57,7 +57,7 @@ export interface Palette {
     label: string
 }
 
-/** The palettes this build has, ordered quiet to loud. */
+/** The palettes this build has, ordered quiet to loud. Only these have their theme file imported. */
 export const PALETTES: Palette[] = [
     { name: 'amber', label: LABELS.shell.colours.amber },
     { name: 'paper', label: LABELS.shell.colours.paper },
@@ -66,55 +66,14 @@ export const PALETTES: Palette[] = [
 
 export const DEFAULT_PALETTE: PaletteName = 'amber'
 
-/** Where the chosen palette is kept, and the key public/palette.js reads. */
-export const PALETTE_STORAGE_KEY = 'dirigent.palette'
-
-/** The attribute on `<html>` the CSS blocks hang off. */
-export const PALETTE_ATTRIBUTE = 'data-theme'
+/** The look `useAppearance` starts in until somebody chooses otherwise. */
+export const APPEARANCE_DEFAULTS: Partial<ThemeSettings> = { theme: DEFAULT_PALETTE }
 
 export const PALETTE_NAMES: PaletteName[] = PALETTES.map((palette) => palette.name)
 
-/** Whether a string names a palette this build has. */
-export function isPaletteName(candidate: string | null): candidate is PaletteName {
-    return candidate !== null && (PALETTE_NAMES as string[]).includes(candidate)
-}
-
-/**
- * The palette this browser last chose, or the default.
- *
- * Storage that refuses to be read -- a private window, a browser with it denied -- is the same
- * answer as storage that holds nothing: the app is painted in the default and the choice simply
- * does not survive the reload.
- */
-export function storedPalette(): PaletteName {
-    try {
-        const stored = localStorage.getItem(PALETTE_STORAGE_KEY)
-        return isPaletteName(stored) ? stored : DEFAULT_PALETTE
-    } catch {
-        return DEFAULT_PALETTE
-    }
-}
-
-/**
- * Which palette is painted, for the one control that offers the choice.
- *
- * The document is already wearing it before this module is fetched, so this starts where the
- * pre-paint script left off rather than deciding anything.
- */
-export const paletteStore = createStore<PaletteName>(storedPalette())
-
-/** Choose one palette: persist it, write it onto the document, and tell whoever is watching. */
-export function choosePalette(name: string): PaletteName {
-    const chosen = isPaletteName(name) ? name : DEFAULT_PALETTE
-    try {
-        localStorage.setItem(PALETTE_STORAGE_KEY, chosen)
-    } catch {
-        // Storage denied: the palette holds for as long as this document is open, and only
-        // surviving the reload is lost.
-    }
-    document.documentElement.setAttribute(PALETTE_ATTRIBUTE, chosen)
-    paletteStore.set(chosen)
-    return chosen
+/** The palette a stored theme names; a theme this build does not offer reads as the default. */
+export function paletteOf(theme: string): PaletteName {
+    return PALETTE_NAMES.find((name) => name === theme) ?? DEFAULT_PALETTE
 }
 
 /**

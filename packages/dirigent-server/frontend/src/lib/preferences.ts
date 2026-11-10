@@ -2,9 +2,9 @@
  * The small choices a reader makes about how this app behaves, kept between visits.
  *
  * A preference here is one that changes what a screen does rather than what it looks like: the
- * appearance axes live in `lib/theme` and next-themes, and which clock an instant is read
- * against lives in `lib/times`. What is left is behaviour: how a log pane arrives, and what an
- * editor marks.
+ * appearance axes live in `lib/theme` and sokkel-ui's appearance, and which clock an instant is
+ * read against lives in `lib/times`. What is left is behaviour: how a log pane arrives, and what
+ * an editor marks.
  *
  * A DEFAULT IS WHAT THIS APP DID BEFORE THE PREFERENCE EXISTED, so nothing moves under somebody
  * who has never opened the settings dialog.

@@ -242,8 +242,8 @@ test('the nine pictures docs/screens.md is built out of', async ({ page }) => {
     // Dark, and the amber palette: the page is one palette throughout, and the contrast and
     // paper palettes are somebody's accessibility choice rather than the product's face.
     await page.evaluate(() => {
-        localStorage.setItem('theme', 'dark')
-        localStorage.setItem('dirigent.palette', 'amber')
+        localStorage.setItem('sokkel-ui-scheme', 'dark')
+        localStorage.setItem('sokkel-ui-appearance', JSON.stringify({ theme: 'amber' }))
         // The drawer remembers being open, and a console under the graph is not what the run
         // pictures are of.
         localStorage.setItem('dirigent.terminalOpen', 'false')

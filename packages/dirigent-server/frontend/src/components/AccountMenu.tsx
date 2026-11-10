@@ -1,6 +1,6 @@
-import { useTheme } from 'next-themes'
 import { useNavigate } from 'react-router'
 
+import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     DropdownMenu,
@@ -60,14 +60,14 @@ export function AccountMenu({
 }) {
     const identity = useStore(authStore).identity
     const status = useStore(serverStatus)
-    const { theme, resolvedTheme, setTheme } = useTheme()
+    const { scheme, resolved, setScheme } = useScheme()
     const navigate = useNavigate()
     if (identity === null) return null
     const instance =
         status.version === null
             ? identityLine(status)
             : LABELS.shell.account.instance(identityLine(status), status.version)
-    const AppearanceIcon = resolvedTheme === 'light' ? ICONS.light : ICONS.dark
+    const AppearanceIcon = resolved === 'light' ? ICONS.light : ICONS.dark
 
     return (
         <DropdownMenu>
@@ -119,9 +119,9 @@ export function AccountMenu({
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent className="w-36">
                         <DropdownMenuRadioGroup
-                            value={modeOf(theme)}
+                            value={scheme}
                             onValueChange={(mode: string) => {
-                                setTheme(modeOf(mode))
+                                setScheme(modeOf(mode))
                             }}
                         >
                             {MODES.map((mode) => {

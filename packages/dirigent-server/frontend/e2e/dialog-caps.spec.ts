@@ -214,8 +214,8 @@ async function capsAndScrolls(page: Page, dialog: Locator, verb: string, named: 
 async function open(page: Page, mode: string, at: string): Promise<void> {
     await page.setViewportSize(OPENING)
     await page.evaluate((theme) => {
-        localStorage.setItem('theme', theme)
-        localStorage.setItem('dirigent.palette', 'amber')
+        localStorage.setItem('sokkel-ui-scheme', theme)
+        localStorage.setItem('sokkel-ui-appearance', JSON.stringify({ theme: 'amber' }))
     }, mode)
     await page.goto(at)
 }
