@@ -183,7 +183,11 @@ one segmented control rather than a menu, because a choice from a fixed set of t
 and not a list to open. **Palette is three swatch cards**, because what a palette is is what it
 looks like, and a card showing the ground, the surface, the line, the ink and the accent says in one
 glance what a sentence under a segmented control took a paragraph to approximate -- so no palette
-carries a line about itself any more. Neither row holds a copy of what it sets -- both go through
+carries a line about itself any more. The cards are the Palette row's control, under its title.
+sokkel-ui's `ThemePicker` is not this pane: its swatch is three dots -- ink, `primary` and a chart
+hue -- on a 28px chip of the ground, with no surface and no line, so the one thing `contrast` changes
+most is the one thing it cannot show; and it draws both axes as one block where the dialog searches
+each as its own row. Neither row holds a copy of what it sets -- both go through
 `useAppearance`, the one store the root wears and the account menu writes. **The mode is also three
 radio rows in the account menu**, the same three writing the same store, because it is the one
 look somebody changes in passing; the palette's Appearance rows are the third door to it. **The top
@@ -1252,9 +1256,16 @@ row cannot outlive the screen that would carry it out. Re-registering an id repl
 
 The settings dialog is the same idea for a different surface: `src/lib/settings.ts` holds every row
 as a record -- what it is called, which category it is filed under, what else it can be found by --
-so its search box is one pure function across every category rather than a traversal of markup, and
-the shortcut rows are derived from `lib/shortcuts` rather than written down twice. What a row puts
-on its right edge is the dialog's, keyed by the row's id.
+and the shortcut rows are derived from `lib/shortcuts` rather than written down twice.
+**The dialog is sokkel-ui's `SettingsDialog`**: `settingsGroups` hands it the rows as its groups,
+sections and settings, and the library draws the nav, the search across every category, the rows,
+the phone's list to go into and the footer with its note and `Done`{ .label }. What a row puts on
+it -- its control, and whether that control trails the title or sits under it -- is
+`components/settings/SettingsDialog.tsx`'s, keyed by the row's id: a choice from a set and a pair
+of buttons trail, the palette's cards and an open password form sit under. The dialog opens on the
+category the thing that opened it is about, the server dot's on Server, and a phone then opens on
+that section rather than on the list. Its words are `SETTINGS_WORDS` in `lib/design-system`, and its
+search box says `Search`{ .label } like every other.
 
 **General holds the behaviour preferences**, each one a store the screens read rather than a
 copy this dialog keeps: which clock every timestamp is read against, whether a log pane opens
@@ -1267,8 +1278,12 @@ this dialog, and an editor already on screen takes the change without being rebu
 **Its nav reads Preferences, You, This instance**: General, Theme and Shortcuts are preferences,
 Account is the reader's, and Server is the instance's. There is no About, because a version stated
 on two panes of one dialog is the same fact twice; the documentation and the API reference are two
-links at the foot of the Server pane, where the instance they answer for is. **No pane carries a
-line under its heading and almost no row carries one under its label.** A row's `description` is
+links on the Server pane's last row, `Reference`{ .label }, where the instance they answer for is and
+where the search finds them. A refused read of what the instance is states the refusal once, in
+the Server section's `foot`, under its rows. **A pane carries a line under its heading only where it
+says something no row can** -- Shortcuts says where the keys work, in its section's `lead` -- **and
+almost no row carries one under its label.** The search box's placeholder is "Search" and its
+accessible name, `words.searchLabel`, says what it searches. A row's `description` is
 optional and survives only by adding a fact the control cannot show, such as which timestamps a
 clock setting moves and which keep their own -- so a line restating the label is not written.
 

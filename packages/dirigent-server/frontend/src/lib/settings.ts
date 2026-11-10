@@ -1,27 +1,27 @@
 /**
  * Everything the settings dialog offers, as data.
  *
- * ROWS RATHER THAN PANES. A pane written as markup can only be searched by searching markup;
- * a row that is a record -- what it is called, what it is for, which category it is filed
- * under, what else it can be found by -- can be filtered by a pure function, and that function
- * is the whole of the search box. The control on the right of a row is the dialog's, keyed by
- * the row's id, so the registry stays free of React and is exercised in plain Node.
+ * Every row is a record -- what it is called, which category it is filed under, what else it can
+ * be found by -- and sokkel-ui's settings dialog searches those records. The control on a row is
+ * the dialog's, keyed by the row's id, so this module holds no React and runs in plain Node.
  *
- * THE SHORTCUT ROWS ARE NOT WRITTEN DOWN. `lib/shortcuts` already holds every key this app
- * answers, and a second list here would be a list that drifts. They are derived from it, which
- * is why building the registry needs to know what kind of keyboard this is.
+ * The shortcut rows are derived from `lib/shortcuts`, which is why building the rows needs to know
+ * what kind of keyboard this is.
  */
+
+import type { Setting, SettingsGroup } from '@winterop-com/sokkel-ui/SettingsDialog'
+import type { ReactNode } from 'react'
 
 import { LABELS } from '@/lib/labels'
 import { shortcuts } from '@/lib/shortcuts'
 
 /** The headings the left nav lays categories out under. */
-export interface SettingsGroup {
+export interface SettingsHeading {
     id: string
     label: string
 }
 
-export const SETTINGS_GROUPS: readonly SettingsGroup[] = [
+export const SETTINGS_GROUPS: readonly SettingsHeading[] = [
     { id: 'preferences', label: LABELS.settings.group.preferences },
     { id: 'you', label: LABELS.settings.group.you },
     { id: 'instance', label: LABELS.settings.group.instance },
@@ -167,49 +167,54 @@ export function settingsRows(apple: boolean): SettingsRow[] {
             label: LABELS.word.plugin.heading,
             keywords: ['extensions', 'packages', 'installed'],
         },
+        {
+            id: 'server:reference',
+            category: 'server',
+            label: LABELS.settings.row.reference,
+            keywords: ['docs', 'documentation', 'api', 'openapi', 'help', 'manual'],
+        },
     ]
 }
 
-/** Every word a row can be found by, lowercased. */
-function haystack(row: SettingsRow, categories: readonly SettingsCategory[]): string {
-    const category = categories.find((one) => one.id === row.category)
-    return [row.label, row.description ?? '', category?.label ?? '', ...(row.keywords ?? [])]
-        .join(' ')
-        .toLowerCase()
-}
+/** What the dialog puts on one row besides its words: its control, and where that control sits. */
+export type RowControl = Pick<Setting, 'control' | 'layout'>
 
 /**
- * The rows one query names, in the order they were registered.
- *
- * EVERY TERM HAS TO MATCH, the way the command palette's filter works, so typing more words
- * narrows. An empty query is not a filter and answers everything, which is what a dialog opened
- * with no intention should show. There is no ranking: these rows are laid out under headings
- * and reordering them would move a control out from under the heading that explains it.
+ * The rows as sokkel-ui's settings take them: the groups, each category a section under its group,
+ * and each row a setting with the control `controlOf` puts on it. A group or a category with no row
+ * is left out, so the nav never lists a destination with nothing in it.
  */
-export function filterSettings(
+export function settingsGroups(
     rows: readonly SettingsRow[],
-    query: string,
-    categories: readonly SettingsCategory[] = SETTINGS_CATEGORIES,
-): SettingsRow[] {
-    const trimmed = query.trim().toLowerCase()
-    if (trimmed === '') return [...rows]
-    const terms = trimmed.split(/\s+/)
-    return rows.filter((row) => {
-        const words = haystack(row, categories)
-        return terms.every((term) => words.includes(term))
-    })
-}
-
-/** The categories that still hold a row, which is what the left nav lists while a query narrows. */
-export function categoriesWith(
-    rows: readonly SettingsRow[],
-    categories: readonly SettingsCategory[] = SETTINGS_CATEGORIES,
-): SettingsCategory[] {
-    const held = new Set(rows.map((row) => row.category))
-    return categories.filter((category) => held.has(category.id))
-}
-
-/** The rows of one category, which is one pane of the dialog. */
-export function rowsOf(rows: readonly SettingsRow[], category: string): SettingsRow[] {
-    return rows.filter((row) => row.category === category)
+    controlOf: (row: SettingsRow) => RowControl,
+    around: (category: string) => { lead?: ReactNode; foot?: ReactNode } = () => ({}),
+): SettingsGroup[] {
+    return SETTINGS_GROUPS.map((group) => ({
+        id: group.id,
+        title: group.label,
+        sections: SETTINGS_CATEGORIES.filter((category) => category.group === group.id)
+            .map((category) => {
+                const { lead, foot } = around(category.id)
+                return {
+                    id: category.id,
+                    label: category.label,
+                    lead,
+                    foot,
+                    settings: rows
+                        .filter((row) => row.category === category.id)
+                        .map((row) => {
+                            const { control, layout } = controlOf(row)
+                            return {
+                                id: row.id,
+                                title: row.label,
+                                description: row.description,
+                                keywords: row.keywords,
+                                control,
+                                layout,
+                            }
+                        }),
+                }
+            })
+            .filter((section) => section.settings.length > 0),
+    })).filter((group) => group.sections.length > 0)
 }

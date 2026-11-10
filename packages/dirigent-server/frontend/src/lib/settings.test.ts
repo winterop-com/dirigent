@@ -1,17 +1,34 @@
+import { filterSettings } from '@winterop-com/sokkel-ui/SettingsDialog'
 import { describe, expect, test } from 'vitest'
 
 import {
-    categoriesWith,
     FIRST_CATEGORY,
-    filterSettings,
-    rowsOf,
     SETTINGS_CATEGORIES,
     SETTINGS_GROUPS,
+    settingsGroups,
     settingsRows,
+    type SettingsRow,
 } from '@/lib/settings'
 import { shortcuts } from '@/lib/shortcuts'
 
 const ROWS = settingsRows(false)
+const GROUPS = settingsGroups(ROWS, () => ({ control: null }))
+
+function inCategory(rows: readonly SettingsRow[], category: string): SettingsRow[] {
+    return rows.filter((row) => row.category === category)
+}
+
+/** The ids of the rows a search keeps, in the order the dialog lays them out. */
+function found(search: string): string[] {
+    return filterSettings(GROUPS, search).flatMap((group) =>
+        group.sections.flatMap((section) => section.settings.map((setting) => setting.id)),
+    )
+}
+
+/** The categories a search leaves in the nav. */
+function sectionsFound(search: string): string[] {
+    return filterSettings(GROUPS, search).flatMap((group) => group.sections.map((section) => section.id))
+}
 
 describe('the settings registry', () => {
     test('files every row under a category the left nav has', () => {
@@ -32,18 +49,14 @@ describe('the settings registry', () => {
         expect(new Set(ROWS.map((row) => row.id)).size).toBe(ROWS.length)
     })
 
-    // The shortcut rows are derived rather than written down: a shortcut added to lib/shortcuts
-    // appears here without anybody editing this registry, and this fails if it stops being so.
     test('lists exactly the shortcuts this app answers, and does not hold its own list', () => {
-        const listed = rowsOf(ROWS, 'shortcuts').map((row) => row.label)
+        const listed = inCategory(ROWS, 'shortcuts').map((row) => row.label)
         expect(listed).toEqual(shortcuts(false).map((one) => one.action))
     })
 
-    // The keys are drawn as chips by the pane and are searchable here, which is why they are
-    // keywords rather than a description: a row's description is a fact, or it is absent.
     test('spells a chord the way the keyboard in front of somebody spells it', () => {
-        const apple = rowsOf(settingsRows(true), 'shortcuts')
-        const other = rowsOf(settingsRows(false), 'shortcuts')
+        const apple = inCategory(settingsRows(true), 'shortcuts')
+        const other = inCategory(settingsRows(false), 'shortcuts')
         expect(apple[0].keywords).toContain('⌘')
         expect(other[0].keywords).toContain('Ctrl')
     })
@@ -54,62 +67,65 @@ describe('the settings registry', () => {
     })
 })
 
-describe('the search box', () => {
-    test('an empty query is not a filter and answers every row in order', () => {
-        expect(filterSettings(ROWS, '')).toEqual(ROWS)
-        expect(filterSettings(ROWS, '   ')).toHaveLength(ROWS.length)
+describe("the library's groups", () => {
+    test('are Preferences, You and This instance, each category a section in the nav order', () => {
+        expect(GROUPS.map((group) => group.title)).toEqual(SETTINGS_GROUPS.map((group) => group.label))
+        expect(GROUPS.flatMap((group) => group.sections.map((section) => section.id))).toEqual(
+            SETTINGS_CATEGORIES.map((category) => category.id),
+        )
     })
 
-    test('finds a row by a word in its own name', () => {
-        expect(filterSettings(ROWS, 'appearance').map((row) => row.id)).toEqual(['theme:appearance'])
+    test('carry every row once, in the order the registry holds them within a category', () => {
+        for (const category of SETTINGS_CATEGORIES) {
+            const section = GROUPS.flatMap((group) => group.sections).find((one) => one.id === category.id)
+            expect(section?.settings.map((setting) => setting.id)).toEqual(
+                inCategory(ROWS, category.id).map((row) => row.id),
+            )
+        }
     })
 
-    test('finds a row by a word nothing renders', () => {
-        expect(filterSettings(ROWS, 'timezone').map((row) => row.id)).toEqual(['general:times'])
+    test('put the control the dialog chooses on each row', () => {
+        const groups = settingsGroups(ROWS, (row) => ({
+            control: row.id,
+            layout: 'trailing',
+        }))
+        const setting = groups[0].sections[0].settings[0]
+        expect(setting.control).toBe(setting.id)
+        expect(setting.layout).toBe('trailing')
     })
 
-    test('finds a row by the category it is filed under', () => {
-        expect(filterSettings(ROWS, 'account').every((row) => row.category === 'account')).toBe(true)
-    })
-
-    test('reaches across categories, which is the whole point of one box', () => {
-        const found = filterSettings(ROWS, 'palette')
-        expect(new Set(found.map((row) => row.category))).toEqual(new Set(['theme', 'shortcuts']))
-    })
-
-    test('every term has to match, so typing more words narrows', () => {
-        const one = filterSettings(ROWS, 'password')
-        const two = filterSettings(ROWS, 'password change')
-        expect(two.length).toBeLessThanOrEqual(one.length)
-        expect(two.map((row) => row.id)).toEqual(['account:password'])
-    })
-
-    test('is not case sensitive', () => {
-        expect(filterSettings(ROWS, 'UTC')).toEqual(filterSettings(ROWS, 'utc'))
-    })
-
-    test('a query nothing matches answers nothing rather than everything', () => {
-        expect(filterSettings(ROWS, 'stroopwafel')).toEqual([])
-    })
-
-    test('does not reorder what it keeps, because a row sits under the heading that explains it', () => {
-        const kept = filterSettings(ROWS, 'the')
-        expect(kept).toEqual(ROWS.filter((row) => kept.includes(row)))
+    test('leave out a category with no row', () => {
+        const groups = settingsGroups(inCategory(ROWS, 'theme'), () => ({
+            control: null,
+        }))
+        expect(groups.map((group) => group.id)).toEqual(['preferences'])
+        expect(groups[0].sections.map((section) => section.id)).toEqual(['theme'])
     })
 })
 
-describe('the left nav while a query narrows', () => {
-    test('lists only the categories that still hold a row', () => {
-        const found = filterSettings(ROWS, 'appearance')
-        expect(categoriesWith(found).map((category) => category.id)).toEqual(['theme'])
+describe('the search box over these rows', () => {
+    test('finds a row by a word in its own name', () => {
+        expect(found('appearance')).toEqual(['theme:appearance'])
     })
 
-    test('lists nothing when nothing matches', () => {
-        expect(categoriesWith(filterSettings(ROWS, 'stroopwafel'))).toEqual([])
+    test('finds a row by a word nothing renders', () => {
+        expect(found('timezone')).toEqual(['general:times'])
+        expect(found('openapi')).toEqual(['server:reference'])
     })
 
-    test('keeps the nav order rather than the order rows happened to match in', () => {
-        const every = categoriesWith(ROWS).map((category) => category.id)
-        expect(every).toEqual(SETTINGS_CATEGORIES.map((category) => category.id))
+    test('finds every row of a category by its name', () => {
+        expect(found('account')).toEqual(inCategory(ROWS, 'account').map((row) => row.id))
+    })
+
+    test('reaches across categories, which is the whole point of one box', () => {
+        expect(sectionsFound('palette')).toEqual(['theme', 'shortcuts'])
+    })
+
+    test('every term has to match, so typing more words narrows', () => {
+        expect(found('password change')).toEqual(['account:password'])
+    })
+
+    test('a query nothing matches answers nothing rather than everything', () => {
+        expect(found('stroopwafel')).toEqual([])
     })
 })
