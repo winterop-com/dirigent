@@ -213,8 +213,13 @@ Every other route under `/api/v1` requires a principal, as a property of the rou
 Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
 `Referrer-Policy: same-origin` and a `Content-Security-Policy` that includes
 `frame-ancestors 'none'`, so no page of this instance can be framed by another site. The UI's
-policy allows scripts only from this origin, workers from this origin or `blob:` for the
-editor, and inline styles. `/docs` and `/redoc` load Swagger UI and ReDoc from `cdn.jsdelivr.net`,
+policy allows scripts only from this origin, never inline, workers only from this origin, and
+inline styles. It also allows `'unsafe-eval'`: the editor and the forms check a value against its
+JSON Schema with checks compiled in the page, and a policy without it leaves every such check
+undone. That is the one loosening, and it is the UI's alone: a script still has to arrive from
+this instance, so `'unsafe-eval'` matters only where the page's own code hands untrusted text to
+`eval` or `new Function`, which the UI does not. The `/docs` and `/redoc` policies do not
+include it. `/docs` and `/redoc` load Swagger UI and ReDoc from `cdn.jsdelivr.net`,
 each pinned to one exact release and to its subresource integrity hash, so a browser runs those
 bytes or nothing. Their policy of their own names those exact URLs rather than the CDN, and
 Swagger UI's inline bootstrap by its hash. A newer release of either arrives only with a dirigent
