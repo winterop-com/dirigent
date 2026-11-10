@@ -10,12 +10,14 @@ const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'shots
 const DEV_USERNAME = 'admin'
 const DEV_PASSWORD = 'admin'
 
-async function shot(page: Page, mode: string, name: string): Promise<void> {
+async function shot(page: Page, mode: string, name: string, shell = true): Promise<void> {
     // The corner's dot fills over its read after every full load; a picture of the asking state
     // would put the wrong topbar in every frame. Its accessible name says when the read landed.
-    await page
-        .getByRole('button', { name: /^Instance: (healthy|degraded|unhealthy)/ })
-        .waitFor({ timeout: 8000 })
+    // The login screen stands outside the shell and has no corner to wait for.
+    if (shell)
+        await page
+            .getByRole('button', { name: /^Instance: (healthy|degraded|unhealthy)/ })
+            .waitFor({ timeout: 8000 })
     await page.waitForTimeout(800)
     await page.screenshot({ path: path.join(OUT, `${name}--${mode}.png`) })
 }
@@ -38,7 +40,7 @@ test('the gallery', async ({ page }) => {
         await page.goto('/login')
         await page.evaluate((theme) => localStorage.setItem('theme', theme), mode)
         await page.goto('/login')
-        await shot(page, mode, 'login')
+        await shot(page, mode, 'login', false)
     }
     await signIn(page)
 

@@ -1,8 +1,8 @@
 ;(function () {
     // Duplicated from lib/theme.ts: this runs before any module is fetched, so it cannot import
     // them. The test beside that module asserts the two lists agree.
-    var known = ['dirigent', 'paper', 'contrast']
-    var chosen = 'dirigent'
+    var known = ['amber', 'paper', 'contrast']
+    var chosen = 'amber'
     try {
         var stored = localStorage.getItem('dirigent.palette')
         if (known.indexOf(stored) !== -1) chosen = stored

@@ -180,7 +180,7 @@ test('the pictures docs/basics.md is built out of', async ({ page }) => {
     await signIn(page)
     await page.evaluate(() => {
         localStorage.setItem('theme', 'dark')
-        localStorage.setItem('dirigent.palette', 'dirigent')
+        localStorage.setItem('dirigent.palette', 'amber')
         localStorage.setItem('dirigent.terminalOpen', 'false')
     })
     const request = page.request

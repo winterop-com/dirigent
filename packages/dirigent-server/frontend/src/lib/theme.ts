@@ -7,11 +7,12 @@
  * app spends inside that mode: this module owns it, writes it as `data-theme` on the same
  * element, and every palette is designed for both modes. Neither axis knows about the other.
  *
- * WHERE THE COLOURS ARE. Nowhere near here. A palette is a block of custom-property overrides
- * in index.css hung off `html[data-theme='<name>']`, beside the base one. This module carries
- * the names and nothing else, so adding a palette is a block of CSS plus one row in `PALETTES`.
- * The same blocks answer to `[data-palette='<name>']`, which is what lets the swatch card on the
- * Theme pane paint one palette's tokens while the app is wearing another.
+ * WHERE THE COLOURS ARE. In sokkel-ui. A palette is one of the library's themes: a file of
+ * custom-property overrides hung off `html[data-theme='<name>']`, which index.css imports. This
+ * module carries the names and nothing else, so offering another theme is one import in
+ * index.css plus one row in `PALETTES`. The same blocks answer to `[data-theme-scope='<name>']`,
+ * which is what lets the swatch card on the Theme pane paint one palette's tokens while the app
+ * is wearing another.
  *
  * APPLIED BEFORE FIRST PAINT, by public/palette.js, which index.html loads, rather than here. A palette
  * read in a React effect arrives one frame after the document does, and every load flashes the
@@ -48,7 +49,7 @@ export function modeOf(theme: string | undefined): Mode {
 }
 
 /** The name a palette is stored and written under: its `data-theme` value. */
-export type PaletteName = 'dirigent' | 'paper' | 'contrast'
+export type PaletteName = 'amber' | 'paper' | 'contrast'
 
 /** One palette: what it is called on screen. What it looks like is the swatch, not a sentence. */
 export interface Palette {
@@ -58,12 +59,12 @@ export interface Palette {
 
 /** The palettes this build has, ordered quiet to loud. */
 export const PALETTES: Palette[] = [
-    { name: 'dirigent', label: LABELS.shell.colours.dirigent },
+    { name: 'amber', label: LABELS.shell.colours.amber },
     { name: 'paper', label: LABELS.shell.colours.paper },
     { name: 'contrast', label: LABELS.shell.colours.contrast },
 ]
 
-export const DEFAULT_PALETTE: PaletteName = 'dirigent'
+export const DEFAULT_PALETTE: PaletteName = 'amber'
 
 /** Where the chosen palette is kept, and the key public/palette.js reads. */
 export const PALETTE_STORAGE_KEY = 'dirigent.palette'

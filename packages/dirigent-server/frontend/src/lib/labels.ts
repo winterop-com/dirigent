@@ -773,7 +773,7 @@ const shell = {
     },
     /** The colour palettes this build carries, as the Theme pane's swatch cards name them. */
     colours: {
-        dirigent: 'Dirigent',
+        amber: 'Amber',
         paper: 'Paper',
         contrast: 'Contrast',
     },
