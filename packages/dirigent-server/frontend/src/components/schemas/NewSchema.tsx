@@ -1,12 +1,12 @@
 import { useState } from 'react'
 
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { FormField } from '@/components/ds/FormField'
+import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Refusal } from '@/components/Refusal'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { type JsonMap, type Problem } from '@/lib/api'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { createSchema, type SchemaOut } from '@/lib/schemas'
@@ -94,17 +94,20 @@ export function NewSchema({
                 onConfirm: create,
             }}
         >
-            <FormField
+            <Field
                 id="new-schema-code"
                 label={LABELS.word.code}
                 mono
                 required
+                requiredMark="word"
+                words={FIELD_WORDS}
                 hint={LABELS.schemas.create.code_hint}
                 error={touched ? (why ?? null) : null}
             >
                 <Input
                     id="new-schema-code"
                     className="font-mono"
+                    aria-required
                     value={code}
                     autoFocus
                     onChange={(event) => {
@@ -114,8 +117,8 @@ export function NewSchema({
                         setTouched(true)
                     }}
                 />
-            </FormField>
-            <FormField id="new-schema-name" label={LABELS.word.name.label}>
+            </Field>
+            <Field id="new-schema-name" label={LABELS.word.name.label}>
                 <Input
                     id="new-schema-name"
                     value={named}
@@ -123,8 +126,8 @@ export function NewSchema({
                         setNamed(event.target.value)
                     }}
                 />
-            </FormField>
-            <FormField id="new-schema-description" label={LABELS.word.description}>
+            </Field>
+            <Field id="new-schema-description" label={LABELS.word.description}>
                 <Textarea
                     id="new-schema-description"
                     className="min-h-20"
@@ -134,7 +137,7 @@ export function NewSchema({
                         setDescription(event.target.value)
                     }}
                 />
-            </FormField>
+            </Field>
             {problem !== null && <Refusal problem={problem} />}
         </DialogShell>
     )

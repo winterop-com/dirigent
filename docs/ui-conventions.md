@@ -202,43 +202,44 @@ rungs still reads -- except where a palette's whole point is the ground it commi
 `contrast` collapses page and card onto one white and one black, drawing every card by its edge
 instead of its shadow.
 
-**Every section of a page is a headed panel.** `components/ds/Panel` is the one surface a page
-draws: a title bar on `--card` with the section's label at the left and its count or a fact
-about it at the right in mono, a hairline in `--panel-line` under the bar, and the body on
-`--panel-ground`, a rung off the bar, edged all round in the same hairline and lifted by no
-shadow. A panel holding a graph has a faint dot grid on its body in `--panel-dot`, because a graph
-is drawn on a ground and not on a card. **A failure is the one panel that says so**: a rule in the
-failed ink along its top and the warning mark beside its title, which is the only colour a panel
-ever carries. Nothing draws a left border in a status colour, and nothing on a screen styles a
-surface of its own: a treatment is changed in `Panel` and in the `.dg-panel` rules in `index.css`,
-and the generated card follows the same rules.
+**Every section of a page is a headed panel.** sokkel-ui's `Section` is the one surface a page
+draws: a title bar on `--section-head-ground` with the section's label at the left and its count or
+a fact about it beside the label in mono, the `--section-head-line` rule under the bar, and the
+body on `--card`, edged all round in `--border-strong` and lifted by no shadow -- the line and
+ground of a framed `DataTable` and a card. A panel holding a graph is `tone="graph"`, its body the
+graph canvas's dot grid, because a graph is drawn on a ground and not on a card. **A failure is the
+one panel that says so**: `tone="critical"` draws a rule in the critical tone along its top and the
+warning mark beside its title, which is the only colour a panel ever carries. Nothing draws a left
+border in a status colour, and nothing on a screen styles a surface of its own: a treatment is
+changed in sokkel-ui, and the listing's frame and the generated card follow it in the `.dg-panel`
+rules in `index.css`.
 
-**Every panel's title bar is one fixed height, so bars side by side line up.** The bar is
-`--spacing-panel-head` tall -- 40px, and 46px below the breakpoint, where a control in it is a
-finger tall -- with no vertical padding: its label, its count and whatever it carries are centred
-in that height, so two panels standing beside each other put their labels on one baseline. A
-control in a bar is compact, `xs` or `sm`, and fits the bar rather than growing it. A failure's rule
-along the top is drawn inside the panel's edge, over the bar, and adds no height. The run
-terminal's toolbar is the one bar that may wrap onto a second line, and only below the breakpoint,
-because it stands alone and carries filters rather than a label.
+**Every panel's title bar is one fixed height, so bars side by side line up.** The bar is the
+library's `--density-panel-head` -- 36px, 32px in the compact density -- the height a listing's
+head row is drawn to, so two panels standing beside each other put their labels on one baseline.
+A control in a bar is compact, `xs` or `sm`, and fits the bar rather than growing it. A failure's
+rule along the top adds no height to the bar. The run terminal's toolbar is the one bar of its own,
+`.dg-panel-head` at `--spacing-panel-head` -- 40px, and 46px below the breakpoint, where a control
+in it is a finger tall -- and the one bar that may wrap onto a second line, and only below the
+breakpoint, because it stands alone and carries filters rather than a label.
 
-**A listing is a headed panel too.** `ListTable` draws the `.dg-panel` edge and ground: its row of
-column headings is the panel's bar, on `--card` over the hairline, and its rows stand on the panel
-ground with a `--border` hairline between them and no stripe. Given a `title` it carries the
-panel's own title bar above the headings, with the count where the line along the foot would be,
-so a screen with two listings -- Triggers' sources and schedules, the catalog's families -- is two
-panels rather than two headings over two cards.
+**A listing is a headed panel too.** `ListTable` draws the `.dg-panel` edge and ground, which are
+`Section`'s: its row of column headings is the panel's bar, on `--table-head-ground` over
+`--table-head-line`, and its rows stand on the card with a `--border` hairline between them and no
+stripe. Given a `title` it carries the panel's own title bar above the headings, with the count
+where the line along the foot would be, so a screen with two listings -- Triggers' sources and
+schedules, the catalog's families -- is two panels rather than two headings over two cards.
 
-**Inside a panel or a dialog there are three boxes, and each is drawn once.** A `Well` is a group
-that belongs together -- a form opened under its row, a sample -- on the panel ground, edged in
-`--panel-line`. An `Inset` is reference material -- a block of JSON, a code block in a
-description, a log -- on the page's own ground, edged the same way, so a preview reads as cut into
-the surface it is on. A code editor is a field, and the library's editor edges itself the way every
-field is edged -- the `--input` hairline at the control's corner -- unless it fills a panel of its
-own. A box that says how something is going is a `Notice`,
-and a refusal off the wire is `Refusal`. No screen types a border, a corner and a ground onto a
-`div` of its own: the boxes are `.dg-well` and `.dg-inset` in `index.css`, beside
-`.dg-panel`.
+**Inside a panel or a dialog there are three boxes, and each is drawn once.** sokkel-ui's
+`Surface` with `tone="well"` is a group that belongs together -- a form opened under its row, a
+sample -- on the panel ground, edged in `--border`, and `pad` insets it by the density's panel
+padding. `tone="inset"` is reference material -- a block of JSON, a code block in a description
+-- on the page's own ground, edged the same way, so a preview reads as cut into the surface it is
+on. A log that scrolls and follows its tail is the same inset, holding the scroll through its `ref`.
+A code editor is a field, and the library's editor edges itself the way every field is edged --
+the `--input` hairline at the control's corner -- unless it fills a panel of its own. A box that says how something is going is sokkel-ui's
+`Callout`, and a refusal off the wire is `Refusal`. No screen types a border, a corner and a
+ground onto a `div` of its own.
 
 **The rest of the ladder.** `--sidebar` is the rail, a rung under `--background`, the page.
 `--secondary` is raised: a button's fill, a chip, the active rail entry; `--popover` is a dialog
@@ -1011,8 +1012,9 @@ and every `validate.schema` step and `requires.schemas` entry names it.
 **The label is the key.** What is being edited is a document, and the word an author writes in it
 is `max_response` rather than "Max Response". `description` is the help under the label, and whether a
 field is required is said beside the label rather than inside it, so the control's accessible
-name stays the key. **The required word is body ink, never amber**: amber is the brand's and
-the focus ring's, and a field label is neither. `FormField` draws it.
+name stays the key. **The required word is in the muted ink, never amber**: amber is the brand's
+and the focus ring's, and a field label is neither. sokkel-ui's `Field` draws it with
+`requiredMark="word"`, and the control says it is required with `aria-required`.
 
 **Every field is a design-system control, and an empty one looks like an empty one.** A field
 renders through `ui/input`, `ui/textarea`, `ui/select` or `ui/switch` and never a bare element,
@@ -1508,7 +1510,8 @@ header strip, a row that navigates. The canvas's zoom cluster is sized there as 
 the graph library's button rather than one of ours. A menu opened at a point rather than under a
 control -- the canvas's right-click menus -- anchors a zero-sized trigger at the cursor, and
 `data-menu-anchor` keeps the rule off that one, because nothing draws it and no finger lands on
-it. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
+it. A trigger that is an image -- a bare status dot, its own tooltip's trigger -- is kept off too,
+because grown to a finger the dot is drawn as a 44px disc. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
 drawn as a square takes the width too, because a 42px tall target 28px wide is a target on one
 axis only. No screen sizes a control for a phone itself.
 
@@ -2441,15 +2444,15 @@ keeps its own name in the code. A specimen stands on the section's card with no 
 
 | Component | When |
 | --- | --- |
-| `EntityHeading` | Any addressable thing headed by its name and code. `row-stacked` for a listing's lead cell, `row-inline` where a row has one line, `panel` for a panel's head, `dialog` inside a dialog's title. The name, else the code; the code always on screen in mono and never twice (`headingOf`); chips beside the title; an optional one-line description. One title weight in all three |
-| `Chip` | A word on a chip: `neutral`, `mono` for a key, `dashed` for an absence, `good`, `critical`, `edit`. `onSelect` makes it a button, `onRemove` adds an X with its own focus ring. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` and `StatusChip` stay, on the same 20px and the same radius |
-| `ToneDot` | Every state drawn as a dot, from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `tip` adds a sentence to the tooltip, and `focusable` puts the dot in the tab order where nothing around it is a control. `StatusChip` takes a `label` where a screen names the state in its own terms |
+| `ItemHeading` (sokkel-ui) | Any addressable thing headed by its name and code, given as `{...itemOf(thing)}` so the name is the one `headingOf` finds. `stacked` puts the code under the name, for a listing's lead cell; `inline` beside it, where a row has one line; `size="dialog"` inside a dialog's title, where it is a `span`, with `lead={LABELS.action.edit}` while the dialog edits the thing; `as="span"` wherever the heading is not in the page's outline. A long name gives way before the inline code, which stays on screen. The name, else the code; the code always on screen in mono and never twice; a glyph before it, chips after it, an optional one-line description |
+| `Chip` (sokkel-ui) | A word on a chip: `neutral`, `mono` for a key, `absent` dashed for an absence, `good`, `critical`, `warning`, `info`; `icon` before the word. `onSelect` makes it a button named by `selectLabel`, saying what pressing does ("Filter by finance"); `onRemove` adds an X with its own focus ring, named by `words={chipWords(...)}` from a function of the chip's words ("Stop filtering by finance"). Neither press reaches the row or card around the chip, so a pressable row needs no guard of its own. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` and `StatusChip` stay, on the same 20px and the same radius |
+| `Dot` (sokkel-ui) | Every state drawn as a dot, given as `{...dotOf(...)}` from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status, 8px. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `tip` adds a sentence to the tooltip, and `focusable` puts the dot in the tab order where nothing around it is a control. `StatusChip` takes a `label` where a screen names the state in its own terms |
 | `IconButton` (sokkel-ui) | Any button that is an icon and nothing else, the glyph its child, which is why every icon button has a tooltip. Its type requires `label`; the tooltip is the label or a longer `tooltip`, with `reason` under it when it is shut. Sizes `icon-xs`, `icon-sm` and `icon`. Shut with `reason`, never with `disabled`, so it stays reachable; `destructive` tints critical under the pointer |
 | `SearchField` (sokkel-ui) | Every box that narrows a screen, `placeholder={SEARCH_PLACEHOLDER}` and `words={SEARCH_WORDS}`. A leading search glyph, a clear button once there is text, Escape to clear, and the `/` key cap: `/` moves the caret into the screen's one box that binds it, never while another field, the editor or a dialog has focus. A second box on the screen passes `shortcut={false}` |
-| `SectionHeading` | A heading inside a screen. `section` is sentence case at `text-sm font-semibold`; `group` is the one faint uppercase label over a run of rows. An optional `aside` and `link` |
-| `FactList`, `Fact` | Facts about one thing. `grid` is a term column beside a value column, a panel's and a dialog's, whose term is a key in mono where `termMono` says so; `row` is small facts wrapping on one line, a heading's strip |
-| `FormField`, `SwitchField` | Every field: a prose label or a mono key, the required word in body ink, a hint, the default, help in one ink, an error, one 6px gap. `SwitchField` (sokkel-ui) is a boolean setting as a row, the whole row its label, `explain` on a help mark and `reason` under the label while it is shut |
-| `Notice`, `Well`, `Inset` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a group that belongs together, on the panel ground at 8px. `Inset` is reference material -- JSON, a code block, a log -- on the page's ground. A code editor draws its own field. A refusal off the wire is still `Refusal` |
+| `GroupLabel` (sokkel-ui) | The one faint uppercase label over a run of rows inside a screen, `as="h3"` where it heads them in the outline. A part of a page with a title of its own is a `Section` |
+| `DescriptionList` (sokkel-ui) | Facts about one thing, given as `items`. The default `side` layout is a term column of `termWidth` beside a value column, a panel's and a dialog's; `code` sets a value in mono, and a term that is a document key is an `InlineCode`. `layout="row"` is small facts wrapping on one line, a heading's strip. A missing value is a quiet dash |
+| `Field`, `SwitchField` (sokkel-ui) | Every field: a prose label or a mono key, `required` with `requiredMark="word"` and `words={FIELD_WORDS}`, a hint, help and the `fallback` an empty box submits under the control in one ink, an error on the issue mark at the control's end. `SwitchField` is a boolean setting as a row, the whole row its label, `explain` on a help mark and `reason` under the label while it is shut |
+| `Callout`, `Surface` (sokkel-ui) | `Callout` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Surface` `tone="well"` is a group that belongs together, on the panel ground, `pad` for fields or text; `tone="inset"` is reference material -- JSON, a code block, a log that follows its tail -- on the page's ground. A refusal off the wire is still `Refusal` |
 | `DialogShell` (sokkel-ui) | Every dialog, `words={DIALOG_WORDS}`: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one confirm that stays reachable while shut, or of `actions` on a dialog that reads one thing. `closeOnOutsidePress={false}` for a form somebody is typing in |
 | `ConfirmDialog` (sokkel-ui) | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. `Question` draws the question around the code, `detail` is the one line, and a refusal off the wire is one short `RefusalLine`, with no box and no second naming of the thing. A verb that cannot go without one value holds that one field: a password reset's new password. No such verb is immediate. Its confirm wears sokkel-ui's destructive tint, the critical ink on its wash, as every verb that takes something away does |
 | `SecretReveal` (sokkel-ui) | A secret the server answers with once: the value whole in mono on its own field, wrapped rather than cut, a copy button that says it copied and resets, and the line in the warning ink saying it is shown once. `secretWords` names the copy button for the secret and says that line |
@@ -2457,7 +2460,7 @@ keeps its own name in the code. A specimen stands on the section's card with no 
 | `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` drawn into the shell's head slot by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds, a `SplitButton` when it carries `more`, its chevron named by the item's `moreLabel`. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
-| `Panel` | Every section of a page: a title bar with the label left and a count or fact right, a hairline, a body on the panel ground, a hairline edge and no shadow. `graph` puts a dot grid on the body, `critical` is the failure with its top rule and warning mark. `inset` is off where the body's rows lay out their own padding. A listing is `ListTable`, which draws the same panel |
+| `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A listing is `ListTable`, which draws the same panel |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface

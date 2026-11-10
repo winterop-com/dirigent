@@ -168,10 +168,7 @@ test('every box is on the canvas on the first fit, and the canvas fills the room
     await everyNodeIsInView(page)
 
     // NO DEAD GAP. The panel's foot is within the page's own bottom padding of the terminal's top.
-    const panel = await page
-        .locator('section.dg-panel')
-        .filter({ has: page.locator('.react-flow') })
-        .boundingBox()
+    const panel = await page.getByRole('region', { name: LABELS.pipelines.page.graph }).boundingBox()
     const seam = await page.getByRole('separator', { name: /terminal/i }).boundingBox()
     expect(panel).not.toBeNull()
     expect(seam).not.toBeNull()

@@ -2,13 +2,13 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { shutWith } from '@/lib/design-system'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { MiniGraph } from '@/components/graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
@@ -232,22 +232,18 @@ export function Pipelines() {
             >
                 <div className="flex flex-col gap-6" data-testid="pipeline-lists">
                     {lists.own.length > 0 && (
-                        <Panel
-                            title={LABELS.pipelines.lists.own}
-                            meta={String(lists.own.length)}
-                            inset={false}
-                        >
+                        <Section title={LABELS.pipelines.lists.own} meta={String(lists.own.length)} flush>
                             {lists.own.map((row) => (
                                 <PipelineRow key={row.id} row={row} dense={false} />
                             ))}
-                        </Panel>
+                        </Section>
                     )}
                     {lists.examples.length > 0 && (
-                        <Panel
+                        <Section
                             title={LABELS.pipelines.lists.examples}
                             meta={String(lists.examples.length)}
-                            inset={false}
-                            aside={
+                            flush
+                            actions={
                                 lists.examples.length > EXAMPLES_SHOWN && (
                                     <TextLink
                                         variant="aside"
@@ -265,7 +261,7 @@ export function Pipelines() {
                             {examples.map((row) => (
                                 <PipelineRow key={row.id} row={row} dense />
                             ))}
-                        </Panel>
+                        </Section>
                     )}
                 </div>
             </PageState>
@@ -317,12 +313,12 @@ function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
     const facts = (
         <div className={cn('flex flex-wrap items-center gap-x-3.5 gap-y-2', !dense && 'mt-2.5')}>
             {row.schedules > 0 && (
-                <Chip icon={ICONS.schedule}>
+                <Chip icon={<ICONS.schedule aria-hidden />}>
                     {`${String(row.schedules)} ${counted(row.schedules, LABELS.word.schedule.count)}`}
                 </Chip>
             )}
             {sources.map((kind) => (
-                <Chip key={kind} icon={ICONS.source}>
+                <Chip key={kind} icon={<ICONS.source aria-hidden />}>
                     {kind}
                 </Chip>
             ))}
@@ -379,7 +375,7 @@ function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
                         </Chip>
                     )}
                     {retired !== null && (
-                        <Chip tone="dashed" title={LABELS.pipelines.deactivated.explained}>
+                        <Chip tone="absent" title={LABELS.pipelines.deactivated.explained}>
                             {retired}
                         </Chip>
                     )}

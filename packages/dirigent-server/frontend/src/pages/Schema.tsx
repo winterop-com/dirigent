@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Description } from '@/components/Description'
 import { Section } from '@/components/run/Panel'
-import { FormField } from '@/components/ds/FormField'
-import { Notice } from '@/components/ds/Notice'
+import { Field } from '@winterop-com/sokkel-ui/Field'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { shutWith } from '@/lib/design-system'
-import { Panel } from '@/components/ds/Panel'
+import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { Refusal } from '@/components/Refusal'
@@ -321,12 +321,12 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
             />
             <div className="flex min-h-0 flex-1 flex-col gap-3">
                 {problem !== null && <Refusal problem={problem} />}
-                <Panel
+                <LibrarySection
                     title={LABELS.word.schema.label}
-                    inset={false}
+                    flush
                     className="flex min-h-96 flex-1 flex-col"
                     bodyClassName="flex min-h-0 flex-1 flex-col"
-                    aside={
+                    actions={
                         <WindowButton
                             name={LABELS.schemas.window_title(schema.code)}
                             onOpen={() => {
@@ -346,7 +346,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                     >
                         {schemaPane('min-h-0 flex-1', 'pane')}
                     </WindowedPane>
-                </Panel>
+                </LibrarySection>
             </div>
             <Dialog open={trying} onOpenChange={setTrying}>
                 <DialogContent
@@ -377,17 +377,17 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                         </Button>
                     </div>
                     <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,22rem)]">
-                        <Panel
+                        <LibrarySection
                             title={LABELS.word.schema.label}
-                            inset={false}
+                            flush
                             className="flex min-h-0 flex-col"
                             bodyClassName="flex min-h-0 flex-1 flex-col"
                         >
                             {schemaPane('min-h-48 flex-1', 'pane')}
-                        </Panel>
-                        <Panel
+                        </LibrarySection>
+                        <LibrarySection
                             title={LABELS.schemas.tester.value_heading}
-                            inset={false}
+                            flush
                             className="flex min-h-0 flex-col"
                             bodyClassName="flex min-h-0 flex-1 flex-col"
                         >
@@ -402,7 +402,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                                 reveal={reveal}
                                 onChange={setValue}
                             />
-                        </Panel>
+                        </LibrarySection>
                         <Result shown={shown} onShow={show} />
                     </div>
                 </DialogContent>
@@ -476,7 +476,7 @@ function Details({
         <div className="flex flex-col gap-4 p-4">
             {editing ? (
                 <>
-                    <FormField id="schema-name" label={LABELS.word.name.label}>
+                    <Field id="schema-name" label={LABELS.word.name.label}>
                         <Input
                             id="schema-name"
                             value={named}
@@ -484,8 +484,8 @@ function Details({
                                 onNamed(event.target.value)
                             }}
                         />
-                    </FormField>
-                    <FormField id="schema-description" label={LABELS.word.description}>
+                    </Field>
+                    <Field id="schema-description" label={LABELS.word.description}>
                         <Textarea
                             id="schema-description"
                             className="max-h-80 min-h-28"
@@ -495,7 +495,7 @@ function Details({
                                 onDescription(event.target.value)
                             }}
                         />
-                    </FormField>
+                    </Field>
                     {problem !== null && <Refusal problem={problem} />}
                     {verbs}
                 </>
@@ -551,15 +551,15 @@ function Verdict({ shown }: { shown: CheckShown }) {
 function Result({ shown, onShow }: { shown: CheckShown; onShow: (error: SchemaViolation) => void }) {
     const total = shown.kind === 'checked' ? shown.check.errors.length + shown.check.omitted : 0
     return (
-        <Panel
+        <LibrarySection
             title={LABELS.schemas.tester.result_heading}
             meta={total > 0 ? counted(total, LABELS.schemas.tester.failures)(String(total)) : undefined}
-            aside={<Verdict shown={shown} />}
-            inset={shown.kind !== 'checked' || shown.check.valid}
+            actions={<Verdict shown={shown} />}
+            flush={shown.kind === 'checked' && !shown.check.valid}
             className="flex min-h-0 flex-col"
             bodyClassName="min-h-0 flex-1 overflow-y-auto"
         >
-            {shown.kind === 'unreadable' && <Notice tone="warning">{shown.sentence}</Notice>}
+            {shown.kind === 'unreadable' && <Callout tone="warning">{shown.sentence}</Callout>}
             {shown.kind === 'checking' && (
                 <p className="text-sm text-muted-foreground">{LABELS.schemas.tester.checking}</p>
             )}
@@ -570,7 +570,7 @@ function Result({ shown, onShow }: { shown: CheckShown; onShow: (error: SchemaVi
             {shown.kind === 'checked' && !shown.check.valid && (
                 <Failures errors={shown.check.errors} omitted={shown.check.omitted} onShow={onShow} />
             )}
-        </Panel>
+        </LibrarySection>
     )
 }
 
@@ -603,7 +603,7 @@ function Failures({
                             ) : (
                                 <InlineCode value={error.at} tone="neutral" bare size="xs" />
                             )}
-                            <Chip tone="mono">{error.keyword}</Chip>
+                            <Chip mono>{error.keyword}</Chip>
                         </span>
                         <span className="min-w-0 text-sm break-words">{error.message}</span>
                     </button>

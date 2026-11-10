@@ -2,11 +2,11 @@ import { useState } from 'react'
 
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Question } from '@/components/Question'
 import { RefusalLine } from '@/components/Refusal'
-import { Fact, FactList } from '@/components/ds/FactList'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { Inset } from '@/components/ds/Inset'
 import { Refusable } from '@/components/Refusable'
 import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
@@ -72,18 +72,24 @@ export function SourceFacts({
     const auth = authLine(source)
     return (
         <div className="space-y-3">
-            <FactList>
-                {listens !== null && (
-                    <Fact term={LABELS.triggers.source.listens}>
-                        {source.url_path === null ? (
-                            <span className="font-mono break-all">{listens}</span>
-                        ) : (
-                            <EndpointAddress source={source} />
-                        )}
-                    </Fact>
-                )}
-                {auth !== null && <Fact term={LABELS.triggers.source.auth}>{auth}</Fact>}
-            </FactList>
+            <DescriptionList
+                items={[
+                    ...(listens === null
+                        ? []
+                        : [
+                              {
+                                  term: LABELS.triggers.source.listens,
+                                  value:
+                                      source.url_path === null ? (
+                                          <span className="font-mono break-all">{listens}</span>
+                                      ) : (
+                                          <EndpointAddress source={source} />
+                                      ),
+                              },
+                          ]),
+                    ...(auth === null ? [] : [{ term: LABELS.triggers.source.auth, value: auth }]),
+                ]}
+            />
             <NewToken source={source} body={body} onReplaced={onReplaced} />
         </div>
     )
@@ -249,7 +255,7 @@ export function MintedToken({
                 {curl !== null && (
                     <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">{words.try_it}</p>
-                        <Inset className="flex items-start gap-2 p-2">
+                        <Surface tone="inset" className="flex min-w-0 items-start gap-2 p-2">
                             <code className="min-w-0 flex-1 font-mono text-xs break-all select-all">
                                 {curl}
                             </code>
@@ -258,7 +264,7 @@ export function MintedToken({
                                 size="icon-xs"
                                 words={copyWords(LABELS.shell.copy_secret(words.curl_noun))}
                             />
-                        </Inset>
+                        </Surface>
                     </div>
                 )}
             </div>

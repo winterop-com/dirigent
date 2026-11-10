@@ -1,5 +1,8 @@
 import type { CSSProperties } from 'react'
 
+import { Dot } from '@winterop-com/sokkel-ui/Dot'
+
+import { dotOf } from '@/lib/design-system'
 import { statusLabel, statusTokens } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
@@ -37,13 +40,7 @@ export function StatusChip({
     )
 }
 
-/** A state with no room for its name: the dot alone, with the name as its title. */
+/** A state with no room for its name: the dot alone, named by the state and saying it as its tooltip. */
 export function StatusDot({ status, className }: { status: string; className?: string }) {
-    return (
-        <span
-            className={cn('status-dot', className)}
-            style={statusTokens(status) as CSSProperties}
-            title={statusLabel(status)}
-        />
-    )
+    return <Dot {...dotOf({ status }, 'never')} className={className} />
 }

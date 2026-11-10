@@ -1,6 +1,6 @@
-import type { CSSProperties } from 'react'
+import { Dot as LibraryDot } from '@winterop-com/sokkel-ui/Dot'
 
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { Instant } from '@/components/Instant'
 import { LABELS } from '@/lib/labels'
 import { clockOf, nextFireView, oneTimeView, type OutcomeTone, type ScheduleOut } from '@/lib/triggers'
@@ -25,7 +25,7 @@ const TONES: Record<OutcomeTone, string> = {
 
 /** One outcome's colour, with no room for its name. */
 export function Dot({ tone }: { tone: OutcomeTone }) {
-    return <span className="status-dot" style={{ '--chip': TONES[tone] } as CSSProperties} aria-hidden />
+    return <LibraryDot color={TONES[tone]} size="md" />
 }
 
 /** A word a trigger wears: where it came from, and whether it is running. */
@@ -38,11 +38,7 @@ export { Chip }
  */
 export function OwnerChip({ managed, document }: { managed: boolean; document: string | null }) {
     if (document !== null) {
-        return (
-            <Chip>
-                <span className="font-mono">{document}</span>
-            </Chip>
-        )
+        return <Chip mono>{document}</Chip>
     }
     return managed ? <Chip>{LABELS.triggers.managed}</Chip> : null
 }

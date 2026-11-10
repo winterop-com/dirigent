@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, test } from 'vitest'
 
-import { headingOf, initialOf, oneLine, titleOf } from '@/lib/identity'
+import { headingOf, initialOf, itemOf, oneLine, titleOf } from '@/lib/identity'
 
 /** Everything under `src/`, which one test below reads to assert what is not in it. */
 const SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -60,6 +60,15 @@ describe('what an addressable thing is called', () => {
             code: null,
             named: false,
         })
+    })
+
+    test('a heading is handed only the name headingOf finds, so whitespace and the code itself are no name', () => {
+        expect(itemOf({ code: 'nightly-etl', name: '  Nightly ETL ' })).toEqual({
+            name: 'Nightly ETL',
+            code: 'nightly-etl',
+        })
+        expect(itemOf({ code: 'nightly-etl', name: '   ' })).toEqual({ code: 'nightly-etl' })
+        expect(itemOf({ code: 'nightly-etl', name: 'nightly-etl' })).toEqual({ code: 'nightly-etl' })
     })
 })
 

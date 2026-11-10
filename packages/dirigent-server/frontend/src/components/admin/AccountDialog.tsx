@@ -4,19 +4,20 @@ import { toast } from 'sonner'
 import { Instant } from '@/components/Instant'
 import { Refusal, RefusalLine } from '@/components/Refusal'
 import { RoleSelect } from '@/components/admin/RoleSelect'
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Question } from '@/components/Question'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { EntityHeading } from '@/components/ds/EntityHeading'
-import { Fact, FactList } from '@/components/ds/FactList'
-import { FormField } from '@/components/ds/FormField'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
+import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { type Problem } from '@/lib/api'
 import { type UserRole } from '@/lib/auth'
 import { ICONS } from '@/lib/icons'
 import { DIALOG_WORDS } from '@/lib/design-system'
+import { itemOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import {
@@ -68,11 +69,11 @@ export function AccountDialog({
         (user.name ?? '') !== draft.name || (user.email ?? '') !== draft.email || user.role !== draft.role
 
     const heading = (
-        <EntityHeading
-            variant="dialog"
-            thing={{ code: user.username, name: user.name }}
+        <ItemHeading
+            {...itemOf({ code: user.username, name: user.name })}
+            size="dialog"
             lead={editing ? LABELS.action.edit : undefined}
-            chips={user.active ? undefined : <Chip tone="dashed">{LABELS.state.armed.deactivated}</Chip>}
+            chips={user.active ? undefined : <Chip tone="absent">{LABELS.state.armed.deactivated}</Chip>}
         />
     )
 
@@ -129,7 +130,7 @@ export function AccountDialog({
                     }}
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <FormField id="account-name" label={LABELS.word.name.label}>
+                        <Field id="account-name" label={LABELS.word.name.label}>
                             <Input
                                 id="account-name"
                                 value={draft.name}
@@ -138,8 +139,8 @@ export function AccountDialog({
                                     setDraft({ ...draft, name: event.target.value })
                                 }}
                             />
-                        </FormField>
-                        <FormField id="account-email" label={LABELS.word.email}>
+                        </Field>
+                        <Field id="account-email" label={LABELS.word.email}>
                             <Input
                                 id="account-email"
                                 value={draft.email}
@@ -148,9 +149,9 @@ export function AccountDialog({
                                     setDraft({ ...draft, email: event.target.value })
                                 }}
                             />
-                        </FormField>
+                        </Field>
                     </div>
-                    <FormField id="account-role" label={LABELS.word.role}>
+                    <Field id="account-role" label={LABELS.word.role}>
                         <RoleSelect
                             id="account-role"
                             value={draft.role}
@@ -158,7 +159,7 @@ export function AccountDialog({
                                 setDraft({ ...draft, role })
                             }}
                         />
-                    </FormField>
+                    </Field>
                     {problem !== null && <Refusal problem={problem} />}
                 </DialogShell>
             ) : (
@@ -256,18 +257,18 @@ export function AccountDialog({
 /** What the dialog reads first. The role is a word, and an email and a sign-in are said where they exist. */
 function AccountFacts({ user }: { user: UserOut }) {
     return (
-        <FactList>
-            <Fact term={LABELS.word.role}>
-                <span title={ROLE_HINTS[user.role]}>{user.role}</span>
-            </Fact>
-            {user.email !== null && <Fact term={LABELS.word.email}>{user.email}</Fact>}
-            <Fact term={LABELS.word.last_signed_in.label}>
-                {user.last_login_at === null ? LABELS.word.never : <Instant at={user.last_login_at} />}
-            </Fact>
-            <Fact term={LABELS.word.created.label}>
-                <Instant at={user.created_at} />
-            </Fact>
-        </FactList>
+        <DescriptionList
+            items={[
+                { term: LABELS.word.role, value: <span title={ROLE_HINTS[user.role]}>{user.role}</span> },
+                ...(user.email === null ? [] : [{ term: LABELS.word.email, value: user.email }]),
+                {
+                    term: LABELS.word.last_signed_in.label,
+                    value:
+                        user.last_login_at === null ? LABELS.word.never : <Instant at={user.last_login_at} />,
+                },
+                { term: LABELS.word.created.label, value: <Instant at={user.created_at} /> },
+            ]}
+        />
     )
 }
 
@@ -321,7 +322,7 @@ function ResetPassword({ username, onDone }: { username: string; onDone: () => v
             }}
             words={DIALOG_WORDS}
         >
-            <FormField id="reset-password" label={LABELS.users.new_password}>
+            <Field id="reset-password" label={LABELS.users.new_password}>
                 <Input
                     id="reset-password"
                     type="password"
@@ -331,7 +332,7 @@ function ResetPassword({ username, onDone }: { username: string; onDone: () => v
                         setPassword(event.target.value)
                     }}
                 />
-            </FormField>
+            </Field>
             {problem !== null && <RefusalLine problem={problem} />}
         </ConfirmDialog>
     )

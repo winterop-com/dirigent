@@ -257,13 +257,8 @@ export function ListTable<T>({
                     ) : (
                         <Table containerClassName="overflow-x-visible" className={cn(fixed && 'table-fixed')}>
                             {chrome?.header !== false && (
-                                <TableHeader
-                                    className={cn(
-                                        'sticky top-0 z-10',
-                                        framed ? 'bg-card' : 'bg-panel-ground',
-                                    )}
-                                >
-                                    <TableRow className="border-panel-line hover:bg-transparent">
+                                <TableHeader className="sticky top-0 z-10 bg-table-head-ground">
+                                    <TableRow className="border-table-head-line hover:bg-transparent">
                                         {columns.map((column, at) => (
                                             <TableHead
                                                 key={column.id}

@@ -2,7 +2,7 @@ import { Link } from 'react-router'
 
 import { HealthSaid } from '@/components/connections/Health'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import type { Issue, JsonMap } from '@/lib/api'
 import { healthOf, type ConnectionOut } from '@/lib/connections'
 import { LABELS } from '@/lib/labels'
@@ -56,7 +56,7 @@ export function RunFailure({
 }) {
     const params = Object.entries(run.params)
     return (
-        <Panel
+        <Section
             tone="critical"
             title={
                 step === null
@@ -109,6 +109,6 @@ export function RunFailure({
                     ))}
                 </dl>
             )}
-        </Panel>
+        </Section>
     )
 }

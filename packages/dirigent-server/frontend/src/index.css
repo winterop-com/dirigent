@@ -4,15 +4,23 @@
    missing. Each theme the app offers is its own file, worn on <html data-theme>. What follows the
    imports is this app's own CSS, drawn in the library's tokens. */
 @import '@winterop-com/sokkel-ui/styles-base.css';
+@import '@winterop-com/sokkel-ui/sources/Callout.css';
+@import '@winterop-com/sokkel-ui/sources/Chip.css';
 @import '@winterop-com/sokkel-ui/sources/CodeEditor.css';
 @import '@winterop-com/sokkel-ui/sources/CopyButton.css';
+@import '@winterop-com/sokkel-ui/sources/DescriptionList.css';
 @import '@winterop-com/sokkel-ui/sources/DialogShell.css';
+@import '@winterop-com/sokkel-ui/sources/Dot.css';
+@import '@winterop-com/sokkel-ui/sources/Field.css';
+@import '@winterop-com/sokkel-ui/sources/GroupLabel.css';
 @import '@winterop-com/sokkel-ui/sources/IconButton.css';
 @import '@winterop-com/sokkel-ui/sources/InlineCode.css';
+@import '@winterop-com/sokkel-ui/sources/ItemHeading.css';
 @import '@winterop-com/sokkel-ui/sources/Link.css';
 @import '@winterop-com/sokkel-ui/sources/PageHeader.css';
 @import '@winterop-com/sokkel-ui/sources/SearchField.css';
 @import '@winterop-com/sokkel-ui/sources/SecretReveal.css';
+@import '@winterop-com/sokkel-ui/sources/Section.css';
 @import '@winterop-com/sokkel-ui/sources/SplitButton.css';
 @import '@winterop-com/sokkel-ui/sources/SwitchField.css';
 @import '@winterop-com/sokkel-ui/sources/TextLink.css';
@@ -233,13 +241,12 @@
 }
 
 /* ---------------------------------------------------------------------------
-   A PANEL, DRAWN ONCE.
+   A LISTING'S FRAME AND THE TERMINAL'S, DRAWN AS sokkel-ui's `Section` IS.
 
-   Every section of a page is `components/ds/Panel`, and how one is drawn is here and nowhere
-   else, so a treatment is changed in one place: a title bar on the card rung, a hairline under it,
-   a body on a ground of its own, a hairline edge all round and no shadow. A graph's body is a
-   faint dot grid; a failure carries a rule in the failed ink along its top. The generated card
-   follows the same edge and ground.
+   A section of a page is sokkel-ui's `Section`; a listing and the run terminal frame themselves
+   here in its edge and ground, so a listing and a section beside it read as one kind of box: the
+   strong hairline all round, the card ground, no shadow, and a head on the section heads' ground
+   over their rule. The generated card follows the same edge and ground.
    --------------------------------------------------------------------------- */
 [data-slot='card'] {
     flex-shrink: 0;
@@ -248,9 +255,9 @@
 [data-slot='card'] {
     position: relative;
     overflow: clip;
-    border: 1px solid var(--panel-line);
+    border: 1px solid var(--border-strong);
     border-radius: var(--radius-surface);
-    background-color: var(--panel-ground);
+    background-color: var(--card);
     box-shadow: none;
 }
 .dg-panel-head {
@@ -261,48 +268,13 @@
     box-sizing: border-box;
     height: var(--spacing-panel-head);
     padding: 0 1rem;
-    border-bottom: 1px solid var(--panel-line);
-    background-color: var(--card);
+    border-bottom: 1px solid var(--section-head-line);
+    background-color: var(--section-head-ground);
     font-size: var(--text-sm);
     line-height: var(--text-sm--line-height);
     font-weight: 600;
 }
-.dg-panel-body {
-    min-width: 0;
-    background-color: var(--panel-ground);
-}
-.dg-panel[data-tone='graph'] > .dg-panel-body {
-    background-image: radial-gradient(var(--panel-dot) 1px, transparent 1.2px);
-    background-size: 16px 16px;
-}
-/* The failure's rule lies over the bar, inside the edge, so it adds no height to the panel. */
-.dg-panel[data-tone='critical']::before {
-    content: '';
-    position: absolute;
-    inset: 0 0 auto;
-    z-index: 1;
-    height: 2px;
-    background-color: var(--status-failed-ink);
-    pointer-events: none;
-}
-.dg-panel[data-tone='critical'] > .dg-panel-head {
-    color: var(--status-failed-ink);
-}
 
-/* THE THREE BOXES INSIDE A SURFACE. A well is a group on the panel ground; an inset is reference
-   material on the page's ground; a frame is a code editor drawn as the field it is. */
-.dg-well,
-.dg-inset {
-    min-width: 0;
-    border: 1px solid var(--panel-line);
-    border-radius: var(--radius-surface);
-}
-.dg-well {
-    background-color: var(--panel-ground);
-}
-.dg-inset {
-    background-color: var(--background);
-}
 [data-slot='combobox-content'][class~='w-(--anchor-width)'],
 [data-slot='dropdown-menu-content'][class~='w-(--anchor-width)'] {
     width: max-content;
@@ -716,7 +688,7 @@
     overflow: visible;
 }
 
-/* A dot carrying a state, for a fan-out element too small to wear a whole chip. */
+/* The dot a run's status chip leads with. */
 .status-dot {
     display: inline-block;
     width: 0.5rem;
@@ -901,13 +873,16 @@
 
        `data-menu-anchor` IS NOT A CONTROL AT ALL. A menu opened at a point -- the canvas's
        right-click menus -- anchors a zero-sized trigger under the cursor, and a finger never
-       lands on it because nothing draws it. */
+       lands on it because nothing draws it.
+
+       AN IMAGE THAT EXPLAINS ITSELF ON HOVER IS NOT A CONTROL. A bare status dot is its own
+       tooltip's trigger, and grown to a finger it would be drawn as a 44px disc. */
     [data-slot='button'],
     [data-slot='dialog-close'],
     [data-slot='tabs-trigger'],
     [data-slot='select-trigger'],
     [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
-    [data-slot='tooltip-trigger'],
+    [data-slot='tooltip-trigger']:not([role='img']),
     [data-slot='input'],
     [data-slot='command-input'],
     [data-slot='dropdown-menu-item'],
@@ -923,7 +898,7 @@
     [data-slot='button'],
     [data-slot='dialog-close'],
     [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
-    [data-slot='tooltip-trigger'] {
+    [data-slot='tooltip-trigger']:not([role='img']) {
         min-inline-size: var(--spacing-finger);
     }
     /* The canvas's cluster is the graph library's button rather than one of ours, and a zoom
@@ -984,23 +959,19 @@ html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-backgrou
 }
 
 /* ---------------------------------------------------------------------------
-   THE DESIGN SYSTEM'S OWN RULES, for the components in `components/ds`.
+   THE KIND AND STATUS CHIPS.
 
-   Every chip is 20px tall on the chip radius: `Chip` states it in its classes, and the kind and
-   status chips state it here. An unknown state's dot is hollow.
+   Every chip is 20px tall on the chip radius: sokkel-ui's `Chip` states it in its classes, and the
+   kind and status chips state it here.
    --------------------------------------------------------------------------- */
 .status-chip,
 .kind-chip {
     box-sizing: border-box;
     height: 1.25rem;
 }
-.status-dot[data-hollow] {
-    background-color: transparent;
-    box-shadow: inset 0 0 0 1.5px var(--chip);
-}
 
-/* A panel's title bar: one height, so bars side by side line up. Below the breakpoint it is
-   taller, to hold a control a finger tall. */
+/* The run terminal's title bar: one height. Below the breakpoint it is taller, to hold a control a
+   finger tall. */
 :root {
     --spacing-panel-head: 2.5rem;
 }

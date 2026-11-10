@@ -4,6 +4,7 @@ import type { IconButtonProps } from '@winterop-com/sokkel-ui/IconButton'
 import {
     copyWords,
     DIALOG_WORDS,
+    dotOf,
     galleryAnchor,
     GALLERY_INDEX,
     isNews,
@@ -84,6 +85,28 @@ describe('a dot', () => {
     test('says it always or never where it is asked to', () => {
         expect(saysWord(false, 'always')).toBe(true)
         expect(saysWord(true, 'never')).toBe(false)
+    })
+
+    test('is 8px, hollow only when unknown, and says its word as a tooltip where it does not draw it', () => {
+        expect(dotOf({ tone: 'good', label: 'healthy' })).toEqual({
+            color: 'var(--good)',
+            outline: false,
+            size: 'md',
+            label: 'healthy',
+            say: false,
+            tip: 'healthy',
+            className: undefined,
+        })
+        expect(dotOf({ tone: 'unknown', label: 'never checked' })).toMatchObject({
+            outline: true,
+            say: true,
+            tip: undefined,
+        })
+        expect(dotOf({ status: 'failed' })).toMatchObject({
+            color: 'var(--status-failed)',
+            label: LABELS.state.run.failed.chip,
+            say: true,
+        })
     })
 })
 

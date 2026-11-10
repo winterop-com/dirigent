@@ -9,7 +9,7 @@ refuses the shapes a hand-built copy leaves behind. ``docs/ui-conventions.md``, 
 Refused, under ``src/pages`` and ``src/components`` but not ``components/ds`` (the system itself):
 
 * ``word-chip``: a hand-typed word chip, one class string holding ``rounded-sm``, ``border``,
-  ``px-1.5`` and ``text-xs``. That shape is ``Chip``.
+  ``px-1.5`` and ``text-xs``. That shape is sokkel-ui's ``Chip``.
 * ``icon-button``: a ``<Button>`` sized ``icon``, ``icon-xs``, ``icon-sm`` or ``icon-lg``. An
   icon-only button is ``IconButton``, which cannot be drawn without a name and a tooltip.
 * ``lucide-import``: an import from ``lucide-react``. A mark is ``ICONS.<concept>`` from
@@ -62,7 +62,7 @@ LUCIDE: Final = re.compile(r"""from\s+['"]lucide-react['"]""")
 RADIUS: Final = re.compile(r"\brounded(?:-[a-z]+)?-\[")
 
 FIX: Final = {
-    "word-chip": "a word on a chip is `Chip` from components/ds/Chip.",
+    "word-chip": "a word on a chip is sokkel-ui's `Chip`.",
     "icon-button": "an icon-only button is sokkel-ui's `IconButton`, with a label and a tooltip.",
     "lucide-import": "a mark is `ICONS.<concept>` from lib/icons; add the concept there if it has none.",
     "arbitrary-radius": "a corner is a rung of the radius ladder: rounded-sm, rounded-md or rounded-lg.",

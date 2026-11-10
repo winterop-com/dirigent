@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 
+import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
-import { Inset } from '@/components/ds/Inset'
 import { ICONS } from '@/lib/icons'
 import { Dialog, DialogContent, DialogTitle } from '@winterop-com/sokkel-ui/primitives/dialog'
 import { cn } from '@/lib/utils'
@@ -120,7 +120,9 @@ export function WindowedPane({
         <>
             {frame === 'inset' ? (
                 <div onBlur={onBlur} className="contents">
-                    <Inset className={cn('flex flex-col', className)}>{inPlace}</Inset>
+                    <Surface tone="inset" className={cn('flex min-w-0 flex-col', className)}>
+                        {inPlace}
+                    </Surface>
                 </div>
             ) : (
                 <div className={cn('flex min-w-0 flex-col', className)} onBlur={onBlur}>

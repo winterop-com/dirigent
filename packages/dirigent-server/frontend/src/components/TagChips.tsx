@@ -9,7 +9,7 @@ import {
 import { foldTags, linesFor, roomFor } from '@/lib/tag-fold'
 import { counted, LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 
 /**
  * Every tag a listing row wears, inside the room the row's identity has left it.
@@ -62,10 +62,10 @@ function FoldedTags({ tags, onSelect }: { tags: readonly string[]; onSelect?: (t
     const label = counted(tags.length, LABELS.shell.folded_tags)(String(tags.length), tags.join(', '))
     const chip = `+${String(tags.length)}`
     const face =
-        'inline-flex h-5 items-center rounded-sm border border-border px-1.5 font-mono text-xs text-muted-foreground'
+        'inline-flex h-5 items-center rounded-chip bg-faint/15 px-1.5 font-mono text-badge text-muted-foreground'
     if (onSelect === undefined)
         return (
-            <Chip tone="mono" title={label}>
+            <Chip mono title={label}>
                 {chip}
             </Chip>
         )
@@ -77,7 +77,7 @@ function FoldedTags({ tags, onSelect }: { tags: readonly string[]; onSelect?: (t
                         type="button"
                         className={cn(
                             face,
-                            'cursor-pointer hover:border-foreground/40 hover:text-foreground',
+                            'cursor-pointer hover:text-foreground hover:underline hover:underline-offset-2',
                         )}
                         aria-label={label}
                         title={label}

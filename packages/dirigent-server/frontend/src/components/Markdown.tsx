@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 
+import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { readInline, readMarkdown, type Align, type Block, type Inline, type ListItem } from '@/lib/markdown'
 import { cn } from '@/lib/utils'
-import { Inset } from '@/components/ds/Inset'
 
 /**
  * A description, drawn.
@@ -66,11 +66,11 @@ function draw(block: Block, index: number): ReactNode {
             )
         case 'code':
             return (
-                <Inset key={index} className="overflow-x-auto">
+                <Surface tone="inset" key={index} className="overflow-x-auto">
                     <pre className="p-2 font-mono text-xs" data-language={block.language ?? undefined}>
                         {block.text}
                     </pre>
-                </Inset>
+                </Surface>
             )
         case 'list':
             return block.ordered ? (
@@ -95,7 +95,7 @@ function draw(block: Block, index: number): ReactNode {
             // A table is as wide as its columns need, and a description is drawn in a panel that
             // is often narrower than that: it scrolls inside its own box rather than the page.
             return (
-                <Inset key={index} className="overflow-x-auto">
+                <Surface tone="inset" key={index} className="overflow-x-auto">
                     <table className="w-full border-collapse text-xs">
                         {block.header !== null && (
                             <thead>
@@ -108,7 +108,7 @@ function draw(block: Block, index: number): ReactNode {
                             {bodyRows(block.rows, block.align)}
                         </tbody>
                     </table>
-                </Inset>
+                </Surface>
             )
         case 'rule':
             return <hr key={index} className="border-border" />

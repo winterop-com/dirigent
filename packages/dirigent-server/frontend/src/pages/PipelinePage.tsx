@@ -4,9 +4,9 @@ import { toast } from 'sonner'
 
 import { HealthSaid } from '@/components/connections/Health'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
-import { Notice } from '@/components/ds/Notice'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { Instant } from '@/components/Instant'
 import { Markdown } from '@/components/Markdown'
 import { PageState } from '@/components/PageState'
@@ -175,17 +175,17 @@ export function PipelinePage() {
             )}
 
             {chosenAt.kind === 'unknown' && (
-                <Notice tone="warning" className="mt-6">
+                <Callout tone="warning" className="mt-6">
                     {LABELS.pipelines.page.no_such_step(chosenAt.code)}
-                </Notice>
+                </Callout>
             )}
 
             {steps.length === 0 ? (
-                <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false} className="mt-6">
+                <Section title={LABELS.pipelines.page.graph} tone="graph" flush className="mt-6">
                     <p className="p-4 text-sm text-muted-foreground">
                         {LABELS.editor.canvas.nothing_to_draw}
                     </p>
-                </Panel>
+                </Section>
             ) : (
                 <ShapeGraph
                     key={pipeline.code}
@@ -211,16 +211,16 @@ export function PipelinePage() {
 
             <div className="mt-5 flex flex-wrap items-start gap-5">
                 {steps.some((step) => step.kind === 'block') && (
-                    <Panel
+                    <Section
                         title={LABELS.pipelines.page.blocks}
                         className="flex-[1_1_420px]"
                         bodyClassName="py-2"
                     >
                         <Blocks steps={steps} selected={selected} onSelect={select} />
-                    </Panel>
+                    </Section>
                 )}
                 <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-5">
-                    <Panel title={LABELS.pipelines.page.triggers} bodyClassName="py-2">
+                    <Section title={LABELS.pipelines.page.triggers} bodyClassName="py-2">
                         <Triggers
                             schedules={schedules.value?.items ?? null}
                             steps={steps}
@@ -230,13 +230,13 @@ export function PipelinePage() {
                                 setFresher((current) => ({ ...current, [row.code]: row }))
                             }}
                         />
-                    </Panel>
-                    <Panel title={LABELS.pipelines.page.connections} bodyClassName="py-2">
+                    </Section>
+                    <Section title={LABELS.pipelines.page.connections} bodyClassName="py-2">
                         <Reaches
                             codes={connectionsNamed(pipeline.document)}
                             held={held.value?.items ?? null}
                         />
-                    </Panel>
+                    </Section>
                 </div>
             </div>
 

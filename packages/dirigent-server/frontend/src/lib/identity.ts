@@ -46,6 +46,12 @@ export function headingOf(thing: Addressable): Heading {
     return { title, code: named ? thing.code : null, named }
 }
 
+/** A thing's name and code as `ItemHeading` takes them: the name only where `headingOf` finds one. */
+export function itemOf(thing: Addressable): { name?: string; code: string } {
+    const heading = headingOf(thing)
+    return heading.named ? { name: heading.title, code: thing.code } : { code: thing.code }
+}
+
 /**
  * A description as the one line a listing row has space for.
  *

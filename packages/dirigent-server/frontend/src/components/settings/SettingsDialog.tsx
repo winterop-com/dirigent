@@ -3,6 +3,7 @@ import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
+import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Refusal } from '@/components/Refusal'
 import { LINK_WORDS, SEARCH_PLACEHOLDER } from '@/lib/design-system'
 import { Segmented } from '@/components/Segmented'
@@ -49,7 +50,6 @@ import {
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
-import { Well } from '@/components/ds/Well'
 
 export const SETTINGS_TITLE = LABELS.settings.title
 
@@ -490,7 +490,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     }
 
     return (
-        <Well className="space-y-3 p-3">
+        <Surface tone="well" pad className="space-y-3">
             <div className="flex flex-col gap-3 md:flex-row">
                 <div className="min-w-0 flex-1 space-y-1">
                     <Label htmlFor="password-current">{LABELS.settings.current_password}</Label>
@@ -528,7 +528,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
                     {LABELS.settings.change_password}
                 </Button>
             </div>
-        </Well>
+        </Surface>
     )
 }
 

@@ -12,8 +12,8 @@ import { Breadcrumb } from '@/components/Breadcrumb'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
-import { Notice } from '@/components/ds/Notice'
-import { Panel } from '@/components/ds/Panel'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { connectionOf, RunFailure } from '@/components/run/RunFailure'
 import { PageHead } from '@/components/PageHead'
 import { PageState } from '@/components/PageState'
@@ -623,24 +623,24 @@ export function RunDetail() {
                 </PageHead>
 
                 {chosenAt.kind === 'unknown' && (
-                    <Notice tone="warning" className="mt-3.5">
+                    <Callout tone="warning" className="mt-3.5">
                         {LABELS.runs.no_such_step(chosenAt.code)}
-                    </Notice>
+                    </Callout>
                 )}
 
                 <div className="mt-3.5 flex flex-1 flex-col">
                     {state.dag.nodes.length === 0 ? (
-                        <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false}>
+                        <Section title={LABELS.pipelines.page.graph} tone="graph" flush>
                             <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.graph_empty}</p>
-                        </Panel>
+                        </Section>
                     ) : (
                         <Suspense
                             fallback={
-                                <Panel title={LABELS.pipelines.page.graph} tone="graph" inset={false}>
+                                <Section title={LABELS.pipelines.page.graph} tone="graph" flush>
                                     <PageState loading problem={null} empty={false}>
                                         {null}
                                     </PageState>
-                                </Panel>
+                                </Section>
                             }
                         >
                             <RunGraph

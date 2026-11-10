@@ -11,9 +11,9 @@ import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Question } from '@/components/Question'
 import { RefusalLine } from '@/components/Refusal'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { EntityHeading } from '@/components/ds/EntityHeading'
-import { Fact, FactList } from '@/components/ds/FactList'
-import { Notice } from '@/components/ds/Notice'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useConnectionEdit } from '@/hooks/use-connection-edit'
@@ -35,6 +35,7 @@ import { separatelyUpdated } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { ICONS } from '@/lib/icons'
 import { DIALOG_WORDS } from '@/lib/design-system'
+import { itemOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
 import { refusalOf } from '@/lib/refusal'
@@ -86,9 +87,9 @@ export function ConnectionDialog({
         write.why ?? (connection.awaiting_secrets ? LABELS.connections.awaiting.check_shut : undefined)
 
     const heading = (
-        <EntityHeading
-            variant="dialog"
-            thing={connection}
+        <ItemHeading
+            {...itemOf(connection)}
+            size="dialog"
             lead={editing ? LABELS.action.edit : undefined}
             glyph={<Mark glyph={kindGlyph(connection.kind, marks)} />}
             chips={<InlineCode value={connection.kind} tone="muted" bare size="xs" />}
@@ -245,7 +246,7 @@ function ConnectionFacts({
     return (
         <>
             {connection.awaiting_secrets && (
-                <Notice tone="warning">
+                <Callout tone="warning">
                     <span className="flex min-w-0 flex-col gap-1">
                         <span>{LABELS.connections.awaiting.body}</span>
                         <InlineCode
@@ -255,48 +256,51 @@ function ConnectionFacts({
                             size="xs"
                         />
                     </span>
-                </Notice>
+                </Callout>
             )}
             <Description text={connection.description} />
-            <FactList>
-                <Fact term={LABELS.word.health}>
-                    <span className="flex min-w-0 flex-col gap-1">
-                        <span className="flex items-center gap-2">
-                            <HealthSaid view={view} />
-                            {view.checkedAt !== null && (
-                                <span className="text-xs text-muted-foreground">
-                                    {LABELS.word.checked.term} <Instant at={view.checkedAt} />
+            <DescriptionList
+                termWidth="9rem"
+                items={[
+                    {
+                        term: LABELS.word.health,
+                        value: (
+                            <span className="flex min-w-0 flex-col gap-1">
+                                <span className="flex items-center gap-2">
+                                    <HealthSaid view={view} />
+                                    {view.checkedAt !== null && (
+                                        <span className="text-xs text-muted-foreground">
+                                            {LABELS.word.checked.term} <Instant at={view.checkedAt} />
+                                        </span>
+                                    )}
                                 </span>
-                            )}
-                        </span>
-                        {view.detail !== null && (
-                            <span className="text-xs break-words text-muted-foreground">{view.detail}</span>
-                        )}
-                    </span>
-                </Fact>
-                {facts.map((fact) => (
-                    <Fact key={fact.name} term={fact.name} termMono mono={fact.value !== null}>
-                        {fact.value === null ? (
-                            <span className="text-faint">{LABELS.connections.secret_not_set}</span>
-                        ) : (
-                            <span className="text-xs break-all">{fact.value}</span>
-                        )}
-                    </Fact>
-                ))}
-                {users !== null && isUsed(users) && (
-                    <Fact term={LABELS.connections.used_by_term}>
-                        <UsedBy users={users} />
-                    </Fact>
-                )}
-                <Fact term={LABELS.word.created.label}>
-                    <Instant at={connection.created_at} />
-                </Fact>
-                {separatelyUpdated(connection.created_at, connection.updated_at) && (
-                    <Fact term={LABELS.word.updated.label}>
-                        <Instant at={connection.updated_at} />
-                    </Fact>
-                )}
-            </FactList>
+                                {view.detail !== null && (
+                                    <span className="text-xs break-words text-muted-foreground">
+                                        {view.detail}
+                                    </span>
+                                )}
+                            </span>
+                        ),
+                    },
+                    ...facts.map((fact) => ({
+                        term: <InlineCode value={fact.name} tone="muted" bare size="xs" />,
+                        code: fact.value !== null,
+                        value:
+                            fact.value === null ? (
+                                <span className="text-faint">{LABELS.connections.secret_not_set}</span>
+                            ) : (
+                                <span className="text-xs break-all">{fact.value}</span>
+                            ),
+                    })),
+                    ...(users !== null && isUsed(users)
+                        ? [{ term: LABELS.connections.used_by_term, value: <UsedBy users={users} /> }]
+                        : []),
+                    { term: LABELS.word.created.label, value: <Instant at={connection.created_at} /> },
+                    ...(separatelyUpdated(connection.created_at, connection.updated_at)
+                        ? [{ term: LABELS.word.updated.label, value: <Instant at={connection.updated_at} /> }]
+                        : []),
+                ]}
+            />
         </>
     )
 }

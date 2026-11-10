@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Field, TargetPicker } from '@/components/alerting/fields'
 import { Instant } from '@/components/Instant'
 import { Refusable } from '@/components/Refusable'
@@ -22,7 +23,6 @@ import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
 import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
-import { Well } from '@/components/ds/Well'
 
 /** How often the queued row is read back while it is still moving. */
 const POLL_MS = 1000
@@ -174,7 +174,7 @@ export function SendTest({
 function Delivery({ row }: { row: NotificationOut }) {
     return (
         <div data-testid="test-delivery" aria-live="polite">
-            <Well className="space-y-2 p-3">
+            <Surface tone="well" pad className="space-y-2">
                 <p className="flex flex-wrap items-center gap-2">
                     <StatusChip status={row.status} />
                     <span className="text-sm">{row.subject}</span>
@@ -199,7 +199,7 @@ function Delivery({ row }: { row: NotificationOut }) {
                     )}
                 </p>
                 {row.error !== null && <p className="text-xs break-words text-critical">{row.error}</p>}
-            </Well>
+            </Surface>
         </div>
     )
 }

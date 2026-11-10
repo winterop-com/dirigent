@@ -5,7 +5,7 @@ import { Link } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { Panel } from '@/components/ds/Panel'
+import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { MiniGraph } from '@/components/graph/MiniGraph'
 import { Instant } from '@/components/Instant'
@@ -180,7 +180,7 @@ export function Dashboard() {
                         </PageState>
                     )}
                     {durations.length > 0 && (
-                        <Panel
+                        <LibrarySection
                             title={LABELS.dashboard.durations.title}
                             meta={LABELS.dashboard.durations.median}
                             bodyClassName="py-1"
@@ -202,7 +202,7 @@ export function Dashboard() {
                                     </Link>
                                 ))}
                             </div>
-                        </Panel>
+                        </LibrarySection>
                     )}
                 </div>
                 {healthReadable && (
@@ -280,16 +280,16 @@ function Section({
     children: ReactNode
 }) {
     return (
-        <Panel
+        <LibrarySection
             className="mb-6 last:mb-0"
-            inset={false}
+            flush
             title={
                 <Link to={to} className="hover:underline">
                     {title}
                 </Link>
             }
             meta={count === undefined ? undefined : String(count)}
-            aside={
+            actions={
                 link === undefined ? undefined : (
                     <TextLink variant="aside" href={to} className="text-xs font-normal">
                         {link}
@@ -298,7 +298,7 @@ function Section({
             }
         >
             {children}
-        </Panel>
+        </LibrarySection>
     )
 }
 

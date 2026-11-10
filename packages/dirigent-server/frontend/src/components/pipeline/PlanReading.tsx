@@ -2,7 +2,7 @@ import { counted, LABELS } from '@/lib/labels'
 import type { PlanView } from '@/lib/pipeline-plan'
 import type { ValidationIssue } from '@/lib/pipelines'
 import { sentenceFor } from '@/lib/wording'
-import { Notice } from '@/components/ds/Notice'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
 
 /**
  * One dry run, drawn the one way this app draws one.
@@ -39,7 +39,7 @@ export function PlanReading({ view }: { view: PlanView }) {
                 </ul>
             )}
             {view.issues.length > 0 && (
-                <Notice
+                <Callout
                     tone="critical"
                     title={counted(
                         view.issues.length,
@@ -54,7 +54,7 @@ export function PlanReading({ view }: { view: PlanView }) {
                             </li>
                         ))}
                     </ul>
-                </Notice>
+                </Callout>
             )}
             {view.updates &&
                 view.issues.length === 0 &&

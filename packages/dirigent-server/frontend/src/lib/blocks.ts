@@ -199,7 +199,7 @@ function unsafeFact(entry: BlockEntry): string {
 export interface UnsafeMark {
     label: string
     title: string
-    tone: 'critical' | 'dashed' | 'neutral'
+    tone: 'critical' | 'absent' | 'neutral'
 }
 
 /** The chip an unsafe block wears, its tone saying whether this instance enables it; null for a safe one. */
@@ -212,7 +212,7 @@ export function unsafeChip(entry: BlockEntry): UnsafeMark | null {
         return {
             label: LABELS.blocks.unsafe.not_enabled_label,
             title: LABELS.blocks.unsafe.not_enabled,
-            tone: 'dashed',
+            tone: 'absent',
         }
     }
     return { label: LABELS.blocks.unsafe.label, title: LABELS.blocks.unsafe.unknown, tone: 'neutral' }

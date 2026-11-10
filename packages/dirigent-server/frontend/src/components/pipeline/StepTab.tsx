@@ -16,6 +16,7 @@ import {
 import type { JsonMap, Problem } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
 import type { ConnectionOut } from '@/lib/connections'
+import { chipWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import type { SchemaOut } from '@/lib/schemas'
 import {
@@ -48,8 +49,8 @@ import {
     withRetryKey,
     withStepKey,
 } from '@/lib/step-keys'
-import { Notice } from '@/components/ds/Notice'
-import { Chip } from '@/components/ds/Chip'
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 
 /**
  * The step in front of somebody: what it runs, what it waits for, and the config it takes.
@@ -169,7 +170,7 @@ export function StepTab({
                 )}
             </div>
 
-            {disabled !== undefined && <Notice tone="warning">{disabled}</Notice>}
+            {disabled !== undefined && <Callout tone="warning">{disabled}</Callout>}
 
             {listens !== null && source !== null && (
                 <SourceFacts source={source} body={sampleBody(document, step)} onReplaced={onSourceChanged} />
@@ -276,13 +277,13 @@ export function StepTab({
             </div>
 
             {refusals.length > 0 && (
-                <Notice tone="critical" title={LABELS.editor.step.refused_at_apply}>
+                <Callout tone="critical" title={LABELS.editor.step.refused_at_apply}>
                     <ul className="list-disc space-y-0.5 pl-4 text-xs">
                         {refusals.map(([name, message]) => (
                             <li key={name}>{message}</li>
                         ))}
                     </ul>
-                </Notice>
+                </Callout>
             )}
         </div>
     )
@@ -332,7 +333,7 @@ function Summary({ parts, chips }: { parts: SummaryPart[]; chips: boolean }) {
         return (
             <span className="ml-auto flex flex-wrap items-center justify-end gap-1">
                 {parts.map((part) => (
-                    <Chip key={part.text} tone="mono">
+                    <Chip key={part.text} mono>
                         {part.text}
                     </Chip>
                 ))}
@@ -376,8 +377,8 @@ function Prerequisites({
                     disabled === undefined ? (
                         <Chip
                             key={name}
-                            tone="mono"
-                            removeLabel={LABELS.editor.step.stop_waiting(name)}
+                            mono
+                            words={chipWords(LABELS.editor.step.stop_waiting)}
                             onRemove={() => {
                                 onDependsOn(prerequisites.filter((one) => one !== name))
                             }}
@@ -385,7 +386,7 @@ function Prerequisites({
                             {name}
                         </Chip>
                     ) : (
-                        <Chip key={name} tone="mono">
+                        <Chip key={name} mono>
                             {name}
                         </Chip>
                     ),

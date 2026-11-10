@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
+import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
 import { Mark } from '@/components/Mark'
@@ -34,8 +35,7 @@ import { kindGlyph } from '@/lib/glyphs'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
-import { Well } from '@/components/ds/Well'
-import { Chip } from '@/components/ds/Chip'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 
 /**
  * One rule beside the listing: what it says, what it has said lately, and what may be done to it.
@@ -274,7 +274,7 @@ function RuleText({
     }
 
     return (
-        <Well className="space-y-3 p-3">
+        <Surface tone="well" pad className="space-y-3">
             <div className="space-y-2">
                 <Label htmlFor={subjectId}>{LABELS.word.subject}</Label>
                 <Input
@@ -317,7 +317,7 @@ function RuleText({
                     {busy ? LABELS.action.save.busy : LABELS.action.save.verb}
                 </Button>
             </div>
-        </Well>
+        </Surface>
     )
 }
 

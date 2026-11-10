@@ -1,9 +1,11 @@
 import { ChevronRight } from 'lucide-react'
-import { useState, type CSSProperties } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 
-import { Panel } from '@/components/ds/Panel'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { Mark } from '@/components/Mark'
+import { Dot as LibraryDot } from '@winterop-com/sokkel-ui/Dot'
+import { TONE_FILL } from '@/lib/design-system'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import {
@@ -18,13 +20,6 @@ import { formatRelative } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
-
-/** What each dot is painted in, named through the semantic aliases rather than a colour. */
-const TONES: Record<ChannelView['tone'], string> = {
-    good: 'var(--good)',
-    critical: 'var(--critical)',
-    quiet: 'var(--faint)',
-}
 
 /** The chip: a glyph, a code and a dot, at the height a pointer and a finger both want. */
 const CHIP =
@@ -52,7 +47,7 @@ export function ChannelStrip({ channels, read }: { channels: readonly Channel[];
     const note = channelNote(channels.length, read)
     if (small) return <ChannelFold channels={channels} note={note} />
     return (
-        <Panel title={LABELS.alerting.channels_heading}>
+        <Section title={LABELS.alerting.channels_heading}>
             {note === null ? (
                 <ul className="flex flex-wrap gap-2">
                     {channels.map((channel) => (
@@ -64,7 +59,7 @@ export function ChannelStrip({ channels, read }: { channels: readonly Channel[];
             ) : (
                 <p className={note.tone}>{note.text}</p>
             )}
-        </Panel>
+        </Section>
     )
 }
 
@@ -241,5 +236,5 @@ function ChannelRow({ channel }: { channel: Channel }) {
 
 /** The dot, which says one of three things and never which kind the channel is. */
 function Dot({ tone }: { tone: ChannelView['tone'] }) {
-    return <span className="status-dot" style={{ '--chip': TONES[tone] } as CSSProperties} />
+    return <LibraryDot color={TONE_FILL[tone]} size="md" />
 }

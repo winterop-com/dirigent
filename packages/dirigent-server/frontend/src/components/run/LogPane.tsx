@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { Surface } from '@winterop-com/sokkel-ui/Section'
+
 import { useStore } from '@/hooks/use-store'
 import { formatClock } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
@@ -70,14 +72,15 @@ export function LogPane({
     }, [entries, following])
 
     return (
-        <div
+        <Surface
+            tone="inset"
             ref={pane}
             onScroll={(event) => {
                 const element = event.currentTarget
                 const room = element.scrollHeight - element.scrollTop - element.clientHeight
                 setScrolledAway(room > TAIL_SLACK)
             }}
-            className={cn('dg-inset overflow-y-auto p-2 font-mono', className)}
+            className={cn('min-w-0 overflow-y-auto p-2 font-mono', className)}
         >
             {entries.length === 0 ? (
                 <p className="text-xs text-faint">
@@ -101,6 +104,6 @@ export function LogPane({
                     )
                 })
             )}
-        </div>
+        </Surface>
     )
 }

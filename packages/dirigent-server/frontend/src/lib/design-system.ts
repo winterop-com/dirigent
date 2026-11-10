@@ -6,8 +6,11 @@
  * Node test can hold them.
  */
 
+import type { ChipWords } from '@winterop-com/sokkel-ui/Chip'
 import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
 import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
+import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
+import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
 import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
@@ -15,6 +18,7 @@ import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
 
 import { LABELS } from '@/lib/labels'
+import { statusLabel, statusTokens } from '@/lib/status'
 
 /** What a dot or a notice says about something that is not a run: how it is, in one hue. */
 export type Tone = 'good' | 'critical' | 'warning' | 'info' | 'quiet' | 'unknown'
@@ -53,6 +57,42 @@ export function saysWord(news: boolean, say: Say = 'news'): boolean {
 /** Whether a tone or a status is news. */
 export function isNews(dot: { tone: Tone } | { status: string }): boolean {
     return 'tone' in dot ? NEWS_TONES.has(dot.tone) : NEWS_STATUSES.has(dot.status)
+}
+
+/**
+ * How a dot is drawn for a tone or a run or attempt status: 8px, filled from the one map, an
+ * `unknown` tone hollow, named by its word, and saying that word beside it only when it is news. A
+ * dot that does not say its word says it as its tooltip. A word it says is small, and in body ink
+ * only for a failure: a state nothing has proved is said quietly.
+ */
+export function dotOf(
+    dot: { tone: Tone; label: string } | { status: string; label?: string },
+    say?: Say,
+): DotProps {
+    const label = dot.label ?? ('status' in dot ? statusLabel(dot.status) : '')
+    const said = saysWord(isNews(dot), say)
+    const loud = isNews(dot) && !('tone' in dot && dot.tone === 'unknown')
+    return {
+        color: 'tone' in dot ? TONE_FILL[dot.tone] : statusTokens(dot.status)['--chip'],
+        outline: 'tone' in dot && dot.tone === 'unknown',
+        size: 'md',
+        label,
+        say: said,
+        tip: said ? undefined : label,
+        className: said
+            ? loud
+                ? 'text-xs font-medium text-foreground'
+                : 'text-xs text-muted-foreground'
+            : undefined,
+    }
+}
+
+/** What a field says beside its label when it is required. */
+export const FIELD_WORDS: FieldWords = { required: LABELS.form.required }
+
+/** What a chip's remove button is called, as a function of the chip's words: "Stop filtering by finance". */
+export function chipWords(remove: (text: string) => string): ChipWords {
+    return { remove }
 }
 
 /** What a copy button is called before a press, `copy`, and for a moment after it. */
