@@ -511,6 +511,7 @@ export function RunDetail() {
                     <LibraryPageHeader
                         title={document?.name ?? run.pipeline}
                         code={run.pipeline}
+                        singleLine={document === null || document.name === null}
                         meta={
                             <span title={run.id}>
                                 <InlineCode
@@ -526,8 +527,7 @@ export function RunDetail() {
                             <IconButton
                                 size="icon-sm"
                                 label={TERMINAL_LABEL}
-                                aria-pressed={terminal}
-                                className="text-muted-foreground"
+                                pressed={terminal}
                                 onClick={toggleTerminal}
                             >
                                 <ICONS.terminal aria-hidden />

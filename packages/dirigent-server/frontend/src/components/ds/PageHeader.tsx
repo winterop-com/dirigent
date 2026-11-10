@@ -47,6 +47,7 @@ export function PageHeader({
                     title={title}
                     count={count}
                     code={code ?? undefined}
+                    singleLine={code === title}
                     meta={meta}
                     lead={lead}
                     items={items}

@@ -664,7 +664,11 @@ export function PipelineEditor() {
                                 {LABELS.editor.topbar.new_pipeline}
                             </span>
                         ) : (
-                            <InlineCode value={heading.code ?? code} tone="neutral" bare size="xs" />
+                            // Below the breakpoint the code gives way to the read-only line rather
+                            // than wrapping the strip onto a second row.
+                            <span className={small ? 'min-w-0 flex-1 basis-0' : 'min-w-0'}>
+                                <InlineCode value={heading.code ?? code} tone="neutral" bare size="xs" />
+                            </span>
                         )}
                         {/* Hidden below the breakpoint, where the strip has only the room for the
                     document's identity and the line saying it is read. */}

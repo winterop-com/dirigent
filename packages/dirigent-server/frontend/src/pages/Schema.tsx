@@ -291,7 +291,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
         <>
             <PageHeader
                 title={heading.title}
-                code={heading.code}
+                code={schema.code}
                 trail={[{ label: LABELS.screen.schemas.name, to: '/schemas' }]}
                 items={[
                     {
