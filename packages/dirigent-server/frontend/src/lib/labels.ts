@@ -3548,9 +3548,20 @@ const alerting = {
  */
 const settings = {
     title: 'Settings',
+    /** The search box's accessible name; its placeholder is the shell's "Search". */
     search: 'Search the settings',
+    /** Above the Shortcuts pane's rows: where the keys work. */
+    shortcuts_apply: 'Anywhere but inside a text box.',
     /** No row anywhere answers what was typed. */
     no_match: 'Nothing matches that.',
+    /** The note at the start of the footer: nothing waits for a save. */
+    saved: 'Changes are saved as you make them.',
+    /** The footer's button that closes the dialog. */
+    done: 'Done',
+    /** The corner button that closes the dialog. */
+    close: 'Close settings',
+    /** On a phone, the button that goes from a category back to the list of them. */
+    back: 'Back to the categories',
 
     /** The headings the left nav lays its categories out under. */
     group: {
@@ -3575,6 +3586,7 @@ const settings = {
         current_line: 'Current line',
         signed_in_as: 'Signed in as',
         session: 'Session',
+        reference: 'Reference',
     },
 
     /** The fact a row adds where its control cannot show one. */
@@ -3601,9 +3613,6 @@ const settings = {
     new_password: 'New password',
     change_password: 'Change password',
     password_changed: 'Password changed. Every other session of this account is signed out.',
-
-    /** Where the keys this app answers apply. */
-    shortcuts_apply: 'Anywhere but inside a text box.',
 
     /** When the readiness probe last answered. */
     checked: (when: string) => `checked ${when}`,
