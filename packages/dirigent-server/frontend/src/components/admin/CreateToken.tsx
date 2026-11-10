@@ -1,7 +1,6 @@
 import { useState } from 'react'
 
 import { Code } from '@/components/ds/Code'
-import { SecretReveal } from '@/components/ds/SecretReveal'
 import { Refusal } from '@/components/Refusal'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
@@ -15,7 +14,9 @@ import {
 } from '@winterop-com/sokkel-ui/primitives/dialog'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
+import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
 import { type Problem } from '@/lib/api'
+import { secretWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { createToken, createTokenFor, type IssuedTokenOut } from '@/lib/users'
@@ -111,7 +112,7 @@ export function CreateToken({
                             <span className="text-sm font-medium">{issued.name}</span>
                             <Code value={issued.username} />
                         </p>
-                        <SecretReveal value={issued.token} label={LABELS.users.token_noun} />
+                        <SecretReveal value={issued.token} words={secretWords(LABELS.users.token_noun)} />
                     </div>
                 )}
 

@@ -216,10 +216,10 @@ so a screen with two listings -- Triggers' sources and schedules, the catalog's 
 panels rather than two headings over two cards.
 
 **Inside a panel or a dialog there are three boxes, and each is drawn once.** A `Well` is a group
-that belongs together -- a form opened under its row, a minted secret, a sample -- on the panel
-ground, edged in `--panel-line`. An `Inset` is reference material -- a block of JSON, a code block
-in a description, a log -- on the page's own ground, edged the same way, so a preview reads as cut
-into the surface it is on. A code editor is a field, so `CodeFrame` edges it the way every field is
+that belongs together -- a form opened under its row, a sample -- on the panel ground, edged in
+`--panel-line`. An `Inset` is reference material -- a block of JSON, a code block in a
+description, a log -- on the page's own ground, edged the same way, so a preview reads as cut into
+the surface it is on. A code editor is a field, so `CodeFrame` edges it the way every field is
 edged -- the `--input` hairline at the control's corner -- around the editor's own ground, and
 `WindowedPane` puts every pane that opens in a window inside one. A box that says how something is going is a `Notice`,
 and a refusal off the wire is `Refusal`. No screen types a border, a corner and a ground onto a
@@ -2390,20 +2390,20 @@ already says what is through the door.
 
 ## Design system
 
-**Every recurring shape on a screen is one component in `src/components/ds`, and a page does not
-hand-build what one of them covers.** A lead cell, a chip, a dot, an icon-only button, a search
-box, a heading inside a screen, a list of facts, a field, a notice, a dialog, a page heading and
-a link are each drawn one way, by the component below, and a screen that typed the classes out
-again is a second answer to a question the system has already answered. `/design` draws every
-component in every variant and state -- enabled, shut with a reason, hovered, focused, empty,
-loading, long text truncating -- in both modes; it is offered by the palette ("Design system")
-and not by the rail. A component that needs a new variant gets it in `ds/` and on that screen
-first, then on the page that asked. **The gallery is named for what somebody is looking for, not
-for how the code files it**: Text (Titles, Headings, Links), Marks (Labels, Status dots, Icons),
-Controls (Buttons, Search, Form fields, Switches), Containers (Notices, Dialogs, Lists of facts),
-with an index beside them that follows the scroll and a plain sentence under a heading only where it
-adds a fact. A component keeps its own name in the code. A specimen stands on the section's card with
-no frame of its own.
+**Every recurring shape on a screen is one component, sokkel-ui's where the library has it and
+otherwise one in `src/components/ds`, and a page does not hand-build what one of them covers.** A
+lead cell, a chip, a dot, an icon-only button, a search box, a heading inside a screen, a list of
+facts, a field, a notice, a dialog, a page heading and a link are each drawn one way, by the
+component below, and a screen that typed the classes out again is a second answer to a question the
+system has already answered. `/design` draws every component in every variant and state -- enabled,
+shut with a reason, hovered, focused, empty, loading, long text truncating -- in both modes; it is
+offered by the palette ("Design system") and not by the rail. A component that needs a new variant
+gets it in `ds/`, or in sokkel-ui for one of the library's, and on that screen first, then on the
+page that asked. **The gallery is named for what somebody is looking for, not for how the code files
+it**: Text (Titles, Headings, Links), Marks (Labels, Status dots, Icons), Controls (Buttons, Search,
+Form fields, Switches), Containers (Notices, Dialogs, Lists of facts), with an index beside them
+that follows the scroll and a plain sentence under a heading only where it adds a fact. A component
+keeps its own name in the code. A specimen stands on the section's card with no frame of its own.
 
 | Component | When |
 | --- | --- |
@@ -2418,8 +2418,8 @@ no frame of its own.
 | `Notice`, `Well`, `Inset`, `CodeFrame` | `Notice` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Well` is a group that belongs together, on the panel ground at 8px. `Inset` is reference material -- JSON, a code block, a log -- on the page's ground. `CodeFrame` is a code editor drawn as the field it is, and `WindowedPane` puts its pane in one. A refusal off the wire is still `Refusal` |
 | `DialogShell` | Every dialog: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one `Refusable` confirm, or of `verbs` on a dialog that reads one thing |
 | `ConfirmDialog` | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. A refusal off the wire is one short line, with no box and no second naming of the thing. A verb that cannot go without one value holds that one field: a password reset's new password. No such verb is immediate |
-| `SecretReveal` | A secret the server answers with once: the value in mono, a copy button that says it copied and resets, and the line saying it is shown once |
-| `CopyButton` | The icon button beside a string somebody pastes elsewhere -- a secret, a URL, a command line: it puts the string on the clipboard, says it copied, and resets |
+| `SecretReveal` (sokkel-ui) | A secret the server answers with once: the value whole in mono on its own field, wrapped rather than cut, a copy button that says it copied and resets, and the line in the warning ink saying it is shown once. `secretWords` names the copy button for the secret and says that line |
+| `CopyButton` (sokkel-ui) | The ghost icon button beside a string somebody pastes elsewhere -- a secret, a URL, a command line: it puts the string on the clipboard, says it copied, and resets. `copyWords` gives it its name and the copied word |
 | `PageHeader`, `SplitButton` | A screen's heading, at `text-page`. It owns the primary action through `actions`, last of them, which is a `SplitButton` when it carries `more`; a `count` beside the title; a `code` under it in mono for a detail screen; a `trail` for a detail screen. No subtitle |
 | `TextLink` | Every link that is text. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table, `aside` in the muted ink beside a section heading, `external` with its mark and a new tab |
 | `Code` | Every code, key, block and kind in mono. One line, truncated with an ellipsis, the whole value on `title`; `tone` is the muted ink beside a title or the body ink where the code is the value |

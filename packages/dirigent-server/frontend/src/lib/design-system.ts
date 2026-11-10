@@ -5,6 +5,11 @@
  * search box are decided here, where a Node test can hold them.
  */
 
+import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
+import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
+
+import { LABELS } from '@/lib/labels'
+
 /** What a dot or a notice says about something that is not a run: how it is, in one hue. */
 export type Tone = 'good' | 'critical' | 'warning' | 'info' | 'quiet' | 'unknown'
 
@@ -61,6 +66,16 @@ export function iconButtonTip({
 }): string {
     if (why !== undefined && why !== '') return why
     return tooltip ?? label
+}
+
+/** What a copy button is called before a press, `copy`, and for a moment after it. */
+export function copyWords(copy: string): CopyButtonWords {
+    return { copy, copied: LABELS.action.copy.done }
+}
+
+/** What a secret shown once says: its copy button named for the secret, and that it is shown once. */
+export function secretWords(noun: string): SecretRevealWords {
+    return { ...copyWords(LABELS.shell.copy_secret(noun)), warning: LABELS.shell.shown_once }
 }
 
 /** Whether a search box offers its clear button: only once there is something to clear. */
