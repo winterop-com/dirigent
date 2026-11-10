@@ -274,14 +274,7 @@
     font-weight: 600;
 }
 
-/* Reference material that scrolls, a log, on the page's ground; a frame is a code editor drawn as
-   the field it is. */
-.dg-inset {
-    min-width: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-surface);
-    background-color: var(--background);
-}
+/* A code editor drawn as the field it is. */
 .dg-frame {
     min-width: 0;
     overflow: hidden;
@@ -887,13 +880,16 @@
 
        `data-menu-anchor` IS NOT A CONTROL AT ALL. A menu opened at a point -- the canvas's
        right-click menus -- anchors a zero-sized trigger under the cursor, and a finger never
-       lands on it because nothing draws it. */
+       lands on it because nothing draws it.
+
+       AN IMAGE THAT EXPLAINS ITSELF ON HOVER IS NOT A CONTROL. A bare status dot is its own
+       tooltip's trigger, and grown to a finger it would be drawn as a 44px disc. */
     [data-slot='button'],
     [data-slot='dialog-close'],
     [data-slot='tabs-trigger'],
     [data-slot='select-trigger'],
     [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
-    [data-slot='tooltip-trigger'],
+    [data-slot='tooltip-trigger']:not([role='img']),
     [data-slot='input'],
     [data-slot='command-input'],
     [data-slot='dropdown-menu-item'],
@@ -909,7 +905,7 @@
     [data-slot='button'],
     [data-slot='dialog-close'],
     [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
-    [data-slot='tooltip-trigger'] {
+    [data-slot='tooltip-trigger']:not([role='img']) {
         min-inline-size: var(--spacing-finger);
     }
     /* The canvas's cluster is the graph library's button rather than one of ours, and a zoom

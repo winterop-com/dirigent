@@ -90,7 +90,7 @@ export function ConnectionDialog({
         <ItemHeading
             {...itemOf(connection)}
             size="dialog"
-            as="div"
+            lead={editing ? LABELS.action.edit : undefined}
             glyph={<Mark glyph={kindGlyph(connection.kind, marks)} />}
             chips={<InlineCode value={connection.kind} tone="muted" bare size="xs" />}
         />

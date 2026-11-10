@@ -378,7 +378,7 @@ function Prerequisites({
                         <Chip
                             key={name}
                             mono
-                            words={chipWords(LABELS.editor.step.stop_waiting(name))}
+                            words={chipWords(LABELS.editor.step.stop_waiting)}
                             onRemove={() => {
                                 onDependsOn(prerequisites.filter((one) => one !== name))
                             }}

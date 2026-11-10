@@ -72,7 +72,7 @@ export function AccountDialog({
         <ItemHeading
             {...itemOf({ code: user.username, name: user.name })}
             size="dialog"
-            as="div"
+            lead={editing ? LABELS.action.edit : undefined}
             chips={user.active ? undefined : <Chip tone="absent">{LABELS.state.armed.deactivated}</Chip>}
         />
     )

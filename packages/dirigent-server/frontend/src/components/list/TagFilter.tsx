@@ -71,7 +71,7 @@ export function TagFilter({
                 <Chip
                     key={tag}
                     mono
-                    words={chipWords(LABELS.shell.stop_filtering_by_tag(tag))}
+                    words={chipWords(LABELS.shell.stop_filtering_by_tag)}
                     onRemove={() => {
                         onChange(chosen.filter((one) => one !== tag))
                     }}

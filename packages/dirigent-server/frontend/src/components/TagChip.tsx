@@ -29,7 +29,7 @@ export function TagChip({
             {tag}
         </Chip>
     ) : (
-        <Chip mono className={className} onSelect={onSelect} title={said}>
+        <Chip mono className={className} onSelect={onSelect} selectLabel={said}>
             {tag}
         </Chip>
     )

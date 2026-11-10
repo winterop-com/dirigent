@@ -3,7 +3,6 @@ import {
     useEffect,
     useState,
     type KeyboardEvent as ReactKeyboardEvent,
-    type MouseEvent as ReactMouseEvent,
     type ReactNode,
 } from 'react'
 
@@ -178,10 +177,7 @@ export function ListTable<T>({
             : {
                   tabIndex: 0,
                   'aria-selected': selected?.(row),
-                  onClick: (event: ReactMouseEvent<HTMLElement>) => {
-                      // A button inside the row, such as a chip that filters, does its own thing and not the row's too.
-                      const control = event.target instanceof Element ? event.target.closest('button') : null
-                      if (control !== null && event.currentTarget.contains(control)) return
+                  onClick: () => {
                       press(row)
                   },
                   onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => {

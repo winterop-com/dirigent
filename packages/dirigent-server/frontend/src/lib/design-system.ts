@@ -90,8 +90,8 @@ export function dotOf(
 /** What a field says beside its label when it is required. */
 export const FIELD_WORDS: FieldWords = { required: LABELS.form.required }
 
-/** What a chip's remove button is called: "Stop filtering by finance". */
-export function chipWords(remove: string): ChipWords {
+/** What a chip's remove button is called, as a function of the chip's words: "Stop filtering by finance". */
+export function chipWords(remove: (text: string) => string): ChipWords {
     return { remove }
 }
 

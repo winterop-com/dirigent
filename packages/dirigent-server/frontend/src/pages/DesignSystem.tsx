@@ -253,43 +253,43 @@ export function DesignSystem() {
                             <Narrow>
                                 <ItemHeading
                                     {...itemOf(pipeline)}
-                                    as="div"
+                                    as="span"
                                     description={SAMPLE.pipeline.description}
                                     chips={<Chip>{SAMPLE.tag_finance}</Chip>}
                                 />
                             </Narrow>
                             <Narrow>
-                                <ItemHeading {...itemOf(bare)} as="div" />
+                                <ItemHeading {...itemOf(bare)} as="span" />
                             </Narrow>
                             <Narrow>
                                 <ItemHeading
                                     {...itemOf(long)}
-                                    as="div"
+                                    as="span"
                                     description={SAMPLE.long.description}
                                 />
                             </Narrow>
                         </Specimen>
                         <Specimen title={VARIANT.row_inline}>
                             <Narrow>
-                                <ItemHeading {...itemOf(pipeline)} variant="inline" as="div" />
+                                <ItemHeading {...itemOf(pipeline)} variant="inline" as="span" />
                             </Narrow>
                             <Narrow>
                                 <ItemHeading
                                     {...itemOf(bare)}
                                     variant="inline"
-                                    as="div"
+                                    as="span"
                                     chips={<KindChip kind="cron" />}
                                 />
                             </Narrow>
                             <Narrow>
-                                <ItemHeading {...itemOf(long)} variant="inline" as="div" />
+                                <ItemHeading {...itemOf(long)} variant="inline" as="span" />
                             </Narrow>
                         </Specimen>
                         <Specimen title={VARIANT.panel}>
                             <div className="w-80 min-w-0">
                                 <ItemHeading
                                     {...itemOf(pipeline)}
-                                    as="div"
+                                    as="span"
                                     description={SAMPLE.pipeline.description}
                                     chips={<StatusChip status="succeeded" />}
                                 />
@@ -298,7 +298,7 @@ export function DesignSystem() {
                                 <ItemHeading
                                     {...itemOf(long)}
                                     size="dialog"
-                                    as="div"
+                                    as="span"
                                     description={SAMPLE.long.description}
                                 />
                             </div>
@@ -428,7 +428,7 @@ export function DesignSystem() {
                                     <Chip
                                         key={tag}
                                         mono
-                                        words={chipWords(LABELS.shell.stop_filtering_by_tag(tag))}
+                                        words={chipWords(LABELS.shell.stop_filtering_by_tag)}
                                         onRemove={() => {
                                             setChosen(chosen.filter((one) => one !== tag))
                                         }}
@@ -439,7 +439,7 @@ export function DesignSystem() {
                                     <Chip
                                         key={tag}
                                         mono
-                                        title={LABELS.shell.filter_by_tag(tag)}
+                                        selectLabel={LABELS.shell.filter_by_tag(tag)}
                                         onSelect={() => {
                                             setChosen([...chosen, tag])
                                         }}

@@ -263,7 +263,7 @@ function userColumns(
                             <ItemHeading
                                 {...itemOf({ code: user.username, name: user.name })}
                                 variant="inline"
-                                as="div"
+                                as="span"
                                 chips={
                                     user.active ? undefined : (
                                         <Chip tone="absent">{LABELS.state.armed.deactivated}</Chip>

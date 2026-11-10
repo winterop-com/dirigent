@@ -252,7 +252,7 @@ export function Examples() {
                 {filters.block !== '' && (
                     <Chip
                         mono
-                        words={chipWords(LABELS.examples.stop_narrowing(filters.block))}
+                        words={chipWords(LABELS.examples.stop_narrowing)}
                         onRemove={() => {
                             change({ ...filters, block: '' })
                         }}

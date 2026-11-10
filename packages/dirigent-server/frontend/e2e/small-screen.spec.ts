@@ -151,6 +151,17 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
     expect((await api.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
 })
 
+test('a bare status dot stays a dot, and is not grown to a finger', async ({ page }) => {
+    // REVERT-PROOF: a bare dot is its own tooltip's trigger, and the finger rule for triggers
+    // drew it as a 44px disc.
+    await page.goto('/design')
+    const dots = page.locator('[data-gallery="dots"] [role="img"]')
+    await expect(dots.first()).toBeVisible()
+    for (const dot of await dots.all()) {
+        expect((await dot.boundingBox())?.height ?? 0).toBeLessThanOrEqual(10)
+    }
+})
+
 test('the palette button is a glyph, and the chord it would have drawn is not', async ({ page }) => {
     const palette = page.getByRole('button', { name: LABELS.shell.open_palette })
     await expect(palette.locator('svg')).toBeVisible()
