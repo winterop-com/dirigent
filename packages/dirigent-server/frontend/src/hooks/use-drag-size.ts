@@ -4,20 +4,14 @@ import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent, 
 export type DragAxis = 'x' | 'y'
 
 /**
- * Follow a drag on a panel edge and write the size it expresses.
- *
- * ONE HOOK FOR BOTH AXES. A rail's right edge, the right panel's left edge and the run
- * terminal's top edge are the same three sentences with a different coordinate read off the
- * pointer, so the axis is a parameter rather than a second copy of the file.
+ * Follow a drag on an edge and write the size it expresses: the run terminal's top edge.
  *
  * The drag is followed on the document rather than on the handle, so the pointer leaving the
  * few-pixel strip mid-drag does not drop it. While the pointer moves, the size is written to
  * the element's own style, because a React render per pointer event leaves the edge visibly
- * behind the hand; the store hears the size once per frame, so whatever else follows it -- the
- * status bar's cell under the rail -- moves with the drag rather than after it. `grows` says
- * which way the element gains: 1 for an edge dragged away from the origin -- a left-hand
- * panel's right edge -- and -1 for one dragged toward it, which is a right-hand panel's left
- * edge or a drawer's top one.
+ * behind the hand; the store hears the size once per frame. `grows` says which way the element
+ * gains: 1 for an edge dragged away from the origin, and -1 for one dragged toward it, which is a
+ * drawer's top edge.
  */
 export function useDragSize(
     axis: DragAxis,

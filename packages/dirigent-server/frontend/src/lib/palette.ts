@@ -7,16 +7,18 @@
  * palette on the runs page offers what the runs page offers, and nothing has to hold a list of
  * every screen's actions in one place.
  *
- * THE FILTER IS A PURE FUNCTION over the registered rows, which is what makes the whole action
- * surface testable in plain Node: the failures worth catching are a page missing from the list,
- * a row that cannot be found by a word in its own title, and a screen whose rows outlive it.
+ * The rows are handed to sokkel-ui's palette as its groups, which matches them by every word typed:
+ * the failures worth catching here are a page missing from the list, a row whose words are not
+ * handed over, and a screen whose rows outlive it.
  *
  * EVERY CHORD THIS APP BINDS IS A LETTER. `lib/shortcuts` says why, and offers each of them as
  * a row here as well, because a shortcut nobody has been told about is a shortcut nobody has.
  */
 
 import type { LucideIcon } from 'lucide-react'
+import type { PaletteGroup } from '@winterop-com/sokkel-ui/CommandPalette'
 
+import { NEUTRAL_GLYPH } from '@/lib/glyphs'
 import { LABELS } from '@/lib/labels'
 import { createStore } from '@/lib/store'
 
@@ -69,9 +71,6 @@ export const SESSION_GROUP = LABELS.palette.shelf.session
 /** Registered rows, oldest registration first. */
 const registered = createStore<readonly PaletteAction[]>([])
 
-/** Whether the palette is on screen. The shortcut and the rail's button both write it. */
-export const paletteOpen = createStore(false)
-
 /** The rows currently on offer. */
 export const paletteActions = registered
 
@@ -95,43 +94,13 @@ export function forgetActions(): void {
     registered.set([])
 }
 
-/** Every word a row can be found by, lowercased. */
-function haystack(action: PaletteAction): string {
-    return [action.title, action.group, action.hint ?? '', ...(action.keywords ?? [])].join(' ').toLowerCase()
-}
-
 /**
- * The rows one query names, best first.
- *
- * EVERY TERM HAS TO MATCH, so typing more words narrows rather than widens -- `run sched`
- * finds the schedules page and not every row with the word "run" in it. A row whose title
- * starts with the query sorts above one that merely contains it, and above one matched only by
- * a keyword, so the obvious answer to a short query is the first row rather than the fourth.
- *
- * An empty query is not a filter: it answers everything, in registration order, which is what
- * a palette opened with no intention should show.
- */
-export function filterActions(actions: readonly PaletteAction[], query: string): PaletteAction[] {
-    const trimmed = query.trim().toLowerCase()
-    if (trimmed === '') return [...actions]
-    const terms = trimmed.split(/\s+/)
-    const matched = actions.filter((action) => {
-        const words = haystack(action)
-        return terms.every((term) => words.includes(term))
-    })
-    return matched
-        .map((action, index) => ({ action, index, rank: rankOf(action, trimmed) }))
-        .toSorted((left, right) => left.rank - right.rank || left.index - right.index)
-        .map((scored) => scored.action)
-}
-
-/**
- * The filtered rows as shelves, the screen's own first.
+ * The rows as shelves, the screen's own first.
  *
  * THE SCREEN'S SHELF LEADS. Somebody who opened the palette while reading a run wants
  * something to do with that run far more often than they want the fifth navigation row, and a
  * list is read from the top. Within that rule nothing is re-ordered: each shelf keeps the
- * position its first row gave it, and the rows keep the order the filter put them in.
+ * position its first row gave it, and the rows keep the order they were registered in.
  *
  * A shelf is the screen's when its rows say so, not because of what it is called -- the
  * heading is free to carry the thing it is scoped to, such as the run being read.
@@ -153,10 +122,19 @@ export function shelve(actions: readonly PaletteAction[]): PaletteShelf[] {
     return [...found.filter((shelf) => shelf.screen), ...found.filter((shelf) => !shelf.screen)]
 }
 
-/** Where a row sorts for one query: title prefix, then title, then anything else. */
-function rankOf(action: PaletteAction, query: string): number {
-    const title = action.title.toLowerCase()
-    if (title.startsWith(query)) return 0
-    if (title.includes(query)) return 1
-    return 2
+/**
+ * The shelves as the palette's groups. A row is its mark and its title: what it says about itself
+ * is a word it is found by and is never drawn, and a row with no mark wears the neutral glyph.
+ */
+export function paletteGroups(actions: readonly PaletteAction[]): PaletteGroup[] {
+    return shelve(actions).map((shelf) => ({
+        title: shelf.label,
+        commands: shelf.rows.map((row) => ({
+            id: row.id,
+            label: row.title,
+            icon: row.icon ?? NEUTRAL_GLYPH,
+            keywords: [...(row.keywords ?? []), ...(row.hint === undefined ? [] : [row.hint])],
+            onSelect: row.run,
+        })),
+    }))
 }

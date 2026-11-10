@@ -15,10 +15,7 @@
 
 import { LABELS } from '@/lib/labels'
 
-/** The letter that opens the command palette, under either modifier. */
-export const PALETTE_KEY = 'k'
-
-/** The letter that collapses and expands the navigation rail, under the platform's own modifier. */
+/** The letter that hides and shows the navigation rail, under the platform's own modifier. */
 export const RAIL_KEY = 'b'
 
 /** The character that puts this list on screen. */
@@ -63,20 +60,7 @@ export function isTypingField(focused: FocusedField | null): boolean {
 }
 
 /**
- * Whether this press opens the command palette.
- *
- * Either modifier, unlike the rail: Cmd+K and Ctrl+K both mean the palette in every app that
- * has one, and neither is claimed by anything here. It fires while a box has focus, because
- * the palette is how somebody leaves the box they are in.
- */
-export function opensPalette(press: KeyPress): boolean {
-    if (press.key.toLowerCase() !== PALETTE_KEY) return false
-    if (press.altKey) return false
-    return press.metaKey || press.ctrlKey
-}
-
-/**
- * Whether this press collapses or expands the navigation rail.
+ * Whether this press hides or shows the navigation rail.
  *
  * CMD ON APPLE KEYBOARDS AND CTRL EVERYWHERE ELSE, rather than either modifier. Ctrl+B on macOS
  * is the emacs-style "back one character" that every text field answers, and a binding that
@@ -87,20 +71,6 @@ export function togglesRail(press: KeyPress, focused: FocusedField | null, apple
     if (press.altKey) return false
     if (apple ? !press.metaKey : !press.ctrlKey || press.metaKey) return false
     return !(focused?.isContentEditable ?? false)
-}
-
-/**
- * Whether this press asks for the list of shortcuts.
- *
- * No modifier beyond whatever the layout needs to produce the character: Shift is how most
- * keyboards make a `?` and so is not a modifier this can refuse, while Ctrl, Cmd and Alt each
- * mean something else somewhere. Never while something is being typed into -- a `?` typed into
- * a filter box is a question mark and nothing else.
- */
-export function opensShortcuts(press: KeyPress, focused: FocusedField | null): boolean {
-    if (press.key !== SHORTCUTS_KEY) return false
-    if (press.ctrlKey || press.metaKey || press.altKey) return false
-    return !isTypingField(focused)
 }
 
 /**

@@ -8,7 +8,7 @@ import { RunTab } from '@/components/run/RunTab'
 import { RunTerminal } from '@/components/run/RunTerminal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { StepTab } from '@/components/run/StepTab'
-import { Breadcrumb } from '@/components/Breadcrumb'
+import { ScreenTrail } from '@/components/ScreenTrail'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
@@ -497,13 +497,13 @@ export function RunDetail() {
         <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex flex-1 flex-col pb-6">
                 <PageHead>
-                    <Breadcrumb
+                    <ScreenTrail
                         trail={[
-                            { label: LABELS.screen.runs.name, to: '/runs' },
+                            { label: LABELS.screen.runs.name, href: '/runs' },
                             {
                                 label: document?.name ?? run.pipeline,
-                                to: `/pipelines/${run.pipeline}`,
-                                mono: document === null || document.name === null,
+                                href: `/pipelines/${run.pipeline}`,
+                                code: document === null || document.name === null,
                             },
                         ]}
                     />

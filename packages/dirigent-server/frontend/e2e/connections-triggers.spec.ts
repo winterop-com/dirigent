@@ -131,7 +131,7 @@ test('a connection row is its code, its kind and its health, and nothing else', 
     // It heads the credential the way the row does, mark and all, and no panel opened.
     await expect(dialog.locator('[data-slot="mark"]')).toHaveCount(1)
     await expect(page.getByRole('tabpanel')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: LABELS.shell.toggle_panel })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /side panel$/ })).toHaveCount(0)
 
     // Closing it takes the address back to the listing.
     await page.keyboard.press('Escape')

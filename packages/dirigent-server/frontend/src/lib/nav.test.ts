@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
-import { DASHBOARD_PATH, NAV, entriesFor, entryAt, marksOnlyItself, sectionsFor } from '@/lib/nav'
+import { LABELS } from '@/lib/labels'
+import { DASHBOARD_PATH, NAV, entriesFor, entryAt, marksOnlyItself, railGroups, sectionsFor } from '@/lib/nav'
 
 describe('the navigation', () => {
     test('sends a reader with no address of their own to a screen that exists', () => {
@@ -132,5 +133,29 @@ describe('which addresses mark an entry', () => {
     test('a screen with nothing below it is marked by everything under it too', () => {
         expect(marksOnlyItself('/runs')).toBe(false)
         expect(marksOnlyItself('/pipelines')).toBe(false)
+    })
+})
+
+describe('the rail', () => {
+    test('marks the entry an address is inside, and the root only at itself', () => {
+        const active = (pathname: string) =>
+            railGroups('admin', pathname)
+                .flatMap((group) => group.entries)
+                .filter((entry) => entry.active === true)
+                .map((entry) => entry.href)
+        expect(active('/runs/abc')).toEqual(['/runs'])
+        expect(active('/')).toEqual([DASHBOARD_PATH])
+        expect(active('/design')).toEqual([])
+    })
+
+    test('heads every section but the first, and offers the admin section to an admin alone', () => {
+        expect(railGroups('admin', '/').map((group) => group.title)).toEqual([
+            undefined,
+            LABELS.screen.operate,
+            LABELS.screen.build,
+            LABELS.screen.reference,
+            LABELS.screen.admin,
+        ])
+        expect(railGroups('viewer', '/').map((group) => group.id)).not.toContain('admin')
     })
 })

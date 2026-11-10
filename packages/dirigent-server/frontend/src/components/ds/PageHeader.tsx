@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 
-import { Breadcrumb, type Crumb } from '@/components/Breadcrumb'
 import { PageHead } from '@/components/PageHead'
+import { ScreenTrail } from '@/components/ScreenTrail'
 import { TOOLBAR_WORDS } from '@/lib/design-system'
+import type { Crumb } from '@/lib/trail'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
 import type { ToolbarItem } from '@winterop-com/sokkel-ui/Toolbar'
 
@@ -15,7 +16,7 @@ import type { ToolbarItem } from '@winterop-com/sokkel-ui/Toolbar'
  * the whole of it on hover. `primary` stands after them, filled, and never folds. The row draws every verb by its word alone; More lists them with their marks.
  * `lead` stands before the verbs and never folds either. `count` sits beside the title -- how many
  * rows the listing holds -- and `meta` is a line of small facts under it. There is no subtitle.
- * `trail` is drawn by `Breadcrumb` in the shell's top strip.
+ * `trail` is stated to the shell's top bar, which draws it.
  */
 export function PageHeader({
     title,
@@ -41,7 +42,7 @@ export function PageHeader({
 }) {
     return (
         <PageHead inPlace={inPlace}>
-            {trail !== undefined && <Breadcrumb trail={trail} />}
+            {trail !== undefined && <ScreenTrail trail={trail} />}
             <div className="mb-6 *:min-h-9">
                 <LibraryPageHeader
                     title={title}

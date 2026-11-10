@@ -308,13 +308,11 @@ test("the page's schema box marks a value the draft does not take", async ({ pag
 /** The right panel's Details, opened where the reader's preference left it shut. */
 async function details(page: Page): Promise<Locator> {
     const panel = page.getByRole('tabpanel', { name: LABELS.schemas.details_heading })
-    // A shut panel stays in the page, inert, so whether it is open is read off its container.
-    const aside = page.locator('aside').filter({ has: panel })
-    await expect(aside).toBeAttached()
-    if ((await aside.getAttribute('inert')) !== null) {
-        await page.getByRole('button', { name: LABELS.shell.toggle_panel }).click()
-    }
-    await expect(aside).not.toHaveAttribute('inert')
+    // The shell's toggle says whether the panel stands open.
+    const toggle = page.getByRole('button', { name: /side panel$/ })
+    await expect(toggle).toBeVisible()
+    if ((await toggle.getAttribute('aria-pressed')) === 'false') await toggle.click()
+    await expect(panel).toBeVisible()
     return panel
 }
 

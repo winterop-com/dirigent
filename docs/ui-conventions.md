@@ -119,7 +119,6 @@ added in sokkel-ui.
 | `text-title` | 16px | A section heading and a listing row's title, at weight 600 |
 | `text-page` | 24px | A page heading, at weight 500, and nothing else on any screen |
 | `text-stat` | 32px | A stat's number, and nothing else on any screen |
-| `text-lockup` | 20px | The rail's wordmark beside the mark, at weight 600, and nothing else on any screen |
 | `--text-graph-title` | 12px | A step's title on a graph, in mono at weight 500, and nothing else on any screen |
 | `--text-graph-small` | 11px | Every other word drawn on a graph: the block or what a source listens to, a badge, a count, a duration, a fan-out's strip, words standing over an empty canvas |
 
@@ -136,7 +135,7 @@ word added to a box inherits its size and no word on a canvas can come out at th
 
 `scripts/check_ui_classes.py` fails the gate on anything outside them, whether the sixth size
 arrives as `text-[17px]` or as `text-lg`. The check has no allowlist -- it knows `text-title`,
-`text-page`, `text-stat`, `text-lockup` and the two graph sizes by name, and
+`text-page`, `text-stat` and the two graph sizes by name, and
 reads `index.css` itself so another size cannot be minted there either. A named
 exception can be counted; an allowlist is a check people argue with. A library primitive that
 carries a size off the scale is fixed in sokkel-ui.
@@ -185,8 +184,8 @@ and not a list to open. **Palette is three swatch cards**, because what a palett
 looks like, and a card showing the ground, the surface, the line, the ink and the accent says in one
 glance what a sentence under a segmented control took a paragraph to approximate -- so no palette
 carries a line about itself any more. Neither row holds a copy of what it sets -- both go through
-`useAppearance`, the one store the root wears and the account menu writes. **The mode is also the
-account menu's Appearance submenu**, the same three writing the same store, because it is the one
+`useAppearance`, the one store the root wears and the account menu writes. **The mode is also three
+radio rows in the account menu**, the same three writing the same store, because it is the one
 look somebody changes in passing; the palette's Appearance rows are the third door to it. **The top
 strip carries no mode flip**: the account menu stands on every screen, and a control said twice on
 one screen has to earn the second time, which a two-way flip that cannot reach System does not.
@@ -1270,47 +1269,57 @@ line under its heading and almost no row carries one under its label.** A row's 
 optional and survives only by adding a fact the control cannot show, such as which timestamps a
 clock setting moves and which keep their own -- so a line restating the label is not written.
 
-`filterActions` is a pure function and cmdk's own scoring is turned off, because cmdk ranks by
-fuzzy match over rendered text and would put a screen's own name below whichever row shares more
-letters with the query. Every term must match, so typing more words narrows; a title that starts
-with the query sorts above one that merely contains it.
+The registry is drawn by sokkel-ui's `CommandPalette`, which the shell holds: `paletteGroups` hands
+it the shelves, and it matches with `filter="terms"` rather than by fuzzy letters, because a fuzzy
+match would put a screen's own name below whichever row shares more letters with the query. Every
+term must match, so typing more words narrows; a title that starts with the query sorts above one
+that merely contains it. A pasted run or attempt id is the palette's search: `idResults` answers it
+with the one row that opens it.
 
 **Every chord this app binds is a letter.** On a Norwegian layout `[`, `]`, `{`, `}`, `|` and `\`
 all need Alt to reach at all, so a binding over one of them is a binding nobody here can press.
-Cmd/Ctrl+K opens the palette, the platform's own modifier plus B hides and shows the rail, `T` shows and
-hides a run's terminal, and `?` opens the list of every key -- each matched as the character it
-produced, never as Shift plus a physical key.
-`src/lib/shortcuts.ts` decides every press as a pure function; `hooks/use-app-shortcuts.ts` is the
-one place a real `KeyboardEvent` is read.
+The platform's modifier plus K opens the palette and `?` opens the list of every key, both bound by
+the shell; the platform's own modifier plus B hides and shows the rail, and `T` shows and hides a
+run's terminal -- each matched as the character it produced, never as Shift plus a physical key.
+`src/lib/shortcuts.ts` decides the two this app binds itself as pure functions, and
+`hooks/use-app-shortcuts.ts` is the one place it reads a real `KeyboardEvent`. The shortcuts dialog
+is the shell's: the keys the shell and the screens bind with sokkel-ui's `useShortcuts`, then
+`shortcuts()` for the rest, under one heading.
 
 ## Panels are sized in pixels
 
 **The rail is dragged by its right edge, and opens at 168px.** It holds between 152px, where
 its longest word still fits, and 320px. What it was dragged to is kept in pixels per browser, a
-double-click on the edge gives it back its 168px, and the edge is a `separator` like the panel's:
-it takes the arrow keys, Home and End, and says what it resizes. Hiding it whole is still the
-platform's modifier plus B and `Show navigation`; a hidden rail has no edge. Below the
-breakpoint the rail is a drawer and is not dragged. The rail's width and whether it is hidden,
-and the right panel's width and whether it stands open, are what `lib/panels` keeps, each read
-out of storage as its store is built, so the shell renders at its settled size on the first paint
-rather than snapping into it.
+double-click on the edge gives it back its 168px, and the edge is sokkel-ui's `ResizeHandle`, a
+`separator`: it takes the arrow keys, Home and End, and says what it resizes. The control at the
+rail's head narrows it to its marks and its edge pulled outward widens it again, which is kept
+too. Hiding it whole is the platform's modifier plus B and `Show navigation`; a hidden rail has no
+edge. Below the breakpoint the rail is a drawer and is not dragged. The rail's width, whether it is
+narrowed and whether it is hidden, and the right panel's width and whether it stands open, are what
+`lib/panels` keeps, each read out of storage as its store is built, so the shell renders at its
+settled size on the first paint rather than snapping into it.
 
-**What is in the right panel is the screen's.** The panel itself is drawn once, in
-`components/RightPanel`, and a screen fills it with `fillPanel` from an effect that returns the
+**What is in the right panel is the screen's.** The panel itself is drawn once, sokkel-ui's
+`SidePanel` in the shell, and a screen fills it with `fillPanel` from an effect that returns the
 unregister -- the same shape as registering palette actions, and for the same reason: a panel
-cannot outlive the screen whose data it is drawing. A tab is an id, a label and a `render`, and
-the open tab is remembered by id, so a screen that gains a tab does not move the reader onto a
-different one. A screen that fills nothing gets the line saying so.
+cannot outlive the screen whose data it is drawing. A tab is an id, a label, an optional mark and
+a `render`, and the open tab is remembered by id in `lib/panels`, so a screen that gains a tab does
+not move the reader onto a different one. **The tabs are a real tablist** with the content as its
+tabpanel, labelled by the tab shown, and the arrows, Home and End move between them. A panel of one
+tab still draws it as a tab (`soleTab="tab"`), because a screen's tabs come and go and the header
+must not change shape with them. A screen that fills nothing has no panel and no toggle.
 
 **Whether the panel stands open is the reader's; a screen opens it for one visit.** The toggle is
 the only thing that writes the stored preference. A selection, or an address that names a row,
 opens the panel through `openPanel` for that screen alone, and the next screen starts from the
 preference, so a link into one screen never decides how every other screen first draws.
 
-**The top strip carries the screen's two facts.** `lib/screen-status` holds one note and one
+**The status line carries the screen's two facts.** `lib/screen-status` holds one note and one
 identifier, stated for as long as a screen is mounted -- where a run's event stream is, and the
 trace the run is on. The note is data with a tone rather than markup, so what a connecting stream
-says is a pure function and the strip stays one line whatever it holds.
+says is a pure function, and sokkel-ui's `StatusLine` draws it one line tall whatever it holds: a
+live note with its pulsing dot, the identifier in mono, and the version the instance runs at its
+end.
 
 The right panel is dragged, and what is stored is **pixels, not a fraction**. What somebody
 dragged it to was a decision about the content in it -- wide enough for a log line, narrow enough
@@ -1319,67 +1328,62 @@ window narrower than the stored width clamps for that session and leaves the sto
 so the intent comes back with the window. The drag handle is a `separator` and answers the arrow
 keys, because a panel that can only be sized by pointer is a panel some people cannot size.
 
-**One hook drags every edge.** The rail's right edge, the right panel's left edge and the run terminal's top edge are the
-same sentences with a different coordinate read off the pointer, so `hooks/use-drag-size` takes
-the axis as a parameter rather than being copied per direction. The pointer is followed on the
-document rather than on the handle, and the size is written to the element's own style while the
-drag lasts -- a React render per pointer event leaves the edge visibly behind the hand -- with the
-store hearing one committed number on release.
+**The rail's and the panel's edges are sokkel-ui's `ResizeHandle`; the run terminal's top edge is
+`hooks/use-drag-size`.** Either way the pointer is followed on the document rather than on the
+handle, and the size is written to the element's own style while the drag lasts -- a React render
+per pointer event leaves the edge visibly behind the hand -- with the store hearing the committed
+number.
 
-## The shell is a rail and a strip
+## The shell is sokkel-ui's
 
-The rail, the screen and the right panel are three columns, and nothing runs across them: there
-is no bar along the foot and no rule under the top. **The rail stands on `--sidebar`, a rung under
-the page, and that step is its edge**; the top strip stands on the page's own ground. Every strip
-in the top row is one height -- `h-shell-top`, stated once in `index.css` -- so the rail's head,
-the top strip and the right panel's tab strip put the mark, the crumb and the tabs on one line.
-`e2e/shell.spec.ts` measures every strip with `getBoundingClientRect`, in both palettes, with the
-rail hidden and the panel open.
+The frame is sokkel-ui's `Shell`: the rail on the left, the top bar over the content, the content
+as the one thing that scrolls, the right panel as a column where a screen fills one, and a status
+line along the foot. **The rail, the top bar and the panel's tab strip stand on `--sidebar`, and
+every strip in the top row is one height** -- `h-shell-top`, the library's -- so the rail's head,
+the crumb and the tabs sit on one line. `e2e/shell.spec.ts` measures every strip with
+`getBoundingClientRect`, in both palettes, with the rail hidden and the panel open.
 
-**The rail is the mark, the screens and the account, top to bottom.** Its head is the brand tile
-and the word `dirigent` at `text-lockup`, which is the way to the dashboard. Its entries are
-**single-line words with no icon**, and a word that names a screen needs no gloss under it. **They
-are grouped by what somebody is there to do**: Dashboard alone at the head; Operate (Runs,
-Triggers); Build (Pipelines, Connections, Schemas); Reference (Blocks, Examples); and, for an
-admin, Admin (Users, Workers, Alerting). A group's name over its entries is the faint uppercase
-label at `text-xs`. An entry is muted ink, the pointer lifts it to `--card` and ink, and the active
-one is the `--secondary` fill at weight 600. `lib/nav` is the array the rail draws and the palette
-offers, and the line an entry carries about itself, and its mark, are data the palette reads.
+**The rail is the mark, the screens and the account, top to bottom**, sokkel-ui's `Rail`. Its head
+is the brand tile and the word `dirigent`, which is the way to the dashboard, and the control that
+narrows it. Its entries are each a mark and a single-line word, and a word that names a screen
+needs no gloss under it. **They are grouped by what somebody is there to do**: Dashboard alone at
+the head; Operate (Runs, Triggers); Build (Pipelines, Connections, Schemas); Reference (Blocks,
+Examples); and, for an admin, Admin (Users, Workers, Alerting, Audit). `railGroups` in `lib/nav`
+is what the rail draws, from the array the palette offers, and the line an entry carries about
+itself is data the palette reads and the rail does not draw. Narrowed, the rail is the marks alone,
+each naming itself in a tooltip; the shell narrows it on its own while the panel stands open on a
+window under 1280px.
 
-**The account stands at the foot of the rail, and the whole row is the control.** A round avatar
-in `--brand` carries the username's first letter upper case in `--brand-foreground` -- one pair in
-every palette and both modes, at 8.1:1 -- then the username, and an up-and-down chevron at the
-row's right edge saying the row opens a menu. **This is the one place a code stands in the UI
-face.** The username is the account's code, and wherever it is addressed -- the accounts listing,
-the Account pane, a token's owner -- it is mono; here it is the reader's own name said back to them,
-which nobody copies or types from, so it reads as a name. `GET /auth/me` carries no display name,
-so the username is the title in the row and in the menu alike.
-
-**The account menu opens upward from the row.** Its head is the avatar beside the username and the
-role, a plain word as everywhere else, with the instance's name, environment and version on the
-line under them -- said there once, and nowhere else in the menu. Then Settings, Keyboard shortcuts
-with the key that opens them, Appearance, a separator, and Sign out, each row led by its mark from
-`lib/icons`. A key is drawn beside a row only where `lib/shortcuts` binds one. **Appearance is a
-submenu** of Light, Dark and System with the one in force checked. The keyboard is the menu
-primitive's own: focus moves into the menu on open, the arrows walk its rows, the right arrow opens
-Appearance and the left one shuts it, and Escape closes the menu and gives focus back to the row.
+**The account stands in the window's bottom-left corner, at the start of the status line**, and
+the whole row is the control: sokkel-ui's `AccountMenu`, its avatar the username's first letter,
+the username beside it, and the account's role muted after that (`detail`), a plain word as a role
+is everywhere. **This is the one place a code stands in the UI face.** The username
+is the account's code, and wherever it is addressed -- the accounts listing, the Account pane, a
+token's owner -- it is mono; here it is the reader's own name said back to them. The menu opens
+upward: its head is the username and the role with the instance's name and environment under it, then
+Settings, Keyboard shortcuts with `?`, the mode as Light, Dark and System with the one in force
+checked, and Sign out.
 
 **The rail hides whole.** The platform's modifier plus B and the palette's row take it off screen
-and bring it back, and while it is hidden the top strip carries `Show navigation`{ .label } at
-its left, where the drawer's button stands below the breakpoint. Whether it is hidden is the
-reader's, and kept.
+and bring it back, and while it is hidden the top bar's menu button opens it as the drawer at
+every width. Whether it is hidden is the reader's, and kept.
 
-**The top strip is the screen's crumb and the instance's corner.** At its left stands the crumb:
-where a screen is one thing, the trail back to the listing it belongs to, drawn by `Breadcrumb`
-into the strip rather than onto the page, so the page opens on its heading. A listing has no
-crumb. At the right, the screen's note and identifier come first, and nothing a screen states
-there is something its own page already says -- how many rows were read is the table's, a
-standing fact is which version the instance holds rather than who applied it and when, and an
-instant is the house's relative form. Then the palette's button, which is the search glyph with the chord on its
-tooltip; the panel's toggle, where the screen has filled a panel; and the instance's dot, last.
+**The top bar is the screen's crumb and the instance's corner**, sokkel-ui's `TopBar` with
+`trailEnds="ancestor"`. At its left stands the crumb: where a screen is one thing, the trail back
+to the listing it belongs to -- the screens above it only, every step a link and none of them
+marked as the page, because the page's own heading names it. A screen states its trail with
+`ScreenTrail` (or a `PageHeader`'s `trail`) into `lib/trail` for as long as it is mounted, and the
+bar draws it, so the page opens on its heading. A listing has no crumb. At the right, the palette's
+button, the library's: the search glyph, the word `Search`{ .label } and the chord; the instance's
+dot; and the panel's toggle in the window's corner, where the screen has filled a panel.
 
-**A page's head stands still and its body scrolls.** Under the top strip a page is two parts:
-the head -- the title, the code under it, a line of facts and the screen's verbs, which `PageHeader`
+**The status line is the screen's, and the version's.** The screen's note at its left, in its
+tone, and at its right the screen's identifier and the version this instance runs. Nothing a
+screen states there is something its own page already says -- how many rows were read is the
+table's -- and an instant is the house's relative form. A settled stream says nothing.
+
+**A page's head stands still and its body scrolls.** Under the top bar a page is two parts: the
+head -- the title, the code under it, a line of facts and the screen's verbs, which `PageHeader`
 and `PageHead` draw into the shell's head slot -- and the body, which is the one scroller. So the
 track starts below the verbs, never beside them. The scroller spans the content column to the
 window's edge with the page's padding inside it, and its thin track, in the line tokens, sits in the
@@ -1389,11 +1393,14 @@ appears, and the body and a docked terminal end at one right edge, the same edge
 **A fact appears once in the shell.** How this instance is doing belongs to the dot, and nothing
 true of the session rather than of the screen stands beside the crumb.
 
-**The dot is the whole of what it says while the instance is well.** Its details are its tooltip:
-the name and environment from `/system/info`, the health and when it was asked, the version, and
-every check. **Words appear only when something is wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unreachable, retrying`{ .label }, beside the dot, in
-that state's ink. `statusWords` in `lib/server-status` decides it. A press opens the settings
-dialog's Server pane, which is what a finger has where there is nothing to hover with.
+**The dot is the whole of what it says while the instance is well**, sokkel-ui's `ServerMenu`,
+`quiet`. Its accessible name is the instance's name and environment from `/system/info`, the
+version and the state; its tooltip lists every check with its own dot, state and detail.
+**Words appear only when something is wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unreachable, retrying`{ .label }, beside the dot.
+`SERVER_STATES` in `lib/server-status` is the map of states it is drawn from, and the dot pulses
+while the instance is still being asked. It re-asks on a slow clock and when the tab comes back. A
+press opens the settings dialog's Server pane (`onPress`), which is what a finger has where there
+is nothing to hover with, and where the checks' times and the Recheck button are.
 
 ## Small screens
 
@@ -1438,12 +1445,12 @@ in the document -- every row and every control twice, two elements with one acce
 so where the same content is drawn two ways, the hook is what decides and only one is built. A
 class is still the answer for hiding a thing that has no second form.
 
-**The rail becomes a drawer.** Below `md` it is off screen until a menu button at the left of
-the top strip -- icon only, `aria-label` "Open navigation" -- opens it over a scrim. It closes
-by its own close button, by Escape, by a tap on the scrim, and on every route change, because a
-drawer still standing over the screen somebody navigated to is a drawer they have to dismiss
-twice. Focus moves into it on open and back to the button on close. The account menu lives at its
-foot, as it does at the foot of the rail above the breakpoint.
+**The rail becomes a drawer**, the shell's. Below `md` it is off screen until a menu button at
+the left of the top bar -- icon only, `aria-label` "Open navigation" -- opens it over a scrim,
+drawn expanded. It closes by its own close button, by Escape, by a tap on the scrim, and on every
+route change, because a drawer still standing over the screen somebody navigated to is a drawer
+they have to dismiss twice. Focus moves into it on open and back to the button on close. The
+account menu lives at its foot.
 
 **A listing row becomes a card where the table will not fit**, which on a phone is every
 listing. The table is one component and so is its narrow form: `ListTable` draws its first
@@ -1464,9 +1471,9 @@ column decides, never the component it draws -- a tag strip with no tags, a dura
 still going, a description that is empty are the cell's answer and not the component's -- and
 `lib/card-form` leaves out every fact that answered nothing.
 
-**The breadcrumb shows its leaf**, and the crumb carrying the thing's code where the leaf is not
-it -- the code is on screen on every screen. The whole trail is the element's `title`; the leaf
-truncates with an ellipsis rather than wrapping the strip onto a second line.
+**The breadcrumb is the way back**: below `md` only the last screen above this one stands, after
+a chevron pointing back, and it truncates with an ellipsis rather than wrapping the strip onto a
+second line. A crumb that is a code is in mono.
 
 **A toolbar does not wrap, here or anywhere.** A screen's verbs are data rather than markup --
 sokkel-ui's `ToolbarItem`s, in a `PageHeader`'s `items` or a `Toolbar`'s -- measured against the
@@ -1481,16 +1488,18 @@ lists each with its mark and its full label. The editor's strip is one row at ev
 part that scrolls. It is the generated dialog's own slots that are restyled in `index.css`, not
 a second dialog.
 
-**The right panel opens from the foot.** Below `md` it is a full-height sheet over the screen,
-raised from a tab bar across the bottom carrying the tabs the screen filled -- so the graph
-screens are the graph, and what is beside them is a tap away. A screen that fills no panel has
-no tab bar.
+**The right panel opens from the foot.** Below `lg` the shell draws it as a sheet sliding over
+the screen from the right, raised by its toggle; below `md` the shell's `panelStrip` puts the
+panel's tabs in a strip at the foot, a tablist named `Side panel`{ .label } with tabs a finger
+tall: a tab raises the sheet on itself, another switches it, and the open tab, Escape or a press
+on the dim lowers it -- so the graph screens are the graph, and what is beside them is a tap
+away. The sheet's header then names the tab shown. A screen that fills no panel has no strip.
 
 **A document is read, not written, below `md`.** The source pane is read-only, the add-step and
 delete-step controls are not drawn, and neither is any of the three verbs -- Apply, Run, and the
 Validate that would dry-run a document nothing here can change. The strip says "Read only on a
 small screen" where the verbs were, and carries the document's identity and nothing else: what
-version it is at is in the top strip already, and a fact appears once on a screen. A graph is still
+version it is at is in the status line already, and a fact appears once on a screen. A graph is still
 read, a step is still chosen, and a run is still watched.
 
 **A segmented control that does not fit wraps; it never becomes a menu.** The control is for a
@@ -2235,7 +2244,7 @@ catalogue could show it beside the others. **A way in that is off screen is stat
 off screen**, so a listing whose rows are declared by a document says so even where a button
 beside it declares one too. A listing carries an `API` chip linking `/docs#/<tag>`, the fragment Swagger UI
 writes on its own tag headings, so the requests behind a screen are one click away. Every screen
-states its own two facts in the top strip through `lib/screen-status`, the address nothing
+states its own two facts in the status line through `lib/screen-status`, the address nothing
 answers for included.
 
 **A heading names the category, in one noun where a noun exists, and never lists the values of
@@ -2249,13 +2258,13 @@ the bucketing and the axis stay in the line beneath it.
 
 ## The palette's anatomy
 
-A 768px card at 15% from the top: a search row, shelved rows, a footer of key chips. **The
-screen's own shelf leads** -- `shelve` in `lib/palette` puts every shelf whose rows claim
-`screen` first, and the heading is free to name what it is scoped to, such as the run being
-read. **A row is an icon tile and a title, nothing else.** What an action says about itself
-(`hint`) feeds the filter and is never drawn: beside every title it is a column of glosses
-saying what the titles already say. A row with no icon gets the neutral glyph rather than a
-gap.
+sokkel-ui's `CommandPalette`: a search row, shelved rows, and a foot with the mark, what Enter
+does and the chord that opens it. **The screen's own shelf leads** -- `shelve` in `lib/palette`
+puts every shelf whose rows claim `screen` first, and the heading is free to name what it is
+scoped to, such as the run being read. **A row is a mark and a title, nothing else.** What an
+action says about itself (`hint`) is a word the row is found by and is never drawn: beside every
+title it is a column of glosses saying what the titles already say. A row with no icon gets the
+neutral glyph rather than a gap.
 
 ## Adding a screen
 
@@ -2396,7 +2405,7 @@ not go on a settings row.
 **The context says most of it; a sentence survives only by adding a fact.** Concretely:
 
 - A screen carries no subtitle. "Pipelines" needs no line saying it lists the pipelines.
-- The top strip's note exists only when it is stateful -- the editor's shape and warnings,
+- The status line's note exists only when it is stateful -- the editor's shape and warnings,
   the run's settled tone, the workers' health. A static note restating the screen is noise.
 - A section heading over a headed table carries no gloss; the headers name the columns.
 - A dialog's description earns its lines by teaching semantics the controls cannot show

@@ -27,6 +27,8 @@ import {
     type LucideIcon,
 } from 'lucide-react'
 
+import type { RailGroup } from '@winterop-com/sokkel-ui/Rail'
+
 import type { UserRole } from '@/lib/auth'
 import { LABELS } from '@/lib/labels'
 
@@ -212,6 +214,31 @@ export function marksOnlyItself(path: string): boolean {
     return NAV.flatMap((section) => section.entries).some(
         (entry) => entry.path !== path && entry.path.startsWith(below),
     )
+}
+
+/** Whether the rail marks an entry as the screen at this address. */
+export function isActive(entryPath: string, pathname: string): boolean {
+    if (pathname === entryPath) return true
+    return !marksOnlyItself(entryPath) && pathname.startsWith(`${entryPath}/`)
+}
+
+/**
+ * The rail's groups for this account at this address: each section a group under its heading, each
+ * entry a link with its mark, the one at this address active, and its path a word the palette finds
+ * it by.
+ */
+export function railGroups(role: UserRole | null, pathname: string): RailGroup[] {
+    return sectionsFor(role).map((section) => ({
+        id: section.id,
+        title: section.label ?? undefined,
+        entries: section.entries.map((entry) => ({
+            id: entry.path,
+            label: entry.label,
+            href: entry.path,
+            icon: entry.icon,
+            active: isActive(entry.path, pathname),
+        })),
+    }))
 }
 
 /**

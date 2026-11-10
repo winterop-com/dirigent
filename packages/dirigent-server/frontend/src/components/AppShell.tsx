@@ -1,51 +1,84 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Outlet, useNavigate } from 'react-router'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router'
 
-import { crumbSlot } from '@/components/Breadcrumb'
-import { headSlot } from '@/components/PageHead'
-import { CommandPalette } from '@/components/CommandPalette'
-import { NavDrawer, OPEN_NAV_LABEL } from '@/components/NavDrawer'
-import { PanelSheet } from '@/components/PanelSheet'
-import { PageState } from '@/components/PageState'
-import { warmLayout } from '@/components/graph/elk'
-import { warmEditor } from '@/components/pipeline/CodePane'
-import { Rail } from '@/components/Rail'
-import { RightPanel } from '@/components/RightPanel'
-import { panelTabs } from '@/lib/panels'
-import { ShortcutsDialog } from '@/components/ShortcutsDialog'
-import { ServerStatusButton } from '@/components/ServerStatusButton'
+import { AccountMenu } from '@winterop-com/sokkel-ui/AccountMenu'
+import type { PaletteSearch } from '@winterop-com/sokkel-ui/CommandPalette'
+import { Rail } from '@winterop-com/sokkel-ui/Rail'
+import { ServerMenu } from '@winterop-com/sokkel-ui/ServerMenu'
+import { Shell, type ShortcutGroup } from '@winterop-com/sokkel-ui/Shell'
+import { SidePanel } from '@winterop-com/sokkel-ui/SidePanel'
+import { StatusItem, StatusLine } from '@winterop-com/sokkel-ui/StatusLine'
+import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
 import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 
-import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
-import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
-
+import { headSlot } from '@/components/PageHead'
+import { PageState } from '@/components/PageState'
+import { warmLayout } from '@/components/graph/elk'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
+import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
 import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
 import { authStore, refreshIdentity, signOut } from '@/lib/auth'
+import {
+    accountWords,
+    PALETTE_WORDS,
+    RAIL_WORDS,
+    SERVER_MENU_WORDS,
+    SHELL_WORDS,
+    SHORTCUTS_WORDS,
+    SIDE_PANEL_WORDS,
+    TOP_BAR_WORDS,
+} from '@/lib/design-system'
+import { ICONS } from '@/lib/icons'
+import { addressOfId, idResults } from '@/lib/id-jump'
 import { LABELS } from '@/lib/labels'
 import { loadKindMarks } from '@/lib/marks'
-import { loadContributedWording } from '@/lib/wording'
-import { ICONS } from '@/lib/icons'
-import { DESIGN_PATH, entriesFor, LOGIN_PATH } from '@/lib/nav'
+import { DASHBOARD_PATH, DESIGN_PATH, entriesFor, LOGIN_PATH, railGroups } from '@/lib/nav'
 import {
     APPEARANCE_GROUP,
     GO_GROUP,
-    paletteOpen,
+    paletteActions,
+    paletteGroups,
     registerActions,
     SESSION_GROUP,
     VIEW_GROUP,
     type PaletteAction,
 } from '@/lib/palette'
-import { panelOpen, railHidden, toggleRail, togglePanel } from '@/lib/panels'
-import { screenStatus, type StatusTone } from '@/lib/screen-status'
-import { modifierLabel, applePlatform } from '@/lib/shortcuts'
+import {
+    PANEL_DEFAULT_WIDTH,
+    PANEL_MAX_WIDTH,
+    PANEL_MIN_WIDTH,
+    RAIL_MAX_WIDTH,
+    RAIL_MIN_WIDTH,
+    RAIL_WIDTH,
+    panelOpen,
+    panelSheet,
+    panelTab,
+    panelTabs,
+    panelWidth,
+    railCollapsed,
+    railHidden,
+    railWidth,
+    setRailCollapsed,
+    setPanelWidth,
+    setRailWidth,
+    toggleRail,
+    togglePanel,
+} from '@/lib/panels'
+import { screenStatus } from '@/lib/screen-status'
+import {
+    RECHECK_INTERVAL_MS,
+    SERVER_STATES,
+    checkServer,
+    identityLine,
+    serverChecks,
+    serverStatus,
+} from '@/lib/server-status'
+import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { MODE_ICONS, MODES, MODE_LABELS } from '@/lib/theme'
-import { cn } from '@/lib/utils'
-
-export const SIGN_OUT_LABEL = LABELS.action.sign_out
-export const TOGGLE_PANEL_LABEL = LABELS.shell.toggle_panel
-export const OPEN_PALETTE_LABEL = LABELS.shell.open_palette
+import { screenTrail } from '@/lib/trail'
+import { loadContributedWording } from '@/lib/wording'
+import { warmEditor } from '@/components/pipeline/CodePane'
 
 /** The settings pane the top bar's dot opens on. */
 const SERVER_PANE = 'server'
@@ -61,20 +94,15 @@ const SettingsDialog = lazy(() =>
     import('@/components/settings/SettingsDialog').then((module) => ({ default: module.SettingsDialog })),
 )
 
-/** How each tone of the screen's note is inked. A live stream is information, not a warning. */
-const TONE: Record<StatusTone, string> = {
-    live: 'text-info-ink',
-    quiet: 'text-muted-foreground',
-    warn: 'text-warning-ink',
-}
+/** The keys this app answers itself, listed in the shell's shortcuts dialog after the shell's own. */
+const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
+    { title: LABELS.shell.shortcuts_general, shortcuts: shortcuts(applePlatform(navigator.userAgent)) },
+]
 
 /**
- * The chassis: the rail on the left, the screen in the middle under its top strip, and a panel
+ * The chassis, sokkel-ui's `Shell`: the rail on the left with the account at its foot, the
+ * screen in the middle under the top bar, the screen's status along the foot, and the side panel
  * on the right where the screen fills one.
- *
- * `h-svh` rather than `min-h-svh`. The shell claims the viewport and the content column is the
- * one thing that scrolls, so there is exactly one scrollbar on every screen -- and a screen that
- * wants to fill the height it was given can be told how much that is.
  *
  * NO SCREEN IS DRAWN UNTIL THE IDENTITY IS KNOWN. A screen that rendered first would fire its
  * reads first, and every one of them would be a request the server answers 401 to. So the shell
@@ -83,30 +111,21 @@ const TONE: Record<StatusTone, string> = {
 export function AppShell() {
     const auth = useStore(authStore)
     const hidden = useStore(railHidden)
-    const filled = useStore(panelTabs).length > 0
-    const panelShown = useStore(panelOpen)
+    const collapsed = useStore(railCollapsed)
+    const width = useStore(railWidth)
+    const tabs = useStore(panelTabs)
+    const small = useSmallScreen()
+    const open = useStore(small ? panelSheet : panelOpen)
+    const actions = useStore(paletteActions)
+    const server = useStore(serverStatus)
+    const { pathname } = useLocation()
     const navigate = useNavigate()
+    const { scheme, setScheme } = useScheme()
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
-    const { setScheme } = useScheme()
     const [settingsAsked, setSettingsAsked] = useState(false)
     const [settingsPane, setSettingsPane] = useState<string | null>(null)
     const [problem, setProblem] = useState<Problem | null>(null)
-    const [drawerOpen, setDrawerOpen] = useState(false)
-    const menu = useRef<HTMLButtonElement | null>(null)
-    const wasOpen = useRef(false)
-    useEffect(() => {
-        wasOpen.current = drawerOpen
-    }, [drawerOpen])
-
-    // The focus goes back where it came from: the button that raised the drawer. Only when the
-    // drawer was actually standing -- a navigation closes it whether or not it was open, and
-    // taking the focus off what somebody just clicked is not a close.
-    const closeDrawer = useCallback(() => {
-        if (!wasOpen.current) return
-        setDrawerOpen(false)
-        menu.current?.focus()
-    }, [])
 
     // A refusal for want of a session is the shell's, not a screen's: the session expired, and
     // the answer is the login page rather than a refusal card on whatever was open.
@@ -144,16 +163,16 @@ export function AppShell() {
         setSettingsOpen(true)
     }, [])
 
-    const openShortcuts = useCallback(() => {
-        setShortcutsOpen(true)
-    }, [])
+    const leave = useCallback(() => {
+        void signOut().then(() => navigate(LOGIN_PATH, { replace: true }))
+    }, [navigate])
 
-    useAppShortcuts(openShortcuts)
+    useAppShortcuts()
 
     const role = auth.identity?.role ?? null
     const signedIn = auth.status === 'signed-in'
 
-    // THE TWO BIG CHUNKS ARE FETCHED BEFORE ANYBODY ASKS FOR THEM. Monaco and elk are each
+    // THE TWO BIG CHUNKS ARE FETCHED BEFORE ANYBODY ASKS FOR THEM. The editor and elk are each
     // larger than the rest of this bundle and the screens behind this shell open both, so once
     // there is a session and the browser has nothing else to do, the chunks are pulled. It is
     // idle-time work and it happens once: no screen waits on either, and the login page is
@@ -174,7 +193,7 @@ export function AppShell() {
         }
     }, [signedIn])
 
-    const actions = useMemo<PaletteAction[]>(() => {
+    const shellActions = useMemo<PaletteAction[]>(() => {
         const pages: PaletteAction[] = entriesFor(role).map((entry) => ({
             id: `go:${entry.path}`,
             title: entry.label,
@@ -198,7 +217,7 @@ export function AppShell() {
             },
             {
                 id: 'view:panel',
-                title: TOGGLE_PANEL_LABEL,
+                title: LABELS.shell.toggle_panel,
                 group: VIEW_GROUP,
                 icon: ICONS.panel,
                 keywords: ['inspector', 'details'],
@@ -246,112 +265,107 @@ export function AppShell() {
                 ? [
                       {
                           id: 'session:sign-out',
-                          title: SIGN_OUT_LABEL,
+                          title: LABELS.action.sign_out,
                           group: SESSION_GROUP,
                           icon: ICONS.sign_out,
                           keywords: ['logout', 'leave'],
-                          run: () => {
-                              void signOut().then(() => navigate(LOGIN_PATH, { replace: true }))
-                          },
+                          run: leave,
                       },
                   ]
                 : []),
         ]
-    }, [hidden, navigate, openSettings, role, setScheme, signedIn])
+    }, [hidden, leave, navigate, openSettings, role, setScheme, signedIn])
 
-    useEffect(() => registerActions(actions), [actions])
+    useEffect(() => registerActions(shellActions), [shellActions])
 
-    const modifier = modifierLabel(applePlatform(navigator.userAgent))
-    const setSlot = useCallback((element: HTMLDivElement | null) => {
-        crumbSlot.set(element)
-    }, [])
+    const palette = useMemo(() => paletteGroups(actions), [actions])
+    const paletteSearch = useMemo<PaletteSearch>(
+        () => ({
+            search: idResults,
+            onOpen: (result) => {
+                void addressOfId(result.id).then((path) => navigate(path))
+            },
+            debounce: 0,
+        }),
+        [navigate],
+    )
+
     const setHead = useCallback((element: HTMLDivElement | null) => {
         headSlot.set(element)
     }, [])
 
+    const panel = tabs.length === 0 ? undefined : <ScreenPanel />
+
+    const identity = auth.identity
     return (
-        <div className="flex h-svh overflow-hidden">
-            <Rail onSettings={openSettings} onShortcuts={openShortcuts} />
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                <header
-                    data-shell-strip="top"
-                    className="flex h-shell-top shrink-0 items-center gap-2 px-4 md:px-8"
-                >
-                    {/* The rail is not drawn below the breakpoint, so this is the way to it. */}
-                    <IconButton
-                        ref={menu}
-                        label={OPEN_NAV_LABEL}
-                        size="icon-sm"
-                        className="-ml-2 md:hidden"
-                        onClick={() => {
-                            setDrawerOpen(true)
-                        }}
-                    >
-                        <ICONS.menu aria-hidden />
-                    </IconButton>
-                    {hidden && (
-                        <IconButton
-                            label={LABELS.shell.show_nav}
-                            size="icon-sm"
-                            className="-ml-2 hidden text-muted-foreground md:inline-flex"
-                            onClick={toggleRail}
-                        >
-                            <ICONS.sidebar aria-hidden />
-                        </IconButton>
+        <Shell
+            rail={
+                <Rail
+                    mark={<ICONS.brand className="size-4" aria-hidden />}
+                    name={LABELS.shell.wordmark}
+                    markHref={DASHBOARD_PATH}
+                    groups={railGroups(role, pathname)}
+                    collapsed={collapsed}
+                    onCollapsedChange={setRailCollapsed}
+                    size={width}
+                    onSizeChange={setRailWidth}
+                    minSize={RAIL_MIN_WIDTH}
+                    maxSize={RAIL_MAX_WIDTH}
+                    defaultSize={RAIL_WIDTH}
+                    words={RAIL_WORDS}
+                    foot={
+                        identity === null ? undefined : (
+                            <AccountMenu
+                                name={identity.username}
+                                detail={identity.role}
+                                where={identityLine(server)}
+                                onSettings={openSettings}
+                                scheme={scheme}
+                                onSchemeChange={setScheme}
+                                onSignOut={leave}
+                                words={accountWords(identity.username)}
+                            />
+                        )
+                    }
+                />
+            }
+            railMode={hidden ? 'hidden' : undefined}
+            route={pathname}
+            top={<TopStrip onServer={openServerPane} />}
+            foot={<ScreenStatusLine version={server.version} />}
+            panel={panel}
+            panelStrip
+            panelOpen={open}
+            onPanelOpenChange={(next) => {
+                if (small) panelSheet.set(next)
+                else if (next !== panelOpen.get()) togglePanel()
+            }}
+            palette={palette}
+            paletteFilter="terms"
+            paletteSearch={paletteSearch}
+            paletteWords={PALETTE_WORDS}
+            paletteFoot={{
+                mark: <ICONS.brand className="size-4" aria-hidden />,
+                name: LABELS.shell.wordmark,
+            }}
+            shortcuts={SHORTCUT_GROUPS}
+            shortcutsOpen={shortcutsOpen}
+            onShortcutsOpenChange={setShortcutsOpen}
+            shortcutsWords={SHORTCUTS_WORDS}
+            words={SHELL_WORDS}
+        >
+            <div className="flex h-full min-h-0 flex-col">
+                <div ref={setHead} data-page-head className="shrink-0 px-4 pt-3 md:px-8" />
+                <div data-page-scroller className="dg-scroller flex min-h-0 flex-1 flex-col pt-px">
+                    {auth.status === 'unknown' ? (
+                        <PageState loading={problem === null} problem={problem} empty={false}>
+                            {null}
+                        </PageState>
+                    ) : (
+                        <Outlet />
                     )}
-                    <div ref={setSlot} data-shell-crumb className="flex min-w-0 items-center" />
-                    <div className="flex-1" />
-                    <ScreenFacts />
-                    <IconButton
-                        label={OPEN_PALETTE_LABEL}
-                        shortcut={LABELS.shell.palette_chord(modifier)}
-                        size="icon-sm"
-                        className="text-muted-foreground"
-                        onClick={() => {
-                            paletteOpen.set(true)
-                        }}
-                    >
-                        <ICONS.search aria-hidden />
-                    </IconButton>
-                    <ServerStatusButton onOpen={openServerPane} />
-                    {filled && !panelShown && (
-                        <IconButton
-                            label={TOGGLE_PANEL_LABEL}
-                            size="icon-sm"
-                            className="-mr-2 hidden text-muted-foreground md:inline-flex"
-                            onClick={togglePanel}
-                        >
-                            <ICONS.panel aria-hidden />
-                        </IconButton>
-                    )}
-                </header>
-
-                <main className="flex min-h-0 w-full flex-1 flex-col">
-                    <div ref={setHead} data-page-head className="shrink-0 px-4 pt-1 md:px-8" />
-                    <div data-page-scroller className="dg-scroller flex min-h-0 flex-1 flex-col pt-px">
-                        {auth.status === 'unknown' ? (
-                            <PageState loading={problem === null} problem={problem} empty={false}>
-                                {null}
-                            </PageState>
-                        ) : (
-                            <Outlet />
-                        )}
-                    </div>
-                </main>
-
-                <PanelSheet />
+                </div>
             </div>
-            <RightPanel />
-
-            <NavDrawer
-                open={drawerOpen}
-                onClose={closeDrawer}
-                onSettings={openSettings}
-                onShortcuts={openShortcuts}
-            />
-
-            <CommandPalette />
-            <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             {settingsAsked && (
                 <Suspense fallback={null}>
                     <SettingsDialog
@@ -362,22 +376,107 @@ export function AppShell() {
                     />
                 </Suspense>
             )}
-        </div>
+        </Shell>
     )
 }
 
-/** What the screen in front of somebody is doing: its note, and its identifier in mono. */
-function ScreenFacts() {
-    const status = useStore(screenStatus)
-    if (status.note === null && status.identifier === null) return null
+/**
+ * The top bar, sokkel-ui's `TopBar`: the trail the screen stated, every crumb a link to a screen
+ * above it, then the palette's button and the instance's dot, last.
+ */
+function TopStrip({ onServer }: { onServer: () => void }) {
+    const trail = useStore(screenTrail)
     return (
-        <div data-screen-facts className="flex min-w-0 items-center gap-3 pr-2">
-            {status.note !== null && (
-                <span className={cn('min-w-0 truncate text-xs', TONE[status.tone])}>{status.note}</span>
+        <TopBar
+            trail={trail}
+            trailEnds="ancestor"
+            words={TOP_BAR_WORDS}
+            actions={<InstanceDot onPress={onServer} />}
+        />
+    )
+}
+
+/**
+ * How this instance is doing, sokkel-ui's `ServerMenu` as a quiet dot: words beside it only when
+ * something is wrong, every check in its tooltip, and a press opening the Server pane.
+ *
+ * The dot re-asks on a slow clock and when the tab comes back.
+ */
+function InstanceDot({ onPress }: { onPress: () => void }) {
+    const status = useStore(serverStatus)
+    const checks = useMemo(() => serverChecks(status.checks), [status.checks])
+
+    useEffect(() => {
+        void checkServer()
+        const clock = setInterval(() => void checkServer(), RECHECK_INTERVAL_MS)
+        const onVisible = () => {
+            if (!document.hidden) void checkServer()
+        }
+        document.addEventListener('visibilitychange', onVisible)
+        return () => {
+            clearInterval(clock)
+            document.removeEventListener('visibilitychange', onVisible)
+        }
+    }, [])
+
+    return (
+        <ServerMenu
+            name={identityLine(status)}
+            version={status.version ?? undefined}
+            state={status.state}
+            states={SERVER_STATES}
+            quiet
+            checks={checks}
+            onPress={onPress}
+            words={SERVER_MENU_WORDS}
+        />
+    )
+}
+
+/**
+ * The right panel, sokkel-ui's `SidePanel`: the tabs the screen filled, the open one held by id
+ * in `lib/panels` so a screen that gains a tab does not move the reader, and its width in pixels.
+ * Below the breakpoint the shell draws its tabs along the foot and the panel as the sheet.
+ */
+function ScreenPanel() {
+    const tabs = useStore(panelTabs)
+    const chosen = useStore(panelTab)
+    const width = useStore(panelWidth)
+    const active = tabs.some((tab) => tab.id === chosen) ? (chosen ?? undefined) : tabs[0]?.id
+    return (
+        <SidePanel
+            tabs={tabs.map((tab) => ({
+                id: tab.id,
+                label: tab.label,
+                icon: tab.icon,
+                content: tab.render(),
+            }))}
+            active={active}
+            onActiveChange={(id) => {
+                panelTab.set(id)
+            }}
+            size={width}
+            onSizeChange={setPanelWidth}
+            minSize={PANEL_MIN_WIDTH}
+            maxSize={PANEL_MAX_WIDTH}
+            defaultSize={PANEL_DEFAULT_WIDTH}
+            soleTab="tab"
+            words={SIDE_PANEL_WORDS}
+        />
+    )
+}
+
+/** The foot: what the screen is doing, its identifier in mono, and the version the instance runs. */
+function ScreenStatusLine({ version }: { version: string | null }) {
+    const status = useStore(screenStatus)
+    return (
+        <StatusLine note={status.note ?? undefined} tone={status.tone} live={status.tone === 'live'}>
+            {status.identifier !== null && <StatusItem code>{status.identifier}</StatusItem>}
+            {version !== null && (
+                <StatusItem label={LABELS.word.version.term} code>
+                    {version}
+                </StatusItem>
             )}
-            {status.identifier !== null && (
-                <InlineCode value={status.identifier} tone="muted" bare size="xs" />
-            )}
-        </div>
+        </StatusLine>
     )
 }

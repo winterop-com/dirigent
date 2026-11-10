@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ApiError, problemOf } from '@/lib/api'
-import { addressOfId, attemptPath, idOf } from '@/lib/id-jump'
+import { addressOfId, attemptPath, idOf, idResults } from '@/lib/id-jump'
 import type { AttemptDetail } from '@/lib/runs'
 
 const RUN = '01a1a11a-0000-7000-8000-000000000001'
@@ -12,6 +12,12 @@ describe('an id pasted into the palette', () => {
         expect(idOf(`  ${ATTEMPT} `)).toBe(ATTEMPT.toLowerCase())
         expect(idOf('runs')).toBeNull()
         expect(idOf(`${RUN} extra`)).toBeNull()
+    })
+
+    it('is the one row the palette finds for it, and a query that is no id finds none', () => {
+        const [group] = idResults(` ${RUN}`)
+        expect(group.results.map((result) => result.id)).toEqual([RUN])
+        expect(idResults('runs')).toEqual([])
     })
 
     it('opens an attempt as its run with its step chosen and the try marked', async () => {

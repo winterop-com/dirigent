@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
 import {
-    filterActions,
     forgetActions,
     paletteActions,
+    paletteGroups,
     registerActions,
     shelve,
     type PaletteAction,
@@ -12,14 +12,6 @@ import {
 function action(id: string, title: string, group = 'Go to', keywords: string[] = []): PaletteAction {
     return { id, title, group, keywords, run: () => undefined }
 }
-
-const ROWS = [
-    action('go:/pipelines', 'Pipelines'),
-    action('go:/runs', 'Runs'),
-    action('go:/triggers', 'Triggers', 'Go to', ['cron', 'interval']),
-    action('view:rail', 'Collapse the navigation', 'View', ['sidebar']),
-    action('session:out', 'Sign out', 'Session', ['logout']),
-]
 
 beforeEach(() => {
     forgetActions()
@@ -55,40 +47,6 @@ describe('registration', () => {
     })
 })
 
-describe('filtering', () => {
-    test('an empty query is not a filter: it answers everything, in registration order', () => {
-        expect(filterActions(ROWS, '  ')).toHaveLength(ROWS.length)
-        expect(filterActions(ROWS, '')[0].id).toBe('go:/pipelines')
-    })
-
-    test('finds a row by a word in its title, whatever the case', () => {
-        expect(filterActions(ROWS, 'RUNS').map((row) => row.id)).toEqual(['go:/runs'])
-    })
-
-    test('finds a row by a keyword nothing renders', () => {
-        expect(filterActions(ROWS, 'cron').map((row) => row.id)).toEqual(['go:/triggers'])
-    })
-
-    test('every term has to match, so typing more words narrows rather than widens', () => {
-        expect(filterActions(ROWS, 'sign out')).toHaveLength(1)
-        expect(filterActions(ROWS, 'sign pipelines')).toHaveLength(0)
-    })
-
-    test('a title that starts with the query sorts above one that merely contains it', () => {
-        const rows = [action('a', 'Cancel this run'), action('b', 'Runs')]
-        expect(filterActions(rows, 'run').map((row) => row.id)).toEqual(['b', 'a'])
-    })
-
-    test('a title match sorts above a row matched only by a keyword', () => {
-        const rows = [action('a', 'Collapse the navigation', 'View', ['schedules']), action('b', 'Schedules')]
-        expect(filterActions(rows, 'schedules').map((row) => row.id)).toEqual(['b', 'a'])
-    })
-
-    test('a row can also be found by the group it is shelved under', () => {
-        expect(filterActions(ROWS, 'session').map((row) => row.id)).toEqual(['session:out'])
-    })
-})
-
 /** A row the screen in front of somebody registered, which is what leads the shelves. */
 function screenRow(id: string, group: string): PaletteAction {
     return { id, title: id, group, screen: true, run: () => undefined }
@@ -112,7 +70,7 @@ describe('how the rows are shelved', () => {
         expect(shelves.map((shelf) => shelf.label)).toEqual(['View', 'Go to'])
     })
 
-    test('rows keep the order the filter put them in', () => {
+    test('rows keep the order they were registered in', () => {
         const shelves = shelve([action('a', 'A'), action('b', 'B'), action('c', 'C')])
         expect(shelves[0].rows.map((row) => row.id)).toEqual(['a', 'b', 'c'])
     })
@@ -138,5 +96,27 @@ describe('how the rows are shelved', () => {
         ])
         expect(shelves).toHaveLength(1)
         expect(shelves[0].rows).toHaveLength(2)
+    })
+})
+
+describe('the groups handed to the palette', () => {
+    test('are the shelves, the screen first, each row its title', () => {
+        const groups = paletteGroups([
+            action('go:runs', 'Runs', 'Go to'),
+            screenRow('run:cancel', 'Run — ffff0123'),
+        ])
+        expect(groups.map((group) => group.title)).toEqual(['Run — ffff0123', 'Go to'])
+        expect(groups[1].commands.map((command) => command.label)).toEqual(['Runs'])
+    })
+
+    test('find a row by its hint and its keywords without drawing either', () => {
+        const row = { ...action('go:/triggers', 'Triggers', 'Go to', ['cron']), hint: 'when pipelines start' }
+        const [command] = paletteGroups([row])[0].commands
+        expect(command.keywords).toEqual(['cron', 'when pipelines start'])
+        expect(command.hint).toBeUndefined()
+    })
+
+    test('give a row with no mark the neutral glyph rather than a gap', () => {
+        expect(paletteGroups([action('a', 'A')])[0].commands[0].icon).toBeDefined()
     })
 })

@@ -5,7 +5,6 @@ import {
     PANEL_MIN_WIDTH,
     RAIL_MAX_WIDTH,
     RAIL_MIN_WIDTH,
-    RAIL_WIDTH,
     clampPanelWidth,
     clampRailWidth,
     closePanel,
@@ -17,9 +16,10 @@ import {
     panelStanding,
     panelTab,
     panelTabs,
+    railCollapsed,
     railHidden,
     railWidth,
-    resetRailWidth,
+    setRailCollapsed,
     setRailWidth,
     togglePanel,
     toggleRail,
@@ -51,11 +51,18 @@ describe('the rail width', () => {
         expect(clampRailWidth(4000)).toBe(RAIL_MAX_WIDTH)
     })
 
-    test('is set clamped, and a reset gives it back the width it opens at', () => {
+    test('is set clamped', () => {
         setRailWidth(9000)
         expect(railWidth.get()).toBe(RAIL_MAX_WIDTH)
-        resetRailWidth()
-        expect(railWidth.get()).toBe(RAIL_WIDTH)
+    })
+})
+
+describe('the rail narrowed to its marks', () => {
+    test('is kept as the reader set it', () => {
+        setRailCollapsed(true)
+        expect(railCollapsed.get()).toBe(true)
+        setRailCollapsed(false)
+        expect(railCollapsed.get()).toBe(false)
     })
 })
 
