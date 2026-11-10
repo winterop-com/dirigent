@@ -1,4 +1,4 @@
-import { StrictMode } from 'react'
+import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Link as RouterLink } from 'react-router'
 
@@ -9,7 +9,7 @@ import { Toaster } from '@winterop-com/sokkel-ui/primitives/sonner'
 import { TooltipProvider } from '@winterop-com/sokkel-ui/primitives/tooltip'
 
 import App from '@/App'
-import { APPEARANCE_DEFAULTS } from '@/lib/theme'
+import { APPEARANCE_DEFAULTS, paletteOf } from '@/lib/theme'
 import '@/index.css'
 
 // A rebuild replaces every hashed chunk, so a tab still holding the previous shell 404s the
@@ -29,9 +29,16 @@ window.addEventListener('vite:preloadError', (event) => {
     window.location.reload()
 })
 
-/** Wears the stored look on `<html>`, both theme axes, and follows it as it changes. */
+/**
+ * Wears the stored look on `<html>`, both theme axes, and follows it as it changes. A stored
+ * theme this build does not offer is replaced with the default palette.
+ */
 function Appearance() {
-    useAppearance(APPEARANCE_DEFAULTS)
+    const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS)
+    const palette = paletteOf(settings.theme)
+    useEffect(() => {
+        if (settings.theme !== palette) setSettings({ ...settings, theme: palette })
+    }, [settings, palette, setSettings])
     return null
 }
 

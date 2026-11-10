@@ -7,11 +7,12 @@ import { configureMonacoYaml, type MonacoYaml } from 'monaco-yaml'
 import yamlWorker from 'monaco-yaml/yaml.worker?worker'
 import { useEffect, useRef } from 'react'
 
-import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
+import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
 
 import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
 import { highlightLine } from '@/lib/preferences'
+import { APPEARANCE_DEFAULTS } from '@/lib/theme'
 import { PROGRAM_GRAMMARS } from '@/lib/program-grammars'
 import { cn } from '@/lib/utils'
 
@@ -357,7 +358,7 @@ export function CodeEditor({
     const host = useRef<HTMLDivElement | null>(null)
     const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
     const emitted = useRef(value)
-    const { resolved } = useScheme()
+    const { settings, resolved } = useAppearance(APPEARANCE_DEFAULTS)
     const highlight = useStore(highlightLine)
 
     useSchema(schema)
@@ -466,8 +467,8 @@ export function CodeEditor({
     }, [value])
 
     // The theme is built from the live page's own custom properties, read in the frame after the
-    // new scheme's class is on the root element, so it takes the colors of the mode arriving
-    // rather than the one being left.
+    // new scheme's class and palette are on the root element, so it takes the colors of the look
+    // arriving rather than the one being left.
     useEffect(() => {
         const frame = requestAnimationFrame(() => {
             monaco.editor.defineTheme(
@@ -479,7 +480,7 @@ export function CodeEditor({
         return () => {
             cancelAnimationFrame(frame)
         }
-    }, [resolved])
+    }, [resolved, settings.theme])
 
     return <div ref={host} className={cn('h-full min-h-64 w-full', className)} data-testid="code-editor" />
 }
