@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
 import {
+    anyStatusChip,
     applyDocument,
     applyExample,
     canvasSettled,
@@ -287,9 +288,9 @@ test('the header says the run is running while it still is, without a reload', a
     // moment to be read: that one is over before the graph it drew has finished drawing.
     await expect(page.getByText(LABELS.state.stream.live, { exact: true })).toBeVisible()
 
-    const main = page.getByRole('main')
-    await expect(statusChip(main, 'running').first()).toBeVisible({ timeout: 15_000 })
-    await expect(statusChip(main, 'succeeded').first()).toBeVisible({ timeout: 30_000 })
+    const chip = anyStatusChip(page.getByRole('main')).first()
+    await expect(chip).toHaveAttribute('data-status', 'running', { timeout: 15_000 })
+    await expect(chip).toHaveAttribute('data-status', 'succeeded', { timeout: 30_000 })
 })
 
 test('an edge is lit rather than moving for somebody who asked for less motion', async ({ page }) => {

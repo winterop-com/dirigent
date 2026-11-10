@@ -176,7 +176,7 @@ function Delivery({ row }: { row: NotificationOut }) {
         <div data-testid="test-delivery" aria-live="polite">
             <Surface tone="well" pad className="space-y-2">
                 <p className="flex flex-wrap items-center gap-2">
-                    <StatusChip dot status={row.status} />
+                    <StatusChip status={row.status} />
                     <span className="text-sm">{row.subject}</span>
                 </p>
                 <p className="text-xs text-muted-foreground">

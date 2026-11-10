@@ -85,7 +85,7 @@ export function StepTab({
         <div className="flex min-h-0 flex-col gap-4 p-4">
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    <StatusChip dot status={nodeTone(view)} />
+                    <StatusChip status={nodeTone(view)} />
                     <span className={cn('truncate text-sm font-semibold', !heading.named && 'font-mono')}>
                         {heading.title}
                     </span>
@@ -379,7 +379,7 @@ function AttemptRow({
             style={statusTokens(attempt.status) as CSSProperties}
         >
             <div className="flex items-center gap-2">
-                <StatusChip dot status={attempt.status} />
+                <StatusChip status={attempt.status} />
                 <button
                     type="button"
                     aria-pressed={chosen}

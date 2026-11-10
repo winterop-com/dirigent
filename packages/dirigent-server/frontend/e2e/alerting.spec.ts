@@ -399,7 +399,7 @@ test('a delivered notification is put back on the queue, and its attempts start 
     // A retry starts the delivery over rather than adding one try to a spent budget: the row
     // goes back to pending, due now, with its counter at nothing and its last refusal gone.
     await panel.getByRole('button', { name: LABELS.action.retry_now }).click()
-    await expect(statusChip(panel, 'pending').first()).toBeVisible()
+    await expect(statusChip(panel, 'pending').first()).toHaveText(LABELS.state.attempt.pending)
     await expect(panel).toContainText('0 of')
 })
 

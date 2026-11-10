@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
+import { formatTest } from '@winterop-com/sokkel-ui/schema/formats'
+
 import { DIRIGENT_FORMATS, isHumaneDuration, isSize } from '@/lib/schema-formats'
 
 function check(name: string, value: string): boolean {
-    const format = DIRIGENT_FORMATS[name]
+    const format = formatTest(DIRIGENT_FORMATS[name])
     if (format === true) return true
     return format instanceof RegExp ? format.test(value) : format(value)
 }

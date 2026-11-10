@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
 import {
-    anyRunStatus,
+    anyStatusChip,
     applyDocument,
     applyExample,
     ranToCompletion,
@@ -111,7 +111,7 @@ test('the pipelines listing carries the identity, the shape and the last run', a
 
     // The one that ran says how it went; the one that has not run says nothing there at all.
     await expect(statusChip(rowOf(page, RAN.title), 'succeeded')).toBeVisible()
-    await expect(anyRunStatus(rowOf(page, IDLE.title))).toHaveCount(0)
+    await expect(anyStatusChip(rowOf(page, IDLE.title))).toHaveCount(0)
 
     // The row is the link to the pipeline's page.
     await rowOf(page, RAN.title).click()

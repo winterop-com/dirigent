@@ -360,7 +360,7 @@ function TroubledRow({ entry }: { entry: LookEntry }) {
                     </p>
                 )}
                 <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs">
-                    <StatusChip dot status={run.status} />
+                    <StatusChip status={run.status} />
                     <Instant
                         className="text-muted-foreground"
                         at={run.finished_at ?? run.started_at ?? run.created_at}

@@ -139,7 +139,7 @@ function Summary({
                         <ul className="mt-2 space-y-1">
                             {report.steps.map((step) => (
                                 <li key={step.step} className="flex items-center gap-2">
-                                    <StatusChip dot status={step.outcome} />
+                                    <StatusChip status={step.outcome} />
                                     <span className="truncate text-sm">{step.step}</span>
                                     {step.warnings > 0 && (
                                         <span className="text-xs text-warning">

@@ -590,7 +590,7 @@ export function RunDetail() {
                     />
 
                     <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
-                        <StatusChip dot status={run.status} className="text-sm" />
+                        <StatusChip status={run.status} className="text-sm" />
                         {failedAt !== null && troubled && (
                             <span>
                                 {LABELS.runs.line.at}{' '}
