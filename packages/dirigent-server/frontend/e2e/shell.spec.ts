@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
 
-import { applyExample, signIn } from './support.ts'
+import { applyExample, signIn, startRun } from './support.ts'
 
 /**
  * The chassis itself: the top row across the app, the foot line, the rail that narrows and hides,
@@ -86,6 +86,34 @@ test('the rail narrows to its marks and widens again, and keeps how it was left'
     await expect(rail).not.toHaveAttribute('data-collapsed')
 })
 
+test('a narrowed rail names every mark, and says the word on hover', async ({ page }) => {
+    const rail = page.locator('[data-shell-rail] aside')
+    await page.getByRole('button', { name: LABELS.shell.collapse_nav }).click()
+    await expect(rail).toHaveAttribute('data-collapsed')
+    for (const link of await rail.getByRole('link').all()) {
+        expect((await link.getAttribute('aria-label')) ?? (await link.innerText()).trim()).not.toBe('')
+    }
+    const runs = rail.getByRole('link', { name: LABELS.screen.runs.name, exact: true })
+    await expect(runs).toBeVisible()
+    await runs.hover()
+    await expect(
+        page.locator('[data-side="right"]').getByText(LABELS.screen.runs.name, { exact: true }),
+    ).toBeVisible()
+})
+
+test('the trail is the screens above, every crumb a link and none of them the page', async ({ page }) => {
+    await applyExample(page.request, 'examples/transform/jq-reshape.yaml')
+    const run = await startRun(page.request, 'jq-reshape')
+    await page.goto(`/runs/${run}`)
+    const trail = page.getByRole('navigation', { name: LABELS.shell.breadcrumb })
+    await expect(trail.getByRole('link')).toHaveText([LABELS.screen.runs.name, 'Reshape with jq'])
+    await expect(trail.locator('[aria-current]')).toHaveCount(0)
+    await trail.getByRole('link', { name: LABELS.screen.runs.name }).click()
+    await expect(page).toHaveURL(/\/runs$/)
+    // A listing states no trail.
+    await expect(trail).toHaveCount(0)
+})
+
 /** The rail's width before anything was dragged, and the widest it goes. */
 const RAIL_WIDTH = 168
 const RAIL_MAX_WIDTH = 320
@@ -143,7 +171,7 @@ test('the seams hold in the light palette as they do in the dark one', async ({ 
         localStorage.setItem('sokkel-ui-scheme', 'light')
     })
     await page.reload()
-    await expect(page.getByRole('heading', { name: LABELS.screen.pipelines.name })).toBeVisible()
+    await expect(page.getByRole('heading', { name: LABELS.screen.pipelines.name, exact: true })).toBeVisible()
     // The palette this test is named for is really the one on the page.
     await expect(page.locator('html')).not.toHaveClass(/dark/)
 
@@ -155,15 +183,15 @@ test('the seams hold in the light palette as they do in the dark one', async ({ 
     }
 })
 
-test('the top bar is one dot, and its details are the tooltip', async ({ page }) => {
+test('the top bar is one dot, named for the instance, and its checks are the tooltip', async ({ page }) => {
     const dot = page.getByRole('button', { name: LABELS.shell.instance.label })
-    await expect(dot).not.toContainText('dirigent')
-    await dot.hover()
     // The name and the environment come from `/system/info`; this suite runs `dg dev`.
+    await expect(dot).toHaveAccessibleName(/^Instance: dirigent · local \S+, healthy$/)
+    await expect(dot).toHaveText('')
+    await dot.hover()
     const tip = page.locator('[data-slot="tooltip-content"]')
-    await expect(tip).toContainText('dirigent')
-    await expect(tip).toContainText('local')
-    await expect(tip).toContainText(LABELS.word.version.term)
+    await expect(tip).toContainText('database')
+    await expect(tip).toContainText(LABELS.state.server.healthy)
 })
 
 test('pressing the dot opens the settings on the server pane', async ({ page }) => {
@@ -199,7 +227,8 @@ test('the account menu holds the account, the settings, the shortcuts, the mode,
     page,
 }) => {
     const row = page.getByRole('button', { name: /^Account: / })
-    await expect(row).toContainText('admin')
+    // The username, and the role muted beside it: the development admin is `admin` in both.
+    await expect(row.getByText('admin', { exact: true })).toHaveCount(2)
     await row.click()
     const menu = page.getByRole('menu')
     await expect(menu).toContainText('admin')

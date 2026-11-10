@@ -3,25 +3,32 @@ import { Outlet, useLocation, useNavigate } from 'react-router'
 
 import { AccountMenu } from '@winterop-com/sokkel-ui/AccountMenu'
 import type { PaletteSearch } from '@winterop-com/sokkel-ui/CommandPalette'
-import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { Rail } from '@winterop-com/sokkel-ui/Rail'
-import { Shell, useShell, type ShortcutGroup } from '@winterop-com/sokkel-ui/Shell'
+import { ServerMenu } from '@winterop-com/sokkel-ui/ServerMenu'
+import { Shell, type ShortcutGroup } from '@winterop-com/sokkel-ui/Shell'
+import { SidePanel } from '@winterop-com/sokkel-ui/SidePanel'
 import { StatusItem, StatusLine } from '@winterop-com/sokkel-ui/StatusLine'
+import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
 import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 
-import { crumbSlot } from '@/components/Breadcrumb'
 import { headSlot } from '@/components/PageHead'
 import { PageState } from '@/components/PageState'
-import { PanelBar } from '@/components/PanelBar'
-import { RightPanel } from '@/components/RightPanel'
-import { ServerStatusButton } from '@/components/ServerStatusButton'
 import { warmLayout } from '@/components/graph/elk'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
 import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
 import { authStore, refreshIdentity, signOut } from '@/lib/auth'
-import { accountWords, PALETTE_WORDS, RAIL_WORDS, SHELL_WORDS, SHORTCUTS_WORDS } from '@/lib/design-system'
+import {
+    accountWords,
+    PALETTE_WORDS,
+    RAIL_WORDS,
+    SERVER_MENU_WORDS,
+    SHELL_WORDS,
+    SHORTCUTS_WORDS,
+    SIDE_PANEL_WORDS,
+    TOP_BAR_WORDS,
+} from '@/lib/design-system'
 import { ICONS } from '@/lib/icons'
 import { addressOfId, idResults } from '@/lib/id-jump'
 import { LABELS } from '@/lib/labels'
@@ -38,24 +45,38 @@ import {
     type PaletteAction,
 } from '@/lib/palette'
 import {
+    PANEL_DEFAULT_WIDTH,
+    PANEL_MAX_WIDTH,
+    PANEL_MIN_WIDTH,
     RAIL_MAX_WIDTH,
     RAIL_MIN_WIDTH,
     RAIL_WIDTH,
     panelOpen,
     panelSheet,
+    panelTab,
     panelTabs,
+    panelWidth,
     railCollapsed,
     railHidden,
     railWidth,
     setRailCollapsed,
+    setPanelWidth,
     setRailWidth,
     toggleRail,
     togglePanel,
 } from '@/lib/panels'
 import { screenStatus } from '@/lib/screen-status'
-import { identityLine, serverStatus } from '@/lib/server-status'
-import { applePlatform, modifierLabel, shortcuts } from '@/lib/shortcuts'
+import {
+    RECHECK_INTERVAL_MS,
+    SERVER_STATES,
+    checkServer,
+    identityLine,
+    serverChecks,
+    serverStatus,
+} from '@/lib/server-status'
+import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { MODE_ICONS, MODES, MODE_LABELS } from '@/lib/theme'
+import { screenTrail } from '@/lib/trail'
 import { loadContributedWording } from '@/lib/wording'
 import { warmEditor } from '@/components/pipeline/CodePane'
 
@@ -273,7 +294,7 @@ export function AppShell() {
         headSlot.set(element)
     }, [])
 
-    const panel = tabs.length === 0 ? undefined : <RightPanel />
+    const panel = tabs.length === 0 ? undefined : <ScreenPanel />
 
     const identity = auth.identity
     return (
@@ -296,6 +317,7 @@ export function AppShell() {
                         identity === null ? undefined : (
                             <AccountMenu
                                 name={identity.username}
+                                detail={identity.role}
                                 where={identityLine(server)}
                                 onSettings={openSettings}
                                 scheme={scheme}
@@ -311,8 +333,8 @@ export function AppShell() {
             route={pathname}
             top={<TopStrip onServer={openServerPane} />}
             foot={<ScreenStatusLine version={server.version} />}
-            bottom={small ? <PanelBar /> : undefined}
             panel={panel}
+            panelStrip
             panelOpen={open}
             onPanelOpenChange={(next) => {
                 if (small) panelSheet.set(next)
@@ -359,30 +381,88 @@ export function AppShell() {
 }
 
 /**
- * The top bar: the screen's crumb at its left, drawn there by `Breadcrumb`, then the palette's
- * button, which is the search glyph with the chord on its tooltip, and the instance's dot, last.
+ * The top bar, sokkel-ui's `TopBar`: the trail the screen stated, every crumb a link to a screen
+ * above it, then the palette's button and the instance's dot, last.
  */
 function TopStrip({ onServer }: { onServer: () => void }) {
-    const { openPalette } = useShell()
-    const setSlot = useCallback((element: HTMLDivElement | null) => {
-        crumbSlot.set(element)
-    }, [])
-    const modifier = modifierLabel(applePlatform(navigator.userAgent))
+    const trail = useStore(screenTrail)
     return (
-        <>
-            <div ref={setSlot} data-shell-crumb className="flex min-w-0 items-center" />
-            <div className="flex-1" />
-            <IconButton
-                label={LABELS.shell.open_palette}
-                shortcut={LABELS.shell.palette_chord(modifier)}
-                size="icon-sm"
-                className="text-muted-foreground"
-                onClick={openPalette}
-            >
-                <ICONS.search aria-hidden />
-            </IconButton>
-            <ServerStatusButton onOpen={onServer} />
-        </>
+        <TopBar
+            trail={trail}
+            trailEnds="ancestor"
+            words={TOP_BAR_WORDS}
+            actions={<InstanceDot onPress={onServer} />}
+        />
+    )
+}
+
+/**
+ * How this instance is doing, sokkel-ui's `ServerMenu` as a quiet dot: words beside it only when
+ * something is wrong, every check in its tooltip, and a press opening the Server pane.
+ *
+ * The dot re-asks on a slow clock and when the tab comes back.
+ */
+function InstanceDot({ onPress }: { onPress: () => void }) {
+    const status = useStore(serverStatus)
+    const checks = useMemo(() => serverChecks(status.checks), [status.checks])
+
+    useEffect(() => {
+        void checkServer()
+        const clock = setInterval(() => void checkServer(), RECHECK_INTERVAL_MS)
+        const onVisible = () => {
+            if (!document.hidden) void checkServer()
+        }
+        document.addEventListener('visibilitychange', onVisible)
+        return () => {
+            clearInterval(clock)
+            document.removeEventListener('visibilitychange', onVisible)
+        }
+    }, [])
+
+    return (
+        <ServerMenu
+            name={identityLine(status)}
+            version={status.version ?? undefined}
+            state={status.state}
+            states={SERVER_STATES}
+            quiet
+            checks={checks}
+            onPress={onPress}
+            words={SERVER_MENU_WORDS}
+        />
+    )
+}
+
+/**
+ * The right panel, sokkel-ui's `SidePanel`: the tabs the screen filled, the open one held by id
+ * in `lib/panels` so a screen that gains a tab does not move the reader, and its width in pixels.
+ * Below the breakpoint the shell draws its tabs along the foot and the panel as the sheet.
+ */
+function ScreenPanel() {
+    const tabs = useStore(panelTabs)
+    const chosen = useStore(panelTab)
+    const width = useStore(panelWidth)
+    const active = tabs.some((tab) => tab.id === chosen) ? (chosen ?? undefined) : tabs[0]?.id
+    return (
+        <SidePanel
+            tabs={tabs.map((tab) => ({
+                id: tab.id,
+                label: tab.label,
+                icon: tab.icon,
+                content: tab.render(),
+            }))}
+            active={active}
+            onActiveChange={(id) => {
+                panelTab.set(id)
+            }}
+            size={width}
+            onSizeChange={setPanelWidth}
+            minSize={PANEL_MIN_WIDTH}
+            maxSize={PANEL_MAX_WIDTH}
+            defaultSize={PANEL_DEFAULT_WIDTH}
+            soleTab="tab"
+            words={SIDE_PANEL_WORDS}
+        />
     )
 }
 

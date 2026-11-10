@@ -186,8 +186,8 @@ and not a list to open. **Palette is three swatch cards**, because what a palett
 looks like, and a card showing the ground, the surface, the line, the ink and the accent says in one
 glance what a sentence under a segmented control took a paragraph to approximate -- so no palette
 carries a line about itself any more. Neither row holds a copy of what it sets -- both go through
-`useAppearance`, the one store the root wears and the account menu writes. **The mode is also the
-account menu's Appearance submenu**, the same three writing the same store, because it is the one
+`useAppearance`, the one store the root wears and the account menu writes. **The mode is also three
+radio rows in the account menu**, the same three writing the same store, because it is the one
 look somebody changes in passing; the palette's Appearance rows are the third door to it. **The top
 strip carries no mode flip**: the account menu stands on every screen, and a control said twice on
 one screen has to earn the second time, which a two-way flip that cannot reach System does not.
@@ -1322,12 +1322,15 @@ narrowed and whether it is hidden, and the right panel's width and whether it st
 `lib/panels` keeps, each read out of storage as its store is built, so the shell renders at its
 settled size on the first paint rather than snapping into it.
 
-**What is in the right panel is the screen's.** The panel itself is drawn once, in
-`components/RightPanel`, and a screen fills it with `fillPanel` from an effect that returns the
+**What is in the right panel is the screen's.** The panel itself is drawn once, sokkel-ui's
+`SidePanel` in the shell, and a screen fills it with `fillPanel` from an effect that returns the
 unregister -- the same shape as registering palette actions, and for the same reason: a panel
-cannot outlive the screen whose data it is drawing. A tab is an id, a label and a `render`, and
-the open tab is remembered by id, so a screen that gains a tab does not move the reader onto a
-different one. A screen that fills nothing gets the line saying so.
+cannot outlive the screen whose data it is drawing. A tab is an id, a label, an optional mark and
+a `render`, and the open tab is remembered by id in `lib/panels`, so a screen that gains a tab does
+not move the reader onto a different one. **The tabs are a real tablist** with the content as its
+tabpanel, labelled by the tab shown, and the arrows, Home and End move between them. A panel of one
+tab still draws it as a tab (`soleTab="tab"`), because a screen's tabs come and go and the header
+must not change shape with them. A screen that fills nothing has no panel and no toggle.
 
 **Whether the panel stands open is the reader's; a screen opens it for one visit.** The toggle is
 the only thing that writes the stored preference. A selection, or an address that names a row,
@@ -1375,11 +1378,12 @@ each naming itself in a tooltip; the shell narrows it on its own while the panel
 window under 1280px.
 
 **The account stands in the window's bottom-left corner, at the start of the status line**, and
-the whole row is the control: sokkel-ui's `AccountMenu`, its avatar the username's first letter
-and the username beside it. **This is the one place a code stands in the UI face.** The username
+the whole row is the control: sokkel-ui's `AccountMenu`, its avatar the username's first letter,
+the username beside it, and the account's role muted after that (`detail`), a plain word as a role
+is everywhere. **This is the one place a code stands in the UI face.** The username
 is the account's code, and wherever it is addressed -- the accounts listing, the Account pane, a
 token's owner -- it is mono; here it is the reader's own name said back to them. The menu opens
-upward: its head is the username with the instance's name and environment under it, then
+upward: its head is the username and the role with the instance's name and environment under it, then
 Settings, Keyboard shortcuts with `?`, the mode as Light, Dark and System with the one in force
 checked, and Sign out.
 
@@ -1387,12 +1391,14 @@ checked, and Sign out.
 and bring it back, and while it is hidden the top bar's menu button opens it as the drawer at
 every width. Whether it is hidden is the reader's, and kept.
 
-**The top bar is the screen's crumb and the instance's corner.** At its left stands the crumb:
-where a screen is one thing, the trail back to the listing it belongs to, every step a link,
-drawn by `Breadcrumb` into the bar rather than onto the page, so the page opens on its heading. A
-listing has no crumb. At the right, the palette's button, the search glyph with the chord on its
-tooltip; the instance's dot; and the panel's toggle in the window's corner, where the screen has
-filled a panel.
+**The top bar is the screen's crumb and the instance's corner**, sokkel-ui's `TopBar` with
+`trailEnds="ancestor"`. At its left stands the crumb: where a screen is one thing, the trail back
+to the listing it belongs to -- the screens above it only, every step a link and none of them
+marked as the page, because the page's own heading names it. A screen states its trail with
+`ScreenTrail` (or a `PageHeader`'s `trail`) into `lib/trail` for as long as it is mounted, and the
+bar draws it, so the page opens on its heading. A listing has no crumb. At the right, the palette's
+button, the library's: the search glyph, the word `Search`{ .label } and the chord; the instance's
+dot; and the panel's toggle in the window's corner, where the screen has filled a panel.
 
 **The status line is the screen's, and the version's.** The screen's note at its left, in its
 tone, and at its right the screen's identifier and the version this instance runs. Nothing a
@@ -1410,11 +1416,14 @@ appears, and the body and a docked terminal end at one right edge, the same edge
 **A fact appears once in the shell.** How this instance is doing belongs to the dot, and nothing
 true of the session rather than of the screen stands beside the crumb.
 
-**The dot is the whole of what it says while the instance is well.** Its details are its tooltip:
-the name and environment from `/system/info`, the health and when it was asked, the version, and
-every check. **Words appear only when something is wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unreachable, retrying`{ .label }, beside the dot, in
-that state's ink. `statusWords` in `lib/server-status` decides it. A press opens the settings
-dialog's Server pane, which is what a finger has where there is nothing to hover with.
+**The dot is the whole of what it says while the instance is well**, sokkel-ui's `ServerMenu`,
+`quiet`. Its accessible name is the instance's name and environment from `/system/info`, the
+version and the state; its tooltip lists every check with its own dot, state and detail.
+**Words appear only when something is wrong**: `Server degraded`{ .label }, `Server unhealthy`{ .label }, `Server unreachable, retrying`{ .label }, beside the dot.
+`SERVER_STATES` in `lib/server-status` is the map of states it is drawn from, and the dot pulses
+while the instance is still being asked. It re-asks on a slow clock and when the tab comes back. A
+press opens the settings dialog's Server pane (`onPress`), which is what a finger has where there
+is nothing to hover with, and where the checks' times and the Recheck button are.
 
 ## Small screens
 
@@ -1485,9 +1494,9 @@ column decides, never the component it draws -- a tag strip with no tags, a dura
 still going, a description that is empty are the cell's answer and not the component's -- and
 `lib/card-form` leaves out every fact that answered nothing.
 
-**The breadcrumb shows its leaf**, and the crumb carrying the thing's code where the leaf is not
-it -- the code is on screen on every screen. The whole trail is the element's `title`; the leaf
-truncates with an ellipsis rather than wrapping the strip onto a second line.
+**The breadcrumb is the way back**: below `md` only the last screen above this one stands, after
+a chevron pointing back, and it truncates with an ellipsis rather than wrapping the strip onto a
+second line. A crumb that is a code is in mono.
 
 **A toolbar does not wrap, here or anywhere.** A screen's verbs are data rather than markup --
 sokkel-ui's `ToolbarItem`s, in a `PageHeader`'s `items` or a `Toolbar`'s -- measured against the
@@ -1503,10 +1512,11 @@ part that scrolls. It is the generated dialog's own slots that are restyled in `
 a second dialog.
 
 **The right panel opens from the foot.** Below `lg` the shell draws it as a sheet sliding over
-the screen from the right, raised by its toggle; below `md` a tab bar above the status line
-carries the tabs the screen filled as well, each raising the sheet on its tab -- so the graph
-screens are the graph, and what is beside them is a tap away. A screen that fills no panel has
-no tab bar.
+the screen from the right, raised by its toggle; below `md` the shell's `panelStrip` puts the
+panel's tabs in a strip at the foot, a tablist named `Side panel`{ .label } with tabs a finger
+tall: a tab raises the sheet on itself, another switches it, and the open tab, Escape or a press
+on the dim lowers it -- so the graph screens are the graph, and what is beside them is a tap
+away. The sheet's header then names the tab shown. A screen that fills no panel has no strip.
 
 **A document is read, not written, below `md`.** The source pane is read-only, the add-step and
 delete-step controls are not drawn, and neither is any of the three verbs -- Apply, Run, and the

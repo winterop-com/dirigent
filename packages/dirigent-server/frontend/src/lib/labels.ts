@@ -719,8 +719,8 @@ const shell = {
     breadcrumb: 'Breadcrumb',
 
     open_palette: 'Open the command palette',
-    /** The chord on the palette button's tooltip: this platform's modifier, and the letter. */
-    palette_chord: (modifier: string) => (modifier.length > 1 ? `${modifier} K` : `${modifier}K`),
+    /** The top bar's button that opens the palette, which says the word and the chord. */
+    palette_button: 'Search',
     toggle_panel: 'Show or hide the side panel',
     /** The toggle in the window's top-right corner, named for what pressing it does now. */
     show_panel: 'Show the side panel',
@@ -732,9 +732,8 @@ const shell = {
 
     /** The top bar's dot: which instance this is, what it is running, and how it is doing. */
     instance: {
+        /** The dot's accessible name, before the instance's name, version and state. */
         label: 'Instance',
-        /** The dot's accessible name, which carries what the dot's colour says. */
-        said: (health: string) => `Instance: ${health}`,
         /** Beside the dot, and only when something is wrong. */
         wrong: {
             degraded: 'Server degraded',
@@ -743,8 +742,6 @@ const shell = {
         },
         /** The name, and the environment where the environment is worth saying. */
         line: (name: string, environment: string) => `${name} · ${environment}`,
-        /** A fact this instance did not state. */
-        unknown: 'unknown',
     },
 
     /** The account menu's row that opens the settings dialog. */
@@ -760,6 +757,8 @@ const shell = {
     },
 
     resize_panel: 'Resize the side panel',
+    /** The strip of the right panel's tabs along the foot below the breakpoint. */
+    panel_tabs: 'Side panel',
     /** The rail's edge: dragged, or moved with the arrow keys; a double-click resets it. */
     resize_nav: 'Resize navigation',
 

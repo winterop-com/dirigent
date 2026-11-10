@@ -11,6 +11,7 @@
  * the shell renders at its settled size on the first paint rather than snapping into place.
  */
 
+import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { createStore } from '@/lib/store'
@@ -189,6 +190,8 @@ export interface PanelTab {
     /** Stable across rebuilds of the list: it is what the open tab is remembered by. */
     id: string
     label: string
+    /** Drawn over the label in the tab strip along the foot below the breakpoint. */
+    icon?: LucideIcon
     render: () => ReactNode
 }
 

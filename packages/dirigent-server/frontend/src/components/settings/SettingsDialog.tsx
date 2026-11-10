@@ -7,7 +7,8 @@ import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Refusal } from '@/components/Refusal'
 import { LINK_WORDS, SEARCH_PLACEHOLDER } from '@/lib/design-system'
 import { Segmented } from '@/components/Segmented'
-import { Dot, TONE } from '@/components/ServerStatusButton'
+import { Dot } from '@winterop-com/sokkel-ui/Dot'
+import { STATUS_CSS } from '@winterop-com/sokkel-ui/lib/status'
 import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
@@ -25,7 +26,7 @@ import { LABELS } from '@/lib/labels'
 import { LOGIN_PATH } from '@/lib/nav'
 import { changePassword, formProblem, NO_PASSWORD, refusalOf, type PasswordForm } from '@/lib/password'
 import { followTails, highlightLine, setFollowTails, setHighlightLine } from '@/lib/preferences'
-import { checkServer, serverStatus } from '@/lib/server-status'
+import { checkServer, SERVER_STATES, serverStatus } from '@/lib/server-status'
 import {
     categoriesWith,
     FIRST_CATEGORY,
@@ -587,8 +588,13 @@ function ServerPane({ rows }: { rows: SettingsRow[] }) {
                 if (row.id === 'server:health') {
                     return (
                         <Row key={row.id} row={row}>
-                            <Dot state={status.state} wide />
-                            <span className="text-sm">{TONE[status.state].word}</span>
+                            <Dot
+                                color={STATUS_CSS[SERVER_STATES[status.state].color]}
+                                className={cn(status.state === 'unknown' && 'animate-pulse')}
+                            />
+                            <span className="text-sm">
+                                {LABELS.state.server[status.state === 'unknown' ? 'asking' : status.state]}
+                            </span>
                             {status.checkedAt !== null && (
                                 <span className="ml-1 text-xs text-faint">
                                     {LABELS.settings.checked(

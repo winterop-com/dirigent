@@ -17,7 +17,10 @@ import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
+import type { ServerMenuWords } from '@winterop-com/sokkel-ui/ServerMenu'
 import type { ShellWords } from '@winterop-com/sokkel-ui/Shell'
+import type { SidePanelWords } from '@winterop-com/sokkel-ui/SidePanel'
+import type { TopBarWords } from '@winterop-com/sokkel-ui/TopBar'
 import type { ShortcutsDialogWords } from '@winterop-com/sokkel-ui/ShortcutsDialog'
 import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
 import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
@@ -192,6 +195,25 @@ export const SHELL_WORDS: Partial<ShellWords> = {
     hidePanel: LABELS.shell.hide_panel,
     openPalette: LABELS.shell.open_palette,
     openShortcuts: LABELS.shell.chord.shortcuts,
+    panelTabs: LABELS.shell.panel_tabs,
+}
+
+/** What the top bar's palette button and trail are called. */
+export const TOP_BAR_WORDS: Partial<TopBarWords> = {
+    search: LABELS.shell.palette_button,
+    palette: LABELS.shell.open_palette,
+    trail: LABELS.shell.breadcrumb,
+}
+
+/** What the top bar's instance dot is called, before the state it says. */
+export const SERVER_MENU_WORDS: Partial<ServerMenuWords> = {
+    label: LABELS.shell.instance.label,
+    checking: LABELS.state.server.asking,
+}
+
+/** What the right panel's edge is called. */
+export const SIDE_PANEL_WORDS: Partial<SidePanelWords> = {
+    resize: LABELS.shell.resize_panel,
 }
 
 /** What the rail's head and edge are called. */

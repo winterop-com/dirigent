@@ -4,7 +4,8 @@
  * `GET /health/ready` is unauthenticated and answers the worst status across the instance's
  * checks plus each check's own, in one cheap read -- so the corner dot can say degraded, not
  * just alive. A 503 is an answer (the body still carries the checks); only a failed fetch is
- * offline. The store holds the last answer; the button re-asks on focus and on a slow clock.
+ * offline. The store holds the last answer; the shell re-asks when the tab comes back and on a
+ * slow clock.
  *
  * ONE READER OF THE PROBE, AND THIS IS IT. The settings dialog's Server pane shows the same
  * checks and its Recheck button is `checkServer`, because two readers of one probe are two
@@ -17,6 +18,9 @@
  * account menu say the name and the environment, and a name that never changes while a process
  * is up is asked for once rather than on every recheck.
  */
+
+import type { ServerCheck } from '@winterop-com/sokkel-ui/ServerMenu'
+import type { StatusMap } from '@winterop-com/sokkel-ui/lib/status'
 
 import { rootFetch } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
@@ -67,12 +71,34 @@ export function identityLine(status: Pick<ServerStatus, 'name' | 'environment'>)
     return LABELS.shell.instance.line(name, status.environment)
 }
 
-/** What the top bar says beside its dot: nothing while the instance is well or still being asked. */
-export function statusWords(state: ServerState): string | null {
-    if (state === 'degraded' || state === 'unhealthy' || state === 'offline') {
-        return LABELS.shell.instance.wrong[state]
-    }
-    return null
+/** A check's state as the server menu looks it up, kept apart from the instance's own words. */
+const CHECK = 'check:'
+
+/**
+ * Every state the top bar's dot is drawn in, for sokkel-ui's `ServerMenu`.
+ *
+ * The instance's own states carry the words said beside a quiet dot, so a well or still-asked
+ * instance says nothing and each way of being wrong says itself; a check's states are the plain
+ * words its line in the tooltip says.
+ */
+export const SERVER_STATES: StatusMap = {
+    unknown: { label: LABELS.state.server.asking, color: 'neutral', live: true },
+    healthy: { label: LABELS.state.server.healthy, color: 'good' },
+    degraded: { label: LABELS.shell.instance.wrong.degraded, color: 'warning' },
+    unhealthy: { label: LABELS.shell.instance.wrong.unhealthy, color: 'critical' },
+    offline: { label: LABELS.shell.instance.wrong.offline, color: 'critical' },
+    [`${CHECK}healthy`]: { label: LABELS.state.server.healthy, color: 'good' },
+    [`${CHECK}degraded`]: { label: LABELS.state.server.degraded, color: 'warning' },
+    [`${CHECK}unhealthy`]: { label: LABELS.state.server.unhealthy, color: 'critical' },
+}
+
+/** The instance's checks as the server menu lists them; a status this app does not know is spelled as it came. */
+export function serverChecks(checks: readonly CheckView[]): ServerCheck[] {
+    return checks.map((check) => ({
+        name: check.name,
+        state: `${CHECK}${check.status}` in SERVER_STATES ? `${CHECK}${check.status}` : check.status,
+        ...(check.detail === null ? {} : { detail: check.detail }),
+    }))
 }
 
 /** What one readiness body means, independent of who fetched it. */

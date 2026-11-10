@@ -68,10 +68,31 @@ test('a query nothing answers says so rather than showing everything', async ({ 
     await expect(page.getByText(LABELS.palette.empty)).toBeVisible()
 })
 
-test('a pasted run id is one row, and choosing it opens the run', async ({ page }) => {
+test('a pasted run id is one row, and Enter opens the run', async ({ page }) => {
     const id = '01a1a11a-0000-7000-8000-00000000abcd'
     await page.keyboard.press('ControlOrMeta+k')
     await page.getByPlaceholder(LABELS.palette.placeholder).fill(id)
-    await page.getByRole('option', { name: LABELS.palette.open_id(id) }).click()
+    await expect(page.getByRole('option', { name: LABELS.palette.open_id(id) })).toBeVisible()
+    await page.keyboard.press('Enter')
     await expect(page).toHaveURL(new RegExp(`/runs/${id}`))
+})
+
+test.describe('on a Mac', () => {
+    test.use({
+        userAgent:
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    })
+
+    test('Ctrl+K opens it as Cmd+K does', async ({ page }) => {
+        await page.addInitScript(() => {
+            Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' })
+        })
+        await page.reload()
+        await expect(page.getByLabel(LABELS.shell.instance.label)).toBeVisible()
+        await page.keyboard.press('Control+k')
+        await expect(page.getByPlaceholder(LABELS.palette.placeholder)).toBeVisible()
+        await page.keyboard.press('Escape')
+        await page.keyboard.press('Meta+k')
+        await expect(page.getByPlaceholder(LABELS.palette.placeholder)).toBeVisible()
+    })
 })
