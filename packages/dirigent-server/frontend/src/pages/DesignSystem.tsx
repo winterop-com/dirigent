@@ -326,11 +326,11 @@ export function DesignSystem() {
                                             onSelect: () => {},
                                         },
                                     ]}
-                                    moreWays={SAMPLE.more_ways}
                                     primary={{
                                         id: 'new',
                                         label: SAMPLE.new_pipeline,
                                         face: LABELS.action.new,
+                                        moreLabel: SAMPLE.more_ways,
                                         icon: <ICONS.create aria-hidden />,
                                         onSelect: () => {},
                                         more: [

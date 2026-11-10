@@ -14,7 +14,6 @@ import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
 import { Notice } from '@/components/ds/Notice'
 import { Panel } from '@/components/ds/Panel'
-import { quietPrimary } from '@/components/ds/QuietPrimary'
 import { connectionOf, RunFailure } from '@/components/run/RunFailure'
 import { PageHead } from '@/components/PageHead'
 import { PageState } from '@/components/PageState'
@@ -573,8 +572,9 @@ export function RunDetail() {
                                       },
                                   ]
                         }
-                        primary={quietPrimary(!verbs.rerun.open, {
+                        primary={{
                             id: 'rerun',
+                            variant: verbs.rerun.open ? 'default' : 'outline',
                             label: LABELS.action.rerun,
                             icon: <ICONS.rerun aria-hidden />,
                             ...shutWith(
@@ -584,7 +584,7 @@ export function RunDetail() {
                             onSelect: () => {
                                 rerun?.()
                             },
-                        })}
+                        }}
                         wordsOnly
                         words={TOOLBAR_WORDS}
                     />

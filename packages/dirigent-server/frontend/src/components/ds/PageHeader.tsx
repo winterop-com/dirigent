@@ -23,7 +23,6 @@ export function PageHeader({
     lead,
     items,
     primary,
-    moreWays,
     trail,
     code,
     meta,
@@ -34,8 +33,6 @@ export function PageHeader({
     lead?: ReactNode
     items?: readonly ToolbarItem[]
     primary?: ToolbarItem
-    /** What the primary's split chevron is called, where its `more` makes it a split button. */
-    moreWays?: string
     trail?: readonly Crumb[]
     code?: string | null
     meta?: ReactNode
@@ -55,7 +52,7 @@ export function PageHeader({
                     items={items}
                     primary={primary}
                     wordsOnly
-                    words={moreWays === undefined ? TOOLBAR_WORDS : { ...TOOLBAR_WORDS, moreWays }}
+                    words={TOOLBAR_WORDS}
                 />
             </div>
         </PageHead>

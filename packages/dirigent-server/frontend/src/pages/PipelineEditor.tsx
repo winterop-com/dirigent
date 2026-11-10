@@ -16,7 +16,6 @@ import { Chip } from '@/components/ds/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
-import { quietPrimary } from '@/components/ds/QuietPrimary'
 import { Toolbar } from '@winterop-com/sokkel-ui/Toolbar'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
@@ -643,15 +642,16 @@ export function PipelineEditor() {
                         primary={
                             small
                                 ? undefined
-                                : quietPrimary(applyVariant(edits, creating) === 'outline', {
+                                : {
                                       id: 'apply',
+                                      variant: applyVariant(edits, creating),
                                       label: LABELS.action.apply,
                                       icon: <CheckCircle2 aria-hidden />,
                                       ...shutWith(applyRefusal !== undefined, applyRefusal),
                                       onSelect: () => {
                                           setDialog('apply')
                                       },
-                                  })
+                                  }
                         }
                         end={
                             small ? (
