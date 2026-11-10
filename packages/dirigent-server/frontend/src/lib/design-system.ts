@@ -272,6 +272,7 @@ export function accountWords(username: string): Partial<AccountMenuWords> {
 export const SETTINGS_WORDS: Partial<SettingsDialogWords> = {
     title: LABELS.settings.title,
     search: SEARCH_PLACEHOLDER,
+    searchLabel: LABELS.settings.search,
     clear: LABELS.shell.clear_search,
     noMatch: LABELS.settings.no_match,
     saved: LABELS.settings.saved,

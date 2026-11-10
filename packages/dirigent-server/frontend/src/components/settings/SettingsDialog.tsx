@@ -78,7 +78,16 @@ export function SettingsDialog({
         () => new Map(shortcuts(apple).map((one) => [`shortcuts:${one.id}`, one.keys])),
         [apple],
     )
-    const groups = settingsGroups(rows, (row) => controlOf(row, { keys, info, changing, setChanging }))
+    const groups = settingsGroups(
+        rows,
+        (row) => controlOf(row, { keys, info, changing, setChanging }),
+        (category) => {
+            if (category === 'shortcuts') return { lead: <Quiet>{LABELS.settings.shortcuts_apply}</Quiet> }
+            if (category === 'server' && info.problem !== null)
+                return { foot: <Refusal problem={info.problem} /> }
+            return {}
+        },
+    )
 
     return (
         <LibrarySettingsDialog
@@ -473,7 +482,7 @@ function ReferenceLinks() {
 
 /**
  * A row stating one fact of `GET /system/info`: one value, or the codes of a list, each on one
- * line. A refused read is stated whole on the Version row.
+ * line. A refused read is stated once, under the pane's rows.
  */
 function factControl(id: string, info: Reading<SystemInfo>): RowControl {
     if (info.value !== null) {
@@ -489,9 +498,6 @@ function factControl(id: string, info: Reading<SystemInfo>): RowControl {
             ),
             layout: 'trailing',
         }
-    }
-    if (info.problem !== null && id === 'server:version') {
-        return { control: <Refusal problem={info.problem} />, layout: 'below' }
     }
     return { control: <Quiet>{LABELS.shell.reading}</Quiet>, layout: 'trailing' }
 }

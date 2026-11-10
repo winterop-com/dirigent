@@ -3548,6 +3548,10 @@ const alerting = {
  */
 const settings = {
     title: 'Settings',
+    /** The search box's accessible name; its placeholder is the shell's "Search". */
+    search: 'Search the settings',
+    /** Above the Shortcuts pane's rows: where the keys work. */
+    shortcuts_apply: 'Anywhere but inside a text box.',
     /** No row anywhere answers what was typed. */
     no_match: 'Nothing matches that.',
     /** The note at the start of the footer: nothing waits for a save. */

@@ -1276,9 +1276,11 @@ this dialog, and an editor already on screen takes the change without being rebu
 Account is the reader's, and Server is the instance's. There is no About, because a version stated
 on two panes of one dialog is the same fact twice; the documentation and the API reference are two
 links on the Server pane's last row, `Reference`{ .label }, where the instance they answer for is and
-where the search finds them. A refused read of what the instance is states the refusal on its
-Version row. **No pane carries a line under its heading and almost no row carries one under its
-label.** A row's `description` is
+where the search finds them. A refused read of what the instance is states the refusal once, in
+the Server section's `foot`, under its rows. **A pane carries a line under its heading only where it
+says something no row can** -- Shortcuts says where the keys work, in its section's `lead` -- **and
+almost no row carries one under its label.** The search box's placeholder is "Search" and its
+accessible name, `words.searchLabel`, says what it searches. A row's `description` is
 optional and survives only by adding a fact the control cannot show, such as which timestamps a
 clock setting moves and which keep their own -- so a line restating the label is not written.
 

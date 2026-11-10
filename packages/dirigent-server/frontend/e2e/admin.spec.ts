@@ -226,6 +226,21 @@ test('the settings search reaches across every category', async ({ page }) => {
     await expect(dialog.getByText(LABELS.settings.no_match).filter({ visible: true })).toHaveCount(1)
 })
 
+test('the settings search is named for what it searches, and Shortcuts says where the keys work', async ({
+    page,
+}) => {
+    await signIn(page)
+    await openSettings(page)
+    const dialog = page.getByRole('dialog')
+
+    const search = dialog.getByRole('searchbox', { name: LABELS.settings.search, exact: true })
+    await expect(search).toBeVisible()
+    await expect(search).toHaveAttribute('placeholder', 'Search')
+
+    await dialog.getByRole('button', { name: LABELS.settings.category.shortcuts, exact: true }).click()
+    await expect(dialog.getByText(LABELS.settings.shortcuts_apply).filter({ visible: true })).toHaveCount(1)
+})
+
 test('the nav is three groups and About is not one of them', async ({ page }) => {
     await signIn(page)
     await openSettings(page)

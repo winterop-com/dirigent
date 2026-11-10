@@ -10,6 +10,7 @@
  */
 
 import type { Setting, SettingsGroup } from '@winterop-com/sokkel-ui/SettingsDialog'
+import type { ReactNode } from 'react'
 
 import { LABELS } from '@/lib/labels'
 import { shortcuts } from '@/lib/shortcuts'
@@ -186,28 +187,34 @@ export type RowControl = Pick<Setting, 'control' | 'layout'>
 export function settingsGroups(
     rows: readonly SettingsRow[],
     controlOf: (row: SettingsRow) => RowControl,
+    around: (category: string) => { lead?: ReactNode; foot?: ReactNode } = () => ({}),
 ): SettingsGroup[] {
     return SETTINGS_GROUPS.map((group) => ({
         id: group.id,
         title: group.label,
         sections: SETTINGS_CATEGORIES.filter((category) => category.group === group.id)
-            .map((category) => ({
-                id: category.id,
-                label: category.label,
-                settings: rows
-                    .filter((row) => row.category === category.id)
-                    .map((row) => {
-                        const { control, layout } = controlOf(row)
-                        return {
-                            id: row.id,
-                            title: row.label,
-                            description: row.description,
-                            keywords: row.keywords,
-                            control,
-                            layout,
-                        }
-                    }),
-            }))
+            .map((category) => {
+                const { lead, foot } = around(category.id)
+                return {
+                    id: category.id,
+                    label: category.label,
+                    lead,
+                    foot,
+                    settings: rows
+                        .filter((row) => row.category === category.id)
+                        .map((row) => {
+                            const { control, layout } = controlOf(row)
+                            return {
+                                id: row.id,
+                                title: row.label,
+                                description: row.description,
+                                keywords: row.keywords,
+                                control,
+                                layout,
+                            }
+                        }),
+                }
+            })
             .filter((section) => section.settings.length > 0),
     })).filter((group) => group.sections.length > 0)
 }
