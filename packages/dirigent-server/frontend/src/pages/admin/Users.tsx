@@ -155,18 +155,15 @@ function Users() {
         <>
             <PageHeader
                 title={LABELS.screen.users.name}
-                aside={<ApiChip tag="users" />}
-                actions={[
-                    {
-                        id: 'new',
-                        label: LABELS.action.new,
-                        ariaLabel: LABELS.users.new_account,
-                        variant: 'default',
-                        onClick: () => {
-                            setMaking(true)
-                        },
+                lead={<ApiChip tag="users" />}
+                primary={{
+                    id: 'new',
+                    label: LABELS.users.new_account,
+                    face: LABELS.action.new,
+                    onSelect: () => {
+                        setMaking(true)
                     },
-                ]}
+                }}
             />
 
             <PageState

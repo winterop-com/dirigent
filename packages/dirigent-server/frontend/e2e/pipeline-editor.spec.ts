@@ -21,6 +21,7 @@ import {
     removeConnection,
     removeSchema,
     repositoryRoot,
+    saysShut,
     signIn,
     writeInEditor,
 } from './support.ts'
@@ -547,8 +548,7 @@ test('apply is shut on a document the instance already holds, and says why', asy
 
     await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     const apply = page.getByRole('button', { name: LABELS.action.apply, exact: true })
-    await expect(apply).toBeDisabled()
-    await expect(apply).toHaveAttribute('title', LABELS.editor.apply.nothing_to_apply)
+    await saysShut(page, apply, LABELS.editor.apply.nothing_to_apply)
     // A shut verb stays reachable, so the sentence can be read without a pointer.
     await apply.focus()
     await expect(apply).toBeFocused()
@@ -1204,9 +1204,7 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
     // Validate works on the draft; Run does not, and says why rather than failing at the server.
     await expect(page.getByRole('button', { name: LABELS.action.validate })).toBeEnabled()
     const run = page.getByRole('button', { name: 'Run…', exact: true })
-    await expect(run).toBeDisabled()
-    // A shut button takes no pointer events, so the reason is on what the pointer lands on.
-    await expect(run.locator('..')).toHaveAttribute('title', /Apply this document/)
+    await saysShut(page, run, /Apply this document/)
 
     // The panel opens on the step tab like any other document; the source, where the skeleton
     // and its code are written, is a tab away.

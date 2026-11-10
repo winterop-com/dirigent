@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyExample, seedUser, signIn, signInAs, signOut } from './support.ts'
+import { apiPrefix, applyExample, saysShut, seedUser, signIn, signInAs, signOut } from './support.ts'
 
 /**
  * What a viewer is offered, and what a refused write looks like.
@@ -70,8 +70,7 @@ test('a viewer is offered no write control, and each shut one says why', async (
     // system about it. What each shut control says is that this account cannot, and no more.
     await page.goto('/connections')
     const create = page.getByRole('button', { name: LABELS.connections.new })
-    await expect(create).toBeDisabled()
-    await expect(create).toHaveAttribute('title', SHUT)
+    await saysShut(page, create, SHUT)
     await rowOf(page, CONNECTION).click()
     const opened = page.getByRole('dialog')
     const check = opened.getByRole('button', { name: LABELS.action.check })
@@ -83,8 +82,7 @@ test('a viewer is offered no write control, and each shut one says why', async (
     // Triggers are an operator's, on the listing and in the panel both.
     await page.goto('/triggers')
     const schedule = page.getByRole('button', { name: LABELS.triggers.schedule.new })
-    await expect(schedule).toBeDisabled()
-    await expect(schedule).toHaveAttribute('title', SHUT)
+    await saysShut(page, schedule, SHUT)
 
     await rowOf(page, CRON.title).getByText(CRON.title, { exact: true }).click()
     const pause = page.getByRole('tabpanel').getByRole('button', { name: /Pause|Resume/ })
@@ -94,8 +92,7 @@ test('a viewer is offered no write control, and each shut one says why', async (
     // Writing a pipeline is an operator's, and so are the two verbs the editor sends.
     await page.goto('/pipelines')
     const newPipeline = page.getByRole('button', { name: LABELS.pipelines.new })
-    await expect(newPipeline).toBeDisabled()
-    await expect(newPipeline).toHaveAttribute('title', SHUT)
+    await saysShut(page, newPipeline, SHUT)
 })
 
 test('a check the server refuses says so, and the row keeps what it had', async ({ page, baseURL }) => {

@@ -1,50 +1,44 @@
 import type { ReactNode } from 'react'
 
 import { Breadcrumb, type Crumb } from '@/components/Breadcrumb'
-import { Code } from '@/components/ds/Code'
+import { PrimaryAction, type PrimaryItem } from '@/components/ds/PrimaryAction'
 import { PageHead } from '@/components/PageHead'
-import { ToolbarActions, type ToolbarAction } from '@/components/ToolbarActions'
+import { TOOLBAR_WORDS } from '@/lib/design-system'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
+import type { ToolbarItem } from '@winterop-com/sokkel-ui/Toolbar'
 
 /**
  * A screen's heading, sokkel-ui's `PageHeader` drawn into the shell's head slot: the title, the
  * code under it on a screen that is one thing, and the screen's verbs opposite it.
  *
- * The verbs are a measured `ToolbarActions` in the room the title leaves, so the title is never
- * cut: they fold into one menu before it would be. The last of `actions` is the primary, and one
- * carrying `more` is drawn as a `SplitButton`. `count` sits beside the title -- how many rows the
- * listing holds -- and `aside` stands before the verbs. There is no subtitle. `trail` is drawn by
- * `Breadcrumb` in the shell's top strip.
+ * `items` are the verbs that fold, from the last, into "More actions" where the room the title
+ * leaves cannot hold them, so the title is never cut. `primary` stands after them and never folds.
+ * `lead` stands before the verbs and never folds either. `count` sits beside the title -- how many
+ * rows the listing holds -- and `meta` is a line of small facts under it. There is no subtitle.
+ * `trail` is drawn by `Breadcrumb` in the shell's top strip.
  */
 export function PageHeader({
     title,
     count,
-    aside,
-    actions,
+    lead,
+    items,
+    primary,
     trail,
     code,
+    meta,
     inPlace = false,
 }: {
     title: string
     count?: ReactNode
-    aside?: ReactNode
-    /** The screen's verbs, primary last, which collapse into one menu below the breakpoint. */
-    actions?: readonly ToolbarAction[]
+    lead?: ReactNode
+    items?: readonly ToolbarItem[]
+    primary?: PrimaryItem
     trail?: readonly Crumb[]
     code?: string | null
+    meta?: ReactNode
     /** Drawn where it is rendered rather than in the shell's head, as the gallery does. */
     inPlace?: boolean
 }) {
-    const verbs =
-        actions === undefined ? (
-            aside === undefined ? undefined : (
-                <div className="flex min-h-9 items-center">{aside}</div>
-            )
-        ) : (
-            <div className="flex min-h-9 min-w-0 items-center justify-end">
-                <ToolbarActions actions={actions} lead={aside} measured />
-            </div>
-        )
     return (
         <PageHead inPlace={inPlace}>
             {trail !== undefined && <Breadcrumb trail={trail} />}
@@ -52,9 +46,12 @@ export function PageHeader({
                 <LibraryPageHeader
                     title={title}
                     count={count}
-                    meta={code === undefined || code === null ? undefined : <Code value={code} />}
-                    actions={verbs}
-                    actionsFill={actions !== undefined}
+                    code={code ?? undefined}
+                    meta={meta}
+                    lead={lead}
+                    items={items}
+                    actions={primary === undefined ? undefined : <PrimaryAction item={primary} />}
+                    words={TOOLBAR_WORDS}
                 />
             </div>
         </PageHead>

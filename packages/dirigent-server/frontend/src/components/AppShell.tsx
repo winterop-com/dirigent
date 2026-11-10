@@ -16,7 +16,7 @@ import { ShortcutsDialog } from '@/components/ShortcutsDialog'
 import { ServerStatusButton } from '@/components/ServerStatusButton'
 import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
@@ -375,7 +375,9 @@ function ScreenFacts() {
             {status.note !== null && (
                 <span className={cn('min-w-0 truncate text-xs', TONE[status.tone])}>{status.note}</span>
             )}
-            {status.identifier !== null && <Code value={status.identifier} />}
+            {status.identifier !== null && (
+                <InlineCode value={status.identifier} tone="muted" bare size="xs" />
+            )}
         </div>
     )
 }

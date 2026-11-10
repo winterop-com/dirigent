@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
 import { Chip } from '@/components/ds/Chip'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Description } from '@/components/Description'
 import { Section } from '@/components/run/Panel'
 import { FormField } from '@/components/ds/FormField'
 import { Notice } from '@/components/ds/Notice'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { shutWith } from '@/lib/design-system'
 import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { CodePane } from '@/components/pipeline/CodePane'
@@ -292,33 +293,28 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                 title={heading.title}
                 code={heading.code}
                 trail={[{ label: LABELS.screen.schemas.name, to: '/schemas' }]}
-                actions={[
+                items={[
                     {
                         id: 'try',
                         label: LABELS.schemas.try_value,
-                        variant: 'outline',
-                        onClick: () => {
+                        onSelect: () => {
                             setTrying(true)
                         },
                     },
                     {
                         id: 'delete',
                         label: removing ? LABELS.action.delete.busy : LABELS.action.delete.verb,
-                        variant: 'outline',
                         destructive: true,
-                        disabled: busy || removing || deleteWhy !== undefined,
-                        why: deleteWhy,
-                        onClick: remove,
-                    },
-                    {
-                        id: 'save',
-                        label: busy ? LABELS.action.save.busy : LABELS.action.save.verb,
-                        variant: 'default',
-                        disabled: busy || saveWhy !== undefined,
-                        why: saveWhy,
-                        onClick: send,
+                        ...shutWith(busy || removing || deleteWhy !== undefined, deleteWhy),
+                        onSelect: remove,
                     },
                 ]}
+                primary={{
+                    id: 'save',
+                    label: busy ? LABELS.action.save.busy : LABELS.action.save.verb,
+                    ...shutWith(busy || saveWhy !== undefined, saveWhy),
+                    onSelect: send,
+                }}
             />
             <div className="flex min-h-0 flex-1 flex-col gap-3">
                 {problem !== null && <Refusal problem={problem} />}
@@ -529,7 +525,7 @@ function CheckedBy({ codes }: { codes: readonly string[] }) {
                 {codes.map((code) => (
                     <li key={code}>
                         <Link to={`/pipelines/${encodeURIComponent(code)}`} className="hover:underline">
-                            <Code value={code} tone="body" />
+                            <InlineCode value={code} tone="neutral" bare size="xs" />
                         </Link>
                     </li>
                 ))}
@@ -602,7 +598,7 @@ function Failures({
                                     {pointerLabel(error.at)}
                                 </span>
                             ) : (
-                                <Code value={error.at} tone="body" />
+                                <InlineCode value={error.at} tone="neutral" bare size="xs" />
                             )}
                             <Chip tone="mono">{error.keyword}</Chip>
                         </span>

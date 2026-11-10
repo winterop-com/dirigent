@@ -6,10 +6,11 @@ import { ApiChip } from '@/components/ApiChip'
 import { ConnectionDialog } from '@/components/connections/ConnectionDialog'
 import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ListTable, type Column } from '@/components/list/ListTable'
 import { Mark } from '@/components/Mark'
 import { PageHeader } from '@/components/ds/PageHeader'
+import { shutWith } from '@/lib/design-system'
 import { PageState } from '@/components/PageState'
 import { sayRefusal } from '@/components/Refusal'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -187,20 +188,16 @@ export function Connections() {
         <>
             <PageHeader
                 title={LABELS.screen.connections.name}
-                aside={<ApiChip tag="connections" />}
-                actions={[
-                    {
-                        id: 'new',
-                        label: LABELS.action.new,
-                        ariaLabel: LABELS.connections.new,
-                        variant: 'default',
-                        disabled: !write.may,
-                        why: write.why ?? undefined,
-                        onClick: () => {
-                            setCreating(true)
-                        },
+                lead={<ApiChip tag="connections" />}
+                primary={{
+                    id: 'new',
+                    label: LABELS.connections.new,
+                    face: LABELS.action.new,
+                    ...shutWith(!write.may, write.why),
+                    onSelect: () => {
+                        setCreating(true)
                     },
-                ]}
+                }}
             />
 
             <PageState
@@ -306,7 +303,7 @@ function Named({ row }: { row: ConnectionOut }) {
                 >
                     {heading.title}
                 </span>
-                {heading.code !== null && <Code value={heading.code} />}
+                {heading.code !== null && <InlineCode value={heading.code} tone="muted" bare size="xs" />}
             </span>
             {row.description !== null && (
                 <span
@@ -326,7 +323,7 @@ function Kind({ row }: { row: ConnectionOut }) {
     return (
         <span className="flex min-w-0 items-center gap-2">
             <Mark glyph={kindGlyph(row.kind, marks)} />
-            <Code value={row.kind} />
+            <InlineCode value={row.kind} tone="muted" bare size="xs" />
         </span>
     )
 }

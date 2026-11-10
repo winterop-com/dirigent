@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { ApiChip } from '@/components/ApiChip'
 import { AdminOnly } from '@/components/admin/AdminOnly'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Instant } from '@/components/Instant'
@@ -111,7 +111,7 @@ function Audit() {
 
     return (
         <>
-            <PageHeader title={LABELS.screen.audit.name} aside={<ApiChip tag="audit" />} />
+            <PageHeader title={LABELS.screen.audit.name} lead={<ApiChip tag="audit" />} />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
                 <SearchField
@@ -233,7 +233,7 @@ const COLUMNS: Column<AuditEntryOut>[] = [
                     <span className="shrink-0 text-xs text-muted-foreground">
                         {LABELS.audit.subjects[entry.subject_kind]}
                     </span>
-                    {addressed !== null && <Code value={addressed} tone="body" />}
+                    {addressed !== null && <InlineCode value={addressed} tone="neutral" bare size="xs" />}
                 </span>
             )
         },
@@ -246,7 +246,7 @@ const COLUMNS: Column<AuditEntryOut>[] = [
             entry.fields.length === 0 ? null : (
                 <span className="flex min-w-0 flex-wrap gap-x-2">
                     {entry.fields.map((field) => (
-                        <Code key={field} value={field} />
+                        <InlineCode key={field} value={field} tone="muted" bare size="xs" />
                     ))}
                 </span>
             ),

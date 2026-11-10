@@ -263,7 +263,7 @@ function FlatRuns({ filters, bar }: { filters: RunFilters; bar: ReactNode }) {
         <>
             <PageHeader
                 title={LABELS.screen.runs.name}
-                aside={
+                lead={
                     <>
                         <ApiChip tag="runs" />
                         {state.fresh > 0 && (
@@ -313,7 +313,7 @@ function GroupedRuns({ filters, window, bar }: { filters: RunFilters; window: Gr
     const asked = filters.pipeline !== '' || filters.status !== '' || filters.tags.length > 0
     return (
         <>
-            <PageHeader title={LABELS.screen.runs.name} aside={<ApiChip tag="runs" />} />
+            <PageHeader title={LABELS.screen.runs.name} lead={<ApiChip tag="runs" />} />
 
             {bar}
 

@@ -12,7 +12,9 @@ import {
     SEARCH_PLACEHOLDER,
     SEARCH_WORDS,
     secretWords,
+    shutWith,
     splitWords,
+    TOOLBAR_WORDS,
 } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 
@@ -38,6 +40,19 @@ describe("what sokkel-ui's parts say", () => {
     test('a link out of this app says it opens a new tab, and a split names its chevron', () => {
         expect(LINK_WORDS).toEqual({ newTab: LABELS.shell.new_tab })
         expect(splitWords('More ways')).toEqual({ more: 'More ways' })
+    })
+})
+
+describe('a verb on a strip', () => {
+    test('folds into More actions, and a split names its chevron More ways', () => {
+        expect(TOOLBAR_WORDS).toEqual({ more: LABELS.shell.more_actions, moreWays: LABELS.shell.more_ways })
+    })
+
+    test('is shut with its sentence where there is one, and quietly where there is none', () => {
+        expect(shutWith(false, 'Viewers cannot')).toEqual({})
+        expect(shutWith(true, 'Viewers cannot')).toEqual({ reason: 'Viewers cannot' })
+        expect(shutWith(true, null)).toEqual({ disabled: true })
+        expect(shutWith(true)).toEqual({ disabled: true })
     })
 })
 

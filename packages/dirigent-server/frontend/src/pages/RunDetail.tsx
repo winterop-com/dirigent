@@ -9,20 +9,22 @@ import { RunTerminal } from '@/components/run/RunTerminal'
 import { StatusChip } from '@/components/run/StatusChip'
 import { StepTab } from '@/components/run/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
-import { Code } from '@/components/ds/Code'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
+import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
 import { Notice } from '@/components/ds/Notice'
 import { Panel } from '@/components/ds/Panel'
+import { PrimaryAction } from '@/components/ds/PrimaryAction'
 import { connectionOf, RunFailure } from '@/components/run/RunFailure'
 import { PageHead } from '@/components/PageHead'
 import { PageState } from '@/components/PageState'
-import { ToolbarActions } from '@/components/ToolbarActions'
 import { sayRefusal } from '@/components/Refusal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { useStore } from '@/hooks/use-store'
 import { readConnections } from '@/lib/connections'
+import { shutWith, TOOLBAR_WORDS } from '@/lib/design-system'
 import { ICONS } from '@/lib/icons'
 import { ApiError, type JsonMap, type Problem } from '@/lib/api'
 import { elapsedBetween, formatBytes, formatDuration, formatInstant } from '@/lib/format'
@@ -506,24 +508,23 @@ export function RunDetail() {
                             },
                         ]}
                     />
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div className="min-w-0">
-                            <h1 className="text-page font-medium tracking-tight">
-                                {document?.name ?? run.pipeline}
-                            </h1>
-                            <div className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1">
-                                {document !== null && document.name !== null && <Code value={run.pipeline} />}
-                                <span title={run.id}>
-                                    <Code
-                                        value={formatInstant(run.started_at ?? run.created_at)}
-                                        className="pointer-events-none"
-                                    />
-                                </span>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-2">
+                    <LibraryPageHeader
+                        title={document?.name ?? run.pipeline}
+                        code={run.pipeline}
+                        meta={
+                            <span title={run.id}>
+                                <InlineCode
+                                    value={formatInstant(run.started_at ?? run.created_at)}
+                                    tone="muted"
+                                    bare
+                                    size="xs"
+                                    className="pointer-events-none"
+                                />
+                            </span>
+                        }
+                        lead={
                             <IconButton
-                                size="icon"
+                                size="icon-sm"
                                 label={TERMINAL_LABEL}
                                 aria-pressed={terminal}
                                 className="text-muted-foreground"
@@ -531,64 +532,80 @@ export function RunDetail() {
                             >
                                 <ICONS.terminal aria-hidden />
                             </IconButton>
-                            <ToolbarActions
-                                actions={[
-                                    // A settled run will never be paused, resumed or cancelled, so
-                                    // those three are not drawn on one; Rerun stands alone.
-                                    ...(settled
-                                        ? []
-                                        : [
-                                              {
-                                                  id: 'pause',
-                                                  label: LABELS.action.pause,
-                                                  icon: ICONS.pause,
-                                                  disabled: !write.may || !verbs.pause.open,
-                                                  why: write.why ?? verbs.pause.why ?? undefined,
-                                                  onClick: pause,
-                                              },
-                                              {
-                                                  id: 'resume',
-                                                  label: LABELS.action.resume,
-                                                  icon: ICONS.resume,
-                                                  disabled: !write.may || !verbs.resume.open,
-                                                  why: write.why ?? verbs.resume.why ?? undefined,
-                                                  onClick: resume,
-                                              },
-                                              {
-                                                  id: 'cancel',
-                                                  label: LABELS.action.cancel_run,
-                                                  icon: ICONS.cancel,
-                                                  destructive: verbs.cancel.open,
-                                                  disabled:
-                                                      !write.may || !verbs.cancel.open || cancel === null,
-                                                  why: write.why ?? verbs.cancel.why ?? undefined,
-                                                  onClick: () => {
-                                                      cancel?.()
-                                                  },
-                                              },
-                                          ]),
-                                    {
-                                        id: 'rerun',
-                                        label: LABELS.action.rerun,
-                                        icon: ICONS.rerun,
-                                        variant: verbs.rerun.open ? 'default' : 'outline',
-                                        disabled: !write.may || !verbs.rerun.open || rerun === null,
-                                        why: write.why ?? verbs.rerun.why ?? undefined,
-                                        onClick: () => {
-                                            rerun?.()
-                                        },
+                        }
+                        items={
+                            // A settled run will never be paused, resumed or cancelled, so those
+                            // three are not drawn on one; Rerun stands alone.
+                            settled
+                                ? []
+                                : [
+                                      {
+                                          id: 'pause',
+                                          label: LABELS.action.pause,
+                                          icon: <ICONS.pause aria-hidden />,
+                                          ...shutWith(
+                                              !write.may || !verbs.pause.open,
+                                              write.why ?? verbs.pause.why,
+                                          ),
+                                          onSelect: pause,
+                                      },
+                                      {
+                                          id: 'resume',
+                                          label: LABELS.action.resume,
+                                          icon: <ICONS.resume aria-hidden />,
+                                          ...shutWith(
+                                              !write.may || !verbs.resume.open,
+                                              write.why ?? verbs.resume.why,
+                                          ),
+                                          onSelect: resume,
+                                      },
+                                      {
+                                          id: 'cancel',
+                                          label: LABELS.action.cancel_run,
+                                          icon: <ICONS.cancel aria-hidden />,
+                                          destructive: verbs.cancel.open,
+                                          ...shutWith(
+                                              !write.may || !verbs.cancel.open || cancel === null,
+                                              write.why ?? verbs.cancel.why,
+                                          ),
+                                          onSelect: () => {
+                                              cancel?.()
+                                          },
+                                      },
+                                  ]
+                        }
+                        actions={
+                            <PrimaryAction
+                                item={{
+                                    id: 'rerun',
+                                    label: LABELS.action.rerun,
+                                    icon: <ICONS.rerun aria-hidden />,
+                                    variant: verbs.rerun.open ? 'default' : 'outline',
+                                    ...shutWith(
+                                        !write.may || !verbs.rerun.open || rerun === null,
+                                        write.why ?? verbs.rerun.why,
+                                    ),
+                                    onSelect: () => {
+                                        rerun?.()
                                     },
-                                ]}
+                                }}
                             />
-                        </div>
-                    </div>
+                        }
+                        words={TOOLBAR_WORDS}
+                    />
 
                     <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
                         <StatusChip status={run.status} className="text-sm" />
                         {failedAt !== null && troubled && (
                             <span>
                                 {LABELS.runs.line.at}{' '}
-                                <Code value={failedAt} tone="body" className="text-sm font-medium" />
+                                <InlineCode
+                                    value={failedAt}
+                                    className="font-medium"
+                                    tone="neutral"
+                                    bare
+                                    size="sm"
+                                />
                             </span>
                         )}
                         {took !== null && (

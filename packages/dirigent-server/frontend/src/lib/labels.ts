@@ -764,6 +764,8 @@ const shell = {
 
     /** The menu a screen's verbs fold into where the strip cannot hold them all. */
     more_actions: 'More actions',
+    /** What a split verb's chevron is called where the screen names no noun for it. */
+    more_ways: 'More ways',
 
     /** The mode axis: the Theme pane's control, the account menu's submenu, and the palette's rows. */
     mode: {

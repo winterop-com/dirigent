@@ -23,7 +23,7 @@ export function Stub({ title, waiting, aside }: { title: string; waiting: string
 
     return (
         <>
-            <PageHeader title={title} aside={aside} />
+            <PageHeader title={title} lead={aside} />
             <PageState loading={false} problem={null} empty emptyMessage={waiting}>
                 {null}
             </PageState>
