@@ -8,7 +8,7 @@ import { ListTable, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
-import { SearchField } from '@/components/ds/SearchField'
+import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { TagChip } from '@/components/TagChip'
 import { TagChips } from '@/components/TagChips'
@@ -33,6 +33,7 @@ import {
     type Holdings,
 } from '@/lib/examples'
 import { headingOf, oneLine } from '@/lib/identity'
+import { SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { closePanel, fillPanel, openPanelTab } from '@/lib/panels'
@@ -201,6 +202,9 @@ export function Examples() {
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
                 <SearchField
+                    placeholder={SEARCH_PLACEHOLDER}
+                    words={SEARCH_WORDS}
+                    className="w-64"
                     value={filters.needle}
                     label={LABELS.examples.search}
                     onChange={(needle) => {

@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
 import { Fact, Section } from '@/components/run/Panel'
-import { SearchField } from '@/components/ds/SearchField'
+import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { useRead } from '@/hooks/use-read'
 import {
     byGroup,
@@ -26,6 +26,7 @@ import {
     type CatalogEntry,
 } from '@/lib/blocks'
 import { examplesPerBlock, readAllExamples } from '@/lib/examples'
+import { SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { counted as pick, type Counted, LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { rowsRead } from '@/lib/paging'
@@ -153,7 +154,14 @@ export function Blocks() {
             <PageHeader title={LABELS.screen.blocks.name} aside={<ApiChip tag="blocks" />} />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <SearchField value={needle} label={LABELS.blocks.search} onChange={setNeedle} />
+                <SearchField
+                    placeholder={SEARCH_PLACEHOLDER}
+                    words={SEARCH_WORDS}
+                    className="w-64"
+                    value={needle}
+                    label={LABELS.blocks.search}
+                    onChange={setNeedle}
+                />
             </div>
 
             <PageState

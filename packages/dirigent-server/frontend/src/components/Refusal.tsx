@@ -39,6 +39,15 @@ export function Refusal({ problem }: { problem: Problem }) {
     )
 }
 
+/** A refusal as one short line with no box, under a question that already names the thing. */
+export function RefusalLine({ problem }: { problem: Problem }) {
+    return (
+        <p className="text-sm text-critical-ink" role="alert">
+            {refusalLine(problem)}
+        </p>
+    )
+}
+
 /**
  * Say a refusal where the thing refused has nowhere to put one.
  *

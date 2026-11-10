@@ -7,12 +7,14 @@ import { Mark } from '@/components/Mark'
 import { Refusable } from '@/components/Refusable'
 import { ConnectionForm } from '@/components/connections/ConnectionForm'
 import { HealthSaid } from '@/components/connections/Health'
-import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
-import { DialogShell } from '@/components/ds/DialogShell'
+import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { Question } from '@/components/Question'
+import { RefusalLine } from '@/components/Refusal'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
 import { Fact, FactList } from '@/components/ds/FactList'
 import { Notice } from '@/components/ds/Notice'
-import { TextLink } from '@/components/ds/TextLink'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useConnectionEdit } from '@/hooks/use-connection-edit'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -32,6 +34,7 @@ import {
 import { separatelyUpdated } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { ICONS } from '@/lib/icons'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { counted, LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
 import { refusalOf } from '@/lib/refusal'
@@ -108,9 +111,10 @@ export function ConnectionDialog({
         <>
             {editing ? (
                 <DialogShell
+                    words={DIALOG_WORDS}
                     open
                     width="lg"
-                    keepOnOutsidePress
+                    closeOnOutsidePress={false}
                     onOpenChange={(next) => {
                         if (!next) setEditing(false)
                     }}
@@ -139,6 +143,7 @@ export function ConnectionDialog({
                 </DialogShell>
             ) : (
                 <DialogShell
+                    words={DIALOG_WORDS}
                     open
                     width="lg"
                     onOpenChange={(next) => {
@@ -165,7 +170,7 @@ export function ConnectionDialog({
                             </Button>
                         </Refusable>
                     }
-                    verbs={
+                    actions={
                         <>
                             <Refusable why={checkShut}>
                                 <Button
@@ -206,16 +211,20 @@ export function ConnectionDialog({
             <ConfirmDialog
                 open={deleting}
                 onOpenChange={setDeleting}
-                ask={LABELS.connections.delete_ask}
-                code={connection.code}
-                note={used ? LABELS.connections.used_by(usersSaid(usedBy)) : undefined}
-                why={used ? LABELS.connections.in_use : asking.reading ? LABELS.shell.reading : undefined}
-                verb={LABELS.action.delete.verb}
-                busy={removing}
-                busyVerb={LABELS.action.delete.busy}
-                problem={refused}
-                onConfirm={remove}
-            />
+                question={<Question ask={LABELS.connections.delete_ask} code={connection.code} />}
+                detail={used ? LABELS.connections.used_by(usersSaid(usedBy)) : undefined}
+                confirm={{
+                    label: LABELS.action.delete.verb,
+                    onConfirm: remove,
+                    destructive: true,
+                    why: used ? LABELS.connections.in_use : asking.reading ? LABELS.shell.reading : undefined,
+                    busy: removing,
+                    busyLabel: LABELS.action.delete.busy,
+                }}
+                words={DIALOG_WORDS}
+            >
+                {refused === null ? undefined : <RefusalLine problem={refused} />}
+            </ConfirmDialog>
         </>
     )
 }
@@ -294,7 +303,7 @@ function UsedBy({ users }: { users: ConnectionUsers }) {
         <ul className="flex min-w-0 flex-col gap-1 text-xs">
             {users.pipelines.map((one) => (
                 <li key={one.pipeline} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                    <TextLink variant="data" to={`/pipelines/${encodeURIComponent(one.pipeline)}`}>
+                    <TextLink variant="data" code href={`/pipelines/${encodeURIComponent(one.pipeline)}`}>
                         {one.pipeline}
                     </TextLink>
                     <span className="text-muted-foreground">{counted(1, said.pipeline)}</span>
@@ -305,7 +314,7 @@ function UsedBy({ users }: { users: ConnectionUsers }) {
             ))}
             {users.alert_rules.map((code) => (
                 <li key={code} className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                    <TextLink variant="data" to="/admin/alerting">
+                    <TextLink variant="data" code href="/admin/alerting">
                         {code}
                     </TextLink>
                     <span className="text-muted-foreground">{counted(1, said.alert_rule)}</span>

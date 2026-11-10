@@ -17,7 +17,7 @@ import { ServerStatusButton } from '@/components/ServerStatusButton'
 import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 
 import { Code } from '@/components/ds/Code'
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useStore } from '@/hooks/use-store'
@@ -280,45 +280,49 @@ export function AppShell() {
                     {/* The rail is not drawn below the breakpoint, so this is the way to it. */}
                     <IconButton
                         ref={menu}
-                        icon={ICONS.menu}
                         label={OPEN_NAV_LABEL}
-                        size="sm"
+                        size="icon-sm"
                         className="-ml-2 md:hidden"
                         onClick={() => {
                             setDrawerOpen(true)
                         }}
-                    />
+                    >
+                        <ICONS.menu aria-hidden />
+                    </IconButton>
                     {hidden && (
                         <IconButton
-                            icon={ICONS.sidebar}
                             label={LABELS.shell.show_nav}
-                            size="sm"
+                            size="icon-sm"
                             className="-ml-2 hidden text-muted-foreground md:inline-flex"
                             onClick={toggleRail}
-                        />
+                        >
+                            <ICONS.sidebar aria-hidden />
+                        </IconButton>
                     )}
                     <div ref={setSlot} data-shell-crumb className="flex min-w-0 items-center" />
                     <div className="flex-1" />
                     <ScreenFacts />
                     <IconButton
-                        icon={ICONS.search}
                         label={OPEN_PALETTE_LABEL}
                         shortcut={LABELS.shell.palette_chord(modifier)}
-                        size="sm"
+                        size="icon-sm"
                         className="text-muted-foreground"
                         onClick={() => {
                             paletteOpen.set(true)
                         }}
-                    />
+                    >
+                        <ICONS.search aria-hidden />
+                    </IconButton>
                     <ServerStatusButton onOpen={openServerPane} />
                     {filled && !panelShown && (
                         <IconButton
-                            icon={ICONS.panel}
                             label={TOGGLE_PANEL_LABEL}
-                            size="sm"
+                            size="icon-sm"
                             className="-mr-2 hidden text-muted-foreground md:inline-flex"
                             onClick={togglePanel}
-                        />
+                        >
+                            <ICONS.panel aria-hidden />
+                        </IconButton>
                     )}
                 </header>
 

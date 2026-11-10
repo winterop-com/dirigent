@@ -870,7 +870,7 @@ const shell = {
     /** The search box's own button, which empties it. */
     clear_search: 'Clear the search',
     /** What an external link says to a screen reader after its words. */
-    new_tab: '(opens in a new tab)',
+    new_tab: 'opens in a new tab',
     /** The button beside a secret shown once, naming what it copies. */
     copy_secret: (secret: string) => `Copy ${secret}`,
     /** The line under a secret the server answers with once. */

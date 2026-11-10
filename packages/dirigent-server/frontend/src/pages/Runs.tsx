@@ -11,7 +11,7 @@ import { PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
 import { RunsByPipeline } from '@/components/run/RunsByPipeline'
 import { StatusChip } from '@/components/run/StatusChip'
-import { SearchField } from '@/components/ds/SearchField'
+import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented, type Segment } from '@/components/Segmented'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
@@ -20,6 +20,7 @@ import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { elapsedBetween, formatDuration, formatInstant, formatRelative } from '@/lib/format'
+import { SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { counted, LABELS } from '@/lib/labels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { readPipelineNames, readTagsOffered } from '@/lib/pipelines'
@@ -170,7 +171,14 @@ export function Runs() {
 
     const bar = (
         <div className="mb-4 flex flex-wrap items-center gap-2">
-            <SearchField value={typed} label={LABELS.runs.filter_pipeline} onChange={setTyped} />
+            <SearchField
+                placeholder={SEARCH_PLACEHOLDER}
+                words={SEARCH_WORDS}
+                className="w-64"
+                value={typed}
+                label={LABELS.runs.filter_pipeline}
+                onChange={setTyped}
+            />
             <Choice
                 label={view.grouped ? LABELS.runs.grouped.latest_filter : LABELS.word.status}
                 value={filters.status}

@@ -4,7 +4,7 @@ import { ApiChip } from '@/components/ApiChip'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { Code } from '@/components/ds/Code'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { SearchField } from '@/components/ds/SearchField'
+import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Instant } from '@/components/Instant'
 import { Choice } from '@/components/list/Choice'
 import { ListTable, type Column } from '@/components/list/ListTable'
@@ -23,6 +23,7 @@ import {
     type AuditFilters,
 } from '@/lib/audit'
 import { ICONS } from '@/lib/icons'
+import { SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -113,8 +114,18 @@ function Audit() {
             <PageHeader title={LABELS.screen.audit.name} aside={<ApiChip tag="audit" />} />
 
             <div className="mb-4 flex flex-wrap items-center gap-2">
-                <SearchField value={actor} label={LABELS.audit.filter_actor} onChange={setActor} />
                 <SearchField
+                    placeholder={SEARCH_PLACEHOLDER}
+                    words={SEARCH_WORDS}
+                    className="w-64"
+                    value={actor}
+                    label={LABELS.audit.filter_actor}
+                    onChange={setActor}
+                />
+                <SearchField
+                    placeholder={SEARCH_PLACEHOLDER}
+                    words={SEARCH_WORDS}
+                    className="w-64"
                     value={subject}
                     label={LABELS.audit.filter_subject}
                     onChange={setSubject}

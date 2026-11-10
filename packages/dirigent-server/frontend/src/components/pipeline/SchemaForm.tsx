@@ -1,4 +1,4 @@
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { ICONS } from '@/lib/icons'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
@@ -582,14 +582,15 @@ function PairsTable({
                         <td className="pt-1 align-middle">
                             {index < rows.length - 1 && (
                                 <IconButton
-                                    icon={ICONS.clear}
-                                    size="xs"
+                                    size="icon-xs"
                                     disabled={disabled}
                                     label={removeLabel(field.name, row, index)}
                                     onClick={() => {
                                         put(rows.filter((_, at) => at !== index))
                                     }}
-                                />
+                                >
+                                    <ICONS.clear aria-hidden />
+                                </IconButton>
                             )}
                         </td>
                     </tr>

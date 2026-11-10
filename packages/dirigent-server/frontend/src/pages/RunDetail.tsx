@@ -10,7 +10,7 @@ import { StatusChip } from '@/components/run/StatusChip'
 import { StepTab } from '@/components/run/StepTab'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { Code } from '@/components/ds/Code'
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { Notice } from '@/components/ds/Notice'
 import { Panel } from '@/components/ds/Panel'
 import { connectionOf, RunFailure } from '@/components/run/RunFailure'
@@ -523,12 +523,14 @@ export function RunDetail() {
                         </div>
                         <div className="flex items-center gap-2">
                             <IconButton
-                                icon={ICONS.terminal}
+                                size="icon"
                                 label={TERMINAL_LABEL}
                                 aria-pressed={terminal}
                                 className="text-muted-foreground"
                                 onClick={toggleTerminal}
-                            />
+                            >
+                                <ICONS.terminal aria-hidden />
+                            </IconButton>
                             <ToolbarActions
                                 actions={[
                                     // A settled run will never be paused, resumed or cancelled, so

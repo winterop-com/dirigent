@@ -1,9 +1,11 @@
 import { useState } from 'react'
 
 import { Code } from '@/components/ds/Code'
-import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
+import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { Question } from '@/components/Question'
+import { RefusalLine } from '@/components/Refusal'
 import { Fact, FactList } from '@/components/ds/FactList'
-import { DialogShell } from '@/components/ds/DialogShell'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Inset } from '@/components/ds/Inset'
 import { Refusable } from '@/components/Refusable'
 import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
@@ -11,7 +13,7 @@ import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import type { Problem } from '@/lib/api'
-import { copyWords, secretWords } from '@/lib/design-system'
+import { copyWords, DIALOG_WORDS, secretWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import {
@@ -142,15 +144,19 @@ export function NewToken({
             <ConfirmDialog
                 open={asking}
                 onOpenChange={setAsking}
-                ask={signed ? words.ask_secret : words.ask_token}
-                code={source.code}
-                note={words.note}
-                verb={words.verb}
-                busy={busy}
-                busyVerb={words.busy}
-                problem={problem}
-                onConfirm={replace}
-            />
+                question={<Question ask={signed ? words.ask_secret : words.ask_token} code={source.code} />}
+                detail={words.note}
+                confirm={{
+                    label: words.verb,
+                    onConfirm: replace,
+                    destructive: true,
+                    busy: busy,
+                    busyLabel: words.busy,
+                }}
+                words={DIALOG_WORDS}
+            >
+                {problem === null ? undefined : <RefusalLine problem={problem} />}
+            </ConfirmDialog>
             {minted !== null && (
                 <MintedToken
                     token={minted}
@@ -194,6 +200,7 @@ export function MintedToken({
     const words = LABELS.triggers.token
     return (
         <DialogShell
+            words={DIALOG_WORDS}
             open
             onOpenChange={(next) => {
                 if (!next) onClose()
@@ -206,6 +213,7 @@ export function MintedToken({
                 <SecretReveal
                     value={token.token}
                     words={secretWords(signed ? words.secret_noun : words.token_noun)}
+                    autoFocus
                 />
 
                 <div className="space-y-1">

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { TextLink } from '@/components/ds/TextLink'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { cn } from '@/lib/utils'
 
 /** `section` heads a part of a screen; `group` heads a run of rows inside one. */
@@ -47,7 +47,7 @@ export function SectionHeading({
                 <div className="flex shrink-0 items-baseline gap-3 text-sm text-muted-foreground">
                     {aside}
                     {link !== undefined && (
-                        <TextLink variant="aside" to={link.to}>
+                        <TextLink variant="aside" href={link.to}>
                             {link.label}
                         </TextLink>
                     )}

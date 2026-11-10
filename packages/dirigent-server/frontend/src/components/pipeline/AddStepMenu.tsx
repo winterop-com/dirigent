@@ -12,7 +12,7 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuTrigger,
 } from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
-import { SEARCH_PLACEHOLDER } from '@/components/ds/SearchField'
+import { SEARCH_PLACEHOLDER } from '@/lib/design-system'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { blockShelves, searchBlocks, type BlockCrumb } from '@/lib/add-step'
 import { catalogUnread, type BlockEntry } from '@/lib/blocks'

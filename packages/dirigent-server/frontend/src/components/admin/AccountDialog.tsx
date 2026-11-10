@@ -2,11 +2,12 @@ import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Instant } from '@/components/Instant'
-import { Refusal } from '@/components/Refusal'
+import { Refusal, RefusalLine } from '@/components/Refusal'
 import { RoleSelect } from '@/components/admin/RoleSelect'
 import { Chip } from '@/components/ds/Chip'
-import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
-import { DialogShell } from '@/components/ds/DialogShell'
+import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { Question } from '@/components/Question'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
 import { Fact, FactList } from '@/components/ds/FactList'
 import { FormField } from '@/components/ds/FormField'
@@ -15,6 +16,7 @@ import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { type Problem } from '@/lib/api'
 import { type UserRole } from '@/lib/auth'
 import { ICONS } from '@/lib/icons'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import {
@@ -97,8 +99,9 @@ export function AccountDialog({
         <>
             {editing ? (
                 <DialogShell
+                    words={DIALOG_WORDS}
                     open
-                    keepOnOutsidePress
+                    closeOnOutsidePress={false}
                     onOpenChange={(next) => {
                         if (!next) {
                             setProblem(null)
@@ -160,6 +163,7 @@ export function AccountDialog({
                 </DialogShell>
             ) : (
                 <DialogShell
+                    words={DIALOG_WORDS}
                     open
                     onOpenChange={(next) => {
                         if (!next) onClose()
@@ -182,7 +186,7 @@ export function AccountDialog({
                             {user.active ? LABELS.action.deactivate : LABELS.action.activate}
                         </Button>
                     }
-                    verbs={
+                    actions={
                         <>
                             <Button
                                 variant="outline"
@@ -222,17 +226,21 @@ export function AccountDialog({
                     setDeactivating(next)
                     if (!next) setProblem(null)
                 }}
-                ask={LABELS.users.deactivate_ask}
-                code={user.username}
-                verb={LABELS.action.deactivate}
-                busy={busy}
-                problem={problem}
-                onConfirm={() => {
-                    change(setUserActive(user.username, false), () => {
-                        setDeactivating(false)
-                    })
+                question={<Question ask={LABELS.users.deactivate_ask} code={user.username} />}
+                confirm={{
+                    label: LABELS.action.deactivate,
+                    onConfirm: () => {
+                        change(setUserActive(user.username, false), () => {
+                            setDeactivating(false)
+                        })
+                    },
+                    destructive: true,
+                    busy: busy,
                 }}
-            />
+                words={DIALOG_WORDS}
+            >
+                {problem === null ? undefined : <RefusalLine problem={problem} />}
+            </ConfirmDialog>
             {resetting && (
                 <ResetPassword
                     username={user.username}
@@ -302,14 +310,16 @@ function ResetPassword({ username, onDone }: { username: string; onDone: () => v
             onOpenChange={(next) => {
                 if (!next) onDone()
             }}
-            ask={LABELS.users.reset_ask}
-            code={username}
-            note={LABELS.users.reset_password_note}
-            why={password === '' ? LABELS.users.reset_needs_password : undefined}
-            verb={LABELS.action.reset}
-            busy={busy}
-            problem={problem}
-            onConfirm={send}
+            question={<Question ask={LABELS.users.reset_ask} code={username} />}
+            detail={LABELS.users.reset_password_note}
+            confirm={{
+                label: LABELS.action.reset,
+                onConfirm: send,
+                destructive: true,
+                why: password === '' ? LABELS.users.reset_needs_password : undefined,
+                busy: busy,
+            }}
+            words={DIALOG_WORDS}
         >
             <FormField id="reset-password" label={LABELS.users.new_password}>
                 <Input
@@ -322,6 +332,7 @@ function ResetPassword({ username, onDone }: { username: string; onDone: () => v
                     }}
                 />
             </FormField>
+            {problem !== null && <RefusalLine problem={problem} />}
         </ConfirmDialog>
     )
 }

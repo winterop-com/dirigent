@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
 
-import { SplitButton, type SplitItem } from '@/components/ds/SplitButton'
 import { Refusable } from '@/components/Refusable'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { SplitButton } from '@winterop-com/sokkel-ui/SplitButton'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -11,11 +11,20 @@ import {
     DropdownMenuTrigger,
 } from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import { nextForm, TABLE, type Form } from '@/lib/card-form'
+import { splitWords } from '@/lib/design-system'
 import { ICONS, type Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 export const MORE_ACTIONS_LABEL = LABELS.shell.more_actions
+
+/** One other way to do what a split button's face does. */
+export interface SplitItem {
+    id: string
+    label: string
+    icon?: Icon
+    onClick: () => void
+}
 
 /** One verb on a screen's strip, said once and drawn either as a button or as a menu row. */
 export interface ToolbarAction {
@@ -162,14 +171,22 @@ function ActionButton({ action }: { action: ToolbarAction }) {
     if (action.more !== undefined && action.more.length > 0) {
         return (
             <SplitButton
-                label={action.label}
-                ariaLabel={action.ariaLabel}
+                label={action.ariaLabel}
+                title={action.why ?? action.ariaLabel}
                 variant={action.variant ?? 'outline'}
-                why={shut ? (action.why ?? '') : undefined}
-                more={action.more}
-                moreLabel={action.moreLabel ?? MORE_ACTIONS_LABEL}
+                size="lg"
+                disabled={shut && action.why === undefined}
+                reason={shut ? action.why : undefined}
+                items={action.more.map((item) => ({
+                    label: item.label,
+                    icon: item.icon === undefined ? undefined : <item.icon aria-hidden />,
+                    onSelect: item.onClick,
+                }))}
+                words={splitWords(action.moreLabel ?? MORE_ACTIONS_LABEL)}
                 onClick={action.onClick}
-            />
+            >
+                {action.label}
+            </SplitButton>
         )
     }
     return (

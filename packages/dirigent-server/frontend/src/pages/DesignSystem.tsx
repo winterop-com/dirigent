@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { Chip } from '@/components/ds/Chip'
-import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
-import { DialogShell } from '@/components/ds/DialogShell'
+import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { Question } from '@/components/Question'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
 import { Fact, FactList } from '@/components/ds/FactList'
 import { describedBy, FormField } from '@/components/ds/FormField'
-import { IconButton } from '@/components/ds/IconButton'
+import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { Notice } from '@/components/ds/Notice'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
-import { SearchField } from '@/components/ds/SearchField'
+import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { SectionHeading } from '@/components/ds/SectionHeading'
-import { SwitchField } from '@/components/ds/SwitchField'
-import { TextLink } from '@/components/ds/TextLink'
+import { SwitchField } from '@winterop-com/sokkel-ui/SwitchField'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { ToneDot } from '@/components/ds/ToneDot'
 import { Well } from '@/components/ds/Well'
 import { KindChip } from '@/components/KindChip'
@@ -27,10 +28,14 @@ import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
 import { Disclosure } from '@/components/pipeline/Disclosure'
 import {
     copyWords,
-    galleryAnchor,
+    DIALOG_WORDS,
     GALLERY_INDEX,
-    secretWords,
+    galleryAnchor,
     type GallerySection,
+    LINK_WORDS,
+    SEARCH_PLACEHOLDER,
+    SEARCH_WORDS,
+    secretWords,
     type Tone,
 } from '@/lib/design-system'
 import { ICON_GROUPS, ICONS, type IconGroup, type IconName } from '@/lib/icons'
@@ -395,20 +400,22 @@ export function DesignSystem() {
                         <Specimen title={VARIANT.inline}>
                             <p className="text-sm">
                                 {SAMPLE.link_sentence.before}
-                                <TextLink to="/runs">{SAMPLE.link_sentence.link}</TextLink>
+                                <TextLink variant="inline" href="/runs">
+                                    {SAMPLE.link_sentence.link}
+                                </TextLink>
                                 {SAMPLE.link_sentence.after}
                             </p>
                         </Specimen>
                         <Specimen title={VARIANT.data}>
-                            <TextLink variant="data" to="/runs">
+                            <TextLink variant="data" code href="/runs">
                                 {SAMPLE.run_id}
                             </TextLink>
-                            <TextLink variant="data" to="/pipelines">
+                            <TextLink variant="data" code href="/pipelines">
                                 {SAMPLE.pipeline.code}
                             </TextLink>
                         </Specimen>
                         <Specimen title={VARIANT.external}>
-                            <TextLink variant="external" href="/docs">
+                            <TextLink variant="inline" external words={LINK_WORDS} href="/docs">
                                 {SAMPLE.api_docs}
                             </TextLink>
                         </Specimen>
@@ -509,53 +516,71 @@ export function DesignSystem() {
                             </Button>
                         </Specimen>
                         <Specimen title={VARIANT.sizes}>
-                            <IconButton icon={ICONS.refresh} label={LABELS.action.refresh} size="sm" />
-                            <IconButton icon={ICONS.refresh} label={LABELS.action.refresh} />
-                            <IconButton
-                                icon={ICONS.edit}
-                                label={LABELS.action.edit}
-                                variant="outline"
-                                size="sm"
-                            />
-                            <IconButton icon={ICONS.edit} label={LABELS.action.edit} variant="outline" />
-                            <IconButton icon={ICONS.fit_view} label={LABELS.shell.fit_view} />
+                            <IconButton label={LABELS.action.refresh} size="icon-sm">
+                                <ICONS.refresh aria-hidden />
+                            </IconButton>
+                            <IconButton size="icon" label={LABELS.action.refresh}>
+                                <ICONS.refresh aria-hidden />
+                            </IconButton>
+                            <IconButton label={LABELS.action.edit} variant="outline" size="icon-sm">
+                                <ICONS.edit aria-hidden />
+                            </IconButton>
+                            <IconButton size="icon" label={LABELS.action.edit} variant="outline">
+                                <ICONS.edit aria-hidden />
+                            </IconButton>
+                            <IconButton size="icon" label={LABELS.shell.fit_view}>
+                                <ICONS.fit_view aria-hidden />
+                            </IconButton>
                             <CopyButton
                                 value={SAMPLE.url}
                                 size="icon"
                                 words={copyWords(LABELS.triggers.source.copy_url)}
                             />
-                            <IconButton
-                                icon={ICONS.open_in_window}
-                                label={LABELS.shell.open_in_window(SAMPLE.pane)}
-                            />
-                            <IconButton
-                                icon={ICONS.search}
-                                label={LABELS.shell.open_palette}
-                                shortcut={SAMPLE.chord}
-                            />
-                            <IconButton icon={ICONS.delete} label={LABELS.action.delete.verb} destructive />
+                            <IconButton size="icon" label={LABELS.shell.open_in_window(SAMPLE.pane)}>
+                                <ICONS.open_in_window aria-hidden />
+                            </IconButton>
+                            <IconButton size="icon" label={LABELS.shell.open_palette} shortcut={SAMPLE.chord}>
+                                <ICONS.search aria-hidden />
+                            </IconButton>
+                            <IconButton size="icon" label={LABELS.action.delete.verb} destructive>
+                                <ICONS.delete aria-hidden />
+                            </IconButton>
                         </Specimen>
                         <Specimen title={VARIANT.shut}>
                             <IconButton
-                                icon={ICONS.delete}
+                                size="icon"
                                 label={LABELS.action.delete.verb}
-                                why={SAMPLE.why_admin}
-                            />
+                                reason={SAMPLE.why_admin}
+                            >
+                                <ICONS.delete aria-hidden />
+                            </IconButton>
                             <IconButton
-                                icon={ICONS.run}
+                                size="icon"
                                 label={LABELS.action.run}
                                 variant="outline"
-                                why={SAMPLE.why_paused}
-                            />
+                                reason={SAMPLE.why_paused}
+                            >
+                                <ICONS.run aria-hidden />
+                            </IconButton>
                         </Specimen>
                     </Section>
 
                     <Section id="search">
                         <Specimen title={VARIANT.empty}>
-                            <SearchField value={needle} label={SAMPLE.search_label} onChange={setNeedle} />
+                            <SearchField
+                                placeholder={SEARCH_PLACEHOLDER}
+                                words={SEARCH_WORDS}
+                                className="w-64"
+                                value={needle}
+                                label={SAMPLE.search_label}
+                                onChange={setNeedle}
+                            />
                         </Specimen>
                         <Specimen title={VARIANT.typed}>
                             <SearchField
+                                placeholder={SEARCH_PLACEHOLDER}
+                                words={SEARCH_WORDS}
+                                className="w-64"
                                 value={typed}
                                 label={SAMPLE.search_label}
                                 onChange={setTyped}
@@ -563,7 +588,15 @@ export function DesignSystem() {
                             />
                         </Specimen>
                         <Specimen title={VARIANT.disabled}>
-                            <SearchField value="" label={SAMPLE.search_label} onChange={() => {}} disabled />
+                            <SearchField
+                                placeholder={SEARCH_PLACEHOLDER}
+                                words={SEARCH_WORDS}
+                                className="w-64"
+                                value=""
+                                label={SAMPLE.search_label}
+                                onChange={() => {}}
+                                disabled
+                            />
                         </Specimen>
                     </Section>
 
@@ -630,7 +663,7 @@ export function DesignSystem() {
                                 <SwitchField
                                     id="ds-follow"
                                     label={SAMPLE.switch_label}
-                                    help={SAMPLE.switch_help}
+                                    explain={SAMPLE.switch_help}
                                     checked={follow}
                                     onCheckedChange={setFollow}
                                 />
@@ -638,7 +671,7 @@ export function DesignSystem() {
                                     id="ds-shut"
                                     label={SAMPLE.switch_shut_label}
                                     checked={false}
-                                    why={SAMPLE.why_admin}
+                                    reason={SAMPLE.why_admin}
                                     onCheckedChange={() => {}}
                                 />
                             </div>
@@ -758,6 +791,7 @@ export function DesignSystem() {
             </div>
 
             <DialogShell
+                words={DIALOG_WORDS}
                 open={asking}
                 onOpenChange={setAsking}
                 title={SAMPLE.dialog_title}
@@ -787,6 +821,7 @@ export function DesignSystem() {
             </DialogShell>
 
             <DialogShell
+                words={DIALOG_WORDS}
                 open={telling}
                 onOpenChange={setTelling}
                 title={SAMPLE.told_title}
@@ -798,12 +833,15 @@ export function DesignSystem() {
             <ConfirmDialog
                 open={confirming}
                 onOpenChange={setConfirming}
-                ask={SAMPLE.confirm_ask}
-                code={SAMPLE.secret_name}
-                verb={LABELS.action.revoke}
-                onConfirm={() => {
-                    setConfirming(false)
+                question={<Question ask={SAMPLE.confirm_ask} code={SAMPLE.secret_name} />}
+                confirm={{
+                    label: LABELS.action.revoke,
+                    onConfirm: () => {
+                        setConfirming(false)
+                    },
+                    destructive: true,
                 }}
+                words={DIALOG_WORDS}
             />
         </>
     )
