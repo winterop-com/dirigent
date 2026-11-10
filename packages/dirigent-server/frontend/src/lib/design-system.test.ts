@@ -3,12 +3,14 @@ import { describe, expect, test } from 'vitest'
 import type { IconButtonProps } from '@/components/ds/IconButton'
 import {
     clearShown,
+    copyWords,
     escapeFrom,
     galleryAnchor,
     GALLERY_INDEX,
     iconButtonTip,
     isNews,
     saysWord,
+    secretWords,
 } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { ICONS } from '@/lib/icons'
@@ -84,6 +86,20 @@ describe("an icon button's tooltip", () => {
         const nameless: IconButtonProps = { icon: ICONS.refresh }
         const named: IconButtonProps = { icon: ICONS.refresh, label: 'Refresh' }
         expect(nameless.icon).toBe(named.icon)
+    })
+})
+
+describe('a copy button', () => {
+    test('is called what it copies, and says it copied after a press', () => {
+        expect(copyWords('Copy the URL')).toEqual({ copy: 'Copy the URL', copied: LABELS.action.copy.done })
+    })
+
+    test('beside a secret names the secret and says it is shown once', () => {
+        expect(secretWords('token')).toEqual({
+            copy: LABELS.shell.copy_secret('token'),
+            copied: LABELS.action.copy.done,
+            warning: LABELS.shell.shown_once,
+        })
     })
 })
 

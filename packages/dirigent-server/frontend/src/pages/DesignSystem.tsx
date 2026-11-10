@@ -6,14 +6,12 @@ import { DialogShell } from '@/components/ds/DialogShell'
 import { EntityHeading } from '@/components/ds/EntityHeading'
 import { Fact, FactList } from '@/components/ds/FactList'
 import { describedBy, FormField } from '@/components/ds/FormField'
-import { CopyButton } from '@/components/ds/CopyButton'
 import { IconButton } from '@/components/ds/IconButton'
 import { Notice } from '@/components/ds/Notice'
 import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Panel } from '@/components/ds/Panel'
 import { SearchField } from '@/components/ds/SearchField'
-import { SecretReveal } from '@/components/ds/SecretReveal'
 import { SectionHeading } from '@/components/ds/SectionHeading'
 import { SwitchField } from '@/components/ds/SwitchField'
 import { TextLink } from '@/components/ds/TextLink'
@@ -22,10 +20,19 @@ import { Well } from '@/components/ds/Well'
 import { KindChip } from '@/components/KindChip'
 import { PageState } from '@/components/PageState'
 import { StatusChip } from '@/components/run/StatusChip'
+import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
 import { Disclosure } from '@/components/pipeline/Disclosure'
-import { galleryAnchor, GALLERY_INDEX, type GallerySection, type Tone } from '@/lib/design-system'
+import {
+    copyWords,
+    galleryAnchor,
+    GALLERY_INDEX,
+    secretWords,
+    type GallerySection,
+    type Tone,
+} from '@/lib/design-system'
 import { ICON_GROUPS, ICONS, type IconGroup, type IconName } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { RUN_STATUSES } from '@/lib/status'
@@ -512,7 +519,11 @@ export function DesignSystem() {
                             />
                             <IconButton icon={ICONS.edit} label={LABELS.action.edit} variant="outline" />
                             <IconButton icon={ICONS.fit_view} label={LABELS.shell.fit_view} />
-                            <CopyButton value={SAMPLE.url} label={LABELS.triggers.source.copy_url} />
+                            <CopyButton
+                                value={SAMPLE.url}
+                                size="icon"
+                                words={copyWords(LABELS.triggers.source.copy_url)}
+                            />
                             <IconButton
                                 icon={ICONS.open_in_window}
                                 label={LABELS.shell.open_in_window(SAMPLE.pane)}
@@ -701,7 +712,7 @@ export function DesignSystem() {
                         </Specimen>
                         <Specimen title={VARIANT.secret}>
                             <div className="w-full max-w-lg">
-                                <SecretReveal value={SAMPLE.secret} label={SAMPLE.secret_name} />
+                                <SecretReveal value={SAMPLE.secret} words={secretWords(SAMPLE.secret_name)} />
                             </div>
                         </Specimen>
                     </Section>
@@ -781,7 +792,7 @@ export function DesignSystem() {
                 title={SAMPLE.told_title}
                 description={SAMPLE.told_description}
             >
-                <SecretReveal value={SAMPLE.secret} label={SAMPLE.secret_name} />
+                <SecretReveal value={SAMPLE.secret} words={secretWords(SAMPLE.secret_name)} />
             </DialogShell>
 
             <ConfirmDialog

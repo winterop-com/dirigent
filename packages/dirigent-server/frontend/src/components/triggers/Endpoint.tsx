@@ -2,15 +2,16 @@ import { useState } from 'react'
 
 import { Code } from '@/components/ds/Code'
 import { ConfirmDialog } from '@/components/ds/ConfirmDialog'
-import { CopyButton } from '@/components/ds/CopyButton'
 import { Fact, FactList } from '@/components/ds/FactList'
 import { DialogShell } from '@/components/ds/DialogShell'
 import { Inset } from '@/components/ds/Inset'
-import { SecretReveal } from '@/components/ds/SecretReveal'
 import { Refusable } from '@/components/Refusable'
+import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import type { Problem } from '@/lib/api'
+import { copyWords, secretWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import {
@@ -41,7 +42,7 @@ export function EndpointAddress({ source }: { source: Pick<SourceOut, 'methods' 
             <Code value={source.methods.join(', ')} tone="body" className="shrink-0 leading-6" />
             {/* The URL wraps rather than truncates, so all of it is on screen. */}
             <code className="min-w-0 flex-1 font-mono text-xs leading-6 break-all">{url}</code>
-            <CopyButton value={url} label={LABELS.triggers.source.copy_url} size="xs" variant="ghost" />
+            <CopyButton value={url} size="icon-xs" words={copyWords(LABELS.triggers.source.copy_url)} />
         </span>
     )
 }
@@ -202,7 +203,10 @@ export function MintedToken({
             description={words.lost(signed ? LABELS.triggers.replace.secret : LABELS.triggers.replace.token)}
         >
             <div className="space-y-4">
-                <SecretReveal value={token.token} label={signed ? words.secret_noun : words.token_noun} />
+                <SecretReveal
+                    value={token.token}
+                    words={secretWords(signed ? words.secret_noun : words.token_noun)}
+                />
 
                 <div className="space-y-1">
                     <p className="text-xs text-muted-foreground">{words.url}</p>
@@ -210,9 +214,8 @@ export function MintedToken({
                         <code className="min-w-0 flex-1 font-mono text-xs break-all">{url}</code>
                         <CopyButton
                             value={url}
-                            label={LABELS.triggers.source.copy_url}
-                            size="xs"
-                            variant="ghost"
+                            size="icon-xs"
+                            words={copyWords(LABELS.triggers.source.copy_url)}
                         />
                     </span>
                 </div>
@@ -238,8 +241,8 @@ export function MintedToken({
                             </code>
                             <CopyButton
                                 value={curl}
-                                label={LABELS.shell.copy_secret(words.curl_noun)}
-                                size="xs"
+                                size="icon-xs"
+                                words={copyWords(LABELS.shell.copy_secret(words.curl_noun))}
                             />
                         </Inset>
                     </div>
