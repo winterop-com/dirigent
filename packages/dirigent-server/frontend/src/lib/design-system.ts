@@ -6,14 +6,19 @@
  * Node test can hold them.
  */
 
+import type { AccountMenuWords } from '@winterop-com/sokkel-ui/AccountMenu'
 import type { ChipWords } from '@winterop-com/sokkel-ui/Chip'
+import type { CommandPaletteWords } from '@winterop-com/sokkel-ui/CommandPalette'
 import type { CodeSchemaWords } from '@winterop-com/sokkel-ui/CodeEditor'
 import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
 import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
 import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
+import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
+import type { ShellWords } from '@winterop-com/sokkel-ui/Shell'
+import type { ShortcutsDialogWords } from '@winterop-com/sokkel-ui/ShortcutsDialog'
 import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
 import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
@@ -177,4 +182,51 @@ export const GALLERY_INDEX: readonly {
 /** The anchor of one gallery section, which is what its index entry links to. */
 export function galleryAnchor(section: GallerySection): string {
     return `ds-${section}`
+}
+
+/** What the frame says: the drawer's button and its close, the panel's toggle, and its own two keys. */
+export const SHELL_WORDS: Partial<ShellWords> = {
+    menu: LABELS.shell.open_nav,
+    close: LABELS.shell.close_nav,
+    showPanel: LABELS.shell.show_panel,
+    hidePanel: LABELS.shell.hide_panel,
+    openPalette: LABELS.shell.open_palette,
+    openShortcuts: LABELS.shell.chord.shortcuts,
+}
+
+/** What the rail's head and edge are called. */
+export const RAIL_WORDS: Partial<RailWords> = {
+    collapse: LABELS.shell.collapse_nav,
+    expand: LABELS.shell.expand_nav,
+    resize: LABELS.shell.resize_nav,
+}
+
+/** What the command palette says. */
+export const PALETTE_WORDS: CommandPaletteWords = {
+    title: LABELS.palette.title,
+    placeholder: LABELS.palette.placeholder,
+    empty: LABELS.palette.empty,
+    close: LABELS.palette.close,
+    open: LABELS.palette.verb,
+    palette: LABELS.palette.title,
+}
+
+/** What the shortcuts dialog says. */
+export const SHORTCUTS_WORDS: ShortcutsDialogWords = {
+    title: LABELS.shell.shortcuts,
+    general: LABELS.shell.shortcuts_general,
+}
+
+/** What the account menu says, its control named for the account it stands for. */
+export function accountWords(username: string): Partial<AccountMenuWords> {
+    return {
+        account: LABELS.shell.account.label(username),
+        settings: LABELS.shell.settings,
+        shortcuts: LABELS.shell.account.shortcuts,
+        scheme: LABELS.shell.account.appearance,
+        light: LABELS.shell.mode.light,
+        dark: LABELS.shell.mode.dark,
+        system: LABELS.shell.mode.system,
+        signOut: LABELS.action.sign_out,
+    }
 }

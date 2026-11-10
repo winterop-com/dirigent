@@ -1,15 +1,7 @@
 import { useEffect } from 'react'
 
-import { paletteOpen } from '@/lib/palette'
 import { toggleRail } from '@/lib/panels'
-import {
-    applePlatform,
-    opensPalette,
-    opensShortcuts,
-    togglesRail,
-    togglesTerminal,
-    type FocusedField,
-} from '@/lib/shortcuts'
+import { applePlatform, togglesRail, togglesTerminal, type FocusedField } from '@/lib/shortcuts'
 import { toggleTerminal } from '@/lib/terminal'
 
 /** Whatever has focus in this document, described for `lib/shortcuts`. */
@@ -24,13 +16,13 @@ export function focusedField(): FocusedField | null {
 }
 
 /**
- * The one place a real `KeyboardEvent` is read.
+ * The one place a real `KeyboardEvent` is read for the keys this app answers itself: the rail's
+ * chord and the terminal's letter. The palette's chord and `?` are the shell's.
  *
  * All it does is describe the press and the focused element to `lib/shortcuts`, which decides.
- * Bound on the document rather than on the shell, so a chord works with focus anywhere --
- * inside the palette, inside a dialog, on the page's own body.
+ * Bound on the document rather than on the shell, so a chord works with focus anywhere.
  */
-export function useAppShortcuts(onShortcuts: () => void): void {
+export function useAppShortcuts(): void {
     useEffect(() => {
         const apple = applePlatform(navigator.userAgent)
 
@@ -41,11 +33,6 @@ export function useAppShortcuts(onShortcuts: () => void): void {
                 metaKey: event.metaKey,
                 altKey: event.altKey,
             }
-            if (opensPalette(press)) {
-                event.preventDefault()
-                paletteOpen.update((open) => !open)
-                return
-            }
             if (togglesRail(press, focusedField(), apple)) {
                 event.preventDefault()
                 toggleRail()
@@ -54,12 +41,6 @@ export function useAppShortcuts(onShortcuts: () => void): void {
             if (togglesTerminal(press, focusedField())) {
                 event.preventDefault()
                 toggleTerminal()
-                return
-            }
-            if (opensShortcuts(press, focusedField())) {
-                event.preventDefault()
-                onShortcuts()
-                return
             }
         }
 
@@ -67,5 +48,5 @@ export function useAppShortcuts(onShortcuts: () => void): void {
         return () => {
             document.removeEventListener('keydown', onKeyDown)
         }
-    }, [onShortcuts])
+    }, [])
 }

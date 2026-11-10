@@ -5,21 +5,26 @@ import { LABELS } from '../src/lib/labels.ts'
 import { applyExample, signIn } from './support.ts'
 
 /**
- * The chassis itself: the top row across the app, the rail that hides whole, and what the corner
- * says it is.
+ * The chassis itself: the top row across the app, the foot line, the rail that narrows and hides,
+ * and what the corner says it is.
  *
- * THE TOP ROW IS MEASURED, NOT EYEBALLED. The rail's head, the top strip and the right panel's tab
+ * THE TOP ROW IS MEASURED, NOT EYEBALLED. The rail's head, the top bar and the right panel's tab
  * strip are three elements in three columns, and the mark, the crumb and the tabs sit on one line
  * only when the three are exactly as tall and start at the same y.
  */
 
+/** The rail's head, the top bar and the panel's tab strip, in the order they appear across the width. */
+const TOP_STRIPS = '.h-shell-top'
+
 /** Every top strip's box, in the order they appear across the width. */
 async function topStrips(page: Page): Promise<{ top: number; height: number }[]> {
-    return page.evaluate(() =>
-        [...document.querySelectorAll('[data-shell-strip="top"]')].map((element) => {
-            const box = element.getBoundingClientRect()
-            return { top: Math.round(box.top), height: Math.round(box.height) }
-        }),
+    return page.evaluate(
+        (selector) =>
+            [...document.querySelectorAll(selector)].map((element) => {
+                const box = element.getBoundingClientRect()
+                return { top: Math.round(box.top), height: Math.round(box.height) }
+            }),
+        TOP_STRIPS,
     )
 }
 
@@ -27,7 +32,7 @@ test.beforeEach(async ({ page }) => {
     await signIn(page)
     // The measurements below read the chrome's geometry the instant the test body runs; on a
     // slow runner the shell has not mounted yet and querySelector returns null.
-    await expect(page.locator('[data-shell-strip="top"]').first()).toBeVisible()
+    await expect(page.locator('header.h-shell-top')).toBeVisible()
 })
 
 test('every strip along the top starts and ends at the same y', async ({ page }) => {
@@ -39,25 +44,29 @@ test('every strip along the top starts and ends at the same y', async ({ page })
     }
 })
 
-test('there is no bar along the foot and no rule across the top', async ({ page }) => {
-    await expect(page.locator('footer')).toHaveCount(0)
-    await expect(page.locator('[data-shell-rule]')).toHaveCount(0)
-})
-
-test('the account stands at the foot of the rail', async ({ page }) => {
-    const rail = await page.locator('aside').first().boundingBox()
+test('the foot is one line across the window, the account in its corner and the version at its end', async ({
+    page,
+}) => {
+    const foot = await page.locator('footer').boundingBox()
     const account = await page.getByRole('button', { name: /^Account: / }).boundingBox()
-    if (rail === null || account === null) throw new Error('no rail or no account')
-    expect(rail.y + rail.height - (account.y + account.height)).toBeLessThan(32)
-    expect(account.x + account.width).toBeLessThanOrEqual(rail.x + rail.width)
+    if (foot === null || account === null) throw new Error('no foot or no account')
+    expect(Math.abs(foot.y + foot.height - (account.y + account.height))).toBeLessThan(8)
+    expect(account.x).toBeLessThan(foot.x)
+    await expect(page.locator('footer')).toContainText(LABELS.word.version.term)
 })
 
-test('the rail hides whole and the strip brings it back', async ({ page }) => {
+test('the rail hides whole, and the menu button opens it as a drawer meanwhile', async ({ page }) => {
+    const rail = page.locator('[data-shell-rail]')
     // The suite's browser says it is on Windows, so the rail's chord is Control there.
     await page.keyboard.press('Control+b')
-    await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toHaveCount(0)
-    await page.getByRole('button', { name: LABELS.shell.show_nav }).click()
-    await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toBeVisible()
+    await expect(rail).toHaveCount(0)
+    await page.getByRole('button', { name: LABELS.shell.open_nav }).click()
+    await expect(
+        page.locator('[data-overlay]').getByRole('link', { name: LABELS.screen.pipelines.name }),
+    ).toBeVisible()
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Control+b')
+    await expect(rail.getByRole('link', { name: LABELS.screen.pipelines.name })).toBeVisible()
 
     const strips = await topStrips(page)
     expect(strips.length).toBeGreaterThanOrEqual(2)
@@ -67,6 +76,16 @@ test('the rail hides whole and the strip brings it back', async ({ page }) => {
     }
 })
 
+test('the rail narrows to its marks and widens again, and keeps how it was left', async ({ page }) => {
+    const rail = page.locator('[data-shell-rail] aside')
+    await page.getByRole('button', { name: LABELS.shell.collapse_nav }).click()
+    await expect(rail).toHaveAttribute('data-collapsed')
+    await page.reload()
+    await expect(rail).toHaveAttribute('data-collapsed')
+    await page.getByRole('button', { name: LABELS.shell.expand_nav }).first().click()
+    await expect(rail).not.toHaveAttribute('data-collapsed')
+})
+
 /** The rail's width before anything was dragged, and the widest it goes. */
 const RAIL_WIDTH = 168
 const RAIL_MAX_WIDTH = 320
@@ -74,7 +93,7 @@ const RAIL_MAX_WIDTH = 320
 test('the rail is dragged by its edge, moved by the keys, kept, and reset by a double-click', async ({
     page,
 }) => {
-    const rail = page.locator('aside').first()
+    const rail = page.locator('[data-shell-rail] aside')
     const edge = page.getByRole('separator', { name: LABELS.shell.resize_nav })
     const width = async () => Math.round((await rail.boundingBox())?.width ?? 0)
     expect(await width()).toBe(RAIL_WIDTH)
@@ -163,7 +182,7 @@ test('the top bar has words only when something is wrong', async ({ page }) => {
 test('a panel nothing has filled is not there at all, toggle included', async ({ page }) => {
     // An unfilled panel would only ever say "nothing selected", so it does not render, and
     // neither does the control that would reveal it.
-    await expect(page.getByRole('button', { name: LABELS.shell.toggle_panel })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /side panel$/ })).toHaveCount(0)
     await expect(page.getByText('Nothing selected', { exact: false })).toHaveCount(0)
 })
 
@@ -176,12 +195,10 @@ test('an empty listing states the fact and stops', async ({ page }) => {
     await expect(page.getByRole('button', { name: LABELS.alerting.new_rule.button })).toBeVisible()
 })
 
-test('the account menu holds the account, the settings, the shortcuts, the way out and the instance', async ({
+test('the account menu holds the account, the settings, the shortcuts, the mode, the way out and the instance', async ({
     page,
 }) => {
     const row = page.getByRole('button', { name: /^Account: / })
-    // The row is the avatar's capital, the username and the chevron saying it opens.
-    await expect(row.locator('[data-account-avatar]')).toHaveText('A')
     await expect(row).toContainText('admin')
     await row.click()
     const menu = page.getByRole('menu')
@@ -189,38 +206,31 @@ test('the account menu holds the account, the settings, the shortcuts, the way o
     // The instance is said once, in the head.
     await expect(menu.getByText('local', { exact: false })).toHaveCount(1)
     await expect(page.getByRole('menuitem', { name: LABELS.shell.settings })).toBeVisible()
-    await expect(page.getByRole('menuitem', { name: LABELS.shell.account.appearance })).toBeVisible()
+    await expect(page.getByRole('menuitemradio', { name: LABELS.shell.mode.system })).toBeChecked()
     await expect(page.getByRole('menuitem', { name: LABELS.action.sign_out })).toBeVisible()
 
-    // The one key the menu draws is the one `lib/shortcuts` binds.
     await page.getByRole('menuitem', { name: LABELS.shell.account.shortcuts }).click()
     await expect(page.getByRole('dialog')).toBeVisible()
 })
 
-test('the account menu is walked by keyboard, Appearance included', async ({ page }) => {
+test('the account menu is walked by keyboard, the mode included', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' })
     const row = page.getByRole('button', { name: /^Account: / })
     await row.focus()
     await page.keyboard.press('Enter')
     await expect(page.getByRole('menu')).toBeVisible()
 
-    const appearance = page.getByRole('menuitem', { name: LABELS.shell.account.appearance })
-    await appearance.focus()
-    await page.keyboard.press('ArrowRight')
     const light = page.getByRole('menuitemradio', { name: LABELS.shell.mode.light })
-    await expect(light).toBeVisible()
-    await expect(page.getByRole('menuitemradio', { name: LABELS.shell.mode.system })).toBeChecked()
-    await expect(light).toBeFocused()
+    await light.focus()
     await page.keyboard.press('Enter')
     await expect(page.locator('html')).not.toHaveClass(/dark/)
     expect(await page.evaluate(() => localStorage.getItem('sokkel-ui-scheme'))).toBe('light')
 
     await page.keyboard.press('Escape')
-    await page.keyboard.press('Escape')
     await expect(page.getByRole('menu')).toHaveCount(0)
     await expect(row).toBeFocused()
 
-    // The mode is said in the menu, so the top strip carries no flip of its own.
+    // The mode is said in the menu, so the top bar carries no flip of its own.
     await expect(page.getByRole('button', { name: /^Switch to / })).toHaveCount(0)
 })
 

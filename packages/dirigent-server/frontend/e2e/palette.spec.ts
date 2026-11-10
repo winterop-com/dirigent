@@ -7,8 +7,8 @@ import { signIn } from './support.ts'
  * The command palette, driven the way it is actually used: a chord, a few letters, a row.
  *
  * WHAT IS WORTH A BROWSER HERE is the part `lib/palette`'s own tests cannot reach -- that the
- * chord is bound at all, that the registry's filter is what narrows the list rather than cmdk's,
- * and that the shelf the screen registered leads the ones the shell did.
+ * chord is bound at all, that what a row is found by narrows the list, that the shelf the screen
+ * registered leads the ones the shell did, and that a pasted id opens its run.
  */
 
 test.beforeEach(async ({ page }) => {
@@ -62,64 +62,16 @@ test('choosing a row runs it, and the palette is gone before the screen changes'
     await expect(page.getByPlaceholder(LABELS.palette.placeholder)).toBeHidden()
 })
 
-/**
- * ONE INSET, AND EVERY PART OF THE DIALOG ON IT.
- *
- * The palette lays out its own body rather than taking the generated dialog's padding, so the
- * only thing holding its search glyph, its shelf headings, its rows and its footer on one edge
- * is that they are all spending the same number. Read off the rendered boxes, because that is
- * where the three different insets this replaced were visible and nowhere else.
- */
-test('the search glyph, a heading, a row and the footer stand on one left edge', async ({ page }) => {
-    await page.goto('/pipelines')
-    await page.keyboard.press('ControlOrMeta+k')
-    const dialog = page.getByRole('dialog')
-    await expect(dialog.locator('[cmdk-group-heading]').first()).toBeVisible()
-
-    // The dialog scales in, so the insets are read once every animation on it has finished.
-    await expect
-        .poll(() =>
-            dialog.evaluate((box) => {
-                const at = (element: Element | null) =>
-                    element === null
-                        ? null
-                        : Math.round(element.getBoundingClientRect().left - box.getBoundingClientRect().left)
-                const heading = box.querySelector('[cmdk-group-heading]')
-                const headingText =
-                    heading === null
-                        ? null
-                        : Number(getComputedStyle(heading).paddingInlineStart.replace('px', ''))
-                return {
-                    glyph: at(box.querySelector('[data-slot="input-group-addon"] svg')),
-                    heading: (at(heading) ?? 0) + (headingText ?? 0),
-                    rowTile: at(box.querySelector('[data-slot="command-item"] span')),
-                    footer: at(box.querySelector('[data-slot="palette-footer"] > *')),
-                }
-            }),
-        )
-        .toEqual({ glyph: 16, heading: 16, rowTile: 16, footer: 16 })
-})
-
-/** The search row is the inset above and below a line of its text, not a boxed input. */
-test('the search text stands the inset below the top of the dialog', async ({ page }) => {
-    await page.keyboard.press('ControlOrMeta+k')
-    const dialog = page.getByRole('dialog')
-    await expect(dialog.getByPlaceholder(LABELS.palette.placeholder)).toBeVisible()
-
-    // The dialog scales in, so the gap is read once every animation on it has finished.
-    await expect
-        .poll(() =>
-            dialog.evaluate((box) => {
-                const field = box.querySelector('[data-slot="command-input"]')
-                if (field === null) return null
-                return Math.round(field.getBoundingClientRect().top - box.getBoundingClientRect().top)
-            }),
-        )
-        .toBe(16)
-})
-
 test('a query nothing answers says so rather than showing everything', async ({ page }) => {
     await page.keyboard.press('ControlOrMeta+k')
     await page.getByPlaceholder(LABELS.palette.placeholder).fill('stroopwafel')
     await expect(page.getByText(LABELS.palette.empty)).toBeVisible()
+})
+
+test('a pasted run id is one row, and choosing it opens the run', async ({ page }) => {
+    const id = '01a1a11a-0000-7000-8000-00000000abcd'
+    await page.keyboard.press('ControlOrMeta+k')
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill(id)
+    await page.getByRole('option', { name: LABELS.palette.open_id(id) }).click()
+    await expect(page).toHaveURL(new RegExp(`/runs/${id}`))
 })

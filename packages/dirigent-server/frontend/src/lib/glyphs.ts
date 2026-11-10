@@ -39,7 +39,7 @@ import { SlackMark } from '@/components/alerting/SlackMark'
 export type Glyph = ComponentType<SVGProps<SVGSVGElement>>
 
 /** What a kind with no mark of its own is drawn as, rather than a gap. */
-export const NEUTRAL_GLYPH: Glyph = Dot
+export const NEUTRAL_GLYPH = Dot satisfies Glyph
 
 /**
  * The kinds this repository ships, each keyed by the code the wire answers with.

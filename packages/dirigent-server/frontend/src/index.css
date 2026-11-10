@@ -4,6 +4,7 @@
    missing. Each theme the app offers is its own file, worn on <html data-theme>. What follows the
    imports is this app's own CSS, drawn in the library's tokens. */
 @import '@winterop-com/sokkel-ui/styles-base.css';
+@import '@winterop-com/sokkel-ui/sources/AccountMenu.css';
 @import '@winterop-com/sokkel-ui/sources/Callout.css';
 @import '@winterop-com/sokkel-ui/sources/Chip.css';
 @import '@winterop-com/sokkel-ui/sources/CodeEditor.css';
@@ -18,11 +19,15 @@
 @import '@winterop-com/sokkel-ui/sources/ItemHeading.css';
 @import '@winterop-com/sokkel-ui/sources/Link.css';
 @import '@winterop-com/sokkel-ui/sources/PageHeader.css';
+@import '@winterop-com/sokkel-ui/sources/Rail.css';
+@import '@winterop-com/sokkel-ui/sources/ResizeHandle.css';
 @import '@winterop-com/sokkel-ui/sources/SearchField.css';
 @import '@winterop-com/sokkel-ui/sources/SecretReveal.css';
 @import '@winterop-com/sokkel-ui/sources/Section.css';
+@import '@winterop-com/sokkel-ui/sources/Shell.css';
 @import '@winterop-com/sokkel-ui/sources/SplitButton.css';
 @import '@winterop-com/sokkel-ui/sources/StatusChip.css';
+@import '@winterop-com/sokkel-ui/sources/StatusLine.css';
 @import '@winterop-com/sokkel-ui/sources/StatusProvider.css';
 @import '@winterop-com/sokkel-ui/sources/SwitchField.css';
 @import '@winterop-com/sokkel-ui/sources/TextLink.css';
@@ -67,19 +72,6 @@
 @utility text-wordmark {
     font-size: 3rem;
     line-height: 1;
-    font-weight: 600;
-    letter-spacing: -0.03em;
-}
-
-/* ---------------------------------------------------------------------------
-   THE RAIL'S WORDMARK, BESIDE THE BRAND TILE AT THE HEAD OF THE RAIL.
-
-   `scripts/check_ui_classes.py` knows this class by name and the rail's head is the only place
-   it may be spent.
-   --------------------------------------------------------------------------- */
-@utility text-lockup {
-    font-size: 1.25rem;
-    line-height: 1.75rem;
     font-weight: 600;
     letter-spacing: -0.03em;
 }
@@ -851,21 +843,6 @@
         min-height: var(--spacing-finger);
         min-inline-size: var(--spacing-finger);
     }
-}
-
-/* A rail entry: muted ink, lifted to the card rung under the pointer, and the raised fill at
-   weight 600 where it is the screen in front of somebody. */
-.rail-entry {
-    color: var(--muted-foreground);
-}
-.rail-entry:hover {
-    background-color: var(--card);
-    color: var(--foreground);
-}
-.rail-entry[aria-current='page'] {
-    background-color: var(--sidebar-accent);
-    color: var(--sidebar-accent-foreground);
-    font-weight: 600;
 }
 
 /* A SECONDARY BUTTON IS RAISED, NOT EDGED. The generated outline variant is drawn on the raised

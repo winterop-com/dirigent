@@ -7,7 +7,7 @@
  * that every time the window is resized. A window narrower than the stored width clamps for
  * that session and leaves the stored number alone, so the intent comes back with the window.
  *
- * Three small facts, three module stores, each read straight out of storage as it is built so
+ * Small facts, one module store each, each read straight out of storage as it is built so
  * the shell renders at its settled size on the first paint rather than snapping into place.
  */
 
@@ -34,6 +34,7 @@ export const PANEL_MIN_WIDTH = 240
 export const PANEL_MAX_WIDTH = 720
 
 const RAIL_KEY = 'dirigent.railHidden'
+const RAIL_COLLAPSED_KEY = 'dirigent.railCollapsed'
 const RAIL_WIDTH_KEY = 'dirigent.railWidth'
 const PANEL_OPEN_KEY = 'dirigent.panelOpen'
 const PANEL_WIDTH_KEY = 'dirigent.panelWidth'
@@ -87,14 +88,13 @@ export function setRailWidth(width: number): void {
     write(RAIL_WIDTH_KEY, String(clamped))
 }
 
-/** Give the rail back the width it opens at, and forget the one it was dragged to. */
-export function resetRailWidth(): void {
-    railWidth.set(RAIL_WIDTH)
-    try {
-        localStorage.removeItem(RAIL_WIDTH_KEY)
-    } catch {
-        // Storage denied: the rail is back at its width for as long as this document is open.
-    }
+/** Whether the rail is narrowed to its marks, which is the reader's and is kept. */
+export const railCollapsed = createStore(readFlag(RAIL_COLLAPSED_KEY, false))
+
+/** Narrow the rail to its marks, or widen it again, and keep that. */
+export function setRailCollapsed(collapsed: boolean): void {
+    railCollapsed.set(collapsed)
+    write(RAIL_COLLAPSED_KEY, String(collapsed))
 }
 
 /**
@@ -126,11 +126,6 @@ export function toggleRail(): void {
  * that opened one on a phone yesterday must not begin behind it today.
  */
 export const panelSheet = createStore(false)
-
-/** Take the sheet down, leaving the panel's own open flag where it was. */
-export function closeSheet(): void {
-    panelSheet.set(false)
-}
 
 /**
  * Open the right panel for this visit to the screen, which is what selecting something does.

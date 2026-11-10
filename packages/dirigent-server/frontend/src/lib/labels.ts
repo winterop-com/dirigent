@@ -704,14 +704,16 @@ const shell = {
     /** The product's own name: the mark's label, and what the corner says before any read lands. */
     wordmark: 'dirigent',
 
-    /** The rail taken off screen and brought back: the palette's row, and the strip's button. */
+    /** The rail taken off screen and brought back: the palette's row. */
     hide_nav: 'Hide navigation',
     show_nav: 'Show navigation',
+    /** The rail narrowed to its marks and widened again: the control at its head, and its edge. */
+    collapse_nav: 'Collapse navigation',
+    expand_nav: 'Expand navigation',
 
-    /** The drawer the rail becomes below the breakpoint, and the region it stands in. */
+    /** The drawer the rail becomes below the breakpoint: its button, and its close. */
     open_nav: 'Open navigation',
     close_nav: 'Close navigation',
-    nav_region: 'Navigation',
 
     /** The trail across the top of a screen that is one thing rather than a listing. */
     breadcrumb: 'Breadcrumb',
@@ -720,8 +722,13 @@ const shell = {
     /** The chord on the palette button's tooltip: this platform's modifier, and the letter. */
     palette_chord: (modifier: string) => (modifier.length > 1 ? `${modifier} K` : `${modifier}K`),
     toggle_panel: 'Show or hide the side panel',
+    /** The toggle in the window's top-right corner, named for what pressing it does now. */
+    show_panel: 'Show the side panel',
+    hide_panel: 'Hide the side panel',
     open_settings: 'Open settings',
     shortcuts: 'Keyboard shortcuts',
+    /** The heading the shortcuts dialog lists every key under. */
+    shortcuts_general: 'General',
 
     /** The top bar's dot: which instance this is, what it is running, and how it is doing. */
     instance: {
@@ -746,8 +753,6 @@ const shell = {
     account: {
         /** The control's name, which carries the username the avatar stands for. */
         label: (username: string) => `Account: ${username}`,
-        /** The menu's head, under the username: the instance's own line, and its version. */
-        instance: (line: string, version: string) => `${line} · ${version}`,
         /** The row that opens the shortcuts dialog. */
         shortcuts: 'Keyboard shortcuts',
         /** The submenu that sets the mode. */
@@ -757,10 +762,6 @@ const shell = {
     resize_panel: 'Resize the side panel',
     /** The rail's edge: dragged, or moved with the arrow keys; a double-click resets it. */
     resize_nav: 'Resize navigation',
-    /** The tab strip's heading where the screen in front of the panel has filled no tab. */
-    panel: 'Panel',
-    panel_empty: 'Nothing selected.',
-    close_panel: 'Close the panel',
 
     /** The menu a screen's verbs fold into where the strip cannot hold them all. */
     more_actions: 'More actions',
@@ -890,17 +891,15 @@ const shell = {
  */
 const palette = {
     title: 'Command palette',
-    description: 'Every place this app can go, and everything it can do from here',
     placeholder: 'Go to a screen, or run something',
     empty: 'Nothing matches that.',
     /** The one row a pasted run or attempt id offers. */
     open_id: (id: string) => `Open the run or attempt ${id}`,
 
-    /** What the two keys along the foot do. */
-    foot: {
-        choose: 'choose',
-        run: 'run it',
-    },
+    /** The foot's word beside Enter, for what choosing the row does. */
+    verb: 'Open',
+    /** The button at the foot that closes the palette on a touch screen. */
+    close: 'Close',
 
     /** The headings the rows are shelved under, in the order the palette lays them out. */
     shelf: {

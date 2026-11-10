@@ -1306,8 +1306,8 @@ test('New pipeline opens the editor on a document nothing has applied, and apply
 
     // The document has an address of its own now, at the version the apply wrote.
     await expect(page).toHaveURL(new RegExp(`/pipelines/${code}/edit$`))
-    // The top strip states the version the instance holds, once.
-    await expect(page.locator('[data-screen-facts]')).toContainText(LABELS.editor.version.short('1'))
+    // The status line states the version the instance holds, once.
+    await expect(page.locator('footer')).toContainText(LABELS.editor.version.short('1'))
     await expect(page.getByText('Started in the editor', { exact: true }).first()).toBeVisible()
 })
 
