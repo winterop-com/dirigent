@@ -1115,7 +1115,9 @@ references it, and asking for it first was asking the least of the step first.
 
 **Apply is quiet until it would write.** The button takes the identity colour where the document
 differs from the version the instance holds, and where there is no version at all; where applying
-would write nothing it stands in outline beside Validate, which is what it would do.
+would write nothing it stands in outline beside Validate, which is what it would do. The library's `primary` is always filled, so
+`quietPrimary` draws the quiet one in its place; a run's Rerun is drawn the same way while the run
+can still move.
 
 **A plan says what an apply takes away before it is pressed.** The dry run answers with the source
 rows and the managed schedules a document has stopped declaring, and those are the one consequence
@@ -1454,8 +1456,10 @@ truncates with an ellipsis rather than wrapping the strip onto a second line.
 sokkel-ui's `ToolbarItem`s, in a `PageHeader`'s `items` or a `Toolbar`'s -- measured against the
 room the strip leaves them, so the primary action keeps its place while the verbs before it move,
 from the last, into one overflow menu, `aria-label` "More actions", without a label being written
-down twice. The primary stands after the items and never folds; `PrimaryAction` draws it from the
-same shape, filled. A verb's mark is drawn on the strip and in the menu alike.
+down twice. The primary stands after the items and More and never folds: the library's `primary`,
+the same shape, filled. **The strip draws its verbs by their words alone** (`wordsOnly`); the menu
+lists each with its mark and its full label. The editor's strip is one row at every width
+(`nowrap`): the document's code is cut short with the whole of it on hover, and the verbs fold.
 
 **A dialog is a sheet.** Full width, full height, its footer pinned to the foot and its body the
 part that scrolls. It is the generated dialog's own slots that are restyled in `index.css`, not
@@ -2437,7 +2441,7 @@ keeps its own name in the code. A specimen stands on the section's card with no 
 | `ConfirmDialog` (sokkel-ui) | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. `Question` draws the question around the code, `detail` is the one line, and a refusal off the wire is one short `RefusalLine`, with no box and no second naming of the thing. A verb that cannot go without one value holds that one field: a password reset's new password. No such verb is immediate. Its confirm wears sokkel-ui's destructive tint, the critical ink on its wash, as every verb that takes something away does |
 | `SecretReveal` (sokkel-ui) | A secret the server answers with once: the value whole in mono on its own field, wrapped rather than cut, a copy button that says it copied and resets, and the line in the warning ink saying it is shown once. `secretWords` names the copy button for the secret and says that line |
 | `CopyButton` (sokkel-ui) | The ghost icon button beside a string somebody pastes elsewhere -- a secret, a URL, a command line: it puts the string on the clipboard, says it copied, and resets. `copyWords` gives it its name and the copied word |
-| `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` drawn into the shell's head slot by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them that never folds, drawn by `PrimaryAction` and a `SplitButton` when it carries `more`. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
+| `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` drawn into the shell's head slot by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds, a `SplitButton` when it carries `more` and its chevron named by `moreWays`. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
 | `Panel` | Every section of a page: a title bar with the label left and a count or fact right, a hairline, a body on the panel ground, a hairline edge and no shadow. `graph` puts a dot grid on the body, `critical` is the failure with its top rule and warning mark. `inset` is off where the body's rows lay out their own padding. A listing is `ListTable`, which draws the same panel |

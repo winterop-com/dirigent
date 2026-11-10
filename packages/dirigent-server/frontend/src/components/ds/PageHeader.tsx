@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 
 import { Breadcrumb, type Crumb } from '@/components/Breadcrumb'
-import { PrimaryAction, type PrimaryItem } from '@/components/ds/PrimaryAction'
 import { PageHead } from '@/components/PageHead'
 import { TOOLBAR_WORDS } from '@/lib/design-system'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
@@ -12,7 +11,8 @@ import type { ToolbarItem } from '@winterop-com/sokkel-ui/Toolbar'
  * code under it on a screen that is one thing, and the screen's verbs opposite it.
  *
  * `items` are the verbs that fold, from the last, into "More actions" where the room the title
- * leaves cannot hold them, so the title is never cut. `primary` stands after them and never folds.
+ * leaves cannot hold them, so they never crowd the title; a title that is the code is cut short with
+ * the whole of it on hover. `primary` stands after them, filled, and never folds. The row draws every verb by its word alone; More lists them with their marks.
  * `lead` stands before the verbs and never folds either. `count` sits beside the title -- how many
  * rows the listing holds -- and `meta` is a line of small facts under it. There is no subtitle.
  * `trail` is drawn by `Breadcrumb` in the shell's top strip.
@@ -23,6 +23,7 @@ export function PageHeader({
     lead,
     items,
     primary,
+    moreWays,
     trail,
     code,
     meta,
@@ -32,7 +33,9 @@ export function PageHeader({
     count?: ReactNode
     lead?: ReactNode
     items?: readonly ToolbarItem[]
-    primary?: PrimaryItem
+    primary?: ToolbarItem
+    /** What the primary's split chevron is called, where its `more` makes it a split button. */
+    moreWays?: string
     trail?: readonly Crumb[]
     code?: string | null
     meta?: ReactNode
@@ -47,12 +50,12 @@ export function PageHeader({
                     title={title}
                     count={count}
                     code={code ?? undefined}
-                    singleLine={code === title}
                     meta={meta}
                     lead={lead}
                     items={items}
-                    actions={primary === undefined ? undefined : <PrimaryAction item={primary} />}
-                    words={TOOLBAR_WORDS}
+                    primary={primary}
+                    wordsOnly
+                    words={moreWays === undefined ? TOOLBAR_WORDS : { ...TOOLBAR_WORDS, moreWays }}
                 />
             </div>
         </PageHead>

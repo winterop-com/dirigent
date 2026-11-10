@@ -14,7 +14,7 @@ import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
 import { Notice } from '@/components/ds/Notice'
 import { Panel } from '@/components/ds/Panel'
-import { PrimaryAction } from '@/components/ds/PrimaryAction'
+import { quietPrimary } from '@/components/ds/QuietPrimary'
 import { connectionOf, RunFailure } from '@/components/run/RunFailure'
 import { PageHead } from '@/components/PageHead'
 import { PageState } from '@/components/PageState'
@@ -511,7 +511,6 @@ export function RunDetail() {
                     <LibraryPageHeader
                         title={document?.name ?? run.pipeline}
                         code={run.pipeline}
-                        singleLine={document === null || document.name === null}
                         meta={
                             <span title={run.id}>
                                 <InlineCode
@@ -574,23 +573,19 @@ export function RunDetail() {
                                       },
                                   ]
                         }
-                        actions={
-                            <PrimaryAction
-                                item={{
-                                    id: 'rerun',
-                                    label: LABELS.action.rerun,
-                                    icon: <ICONS.rerun aria-hidden />,
-                                    variant: verbs.rerun.open ? 'default' : 'outline',
-                                    ...shutWith(
-                                        !write.may || !verbs.rerun.open || rerun === null,
-                                        write.why ?? verbs.rerun.why,
-                                    ),
-                                    onSelect: () => {
-                                        rerun?.()
-                                    },
-                                }}
-                            />
-                        }
+                        primary={quietPrimary(!verbs.rerun.open, {
+                            id: 'rerun',
+                            label: LABELS.action.rerun,
+                            icon: <ICONS.rerun aria-hidden />,
+                            ...shutWith(
+                                !write.may || !verbs.rerun.open || rerun === null,
+                                write.why ?? verbs.rerun.why,
+                            ),
+                            onSelect: () => {
+                                rerun?.()
+                            },
+                        })}
+                        wordsOnly
                         words={TOOLBAR_WORDS}
                     />
 

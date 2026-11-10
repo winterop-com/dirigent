@@ -16,7 +16,7 @@ import { Chip } from '@/components/ds/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Panel } from '@/components/ds/Panel'
 import { PageState } from '@/components/PageState'
-import { PrimaryAction } from '@/components/ds/PrimaryAction'
+import { quietPrimary } from '@/components/ds/QuietPrimary'
 import { Toolbar } from '@winterop-com/sokkel-ui/Toolbar'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
@@ -610,6 +610,8 @@ export function PipelineEditor() {
                         className="flex-1"
                         itemVariant="outline"
                         itemsAlign="end"
+                        nowrap
+                        wordsOnly
                         words={TOOLBAR_WORDS}
                         items={
                             // NOTHING THAT WRITES, AND NOTHING THAT ASKS THE SERVER ABOUT WHAT CANNOT
@@ -638,25 +640,25 @@ export function PipelineEditor() {
                                       },
                                   ]
                         }
+                        primary={
+                            small
+                                ? undefined
+                                : quietPrimary(applyVariant(edits, creating) === 'outline', {
+                                      id: 'apply',
+                                      label: LABELS.action.apply,
+                                      icon: <CheckCircle2 aria-hidden />,
+                                      ...shutWith(applyRefusal !== undefined, applyRefusal),
+                                      onSelect: () => {
+                                          setDialog('apply')
+                                      },
+                                  })
+                        }
                         end={
                             small ? (
                                 <span className="shrink-0 text-xs text-muted-foreground">
                                     {LABELS.editor.topbar.read_only}
                                 </span>
-                            ) : (
-                                <PrimaryAction
-                                    item={{
-                                        id: 'apply',
-                                        label: LABELS.action.apply,
-                                        icon: <CheckCircle2 aria-hidden />,
-                                        variant: applyVariant(edits, creating),
-                                        ...shutWith(applyRefusal !== undefined, applyRefusal),
-                                        onSelect: () => {
-                                            setDialog('apply')
-                                        },
-                                    }}
-                                />
-                            )
+                            ) : undefined
                         }
                     >
                         {heading === null ? (
@@ -664,11 +666,7 @@ export function PipelineEditor() {
                                 {LABELS.editor.topbar.new_pipeline}
                             </span>
                         ) : (
-                            // Below the breakpoint the code gives way to the read-only line rather
-                            // than wrapping the strip onto a second row.
-                            <span className={small ? 'min-w-0 flex-1 basis-0' : 'min-w-0'}>
-                                <InlineCode value={heading.code ?? code} tone="neutral" bare size="xs" />
-                            </span>
+                            <InlineCode value={heading.code ?? code} tone="neutral" bare size="xs" />
                         )}
                         {/* Hidden below the breakpoint, where the strip has only the room for the
                     document's identity and the line saying it is read. */}

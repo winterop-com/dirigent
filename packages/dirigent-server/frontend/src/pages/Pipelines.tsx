@@ -164,6 +164,7 @@ export function Pipelines() {
         <>
             <PageHeader
                 title={LABELS.screen.pipelines.name}
+                moreWays={LABELS.pipelines.more_ways}
                 primary={{
                     id: 'new',
                     label: NEW_PIPELINE_LABEL,
@@ -172,7 +173,6 @@ export function Pipelines() {
                     onSelect: () => {
                         void navigate(NEW_PIPELINE_PATH)
                     },
-                    moreWays: LABELS.pipelines.more_ways,
                     more: [
                         {
                             label: FROM_STARTER_LABEL,
