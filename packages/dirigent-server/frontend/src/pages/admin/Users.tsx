@@ -8,9 +8,8 @@ import { AdminOnly } from '@/components/admin/AdminOnly'
 import { CreateToken } from '@/components/admin/CreateToken'
 import { CreateUser } from '@/components/admin/CreateUser'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
-import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
@@ -18,15 +17,20 @@ import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
+import { tableWords } from '@/lib/design-system'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { itemOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
+import { rowsRead } from '@/lib/paging'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { readTokenCensus, readUsers, tokenCounts, type UserOut } from '@/lib/users'
 
 const userId = (user: UserOut) => user.id
+const usernameOf = (user: UserOut) => user.username
+
+const USERS_WORDS = tableWords({ expand: LABELS.users.show_tokens, collapse: LABELS.users.hide_tokens })
 
 /**
  * Local accounts, with the tokens automation authenticates as each of them under its row.
@@ -36,8 +40,8 @@ const userId = (user: UserOut) => user.id
  * that sentence is drawn in the dialog that asked. A guard drawn here would have to work out which
  * accounts are admins and active over whichever page of the listing happens to be loaded.
  *
- * A ROW OPENS A DIALOG. A press on a row opens `AccountDialog`, and a press on its chevron stands
- * its tokens open under it and does nothing else.
+ * A ROW OPENS A DIALOG. A press on a row, or Enter on it, opens `AccountDialog`; its chevron, or
+ * the right arrow, stands its tokens open under it as the row's detail and does nothing else.
  */
 export function AdminUsers() {
     return (
@@ -71,15 +75,6 @@ function Users() {
         () => (census.value === null ? null : tokenCounts(census.value, now)),
         [census.value, now],
     )
-
-    const toggleTokens = useCallback((username: string) => {
-        setOpened((current) => {
-            const next = new Set(current)
-            if (next.has(username)) next.delete(username)
-            else next.add(username)
-            return next
-        })
-    }, [])
 
     /** A token was made for this account: its row opens, and its list and the counts read again. */
     const madeFor = useCallback(
@@ -136,21 +131,17 @@ function Users() {
     }, [readCensusAgain, reloadUsers])
 
     const tokensUnder = useCallback(
-        (user: UserOut) =>
-            opened.has(user.username) ? (
-                <AccountTokens
-                    username={user.username}
-                    revision={revisions[user.username] ?? 0}
-                    onChanged={readCensusAgain}
-                />
-            ) : null,
-        [opened, readCensusAgain, revisions],
+        (user: UserOut) => (
+            <AccountTokens
+                username={user.username}
+                revision={revisions[user.username] ?? 0}
+                onChanged={readCensusAgain}
+            />
+        ),
+        [readCensusAgain, revisions],
     )
 
-    const columns = useMemo(
-        () => userColumns(opened, counts, toggleTokens, setMintingFor),
-        [counts, opened, toggleTokens],
-    )
+    const columns = useMemo(() => userColumns(counts, setMintingFor), [counts])
 
     return (
         <>
@@ -167,24 +158,28 @@ function Users() {
                 }}
             />
 
-            <PageState
-                loading={!users.state.read}
-                problem={users.state.problem}
-                empty={users.state.rows.length === 0}
-                emptyMessage={LABELS.users.accounts_empty}
-            >
-                <ListTable
+            <PageState loading={!users.state.read} problem={users.state.problem} empty={false}>
+                <DataTable
+                    variant="list"
                     columns={columns}
                     rows={users.state.rows}
-                    rowKey={userId}
-                    onSelect={setChosen}
-                    selected={(user) => chosen !== null && user.id === chosen.id}
-                    rowClassName={(user) => (user.active ? undefined : 'opacity-60')}
-                    reading={users.state.reading}
-                    next={users.state.next}
-                    onMore={users.more}
-                    noun={LABELS.word.account.count}
-                    under={tokensUnder}
+                    rowKey={usernameOf}
+                    onOpen={setChosen}
+                    opened={(user) => chosen !== null && user.id === chosen.id}
+                    detail={tokensUnder}
+                    expanded={opened}
+                    onExpandedChange={setOpened}
+                    hasMore={users.state.next !== null}
+                    loading={users.state.reading}
+                    onLoadMore={users.more}
+                    foot={rowsRead(
+                        users.state.rows.length,
+                        LABELS.word.account.count,
+                        users.state.next !== null,
+                    )}
+                    empty={LABELS.users.accounts_empty}
+                    resizable={false}
+                    words={USERS_WORDS}
                 />
             </PageState>
 
@@ -225,40 +220,20 @@ function Users() {
     )
 }
 
-/** The account columns, given which rows stand open and what the row's two controls do. */
+/** The account columns, given how many live tokens each account holds and what New token does. */
 function userColumns(
-    opened: ReadonlySet<string>,
     counts: ReadonlyMap<string, number> | null,
-    toggle: (username: string) => void,
     mint: (username: string) => void,
-): Column<UserOut>[] {
+): DataColumn<UserOut>[] {
     return [
         {
             id: 'account',
             header: LABELS.word.account.label,
-            kind: 'title',
+            width: 'minmax(14rem,1fr)',
             cell: (user) => {
-                const open = opened.has(user.username)
                 const held = counts?.get(user.username) ?? 0
                 return (
                     <span className="flex min-w-0 items-center gap-2">
-                        <IconButton
-                            size="icon-sm"
-                            label={
-                                open
-                                    ? LABELS.users.hide_tokens(user.username)
-                                    : LABELS.users.show_tokens(user.username)
-                            }
-                            aria-expanded={open}
-                            className={open ? 'shrink-0 [&_svg]:rotate-90' : 'shrink-0'}
-                            onClick={(event) => {
-                                // The row opens the dialog; this control does one thing and not both.
-                                event.stopPropagation()
-                                toggle(user.username)
-                            }}
-                        >
-                            <ICONS.expand aria-hidden />
-                        </IconButton>
                         <span className="min-w-0" title={LABELS.users.open_account(user.username)}>
                             <ItemHeading
                                 {...itemOf({ code: user.username, name: user.name })}
@@ -283,15 +258,15 @@ function userColumns(
         {
             id: 'role',
             header: LABELS.word.role,
-            className: 'text-xs',
-            cell: (user) => <span className="text-muted-foreground">{user.role}</span>,
+            width: '5rem',
+            cell: (user) => <span className="text-xs text-muted-foreground">{user.role}</span>,
         },
         {
             id: 'seen',
             header: LABELS.word.last_signed_in.label,
-            className: 'text-xs',
+            width: '7rem',
             cell: (user) => (
-                <span className="text-muted-foreground" title={formatInstant(user.last_login_at)}>
+                <span className="text-xs text-muted-foreground" title={formatInstant(user.last_login_at)}>
                     {user.last_login_at === null ? LABELS.word.never : formatRelative(user.last_login_at)}
                 </span>
             ),
@@ -299,9 +274,9 @@ function userColumns(
         {
             id: 'created',
             header: LABELS.word.created.label,
-            className: 'text-xs',
+            width: '6rem',
             cell: (user) => (
-                <span className="text-muted-foreground" title={formatInstant(user.created_at)}>
+                <span className="text-xs text-muted-foreground" title={formatInstant(user.created_at)}>
                     {formatRelative(user.created_at)}
                 </span>
             ),
@@ -309,14 +284,15 @@ function userColumns(
         {
             id: 'token',
             header: '',
-            className: 'text-right',
+            width: '6.5rem',
+            align: 'end',
+            stackLabel: false,
             cell: (user) => (
                 <Button
                     variant="outline"
                     size="xs"
                     aria-label={LABELS.users.new_token_for(user.username)}
-                    onClick={(event) => {
-                        event.stopPropagation()
+                    onClick={() => {
                         mint(user.username)
                     }}
                 >

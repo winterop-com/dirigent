@@ -11,6 +11,7 @@ import type { ChipWords } from '@winterop-com/sokkel-ui/Chip'
 import type { CommandPaletteWords } from '@winterop-com/sokkel-ui/CommandPalette'
 import type { CodeSchemaWords } from '@winterop-com/sokkel-ui/CodeEditor'
 import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
+import type { DataTableWords } from '@winterop-com/sokkel-ui/DataTable'
 import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
 import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
@@ -121,6 +122,11 @@ export const SEARCH_PLACEHOLDER = LABELS.shell.search
 
 /** What a search box's clear button is called. */
 export const SEARCH_WORDS: SearchFieldWords = { clear: LABELS.shell.clear_search }
+
+/** What a table's row disclosure is called, open and shut, named for what it shows: "Show tokens". */
+export function tableWords(disclosure: { expand: string; collapse: string }): Partial<DataTableWords> {
+    return { expand: disclosure.expand, collapse: disclosure.collapse }
+}
 
 /** The one dismissal word a dialog's footer says. */
 export const DIALOG_WORDS: Partial<DialogShellWords> = { cancel: LABELS.action.cancel }
