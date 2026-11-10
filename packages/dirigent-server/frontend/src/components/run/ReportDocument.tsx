@@ -1,7 +1,8 @@
+import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
 import { Description } from '@/components/Description'
-import { WindowedPane } from '@/components/WindowedPane'
 import { useApiPrefix } from '@/hooks/use-api-prefix'
 import { artifactUrl, type ReportDocument } from '@/lib/artifacts'
+import { windowWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
@@ -35,29 +36,33 @@ export function ReportDocumentPane({
     const prefix = useApiPrefix()
     return (
         <WindowedPane
-            name={DOCUMENT_NAME}
-            frame="none"
-            held={capped ? 'panel' : 'sidebar'}
+            title={<span className="font-mono">{DOCUMENT_NAME}</span>}
+            keepPane
+            button="sticky"
             className={capped ? undefined : 'p-4'}
-            windowed={
-                <div className={cn('min-h-0 w-full flex-1 overflow-y-auto', READING)}>
-                    <Description text={document.markdown} ink="body" />
-                </div>
-            }
+            words={windowWords(DOCUMENT_NAME)}
         >
-            <div className={cn('flex flex-col gap-3', capped && 'max-h-[28rem] overflow-y-auto p-4')}>
-                <Description text={document.markdown} ink="body" />
-                {prefix !== null && document.id !== null && (
-                    <a
-                        className="w-fit text-xs text-foreground underline-offset-2 hover:underline"
-                        href={artifactUrl(prefix, document.id)}
-                        download={DOCUMENT_NAME}
-                        rel="noopener"
-                    >
-                        {LABELS.runs.report_download}
-                    </a>
-                )}
-            </div>
+            {(where) =>
+                where === 'pane' ? (
+                    <div className={cn('flex flex-col gap-3', capped && 'max-h-[28rem] overflow-y-auto p-4')}>
+                        <Description text={document.markdown} ink="body" />
+                        {prefix !== null && document.id !== null && (
+                            <a
+                                className="w-fit text-xs text-foreground underline-offset-2 hover:underline"
+                                href={artifactUrl(prefix, document.id)}
+                                download={DOCUMENT_NAME}
+                                rel="noopener"
+                            >
+                                {LABELS.runs.report_download}
+                            </a>
+                        )}
+                    </div>
+                ) : (
+                    <div className={cn('w-full', READING)}>
+                        <Description text={document.markdown} ink="body" />
+                    </div>
+                )
+            }
         </WindowedPane>
     )
 }

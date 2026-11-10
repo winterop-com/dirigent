@@ -8,16 +8,16 @@ import { Section } from '@/components/run/Panel'
 import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { shutWith } from '@/lib/design-system'
+import { shutWith, windowWords } from '@/lib/design-system'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { Refusal } from '@/components/Refusal'
-import { WindowButton, WindowedPane } from '@/components/WindowedPane'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Dialog, DialogContent, DialogTitle } from '@winterop-com/sokkel-ui/primitives/dialog'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
+import { WindowedPane, WindowedPaneButton } from '@winterop-com/sokkel-ui/WindowedPane'
 import { useCodeBuffer } from '@/hooks/use-code-buffer'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
@@ -125,7 +125,6 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
     const [answer, setAnswer] = useState<CheckAnswer | null>(null)
     const [reveal, setReveal] = useState<{ start: number; end: number } | null>(null)
     const [trying, setTrying] = useState(false)
-    const [windowed, setWindowed] = useState(false)
     const [removing, setRemoving] = useState(false)
     const { save, busy, problem, setProblem } = useSchemaSave(schema, onSaved)
     const write = useMayWrite('admin')
@@ -321,32 +320,29 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
             />
             <div className="flex min-h-0 flex-1 flex-col gap-3">
                 {problem !== null && <Refusal problem={problem} />}
-                <LibrarySection
-                    title={LABELS.word.schema.label}
-                    flush
+                <WindowedPane
+                    title={<span className="font-mono">{LABELS.schemas.window_title(schema.code)}</span>}
+                    keepPane
+                    button="none"
                     className="flex min-h-96 flex-1 flex-col"
-                    bodyClassName="flex min-h-0 flex-1 flex-col"
-                    actions={
-                        <WindowButton
-                            name={LABELS.schemas.window_title(schema.code)}
-                            onOpen={() => {
-                                setWindowed(true)
-                            }}
-                        />
-                    }
+                    words={windowWords(LABELS.schemas.window_title(schema.code))}
                 >
-                    <WindowedPane
-                        name={LABELS.schemas.window_title(schema.code)}
-                        frame="none"
-                        button="none"
-                        open={windowed}
-                        onOpenChange={setWindowed}
-                        className="min-h-0 flex-1"
-                        windowed={schemaPane('min-h-0 flex-1', 'field')}
-                    >
-                        {schemaPane('min-h-0 flex-1', 'pane')}
-                    </WindowedPane>
-                </LibrarySection>
+                    {(where) =>
+                        where === 'pane' ? (
+                            <LibrarySection
+                                title={LABELS.word.schema.label}
+                                flush
+                                className="flex min-h-0 flex-1 flex-col"
+                                bodyClassName="flex min-h-0 flex-1 flex-col"
+                                actions={<WindowedPaneButton className="text-muted-foreground" />}
+                            >
+                                {schemaPane('min-h-0 flex-1', 'pane')}
+                            </LibrarySection>
+                        ) : (
+                            schemaPane('min-h-0 flex-1', 'field')
+                        )
+                    }
+                </WindowedPane>
             </div>
             <Dialog open={trying} onOpenChange={setTrying}>
                 <DialogContent
