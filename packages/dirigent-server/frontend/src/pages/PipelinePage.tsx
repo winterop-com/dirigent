@@ -124,7 +124,7 @@ export function PipelinePage() {
             <PageHeader
                 title={titleOf(pipeline)}
                 code={pipeline.code}
-                trail={[{ label: LABELS.screen.pipelines.name, to: '/pipelines' }]}
+                trail={[{ label: LABELS.screen.pipelines.name, href: '/pipelines' }]}
                 items={[
                     {
                         id: 'edit',

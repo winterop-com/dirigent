@@ -99,7 +99,7 @@ export function Schema() {
     return (
         <>
             {schema === null && (
-                <PageHeader title={code} trail={[{ label: LABELS.screen.schemas.name, to: '/schemas' }]} />
+                <PageHeader title={code} trail={[{ label: LABELS.screen.schemas.name, href: '/schemas' }]} />
             )}
             <PageState
                 loading={schema === null && read.problem === null}
@@ -294,7 +294,7 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
             <PageHeader
                 title={heading.title}
                 code={schema.code}
-                trail={[{ label: LABELS.screen.schemas.name, to: '/schemas' }]}
+                trail={[{ label: LABELS.screen.schemas.name, href: '/schemas' }]}
                 items={[
                     {
                         id: 'try',

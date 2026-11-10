@@ -7,7 +7,12 @@
  * holds it either.
  */
 
+import type { SearchGroup } from '@winterop-com/sokkel-ui/lib/search'
+
 import { ApiError } from '@/lib/api'
+import { ICONS } from '@/lib/icons'
+import { LABELS } from '@/lib/labels'
+import { GO_GROUP } from '@/lib/palette'
 import { readAttempt, type AttemptDetail } from '@/lib/runs'
 import { ATTEMPT_PARAM, runStepPath } from '@/lib/step-address'
 
@@ -35,4 +40,17 @@ export async function addressOfId(
         if (error instanceof ApiError && error.status === 404) return runStepPath(id, null)
         throw error
     }
+}
+
+/** What the palette finds for a query: the one row that opens a pasted id, or nothing. */
+export function idResults(query: string): SearchGroup[] {
+    const id = idOf(query)
+    if (id === null) return []
+    return [
+        {
+            kind: 'id',
+            title: GO_GROUP,
+            results: [{ id, title: LABELS.palette.open_id(id), icon: ICONS.open_id }],
+        },
+    ]
 }

@@ -13,13 +13,12 @@ about, which is why it can be an error rather than a warning. Everything else in
 docs/ui-conventions.md -- whether a sentence got the prose size, whether a status token was used
 as text -- is review's job, not this file's.
 
-EIGHT NAMED SIZES SIT OUTSIDE THE SCALE, AND THEY ARE NAMED HERE. A section heading and a
+SEVEN NAMED SIZES SIT OUTSIDE THE SCALE, AND THEY ARE NAMED HERE. A section heading and a
 listing row's title are ``text-title``; a page heading is ``text-page``; a stat's number is
 display type, so it is ``text-stat``; the login brand lockup's wordmark is a brand mark rather
-than text, so it is ``text-wordmark``, and the rail's wordmark beside its tile is ``text-lockup``;
-the login screen's own greeting is ``text-display``; and a
+than text, so it is ``text-wordmark``; the login screen's own greeting is ``text-display``; and a
 graph is drawn at the scale of a diagram, so its title is ``graph-title`` and every other word on
-it ``graph-small``. All eight are declared once in index.css and knowable by name. That is not an
+it ``graph-small``. All seven are declared once in index.css and knowable by name. That is not an
 allowlist: nothing else is exempt, and the second half of this check reads index.css itself and
 fails if a size utility appears there that is not the scale plus these. A named exception can be counted; a pattern
 cannot.
@@ -77,10 +76,10 @@ THEME = ROOTS[0] / "index.css"
 #: The scale, as the theme tokens that declare it.
 SCALE = {"xs", "sm", "base", "title", "page"}
 
-#: The sizes outside the scale: a stat's number, the login brand lockup's wordmark, the rail's
-#: wordmark, the login form's greeting, and the two sizes a graph is drawn in. Nothing else on any screen wears any of
+#: The sizes outside the scale: a stat's number, the login brand lockup's wordmark, the login
+#: form's greeting, and the two sizes a graph is drawn in. Nothing else on any screen wears any of
 #: them.
-NAMED = {"stat", "wordmark", "lockup", "display", "graph-title", "graph-small"}
+NAMED = {"stat", "wordmark", "display", "graph-title", "graph-small"}
 
 #: A size token declared under ``@theme``: ``--text-xs: 0.75rem``. The line-height twins
 #: (``--text-xs--line-height``) belong to a size rather than declaring one, so they are skipped.
@@ -92,7 +91,7 @@ DECLARED_CLASS = re.compile(r"^(?:\.|@utility\s+)text-([a-z0-9-]+)\s*\{", re.MUL
 
 CSS_FIX = (
     "index.css declares the scale, and it is five sizes plus the named sizes text-stat, "
-    "text-wordmark, text-lockup, text-display, graph-title and graph-small. Minting another here is minting "
+    "text-wordmark, text-display, graph-title and graph-small. Minting another here is minting "
     "a sixth size. "
     "See docs/ui-conventions.md."
 )

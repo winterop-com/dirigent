@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 
-import { checkServer, identityLine, serverStatus, statusOf, statusWords } from '@/lib/server-status'
+import {
+    checkServer,
+    identityLine,
+    SERVER_STATES,
+    serverChecks,
+    serverStatus,
+    statusOf,
+} from '@/lib/server-status'
 
 function answering(body: unknown, version: unknown = { version: '0.1.0' }): typeof fetch {
     return (async (input: RequestInfo | URL) => {
@@ -147,14 +154,32 @@ test('a failing version read cannot call an answering instance offline', async (
 })
 
 describe('what the top bar says beside its dot', () => {
-    test('is nothing while the instance is well or still being asked', () => {
-        expect(statusWords('healthy')).toBeNull()
-        expect(statusWords('unknown')).toBeNull()
+    test('is drawn well or live while the instance is well or still being asked', () => {
+        expect(SERVER_STATES.healthy.color).toBe('good')
+        expect(SERVER_STATES.unknown.live).toBe(true)
     })
 
     test('is a word for each way of being wrong', () => {
-        expect(statusWords('degraded')).toBe('Server degraded')
-        expect(statusWords('unhealthy')).toBe('Server unhealthy')
-        expect(statusWords('offline')).toBe('Server unreachable, retrying')
+        expect(SERVER_STATES.degraded.label).toBe('Server degraded')
+        expect(SERVER_STATES.unhealthy.label).toBe('Server unhealthy')
+        expect(SERVER_STATES.offline.label).toBe('Server unreachable, retrying')
+    })
+})
+
+describe('the checks the dot lists', () => {
+    test('say their own state in plain words, with the detail where there is one', () => {
+        const checks = serverChecks([
+            { name: 'database', status: 'healthy', detail: null },
+            { name: 'storage', status: 'degraded', detail: 'slow' },
+        ])
+        expect(checks).toEqual([
+            { name: 'database', state: 'check:healthy' },
+            { name: 'storage', state: 'check:degraded', detail: 'slow' },
+        ])
+        expect(SERVER_STATES[checks[1].state].label).toBe('degraded')
+    })
+
+    test('a status this app does not know is passed through as it came', () => {
+        expect(serverChecks([{ name: 'queue', status: 'purple', detail: null }])[0].state).toBe('purple')
     })
 })

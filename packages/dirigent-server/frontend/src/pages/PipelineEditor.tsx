@@ -10,7 +10,7 @@ import { ReportPane } from '@/components/pipeline/ReportPane'
 import { RunDialog } from '@/components/pipeline/RunDialog'
 import { SourceTab } from '@/components/pipeline/SourceTab'
 import { StepTab } from '@/components/pipeline/StepTab'
-import { Breadcrumb } from '@/components/Breadcrumb'
+import { ScreenTrail } from '@/components/ScreenTrail'
 import { PageHead } from '@/components/PageHead'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
@@ -596,12 +596,12 @@ export function PipelineEditor() {
     return (
         <div className="-mb-9 flex min-h-0 flex-1 flex-col gap-3">
             <PageHead>
-                <Breadcrumb
+                <ScreenTrail
                     trail={[
-                        { label: LABELS.screen.pipelines.name, to: '/pipelines' },
+                        { label: LABELS.screen.pipelines.name, href: '/pipelines' },
                         ...(heading === null
                             ? []
-                            : [{ label: heading.title, to: `/pipelines/${code}`, mono: !heading.named }]),
+                            : [{ label: heading.title, href: `/pipelines/${code}`, code: !heading.named }]),
                     ]}
                 />
                 <div className="flex min-h-9 items-center">

@@ -364,12 +364,12 @@ test('choosing the last step keeps it on the canvas the opening panel narrows', 
     await page.goto(`/runs/${runId}`)
     await expect(page.locator('.react-flow__node')).toHaveCount(3)
     // The panel is shut, which is what a first visit opens with, so the fit had the whole width.
-    await expect(page.locator('aside[inert]')).toHaveCount(1)
+    await expect(page.locator('[inert] aside')).toHaveCount(1)
     await everyNodeIsInView(page)
     await canvasSettled(page)
 
     await page.locator('.react-flow__node[data-id="third"]').click()
-    await expect(page.locator('aside[inert]')).toHaveCount(0)
+    await expect(page.locator('[inert] aside')).toHaveCount(0)
     await canvasSettled(page)
     await expect.poll(async () => nodeInView(page, 'third')).toBe(true)
     await everyNodeIsInView(page)
@@ -392,9 +392,9 @@ test('a view the reader moved is kept when the panel opens, with the chosen step
     await canvasSettled(page)
     const zoom = await graphZoom(page)
 
-    await expect(page.locator('aside[inert]')).toHaveCount(1)
+    await expect(page.locator('[inert] aside')).toHaveCount(1)
     await page.locator('.react-flow__node[data-id="third"]').click()
-    await expect(page.locator('aside[inert]')).toHaveCount(0)
+    await expect(page.locator('[inert] aside')).toHaveCount(0)
     await canvasSettled(page)
     await expect.poll(async () => nodeInView(page, 'third')).toBe(true)
     expect(await graphZoom(page), 'a moved view is not re-fitted').toBe(zoom)

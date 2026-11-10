@@ -10,12 +10,12 @@ import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { describedBy, Field } from '@winterop-com/sokkel-ui/Field'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
-import { Breadcrumb } from '@/components/Breadcrumb'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Section, Surface } from '@winterop-com/sokkel-ui/Section'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { GroupLabel } from '@winterop-com/sokkel-ui/GroupLabel'
 import { SwitchField } from '@winterop-com/sokkel-ui/SwitchField'
+import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { KindChip } from '@/components/KindChip'
 import { PageState } from '@/components/PageState'
@@ -38,6 +38,7 @@ import {
     SEARCH_PLACEHOLDER,
     SEARCH_WORDS,
     secretWords,
+    TOP_BAR_WORDS,
     type Tone,
 } from '@/lib/design-system'
 import { ICON_GROUPS, ICONS, type IconGroup, type IconName } from '@/lib/icons'
@@ -382,10 +383,14 @@ export function DesignSystem() {
                         </Specimen>
                         <Specimen title={VARIANT.trail}>
                             <div className="w-full space-y-3">
-                                <Breadcrumb
-                                    trail={[{ label: LABELS.screen.pipelines.name, to: '/pipelines' }]}
-                                    inPlace
-                                />
+                                <div className="flex h-shell-top items-center">
+                                    <TopBar
+                                        trail={[{ label: LABELS.screen.pipelines.name, href: '/pipelines' }]}
+                                        trailEnds="ancestor"
+                                        onSearch={() => {}}
+                                        words={TOP_BAR_WORDS}
+                                    />
+                                </div>
                                 <PageHeader
                                     inPlace
                                     title={pipeline.name}

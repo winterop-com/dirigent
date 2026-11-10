@@ -1,14 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import {
-    applePlatform,
-    isTypingField,
-    opensPalette,
-    opensShortcuts,
-    shortcuts,
-    togglesRail,
-    togglesTerminal,
-} from '@/lib/shortcuts'
+import { applePlatform, isTypingField, shortcuts, togglesRail, togglesTerminal } from '@/lib/shortcuts'
 
 function press(
     key: string,
@@ -19,25 +11,6 @@ function press(
 
 const TEXT_BOX = { tagName: 'INPUT', isContentEditable: false }
 const PROSE = { tagName: 'DIV', isContentEditable: true }
-
-describe('the palette chord', () => {
-    test('answers either modifier, because both mean the palette everywhere it exists', () => {
-        expect(opensPalette(press('k', { metaKey: true }))).toBe(true)
-        expect(opensPalette(press('k', { ctrlKey: true }))).toBe(true)
-    })
-
-    test('is a letter, matched by the character the press produced', () => {
-        expect(opensPalette(press('K', { metaKey: true }))).toBe(true)
-    })
-
-    test('needs a modifier, so typing k into a box is typing', () => {
-        expect(opensPalette(press('k'))).toBe(false)
-    })
-
-    test('refuses Alt, which a Nordic layout needs for other characters entirely', () => {
-        expect(opensPalette(press('k', { metaKey: true, altKey: true }))).toBe(false)
-    })
-})
 
 describe('the rail chord', () => {
     test('is Cmd on an Apple keyboard and Ctrl everywhere else', () => {
@@ -55,22 +28,6 @@ describe('the rail chord', () => {
 
     test('leaves a rich-text region alone, where the chord has meant bold for forty years', () => {
         expect(togglesRail(press('b', { metaKey: true }), PROSE, true)).toBe(false)
-    })
-})
-
-describe('the shortcuts key', () => {
-    test('is the character, whatever the layout pressed to make it', () => {
-        expect(opensShortcuts(press('?'), null)).toBe(true)
-    })
-
-    test('never interrupts something being typed into', () => {
-        expect(opensShortcuts(press('?'), TEXT_BOX)).toBe(false)
-        expect(opensShortcuts(press('?'), PROSE)).toBe(false)
-    })
-
-    test('refuses every chord modifier, each of which means something else somewhere', () => {
-        expect(opensShortcuts(press('?', { metaKey: true }), null)).toBe(false)
-        expect(opensShortcuts(press('?', { altKey: true }), null)).toBe(false)
     })
 })
 
@@ -93,9 +50,7 @@ describe('the terminal key', () => {
     })
 
     test('is claimed by nothing else this app binds', () => {
-        expect(opensPalette(press('t'))).toBe(false)
         expect(togglesRail(press('t'), null, true)).toBe(false)
-        expect(opensShortcuts(press('t'), null)).toBe(false)
     })
 })
 
