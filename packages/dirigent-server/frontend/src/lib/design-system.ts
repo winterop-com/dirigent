@@ -273,6 +273,7 @@ export const PALETTE_WORDS: CommandPaletteWords = {
     close: LABELS.palette.close,
     open: LABELS.palette.verb,
     palette: LABELS.palette.title,
+    sequence: LABELS.shell.shortcuts_sequence,
 }
 
 /** What the shortcuts dialog says. */

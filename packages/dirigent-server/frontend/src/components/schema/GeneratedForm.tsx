@@ -11,7 +11,7 @@ import { ReferenceRow } from '@/components/pipeline/ReferenceRow'
 import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import type { JsonMap } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
-import { drawnAs, readJson, refersTo } from '@/lib/form-schema'
+import { drawnAs, heldAs, readJson, refersTo } from '@/lib/form-schema'
 import { LABELS } from '@/lib/labels'
 import { hasReference } from '@/lib/references'
 import type { SchemaOut } from '@/lib/schemas'
@@ -28,16 +28,20 @@ export interface FormReferences {
  * the fields the library draws as plain boxes: a program in the editor of its language, a value
  * the library can only take as JSON text as a JSON buffer, a field naming a connection or a schema
  * with that thing under it, and, under `deferred`, a `${...}` reference in a field whose control
- * cannot hold text (a number, a choice, a switch, an object, a list, a map) as the text.
+ * cannot hold text (a number, a choice, a switch, an object, a list, a map) as the text, with a
+ * note beside the label saying so. Under `fold`, the fields neither required nor set when the form
+ * is first drawn wait behind one disclosure.
  */
 export function GeneratedForm({
     form,
     references,
     deferred = false,
+    fold = false,
 }: {
     form: SchemaFormState
     references?: FormReferences
     deferred?: boolean
+    fold?: boolean
 }) {
     return (
         <SchemaForm
@@ -45,6 +49,7 @@ export function GeneratedForm({
             field={fieldControl(form, references, deferred)}
             requiredMark="word"
             fallbacks
+            fold={fold}
         />
     )
 }
@@ -55,16 +60,20 @@ function fieldControl(
     deferred: boolean,
 ): SchemaFieldRenderer {
     return (field) => {
+        const held = deferred && hasReference(field.value) ? heldAs(field.schema, form.schema) : null
+        if (held !== null)
+            return {
+                control: <TextBox field={field} />,
+                note: LABELS.form.written_as_reference[held],
+            }
         const drawn = drawnAs(field.schema, form.schema)
-        if (deferred && (drawn === 'value' || drawn === 'other') && hasReference(field.value))
-            return <TextBox field={field} />
         if (drawn === 'program') return <ProgramBox field={field} />
         if (drawn === 'json') return <JsonBox field={field} form={form} />
         const refers = refersTo(field.schema)
         if (refers !== null && references !== undefined)
-            return (
-                <div className="flex flex-col gap-1.5">
-                    <TextBox field={field} />
+            return {
+                control: <TextBox field={field} />,
+                below: (
                     <ReferenceRow
                         refers={refers}
                         value={field.value}
@@ -72,8 +81,8 @@ function fieldControl(
                         schemas={references.schemas}
                         connections={references.connections}
                     />
-                </div>
-            )
+                ),
+            }
         return undefined
     }
 }

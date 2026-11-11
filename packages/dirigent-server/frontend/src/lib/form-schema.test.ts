@@ -6,6 +6,7 @@ import {
     drawnAs,
     formSchema,
     hasFields,
+    heldAs,
     readJson,
     refersTo,
     untitled,
@@ -93,6 +94,18 @@ describe('how a field is drawn', () => {
         const root = { $defs: { Level: { type: 'string', enum: ['a', 'b'] } } }
         const map = { type: 'object', additionalProperties: { $ref: '#/$defs/Level' } }
         expect(drawnAs(map, root)).toBe('other')
+    })
+
+    test('a control that cannot hold a reference is named; one that can is null', () => {
+        expect(heldAs({ type: 'string', enum: ['a', 'b'] })).toBe('choice')
+        expect(heldAs({ type: 'boolean' })).toBe('switch')
+        expect(heldAs({ type: 'integer' })).toBe('number')
+        expect(heldAs({ type: 'object', additionalProperties: { type: 'string' } })).toBe('map')
+        expect(heldAs({ type: 'array', items: { type: 'string' } })).toBe('list')
+        expect(heldAs({ type: 'object', properties: {} })).toBe('object')
+        expect(heldAs({ type: 'string' })).toBeNull()
+        expect(heldAs({ type: ['string', 'integer'] })).toBeNull()
+        expect(heldAs({})).toBeNull()
     })
 
     test('a string that names a connection or a schema says which', () => {

@@ -2101,6 +2101,15 @@ const form = {
     },
     /** The pane a program or a JSON value is opened out into. */
     in_window: (field: string) => `${field}, in a window`,
+    /** Beside the label of a field written as a reference where its own control cannot draw one. */
+    written_as_reference: {
+        choice: 'a reference, not a choice',
+        switch: 'a reference, not a switch',
+        number: 'a reference, not a number',
+        map: 'a reference, not a map',
+        list: 'a reference, not a list',
+        object: 'a reference, not fields',
+    },
     /** What a field says when its value is not one the schema accepts. */
     refusal: {
         required: (label: string) => `${label} is required`,
