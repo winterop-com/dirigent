@@ -639,6 +639,12 @@ test('a plan says when applying would take a schedule away', async ({ page }) =>
     await expect(diff.locator('[data-variant="added"]').filter({ hasText: '127.0.0.1:9/after' })).toHaveCount(
         1,
     )
+    // Its window is opened from the diff's own header.
+    await expect(
+        diff.locator('[data-slot="code-block-header"]').getByRole('button', {
+            name: LABELS.shell.open_in_window(LABELS.editor.plan.diff_title('1', '2')),
+        }),
+    ).toBeVisible()
 })
 
 test('a plan that rewrites nothing in the document draws no diff', async ({ page }) => {
@@ -651,13 +657,9 @@ test('a plan that rewrites nothing in the document draws no diff', async ({ page
     await expect(dialog.locator('[data-slot="code-block"]')).toHaveCount(0)
 })
 
-/** The rows of the plan's list headed by one heading, drawn by the library's list. */
+/** The rows of the plan's list named by its heading. */
 function consequences(dialog: Locator, heading: string): Locator {
-    return dialog
-        .locator('div')
-        .filter({ has: dialog.page().getByText(heading, { exact: true }) })
-        .last()
-        .locator('ul > li')
+    return dialog.getByRole('list', { name: heading, exact: true }).getByRole('listitem')
 }
 
 test('a canvas with nothing on it offers nothing to zoom', async ({ page }) => {

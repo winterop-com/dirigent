@@ -844,6 +844,13 @@ const shell = {
     in_window: (name: string) => `${name}, in a window`,
     /** The button that closes that window. */
     close_window: 'Close the window',
+    /** What a diff says in place of its counts when the two texts are the same. */
+    diff_unchanged: 'No changes',
+    /** The row a run of unchanged lines folds into in a diff, which opens it on a press. */
+    diff_folded: {
+        one: (count: string) => `${count} unchanged line`,
+        many: (count: string) => `${count} unchanged lines`,
+    },
     /** The way out of a screen and into the requests behind it. */
     api_docs: (section: string) => `The ${section} section of this instance's API documentation`,
 

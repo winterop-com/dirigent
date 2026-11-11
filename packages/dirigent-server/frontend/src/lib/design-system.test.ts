@@ -4,6 +4,7 @@ import type { IconButtonProps } from '@winterop-com/sokkel-ui/IconButton'
 import {
     copyWords,
     DIALOG_WORDS,
+    DIFF_WORDS,
     dotOf,
     galleryAnchor,
     GALLERY_INDEX,
@@ -69,6 +70,14 @@ describe('a pane with a window', () => {
 
     test("an editor's schema check says deprecated beside a deprecated key", () => {
         expect(SCHEMA_CHECK_WORDS).toEqual({ deprecated: LABELS.editor.deprecated_key })
+    })
+})
+
+describe('a diff', () => {
+    test("says no changes and counts a folded run in this app's words", () => {
+        expect(DIFF_WORDS.unchanged).toBe(LABELS.shell.diff_unchanged)
+        expect(DIFF_WORDS.folded(1)).toBe(LABELS.shell.diff_folded.one('1'))
+        expect(DIFF_WORDS.folded(1200)).toBe(LABELS.shell.diff_folded.many('1,200'))
     })
 })
 

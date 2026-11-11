@@ -12,6 +12,7 @@ import type { CommandPaletteWords } from '@winterop-com/sokkel-ui/CommandPalette
 import type { CodeSchemaWords } from '@winterop-com/sokkel-ui/CodeEditor'
 import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
 import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
+import type { DiffViewWords } from '@winterop-com/sokkel-ui/DiffView'
 import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
@@ -31,7 +32,7 @@ import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
 import type { WindowedPaneWords } from '@winterop-com/sokkel-ui/WindowedPane'
 
-import { LABELS } from '@/lib/labels'
+import { counted, LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import { statusLabel, statusTokens } from '@/lib/status'
 
@@ -170,6 +171,12 @@ export const TOOLBAR_WORDS: ToolbarWords = {
 /** What a pane's window button and its window's close say, the button naming the pane. */
 export function windowWords(name: string): Partial<WindowedPaneWords> {
     return { expand: LABELS.shell.open_in_window(name), close: LABELS.shell.close_window }
+}
+
+/** What a diff says when nothing changed, and on the row a run of unchanged lines folds into. */
+export const DIFF_WORDS: DiffViewWords = {
+    unchanged: LABELS.shell.diff_unchanged,
+    folded: (count) => counted(count, LABELS.shell.diff_folded)(count.toLocaleString('en')),
 }
 
 /** What the sign-in screen says: its title and button, its two fields, the reveal toggle and the seam. No placeholders: the labels name the fields. */

@@ -1,5 +1,5 @@
 import { counted, LABELS } from '@/lib/labels'
-import { windowWords } from '@/lib/design-system'
+import { DIFF_WORDS, windowWords } from '@/lib/design-system'
 import type { DocumentDiff, PlanItem, PlanView } from '@/lib/pipeline-plan'
 import type { ValidationIssue } from '@/lib/pipelines'
 import { sentenceFor } from '@/lib/wording'
@@ -84,8 +84,8 @@ export function PlanReading({ view, diff }: { view: PlanView; diff?: DocumentDif
 }
 
 /**
- * The stored document set against the one being applied: a pane of seventeen lines, and the
- * whole of it in the window.
+ * The stored document set against the one being applied: in the dialog its changes with the
+ * unchanged runs between them folded, at no height of its own, and every line of it in the window.
  */
 function DocumentDiffPane({ diff }: { diff: DocumentDiff }) {
     return (
@@ -97,20 +97,23 @@ function DocumentDiffPane({ diff }: { diff: DocumentDiff }) {
         >
             {(where) =>
                 where === 'pane' ? (
-                    <div className="flex min-w-0 gap-1">
-                        <DiffView
-                            before={diff.before}
-                            after={diff.after}
-                            title={diff.title}
-                            size="sm"
-                            className="max-h-72 min-w-0 flex-1"
-                        />
-                        <div className="shrink-0">
-                            <WindowedPaneButton className="text-faint" />
-                        </div>
-                    </div>
+                    <DiffView
+                        before={diff.before}
+                        after={diff.after}
+                        title={diff.title}
+                        size="sm"
+                        actions={<WindowedPaneButton className="text-faint" />}
+                        words={DIFF_WORDS}
+                    />
                 ) : (
-                    <DiffView before={diff.before} after={diff.after} size="sm" className="min-h-0 flex-1" />
+                    <DiffView
+                        before={diff.before}
+                        after={diff.after}
+                        size="sm"
+                        context={Infinity}
+                        className="min-h-0 flex-1"
+                        words={DIFF_WORDS}
+                    />
                 )
             }
         </WindowedPane>
