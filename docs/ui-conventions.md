@@ -523,6 +523,21 @@ has fired the cell says so in front of the instant. What decides that word is `l
 and never the calendar: a moment that has passed with no firing behind it is one the scheduler
 has yet to reach, and saying "fired" of it would be a second untruth in place of the first.
 
+**A clock being declared is read back by the instance, once, under its box.** The new schedule
+dialog sends what is written to `POST /schedules/$preview` a moment after the last keystroke,
+and what comes back is the one reading of it: the core's own arithmetic, so the dialog cannot
+promise a firing the scheduler would not make. The zone is chosen first, in the timezone picker
+above the clock, and that picker is the only place the dialog names it. A cron clock is
+sokkel-ui's `CronField`, with `0 5 * * *` as its placeholder and no zone beside its label: the
+expression read back in words from `triggers.schedule.reading`, and the three firings the instance
+answers with, each on the zone's wall clock and spelled as `formatMoment` spells the other clocks'
+firings. The field always holds the instance's verdict, so an expression the core reads and the
+field's own parse does not, such as `0 5 L * *` or `0 5 * * 1#2`, is valid and shows the
+instance's firings. Until the answer for what is written now arrives, the field's own count shows
+muted beside "Checking"; a refusal is the field's issue, in this interface's sentence for its
+code, and it shuts Create. An empty field says nothing yet and draws dashed rows. An interval and
+a one-time clock keep a plain box with the firings in one muted line under it.
+
 ## A listing is a cursor walk
 
 Every screen that draws a listing draws it with sokkel-ui's `DataTable`, spread with `LISTING`
