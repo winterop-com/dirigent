@@ -227,6 +227,80 @@ test('a step draws every key its block takes, the ones it leaves unset among the
     await expect(panel.getByText('max_size', { exact: true })).toBeVisible()
 })
 
+/** An http step with a header set, and every other key its block takes left to its default. */
+const HTTP_FORM_PIPELINE = 'e2e-http-step-form'
+
+/**
+ * EVERY SHAPE A REQUEST TAKES HAS ITS OWN CONTROL. Headers are key/value rows, a size is one box
+ * that takes `16KB` as well as a count of bytes, a choice left to its default says the default
+ * without writing it, and only a value of no type at all, the body, is a JSON buffer.
+ */
+test("an http step's headers are rows, its sizes text, and its defaults stay unwritten", async ({ page }) => {
+    await signIn(page)
+    await applyDocument(page.request, {
+        format: 'dirigent/v1',
+        kind: 'pipeline',
+        code: HTTP_FORM_PIPELINE,
+        steps: {
+            fetch: {
+                block: 'http.request',
+                config: { url: 'http://127.0.0.1:9/', headers: { Accept: 'text/csv' } },
+            },
+        },
+    })
+
+    await page.goto(`/pipelines/${HTTP_FORM_PIPELINE}/edit`)
+    await page.locator('.react-flow__node').getByText('fetch', { exact: true }).click()
+    const panel = page.locator('aside')
+    await expect(panel.getByText('http.request', { exact: true })).toBeVisible()
+
+    // A map's field: the innermost box holding both its name and the control looked for.
+    const field = (name: string, holding: Locator) =>
+        panel
+            .locator('div')
+            .filter({ has: page.getByText(name, { exact: true }) })
+            .filter({ has: holding })
+            .last()
+
+    // THE HEADER IS A ROW: its name in the key box, its value in a box named by the key.
+    const headers = field('headers', page.getByRole('button', { name: 'Remove Accept', exact: true }))
+    await expect(headers.getByLabel('Key 1', { exact: true })).toHaveValue('Accept')
+    await expect(headers.getByLabel('Accept', { exact: true })).toHaveValue('text/csv')
+    await headers.getByLabel('Accept', { exact: true }).fill('application/json')
+
+    // A query value is read as the narrowest thing it parses as: 5 is a number, not the text "5".
+    await field('query', page.getByRole('button', { name: 'Add', exact: true }))
+        .getByRole('button', { name: 'Add', exact: true })
+        .click()
+    const query = field('query', page.getByLabel('Key 1', { exact: true }))
+    await query.getByLabel('Key 1', { exact: true }).fill('page')
+    await query.getByLabel('page', { exact: true }).fill('5')
+
+    // A SIZE IS ONE BOX. Unset, it shows the default as what applies; 16KB is a size it takes.
+    const size = panel.getByLabel('max_response', { exact: true })
+    await expect(size).toHaveValue('')
+    await expect(size).toHaveAttribute('placeholder', '32mb (default)')
+    await size.fill('16KB')
+    await size.blur()
+    await expect(size).toHaveValue('16KB')
+    await expect(size).not.toHaveAttribute('aria-invalid', 'true')
+
+    // A CHOICE LEFT TO ITS DEFAULT SAYS IT, and nothing is written for it.
+    await expect(panel.getByLabel('method', { exact: true })).toContainText('GET (default)')
+
+    // The body takes any JSON value, which no control but a JSON buffer can hold.
+    await expect(panel.getByRole('textbox', { name: 'body', exact: true })).toBeVisible({ timeout: 30_000 })
+
+    // WHAT WAS TYPED IS THE DOCUMENT, and what was left to its default is not in it.
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    const source = panel.locator('.cm-content')
+    await expect(source).toContainText('Accept: application/json', { timeout: 30_000 })
+    await expect(source).toContainText('page: 5')
+    await expect(source).toContainText('max_response: 16KB')
+    await expect(source).not.toContainText('method:')
+    await expect(source).not.toContainText("'5'")
+})
+
 /**
  * THE CONFIG IS THE QUESTION AND THE ENGINE IS THE SETTING.
  *

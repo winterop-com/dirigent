@@ -61,10 +61,20 @@ describe('how a field is drawn', () => {
         expect(drawnAs({ type: 'string', contentMediaType: 'application/jq' })).toBe('program')
     })
 
-    test('a value of no type, a union and an open map are JSON', () => {
+    test('what the library can only take as JSON text is JSON', () => {
         expect(drawnAs({})).toBe('json')
-        expect(drawnAs({ anyOf: [{ type: 'string' }, { type: 'integer' }] })).toBe('json')
-        expect(drawnAs({ type: 'object', additionalProperties: { type: 'string' } })).toBe('json')
+        expect(drawnAs({ anyOf: [{ type: 'string' }, { type: 'object' }] })).toBe('json')
+        expect(drawnAs({ type: 'object', additionalProperties: { type: 'object' } })).toBe('json')
+        expect(drawnAs({ type: 'array', items: { type: 'object' } })).toBe('json')
+    })
+
+    test('a union of scalars is text, read as the narrowest branch it parses as', () => {
+        const size = {
+            anyOf: [{ type: 'string', pattern: '^\\d+[KMG]?B$' }, { type: 'integer' }],
+            format: 'size',
+        }
+        expect(drawnAs(size)).toBe('text')
+        expect(drawnAs({ type: ['string', 'integer'] })).toBe('text')
     })
 
     test('a number, a switch and a choice are values their control cannot hold text in', () => {
@@ -73,9 +83,16 @@ describe('how a field is drawn', () => {
         expect(drawnAs({ type: 'string', enum: ['a', 'b'] })).toBe('value')
     })
 
-    test("an object with fields and a list are the form's own", () => {
+    test("an object with fields, a list and a map of scalars are the form's own", () => {
         expect(drawnAs({ type: 'object', properties: {} })).toBe('other')
         expect(drawnAs({ type: 'array', items: { type: 'string' } })).toBe('other')
+        expect(drawnAs({ type: 'object', additionalProperties: { type: 'string' } })).toBe('other')
+    })
+
+    test('a map whose values are named by reference is read against the root', () => {
+        const root = { $defs: { Level: { type: 'string', enum: ['a', 'b'] } } }
+        const map = { type: 'object', additionalProperties: { $ref: '#/$defs/Level' } }
+        expect(drawnAs(map, root)).toBe('other')
     })
 
     test('a string that names a connection or a schema says which', () => {

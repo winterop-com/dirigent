@@ -25,9 +25,10 @@ export interface FormReferences {
 
 /**
  * A form drawn from a JSON Schema by sokkel-ui's `SchemaForm`, with dirigent's own controls for
- * the fields the library draws as plain boxes: a program in the editor of its language, a JSON
- * value as a JSON buffer, a field naming a connection or a schema with that thing under it, and,
- * under `deferred`, a `${...}` reference in a field whose control cannot hold text as the text.
+ * the fields the library draws as plain boxes: a program in the editor of its language, a value
+ * the library can only take as JSON text as a JSON buffer, a field naming a connection or a schema
+ * with that thing under it, and, under `deferred`, a `${...}` reference in a field whose control
+ * cannot hold text (a number, a choice, a switch, an object, a list, a map) as the text.
  */
 export function GeneratedForm({
     form,
@@ -54,8 +55,9 @@ function fieldControl(
     deferred: boolean,
 ): SchemaFieldRenderer {
     return (field) => {
-        const drawn = drawnAs(field.schema)
-        if (deferred && drawn === 'value' && hasReference(field.value)) return <TextBox field={field} />
+        const drawn = drawnAs(field.schema, form.schema)
+        if (deferred && (drawn === 'value' || drawn === 'other') && hasReference(field.value))
+            return <TextBox field={field} />
         if (drawn === 'program') return <ProgramBox field={field} />
         if (drawn === 'json') return <JsonBox field={field} form={form} />
         const refers = refersTo(field.schema)

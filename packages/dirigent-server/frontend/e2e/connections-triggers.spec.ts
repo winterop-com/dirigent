@@ -333,11 +333,47 @@ test('a connection opens a form whose secret is sealed and whose kind is fixed',
     // it is set, and Replace opens an empty password box, because no read returns a credential.
     await expect(dialog.getByText('Set', { exact: true })).toHaveCount(1)
     await expect(dialog).not.toContainText('a credential nothing may ever show')
-    await dialog.getByRole('button', { name: 'Replace', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Replace basic_password', exact: true }).click()
     const secret = dialog.getByLabel('basic_password', { exact: true })
     await expect(secret).toHaveValue('')
     await expect(secret).toHaveAttribute('type', 'password')
     await expect(dialog.getByLabel('base_url', { exact: true })).toHaveValue(baseURL ?? '')
+})
+
+test('two sealed secrets are told apart, and Replace opens only its own', async ({ page }) => {
+    await signIn(page)
+    const prefix = await apiPrefix(page.request)
+    const code = 'e2e-two-secrets'
+    await removeConnection(page.request, code)
+    const made = await page.request.post(`${prefix}/connections`, {
+        data: {
+            code,
+            kind: 'http',
+            config: {
+                base_url: 'http://127.0.0.1:9',
+                bearer_token: 'the first credential',
+                basic_username: 'dev',
+                basic_password: 'the second credential',
+            },
+        },
+    })
+    expect(made.ok(), await made.text()).toBe(true)
+
+    await page.goto(`/connections/${code}`)
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: LABELS.action.edit, exact: true }).click()
+
+    // Each Replace is named by the field it opens, so a reader who hears them can tell them apart.
+    const bearer = dialog.getByRole('button', { name: 'Replace bearer_token', exact: true })
+    const basic = dialog.getByRole('button', { name: 'Replace basic_password', exact: true })
+    await expect(bearer).toHaveCount(1)
+    await expect(basic).toHaveCount(1)
+
+    await bearer.click()
+    await expect(dialog.getByLabel('bearer_token', { exact: true })).toHaveValue('')
+    await expect(basic).toHaveCount(1)
+
+    await removeConnection(page.request, code)
 })
 
 test('the API chip stands with the verbs, and the create is the primary', async ({ page }) => {
@@ -483,7 +519,7 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     const opened = page.getByRole('dialog')
     await opened.getByRole('button', { name: LABELS.action.edit, exact: true }).click()
     await expect(opened.getByText('Set', { exact: true })).toHaveCount(1)
-    await expect(opened.getByRole('button', { name: 'Replace', exact: true })).toHaveCount(1)
+    await expect(opened.getByRole('button', { name: 'Replace basic_password', exact: true })).toHaveCount(1)
     await expect(opened.getByLabel('base_url', { exact: true })).toHaveValue(baseURL ?? '')
 })
 

@@ -895,10 +895,18 @@ a schema as field descriptors, for the screens that describe a schema rather tha
 catalog, the pipeline pane's parameters, a step group's summary line and the step panel's list of
 refusals.
 
-**What no control fits is edited as JSON.** A value with no type, a union of types and a map are
-a JSON buffer -- the same editor a document is written in, in `application/json` -- and a list of
-scalars is the library's list of rows. Text that does not parse is held as the form's draft and
-said at the field, and the form will not be sent over it.
+**A shape the library has a control for is the library's.** A map of scalars -- headers, query
+parameters, environment variables -- is its key/value rows, each key unique and the value a box
+named by its key. A union of scalars, such as a `Size`, written `16KB` or as a count of bytes, is one text
+box, read as the narrowest branch the text parses as: `16KB` stays text, `16384` is a number.
+A list of scalars is its list of rows.
+
+**What no control fits is edited as JSON.** A value with no type, a union with an object or a list
+among its branches, a map of objects and a list of them are a JSON buffer -- the same editor a
+document is written in, in `application/json`. `drawnAs` in `lib/form-schema` reads a field the
+way the library's own dispatch does, so the buffer takes exactly what the library would draw as
+JSON text. Text that does not parse is held as the form's draft and said at the field, and the
+form will not be sent over it.
 
 **A field that carries a program is edited as one.** A string whose schema published a
 `contentMediaType` -- `application/jq` for the three jq verbs, `text/x-shellscript` for the shell
@@ -986,8 +994,11 @@ library labels the field by its key in mono. `description` is the help under the
 field is required is said beside the label rather than inside it, so the control's accessible
 name stays the key. **The required word is in the muted ink, never amber**: amber is the brand's
 and the focus ring's, and a field label is neither. `SchemaForm` draws it with
-`requiredMark="word"`, and the control says it is required with `aria-required`. A field with a
-schema `default` says it under the control (`fallbacks`), as what applies when it is left empty.
+`requiredMark="word"`, and the control says it is required with `aria-required`. **A default is
+shown and never written.** A field left unset shows its schema `default` muted in the control,
+`GET (default)`, and the form's value leaves the key out, so what is sent carries only what was
+chosen and the server applies the rest. The default is also said under the control (`fallbacks`),
+as what applies when it is left empty; a `default` of `null` says nothing there.
 
 **Every field is a design-system control, and an empty one looks like an empty one.** A field
 renders through `ui/input`, `ui/textarea`, `ui/select` or `ui/switch` and never a bare element,
@@ -996,8 +1007,9 @@ it with a hairline the ground shows, and the light one has to say the same thing
 a stronger line, or a value floats in whitespace and an empty box is not there at all. A row is
 the key as its label, the annotation beside it, the control, and one muted line under. **A secret
 is the library's `SecretField`**: an unset one is an empty masked input with Show; one the
-connection already holds is sealed -- masked, saying it is set, with Replace -- and stays out of
-what is sent until it is replaced, so the server keeps what it has. Never the words "not set" as
+connection already holds is sealed -- masked, saying it is set, with Replace, named by its field
+("Replace basic_password") so two sealed secrets are told apart -- and stays out of what is sent
+until it is replaced, so the server keeps what it has. Never the words "not set" as
 prose where a control belongs.
 
 **A section the document requires is open, and one it does not is a link.** A run dialog asks for
@@ -1032,7 +1044,8 @@ The form is told so with `deferred`, which `useSchemaForm` leaves unchecked: `de
 choice and a switch each draw a value the schema describes, and drawn by their own control a
 reference would read as empty, unset or off and the first touch would write that over the
 document. So `GeneratedForm` draws the text in a mono box, and clearing the box brings the control
-back.
+back. The same holds for an object, a list or a map written whole as a reference. A union of
+scalars is already a text box and holds one as it is.
 
 **The refusal here is the client's half.** A field is checked against its own schema so a form can
 say what is wrong before it asks. Whether a document applies -- its graph, its references, the

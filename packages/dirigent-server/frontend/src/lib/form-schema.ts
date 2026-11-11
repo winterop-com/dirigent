@@ -7,7 +7,7 @@
  * as a secret field.
  */
 
-import type { DeferredValue } from '@winterop-com/sokkel-ui/schema/issues'
+import { fieldSchema, scalarUnion, types, type DeferredValue } from '@winterop-com/sokkel-ui/schema/issues'
 import type { JsonSchema } from '@winterop-com/sokkel-ui/schema/read'
 
 import type { JsonMap } from '@/lib/api'
@@ -88,34 +88,56 @@ export function hasFields(schema: JsonSchema): boolean {
 /** A value written as `${...}`, which the run resolves and no check here may refuse. */
 export const deferReference: DeferredValue = (value) => hasReference(value)
 
-/** The types a schema names, `null` left out. */
-function typesOf(schema: JsonSchema): string[] {
-    const named = Array.isArray(schema.type) ? schema.type : schema.type === undefined ? [] : [schema.type]
-    return named.filter((one) => one !== 'null')
+/** How the library draws a schema: fields, rows, key/value rows, one control, or JSON text. */
+type LibraryKind = 'object' | 'list' | 'map' | 'scalar' | 'longtext' | 'json'
+
+/** The library's own reading of a schema, which decides what it can draw and what it leaves as JSON. */
+function libraryKind(schema: JsonSchema, root: JsonSchema): LibraryKind {
+    const main = types(schema).main
+    if (schema.properties !== undefined) return 'object'
+    if (main[0] === 'array' && schema.items !== undefined) {
+        const items = fieldSchema(schema.items, root)
+        if (items.enum !== undefined || items.properties !== undefined) return 'list'
+        const kind = libraryKind(items, root)
+        return kind === 'json' || kind === 'object' || kind === 'map' ? 'json' : 'list'
+    }
+    if (typeof schema.additionalProperties === 'object' && (main.length === 0 || main[0] === 'object'))
+        return libraryKind(fieldSchema(schema.additionalProperties, root), root) === 'scalar' ? 'map' : 'json'
+    if (schema.enum !== undefined || scalarUnion(schema, root) !== undefined) return 'scalar'
+    if (main.length !== 1) return 'json'
+    if (main[0] === 'string')
+        return (schema.maxLength ?? 0) > 200 ||
+            schema.format === 'markdown' ||
+            schema.contentMediaType !== undefined
+            ? 'longtext'
+            : 'scalar'
+    return main[0] === 'boolean' || main[0] === 'number' || main[0] === 'integer' ? 'scalar' : 'json'
 }
 
 /**
- * How dirigent draws a field the form hands it: a program, a JSON value, one line of text, a
- * value whose own control (a number, a choice, a switch) cannot hold text, or `other` for the
- * form's own control.
+ * How dirigent draws a field the form hands it: a program, a JSON value, text, a value whose own
+ * control (a number, a choice, a switch) cannot hold text, or `other` for the form's own fields,
+ * rows and key/value rows.
  */
 export type DrawnAs = 'program' | 'json' | 'text' | 'value' | 'other'
 
-/** How one field's resolved schema is drawn. */
-export function drawnAs(schema: JsonSchema): DrawnAs {
-    const types = typesOf(schema)
-    if (typeof schema.contentMediaType === 'string' && types.length === 1 && types[0] === 'string')
+/** How one field's resolved schema is drawn, its references read against `root`. */
+export function drawnAs(schema: JsonSchema, root: JsonSchema = schema): DrawnAs {
+    const main = types(schema).main
+    if (typeof schema.contentMediaType === 'string' && main.length === 1 && main[0] === 'string')
         return 'program'
     if (schema.enum !== undefined || schema.const !== undefined) return 'value'
-    if (schema.properties !== undefined) return 'other'
-    if (types.length !== 1 || types[0] === 'object') return 'json'
-    switch (types[0]) {
-        case 'string':
-            return 'text'
-        case 'array':
+    switch (libraryKind(schema, root)) {
+        case 'json':
+            return 'json'
+        case 'object':
+        case 'list':
+        case 'map':
             return 'other'
-        default:
-            return 'value'
+        case 'longtext':
+            return 'text'
+        case 'scalar':
+            return main.length === 1 && main[0] !== 'string' ? 'value' : 'text'
     }
 }
 
