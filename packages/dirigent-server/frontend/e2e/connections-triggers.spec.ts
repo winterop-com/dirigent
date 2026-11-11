@@ -795,3 +795,46 @@ test('a cron clock the instance refuses carries its sentence as the issue, and s
     await expect(page.getByText(said, { exact: true })).toBeVisible()
     await expect(dialog.getByRole('button', { name: LABELS.action.create.verb })).toBeDisabled()
 })
+
+test("a cron clock the instance reads and the box cannot is taken at the instance's word", async ({
+    page,
+}) => {
+    await signIn(page)
+    await applyExample(page.request, CRON.file)
+
+    await page.goto('/triggers')
+    await page.getByRole('button', { name: LABELS.triggers.schedule.new, exact: true }).click()
+
+    const dialog = page.getByRole('dialog')
+    await pick(page, 'Pipeline', CRON.pipeline, CRON.pipelineTitle)
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(`last-${String(Date.now())}`)
+    await pick(page, 'Timezone', 'Europe/Oslo', 'Europe/Oslo')
+    const asked = page.waitForResponse(
+        (response) =>
+            response.url().endsWith('/schedules/$preview') &&
+            response.request().postDataJSON()?.cron === '0 5 L * *',
+    )
+
+    // The last day of the month is the core's syntax and not the box's five fields.
+    const box = dialog.getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
+    await box.fill('0 5 L * *')
+    await expect(box).not.toHaveAttribute('aria-invalid')
+
+    const preview = await asked
+    expect(preview.ok()).toBe(true)
+    const firings = ((await preview.json()) as { firings: string[] }).firings
+    expect(firings).toHaveLength(3)
+    const list = dialog.getByRole('list')
+    await expect(list).not.toHaveAttribute('aria-busy')
+    const rows = list.getByRole('listitem')
+    for (const [at, firing] of firings.entries()) {
+        // Five in Oslo is four or three in UTC, so the day is the same on either clock.
+        const day = String(new Date(firing).getUTCDate())
+        await expect(rows.nth(at)).toContainText(new RegExp(`\\b${day} [A-Z][a-z]{2} 05:00$`))
+    }
+    await expect(box).not.toHaveAttribute('aria-invalid')
+    await expect(
+        dialog.getByText(LABELS.triggers.schedule.dialog.unreadable_clock, { exact: true }),
+    ).toHaveCount(0)
+    await expect(dialog.getByRole('button', { name: LABELS.action.create.verb })).toBeEnabled()
+})

@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
     browserZone,
-    cronWords,
-    describeClock,
+    CRON_READING_WORDS,
     given,
+    readCron,
     readValues,
     unreadySchedule,
     writeValues,
@@ -75,14 +75,19 @@ describe('a box that was emptied', () => {
 })
 
 describe('the cron box', () => {
-    it('reads a blank expression as nothing, and one it cannot parse as unreadable', () => {
-        expect(describeClock('  ')).toBe('')
-        expect(describeClock('not cron')).toBeNull()
-        expect(describeClock('0 5 * * *')).not.toBeNull()
+    it("reads an expression back in the catalogue's words, and one it cannot parse as nothing", () => {
+        expect(readCron('0 5 * * 1-5')).toBe('At 05:00 on weekdays')
+        expect(readCron('0 5 * * *')).toBe('Every day at 05:00')
+        expect(readCron('30 2 1,15 * *')).toBe('At 02:30 on the 1st and 15th')
+        expect(readCron('0 */6 * * *')).toBe('Every 6 hours')
+        expect(readCron('0 5 * * mon,wed,fri')).toBe('At 05:00 on Monday, Wednesday and Friday')
+        expect(readCron('0 5 L * *')).toBeNull()
+        expect(readCron('not cron')).toBeNull()
     })
 
-    it('says a blank expression fires nothing only once something is written', () => {
-        expect(cronWords('').never).toBe('')
-        expect(cronWords('0 5 31 2 *').never).toBe('This clock never fires.')
+    it('counts the days of the month the way English does', () => {
+        expect(CRON_READING_WORDS.onDays?.([1, 2, 3, 11, 12, 13, 21, 22, 23])).toBe(
+            'on the 1st, 2nd, 3rd, 11th, 12th, 13th, 21st, 22nd and 23rd',
+        )
     })
 })

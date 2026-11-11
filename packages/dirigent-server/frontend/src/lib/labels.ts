@@ -2673,6 +2673,74 @@ const triggers = {
             no_clock: 'Nothing says when this fires.',
             params_refused: 'A pinned parameter is not valid for this pipeline.',
         },
+        /**
+         * A cron expression read back in words under the box it is written in, a phrase at a
+         * time: "Every day at 05:00 on weekdays". Times arrive as `05:00`, and days and months
+         * by the names below, and a list arrives joined.
+         */
+        reading: {
+            day: {
+                sunday: 'Sunday',
+                monday: 'Monday',
+                tuesday: 'Tuesday',
+                wednesday: 'Wednesday',
+                thursday: 'Thursday',
+                friday: 'Friday',
+                saturday: 'Saturday',
+            },
+            month: {
+                january: 'January',
+                february: 'February',
+                march: 'March',
+                april: 'April',
+                may: 'May',
+                june: 'June',
+                july: 'July',
+                august: 'August',
+                september: 'September',
+                october: 'October',
+                november: 'November',
+                december: 'December',
+            },
+            /** Between the items of a list but the last two: "Monday, Tuesday and Friday". */
+            list_separator: ', ',
+            /** Before the last item of a list. */
+            list_last: (most: string, last: string) => `${most} and ${last}`,
+            /** A day of the month: 1st, 2nd, 11th, 23rd. */
+            ordinal: (day: number) =>
+                `${String(day)}${day % 100 >= 11 && day % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][day % 10] ?? 'th')}`,
+            every_minute: 'every minute',
+            every_minutes: (step: number) => `every ${String(step)} minutes`,
+            /** Once an hour, at a minute past it, 0 being on the hour. */
+            every_hour: (minute: number) =>
+                minute === 0 ? 'every hour, on the hour' : `every hour at ${String(minute)} minutes past`,
+            /** Every few hours from midnight, at a minute past each. */
+            every_hours: (step: number, minute: number) =>
+                minute === 0
+                    ? `every ${String(step)} hours`
+                    : `every ${String(step)} hours at ${String(minute)} minutes past`,
+            /** Once an hour between two times. */
+            hourly: (from: string, to: string) => `every hour from ${from} to ${to}`,
+            /** At a few times of day. */
+            at: (times: string) => `at ${times}`,
+            /** Every few minutes between two times. */
+            minutes_between: (step: number, from: string, to: string) =>
+                `every ${String(step)} minutes from ${from} to ${to}`,
+            /** Any other set of minutes and hours. */
+            minutes_of_hours: (minutes: string, hours: string) => `at minute ${minutes} of hour ${hours}`,
+            /** Times of day, on every day: "every day at 05:00". */
+            daily: (time: string) => `every day ${time}`,
+            /** Days of the month: "on the 1st and 15th". */
+            on_days: (days: string) => `on the ${days}`,
+            weekdays: 'on weekdays',
+            weekends: 'on weekends',
+            /** A run of days of the week: "on Monday to Thursday". */
+            weekday_range: (from: string, to: string) => `on ${from} to ${to}`,
+            on_weekdays: (days: string) => `on ${days}`,
+            /** Days of the month or days of the week, when the expression names both. */
+            either: (days: string, weekdays: string) => `${days} or ${weekdays}`,
+            in_months: (months: string) => `in ${months}`,
+        },
     },
 
     /** The one moment a minted token or signing secret is readable. */

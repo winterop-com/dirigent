@@ -46,12 +46,12 @@ import type { RunPriority } from '@/lib/runs'
 import { formSchema, hasFields } from '@/lib/form-schema'
 import {
     browserZone,
-    cronWords,
-    describeClock,
+    CRON_FIELD_WORDS,
     FIRINGS_READ,
     given,
     INHERITED,
     PRIORITIES,
+    readCron,
     readValues,
     unreadySchedule,
     writeValues,
@@ -216,6 +216,26 @@ export function NewSchedule({
                         placeholder={LABELS.triggers.schedule.dialog.description_hint}
                     />
 
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label htmlFor="schedule-timezone">{LABELS.word.timezone}</Label>
+                            <Picker
+                                id="schedule-timezone"
+                                label={LABELS.word.timezone}
+                                value={timezone}
+                                options={zones}
+                                placeholder={LABELS.triggers.schedule.dialog.timezone_hint}
+                                onChange={setTimezone}
+                            />
+                        </div>
+                        <PriorityField
+                            id="schedule-priority"
+                            value={priority}
+                            pipeline={chosen.priority}
+                            onChange={setPriority}
+                        />
+                    </div>
+
                     <div className="space-y-2">
                         <Label>{LABELS.word.clock}</Label>
                         <Segmented
@@ -247,26 +267,6 @@ export function NewSchedule({
                             <ClockReading reading={reading} zone={timezone} />
                         </div>
                     )}
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label htmlFor="schedule-timezone">{LABELS.word.timezone}</Label>
-                            <Picker
-                                id="schedule-timezone"
-                                label={LABELS.word.timezone}
-                                value={timezone}
-                                options={zones}
-                                placeholder={LABELS.triggers.schedule.dialog.timezone_hint}
-                                onChange={setTimezone}
-                            />
-                        </div>
-                        <PriorityField
-                            id="schedule-priority"
-                            value={priority}
-                            pipeline={chosen.priority}
-                            onChange={setPriority}
-                        />
-                    </div>
 
                     <ParamsBox chosen={pipeline !== ''} schema={chosen.schema} params={params} />
 
@@ -313,7 +313,11 @@ function ClockReading({ reading, zone }: { reading: Reading; zone: string }) {
 
 /**
  * A cron clock, its reading in words, and the firings the instance reads back in the chosen zone.
- * Until the instance answers, the box's own count of them shows muted; a refusal is the box's issue.
+ *
+ * THE INSTANCE'S VERDICT IS THE FIELD'S. The box always carries an answer from the instance --
+ * the firings, a refusal, or none yet while it is asked -- so an expression the core reads and
+ * the box's own five-field parse does not (`L`, `#`) is never marked, not even for the moment
+ * before the answer lands. Until it does, the box's own count shows muted.
  */
 function CronBox({
     expression,
@@ -329,7 +333,7 @@ function CronBox({
     // Now, as of the last keystroke, which is what the box counts its own reading from.
     const [from, setFrom] = useState(() => new Date())
     const runs = useMemo(
-        () => (reading.kind === 'firings' ? reading.firings.map((firing) => new Date(firing)) : null),
+        () => (reading.kind === 'firings' ? reading.firings.map((firing) => new Date(firing)) : []),
         [reading],
     )
     return (
@@ -340,15 +344,16 @@ function CronBox({
                 setFrom(new Date())
                 onChange(next)
             }}
+            placeholder={CLOCK.cron.hint}
             from={from}
             count={FIRINGS_READ}
             timeZone={zone}
             runs={runs}
             runsPending={reading.kind === 'pending'}
             invalid={reading.kind === 'refused' ? reading.detail : undefined}
-            describe={describeClock}
+            describe={readCron}
             format={firingOf}
-            words={cronWords(expression)}
+            words={CRON_FIELD_WORDS}
         />
     )
 }
