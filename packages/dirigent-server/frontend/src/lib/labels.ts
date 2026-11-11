@@ -2698,9 +2698,9 @@ const triggers = {
                 december: 'December',
             },
             /** Between the items of a list but the last two: "Monday, Tuesday and Friday". */
-            list_separator: ', ',
-            /** Before the last item of a list. */
-            list_last: (most: string, last: string) => `${most} and ${last}`,
+            separator: ', ',
+            /** Between the last two items of a list. */
+            last_separator: ' and ',
             /** A day of the month: 1st, 2nd, 11th, 23rd. */
             ordinal: (day: number) =>
                 `${String(day)}${day % 100 >= 11 && day % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][day % 10] ?? 'th')}`,
