@@ -5,7 +5,8 @@ import { Link } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { SECTION_LISTING, shutWith } from '@/lib/design-system'
-import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
@@ -16,7 +17,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRowPress } from '@/hooks/use-row-press'
 import { formatInstant, formatRelative } from '@/lib/format'
-import { headingOf, type Addressable } from '@/lib/identity'
+import { headingOf, itemOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { rowsRead } from '@/lib/paging'
@@ -294,6 +295,7 @@ const SOURCE_COLUMNS: DataColumn<SourceOut>[] = [
         id: 'source',
         header: LABELS.word.input_source.label,
         width: 'minmax(11.5rem,2fr)',
+        stackTitle: 'free',
         cell: (row) => <Titled thing={row}>{null}</Titled>,
     },
     {
@@ -371,6 +373,7 @@ const SCHEDULE_COLUMNS: DataColumn<ScheduleRow>[] = [
         id: 'schedule',
         header: LABELS.word.schedule.label,
         width: 'minmax(11.5rem,2fr)',
+        stackTitle: 'free',
         cell: (row) => (
             <Titled thing={row.schedule}>
                 <OwnerChip managed={row.schedule.managed} document={row.schedule.trigger_document} />
@@ -429,10 +432,13 @@ function scheduleColumns(rows: readonly ScheduleRow[]): DataColumn<ScheduleRow>[
 /**
  * One trigger's lead cell: the title on one line, and beneath it the code when the title is a
  * name, who declared it, and any state it is in. Two lines at most, so a row's height never
- * depends on how many chips it wears.
+ * depends on how many chips it wears. On a card the chips follow the title and the code has the
+ * line under it to itself.
  */
 function Titled({ thing, children }: { thing: Addressable; children: ReactNode }) {
+    const { stacked } = useTableCell()
     const heading = headingOf(thing)
+    if (stacked) return <ItemHeading {...itemOf(thing)} as="span" chips={children} />
     return (
         <span className="flex min-w-0 flex-col gap-1">
             <span

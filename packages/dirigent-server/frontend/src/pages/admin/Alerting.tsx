@@ -12,6 +12,8 @@ import { ANY, Choice } from '@/components/list/Choice'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { SECTION_LISTING, shutWith } from '@/lib/design-system'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
@@ -36,13 +38,12 @@ import {
     type NotificationOut,
 } from '@/lib/alerting'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
-import { headingOf } from '@/lib/identity'
+import { itemOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { rowsRead } from '@/lib/paging'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { cn } from '@/lib/utils'
 
 const ruleId = (rule: AlertRuleOut) => rule.id
 const notificationId = (notification: NotificationOut) => notification.id
@@ -463,12 +464,11 @@ function Scope({ rule }: { rule: AlertRuleOut }) {
     const floor = importanceNote(rule.importance)
     return (
         <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-            <span
-                className={rule.scope === 'pipeline' ? 'max-w-full truncate font-mono text-xs' : 'text-sm'}
-                title={rule.scope === 'pipeline' ? scopeNote(rule) : undefined}
-            >
-                {scopeNote(rule)}
-            </span>
+            {rule.scope === 'pipeline' ? (
+                <InlineCode value={scopeNote(rule)} bare size="xs" />
+            ) : (
+                <span className="text-sm">{scopeNote(rule)}</span>
+            )}
             {floor !== null && <span className="text-xs text-muted-foreground">{floor}</span>}
         </span>
     )
@@ -479,30 +479,8 @@ const RULE_COLUMNS: DataColumn<AlertRuleOut>[] = [
         id: 'rule',
         header: LABELS.word.rule.label,
         width: 'minmax(15.5rem,2fr)',
-        cell: (rule) => {
-            const heading = headingOf(rule)
-            return (
-                <span className="flex min-w-0 flex-col">
-                    <span
-                        className={cn(
-                            'truncate',
-                            heading.named ? 'text-sm font-medium' : 'font-mono text-sm font-medium',
-                        )}
-                        title={heading.title}
-                    >
-                        {heading.title}
-                    </span>
-                    {heading.code !== null && (
-                        <span
-                            className="truncate font-mono text-xs text-muted-foreground"
-                            title={heading.code}
-                        >
-                            {heading.code}
-                        </span>
-                    )}
-                </span>
-            )
-        },
+        stackTitle: 'free',
+        cell: (rule) => <ItemHeading {...itemOf(rule)} as="span" />,
     },
     {
         id: 'event',

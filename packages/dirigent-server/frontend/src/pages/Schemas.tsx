@@ -4,13 +4,14 @@ import { useNavigate } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { LISTING, shutWith } from '@/lib/design-system'
 import { PageState } from '@/components/PageState'
 import { NewSchema } from '@/components/schemas/NewSchema'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
-import { headingOf, oneLine } from '@/lib/identity'
+import { headingOf, itemOf, oneLine } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
@@ -129,6 +130,7 @@ function buildColumns(): DataColumn<SchemaOut>[] {
             id: 'schema',
             header: LABELS.word.schema.label,
             width: 'minmax(24rem,2fr)',
+            stackTitle: 'free',
             cell: (row) => <Named row={row} />,
         },
         {
@@ -149,9 +151,11 @@ function buildColumns(): DataColumn<SchemaOut>[] {
     ]
 }
 
-/** What a schema is called and the code it is reached by. */
+/** What a schema is called and the code it is reached by, beside the name in a row and under it on a card. */
 function Named({ row }: { row: SchemaOut }) {
+    const { stacked } = useTableCell()
     const heading = headingOf(row)
+    if (stacked) return <ItemHeading {...itemOf(row)} as="span" />
     return (
         <span className="flex min-w-0 items-center gap-2">
             <span

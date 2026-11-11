@@ -6,7 +6,8 @@ import { ApiChip } from '@/components/ApiChip'
 import { ConnectionDialog } from '@/components/connections/ConnectionDialog'
 import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
-import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Mark } from '@/components/Mark'
 import { PageHeader } from '@/components/ds/PageHeader'
@@ -34,7 +35,7 @@ import { formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { kindGlyph } from '@/lib/glyphs'
 import { kindMarks } from '@/lib/marks'
-import { headingOf, oneLine } from '@/lib/identity'
+import { headingOf, itemOf, oneLine } from '@/lib/identity'
 import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -269,6 +270,7 @@ const COLUMNS: DataColumn<ConnectionOut>[] = [
         id: 'connection',
         header: LABELS.word.connection.label,
         width: 'minmax(14rem,2fr)',
+        stackTitle: 'free',
         cell: (row) => <Named row={row} />,
     },
     {
@@ -295,10 +297,19 @@ const COLUMNS: DataColumn<ConnectionOut>[] = [
 
 /**
  * What a credential is called and the code it is reached by, with the first line of what it is
- * for under them.
+ * for under them: the code beside the name in a row and under it on a card.
  */
 function Named({ row }: { row: ConnectionOut }) {
+    const { stacked } = useTableCell()
     const heading = headingOf(row)
+    if (stacked)
+        return (
+            <ItemHeading
+                {...itemOf(row)}
+                as="span"
+                description={row.description === null ? undefined : oneLine(row.description)}
+            />
+        )
     return (
         <span className="flex min-w-0 flex-col py-0.5">
             <span className="flex min-w-0 items-center gap-3">

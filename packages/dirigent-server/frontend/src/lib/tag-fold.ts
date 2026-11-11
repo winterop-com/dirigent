@@ -2,7 +2,7 @@
  * How many tag chips a row draws before the rest fold into one.
  *
  * A tag chip is mono at 12px, so how wide one is is arithmetic over its characters rather than a
- * question for the layout engine: every row folds against the one width its column declares.
+ * question for the layout engine: every row folds against the one width its column is drawn at.
  */
 
 /** The advance of one character of the chip's face: IBM Plex Mono at 12px, 0.6em. */
