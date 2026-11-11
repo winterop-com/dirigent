@@ -356,7 +356,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): DataColum
         {
             id: 'pipeline',
             header: LABELS.word.pipeline.label,
-            width: 'content',
+            width: 'minmax(10rem,2fr)',
             cell: (run) => <PipelineRef code={run.pipeline} name={names?.get(run.pipeline) ?? null} />,
         },
         {

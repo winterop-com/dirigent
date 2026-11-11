@@ -475,7 +475,7 @@ const RULE_COLUMNS: DataColumn<AlertRuleOut>[] = [
     {
         id: 'rule',
         header: LABELS.word.rule.label,
-        width: 'content',
+        width: 'minmax(10rem,2fr)',
         cell: (rule) => {
             const heading = headingOf(rule)
             return (

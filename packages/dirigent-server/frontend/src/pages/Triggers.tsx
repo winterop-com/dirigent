@@ -293,7 +293,7 @@ const SOURCE_COLUMNS: DataColumn<SourceOut>[] = [
     {
         id: 'source',
         header: LABELS.word.input_source.label,
-        width: 'content',
+        width: 'minmax(10rem,2fr)',
         cell: (row) => <Titled thing={row}>{null}</Titled>,
     },
     {
@@ -370,7 +370,7 @@ const SCHEDULE_COLUMNS: DataColumn<ScheduleRow>[] = [
     {
         id: 'schedule',
         header: LABELS.word.schedule.label,
-        width: 'content',
+        width: 'minmax(10rem,2fr)',
         cell: (row) => (
             <Titled thing={row.schedule}>
                 <OwnerChip managed={row.schedule.managed} document={row.schedule.trigger_document} />

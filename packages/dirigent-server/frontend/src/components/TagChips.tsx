@@ -9,6 +9,7 @@ import { foldTags } from '@/lib/tag-fold'
 import { counted, LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
+import { useTableCell } from '@winterop-com/sokkel-ui/DataTable'
 
 /**
  * Every tag a row wears, folded to the room its column has.
@@ -16,7 +17,8 @@ import { Chip } from '@winterop-com/sokkel-ui/Chip'
  * THE FOLD IS COMPUTED, NOT GUESSED. `lib/tag-fold` fits the words into `room`, the width in
  * pixels of the column the chips stand in, counting the `+N` as the chip it is, so what is drawn
  * is what fits on one line and never one chip past it. Without a room every chip up to the cap
- * is drawn and wraps.
+ * is drawn and wraps. On a stacked card the room is ignored and the chips wrap across the card's
+ * width; outside a `DataTable` the chips are never stacked.
  */
 export function TagChips({
     tags,
@@ -29,13 +31,15 @@ export function TagChips({
     /** What clicking a tag asks for, which is always "narrow to this". */
     onSelect?: (tag: string) => void
 }) {
+    const { stacked } = useTableCell()
     if (tags.length === 0) return null
-    const fold = foldTags(tags, room, 1)
+    const bound = stacked ? 0 : room
+    const fold = foldTags(tags, bound, 1)
     return (
         <span
             className={cn(
                 'flex items-center gap-1',
-                room > 0 ? 'flex-nowrap' : 'w-max max-w-[25cqi] flex-wrap',
+                stacked ? 'flex-wrap' : bound > 0 ? 'flex-nowrap' : 'w-max max-w-[25cqi] flex-wrap',
             )}
         >
             {fold.shown.map((tag) => (

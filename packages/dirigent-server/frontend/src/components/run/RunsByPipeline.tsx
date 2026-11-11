@@ -47,7 +47,7 @@ function summaryColumns(): DataColumn<PipelineRuns>[] {
         {
             id: 'pipeline',
             header: LABELS.word.pipeline.label,
-            width: 'content',
+            width: 'minmax(10rem,2fr)',
             cell: (row) => <PipelineRef code={row.pipeline} name={row.name} />,
         },
         {

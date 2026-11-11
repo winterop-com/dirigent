@@ -268,8 +268,7 @@ const COLUMNS: DataColumn<ConnectionOut>[] = [
     {
         id: 'connection',
         header: LABELS.word.connection.label,
-        width: 'content',
-        maxWidth: '24rem',
+        width: 'minmax(12rem,2fr)',
         cell: (row) => <Named row={row} />,
     },
     {

@@ -10,7 +10,7 @@ import { PageState } from '@/components/PageState'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
-import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { TagChips } from '@/components/TagChips'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { useRead } from '@/hooks/use-read'
@@ -60,6 +60,23 @@ const exampleCode = (row: ExampleOut) => row.code
 
 /** How wide the Tags column is, in pixels, which is the room its chips fold to. */
 const TAGS_ROOM = 256
+
+/** An example's title: cut on one line in a table row, wrapped in full on a stacked card. */
+function ExampleTitle({ title, named }: { title: string; named: boolean }) {
+    const { stacked } = useTableCell()
+    return (
+        <span
+            className={cn(
+                'font-semibold',
+                stacked ? 'overflow-visible whitespace-normal' : 'truncate',
+                !named && 'font-mono',
+            )}
+            title={title}
+        >
+            {title}
+        </span>
+    )
+}
 
 /** What the two-value filter over the corpus calls its halves. */
 const WHICH = [
@@ -335,23 +352,14 @@ function exampleColumns(
         {
             id: 'example',
             header: LABELS.word.example.label,
-            width: 'content',
+            width: 'minmax(12rem,2fr)',
             cell: (row) => {
                 const heading = headingOf(row)
                 const carries = carriesNote(row)
                 return (
                     <div className="min-w-0">
                         <span className="flex items-center gap-2">
-                            <span
-                                className={cn(
-                                    'truncate font-semibold',
-                                    'max-lg:overflow-visible max-lg:whitespace-normal',
-                                    !heading.named && 'font-mono',
-                                )}
-                                title={heading.title}
-                            >
-                                {heading.title}
-                            </span>
+                            <ExampleTitle title={heading.title} named={heading.named} />
                             {row.starter && (
                                 <Badge variant="outline" className="shrink-0">
                                     {LABELS.examples.starter_badge}

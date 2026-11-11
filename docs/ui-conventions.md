@@ -678,11 +678,14 @@ voice on every listing.
 
 **A column holds a value, a title or prose, and that is what decides its width.** Every row of a
 `DataTable` is a grid of the same tracks, so a width is declared, never left to a cell's content.
-**The title the row is known by is `width: 'content'`**: as wide as its widest drawn cell, up to
-its `maxWidth`, so a reader can tell one row from another before anything else is given room. Users'
-Account column is the exception, a `minmax(14rem,1fr)` share: its inline `ItemHeading` reports no
-width for the table to measure. A
-value -- a chip, an instant, a duration, a count, a mark -- is drawn from a fixed vocabulary and
+**A title carrying a free-form name is a `minmax(<floor>,2fr)` share**, cut in it with the whole
+of the name in `title`, because a name has no longest case. **A title that is a code or a word
+from a fixed vocabulary is `width: 'content'`** -- a block id, a worker, a token, a status -- as
+wide as its widest drawn cell up to its `maxWidth`, so a reader tells one row from another before
+anything else is given room. Users' Account column is `content` with a `minWidth` of 14rem. A
+measured `content` column counts toward the listing's least width, so a wide one stacks the rows
+sooner. A value
+-- a chip, an instant, a duration, a count, a mark -- is drawn from a fixed vocabulary and
 declares the floor it needs to say itself on one line as `minmax(<floor>,1fr)`, sharing what the
 title left. Prose -- a description, a path, the sentence a run failed with -- is
 `minmax(<floor>,2fr)` or more, so it takes the larger share and is the column that is cut. A
@@ -727,7 +730,9 @@ says how many it is holding, spells them on hover, and opens them as the same fi
 other chip on the row is a door to -- and never more than eight chips are drawn whatever the
 room. **The fold is computed, not guessed**: a chip is mono at 12px, so how wide one is is
 arithmetic over its characters, and `lib/tag-fold` fits the words -- the `+N` counted as the chip
-it is -- into the fixed width the Tags column declares, passed to `TagChips` as its `room`.
+it is -- into the fixed width the Tags column declares, passed to `TagChips` as its `room`. The
+fold is the table's: on a stacked card, which `TagChips` knows from `useTableCell`, the chips wrap
+across the card, still no more than eight.
 
 **A choice closes on its choice; a set stays open.** `components/list/Choice` is one value out of
 a menu of them, and picking one shuts the menu, because the question has been answered. A set is

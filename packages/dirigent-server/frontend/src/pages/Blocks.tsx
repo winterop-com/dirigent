@@ -5,7 +5,7 @@ import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
-import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { DataTable, DataTableGroup, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
@@ -174,51 +174,55 @@ export function Blocks() {
                 emptyMessage={blocks.length === 0 ? LABELS.blocks.empty : LABELS.blocks.empty_filtered}
             >
                 <div className="flex flex-col gap-6">
-                    {groups.map(([group, members]) => (
-                        <LibrarySection
-                            key={group}
-                            title={<InlineCode value={group} tone="neutral" bare size="xs" />}
-                            meta={rowsRead(members.length, LABELS.word.block.count, false)}
-                            flush
-                        >
-                            <DataTable
-                                {...SECTION_LISTING}
-                                rowHeight="auto"
-                                columns={columns}
-                                rows={members}
-                                rowKey={blockId}
-                                onOpen={(entry) => {
-                                    press(`block:${entry.id}`)
-                                }}
-                                opened={(entry) => `block:${entry.id}` === chosen}
-                            />
-                        </LibrarySection>
-                    ))}
-
-                    {REGISTRIES.map((registry) => {
-                        const rows = registryRows[registry.key]
-                        if (rows.length === 0) return null
-                        return (
+                    <DataTableGroup>
+                        {groups.map(([group, members]) => (
                             <LibrarySection
-                                key={registry.key}
-                                title={registry.title}
-                                meta={rowsRead(rows.length, registry.noun, false)}
+                                key={group}
+                                title={<InlineCode value={group} tone="neutral" bare size="xs" />}
+                                meta={rowsRead(members.length, LABELS.word.block.count, false)}
                                 flush
                             >
                                 <DataTable
                                     {...SECTION_LISTING}
                                     rowHeight="auto"
-                                    columns={entryColumns(registry.key)}
-                                    rows={rows}
-                                    rowKey={entryKeyOf(registry.key)}
+                                    columns={columns}
+                                    rows={members}
+                                    rowKey={blockId}
                                     onOpen={(entry) => {
-                                        press(entryKeyOf(registry.key)(entry))
+                                        press(`block:${entry.id}`)
                                     }}
-                                    opened={(entry) => entryKeyOf(registry.key)(entry) === chosen}
+                                    opened={(entry) => `block:${entry.id}` === chosen}
                                 />
                             </LibrarySection>
-                        )
-                    })}
+                        ))}
+                    </DataTableGroup>
+
+                    <DataTableGroup>
+                        {REGISTRIES.map((registry) => {
+                            const rows = registryRows[registry.key]
+                            if (rows.length === 0) return null
+                            return (
+                                <LibrarySection
+                                    key={registry.key}
+                                    title={registry.title}
+                                    meta={rowsRead(rows.length, registry.noun, false)}
+                                    flush
+                                >
+                                    <DataTable
+                                        {...SECTION_LISTING}
+                                        rowHeight="auto"
+                                        columns={entryColumns(registry.key)}
+                                        rows={rows}
+                                        rowKey={entryKeyOf(registry.key)}
+                                        onOpen={(entry) => {
+                                            press(entryKeyOf(registry.key)(entry))
+                                        }}
+                                        opened={(entry) => entryKeyOf(registry.key)(entry) === chosen}
+                                    />
+                                </LibrarySection>
+                            )
+                        })}
+                    </DataTableGroup>
                 </div>
             </PageState>
         </>

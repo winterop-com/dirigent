@@ -128,8 +128,7 @@ function buildColumns(): DataColumn<SchemaOut>[] {
         {
             id: 'schema',
             header: LABELS.word.schema.label,
-            width: 'content',
-            maxWidth: '28rem',
+            width: 'minmax(24rem,2fr)',
             cell: (row) => <Named row={row} />,
         },
         {

@@ -235,7 +235,8 @@ function userColumns(
         {
             id: 'account',
             header: LABELS.word.account.label,
-            width: 'minmax(14rem,1fr)',
+            width: 'content',
+            minWidth: '14rem',
             cell: (user) => {
                 const held = counts?.get(user.username) ?? 0
                 return (
