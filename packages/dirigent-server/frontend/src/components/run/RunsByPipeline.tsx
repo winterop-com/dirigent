@@ -47,19 +47,19 @@ function summaryColumns(): DataColumn<PipelineRuns>[] {
         {
             id: 'pipeline',
             header: LABELS.word.pipeline.label,
-            width: 'minmax(10rem,2fr)',
+            width: 'minmax(15rem,2fr)',
             cell: (row) => <PipelineRef code={row.pipeline} name={row.name} />,
         },
         {
             id: 'latest',
             header: LABELS.runs.grouped.latest,
-            width: 'minmax(6.5rem,1fr)',
+            width: 'minmax(6rem,1fr)',
             cell: (row) => <StatusChip status={row.latest.status} />,
         },
         {
             id: 'counts',
             header: LABELS.runs.grouped.counts,
-            width: 'minmax(8rem,1fr)',
+            width: 'minmax(7rem,1fr)',
             cell: (row) => (
                 <span className="flex items-center gap-3 text-xs whitespace-nowrap">
                     {countsShown(row.counts).map(({ status, runs }) => {
@@ -82,13 +82,13 @@ function summaryColumns(): DataColumn<PipelineRuns>[] {
         {
             id: 'recent',
             header: LABELS.runs.grouped.recent,
-            width: 'minmax(8rem,2fr)',
+            width: 'minmax(4.5rem,2fr)',
             cell: (row) => <RecentStrip runs={row.recent} />,
         },
         {
             id: 'last',
             header: LABELS.runs.grouped.last_ran,
-            width: 'minmax(6rem,1fr)',
+            width: 'minmax(4rem,1fr)',
             cell: (row) => (
                 <span className="text-xs text-muted-foreground" title={formatInstant(row.latest.created_at)}>
                     {formatRelative(row.latest.created_at)}
@@ -98,7 +98,7 @@ function summaryColumns(): DataColumn<PipelineRuns>[] {
         {
             id: 'median',
             header: LABELS.runs.grouped.median,
-            width: 'minmax(5rem,1fr)',
+            width: 'minmax(3.5rem,1fr)',
             align: 'end',
             cell: (row) =>
                 row.median_duration_ms === null ? null : (

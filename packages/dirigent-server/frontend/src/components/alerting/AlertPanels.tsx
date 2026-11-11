@@ -35,6 +35,7 @@ import { kindGlyph } from '@/lib/glyphs'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
+import { cn } from '@/lib/utils'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 
 /**
@@ -436,9 +437,12 @@ const notificationId = (row: NotificationOut) => row.id
  */
 export function Target({ notifier, connection }: { notifier: string; connection: string | null }) {
     return (
-        <span className="flex items-center gap-1.5">
+        <span className="flex min-w-0 items-center gap-1.5">
             <Mark glyph={kindGlyph(notifier)} />
-            <span className={connection === null ? 'text-sm' : 'font-mono text-xs'}>
+            <span
+                className={cn('truncate', connection === null ? 'text-sm' : 'font-mono text-xs')}
+                title={connection ?? notifier}
+            >
                 {connection ?? notifier}
             </span>
         </span>
@@ -448,10 +452,15 @@ export function Target({ notifier, connection }: { notifier: string; connection:
 /** The channel a message leaves by: the notifier, and the credential where there is one. */
 export function Channel({ notifier, connection }: { notifier: string; connection: string | null }) {
     return (
-        <span className="flex flex-wrap items-baseline gap-1.5">
+        <span className="flex min-w-0 flex-wrap items-baseline gap-1.5">
             <span className="text-sm">{notifier}</span>
             {connection !== null && (
-                <span className="font-mono text-xs text-muted-foreground">{connection}</span>
+                <span
+                    className="max-w-full truncate font-mono text-xs text-muted-foreground"
+                    title={connection}
+                >
+                    {connection}
+                </span>
             )}
         </span>
     )

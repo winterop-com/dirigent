@@ -43,7 +43,13 @@ export function PipelineRef({
                 {heading.title}
             </Link>
             {heading.code !== null && (
-                <span className="truncate font-mono text-xs text-muted-foreground" title={heading.code}>
+                <span
+                    className={cn(
+                        'font-mono text-xs text-muted-foreground',
+                        inline ? 'shrink-0 whitespace-nowrap' : 'truncate',
+                    )}
+                    title={heading.code}
+                >
                     {heading.code}
                 </span>
             )}

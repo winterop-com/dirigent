@@ -462,8 +462,11 @@ function useChannels(): { rows: ChannelRow[]; connections: ConnectionOut[]; read
 function Scope({ rule }: { rule: AlertRuleOut }) {
     const floor = importanceNote(rule.importance)
     return (
-        <span className="flex flex-wrap items-baseline gap-x-1.5">
-            <span className={rule.scope === 'pipeline' ? 'font-mono text-xs' : 'text-sm'}>
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+            <span
+                className={rule.scope === 'pipeline' ? 'max-w-full truncate font-mono text-xs' : 'text-sm'}
+                title={rule.scope === 'pipeline' ? scopeNote(rule) : undefined}
+            >
                 {scopeNote(rule)}
             </span>
             {floor !== null && <span className="text-xs text-muted-foreground">{floor}</span>}
@@ -475,7 +478,7 @@ const RULE_COLUMNS: DataColumn<AlertRuleOut>[] = [
     {
         id: 'rule',
         header: LABELS.word.rule.label,
-        width: 'minmax(10rem,2fr)',
+        width: 'minmax(15.5rem,2fr)',
         cell: (rule) => {
             const heading = headingOf(rule)
             return (
@@ -504,25 +507,25 @@ const RULE_COLUMNS: DataColumn<AlertRuleOut>[] = [
     {
         id: 'event',
         header: LABELS.word.event,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(5rem,1fr)',
         cell: (rule) => <span className="text-sm">{LABELS.alerting.event[rule.event]}</span>,
     },
     {
         id: 'scope',
         header: LABELS.word.scope,
-        width: 'minmax(7rem,1fr)',
+        width: 'minmax(4.5rem,1fr)',
         cell: (rule) => <Scope rule={rule} />,
     },
     {
         id: 'delivers',
         header: LABELS.word.delivers_through,
-        width: 'minmax(7rem,1fr)',
+        width: 'minmax(6.5rem,1fr)',
         cell: (rule) => <Target notifier={rule.notifier} connection={rule.connection} />,
     },
     {
         id: 'throttle',
         header: LABELS.word.throttle,
-        width: 'minmax(4rem,1fr)',
+        width: 'minmax(3.5rem,1fr)',
         cell: (rule) => (
             <span className="font-mono text-xs text-muted-foreground">{throttleNote(rule.throttle)}</span>
         ),
@@ -530,7 +533,7 @@ const RULE_COLUMNS: DataColumn<AlertRuleOut>[] = [
     {
         id: 'sent',
         header: LABELS.alerting.last_sent,
-        width: 'minmax(5rem,1fr)',
+        width: 'minmax(4rem,1fr)',
         cell: (rule) =>
             rule.last_sent_at === null ? (
                 <span className="text-xs text-muted-foreground">{LABELS.word.never}</span>
@@ -541,7 +544,7 @@ const RULE_COLUMNS: DataColumn<AlertRuleOut>[] = [
     {
         id: 'live',
         header: LABELS.word.state,
-        width: 'minmax(4rem,1fr)',
+        width: 'minmax(3rem,1fr)',
         cell: (rule) =>
             rule.paused ? (
                 <span className="text-xs text-muted-foreground">{LABELS.state.armed.paused}</span>
@@ -580,7 +583,7 @@ const NOTIFICATION_COLUMNS: DataColumn<NotificationOut>[] = [
     {
         id: 'delivers',
         header: LABELS.word.delivers_through,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(6.5rem,1fr)',
         cell: (notification) => (
             <Channel notifier={notification.notifier} connection={notification.connection} />
         ),

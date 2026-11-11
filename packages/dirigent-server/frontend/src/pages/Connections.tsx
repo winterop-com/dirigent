@@ -268,7 +268,7 @@ const COLUMNS: DataColumn<ConnectionOut>[] = [
     {
         id: 'connection',
         header: LABELS.word.connection.label,
-        width: 'minmax(12rem,2fr)',
+        width: 'minmax(14rem,2fr)',
         cell: (row) => <Named row={row} />,
     },
     {
@@ -308,7 +308,9 @@ function Named({ row }: { row: ConnectionOut }) {
                 >
                     {heading.title}
                 </span>
-                {heading.code !== null && <InlineCode value={heading.code} tone="muted" bare size="xs" />}
+                {heading.code !== null && (
+                    <InlineCode value={heading.code} tone="muted" bare size="xs" className="shrink-0" />
+                )}
             </span>
             {row.description !== null && (
                 <span

@@ -60,27 +60,30 @@ export function WorkersTable({
 /**
  * The columns this listing draws, which is every column plus Tags when a tag exists.
  *
- * An instance that never routes by tag has a column of dashes to read past otherwise.
+ * An instance that never routes by tag has a column of dashes to read past otherwise. The
+ * worker's name is capped at what the other columns leave it at `lg`, less where Tags is drawn.
  */
 function columnsFor(workers: readonly WorkerOut[]): DataColumn<WorkerOut>[] {
-    return anyTagged(workers) ? COLUMNS : COLUMNS.filter((column) => column.id !== 'tags')
+    if (anyTagged(workers)) return [{ ...NAME, maxWidth: '15rem' }, ...COLUMNS]
+    return [{ ...NAME, maxWidth: '20rem' }, ...COLUMNS.filter((column) => column.id !== 'tags')]
+}
+
+const NAME: DataColumn<WorkerOut> = {
+    id: 'name',
+    header: LABELS.word.worker.label,
+    width: 'content',
+    cell: (worker) => (
+        <span className="block truncate font-mono text-sm font-medium" title={worker.name}>
+            {worker.name}
+        </span>
+    ),
 }
 
 const COLUMNS: DataColumn<WorkerOut>[] = [
     {
-        id: 'name',
-        header: LABELS.word.worker.label,
-        width: 'content',
-        cell: (worker) => (
-            <span className="block truncate text-sm font-medium" title={worker.name}>
-                {worker.name}
-            </span>
-        ),
-    },
-    {
         id: 'hostname',
         header: LABELS.word.host,
-        width: 'minmax(8rem,1fr)',
+        width: 'minmax(4rem,1fr)',
         cell: (worker) => (
             <span className="block truncate font-mono text-xs text-muted-foreground" title={worker.hostname}>
                 {worker.hostname}
@@ -90,13 +93,13 @@ const COLUMNS: DataColumn<WorkerOut>[] = [
     {
         id: 'version',
         header: LABELS.word.version.label,
-        width: 'minmax(5rem,1fr)',
+        width: 'minmax(3.5rem,1fr)',
         cell: (worker) => <span className="font-mono text-xs text-muted-foreground">{worker.version}</span>,
     },
     {
         id: 'status',
         header: LABELS.word.status,
-        width: 'minmax(7rem,1fr)',
+        width: 'minmax(5.5rem,1fr)',
         cell: (worker) => (
             <span className="flex flex-wrap items-center gap-2">
                 <StatusChip status={worker.status} />
@@ -116,14 +119,14 @@ const COLUMNS: DataColumn<WorkerOut>[] = [
     {
         id: 'concurrency',
         header: LABELS.word.concurrency,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(5rem,1fr)',
         align: 'end',
         cell: (worker) => <span className="font-mono text-xs">{worker.concurrency}</span>,
     },
     {
         id: 'tags',
         header: LABELS.word.tags,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(4.5rem,1fr)',
         cell: (worker) =>
             worker.tags.length === 0 ? null : (
                 <span className="flex flex-wrap gap-1">
@@ -138,7 +141,7 @@ const COLUMNS: DataColumn<WorkerOut>[] = [
     {
         id: 'seen',
         header: LABELS.word.last_seen,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(4rem,1fr)',
         cell: (worker) => (
             <span className="text-xs text-muted-foreground" title={formatInstant(worker.last_seen_at)}>
                 {formatRelative(worker.last_seen_at)}

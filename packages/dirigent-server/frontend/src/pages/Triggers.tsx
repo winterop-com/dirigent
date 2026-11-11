@@ -293,19 +293,19 @@ const SOURCE_COLUMNS: DataColumn<SourceOut>[] = [
     {
         id: 'source',
         header: LABELS.word.input_source.label,
-        width: 'minmax(10rem,2fr)',
+        width: 'minmax(11.5rem,2fr)',
         cell: (row) => <Titled thing={row}>{null}</Titled>,
     },
     {
         id: 'pipeline',
         header: LABELS.word.pipeline.label,
-        width: 'minmax(8rem,1fr)',
+        width: 'minmax(12.5rem,1fr)',
         cell: (row) => <PipelineRef code={row.pipeline} name={null} />,
     },
     {
         id: 'listens',
         header: LABELS.triggers.source.listens,
-        width: 'minmax(8rem,2fr)',
+        width: 'minmax(6.5rem,2fr)',
         cell: (row) => {
             const listens = listensTo(row)
             return listens === null ? (
@@ -320,7 +320,7 @@ const SOURCE_COLUMNS: DataColumn<SourceOut>[] = [
     {
         id: 'state',
         header: LABELS.word.state,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(5rem,1fr)',
         cell: (row) => {
             const view = stateView(row)
             return (
@@ -334,7 +334,7 @@ const SOURCE_COLUMNS: DataColumn<SourceOut>[] = [
     {
         id: 'in_flight',
         header: LABELS.word.in_flight.heading,
-        width: 'minmax(5rem,1fr)',
+        width: 'minmax(4rem,1fr)',
         align: 'end',
         cell: (row) =>
             row.in_flight === 0 && row.max_in_flight === null ? null : (
@@ -348,7 +348,7 @@ const SOURCE_COLUMNS: DataColumn<SourceOut>[] = [
     {
         id: 'last',
         header: LABELS.triggers.source.last_input,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(4.5rem,1fr)',
         cell: (row) =>
             row.last_input_at === null ? (
                 <span className="text-xs text-faint">{LABELS.word.never}</span>
@@ -370,7 +370,7 @@ const SCHEDULE_COLUMNS: DataColumn<ScheduleRow>[] = [
     {
         id: 'schedule',
         header: LABELS.word.schedule.label,
-        width: 'minmax(10rem,2fr)',
+        width: 'minmax(11.5rem,2fr)',
         cell: (row) => (
             <Titled thing={row.schedule}>
                 <OwnerChip managed={row.schedule.managed} document={row.schedule.trigger_document} />
@@ -381,29 +381,33 @@ const SCHEDULE_COLUMNS: DataColumn<ScheduleRow>[] = [
     {
         id: 'pipeline',
         header: LABELS.word.pipeline.label,
-        width: 'minmax(8rem,1fr)',
+        width: 'minmax(12.5rem,1fr)',
         cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
     {
         id: 'clock',
         header: LABELS.word.clock,
-        width: 'minmax(7rem,1fr)',
+        width: 'minmax(4.5rem,1fr)',
         cell: (row) => <Clock schedule={row.schedule} />,
     },
     {
         id: 'timezone',
         header: LABELS.word.timezone,
-        width: 'minmax(6rem,1fr)',
-        cell: (row) => <span className="text-xs text-muted-foreground">{row.schedule.timezone}</span>,
+        width: 'minmax(5rem,1fr)',
+        cell: (row) => (
+            <span className="block truncate text-xs text-muted-foreground" title={row.schedule.timezone}>
+                {row.schedule.timezone}
+            </span>
+        ),
     },
     {
         id: 'next',
         header: LABELS.word.next,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(4.5rem,1fr)',
         // The paused chip in the title cell already says why there is no instant.
         cell: (row) =>
             nextFireView(row.schedule).kind === 'paused' ? null : (
-                <span className="text-xs">
+                <span className="text-xs whitespace-nowrap">
                     <NextFire schedule={row.schedule} />
                 </span>
             ),
@@ -411,7 +415,7 @@ const SCHEDULE_COLUMNS: DataColumn<ScheduleRow>[] = [
     {
         id: 'last',
         header: LABELS.word.firing.last,
-        width: 'minmax(10rem,2fr)',
+        width: 'minmax(4rem,2fr)',
         cell: (row) => <LastFiring row={row} />,
     },
 ]
@@ -437,9 +441,12 @@ function Titled({ thing, children }: { thing: Addressable; children: ReactNode }
             >
                 {heading.title}
             </span>
-            <span className="flex min-w-0 items-center gap-2">
+            <span className="flex min-w-0 items-center gap-2 overflow-hidden">
                 {heading.code !== null && (
-                    <span className="truncate font-mono text-xs text-muted-foreground" title={heading.code}>
+                    <span
+                        className="shrink-0 font-mono text-xs whitespace-nowrap text-muted-foreground"
+                        title={heading.code}
+                    >
                         {heading.code}
                     </span>
                 )}
@@ -455,7 +462,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
         return <span className="text-xs text-faint">{LABELS.word.never}</span>
     const view = row.latest === null ? null : firingView(row.latest)
     return (
-        <span className="flex items-center gap-2 text-xs">
+        <span className="flex flex-wrap items-center gap-x-2 text-xs">
             {view !== null && <Dot tone={view.tone} />}
             <span className="text-muted-foreground" title={formatInstant(row.schedule.last_fired_at)}>
                 {formatRelative(row.schedule.last_fired_at)}

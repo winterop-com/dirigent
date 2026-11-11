@@ -143,6 +143,12 @@ function Users() {
     )
 
     const columns = useMemo(() => userColumns(counts, setMintingFor), [counts])
+    // A fresh array once the counts land: the table measures its Account column again on new rows,
+    // and the count beside a username widens the cell.
+    const rows = useMemo(
+        () => (counts === null ? users.state.rows : [...users.state.rows]),
+        [users.state.rows, counts],
+    )
 
     return (
         <>
@@ -163,7 +169,7 @@ function Users() {
                 <DataTable
                     {...LISTING}
                     columns={columns}
-                    rows={users.state.rows}
+                    rows={rows}
                     rowKey={usernameOf}
                     onOpen={setChosen}
                     opened={(user) => chosen !== null && user.id === chosen.id}
@@ -237,6 +243,7 @@ function userColumns(
             header: LABELS.word.account.label,
             width: 'content',
             minWidth: '14rem',
+            maxWidth: '22rem',
             cell: (user) => {
                 const held = counts?.get(user.username) ?? 0
                 return (
@@ -265,13 +272,13 @@ function userColumns(
         {
             id: 'role',
             header: LABELS.word.role,
-            width: '5rem',
+            width: 'minmax(4rem,1fr)',
             cell: (user) => <span className="text-xs text-muted-foreground">{user.role}</span>,
         },
         {
             id: 'seen',
             header: LABELS.word.last_signed_in.label,
-            width: '7rem',
+            width: 'minmax(5.5rem,1fr)',
             cell: (user) => (
                 <span className="text-xs text-muted-foreground" title={formatInstant(user.last_login_at)}>
                     {user.last_login_at === null ? LABELS.word.never : formatRelative(user.last_login_at)}
@@ -281,7 +288,7 @@ function userColumns(
         {
             id: 'created',
             header: LABELS.word.created.label,
-            width: '6rem',
+            width: 'minmax(4.5rem,1fr)',
             cell: (user) => (
                 <span className="text-xs text-muted-foreground" title={formatInstant(user.created_at)}>
                     {formatRelative(user.created_at)}

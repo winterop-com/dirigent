@@ -679,7 +679,10 @@ voice on every listing.
 **A column holds a value, a title or prose, and that is what decides its width.** Every row of a
 `DataTable` is a grid of the same tracks, so a width is declared, never left to a cell's content.
 **A title carrying a free-form name is a `minmax(<floor>,2fr)` share**, cut in it with the whole
-of the name in `title`, because a name has no longest case. **A title that is a code or a word
+of the name in `title`, because a name has no longest case. The code drawn with that name is never
+what gives way: beside the name it keeps its width (`shrink-0`) and the name is cut, under it it has
+a line of its own, and either way the share's floor is wide enough for a long code to read whole
+at `lg`. **A title that is a code or a word
 from a fixed vocabulary is `width: 'content'`** -- a block id, a worker, a token, a status -- as
 wide as its widest drawn cell up to its `maxWidth`, so a reader tells one row from another before
 anything else is given room. Users' Account column is `content` with a `minWidth` of 14rem. A

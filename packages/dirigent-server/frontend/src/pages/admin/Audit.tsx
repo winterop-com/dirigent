@@ -190,13 +190,13 @@ const COLUMNS: DataColumn<AuditEntryOut>[] = [
     {
         id: 'when',
         header: LABELS.audit.when,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(4rem,1fr)',
         cell: (entry) => <Instant at={entry.created_at} className="text-xs text-muted-foreground" />,
     },
     {
         id: 'actor',
         header: LABELS.audit.actor,
-        width: 'minmax(8rem,2fr)',
+        width: 'minmax(6rem,2fr)',
         cell: (entry) => {
             const { who, token } = actorOf(entry)
             return (
@@ -222,13 +222,14 @@ const COLUMNS: DataColumn<AuditEntryOut>[] = [
     {
         id: 'action',
         header: LABELS.audit.action,
-        width: 'minmax(6rem,1fr)',
+        width: 'minmax(5.5rem,1fr)',
         cell: (entry) => <span className="text-sm">{LABELS.audit.actions[entry.action]}</span>,
     },
     {
         id: 'subject',
         header: LABELS.word.subject,
         width: 'content',
+        maxWidth: '22rem',
         cell: (entry) => {
             const addressed = subjectOf(entry)
             return (
@@ -244,7 +245,7 @@ const COLUMNS: DataColumn<AuditEntryOut>[] = [
     {
         id: 'fields',
         header: LABELS.audit.fields,
-        width: 'minmax(8rem,2fr)',
+        width: 'minmax(5rem,2fr)',
         cell: (entry) =>
             entry.fields.length === 0 ? null : (
                 <span className="flex min-w-0 flex-wrap gap-x-2">
