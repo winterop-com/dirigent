@@ -722,7 +722,7 @@ test('a schedule is created by picking its pipeline and reading its clock back',
             response.request().postDataJSON()?.cron === '0 5 * * *',
     )
     await dialog
-        .getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
+        .getByLabel(LABELS.triggers.schedule.dialog.cron_expression, { exact: true })
         .fill('0 5 * * *')
 
     // The clock is read back by the instance: three firings, drawn in the zone that was chosen.
@@ -782,11 +782,11 @@ test('a cron clock the instance refuses carries its sentence as the issue, and s
     await pick(page, 'Pipeline', CRON.pipeline, CRON.pipelineTitle)
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill('never')
     await dialog
-        .getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
+        .getByLabel(LABELS.triggers.schedule.dialog.cron_expression, { exact: true })
         .fill('0 5 31 2 *')
 
     // Five fields the box reads, naming a day February never has: the instance is what refuses it.
-    const box = dialog.getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
+    const box = dialog.getByLabel(LABELS.triggers.schedule.dialog.cron_expression, { exact: true })
     const said = "'0 5 31 2 *' is not a cron expression: Bad day-of-month"
     const mark = dialog.getByRole('button', { name: said })
     await expect(mark).toBeVisible()
@@ -816,7 +816,7 @@ test("a cron clock the instance reads and the box cannot is taken at the instanc
     )
 
     // The last day of the month is the core's syntax and not the box's five fields.
-    const box = dialog.getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
+    const box = dialog.getByLabel(LABELS.triggers.schedule.dialog.cron_expression, { exact: true })
     await box.fill('0 5 L * *')
     await expect(box).not.toHaveAttribute('aria-invalid')
 

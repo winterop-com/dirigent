@@ -2659,6 +2659,8 @@ const triggers = {
              * and the cron box's issue when the expression is not five fields it can read.
              */
             unreadable_clock: 'This clock cannot be read.',
+            /** The cron box's label, under the Clock choice that already says Cron. */
+            cron_expression: 'Expression',
             /** Under the cron box's issue: what an expression is written as. */
             cron_help: 'Five fields: minute, hour, day of the month, month, weekday. As in 0 5 * * *.',
             /** Over the cron box's list of the firings it would make. */

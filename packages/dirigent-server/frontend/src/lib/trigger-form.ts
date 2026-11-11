@@ -96,7 +96,7 @@ export const FIRINGS_READ = 3
  * the clock, is what names the zone.
  */
 export const CRON_FIELD_WORDS: Partial<CronFieldWords> = {
-    label: LABELS.triggers.schedule.dialog.clock.cron.name,
+    label: LABELS.triggers.schedule.dialog.cron_expression,
     zone: '',
     invalid: LABELS.triggers.schedule.dialog.unreadable_clock,
     invalidDetail: LABELS.triggers.schedule.dialog.cron_help,
