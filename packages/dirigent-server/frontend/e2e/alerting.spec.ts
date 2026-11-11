@@ -116,7 +116,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(row).toContainText(LABELS.state.armed.active)
     // The target cell wears the same mark the picker offered it under.
     await expect(
-        row.locator('td').filter({ hasText: LABELS.editor.run.log }).locator('[data-slot="mark"]'),
+        row.getByRole('gridcell').filter({ hasText: LABELS.editor.run.log }).locator('[data-slot="mark"]'),
     ).toHaveCount(1)
 })
 
@@ -248,14 +248,12 @@ test.describe('in the 792px column a 1024 window leaves', () => {
 
         // The rule's name is text: it takes what the value columns left and is cut in it, so
         // the table is still a table at this width.
-        await expect(rules.getByRole('table')).toBeVisible()
+        await expect(rules.getByRole('columnheader').first()).toBeVisible()
 
         // The listing's own scroller rather than the window: a table wider than the box it is
         // drawn in is the sideways scroll, whether or not the page itself moves.
         await expect
-            .poll(async () =>
-                rules.locator('.list-scroll').evaluate((box) => box.scrollWidth - box.clientWidth),
-            )
+            .poll(async () => rules.getByRole('grid').evaluate((box) => box.scrollWidth - box.clientWidth))
             .toBe(0)
 
         // Cut, and the whole of it on hover: a name drawn in full is a name that took the width

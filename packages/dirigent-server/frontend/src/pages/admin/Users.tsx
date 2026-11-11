@@ -17,7 +17,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
-import { tableWords } from '@/lib/design-system'
+import { LISTING } from '@/lib/design-system'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { itemOf } from '@/lib/identity'
@@ -30,7 +30,8 @@ import { readTokenCensus, readUsers, tokenCounts, type UserOut } from '@/lib/use
 const userId = (user: UserOut) => user.id
 const usernameOf = (user: UserOut) => user.username
 
-const USERS_WORDS = tableWords({ expand: LABELS.users.show_tokens, collapse: LABELS.users.hide_tokens })
+/** Every account opens onto its tokens, and an account holding none says so when opened. */
+const opens = () => true
 
 /**
  * Local accounts, with the tokens automation authenticates as each of them under its row.
@@ -142,6 +143,12 @@ function Users() {
     )
 
     const columns = useMemo(() => userColumns(counts, setMintingFor), [counts])
+    // A fresh array once the counts land: the table measures its Account column again on new rows,
+    // and the count beside a username widens the cell.
+    const rows = useMemo(
+        () => (counts === null ? users.state.rows : [...users.state.rows]),
+        [users.state.rows, counts],
+    )
 
     return (
         <>
@@ -160,13 +167,20 @@ function Users() {
 
             <PageState loading={!users.state.read} problem={users.state.problem} empty={false}>
                 <DataTable
-                    variant="list"
+                    {...LISTING}
                     columns={columns}
-                    rows={users.state.rows}
+                    rows={rows}
                     rowKey={usernameOf}
                     onOpen={setChosen}
                     opened={(user) => chosen !== null && user.id === chosen.id}
                     detail={tokensUnder}
+                    hasDetail={opens}
+                    expandLabel={(user, open) =>
+                        open
+                            ? LABELS.users.hide_tokens(user.username)
+                            : LABELS.users.show_tokens(user.username)
+                    }
+                    rowTone={(user) => (user.active ? undefined : 'muted')}
                     expanded={opened}
                     onExpandedChange={setOpened}
                     hasMore={users.state.next !== null}
@@ -178,8 +192,6 @@ function Users() {
                         users.state.next !== null,
                     )}
                     empty={LABELS.users.accounts_empty}
-                    resizable={false}
-                    words={USERS_WORDS}
                 />
             </PageState>
 
@@ -229,7 +241,9 @@ function userColumns(
         {
             id: 'account',
             header: LABELS.word.account.label,
-            width: 'minmax(14rem,1fr)',
+            width: 'content',
+            minWidth: '14rem',
+            maxWidth: '22rem',
             cell: (user) => {
                 const held = counts?.get(user.username) ?? 0
                 return (
@@ -258,13 +272,13 @@ function userColumns(
         {
             id: 'role',
             header: LABELS.word.role,
-            width: '5rem',
+            width: 'minmax(4rem,1fr)',
             cell: (user) => <span className="text-xs text-muted-foreground">{user.role}</span>,
         },
         {
             id: 'seen',
             header: LABELS.word.last_signed_in.label,
-            width: '7rem',
+            width: 'minmax(5.5rem,1fr)',
             cell: (user) => (
                 <span className="text-xs text-muted-foreground" title={formatInstant(user.last_login_at)}>
                     {user.last_login_at === null ? LABELS.word.never : formatRelative(user.last_login_at)}
@@ -274,7 +288,7 @@ function userColumns(
         {
             id: 'created',
             header: LABELS.word.created.label,
-            width: '6rem',
+            width: 'minmax(4.5rem,1fr)',
             cell: (user) => (
                 <span className="text-xs text-muted-foreground" title={formatInstant(user.created_at)}>
                     {formatRelative(user.created_at)}

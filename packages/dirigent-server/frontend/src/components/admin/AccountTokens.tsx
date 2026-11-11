@@ -77,6 +77,7 @@ export function AccountTokens({
                     }
                     empty={LABELS.users.tokens_empty}
                     columnHeads={state.rows.length > 0}
+                    rowTone={(token) => (isLive(token, now) ? undefined : 'muted')}
                     resizable={false}
                 />
             </PageState>
@@ -140,7 +141,8 @@ function tokenColumns(
         {
             id: 'name',
             header: LABELS.word.token.label,
-            width: 'minmax(12rem,1fr)',
+            width: 'content',
+            maxWidth: '24rem',
             cell: (token) => (
                 <span className="flex min-w-0 items-center gap-2">
                     <ICONS.token className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
@@ -155,7 +157,7 @@ function tokenColumns(
         {
             id: 'used',
             header: LABELS.users.last_used_column,
-            width: '7rem',
+            width: 'minmax(5rem,1fr)',
             cell: (token) => (
                 <span className="text-xs text-muted-foreground" title={formatInstant(token.last_used_at)}>
                     {token.last_used_at === null ? LABELS.word.never : formatRelative(token.last_used_at)}
@@ -165,7 +167,7 @@ function tokenColumns(
         {
             id: 'created',
             header: LABELS.word.created.label,
-            width: '6rem',
+            width: 'minmax(4.5rem,1fr)',
             cell: (token) => (
                 <span className="text-xs text-muted-foreground" title={formatInstant(token.created_at)}>
                     {formatRelative(token.created_at)}

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { chipWidth, foldTags, linesFor, roomFor, TAGS_SHOWN, WRAPS_AT } from '@/lib/tag-fold'
+import { chipWidth, foldTags, TAGS_SHOWN } from '@/lib/tag-fold'
 
 /** The fifteen words the fixture document files itself under. */
 const FIFTEEN = [
@@ -34,17 +34,17 @@ describe('what a row draws and what it folds', () => {
     })
 
     test('what is drawn fits the room, and the fold is counted in it', () => {
-        const room = roomFor(1050)
-        const fold = foldTags(FIFTEEN, room, linesFor(1050))
+        const room = 240
+        const fold = foldTags(FIFTEEN, room, 1)
         expect(lineWidth([...fold.shown, `+${String(fold.folded.length)}`])).toBeLessThanOrEqual(room)
         expect(fold.shown.length + fold.folded.length).toBe(FIFTEEN.length)
-        // A narrow table folds hard: the identity keeps the width and the words go behind one chip.
+        // A narrow column folds hard: the words go behind one chip.
         expect(fold.folded.length).toBeGreaterThanOrEqual(10)
     })
 
-    test('a wider table draws more of them', () => {
-        const narrow = foldTags(FIFTEEN, roomFor(1050), linesFor(1050))
-        const wide = foldTags(FIFTEEN, roomFor(1440), linesFor(1440))
+    test('a wider column draws more of them', () => {
+        const narrow = foldTags(FIFTEEN, 240, 1)
+        const wide = foldTags(FIFTEEN, 480, 1)
         expect(wide.shown.length).toBeGreaterThan(narrow.shown.length)
     })
 
@@ -54,12 +54,7 @@ describe('what a row draws and what it folds', () => {
         expect(fold.folded).toHaveLength(FIFTEEN.length - TAGS_SHOWN)
     })
 
-    test('one line under the wrapping width, two at it', () => {
-        expect(linesFor(WRAPS_AT - 1)).toBe(1)
-        expect(linesFor(WRAPS_AT)).toBe(2)
-    })
-
-    test('a table narrower than one chip still says what the row is filed under', () => {
+    test('a column narrower than one chip still says what the row is filed under', () => {
         const fold = foldTags(FIFTEEN, 10, 1)
         expect(fold.shown).toHaveLength(1)
         expect(fold.folded).toHaveLength(FIFTEEN.length - 1)

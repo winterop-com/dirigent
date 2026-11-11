@@ -212,8 +212,8 @@ graph canvas's dot grid, because a graph is drawn on a ground and not on a card.
 one panel that says so**: `tone="critical"` draws a rule in the critical tone along its top and the
 warning mark beside its title, which is the only colour a panel ever carries. Nothing draws a left
 border in a status colour, and nothing on a screen styles a surface of its own: a treatment is
-changed in sokkel-ui, and the listing's frame and the generated card follow it in the `.dg-panel`
-rules in `index.css`.
+changed in sokkel-ui, and the run terminal's frame and the generated card follow it in the
+`.dg-panel` rules in `index.css`.
 
 **Every panel's title bar is one fixed height, so bars side by side line up.** The bar is the
 library's `--density-panel-head` -- 36px, 32px in the compact density -- the height a listing's
@@ -224,12 +224,12 @@ rule along the top adds no height to the bar. The run terminal's toolbar is the 
 in it is a finger tall -- and the one bar that may wrap onto a second line, and only below the
 breakpoint, because it stands alone and carries filters rather than a label.
 
-**A listing is a headed panel too.** `ListTable` draws the `.dg-panel` edge and ground, which are
-`Section`'s: its row of column headings is the panel's bar, on `--table-head-ground` over
-`--table-head-line`, and its rows stand on the card with a `--border` hairline between them and no
-stripe. Given a `title` it carries the panel's own title bar above the headings, with the count
-where the line along the foot would be, so a screen with two listings -- Triggers' sources and
-schedules, the catalog's families -- is two panels rather than two headings over two cards.
+**A listing is a headed panel too.** sokkel-ui's `DataTable` with `variant="list"` draws
+`Section`'s edge and ground: its row of column headings is the panel's bar, and its rows stand on
+the card with a hairline between them. A titled listing is a `Section` with `flush`, the count in
+its `meta`, around a `DataTable` with `framed={false}`, its headings under the section's bar, so a
+screen with two listings -- Triggers' sources and schedules, the catalog's families -- is two
+panels rather than two headings over two cards.
 
 **Inside a panel or a dialog there are three boxes, and each is drawn once.** sokkel-ui's
 `Surface` with `tone="well"` is a group that belongs together -- a form opened under its row, a
@@ -525,30 +525,34 @@ has yet to reach, and saying "fired" of it would be a second untruth in place of
 
 ## A listing is a cursor walk
 
-Every screen that draws a listing draws it with one component. `components/list/ListTable` is
-the panel, the heading row, the hairline between rows, the row that reaches for the next page and
-the count, along the foot or in the title bar where the listing has a title; a screen decides its
-columns and what each cell says, and nothing else. **Users is the one listing on sokkel-ui's
-`DataTable` instead**, `variant="list"`, the first listing moved onto the library: the same panel,
-heads stuck over rows that scroll inside it, the next page asked for as the rows near their end and
-the count along the foot, with the table's own column sizing rather than `lib/column-width`. Where a row opens
-something -- a trigger's history beside the table, a connection's dialog over it -- the screen passes
-`onSelect`, and the row answers Enter and Space as well as a click, because a row only a pointer
-can open is a row some people cannot. **The column header is sticky**: rows scroll beneath it
-inside the listing's own scroll container, and the header keeps the card's ground so no row ever
-shows through it.
+Every screen that draws a listing draws it with sokkel-ui's `DataTable`, spread with `LISTING`
+from `lib/design-system`: the list look, columns that do not drag, and the narrow form below. The
+table is the panel, the heading row, the hairline between rows, the next page and the count; a
+screen decides its columns, what each cell says and what a row does, and nothing else. **The
+column header is sticky**: rows scroll beneath it inside the listing's own scroll container, and
+the header keeps its ground so no row ever shows through it. **A listing that fills the page asks for
+its next page as the rows near the end of its box**, and End on the keyboard reaches it the same
+way. **A listing set in a `Section` among others** -- Triggers, Alerting -- grows with its rows
+rather than scrolling in a box of its own, so it would reach its end at once and read every page;
+it draws a button after its last row instead, saying how many the next page brings
+(`SECTION_LISTING`). The count is the `foot` from `rowsRead`, or the `meta` of the section a titled
+listing stands in. Where a row opens something -- a trigger's history beside the table, a
+connection's dialog over it -- the screen passes `onOpen` and `opened`, and the row answers Enter
+on the row the arrows reached as well as a click, because a row only a pointer can open is a row
+some people cannot. A row that is no longer live -- a paused or switched-off alert rule, a stopped
+worker, a deactivated account, a revoked or expired token -- is drawn `rowTone` `muted`.
 
 **A row on most listings fills the panel, and that is a disclosure, so pressing it again takes it
 back.** What a press
 opened a press closes: the row loses its tint, the screen stops filling the panel, and an
 unfilled panel is not drawn -- so the thing opened from the listing can be shut from the listing,
 rather than only from the panel's own control. A row whose selection is the URL navigates back to
-the bare listing instead, which is the same gesture said in the address bar. `ListTable` decides
-this for every listing, from `selected` and `panelStanding`, and a screen says only what taking
-its own selection back means: `onClose`. **Pressing the open row while the panel is down opens it
-again** rather than clearing a tint nothing is showing, because a control that does nothing is
-the fault this rule exists to fix. **A row that navigates is not a selection** and does not
-toggle: the runs listing goes to a screen, and a press there has already left. **Connections and
+the bare listing instead, which is the same gesture said in the address bar. `useRowPress` decides
+this for every listing that fills the panel, from what is open and `panelStanding`, and a screen
+says only what opening a row and taking it back mean. **Pressing the open row while the panel is
+down opens it again** rather than clearing a tint nothing is showing, because a control that does
+nothing is the fault this rule exists to fix. **A row that navigates is not a selection** and does
+not toggle: the runs listing goes to a screen, and a press there has already left. **Connections and
 Users are the two listings whose row opens a dialog instead, and the pattern is still being tried**:
 see below. No other listing has moved, and none should until that trial has been read.
 
@@ -672,58 +676,28 @@ cannot press is a fact with a gesture missing from it.
 values in mono and its heading in the sans face, because the heading is the same word in the same
 voice on every listing.
 
-**A column holds a value, a title or prose, and that is what decides its width.** A value is
-drawn from a fixed vocabulary -- a chip, an instant, a duration, a count, a mark -- so it is
-shrink-to-content and declares the floor it needs to say itself on one line. Text is whatever
-somebody typed, and it comes as one of two things: the title the row is known by, or the prose
-beside it -- a description, a path, a code it refers to, the sentence a run failed with. A screen
-says which through the column's `kind`, and `lib/column-width` decides the width from it, so two
-listings of the same shape lay out the same way and no screen sizes its own columns. **A column
-of text declares no width of its own**: `max-w-0` is what lets it shrink and its content
-truncate, the floor under every one of them is 144px, and inside the cell the content carries
-`min-w-0` and `truncate` and says the whole of it in `title`, or the cell shrinks and the words
-are simply cut off.
+**A column holds a value, a title or prose, and that is what decides its width.** Every row of a
+`DataTable` is a grid of the same tracks, so a width is declared, never left to a cell's content.
+**A title carrying a free-form name is a `minmax(<floor>,2fr)` share**, cut in it with the whole
+of the name in `title`, because a name has no longest case. The code drawn with that name is never
+what gives way: beside the name it keeps its width (`shrink-0`) and the name is cut, under it it has
+a line of its own, and either way the share's floor is wide enough for a long code to read whole
+at `lg`. **A title that is a code or a word
+from a fixed vocabulary is `width: 'content'`** -- a block id, a worker, a token, a status -- as
+wide as its widest drawn cell up to its `maxWidth`, so a reader tells one row from another before
+anything else is given room. Users' Account column is `content` with a `minWidth` of 14rem. A
+measured `content` column counts toward the listing's least width, so a wide one stacks the rows
+sooner. A value
+-- a chip, an instant, a duration, a count, a mark -- is drawn from a fixed vocabulary and
+declares the floor it needs to say itself on one line as `minmax(<floor>,1fr)`, sharing what the
+title left. Prose -- a description, a path, the sentence a run failed with -- is
+`minmax(<floor>,2fr)` or more, so it takes the larger share and is the column that is cut. A
+control is a fixed width. Inside a cell, text that can run long carries `min-w-0` and `truncate`
+and says the whole of it in `title`, or the cell shrinks and the words are simply cut off.
 
-**A title reads whole before a description takes the rest.** A title is short and it is the
-identity -- a reader who cannot read the whole of it cannot tell one row from another -- and a
-description is long and written to be cut. So the title column asks for exactly what its longest
-title needs and every column of prose beside it cuts up what is left. Where a title has no prose
-beside it there is nobody to hand the rest to, and it takes the room the way any other column of
-text does.
-
-**The text columns ask in shares that add up.** A column of text that asks for the whole table,
-as `w-full` does, asks for more than there is, and a browser answers that by scaling every such
-ask down together -- which is how a title beside a description came to be given half of what it
-asked for, and a failure sentence 144px of a 1240px table. So the listing measures itself once --
-what its longest title needs, and what the value columns take -- and hands each column of text a
-percentage of its own width: the title its need, the prose an equal cut of the remainder each.
-What a title needs is read off its cells on the one layout the column stands at its floor in,
-where the whole of the title runs past the cell and the width it is missing can be read off it;
-a cell with room to spare says nothing, so a column given what it asked for measures the same
-again, and one whose rows grew under it -- the runs listing, when the pipeline names it was
-waiting for land -- measures the difference and asks again.
-
-**A need is measured in fractions of a pixel and asked for in whole ones.** `scrollWidth` and
-`clientWidth` answer in whole pixels, so a cell short of its content by a hundredth of one reads
-there as a cell with room to spare -- while the browser, which lays out in fractions of a pixel,
-has already drawn the ellipsis, and the ellipsis eats the word in front of the character that did
-not fit: `The reading, as Postman Echo answers it` lost `it` to a shortfall of a twentieth of a
-pixel. So every edge is read off a client rect and every run of text off a range over it, the
-need rounds up to a whole pixel, and the share stating it rounds up while the share of the
-remainder beside it rounds down -- the asks still have to add up.
-
-**A share is a width, never a floor.** A floor is what a listing measures itself against before
-it gives up on drawing a table at all, so a title column that declared the width it wants would
-turn the narrow listings into cards. What it asks for yields instead: where the floors under the
-columns beside it take what the table had left, the browser gives the title what remains of it,
-and at 1024 every listing is still a table.
-
-**Text that declares no bound is a table as wide as the longest thing anybody ever wrote in
-it.** An unbounded failure sentence is what made the runs table 910px wide in a 712px column, and
-the identity beside it 164px. A column's floor is also how a listing knows it has run out of
-room, so a table whose columns declare widths says them as floors rather than locking them with
-`fixed`, which honours a width exactly and a floor not at all. The Tags column takes at most a
-quarter of the table.
+**A listing's least width is what turns it into cards.** `LISTING` sets `minWidth` to 36rem: the
+table never draws narrower than that or than the floors of its columns, and a box narrower than
+either stacks its rows (see Small screens), so no listing scrolls sideways.
 
 **A card's rows follow the same rule as a listing's columns.** The dashboard's health card
 lines a mark, a code, what the thing last said and when up on one line in a card a third of the
@@ -754,16 +728,14 @@ number nobody reads on a bad one.
 
 **The tags fold to the room they have rather than wrapping into it.** Chips are one line: a row
 whose height depends on how many words it wears makes a listing of twenty rows a listing of
-twenty heights, so what does not fit that quarter folds into one trailing `+N` chip -- which
+twenty heights, so what does not fit the Tags column folds into one trailing `+N` chip -- which
 says how many it is holding, spells them on hover, and opens them as the same filter every
-other chip on the row is a door to. A second line is allowed only where a table is 1280px or
-wider, and never more than eight chips are drawn whatever the room. **The fold is computed, not
-guessed**: a chip is mono at 12px, so how wide one is is arithmetic over its characters, and
-`lib/tag-fold` fits the words -- the `+N` counted as the chip it is -- into the room one
-`ResizeObserver` on the listing's own card measured. One observer for the listing rather than
-one per row, and a share of the table rather than the cell's own width, which is the width the
-chips already took. Where the listing is drawing cards a row's tags have a row of their own, so
-nothing folds there.
+other chip on the row is a door to -- and never more than eight chips are drawn whatever the
+room. **The fold is computed, not guessed**: a chip is mono at 12px, so how wide one is is
+arithmetic over its characters, and `lib/tag-fold` fits the words -- the `+N` counted as the chip
+it is -- into the fixed width the Tags column declares, passed to `TagChips` as its `room`. The
+fold is the table's: on a stacked card, which `TagChips` knows from `useTableCell`, the chips wrap
+across the card, still no more than eight.
 
 **A choice closes on its choice; a set stays open.** `components/list/Choice` is one value out of
 a menu of them, and picking one shuts the menu, because the question has been answered. A set is
@@ -774,8 +746,8 @@ stands beside the control as chips that take themselves off.
 **A count says what it counts.** `rowsRead` writes "1 pipeline", "50 runs, more to load": the noun
 is the row's, singular where there is one of it, and a listing with a cursor left says so. A bare
 number along a foot reads as a total, and a keyset walk has no total to state. **The noun reaches
-the foot in both numbers**, as the `{one, many}` pair its `count` entry holds, and `ListTable`'s
-`noun` prop takes that pair rather than a word: a foot handed one plural would have to reach the
+the foot in both numbers**, as the `{one, many}` pair its `count` entry holds, and `rowsRead`
+takes that pair rather than a word: a foot handed one plural would have to reach the
 singular by rule, and the rule that makes a batch out of batches makes an entrie out of entries.
 
 ## A pipeline is listed by its shape
@@ -1429,36 +1401,14 @@ the shell on this page changes. Everything below is what the same screens become
 **Nothing scrolls sideways.** A page whose body scrolls horizontally is a defect, whatever is in
 it, and so is a listing that scrolls inside its own card.
 
-**Above `lg` a table has no breakpoint: it follows the width it was given.** The window cannot
+**A listing has no breakpoint of its own: it follows the width it was given.** The window cannot
 answer for a listing whose box it does not know -- the same columns fit a 1024px window and
-overflow the moment a panel takes half of what was left. So from `lg` up the card form is the
-listing's own answer about its own box: a `ResizeObserver` on the listing's card reads the room
-it has, the table drawn in it reports what the columns need -- its `scrollWidth` at table layout,
-which is wider than the box exactly when they do not fit -- and a listing that cannot hold its
-table draws its rows as cards wherever it stands. `lib/card-form` is that decision, `useCardForm`
-is the observer that feeds it, and the form a listing settled on is what its own cells read
-through `useListCards` -- a cell that draws itself differently on a card asks the listing it is
-in, never the window. The columns settle first: the layout a title column is measured on is one
-it stands at its floor in, and a table narrower than the one that will be drawn says nothing
-about whether the real one fits.
-
-**Below `lg` a listing is cards, whatever it measures.** Under 1024 the content column beside the
-rail is about 500px, and a listing of two text columns measures itself as fitting a table there:
-two columns of twenty characters, which is a table by arithmetic and a card by reading it. The
-window is a floor under the measurement rather than a second opinion about it -- `useSmallWindow`
--- and everything above that floor is the box's own question.
-
-**The form has slack in it, so it cannot flap.** A listing turns into cards when the table it
-drew overflowed its box, and remembers what that table took; it turns back into a table only
-once it has that width and `SLACK` more. Without the gap the width at which the table returns is
-the width at which it overflows again, and a window dragged across that edge would strobe.
-
-**A width is published before it is judged.** A cell that fits itself to the listing -- the tags
-fold, a bounded column -- reads a width nothing has measured yet as no bound at all and draws
-everything it holds, so the first layout of a listing is wider than the one after it. The
-measurement sets the width and settles the form on the render that follows, and a face that
-arrives late re-measures behind it: a form settled on either of those layouts is a listing stuck
-in cards on a screen with room for its table.
+overflow the moment a panel takes half of what was left. So the card form is the listing's own
+answer about its own box: `DataTable` measures the box it is drawn in, and `LISTING` has it stack
+its rows once that box is narrower than `lg` (`stackBelow: '64rem'`) and narrower than the least
+its columns take, never under 36rem (`minWidth`). A listing beside an open panel draws cards while
+the window around it is as wide as it ever was; at 1024 with the rail open and no panel, every
+listing is a table.
 
 **A utility hides; `useSmallScreen` chooses.** `md:hidden` on one of two renderings leaves both
 in the document -- every row and every control twice, two elements with one accessible name --
@@ -1473,26 +1423,18 @@ they have to dismiss twice. Focus moves into it on open and back to the button o
 account menu lives at its foot.
 
 **A listing row becomes a card where the table will not fit**, which on a phone is every
-listing. The table is one component and so is its narrow form: `ListTable` draws its first
-column as the card's head -- the title as the row's link, the code in mono once -- and every
-other column as a labelled fact under it, labelled by that column's own header. A column headed
-by nothing is a control -- a check, a revoke -- and it has no label row: it stands under the
-facts at the card's content edge, where the head starts, rather than in the value column beside
-a blank. `cardFacts` in `lib/card-form` is that split. What a row does
-as a table it does here: a row that opens a panel opens it, and a row that is a link is one. The
-card is the whole listing's form, header row and column widths included, so nothing on a narrow
-table has to be told how to shrink. Users draws its narrow form through `DataTable`, which stacks a
-list whose box is under 576px into one row per account: the heading, a line per fact after its
-column's name, and `New token`{ .label } on a line of its own at the edge the facts start from. Its tokens
-stack the same way under it.
+listing. `DataTable` draws a narrow list as one row per record: its first column as the row's
+title, on one line, and every other column on a line after its column's name. A column headed by
+nothing is a control -- New token, Revoke -- and takes its line without a name, at the edge the
+facts start from. What a row does as a table it does here: a row that opens a panel opens it, and
+a row that is a link is one. An account's tokens stack the same way under its row.
 
 **A column with nothing in it for that row is left out of the card, label and all -- and the
 cell is what says so, by returning `null`.** A component that renders nothing is an element all
 the same, so a cell handing one back reads as a fact the row has, and the card draws a label
 with a blank beside it: a schema with no description under a `Description` saying nothing. The
 column decides, never the component it draws -- a tag strip with no tags, a duration for a run
-still going, a description that is empty are the cell's answer and not the component's -- and
-`lib/card-form` leaves out every fact that answered nothing.
+still going, a description that is empty are the cell's answer and not the component's.
 
 **The breadcrumb is the way back**: below `md` only the last screen above this one stands, after
 a chevron pointing back, and it truncates with an ellipsis rather than wrapping the strip onto a
@@ -1821,8 +1763,8 @@ and its fields open under it rather than in a pane of their own.
 
 **An account's tokens are listed under its row.** A token authenticates as one account, so it is
 filed there rather than in a second table with an Account column. They are the row's `detail` in
-`DataTable`: the table's own chevron at the head of the row opens and shuts it, named `Show tokens`{ .label }
-or `Hide tokens`{ .label }, and does nothing else, and the right and left arrows do the same on the row
+`DataTable`: the table's own chevron at the head of the row opens and shuts it, named and tooltipped
+`Show the tokens of <account>` or `Hide the tokens of <account>` by `expandLabel`, and does nothing else, and the right and left arrows do the same on the row
 the arrows reached; pressing the rest of the row opens the account's dialog, and the heading's own
 tooltip says so. Several accounts may stand open. What opens is a `DataTable` list of its own, set
 under the row and reading `GET /users/{username}/tokens` when it is opened and not before. It keeps
@@ -2497,8 +2439,8 @@ the one palette.
 | `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` drawn into the shell's head slot by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds, a `SplitButton` when it carries `more`, its chevron named by the item's `moreLabel`. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
-| `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A listing is `ListTable`, which draws the same panel |
-| `DataTable` (sokkel-ui) | The Users listing and the tokens under each account, `variant="list"`, `resizable={false}`: grid tracks per column, a cell's control pressed on its own without opening the row, `onOpen` for the dialog a row opens, `detail` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead`, and `empty` for the one line a listing with no rows says. Its words come from `tableWords` |
+| `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A titled listing is a `flush` `Section` with its count as `meta`, around a `DataTable` with `framed={false}` |
+| `DataTable` (sokkel-ui) | Every listing, spread with `LISTING` (`variant="list"`, `resizable={false}`, `stackBelow` and `minWidth`): grid tracks per column with the title `width: 'content'`, a cell's control pressed on its own without opening the row, `onOpen` and `opened` for what a row opens, `rowTone="muted"` for a row no longer live, `rowHeight="auto"` where a cell is two lines, `detail`, `hasDetail` and `expandLabel` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead`, and `empty` for the one line a listing with no rows says |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface

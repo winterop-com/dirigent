@@ -270,18 +270,18 @@ test.describe('a run started by a step of another run', () => {
         await expect(row).toBeVisible()
         // At a desk width the listing is still a table: the trigger cell yields rather than
         // pushing the columns past the box.
-        await expect(page.getByRole('table')).toBeVisible()
+        await expect(page.getByRole('columnheader').first()).toBeVisible()
 
         // The parent is named by the tail of its id, and the whole of what was recorded is on
         // hover.
-        const trigger = row.locator('td').nth(2).locator('[title]')
+        const trigger = row.getByRole('gridcell').nth(2).locator('[title]')
         await expect(trigger).toContainText(parent.slice(-8))
         await expect(trigger).not.toContainText(parent)
         await expect(trigger).toHaveAttribute('title', new RegExp(parent))
 
         // NOTHING SCROLLS SIDEWAYS: the listing's content fits its own box.
         const overflow = await page
-            .locator('.list-scroll')
+            .getByRole('grid')
             .first()
             .evaluate((box) => box.scrollWidth - box.clientWidth)
         expect(overflow).toBeLessThanOrEqual(0)

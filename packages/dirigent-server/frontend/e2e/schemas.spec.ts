@@ -408,7 +408,7 @@ async function titlesPast(page: Page): Promise<number> {
             const reach = Math.max(...rects.map((rect) => rect.right))
             return reach - element.getBoundingClientRect().right
         }
-        const cells = [...document.querySelectorAll('[data-list-title] *')]
+        const cells = [...document.querySelectorAll('[data-track="schema"] *')]
         // Nothing to measure is a fault of its own: `Math.max(0)` is 0, which reads as room to
         // spare at every width and would sweep the whole range green having measured no title.
         if (cells.length === 0) return Number.NaN

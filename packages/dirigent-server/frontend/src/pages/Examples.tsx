@@ -4,16 +4,17 @@ import { useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { ANY, Choice } from '@/components/list/Choice'
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
+import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { TagChips } from '@/components/TagChips'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { useRead } from '@/hooks/use-read'
+import { useRowPress } from '@/hooks/use-row-press'
 import {
     anythingFiltered,
     carriesNote,
@@ -33,10 +34,11 @@ import {
     type Holdings,
 } from '@/lib/examples'
 import { headingOf, oneLine } from '@/lib/identity'
-import { chipWords, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import { chipWords, LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { closePanel, fillPanel, openPanelTab } from '@/lib/panels'
+import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { STARTER_TAG, copyStarter } from '@/lib/starters'
@@ -54,12 +56,27 @@ const ExamplePanel = lazy(() =>
 /** Which tab of the right panel a chosen row opens. */
 const EXAMPLE_TAB = 'example'
 
-/** The corpus arrives whole, so the table's cursor walk has nothing to walk. */
-const NO_MORE = () => {
-    // One walk carried every document. There is no next page to ask for.
-}
-
 const exampleCode = (row: ExampleOut) => row.code
+
+/** How wide the Tags column is, in pixels, which is the room its chips fold to. */
+const TAGS_ROOM = 256
+
+/** An example's title: cut on one line in a table row, wrapped in full on a stacked card. */
+function ExampleTitle({ title, named }: { title: string; named: boolean }) {
+    const { stacked } = useTableCell()
+    return (
+        <span
+            className={cn(
+                'font-semibold',
+                stacked ? 'overflow-visible whitespace-normal' : 'truncate',
+                !named && 'font-mono',
+            )}
+            title={title}
+        >
+            {title}
+        </span>
+    )
+}
 
 /** What the two-value filter over the corpus calls its halves. */
 const WHICH = [
@@ -184,6 +201,18 @@ export function Examples() {
         )
     }, [chosen, holdings, use])
 
+    const press = useRowPress<ExampleOut>(
+        (row) => {
+            setChosen(row)
+            openPanelTab(EXAMPLE_TAB)
+        },
+        (row) => row.code === chosen?.code,
+        () => {
+            setChosen(null)
+            closePanel()
+        },
+    )
+
     return (
         <>
             <PageHeader
@@ -274,23 +303,15 @@ export function Examples() {
                           : LABELS.examples.empty
                 }
             >
-                <ListTable
+                <DataTable
+                    {...LISTING}
+                    rowHeight="auto"
                     columns={columns}
                     rows={shown}
                     rowKey={exampleCode}
-                    reading={false}
-                    next={null}
-                    onMore={NO_MORE}
-                    noun={LABELS.word.example.count}
-                    onSelect={(row) => {
-                        setChosen(row)
-                        openPanelTab(EXAMPLE_TAB)
-                    }}
-                    selected={(row) => row.code === chosen?.code}
-                    onClose={() => {
-                        setChosen(null)
-                        closePanel()
-                    }}
+                    foot={rowsRead(shown.length, LABELS.word.example.count, false)}
+                    onOpen={press}
+                    opened={(row) => row.code === chosen?.code}
                 />
             </PageState>
         </>
@@ -326,28 +347,19 @@ function exampleColumns(
     holdings: Holdings,
     plugins: readonly string[],
     onTag: (tag: string) => void,
-): Column<ExampleOut>[] {
+): DataColumn<ExampleOut>[] {
     return [
         {
             id: 'example',
             header: LABELS.word.example.label,
-            kind: 'title',
+            width: 'minmax(12rem,2fr)',
             cell: (row) => {
                 const heading = headingOf(row)
                 const carries = carriesNote(row)
                 return (
                     <div className="min-w-0">
                         <span className="flex items-center gap-2">
-                            <span
-                                className={cn(
-                                    'truncate font-semibold',
-                                    'max-lg:overflow-visible max-lg:whitespace-normal',
-                                    !heading.named && 'font-mono',
-                                )}
-                                title={heading.title}
-                            >
-                                {heading.title}
-                            </span>
+                            <ExampleTitle title={heading.title} named={heading.named} />
                             {row.starter && (
                                 <Badge variant="outline" className="shrink-0">
                                     {LABELS.examples.starter_badge}
@@ -382,15 +394,16 @@ function exampleColumns(
         {
             id: 'tags',
             header: LABELS.word.tags,
+            width: `${String(TAGS_ROOM)}px`,
             cell: (row) => {
                 const tags = row.tags.filter((tag) => tag !== STARTER_TAG)
-                return tags.length === 0 ? null : <TagChips tags={tags} onSelect={onTag} />
+                return tags.length === 0 ? null : <TagChips tags={tags} room={TAGS_ROOM} onSelect={onTag} />
             },
         },
         {
             id: 'requires',
             header: LABELS.word.requires,
-            className: 'whitespace-nowrap',
+            width: 'minmax(8rem,1fr)',
             // What a document needs of this instance, counted, with what is not here in
             // critical ink. A document that needs nothing says nothing.
             cell: (row) => {
@@ -400,9 +413,10 @@ function exampleColumns(
                 return (
                     <span
                         className={cn(
-                            'text-xs',
+                            'block truncate text-xs',
                             missingCount(items) === 0 ? 'text-muted-foreground' : 'text-critical',
                         )}
+                        title={summary}
                     >
                         {summary}
                     </span>
@@ -416,8 +430,15 @@ function exampleColumns(
                   {
                       id: 'plugin',
                       header: LABELS.word.plugin.label,
-                      className: 'w-32 font-mono text-xs whitespace-nowrap',
-                      cell: (row: ExampleOut) => <span className="text-muted-foreground">{row.plugin}</span>,
+                      width: 'minmax(8rem,1fr)',
+                      cell: (row: ExampleOut) => (
+                          <span
+                              className="block truncate font-mono text-xs text-muted-foreground"
+                              title={row.plugin}
+                          >
+                              {row.plugin}
+                          </span>
+                      ),
                   },
               ]
             : []),

@@ -9,14 +9,15 @@ import { EMPTY_TEST, SendTest, type TestDraft } from '@/components/alerting/Send
 import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { ANY, Choice } from '@/components/list/Choice'
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { shutWith } from '@/lib/design-system'
+import { SECTION_LISTING, shutWith } from '@/lib/design-system'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
+import { useRowPress } from '@/hooks/use-row-press'
 import { LOG_TARGET } from '@/lib/alert-form'
 import {
     channelsOf,
@@ -235,6 +236,13 @@ function Alerting() {
         closePanel()
     }
 
+    const pressRule = useRowPress(chooseRule, (rule) => rule.id === chosenRule, unchoose)
+    const pressNotification = useRowPress(
+        chooseNotification,
+        (row) => row.id === chosenNotification,
+        unchoose,
+    )
+
     return (
         <>
             <PageHeader
@@ -281,19 +289,18 @@ function Alerting() {
                         empty={ruleRows.length === 0}
                         emptyMessage={LABELS.alerting.rules_empty}
                     >
-                        <ListTable
-                            chrome={{ framed: false }}
+                        <DataTable
+                            {...SECTION_LISTING}
+                            rowHeight="auto"
                             columns={RULE_COLUMNS}
                             rows={ruleRows}
                             rowKey={ruleId}
-                            rowClassName={(rule) => (ruleLive(rule) ? undefined : 'opacity-60')}
-                            reading={rules.state.reading}
-                            next={rules.state.next}
-                            onMore={rules.more}
-                            noun={LABELS.word.rule.count}
-                            onSelect={chooseRule}
-                            selected={(rule) => rule.id === chosenRule}
-                            onClose={unchoose}
+                            rowTone={(rule) => (ruleLive(rule) ? undefined : 'muted')}
+                            hasMore={rules.state.next !== null}
+                            loading={rules.state.reading}
+                            onLoadMore={rules.more}
+                            onOpen={pressRule}
+                            opened={(rule) => rule.id === chosenRule}
                         />
                     </PageState>
                 </Section>
@@ -348,18 +355,17 @@ function Alerting() {
                                 : LABELS.alerting.notifications_empty
                         }
                     >
-                        <ListTable
-                            chrome={{ framed: false }}
+                        <DataTable
+                            {...SECTION_LISTING}
+                            rowHeight="auto"
                             columns={NOTIFICATION_COLUMNS}
                             rows={notificationRows}
                             rowKey={notificationId}
-                            reading={notifications.state.reading}
-                            next={notifications.state.next}
-                            onMore={notifications.more}
-                            noun={LABELS.word.notification.count}
-                            onSelect={chooseNotification}
-                            selected={(row) => row.id === chosenNotification}
-                            onClose={unchoose}
+                            hasMore={notifications.state.next !== null}
+                            loading={notifications.state.reading}
+                            onLoadMore={notifications.more}
+                            onOpen={pressNotification}
+                            opened={(row) => row.id === chosenNotification}
                         />
                     </PageState>
                 </Section>
@@ -456,8 +462,11 @@ function useChannels(): { rows: ChannelRow[]; connections: ConnectionOut[]; read
 function Scope({ rule }: { rule: AlertRuleOut }) {
     const floor = importanceNote(rule.importance)
     return (
-        <span className="flex flex-wrap items-baseline gap-x-1.5">
-            <span className={rule.scope === 'pipeline' ? 'font-mono text-xs' : 'text-sm'}>
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+            <span
+                className={rule.scope === 'pipeline' ? 'max-w-full truncate font-mono text-xs' : 'text-sm'}
+                title={rule.scope === 'pipeline' ? scopeNote(rule) : undefined}
+            >
                 {scopeNote(rule)}
             </span>
             {floor !== null && <span className="text-xs text-muted-foreground">{floor}</span>}
@@ -465,11 +474,11 @@ function Scope({ rule }: { rule: AlertRuleOut }) {
     )
 }
 
-const RULE_COLUMNS: Column<AlertRuleOut>[] = [
+const RULE_COLUMNS: DataColumn<AlertRuleOut>[] = [
     {
         id: 'rule',
         header: LABELS.word.rule.label,
-        kind: 'title',
+        width: 'minmax(15.5rem,2fr)',
         cell: (rule) => {
             const heading = headingOf(rule)
             return (
@@ -498,38 +507,44 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     {
         id: 'event',
         header: LABELS.word.event,
+        width: 'minmax(5rem,1fr)',
         cell: (rule) => <span className="text-sm">{LABELS.alerting.event[rule.event]}</span>,
     },
     {
         id: 'scope',
         header: LABELS.word.scope,
+        width: 'minmax(4.5rem,1fr)',
         cell: (rule) => <Scope rule={rule} />,
     },
     {
         id: 'delivers',
         header: LABELS.word.delivers_through,
+        width: 'minmax(6.5rem,1fr)',
         cell: (rule) => <Target notifier={rule.notifier} connection={rule.connection} />,
     },
     {
         id: 'throttle',
         header: LABELS.word.throttle,
-        className: 'font-mono text-xs',
-        cell: (rule) => <span className="text-muted-foreground">{throttleNote(rule.throttle)}</span>,
+        width: 'minmax(3.5rem,1fr)',
+        cell: (rule) => (
+            <span className="font-mono text-xs text-muted-foreground">{throttleNote(rule.throttle)}</span>
+        ),
     },
     {
         id: 'sent',
         header: LABELS.alerting.last_sent,
-        className: 'text-xs',
+        width: 'minmax(4rem,1fr)',
         cell: (rule) =>
             rule.last_sent_at === null ? (
-                <span className="text-muted-foreground">{LABELS.word.never}</span>
+                <span className="text-xs text-muted-foreground">{LABELS.word.never}</span>
             ) : (
-                <Instant className="text-muted-foreground" at={rule.last_sent_at} />
+                <Instant className="text-xs text-muted-foreground" at={rule.last_sent_at} />
             ),
     },
     {
         id: 'live',
         header: LABELS.word.state,
+        width: 'minmax(3rem,1fr)',
         cell: (rule) =>
             rule.paused ? (
                 <span className="text-xs text-muted-foreground">{LABELS.state.armed.paused}</span>
@@ -541,16 +556,17 @@ const RULE_COLUMNS: Column<AlertRuleOut>[] = [
     },
 ]
 
-const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
+const NOTIFICATION_COLUMNS: DataColumn<NotificationOut>[] = [
     {
         id: 'status',
         header: LABELS.word.status,
+        width: 'content',
         cell: (notification) => <StatusChip status={notification.status} />,
     },
     {
         id: 'subject',
         header: LABELS.word.subject,
-        kind: 'prose',
+        width: 'minmax(10rem,2fr)',
         cell: (notification) => (
             <span className="flex min-w-0 flex-col">
                 <span className="truncate text-sm" title={notification.subject}>
@@ -567,6 +583,7 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     {
         id: 'delivers',
         header: LABELS.word.delivers_through,
+        width: 'minmax(6.5rem,1fr)',
         cell: (notification) => (
             <Channel notifier={notification.notifier} connection={notification.connection} />
         ),
@@ -574,23 +591,26 @@ const NOTIFICATION_COLUMNS: Column<NotificationOut>[] = [
     {
         id: 'run',
         header: LABELS.word.run.label,
+        width: 'minmax(9rem,1fr)',
         cell: (notification) => <Run notification={notification} />,
     },
     {
         id: 'queued',
         header: LABELS.alerting.queued_at,
-        className: 'text-xs',
-        cell: (notification) => <Instant className="text-muted-foreground" at={notification.created_at} />,
+        width: 'minmax(5rem,1fr)',
+        cell: (notification) => (
+            <Instant className="text-xs text-muted-foreground" at={notification.created_at} />
+        ),
     },
     {
         id: 'sent',
         header: LABELS.alerting.sent_at,
-        className: 'text-xs',
+        width: 'minmax(5rem,1fr)',
         cell: (notification) =>
             notification.status === 'sent' ? (
-                <Instant className="text-muted-foreground" at={notification.sent_at} />
+                <Instant className="text-xs text-muted-foreground" at={notification.sent_at} />
             ) : notification.attempt > 0 ? (
-                <span className="text-faint">
+                <span className="text-xs text-faint">
                     {counted(notification.max_attempts, LABELS.alerting.attempts_of.counted)(
                         notification.attempt,
                         notification.max_attempts,

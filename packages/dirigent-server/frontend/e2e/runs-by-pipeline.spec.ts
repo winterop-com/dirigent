@@ -114,7 +114,7 @@ test('a pipeline that ran many times is one row, counted by state, with a strip 
     await page.goBack()
 
     // A row opens the flat list of that pipeline over the same window.
-    await page.getByRole('row').filter({ hasText: CODE }).getByRole('cell').nth(1).click()
+    await page.getByRole('row').filter({ hasText: CODE }).getByRole('gridcell').nth(1).click()
     await expect(page).toHaveURL(new RegExp(`/runs\\?pipeline=${CODE}&since=7d$`))
     await expect(
         page
@@ -131,4 +131,30 @@ test('a pipeline that ran many times is one row, counted by state, with a strip 
         .click()
     await expect(page).toHaveURL(new RegExp(`/runs\\?group=pipeline&window=7d&pipeline=${CODE}$`))
     await expect(page.getByRole('row').filter({ hasText: CODE })).toHaveCount(1)
+})
+
+/** A pipeline whose code is as long as a real one runs to, with a name over it. */
+const LONG = { code: 'e2e-grouped-under-a-long-code', name: 'Grouped under a code as long as a real one' }
+
+test.describe('in the column a 1024 window leaves', () => {
+    test.use({ viewport: { width: 1024, height: 768 } })
+
+    test('the grouped runs are a table, and a long code reads whole under its name', async ({ page }) => {
+        await signIn(page)
+        await applyDocument(page.request, { ...DOCUMENT, code: LONG.code, name: LONG.name })
+        await settled(page.request, await startRun(page.request, LONG.code, { fail: 0 }))
+
+        await page.goto(`/runs?group=pipeline&window=24h&pipeline=${LONG.code}`)
+        const row = page.getByRole('row').filter({ hasText: LONG.code })
+        await expect(row).toHaveCount(1)
+        await expect(page.getByRole('columnheader').first()).toBeVisible()
+
+        const code = row.getByTitle(LONG.code, { exact: true })
+        await expect(code).toBeVisible()
+        expect(await code.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0)
+
+        await expect
+            .poll(async () => page.getByRole('grid').evaluate((box) => box.scrollWidth - box.clientWidth))
+            .toBe(0)
+    })
 })

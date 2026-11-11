@@ -263,13 +263,54 @@ test('the connections listing fits 1024 without scrolling sideways', async ({ pa
 
     // The table's own scroll box rather than the window: a listing wider than the box it is
     // drawn in is the sideways scroll, whether or not the page itself moves.
-    const listing = page.locator('.list-scroll')
+    const listing = page.getByRole('grid')
     expect(await listing.evaluate((box) => box.scrollWidth - box.clientWidth)).toBeLessThanOrEqual(0)
 
     const sideways = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     )
     expect(sideways).toBeLessThanOrEqual(0)
+})
+
+/** A credential whose code is as long as a real one runs to, under a name longer still. */
+const LONG_CONNECTION = {
+    code: 'e2e-hook-for-the-night-shift',
+    name: 'The night shift hook that pages whichever operator is on duty for the region',
+}
+
+test('at 1024 the connections listing is a table, and a long code beside a long name reads whole', async ({
+    page,
+}) => {
+    await signIn(page)
+    await removeConnection(page.request, LONG_CONNECTION.code)
+    const prefix = await apiPrefix(page.request)
+    const created = await page.request.post(`${prefix}/connections`, {
+        data: { ...LONG_CONNECTION, kind: 'webhook', config: { url: 'https://alerts.invalid/night' } },
+    })
+    expect(created.ok(), await created.text()).toBe(true)
+
+    await page.setViewportSize({ width: 1024, height: 768 })
+    await page.goto('/connections')
+    const row = rowOf(page, LONG_CONNECTION.code)
+    await expect(row).toBeVisible()
+    await expect(page.getByRole('columnheader').first()).toBeVisible()
+
+    // The name gives way and the code keeps its width.
+    const code = row.getByTitle(LONG_CONNECTION.code, { exact: true })
+    expect(await code.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0)
+    const name = row.getByTitle(LONG_CONNECTION.name, { exact: true })
+    expect(await name.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeGreaterThan(0)
+
+    // The same code is the subject of the audit trail's row, and reads whole there too.
+    await page.goto('/admin/audit')
+    const entry = page.getByRole('row').filter({ hasText: LONG_CONNECTION.code }).first()
+    await expect(entry).toBeVisible()
+    await expect(page.getByRole('columnheader').first()).toBeVisible()
+    const subject = entry.getByTitle(LONG_CONNECTION.code, { exact: true })
+    expect(await subject.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0)
+
+    // A webhook left standing is a channel the alerting screen would draw from here on.
+    await removeConnection(page.request, LONG_CONNECTION.code)
 })
 
 test('a connection opens a form whose secret box is empty and whose kind is fixed', async ({

@@ -3,9 +3,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { shutWith } from '@/lib/design-system'
+import { SECTION_LISTING, shutWith } from '@/lib/design-system'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
@@ -14,6 +14,7 @@ import { NewSchedule } from '@/components/triggers/NewTrigger'
 import { SchedulePanel, SourcePanel } from '@/components/triggers/TriggerPanel'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
+import { useRowPress } from '@/hooks/use-row-press'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
@@ -183,6 +184,9 @@ export function Triggers() {
         closePanel()
     }
 
+    const pressSource = useRowPress(selectSource, (row) => sourceId(row) === chosenSource, unchoose)
+    const pressSchedule = useRowPress(select, (row) => scheduleId(row) === chosen, unchoose)
+
     return (
         <>
             <PageHeader
@@ -226,18 +230,17 @@ export function Triggers() {
                             empty={sources.length === 0}
                             emptyMessage={LABELS.triggers.source.empty}
                         >
-                            <ListTable
-                                chrome={{ framed: false }}
+                            <DataTable
+                                {...SECTION_LISTING}
+                                rowHeight="auto"
                                 columns={sourceColumns(sources)}
                                 rows={sources}
                                 rowKey={sourceId}
-                                reading={listed.state.reading}
-                                next={listed.state.next}
-                                onMore={listed.more}
-                                noun={LABELS.word.input_source.count}
-                                onSelect={selectSource}
-                                selected={(row) => sourceId(row) === chosenSource}
-                                onClose={unchoose}
+                                hasMore={listed.state.next !== null}
+                                loading={listed.state.reading}
+                                onLoadMore={listed.more}
+                                onOpen={pressSource}
+                                opened={(row) => sourceId(row) === chosenSource}
                             />
                         </PageState>
                     </Section>
@@ -258,18 +261,17 @@ export function Triggers() {
                             empty={schedules.length === 0}
                             emptyMessage={LABELS.triggers.schedule.empty}
                         >
-                            <ListTable
-                                chrome={{ framed: false }}
+                            <DataTable
+                                {...SECTION_LISTING}
+                                rowHeight="auto"
                                 columns={scheduleCols}
                                 rows={schedules}
                                 rowKey={scheduleId}
-                                reading={state.reading}
-                                next={state.next}
-                                onMore={more}
-                                noun={LABELS.word.schedule.count}
-                                onSelect={select}
-                                selected={(row) => scheduleId(row) === chosen}
-                                onClose={unchoose}
+                                hasMore={state.next !== null}
+                                loading={state.reading}
+                                onLoadMore={more}
+                                onOpen={pressSchedule}
+                                opened={(row) => scheduleId(row) === chosen}
                             />
                         </PageState>
                     </Section>
@@ -287,30 +289,29 @@ export function Triggers() {
     )
 }
 
-const SOURCE_COLUMNS: Column<SourceOut>[] = [
+const SOURCE_COLUMNS: DataColumn<SourceOut>[] = [
     {
         id: 'source',
         header: LABELS.word.input_source.label,
-        kind: 'title',
+        width: 'minmax(11.5rem,2fr)',
         cell: (row) => <Titled thing={row}>{null}</Titled>,
     },
     {
         id: 'pipeline',
         header: LABELS.word.pipeline.label,
-        kind: 'prose',
+        width: 'minmax(12.5rem,1fr)',
         cell: (row) => <PipelineRef code={row.pipeline} name={null} />,
     },
     {
         id: 'listens',
         header: LABELS.triggers.source.listens,
-        kind: 'prose',
-        className: 'font-mono text-xs',
+        width: 'minmax(6.5rem,2fr)',
         cell: (row) => {
             const listens = listensTo(row)
             return listens === null ? (
-                <span className="text-muted-foreground">{row.kind}</span>
+                <span className="font-mono text-xs text-muted-foreground">{row.kind}</span>
             ) : (
-                <span className="block truncate" title={listens}>
+                <span className="block truncate font-mono text-xs" title={listens}>
                     {listens}
                 </span>
             )
@@ -319,11 +320,11 @@ const SOURCE_COLUMNS: Column<SourceOut>[] = [
     {
         id: 'state',
         header: LABELS.word.state,
-        className: 'text-xs',
+        width: 'minmax(5rem,1fr)',
         cell: (row) => {
             const view = stateView(row)
             return (
-                <span className="flex items-center gap-2">
+                <span className="flex items-center gap-2 text-xs">
                     <Dot tone={view.tone} />
                     {view.label}
                 </span>
@@ -333,10 +334,11 @@ const SOURCE_COLUMNS: Column<SourceOut>[] = [
     {
         id: 'in_flight',
         header: LABELS.word.in_flight.heading,
-        className: 'text-right font-mono text-xs',
+        width: 'minmax(4rem,1fr)',
+        align: 'end',
         cell: (row) =>
             row.in_flight === 0 && row.max_in_flight === null ? null : (
-                <span className="text-muted-foreground">
+                <span className="font-mono text-xs text-muted-foreground">
                     {row.max_in_flight === null
                         ? String(row.in_flight)
                         : LABELS.triggers.source.bounded(String(row.in_flight), String(row.max_in_flight))}
@@ -346,12 +348,12 @@ const SOURCE_COLUMNS: Column<SourceOut>[] = [
     {
         id: 'last',
         header: LABELS.triggers.source.last_input,
-        className: 'text-xs',
+        width: 'minmax(4.5rem,1fr)',
         cell: (row) =>
             row.last_input_at === null ? (
-                <span className="text-faint">{LABELS.word.never}</span>
+                <span className="text-xs text-faint">{LABELS.word.never}</span>
             ) : (
-                <span className="text-muted-foreground" title={formatInstant(row.last_input_at)}>
+                <span className="text-xs text-muted-foreground" title={formatInstant(row.last_input_at)}>
                     {formatRelative(row.last_input_at)}
                 </span>
             ),
@@ -359,16 +361,16 @@ const SOURCE_COLUMNS: Column<SourceOut>[] = [
 ]
 
 /** The source columns, leaving out In flight where no row has a run in flight or a bound on them. */
-function sourceColumns(rows: readonly SourceOut[]): Column<SourceOut>[] {
+function sourceColumns(rows: readonly SourceOut[]): DataColumn<SourceOut>[] {
     if (rows.some((row) => row.in_flight > 0 || row.max_in_flight !== null)) return SOURCE_COLUMNS
     return SOURCE_COLUMNS.filter((column) => column.id !== 'in_flight')
 }
 
-const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
+const SCHEDULE_COLUMNS: DataColumn<ScheduleRow>[] = [
     {
         id: 'schedule',
         header: LABELS.word.schedule.label,
-        kind: 'title',
+        width: 'minmax(11.5rem,2fr)',
         cell: (row) => (
             <Titled thing={row.schedule}>
                 <OwnerChip managed={row.schedule.managed} document={row.schedule.trigger_document} />
@@ -379,37 +381,47 @@ const SCHEDULE_COLUMNS: Column<ScheduleRow>[] = [
     {
         id: 'pipeline',
         header: LABELS.word.pipeline.label,
-        kind: 'prose',
+        width: 'minmax(12.5rem,1fr)',
         cell: (row) => <PipelineRef code={row.pipeline} name={row.pipelineName} />,
     },
     {
         id: 'clock',
         header: LABELS.word.clock,
+        width: 'minmax(4.5rem,1fr)',
         cell: (row) => <Clock schedule={row.schedule} />,
     },
     {
         id: 'timezone',
         header: LABELS.word.timezone,
-        className: 'text-xs',
-        cell: (row) => <span className="text-muted-foreground">{row.schedule.timezone}</span>,
+        width: 'minmax(5rem,1fr)',
+        cell: (row) => (
+            <span className="block truncate text-xs text-muted-foreground" title={row.schedule.timezone}>
+                {row.schedule.timezone}
+            </span>
+        ),
     },
     {
         id: 'next',
         header: LABELS.word.next,
-        className: 'text-xs',
+        width: 'minmax(4.5rem,1fr)',
         // The paused chip in the title cell already says why there is no instant.
         cell: (row) =>
-            nextFireView(row.schedule).kind === 'paused' ? null : <NextFire schedule={row.schedule} />,
+            nextFireView(row.schedule).kind === 'paused' ? null : (
+                <span className="text-xs whitespace-nowrap">
+                    <NextFire schedule={row.schedule} />
+                </span>
+            ),
     },
     {
         id: 'last',
         header: LABELS.word.firing.last,
+        width: 'minmax(4rem,2fr)',
         cell: (row) => <LastFiring row={row} />,
     },
 ]
 
 /** The schedule columns, leaving out Next where every row is paused and so has none. */
-function scheduleColumns(rows: readonly ScheduleRow[]): Column<ScheduleRow>[] {
+function scheduleColumns(rows: readonly ScheduleRow[]): DataColumn<ScheduleRow>[] {
     if (rows.some((row) => nextFireView(row.schedule).kind !== 'paused')) return SCHEDULE_COLUMNS
     return SCHEDULE_COLUMNS.filter((column) => column.id !== 'next')
 }
@@ -429,9 +441,12 @@ function Titled({ thing, children }: { thing: Addressable; children: ReactNode }
             >
                 {heading.title}
             </span>
-            <span className="flex min-w-0 items-center gap-2">
+            <span className="flex min-w-0 items-center gap-2 overflow-hidden">
                 {heading.code !== null && (
-                    <span className="truncate font-mono text-xs text-muted-foreground" title={heading.code}>
+                    <span
+                        className="shrink-0 font-mono text-xs whitespace-nowrap text-muted-foreground"
+                        title={heading.code}
+                    >
                         {heading.code}
                     </span>
                 )}
@@ -447,7 +462,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
         return <span className="text-xs text-faint">{LABELS.word.never}</span>
     const view = row.latest === null ? null : firingView(row.latest)
     return (
-        <span className="flex items-center gap-2 text-xs">
+        <span className="flex flex-wrap items-center gap-x-2 text-xs">
             {view !== null && <Dot tone={view.tone} />}
             <span className="text-muted-foreground" title={formatInstant(row.schedule.last_fired_at)}>
                 {formatRelative(row.schedule.last_fired_at)}

@@ -11,7 +11,6 @@ import type { ChipWords } from '@winterop-com/sokkel-ui/Chip'
 import type { CommandPaletteWords } from '@winterop-com/sokkel-ui/CommandPalette'
 import type { CodeSchemaWords } from '@winterop-com/sokkel-ui/CodeEditor'
 import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
-import type { DataTableWords } from '@winterop-com/sokkel-ui/DataTable'
 import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
 import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
@@ -33,6 +32,7 @@ import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
 import type { WindowedPaneWords } from '@winterop-com/sokkel-ui/WindowedPane'
 
 import { LABELS } from '@/lib/labels'
+import { PAGE } from '@/lib/paging'
 import { statusLabel, statusTokens } from '@/lib/status'
 
 /** What a dot or a notice says about something that is not a run: how it is, in one hue. */
@@ -126,10 +126,29 @@ export const SEARCH_PLACEHOLDER = LABELS.shell.search
 /** What a search box's clear button is called. */
 export const SEARCH_WORDS: SearchFieldWords = { clear: LABELS.shell.clear_search }
 
-/** What a table's row disclosure is called, open and shut, named for what it shows: "Show tokens". */
-export function tableWords(disclosure: { expand: string; collapse: string }): Partial<DataTableWords> {
-    return { expand: disclosure.expand, collapse: disclosure.collapse }
-}
+/**
+ * How every listing's `DataTable` lays out: the list look, columns that do not drag, and its rows
+ * as cards once its own box is narrower than `lg` and than the least its columns take, which
+ * is never under 36rem. The next page is asked for as the rows near the end of the box.
+ */
+export const LISTING = {
+    variant: 'list',
+    resizable: false,
+    stackBelow: '64rem',
+    minWidth: '36rem',
+} as const
+
+/**
+ * A listing set in a `Section` among others: unframed, and growing with its rows rather than
+ * scrolling in a box of its own, so the next page is a button after the last row.
+ */
+export const SECTION_LISTING = {
+    ...LISTING,
+    framed: false,
+    loadMore: 'button',
+    loadMoreCount: PAGE,
+    words: { loadMore: (count: number | undefined) => LABELS.shell.load_more(String(count ?? PAGE)) },
+} as const
 
 /** The one dismissal word a dialog's footer says. */
 export const DIALOG_WORDS: Partial<DialogShellWords> = { cancel: LABELS.action.cancel }

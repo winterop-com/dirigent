@@ -75,8 +75,8 @@ test.describe('a tablet', () => {
         await page.goto('/runs')
         await expect(page.getByRole('link', { name: LABELS.screen.pipelines.name })).toBeVisible()
         await expect(page.getByRole('button', { name: LABELS.shell.open_nav })).toHaveCount(0)
-        await expect(page.getByRole('table')).toHaveCount(0)
-        await expect(page.getByRole('listitem').first()).toBeVisible()
+        await expect(page.getByRole('columnheader')).toHaveCount(0)
+        await expect(page.getByRole('row').first()).toBeVisible()
     })
 })
 

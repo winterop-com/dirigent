@@ -6,11 +6,11 @@ import { ApiChip } from '@/components/ApiChip'
 import { ConnectionDialog } from '@/components/connections/ConnectionDialog'
 import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { Mark } from '@/components/Mark'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { shutWith } from '@/lib/design-system'
+import { LISTING, shutWith } from '@/lib/design-system'
 import { PageState } from '@/components/PageState'
 import { sayRefusal } from '@/components/Refusal'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -35,6 +35,7 @@ import { LABELS } from '@/lib/labels'
 import { kindGlyph } from '@/lib/glyphs'
 import { kindMarks } from '@/lib/marks'
 import { headingOf, oneLine } from '@/lib/identity'
+import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { cn } from '@/lib/utils'
@@ -206,19 +207,21 @@ export function Connections() {
                 empty={rows.length === 0}
                 emptyMessage={LABELS.connections.empty}
             >
-                <ListTable
+                <DataTable
+                    {...LISTING}
+                    rowHeight="auto"
                     columns={COLUMNS}
                     rows={rows}
                     rowKey={connectionId}
-                    reading={state.reading}
-                    next={state.next}
-                    onMore={more}
-                    noun={LABELS.word.connection.count}
-                    onSelect={(row) => {
+                    hasMore={state.next !== null}
+                    loading={state.reading}
+                    onLoadMore={more}
+                    foot={rowsRead(rows.length, LABELS.word.connection.count, state.next !== null)}
+                    onOpen={(row) => {
                         // The row is not another page of history: it is which one is being read.
                         void navigate(connectionPath(row.code), { replace: true })
                     }}
-                    selected={(row) => row.code === chosen}
+                    opened={(row) => row.code === chosen}
                 />
             </PageState>
 
@@ -261,27 +264,29 @@ export function Connections() {
 }
 
 /** The columns, each a plain reading of the row. */
-const COLUMNS: Column<ConnectionOut>[] = [
+const COLUMNS: DataColumn<ConnectionOut>[] = [
     {
         id: 'connection',
         header: LABELS.word.connection.label,
-        kind: 'title',
+        width: 'minmax(14rem,2fr)',
         cell: (row) => <Named row={row} />,
     },
     {
         id: 'kind',
         header: LABELS.word.kind.label,
+        width: 'minmax(7rem,1fr)',
         cell: (row) => <Kind row={row} />,
     },
     {
         id: 'health',
         header: LABELS.word.health,
+        width: 'minmax(7rem,1fr)',
         cell: (row) => <Health row={row} />,
     },
     {
         id: 'checked',
         header: LABELS.word.checked.label,
-        className: 'text-xs',
+        width: 'minmax(6rem,1fr)',
         // Nothing rather than an element that draws nothing: a card leaves out the fact a
         // row has none of, and an empty element is a label with a blank beside it.
         cell: (row) => (row.last_check_at === null ? null : <Checked at={row.last_check_at} />),
@@ -303,7 +308,9 @@ function Named({ row }: { row: ConnectionOut }) {
                 >
                     {heading.title}
                 </span>
-                {heading.code !== null && <InlineCode value={heading.code} tone="muted" bare size="xs" />}
+                {heading.code !== null && (
+                    <InlineCode value={heading.code} tone="muted" bare size="xs" className="shrink-0" />
+                )}
             </span>
             {row.description !== null && (
                 <span
@@ -336,7 +343,7 @@ function Health({ row }: { row: ConnectionOut }) {
 /** When the last check was made. A row nothing has checked says so in the health cell. */
 function Checked({ at }: { at: string }) {
     return (
-        <span className="text-muted-foreground" title={formatInstant(at)}>
+        <span className="text-xs text-muted-foreground" title={formatInstant(at)}>
             {formatRelative(at)}
         </span>
     )

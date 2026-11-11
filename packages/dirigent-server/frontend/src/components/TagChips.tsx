@@ -1,4 +1,3 @@
-import { useListCards, useListWidth } from '@/components/list/ListForm'
 import { TagChip } from '@/components/TagChip'
 import {
     DropdownMenu,
@@ -6,39 +5,43 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
-import { foldTags, linesFor, roomFor } from '@/lib/tag-fold'
+import { foldTags } from '@/lib/tag-fold'
 import { counted, LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
+import { useTableCell } from '@winterop-com/sokkel-ui/DataTable'
 
 /**
- * Every tag a listing row wears, inside the room the row's identity has left it.
+ * Every tag a row wears, folded to the room its column has.
  *
- * THE IDENTITY TAKES THE WIDTH. A tag is what a row is filed under and the title, the code and
- * the description are what it is, so the chips get a quarter of the table and no more, and what
- * does not fit that quarter folds rather than widening the column or wrapping under it.
- *
- * THE FOLD IS COMPUTED, NOT GUESSED. `lib/tag-fold` fits the words into the room the table
- * measured, counting the `+N` as the chip it is, so what is drawn is what fits on the line and
- * never one chip past it. A table at `WRAPS_AT` or wider is allowed the second line.
- *
- * A CARD IS NOT A COLUMN. Where the listing is drawing cards a row's tags have a row of their
- * own, so there is nothing to take width from and every chip is drawn.
+ * THE FOLD IS COMPUTED, NOT GUESSED. `lib/tag-fold` fits the words into `room`, the width in
+ * pixels of the column the chips stand in, counting the `+N` as the chip it is, so what is drawn
+ * is what fits on one line and never one chip past it. Without a room every chip up to the cap
+ * is drawn and wraps. On a stacked card the room is ignored and the chips wrap across the card's
+ * width; outside a `DataTable` the chips are never stacked.
  */
 export function TagChips({
     tags,
+    room = 0,
     onSelect,
 }: {
     tags: readonly string[]
+    /** The width of the column the chips stand in, in pixels; 0 for no bound. */
+    room?: number
     /** What clicking a tag asks for, which is always "narrow to this". */
     onSelect?: (tag: string) => void
 }) {
-    const cards = useListCards()
-    const table = useListWidth()
+    const { stacked } = useTableCell()
     if (tags.length === 0) return null
-    const fold = cards ? { shown: [...tags], folded: [] } : foldTags(tags, roomFor(table), linesFor(table))
+    const bound = stacked ? 0 : room
+    const fold = foldTags(tags, bound, 1)
     return (
-        <span className={cn('flex flex-wrap items-center gap-1', !cards && 'w-max max-w-[25cqi]')}>
+        <span
+            className={cn(
+                'flex items-center gap-1',
+                stacked ? 'flex-wrap' : bound > 0 ? 'flex-nowrap' : 'w-max max-w-[25cqi] flex-wrap',
+            )}
+        >
             {fold.shown.map((tag) => (
                 <TagChip
                     key={tag}
