@@ -279,6 +279,7 @@ export const PALETTE_WORDS: CommandPaletteWords = {
 export const SHORTCUTS_WORDS: ShortcutsDialogWords = {
     title: LABELS.shell.shortcuts,
     general: LABELS.shell.shortcuts_general,
+    sequence: LABELS.shell.shortcuts_sequence,
 }
 
 /** What the account menu says, its control named for the account it stands for. */

@@ -729,6 +729,8 @@ const shell = {
     shortcuts: 'Keyboard shortcuts',
     /** The heading the shortcuts dialog lists every key under. */
     shortcuts_general: 'General',
+    /** Between the two keys of a key sequence, as G then D. */
+    shortcuts_sequence: 'then',
 
     /** The top bar's dot: which instance this is, what it is running, and how it is doing. */
     instance: {
