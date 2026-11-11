@@ -3,15 +3,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { shutWith } from '@/lib/design-system'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { LISTING, shutWith } from '@/lib/design-system'
 import { PageState } from '@/components/PageState'
 import { NewSchema } from '@/components/schemas/NewSchema'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { headingOf, oneLine } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
+import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { readSchemas, type SchemaOut } from '@/lib/schemas'
@@ -97,15 +98,16 @@ export function Schemas() {
                 empty={rows.length === 0}
                 emptyMessage={LABELS.schemas.empty}
             >
-                <ListTable
+                <DataTable
+                    {...LISTING}
                     columns={columns}
                     rows={rows}
                     rowKey={schemaId}
-                    reading={state.reading}
-                    next={state.next}
-                    onMore={more}
-                    noun={LABELS.word.schema.count}
-                    onSelect={(row) => {
+                    hasMore={state.next !== null}
+                    loading={state.reading}
+                    onLoadMore={more}
+                    foot={rowsRead(rows.length, LABELS.word.schema.count, state.next !== null)}
+                    onOpen={(row) => {
                         void navigate(`/schemas/${encodeURIComponent(row.code)}`)
                     }}
                 />
@@ -121,13 +123,19 @@ export function Schemas() {
     )
 }
 
-function buildColumns(): Column<SchemaOut>[] {
+function buildColumns(): DataColumn<SchemaOut>[] {
     return [
-        { id: 'schema', header: LABELS.word.schema.label, kind: 'title', cell: (row) => <Named row={row} /> },
+        {
+            id: 'schema',
+            header: LABELS.word.schema.label,
+            width: 'content',
+            maxWidth: '28rem',
+            cell: (row) => <Named row={row} />,
+        },
         {
             id: 'description',
             header: LABELS.word.description,
-            kind: 'prose',
+            width: 'minmax(10rem,2fr)',
             // The one line a row has room for, and nothing where the schema says nothing.
             cell: (row) => {
                 const text = row.description === null ? '' : oneLine(row.description)

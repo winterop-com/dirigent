@@ -114,7 +114,7 @@ test('a pipeline that ran many times is one row, counted by state, with a strip 
     await page.goBack()
 
     // A row opens the flat list of that pipeline over the same window.
-    await page.getByRole('row').filter({ hasText: CODE }).getByRole('cell').nth(1).click()
+    await page.getByRole('row').filter({ hasText: CODE }).getByRole('gridcell').nth(1).click()
     await expect(page).toHaveURL(new RegExp(`/runs\\?pipeline=${CODE}&since=7d$`))
     await expect(
         page

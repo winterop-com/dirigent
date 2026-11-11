@@ -1,17 +1,8 @@
 /**
- * How many tag chips a listing row draws before the rest fold into one.
+ * How many tag chips a row draws before the rest fold into one.
  *
- * THE WIDTH IS MEASURED ONCE, THE CHIPS ARE COMPUTED. A tag chip is mono at 12px, so how wide
- * one is is arithmetic over its characters rather than a question for the layout engine: the
- * table is measured once by a `ResizeObserver` on the listing's own card, and every row folds
- * against that one number. Measuring each row's own cell instead would be a read per row per
- * resize, and a cell that is as wide as what is in it would answer with the width the chips
- * already took -- the question is what room the row's identity is prepared to give up, and
- * that is a share of the table.
- *
- * ONE LINE, EXCEPT ON A WIDE TABLE. A row whose height depends on how many words it wears makes
- * a listing of twenty rows a listing of twenty heights, so the chips fold to one line and only
- * a table at `WRAPS_AT` or wider is allowed a second.
+ * A tag chip is mono at 12px, so how wide one is is arithmetic over its characters rather than a
+ * question for the layout engine: every row folds against the one width its column declares.
  */
 
 /** The advance of one character of the chip's face: IBM Plex Mono at 12px, 0.6em. */
@@ -26,31 +17,9 @@ export const CHIP_GAP = 4
 /** How many chips a row draws at most, however much room there is. */
 export const TAGS_SHOWN = 8
 
-/** The share of the table the chips may take. */
-export const TAGS_SHARE = 0.25
-
-/** The share of the table the identity keeps, whatever else is on the row. */
-export const LEAD_SHARE = 0.5
-
-/** The table width at which a second line of chips is allowed. */
-export const WRAPS_AT = 1280
-
 /** How wide a chip carrying this word is drawn. */
 export function chipWidth(word: string): number {
     return Math.ceil(word.length * CHIP_ADVANCE) + CHIP_FRAME
-}
-
-/** How many lines of chips a table of this width allows. */
-export function linesFor(table: number): number {
-    return table >= WRAPS_AT ? 2 : 1
-}
-
-/** A table cell's own padding, either side of what is in it. */
-export const CELL_PADDING = 24
-
-/** The room the chips have on a table of this width, inside the cell's own padding. */
-export function roomFor(table: number): number {
-    return table * TAGS_SHARE - CELL_PADDING
 }
 
 /** What a row draws, and what it folds away. */

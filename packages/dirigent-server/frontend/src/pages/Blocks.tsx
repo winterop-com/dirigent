@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
@@ -13,6 +13,7 @@ import { PageState } from '@/components/PageState'
 import { Fact, Section } from '@/components/run/Panel'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { useRead } from '@/hooks/use-read'
+import { useRowPress } from '@/hooks/use-row-press'
 import {
     byGroup,
     defaultLabel,
@@ -26,7 +27,7 @@ import {
     type CatalogEntry,
 } from '@/lib/blocks'
 import { examplesPerBlock, readAllExamples } from '@/lib/examples'
-import { SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import { SEARCH_PLACEHOLDER, SEARCH_WORDS, SECTION_LISTING } from '@/lib/design-system'
 import { counted as pick, type Counted, LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { rowsRead } from '@/lib/paging'
@@ -61,11 +62,6 @@ const REGISTRIES: Registry[] = [
 ]
 
 const entryKeyOf = (registry: Registry['key']) => (entry: CatalogEntry) => `${registry}:${entry.id}`
-
-/** The catalog arrives whole, so the table's cursor walk has nothing to walk. */
-const NO_MORE = () => {
-    // One answer carried every block. There is no next page to ask for.
-}
 
 /**
  * Every block this instance can run, and the config each one takes.
@@ -138,16 +134,18 @@ export function Blocks() {
         return
     }, [open, openEntry])
 
-    const select = useCallback((entry: BlockEntry) => {
-        setChosen(`block:${entry.id}`)
-        openPanel()
-    }, [])
-
-    /** What taking the open row back means here, for the catalog and the registries alike. */
-    const unchoose = useCallback(() => {
-        setChosen(null)
-        closePanel()
-    }, [])
+    /** A row by the key it is chosen by, for the catalog and the registries alike. */
+    const press = useRowPress<string>(
+        (key) => {
+            setChosen(key)
+            openPanel()
+        },
+        (key) => key === chosen,
+        () => {
+            setChosen(null)
+            closePanel()
+        },
+    )
 
     return (
         <>
@@ -183,18 +181,16 @@ export function Blocks() {
                             meta={rowsRead(members.length, LABELS.word.block.count, false)}
                             flush
                         >
-                            <ListTable
-                                chrome={{ framed: false }}
+                            <DataTable
+                                {...SECTION_LISTING}
+                                rowHeight="auto"
                                 columns={columns}
                                 rows={members}
                                 rowKey={blockId}
-                                reading={false}
-                                next={null}
-                                onMore={NO_MORE}
-                                noun={LABELS.word.block.count}
-                                onSelect={select}
-                                selected={(entry) => `block:${entry.id}` === chosen}
-                                onClose={unchoose}
+                                onOpen={(entry) => {
+                                    press(`block:${entry.id}`)
+                                }}
+                                opened={(entry) => `block:${entry.id}` === chosen}
                             />
                         </LibrarySection>
                     ))}
@@ -209,21 +205,16 @@ export function Blocks() {
                                 meta={rowsRead(rows.length, registry.noun, false)}
                                 flush
                             >
-                                <ListTable
-                                    chrome={{ framed: false }}
+                                <DataTable
+                                    {...SECTION_LISTING}
+                                    rowHeight="auto"
                                     columns={entryColumns(registry.key)}
                                     rows={rows}
                                     rowKey={entryKeyOf(registry.key)}
-                                    reading={false}
-                                    next={null}
-                                    onMore={NO_MORE}
-                                    noun={registry.noun}
-                                    onSelect={(entry) => {
-                                        setChosen(entryKeyOf(registry.key)(entry))
-                                        openPanel()
+                                    onOpen={(entry) => {
+                                        press(entryKeyOf(registry.key)(entry))
                                     }}
-                                    selected={(entry) => entryKeyOf(registry.key)(entry) === chosen}
-                                    onClose={unchoose}
+                                    opened={(entry) => entryKeyOf(registry.key)(entry) === chosen}
                                 />
                             </LibrarySection>
                         )
@@ -243,12 +234,12 @@ export function Blocks() {
  * and it is read off the same `requires.blocks` that listing narrows by -- so what the number
  * says is what pressing it shows.
  */
-function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
+function blockColumns(uses: ReadonlyMap<string, number>): DataColumn<BlockEntry>[] {
     return [
         {
             id: 'block',
             header: LABELS.word.block.label,
-            kind: 'title',
+            width: 'content',
             cell: (entry) => (
                 <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
@@ -265,20 +256,24 @@ function blockColumns(uses: ReadonlyMap<string, number>): Column<BlockEntry>[] {
         {
             id: 'kind',
             header: LABELS.word.kind.label,
-            className: 'min-w-32 whitespace-nowrap',
+            width: 'minmax(8rem,1fr)',
             cell: (entry) => <KindChip kind={entry.kind} />,
         },
         {
             id: 'examples',
             header: LABELS.word.example.heading,
-            className: 'min-w-28 whitespace-nowrap',
+            width: 'minmax(7rem,1fr)',
             cell: (entry) => <ExampleCount id={entry.id} many={uses.get(entry.id) ?? 0} />,
         },
         {
             id: 'plugin',
             header: LABELS.word.plugin.label,
-            className: 'min-w-36 font-mono text-xs whitespace-nowrap',
-            cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
+            width: 'minmax(9rem,1fr)',
+            cell: (entry) => (
+                <span className="font-mono text-xs whitespace-nowrap text-muted-foreground">
+                    {entry.plugin}
+                </span>
+            ),
         },
     ]
 }
@@ -317,7 +312,7 @@ function ExampleCount({ id, many }: { id: string; many: number }) {
  * A registry row wears its kind the way a block row does: the section heading says it too,
  * but a row read alone -- searched, remembered, screenshotted -- has to say what it is.
  */
-function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
+function entryColumns(kind: Registry['key']): DataColumn<CatalogEntry>[] {
     // The chip says what the thing contributed, in the reader's word: an s3 entry under
     // storage schemes is storage; "scheme" is the URI mechanics, not the kind.
     const worn = kind === 'scheme' ? 'storage' : kind
@@ -325,7 +320,7 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
         {
             id: 'entry',
             header: LABELS.blocks.entry_header,
-            kind: 'title',
+            width: 'content',
             cell: (entry) => {
                 const summary =
                     typeof entry.config_schema.description === 'string' ? entry.config_schema.description : ''
@@ -342,14 +337,18 @@ function entryColumns(kind: Registry['key']): Column<CatalogEntry>[] {
         {
             id: 'kind',
             header: LABELS.word.kind.label,
-            className: 'min-w-32 whitespace-nowrap',
+            width: 'minmax(8rem,1fr)',
             cell: () => <KindChip kind={worn} />,
         },
         {
             id: 'plugin',
             header: LABELS.word.plugin.label,
-            className: 'min-w-36 font-mono text-xs whitespace-nowrap',
-            cell: (entry) => <span className="text-muted-foreground">{entry.plugin}</span>,
+            width: 'minmax(9rem,1fr)',
+            cell: (entry) => (
+                <span className="font-mono text-xs whitespace-nowrap text-muted-foreground">
+                    {entry.plugin}
+                </span>
+            ),
         },
     ]
 }

@@ -1,10 +1,11 @@
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageState } from '@/components/PageState'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
+import { LISTING } from '@/lib/design-system'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import type { Paged } from '@/lib/paging'
+import { rowsRead, type Paged } from '@/lib/paging'
 import { anyTagged, type WorkerOut } from '@/lib/workers'
 
 /** What one row is keyed by. A worker's name is its identity in the registry. */
@@ -40,15 +41,17 @@ export function WorkersTable({
             empty={state.rows.length === 0}
             emptyMessage={empty}
         >
-            <ListTable
+            <DataTable
+                {...LISTING}
+                rowHeight="auto"
                 columns={columnsFor(state.rows)}
                 rows={state.rows}
                 rowKey={workerId}
-                rowClassName={(worker) => (worker.status === 'stopped' ? 'opacity-60' : undefined)}
-                reading={state.reading}
-                next={state.next}
-                onMore={more}
-                noun={LABELS.word.worker.count}
+                rowTone={(worker) => (worker.status === 'stopped' ? 'muted' : undefined)}
+                hasMore={state.next !== null}
+                loading={state.reading}
+                onLoadMore={more}
+                foot={rowsRead(state.rows.length, LABELS.word.worker.count, state.next !== null)}
             />
         </PageState>
     )
@@ -59,31 +62,41 @@ export function WorkersTable({
  *
  * An instance that never routes by tag has a column of dashes to read past otherwise.
  */
-function columnsFor(workers: readonly WorkerOut[]): Column<WorkerOut>[] {
+function columnsFor(workers: readonly WorkerOut[]): DataColumn<WorkerOut>[] {
     return anyTagged(workers) ? COLUMNS : COLUMNS.filter((column) => column.id !== 'tags')
 }
 
-const COLUMNS: Column<WorkerOut>[] = [
+const COLUMNS: DataColumn<WorkerOut>[] = [
     {
         id: 'name',
         header: LABELS.word.worker.label,
-        cell: (worker) => <span className="text-sm font-medium">{worker.name}</span>,
+        width: 'content',
+        cell: (worker) => (
+            <span className="block truncate text-sm font-medium" title={worker.name}>
+                {worker.name}
+            </span>
+        ),
     },
     {
         id: 'hostname',
         header: LABELS.word.host,
-        className: 'font-mono text-xs',
-        cell: (worker) => <span className="text-muted-foreground">{worker.hostname}</span>,
+        width: 'minmax(8rem,1fr)',
+        cell: (worker) => (
+            <span className="block truncate font-mono text-xs text-muted-foreground" title={worker.hostname}>
+                {worker.hostname}
+            </span>
+        ),
     },
     {
         id: 'version',
         header: LABELS.word.version.label,
-        className: 'font-mono text-xs',
-        cell: (worker) => <span className="text-muted-foreground">{worker.version}</span>,
+        width: 'minmax(5rem,1fr)',
+        cell: (worker) => <span className="font-mono text-xs text-muted-foreground">{worker.version}</span>,
     },
     {
         id: 'status',
         header: LABELS.word.status,
+        width: 'minmax(7rem,1fr)',
         cell: (worker) => (
             <span className="flex flex-wrap items-center gap-2">
                 <StatusChip status={worker.status} />
@@ -103,12 +116,14 @@ const COLUMNS: Column<WorkerOut>[] = [
     {
         id: 'concurrency',
         header: LABELS.word.concurrency,
-        className: 'text-right font-mono text-xs',
-        cell: (worker) => <span>{worker.concurrency}</span>,
+        width: 'minmax(6rem,1fr)',
+        align: 'end',
+        cell: (worker) => <span className="font-mono text-xs">{worker.concurrency}</span>,
     },
     {
         id: 'tags',
         header: LABELS.word.tags,
+        width: 'minmax(6rem,1fr)',
         cell: (worker) =>
             worker.tags.length === 0 ? null : (
                 <span className="flex flex-wrap gap-1">
@@ -123,9 +138,9 @@ const COLUMNS: Column<WorkerOut>[] = [
     {
         id: 'seen',
         header: LABELS.word.last_seen,
-        className: 'text-xs',
+        width: 'minmax(6rem,1fr)',
         cell: (worker) => (
-            <span className="text-muted-foreground" title={formatInstant(worker.last_seen_at)}>
+            <span className="text-xs text-muted-foreground" title={formatInstant(worker.last_seen_at)}>
                 {formatRelative(worker.last_seen_at)}
             </span>
         ),

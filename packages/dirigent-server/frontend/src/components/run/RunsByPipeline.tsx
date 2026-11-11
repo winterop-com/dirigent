@@ -1,13 +1,14 @@
 import { useMemo } from 'react'
 import { Link, useNavigate } from 'react-router'
 
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { PipelineRef } from '@/components/PipelineRef'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
-import { dotOf } from '@/lib/design-system'
+import { dotOf, LISTING } from '@/lib/design-system'
 import { formatDuration, formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
+import { rowsRead } from '@/lib/paging'
 import {
     countsShown,
     pipelineRunsLink,
@@ -25,50 +26,42 @@ const pipelineOf = (row: PipelineRuns) => row.pipeline
  * A row opens the flat list of that pipeline's runs over the same window; a dot in its strip
  * opens that one run.
  */
-export function RunsByPipeline({
-    rows,
-    window,
-    reading,
-}: {
-    rows: readonly PipelineRuns[]
-    window: GroupWindow
-    reading: boolean
-}) {
+export function RunsByPipeline({ rows, window }: { rows: readonly PipelineRuns[]; window: GroupWindow }) {
     const navigate = useNavigate()
     const columns = useMemo(() => summaryColumns(), [])
     return (
-        <ListTable
+        <DataTable
+            {...LISTING}
+            rowHeight="auto"
             columns={columns}
             rows={rows}
             rowKey={pipelineOf}
-            onSelect={(row) => void navigate(pipelineRunsLink(row.pipeline, window))}
-            reading={reading}
-            next={null}
-            onMore={() => undefined}
-            noun={LABELS.word.pipeline.count}
+            onOpen={(row) => void navigate(pipelineRunsLink(row.pipeline, window))}
+            foot={rowsRead(rows.length, LABELS.word.pipeline.count, false)}
         />
     )
 }
 
-function summaryColumns(): Column<PipelineRuns>[] {
+function summaryColumns(): DataColumn<PipelineRuns>[] {
     return [
         {
             id: 'pipeline',
             header: LABELS.word.pipeline.label,
-            kind: 'title',
+            width: 'content',
             cell: (row) => <PipelineRef code={row.pipeline} name={row.name} />,
         },
         {
             id: 'latest',
             header: LABELS.runs.grouped.latest,
+            width: 'minmax(6.5rem,1fr)',
             cell: (row) => <StatusChip status={row.latest.status} />,
         },
         {
             id: 'counts',
             header: LABELS.runs.grouped.counts,
-            className: 'text-xs',
+            width: 'minmax(8rem,1fr)',
             cell: (row) => (
-                <span className="flex items-center gap-3 whitespace-nowrap">
+                <span className="flex items-center gap-3 text-xs whitespace-nowrap">
                     {countsShown(row.counts).map(({ status, runs }) => {
                         const said = LABELS.runs.node_item_count(String(runs), statusLabel(status))
                         return (
@@ -89,15 +82,15 @@ function summaryColumns(): Column<PipelineRuns>[] {
         {
             id: 'recent',
             header: LABELS.runs.grouped.recent,
-            kind: 'prose',
+            width: 'minmax(8rem,2fr)',
             cell: (row) => <RecentStrip runs={row.recent} />,
         },
         {
             id: 'last',
             header: LABELS.runs.grouped.last_ran,
-            className: 'text-xs',
+            width: 'minmax(6rem,1fr)',
             cell: (row) => (
-                <span className="text-muted-foreground" title={formatInstant(row.latest.created_at)}>
+                <span className="text-xs text-muted-foreground" title={formatInstant(row.latest.created_at)}>
                     {formatRelative(row.latest.created_at)}
                 </span>
             ),
@@ -105,10 +98,11 @@ function summaryColumns(): Column<PipelineRuns>[] {
         {
             id: 'median',
             header: LABELS.runs.grouped.median,
-            className: 'text-right font-mono text-xs',
+            width: 'minmax(5rem,1fr)',
+            align: 'end',
             cell: (row) =>
                 row.median_duration_ms === null ? null : (
-                    <span>{formatDuration(row.median_duration_ms)}</span>
+                    <span className="font-mono text-xs">{formatDuration(row.median_duration_ms)}</span>
                 ),
         },
     ]

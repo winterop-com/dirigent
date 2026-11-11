@@ -17,7 +17,7 @@ import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
-import { tableWords } from '@/lib/design-system'
+import { LISTING } from '@/lib/design-system'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { itemOf } from '@/lib/identity'
@@ -30,7 +30,8 @@ import { readTokenCensus, readUsers, tokenCounts, type UserOut } from '@/lib/use
 const userId = (user: UserOut) => user.id
 const usernameOf = (user: UserOut) => user.username
 
-const USERS_WORDS = tableWords({ expand: LABELS.users.show_tokens, collapse: LABELS.users.hide_tokens })
+/** Every account opens onto its tokens, and an account holding none says so when opened. */
+const opens = () => true
 
 /**
  * Local accounts, with the tokens automation authenticates as each of them under its row.
@@ -160,13 +161,20 @@ function Users() {
 
             <PageState loading={!users.state.read} problem={users.state.problem} empty={false}>
                 <DataTable
-                    variant="list"
+                    {...LISTING}
                     columns={columns}
                     rows={users.state.rows}
                     rowKey={usernameOf}
                     onOpen={setChosen}
                     opened={(user) => chosen !== null && user.id === chosen.id}
                     detail={tokensUnder}
+                    hasDetail={opens}
+                    expandLabel={(user, open) =>
+                        open
+                            ? LABELS.users.hide_tokens(user.username)
+                            : LABELS.users.show_tokens(user.username)
+                    }
+                    rowTone={(user) => (user.active ? undefined : 'muted')}
                     expanded={opened}
                     onExpandedChange={setOpened}
                     hasMore={users.state.next !== null}
@@ -178,8 +186,6 @@ function Users() {
                         users.state.next !== null,
                     )}
                     empty={LABELS.users.accounts_empty}
-                    resizable={false}
-                    words={USERS_WORDS}
                 />
             </PageState>
 

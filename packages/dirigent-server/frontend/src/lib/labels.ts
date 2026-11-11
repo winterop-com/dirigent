@@ -824,7 +824,7 @@ const shell = {
         many: (count: string, tags: string) => `${count} more tags: ${tags}`,
     },
 
-    /** The button at the foot of a table that reads the next page. In flight it says `reading`. */
+    /** The button after the last row of a listing in a section, which reads the next page. */
     load_more: (count: string) => `Load ${count} more`,
     /** What a listing's foot states. It says there is more rather than passing a count off as a total. */
     rows_read: (count: string, noun: string) => `${count} ${noun}`,
@@ -3236,9 +3236,9 @@ const users = {
     /** That button's accessible name, which names the account the row does not repeat. */
     new_token_for: (username: string) => `New token for ${username}`,
 
-    /** The chevron at the head of an account's row. */
-    show_tokens: 'Show tokens',
-    hide_tokens: 'Hide tokens',
+    /** The chevron at the head of an account's row, and its tooltip, naming the account. */
+    show_tokens: (username: string) => `Show the tokens of ${username}`,
+    hide_tokens: (username: string) => `Hide the tokens of ${username}`,
     /** How many live tokens a shut row holds. */
     tokens_held: {
         one: (many: string) => `${many} token`,

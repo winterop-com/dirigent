@@ -263,7 +263,7 @@ test('the connections listing fits 1024 without scrolling sideways', async ({ pa
 
     // The table's own scroll box rather than the window: a listing wider than the box it is
     // drawn in is the sideways scroll, whether or not the page itself moves.
-    const listing = page.locator('.list-scroll')
+    const listing = page.getByRole('grid')
     expect(await listing.evaluate((box) => box.scrollWidth - box.clientWidth)).toBeLessThanOrEqual(0)
 
     const sideways = await page.evaluate(

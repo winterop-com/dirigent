@@ -57,7 +57,7 @@ async function scrollToText(page: Page, lines: Locator, text: string): Promise<v
  * reading the title presses.
  */
 function openRow(page: Page, code: string): Promise<void> {
-    return rowOf(page, code).getByRole('cell').first().click()
+    return rowOf(page, code).getByRole('gridcell').first().click()
 }
 
 test('the corpus is listed, and the Templates filter narrows it to what may be copied', async ({ page }) => {

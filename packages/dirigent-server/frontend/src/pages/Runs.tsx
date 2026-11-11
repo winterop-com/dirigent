@@ -4,12 +4,12 @@ import { useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { Choice } from '@/components/list/Choice'
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
 import { RunsByPipeline } from '@/components/run/RunsByPipeline'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented, type Segment } from '@/components/Segmented'
@@ -20,8 +20,9 @@ import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { elapsedBetween, formatDuration, formatInstant, formatRelative } from '@/lib/format'
-import { SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import { LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { counted, LABELS } from '@/lib/labels'
+import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { readPipelineNames, readTagsOffered } from '@/lib/pipelines'
 import {
@@ -284,15 +285,17 @@ function FlatRuns({ filters, bar }: { filters: RunFilters; bar: ReactNode }) {
                 empty={state.rows.length === 0}
                 emptyMessage={emptyNote(filters)}
             >
-                <ListTable
+                <DataTable
+                    {...LISTING}
+                    rowHeight="auto"
                     columns={columns}
                     rows={state.rows}
                     rowKey={runId}
-                    onSelect={(row) => void navigate(`/runs/${row.id}`)}
-                    reading={state.reading}
-                    next={state.next}
-                    onMore={more}
-                    noun={LABELS.word.run.count}
+                    onOpen={(row) => void navigate(`/runs/${row.id}`)}
+                    hasMore={state.next !== null}
+                    loading={state.reading}
+                    onLoadMore={more}
+                    foot={rowsRead(state.rows.length, LABELS.word.run.count, state.next !== null)}
                 />
             </PageState>
         </>
@@ -323,7 +326,7 @@ function GroupedRuns({ filters, window, bar }: { filters: RunFilters; window: Gr
                 empty={rows.length === 0}
                 emptyMessage={asked ? LABELS.runs.empty_filtered : LABELS.runs.grouped.empty(window)}
             >
-                <RunsByPipeline rows={rows} window={window} reading={summary.reading} />
+                <RunsByPipeline rows={rows} window={window} />
             </PageState>
         </>
     )
@@ -348,12 +351,12 @@ function reloadAction(run: () => void) {
  * The names arrive after the rows do, so a row is headed by its code until they land and by
  * its title afterwards -- which is the same answer `titleOf` gives for a pipeline with no name.
  */
-function runColumns(names: ReadonlyMap<string, string | null> | null): Column<RunOut>[] {
+function runColumns(names: ReadonlyMap<string, string | null> | null): DataColumn<RunOut>[] {
     return [
         {
             id: 'pipeline',
             header: LABELS.word.pipeline.label,
-            kind: 'title',
+            width: 'content',
             cell: (run) => <PipelineRef code={run.pipeline} name={names?.get(run.pipeline) ?? null} />,
         },
         {
@@ -364,8 +367,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
             // stops fitting anywhere.
             id: 'status',
             header: LABELS.word.status,
-            kind: 'prose',
-            className: 'min-w-64',
+            width: 'minmax(10rem,3fr)',
             cell: (run) => {
                 const said = detailOf(run)
                 return (
@@ -384,7 +386,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         {
             id: 'trigger',
             header: LABELS.word.trigger.label,
-            kind: 'prose',
+            width: 'minmax(6rem,2fr)',
             cell: (run) => {
                 const started = startedAs(run)
                 return (
@@ -397,10 +399,10 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         {
             id: 'started',
             header: LABELS.word.started.label,
-            className: 'text-xs',
+            width: 'minmax(5rem,1fr)',
             cell: (run) => (
                 <span
-                    className="text-muted-foreground"
+                    className="text-xs text-muted-foreground"
                     title={formatInstant(run.started_at ?? run.created_at)}
                 >
                     {formatRelative(run.started_at ?? run.created_at)}
@@ -410,11 +412,14 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): Column<Ru
         {
             id: 'duration',
             header: LABELS.word.duration,
-            className: 'text-right font-mono text-xs',
+            width: 'minmax(4rem,1fr)',
+            align: 'end',
             // A run still going has no duration to state.
             cell: (run) => {
                 const took = elapsedBetween(run.started_at, run.finished_at)
-                return took === null ? null : <span>{formatDuration(took)}</span>
+                return took === null ? null : (
+                    <span className="font-mono text-xs">{formatDuration(took)}</span>
+                )
             },
         },
     ]

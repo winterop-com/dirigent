@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { ApiChip } from '@/components/ApiChip'
 import { AdminOnly } from '@/components/admin/AdminOnly'
+import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Instant } from '@/components/Instant'
 import { Choice } from '@/components/list/Choice'
-import { ListTable, type Column } from '@/components/list/ListTable'
 import { PageState } from '@/components/PageState'
 import { usePaged } from '@/hooks/use-paged'
 import {
@@ -23,8 +23,9 @@ import {
     type AuditFilters,
 } from '@/lib/audit'
 import { ICONS } from '@/lib/icons'
-import { SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import { LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
+import { rowsRead } from '@/lib/paging'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 
@@ -169,31 +170,33 @@ function Audit() {
                 empty={state.rows.length === 0}
                 emptyMessage={emptyNote(filters)}
             >
-                <ListTable
+                <DataTable
+                    {...LISTING}
+                    rowHeight="auto"
                     columns={COLUMNS}
                     rows={state.rows}
                     rowKey={entryId}
-                    reading={state.reading}
-                    next={state.next}
-                    onMore={more}
-                    noun={LABELS.audit.count}
+                    hasMore={state.next !== null}
+                    loading={state.reading}
+                    onLoadMore={more}
+                    foot={rowsRead(state.rows.length, LABELS.audit.count, state.next !== null)}
                 />
             </PageState>
         </>
     )
 }
 
-const COLUMNS: Column<AuditEntryOut>[] = [
+const COLUMNS: DataColumn<AuditEntryOut>[] = [
     {
         id: 'when',
         header: LABELS.audit.when,
-        className: 'text-xs',
-        cell: (entry) => <Instant at={entry.created_at} className="text-muted-foreground" />,
+        width: 'minmax(6rem,1fr)',
+        cell: (entry) => <Instant at={entry.created_at} className="text-xs text-muted-foreground" />,
     },
     {
         id: 'actor',
         header: LABELS.audit.actor,
-        kind: 'prose',
+        width: 'minmax(8rem,2fr)',
         cell: (entry) => {
             const { who, token } = actorOf(entry)
             return (
@@ -219,13 +222,13 @@ const COLUMNS: Column<AuditEntryOut>[] = [
     {
         id: 'action',
         header: LABELS.audit.action,
-        className: 'text-sm',
-        cell: (entry) => <span>{LABELS.audit.actions[entry.action]}</span>,
+        width: 'minmax(6rem,1fr)',
+        cell: (entry) => <span className="text-sm">{LABELS.audit.actions[entry.action]}</span>,
     },
     {
         id: 'subject',
         header: LABELS.word.subject,
-        kind: 'title',
+        width: 'content',
         cell: (entry) => {
             const addressed = subjectOf(entry)
             return (
@@ -241,7 +244,7 @@ const COLUMNS: Column<AuditEntryOut>[] = [
     {
         id: 'fields',
         header: LABELS.audit.fields,
-        kind: 'prose',
+        width: 'minmax(8rem,2fr)',
         cell: (entry) =>
             entry.fields.length === 0 ? null : (
                 <span className="flex min-w-0 flex-wrap gap-x-2">
