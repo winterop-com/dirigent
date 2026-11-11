@@ -4,6 +4,7 @@ import {
     appliedLine,
     appliedNote,
     changesIn,
+    documentDiff,
     issuesNote,
     planView,
     unchangedNote,
@@ -108,12 +109,16 @@ describe('what a plan says', () => {
 })
 
 describe('what a diff amounts to', () => {
-    test('is a line per kind of change, naming the steps in each', () => {
+    test('is a row per kind of change, counting and naming the steps in each', () => {
         expect(
             changesIn(
                 diff({ steps_added: ['as_csv'], steps_changed: ['parse', 'report'], params_changed: true }),
             ),
-        ).toEqual(['step added: as_csv', 'steps changed: parse, report', 'the parameter schema changed'])
+        ).toEqual([
+            { label: 'Step added', count: 1, codes: ['as_csv'] },
+            { label: 'Steps changed', count: 2, codes: ['parse', 'report'] },
+            { label: 'Parameter schema changed' },
+        ])
     })
 
     test('is nothing when the two definitions are the same in every respect', () => {
@@ -126,8 +131,11 @@ describe('what a diff amounts to', () => {
 
     test('names the settings change in the terms the server summarises it in', () => {
         expect(changesIn(diff({ settings_changed: true, triggers_changed: true }))).toEqual([
-            'the triggers changed',
-            'the name, description, tags, concurrency, priority or importance changed',
+            { label: 'Triggers changed' },
+            {
+                label: 'Settings changed',
+                detail: 'Name, description, tags, concurrency, priority or importance',
+            },
         ])
     })
 
@@ -141,16 +149,16 @@ describe('what a diff amounts to', () => {
                 }),
             ),
         ).toEqual([
-            'alert rule added: page-ops',
-            'alert rules removed: old, older',
-            'alert rule changed: log',
+            { label: 'Alert rule added', count: 1, codes: ['page-ops'] },
+            { label: 'Alert rules removed', count: 2, codes: ['old', 'older'] },
+            { label: 'Alert rule changed', count: 1, codes: ['log'] },
         ])
     })
 
     test('names a report and a requirement that changed', () => {
         expect(changesIn(diff({ report_changed: true, requires_changed: true }))).toEqual([
-            'what it requires of the instance changed',
-            'the report changed',
+            { label: 'Requirements changed' },
+            { label: 'Report changed' },
         ])
     })
 })
@@ -243,15 +251,15 @@ describe('what the status bar says about a validation', () => {
 })
 
 describe('what an apply would take away', () => {
-    test('names each source and schedule a document stopped declaring', () => {
+    test('counts and names each source and schedule a document stopped declaring', () => {
         const view = planView({
             plan: plan(),
             triggers: materialized({ schedules_removed: ['nightly'] }),
             sources: { ...NO_SOURCES, removed: ['orders', 'refunds'] },
         })
         expect(view.retiring).toEqual([
-            'Removes sources orders, refunds, with their inputs and their tokens.',
-            'Removes schedule nightly.',
+            { label: 'Sources, with their inputs and their tokens', count: 2, codes: ['orders', 'refunds'] },
+            { label: 'Schedule', count: 1, codes: ['nightly'] },
         ])
     })
 
@@ -286,5 +294,27 @@ describe('whether a plan can be said to change nothing', () => {
         expect(planView(dry({ action: 'create' })).updates).toBe(false)
         expect(planView(dry({ action: 'unchanged' })).updates).toBe(false)
         expect(planView(dry({ action: 'invalid' })).updates).toBe(false)
+    })
+})
+
+describe('the stored document set against the one being applied', () => {
+    const stored = { code: 'convert-one', steps: { one: { block: 'transform.jq' } } }
+
+    test('is the two documents as the source pane renders them, titled by the versions', () => {
+        const applying = { code: 'convert-one', steps: { one: { block: 'transform.jq', name: 'One' } } }
+        const said = documentDiff(plan(), stored, applying)
+        expect(said?.title).toBe('v3 → v4')
+        expect(said?.before).toContain('block: transform.jq')
+        expect(said?.before).not.toContain('name: One')
+        expect(said?.after).toContain('name: One')
+    })
+
+    test('is nothing where the two render the same', () => {
+        expect(documentDiff(plan(), stored, { ...stored })).toBeNull()
+    })
+
+    test('is nothing where there is no stored version to write over', () => {
+        expect(documentDiff(plan({ action: 'create' }), stored, { code: 'convert-one' })).toBeNull()
+        expect(documentDiff(plan(), null, stored)).toBeNull()
     })
 })

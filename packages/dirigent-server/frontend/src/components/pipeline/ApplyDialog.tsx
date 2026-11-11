@@ -30,8 +30,8 @@ import {
 import { readConnection, readConnectionKinds, type SurfaceEntry } from '@/lib/connections'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
-import { planView, unchangedNote, type PlanView } from '@/lib/pipeline-plan'
-import { applyPipeline, type ApplyResult, type PipelinePlan } from '@/lib/pipelines'
+import { documentDiff, planView, unchangedNote, type DocumentDiff, type PlanView } from '@/lib/pipeline-plan'
+import { applyPipeline, readPipeline, type ApplyResult, type PipelinePlan } from '@/lib/pipelines'
 import { firstShut } from '@/lib/roles'
 import { createSchema, readSchema } from '@/lib/schemas'
 
@@ -74,6 +74,7 @@ export function ApplyDialog({
     onLift: () => JsonMap | null
 }) {
     const [view, setView] = useState<PlanView | null>(null)
+    const [diff, setDiff] = useState<DocumentDiff | null>(null)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [applying, setApplying] = useState(false)
     const [held, setHeld] = useState<Held>(NOTHING_READ)
@@ -87,12 +88,24 @@ export function ApplyDialog({
         if (!open) return
         let cancelled = false
         setView(null)
+        setDiff(null)
         setProblem(null)
         void applyPipeline(document, true).then(
             (result: ApplyResult) => {
                 if (cancelled) return
                 setView(planView(result))
                 onPlan?.(result.plan)
+                if (result.plan.action !== 'update') return
+                // The stored document is read under the code the plan names, which is the
+                // pipeline this apply writes over whatever the screen was opened on.
+                void readPipeline(result.plan.code).then(
+                    (stored) => {
+                        if (!cancelled) setDiff(documentDiff(result.plan, stored.document, document))
+                    },
+                    () => {
+                        // The plan stands without its diff.
+                    },
+                )
             },
             (error: unknown) => {
                 if (!cancelled) setProblem(refusalOf(error))
@@ -315,7 +328,7 @@ export function ApplyDialog({
                     {problem === null && view === null && (
                         <p className="text-sm text-muted-foreground">{LABELS.editor.apply.checking}</p>
                     )}
-                    {view !== null && <PlanReading view={view} />}
+                    {view !== null && <PlanReading view={view} diff={diff} />}
                 </div>
 
                 {asks && (

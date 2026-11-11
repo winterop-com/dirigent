@@ -1121,8 +1121,14 @@ can still move.
 **A plan says what an apply takes away before it is pressed.** The dry run answers with the source
 rows and the managed schedules a document has stopped declaring, and those are the one consequence
 in the dialog that cannot be read back from the document: a source goes with its inputs and its
-token. They stand under the changes in the warning ink, with the words a reader would ask for, and
-only where there are any. What an apply did to its sources and schedules is the note that follows
+token. The plan is two of sokkel-ui's `ConsequenceList`s: what applying changes is the `neutral`
+one, and what it removes is the `critical` one under it, each a row per kind with its count and
+its codes in mono, and each drawn only where it has rows. `lib/pipeline-plan` decides the rows;
+`PlanReading` is the one renderer, for Validate and Apply alike. **An update shows the document it
+writes over.** Under the lists, sokkel-ui's `DiffView` sets the stored document against the one
+being applied, both rendered the way the source pane renders them, headed by the two versions; it
+is a preview at a pane's height with the whole of it in the window, and where the two render the
+same nothing is drawn. What an apply did to its sources and schedules is the note that follows
 it. **A token an apply created is shown once, the way a rotated one is**, because the answer to that
 apply is the only time it can be read: `MintedToken` stands over the editor before anything moves on.
 
@@ -2467,6 +2473,7 @@ the one palette.
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
 | `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A titled listing is a `flush` `Section` with its count as `meta`, around a `DataTable` with `framed={false}` |
 | `DataTable` (sokkel-ui) | Every listing, spread with `LISTING` (`variant="list"`, `resizable={false}`, `stackBelow` and `minWidth`): grid tracks per column with the title `width: 'content'`, a cell's control pressed on its own without opening the row, `onOpen` and `opened` for what a row opens, `rowTone="muted"` for a row no longer live, `rowHeight="auto"` where a cell is two lines, `detail`, `hasDetail` and `expandLabel` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead`, and `empty` for the one line a listing with no rows says |
+| `ConsequenceList`, `DiffView` (sokkel-ui) | `ConsequenceList` is what an action changes or takes with it, a row per kind with its `count` and a `detail` line, under a heading from the catalogue: `neutral` for what changes, `critical` for what goes; it draws nothing without rows. `DiffView` is two versions of a text as one list of lines, `size="sm"` in a dialog, inside a `WindowedPane` at a pane's height; a caller that would hand it two equal texts draws nothing instead |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface

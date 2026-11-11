@@ -1942,35 +1942,23 @@ const editor = {
         unchanged: (pipeline: string) => `Apply writes nothing — ${pipeline} already matches this document`,
         create: (pipeline: string) => `Apply creates ${pipeline} at version 1`,
         update: (version: string, pipeline: string) => `Apply writes version ${version} of ${pipeline}`,
-        steps_added: {
-            one: (steps: string) => `step added: ${steps}`,
-            many: (steps: string) => `steps added: ${steps}`,
-        },
-        steps_removed: {
-            one: (steps: string) => `step removed: ${steps}`,
-            many: (steps: string) => `steps removed: ${steps}`,
-        },
-        steps_changed: {
-            one: (steps: string) => `step changed: ${steps}`,
-            many: (steps: string) => `steps changed: ${steps}`,
-        },
-        params_changed: 'the parameter schema changed',
-        triggers_changed: 'the triggers changed',
-        requires_changed: 'what it requires of the instance changed',
-        report_changed: 'the report changed',
-        alerts_added: {
-            one: (rules: string) => `alert rule added: ${rules}`,
-            many: (rules: string) => `alert rules added: ${rules}`,
-        },
-        alerts_removed: {
-            one: (rules: string) => `alert rule removed: ${rules}`,
-            many: (rules: string) => `alert rules removed: ${rules}`,
-        },
-        alerts_changed: {
-            one: (rules: string) => `alert rule changed: ${rules}`,
-            many: (rules: string) => `alert rules changed: ${rules}`,
-        },
-        settings_changed: 'the name, description, tags, concurrency, priority or importance changed',
+        /** The heading over what differs from the version the instance holds. */
+        changes_heading: 'What applying changes',
+        steps_added: { one: 'Step added', many: 'Steps added' },
+        steps_removed: { one: 'Step removed', many: 'Steps removed' },
+        steps_changed: { one: 'Step changed', many: 'Steps changed' },
+        params_changed: 'Parameter schema changed',
+        triggers_changed: 'Triggers changed',
+        requires_changed: 'Requirements changed',
+        report_changed: 'Report changed',
+        alerts_added: { one: 'Alert rule added', many: 'Alert rules added' },
+        alerts_removed: { one: 'Alert rule removed', many: 'Alert rules removed' },
+        alerts_changed: { one: 'Alert rule changed', many: 'Alert rules changed' },
+        settings_changed: 'Settings changed',
+        /** Which settings the server folds into `settings_changed`, under its row. */
+        settings_detail: 'Name, description, tags, concurrency, priority or importance',
+        /** The title over the stored document set against the one being applied. */
+        diff_title: (from: string, to: string) => `v${from} → v${to}`,
         /** A plan that would write a version, and change nothing a reader would scan for. */
         no_changes: 'No changes from the stored version.',
         /** What the instance refuses about the document, counted. */
@@ -1983,13 +1971,11 @@ const editor = {
         at_version: (pipeline: string, version: string) => `${pipeline} is at version ${version}`,
         /** What applying would take away, which the dry run answers with and the document cannot say. */
         retiring: {
-            schedules: {
-                one: (codes: string) => `Removes schedule ${codes}.`,
-                many: (codes: string) => `Removes schedules ${codes}.`,
-            },
+            heading: 'What applying removes',
+            schedules: { one: 'Schedule', many: 'Schedules' },
             sources: {
-                one: (codes: string) => `Removes source ${codes}, with its inputs and its token.`,
-                many: (codes: string) => `Removes sources ${codes}, with their inputs and their tokens.`,
+                one: 'Source, with its inputs and its token',
+                many: 'Sources, with their inputs and their tokens',
             },
         },
         /** What an apply did to the triggers the document declares. */
