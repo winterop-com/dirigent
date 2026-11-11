@@ -13,7 +13,7 @@ import {
 import type { JsonSchema } from '@winterop-com/sokkel-ui/schema/read'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
-import { Segmented } from '@/components/Segmented'
+import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
@@ -243,7 +243,7 @@ export function NewSchedule({
                             size="md"
                             value={clock}
                             options={CLOCKS.map((one) => ({ value: one.value, label: one.label }))}
-                            onChoose={setClock}
+                            onValueChange={setClock}
                         />
                     </div>
 
@@ -561,7 +561,7 @@ function ParamsBox({
                         { value: 'form' as const, label: LABELS.triggers.dialog.params_form },
                         { value: 'json' as const, label: LABELS.triggers.dialog.params_json },
                     ]}
-                    onChoose={params.show}
+                    onValueChange={params.show}
                 />
             </div>
             <Surface tone="well" pad>

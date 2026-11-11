@@ -552,7 +552,16 @@ way. **A listing set in a `Section` among others** -- Triggers, Alerting -- grow
 rather than scrolling in a box of its own, so it would reach its end at once and read every page;
 it draws a button after its last row instead, saying how many the next page brings
 (`SECTION_LISTING`). The count is the `foot` from `rowsRead`, or the `meta` of the section a titled
-listing stands in. Where a row opens something -- a trigger's history beside the table, a
+listing stands in. **A listing narrowed by a search or filters draws them in the table's own bar**:
+the box is `DataTable`'s `search` and every other control its `toolbar`, so the search and the
+count share the first line and the filters take a line of their own under it, wrapping from the
+left edge -- and on a phone the filters take their own line with or without a search. The bar's
+count is then the listing's count, in `rowsRead`'s words through `countWords`, and the listing
+draws no `foot`. The table stays standing while a filter's answer is read, its rows the loading
+placeholders, so the box keeps its caret; no rows say `empty`, and a refusal is drawn there too,
+under the bar, so a filter that was refused can be taken off. A `Segmented` among the filters is
+`size="md"`, the filter buttons' height. A screen whose search narrows several tables or a list
+that is not a `DataTable` -- Blocks, Pipelines -- draws the same box and filters in a row over them. Where a row opens something -- a trigger's history beside the table, a
 connection's dialog over it -- the screen passes `onOpen` and `opened`, and the row answers Enter
 on the row the arrows reached as well as a click, because a row only a pointer can open is a row
 some people cannot. A row that is no longer live -- a paused or switched-off alert rule, a stopped
@@ -762,7 +771,7 @@ stands beside the control as chips that take themselves off.
 
 **A count says what it counts.** `rowsRead` writes "1 pipeline", "50 runs, more to load": the noun
 is the row's, singular where there is one of it, and a listing with a cursor left says so. A bare
-number along a foot reads as a total, and a keyset walk has no total to state. **The noun reaches
+number along a foot or in a bar reads as a total, and a keyset walk has no total to state. **The noun reaches
 the foot in both numbers**, as the `{one, many}` pair its `count` entry holds, and `rowsRead`
 takes that pair rather than a word: a foot handed one plural would have to reach the
 singular by rule, and the rule that makes a batch out of batches makes an entrie out of entries.
@@ -2493,7 +2502,7 @@ the one palette.
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
 | `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A titled listing is a `flush` `Section` with its count as `meta`, around a `DataTable` with `framed={false}` |
-| `DataTable` (sokkel-ui) | Every listing, spread with `LISTING` (`variant="list"`, `resizable={false}`, `stackBelow` and `minWidth`): grid tracks per column with the title `width: 'content'`, a cell's control pressed on its own without opening the row, `onOpen` and `opened` for what a row opens, `rowTone="muted"` for a row no longer live, `rowHeight="auto"` where a cell is two lines, `detail`, `hasDetail` and `expandLabel` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead`, and `empty` for the one line a listing with no rows says |
+| `DataTable` (sokkel-ui) | Every listing, spread with `LISTING` (`variant="list"`, `resizable={false}`, `stackBelow` and `minWidth`): grid tracks per column with the title `width: 'content'`, a cell's control pressed on its own without opening the row, `onOpen` and `opened` for what a row opens, `rowTone="muted"` for a row no longer live, `rowHeight="auto"` where a cell is two lines, `detail`, `hasDetail` and `expandLabel` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead` or, where the listing has a bar, through `words={countWords(...)}`, `search` and `toolbar` for the box and the filters that narrow it, and `empty` for the one line a listing with no rows says |
 | `ConsequenceList`, `DiffView` (sokkel-ui) | `ConsequenceList` is what an action changes or takes with it, a row per kind with its `count` and a `detail` line, under a heading from the catalogue: `neutral` for what changes, `critical` for what goes; it draws nothing without rows. `DiffView` is two versions of a text as one list of lines, `size="sm"` in a dialog, inside a `WindowedPane` with `WindowedPaneButton` at its default `icon-xs` in its `actions` slot; it folds unchanged runs in the pane and draws every line (`context={Infinity}`) in the window, with no `title` there so no header row is drawn, says `DIFF_WORDS`, and a caller that would hand it two equal texts draws nothing instead |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 

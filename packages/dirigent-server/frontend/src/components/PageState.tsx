@@ -56,26 +56,10 @@ export function PageState({
         )
     }
     if (problem !== null) {
-        const lines = refusalLines(problem)
         return (
             <Surface>
-                <Content className="flex items-start gap-2">
-                    <ICONS.unreachable className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
-                    <div className="space-y-1">
-                        <p className="text-sm font-medium">{problem.title}</p>
-                        {lines.detail !== null && (
-                            <p className="text-xs break-words text-muted-foreground">{lines.detail}</p>
-                        )}
-                        {lines.problems.length > 0 && (
-                            <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
-                                {lines.problems.map((one) => (
-                                    <li key={one} className="break-words">
-                                        {one}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
+                <Content>
+                    <Refusal problem={problem} />
                 </Content>
             </Surface>
         )
@@ -88,6 +72,34 @@ export function PageState({
         )
     }
     return <>{children}</>
+}
+
+/**
+ * What the server refused with: its title, and the detail and individual failures where they say
+ * something more. A listing whose bar must stay standing draws it as its table's `empty`.
+ */
+export function Refusal({ problem }: { problem: Problem }) {
+    const lines = refusalLines(problem)
+    return (
+        <div className="flex items-start gap-2">
+            <ICONS.unreachable className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
+            <div className="space-y-1">
+                <p className="text-sm font-medium">{problem.title}</p>
+                {lines.detail !== null && (
+                    <p className="text-xs break-words text-muted-foreground">{lines.detail}</p>
+                )}
+                {lines.problems.length > 0 && (
+                    <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
+                        {lines.problems.map((one) => (
+                            <li key={one} className="break-words">
+                                {one}
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        </div>
+    )
 }
 
 /** A panel body's own inset, where the card would have stood. */

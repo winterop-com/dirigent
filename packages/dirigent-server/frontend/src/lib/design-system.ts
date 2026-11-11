@@ -11,6 +11,7 @@ import type { ChipWords } from '@winterop-com/sokkel-ui/Chip'
 import type { CommandPaletteWords } from '@winterop-com/sokkel-ui/CommandPalette'
 import type { CodeSchemaWords } from '@winterop-com/sokkel-ui/CodeEditor'
 import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
+import type { DataTableWords } from '@winterop-com/sokkel-ui/DataTable'
 import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
 import type { DiffViewWords } from '@winterop-com/sokkel-ui/DiffView'
 import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
@@ -32,8 +33,8 @@ import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
 import type { WindowedPaneWords } from '@winterop-com/sokkel-ui/WindowedPane'
 
-import { counted, LABELS } from '@/lib/labels'
-import { PAGE } from '@/lib/paging'
+import { counted, type Counted, LABELS } from '@/lib/labels'
+import { PAGE, rowsRead } from '@/lib/paging'
 import { statusLabel, statusTokens } from '@/lib/status'
 
 /** What a dot or a notice says about something that is not a run: how it is, in one hue. */
@@ -138,6 +139,17 @@ export const LISTING = {
     stackBelow: '64rem',
     minWidth: '36rem',
 } as const
+
+/**
+ * What a listing's bar says of its rows, in `rowsRead`'s words: "50 runs", and "50 runs, more to
+ * load" while the cursor has more. No rows say nothing there; the table's `empty` says it.
+ */
+export function countWords(noun: Counted<string>): Pick<DataTableWords, 'rows' | 'loaded'> {
+    return {
+        rows: (count) => (count === 0 ? '' : rowsRead(count, noun, false)),
+        loaded: (count) => rowsRead(count, noun, true),
+    }
+}
 
 /**
  * A listing set in a `Section` among others: unframed, and growing with its rows rather than

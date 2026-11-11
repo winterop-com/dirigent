@@ -6,7 +6,7 @@ import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Picker } from '@/components/Picker'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
-import { Segmented } from '@/components/Segmented'
+import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import {
     Dialog,
@@ -173,7 +173,7 @@ export function NewRule({
                                 value: one,
                                 label: LABELS.alerting.event[one],
                             }))}
-                            onChoose={setEvent}
+                            onValueChange={setEvent}
                         />
                     </div>
 
@@ -185,7 +185,7 @@ export function NewRule({
                                 size="md"
                                 value={scope}
                                 options={SCOPES}
-                                onChoose={setScope}
+                                onValueChange={setScope}
                             />
                         </div>
                         {scope === 'pipeline' && (
@@ -211,7 +211,7 @@ export function NewRule({
                             size="md"
                             value={floor}
                             options={IMPORTANCE_FLOORS}
-                            onChoose={setFloor}
+                            onValueChange={setFloor}
                         />
                     </div>
 
