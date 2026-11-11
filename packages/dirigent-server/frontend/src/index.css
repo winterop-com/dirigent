@@ -18,11 +18,13 @@
 @import '@winterop-com/sokkel-ui/sources/DiffView.css';
 @import '@winterop-com/sokkel-ui/sources/Dot.css';
 @import '@winterop-com/sokkel-ui/sources/Field.css';
+@import '@winterop-com/sokkel-ui/sources/FilterChip.css';
 @import '@winterop-com/sokkel-ui/sources/GroupLabel.css';
 @import '@winterop-com/sokkel-ui/sources/IconButton.css';
 @import '@winterop-com/sokkel-ui/sources/InlineCode.css';
 @import '@winterop-com/sokkel-ui/sources/ItemHeading.css';
 @import '@winterop-com/sokkel-ui/sources/Link.css';
+@import '@winterop-com/sokkel-ui/sources/ListingBar.css';
 @import '@winterop-com/sokkel-ui/sources/PageHeader.css';
 @import '@winterop-com/sokkel-ui/sources/Rail.css';
 @import '@winterop-com/sokkel-ui/sources/ResizeHandle.css';
@@ -758,20 +760,16 @@
 }
 
 /* ---------------------------------------------------------------------------
-   WHAT A FINGER LANDS ON IS 42px TALL.
+   WHAT A FINGER LANDS ON IS A FINGER TALL.
 
-   A 28px control is a comfortable pointer target and a miss for a thumb, so below the
-   breakpoint every control the design system draws grows to the size a finger needs -- said
-   once here as `--spacing-finger`, against the generated primitives' slots, so no screen sizes
-   a button for a phone itself.
+   Below the breakpoint sokkel-ui grows its own controls to `--spacing-finger`: buttons but the
+   extra-small sizes, toggles, inputs, input groups, selects, the combobox, `SearchField` and
+   `FilterChip`, and icon buttons as wide. What follows grows the rest, against the generated
+   primitives' slots, so no screen sizes a control for a phone itself.
    --------------------------------------------------------------------------- */
 @media (max-width: 767px) {
-    /* `dialog-close` is here because a dialog's Cancel and its corner X are `Button`s that
-       `DialogClose` renders, and the wrapper's slot is the one that reaches the element.
-
-       A TRIGGER CARRIES THE TRIGGER'S SLOT AND NOT THE BUTTON'S. A menu or a tooltip rendered
-       through a `Button` overwrites `data-slot`, so a rule naming the button alone reaches
-       neither the listings' filters, nor the instance menu, nor the palette button.
+    /* A TRIGGER CARRIES THE TRIGGER'S SLOT, and one not drawn through a `Button` has no size of
+       its own.
 
        `control-link` IS A LINK DRAWN AS A CONTROL -- a drawer entry, a chip on a header strip,
        a row that navigates. An anchor carries no slot, and a finger does not know an anchor
@@ -784,13 +782,9 @@
        A BARE DOT IS ITS OWN TOOLTIP'S TRIGGER AND IS NOT GROWN. It keeps its own `dot` slot
        over the trigger's, so `tooltip-trigger` does not reach it, and it stays a line tall in a
        graph node's 15px row. */
-    [data-slot='button'],
-    [data-slot='dialog-close'],
     [data-slot='tabs-trigger'],
-    [data-slot='select-trigger'],
     [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
     [data-slot='tooltip-trigger'],
-    [data-slot='input'],
     [data-slot='command-input'],
     [data-slot='dropdown-menu-item'],
     [data-slot='dropdown-menu-radio-item'],
@@ -800,10 +794,8 @@
     .control-link {
         min-height: var(--spacing-finger);
     }
-    /* A square control stays square: a 42px tall icon button 28px wide is a target on one
+    /* A square trigger stays square: a target a finger tall and 28px wide is a target on one
        axis only. */
-    [data-slot='button'],
-    [data-slot='dialog-close'],
     [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
     [data-slot='tooltip-trigger'] {
         min-inline-size: var(--spacing-finger);

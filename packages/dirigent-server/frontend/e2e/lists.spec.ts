@@ -9,6 +9,8 @@ import {
     signIn,
     startRun,
     statusChip,
+    filterChip,
+    filterValue,
 } from './support.ts'
 
 /**
@@ -133,9 +135,9 @@ test('a tag in the address narrows the pipelines listing, and its chip widens it
     await expect(rowOf(page, RAN.title)).toBeVisible()
     await expect(rowOf(page, IDLE.title)).toHaveCount(0)
 
-    // The filter stands above the lists as a chip that removes itself, and removing it asks the
-    // wide question again.
-    await page.getByRole('button', { name: 'Stop filtering by graph' }).click()
+    // The filter chip says the tag it holds, and clearing it asks the wide question again.
+    await expect(filterChip(page, LABELS.shell.tag_filter)).toContainText('graph')
+    await page.getByRole('button', { name: LABELS.shell.stop_filtering(LABELS.shell.tag_filter) }).click()
     await expect(rowOf(page, IDLE.title)).toBeVisible()
     await expect(page).not.toHaveURL(/tag=/)
 })
@@ -151,13 +153,17 @@ test('two tags narrow the pipelines listing, and the address carries what they n
     await page.goto('/pipelines?examples=all&tag=transform')
     await expect(rowOf(page, RAN.title)).toBeVisible()
     await expect(rowOf(page, IDLE.title)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Stop filtering by transform' })).toBeVisible()
+    await expect(filterChip(page, LABELS.shell.tag_filter)).toContainText('transform')
 
-    // The option wears what its value wears: the menu rows are the chips the listing draws.
-    await page.getByRole('button', { name: LABELS.shell.tag_filter.label }).click()
-    await page.getByRole('menuitemcheckbox', { name: 'graph', exact: true }).click()
+    // A set stays open while it is chosen from: the second tag is ticked beside the first.
+    await filterChip(page, LABELS.shell.tag_filter).click()
+    await filterValue(page, 'graph').click()
+    await expect(filterValue(page, 'transform')).toBeVisible()
 
-    await expect(page).toHaveURL(/tag=transform&tag=graph$/)
+    // The address carries both tags, in the menu's order rather than the order they were picked.
+    await expect
+        .poll(() => new URL(page.url()).searchParams.getAll('tag').toSorted())
+        .toEqual(['graph', 'transform'])
     await expect(rowOf(page, RAN.title)).toBeVisible()
     await expect(rowOf(page, IDLE.title)).toHaveCount(0)
 })
@@ -181,8 +187,8 @@ test('the runs listing narrows by the tags the runs pipeline wears, and no row r
     await expect(runRowOf(page, RAN.code)).toBeVisible()
     await expect(runRowOf(page, NAMELESS.code)).toBeVisible()
 
-    await page.getByRole('button', { name: LABELS.shell.tag_filter.label }).click()
-    await page.getByRole('menuitemcheckbox', { name: 'graph', exact: true }).click()
+    await filterChip(page, LABELS.shell.tag_filter).click()
+    await filterValue(page, 'graph').click()
     await page.keyboard.press('Escape')
 
     await expect(runRowOf(page, RAN.code)).toBeVisible()

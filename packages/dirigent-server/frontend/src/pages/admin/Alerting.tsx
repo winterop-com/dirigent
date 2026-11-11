@@ -8,9 +8,9 @@ import { NewRule } from '@/components/alerting/NewRule'
 import { EMPTY_TEST, SendTest, type TestDraft } from '@/components/alerting/SendTest'
 import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
-import { ANY, Choice } from '@/components/list/Choice'
+import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { SECTION_LISTING, shutWith } from '@/lib/design-system'
+import { filterWords, oneChosen, SECTION_LISTING, shutWith } from '@/lib/design-system'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
@@ -81,7 +81,7 @@ function Alerting() {
     const [testing, setTesting] = useState<{ draft: TestDraft; opened: number } | null>(null)
     const [chosenRule, setChosenRule] = useState<string | null>(null)
     const [chosenNotification, setChosenNotification] = useState<string | null>(null)
-    const [filters, setFilters] = useState<NotificationFilters>({ status: ANY, notifier: ANY })
+    const [filters, setFilters] = useState<NotificationFilters>({ status: '', notifier: '' })
     // What a verb has since made of a row, over the page it was read on.
     const [fresherRules, setFresherRules] = useState<Record<string, AlertRuleOut>>({})
     const [fresherRows, setFresherRows] = useState<Record<string, NotificationOut>>({})
@@ -319,27 +319,28 @@ function Alerting() {
                     }
                     actions={
                         <span className="flex gap-2 font-normal">
-                            <Choice
-                                label={LABELS.word.status}
-                                value={filters.status}
-                                anything={LABELS.alerting.any_status}
+                            <FilterChip
+                                facet={LABELS.word.status}
                                 options={NOTIFICATION_STATUSES.map((one) => ({
                                     value: one,
                                     label: one,
-                                    mark: <StatusChip status={one} />,
+                                    row: <StatusChip status={one} />,
                                 }))}
-                                onChange={(status) => {
+                                value={
+                                    filters.status === '' ? undefined : <StatusChip status={filters.status} />
+                                }
+                                {...oneChosen(filters.status, (status) => {
                                     setFilters((held) => ({ ...held, status }))
-                                }}
+                                })}
+                                words={filterWords(LABELS.alerting.any_status)}
                             />
-                            <Choice
-                                label={LABELS.alerting.notifier}
-                                value={filters.notifier}
-                                anything={LABELS.alerting.any_notifier}
+                            <FilterChip
+                                facet={LABELS.alerting.notifier}
                                 options={notifierOptions(channels.rows)}
-                                onChange={(notifier) => {
+                                {...oneChosen(filters.notifier, (notifier) => {
                                     setFilters((held) => ({ ...held, notifier }))
-                                }}
+                                })}
+                                words={filterWords(LABELS.alerting.any_notifier)}
                             />
                         </span>
                     }

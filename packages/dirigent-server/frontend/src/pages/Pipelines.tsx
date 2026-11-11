@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
+import { ListingBar } from '@winterop-com/sokkel-ui/ListingBar'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { shutWith } from '@/lib/design-system'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
@@ -212,17 +213,19 @@ export function Pipelines() {
                 }
             />
 
-            <div className="mb-6 flex flex-wrap items-center gap-2">
-                <SearchField
-                    placeholder={SEARCH_PLACEHOLDER}
-                    words={SEARCH_WORDS}
-                    className="w-64"
-                    value={needle}
-                    label={LABELS.pipelines.search}
-                    onChange={setNeedle}
-                />
-                <TagFilter chosen={tags} offered={offered.value ?? []} onChange={setTags} />
-            </div>
+            <ListingBar
+                className="mb-6 px-0"
+                search={
+                    <SearchField
+                        placeholder={SEARCH_PLACEHOLDER}
+                        words={SEARCH_WORDS}
+                        value={needle}
+                        label={LABELS.pipelines.search}
+                        onChange={setNeedle}
+                    />
+                }
+                toolbar={<TagFilter chosen={tags} offered={offered.value ?? []} onChange={setTags} />}
+            />
 
             <PageState
                 loading={listing.value === null && listing.problem === null}

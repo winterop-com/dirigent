@@ -11,6 +11,8 @@ import {
     startRun,
     apiPrefix,
     openSettings,
+    filterChip,
+    filterValue,
 } from './support.ts'
 
 /**
@@ -148,10 +150,11 @@ test('an account made on the users screen is a row of the audit trail, and narro
     await expect(made).toContainText(LABELS.audit.subjects.user)
     await expect(made).toContainText(DEV_USERNAME)
 
-    await page
-        .getByRole('button', { name: LABELS.shell.filter(LABELS.audit.action, LABELS.audit.any_action) })
-        .click()
-    await page.getByRole('menuitemradio', { name: LABELS.audit.actions.deleted, exact: true }).click()
+    await filterChip(page, LABELS.audit.action).click()
+    // Past eight actions the menu is a list with a search over it, and a choice still closes it.
+    await filterValue(page, LABELS.audit.actions.deleted).click()
+    await expect(page.getByRole('dialog', { name: LABELS.audit.action })).toHaveCount(0)
+    await expect(filterChip(page, LABELS.audit.action)).toContainText(LABELS.audit.actions.deleted)
     await expect(page.getByText(LABELS.audit.empty_filtered)).toBeVisible()
 })
 

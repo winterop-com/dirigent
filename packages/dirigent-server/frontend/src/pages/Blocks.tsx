@@ -7,6 +7,7 @@ import { MarkdownLine } from '@/components/Markdown'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { DataTable, DataTableGroup, TableCellFill, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
+import { ListingBar } from '@winterop-com/sokkel-ui/ListingBar'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
@@ -151,16 +152,18 @@ export function Blocks() {
         <>
             <PageHeader title={LABELS.screen.blocks.name} lead={<ApiChip tag="blocks" />} />
 
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <SearchField
-                    placeholder={SEARCH_PLACEHOLDER}
-                    words={SEARCH_WORDS}
-                    className="w-64"
-                    value={needle}
-                    label={LABELS.blocks.search}
-                    onChange={setNeedle}
-                />
-            </div>
+            <ListingBar
+                className="mb-4 px-0"
+                search={
+                    <SearchField
+                        placeholder={SEARCH_PLACEHOLDER}
+                        words={SEARCH_WORDS}
+                        value={needle}
+                        label={LABELS.blocks.search}
+                        onChange={setNeedle}
+                    />
+                }
+            />
 
             <PageState
                 loading={!read}
@@ -184,6 +187,7 @@ export function Blocks() {
                             >
                                 <DataTable
                                     {...SECTION_LISTING}
+                                    bar={false}
                                     rowHeight="auto"
                                     columns={columns}
                                     rows={members}
@@ -210,6 +214,7 @@ export function Blocks() {
                                 >
                                     <DataTable
                                         {...SECTION_LISTING}
+                                        bar={false}
                                         rowHeight="auto"
                                         columns={entryColumns(registry.key)}
                                         rows={rows}

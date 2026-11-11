@@ -276,7 +276,7 @@ function userColumns(
             cell: (user) => (
                 <Button
                     variant="outline"
-                    size="xs"
+                    size="sm"
                     aria-label={LABELS.users.new_token_for(user.username)}
                     onClick={() => {
                         mint(user.username)

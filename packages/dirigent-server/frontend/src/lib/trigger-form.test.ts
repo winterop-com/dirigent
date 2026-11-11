@@ -80,7 +80,8 @@ describe('the cron box', () => {
         expect(readCron('30 2 1,15 * *')).toBe('At 02:30 on the 1st and 15th')
         expect(readCron('0 */6 * * *')).toBe('Every 6 hours')
         expect(readCron('0 5 * * mon,wed,fri')).toBe('At 05:00 on Monday, Wednesday and Friday')
-        expect(readCron('0 5 L * *')).toBeNull()
+        expect(readCron('0 5 L * *')).toBe('At 05:00 on the last day of the month')
+        expect(readCron('0 5 * * 5#2')).toBe('At 05:00 on the 2nd Friday of the month')
         expect(readCron('not cron')).toBeNull()
     })
 

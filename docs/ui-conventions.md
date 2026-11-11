@@ -559,9 +559,13 @@ left edge -- and on a phone the filters take their own line with or without a se
 count is then the listing's count, in `rowsRead`'s words through `countWords`, and the listing
 draws no `foot`. The table stays standing while a filter's answer is read, its rows the loading
 placeholders, so the box keeps its caret; no rows say `empty`, and a refusal is drawn there too,
-under the bar, so a filter that was refused can be taken off. A `Segmented` among the filters is
-`size="md"`, the filter buttons' height. A screen whose search narrows several tables or a list
-that is not a `DataTable` -- Blocks, Pipelines -- draws the same box and filters in a row over them. Where a row opens something -- a trigger's history beside the table, a
+under the bar, so a filter that was refused can be taken off. **A filter is sokkel-ui's
+`FilterChip`**: unset it says its facet and a chevron, set it says the facet and the value on the
+accent's wash and carries the X that clears it, and its menu is the facet's values. A `Segmented`
+among the filters is `size="md"`, so the search, the chips and the segments are one height. The
+count is left out while the table says it is empty. A screen whose search narrows several tables
+or a list that is not a `DataTable` -- Blocks, Pipelines -- draws sokkel-ui's `ListingBar` over
+them, the same bar `DataTable` draws, and gives each table `bar={false}`. Where a row opens something -- a trigger's history beside the table, a
 connection's dialog over it -- the screen passes `onOpen` and `opened`, and the row answers Enter
 on the row the arrows reached as well as a click, because a row only a pointer can open is a row
 some people cannot. A row that is no longer live -- a paused or switched-off alert rule, a stopped
@@ -679,9 +683,11 @@ refuses it, so the row states `carries connections; a copy names them` -- `carri
 `lib/examples` -- and a template's copy names them under `requires` instead. A document carrying
 neither says nothing, because a column saying "nothing" of a hundred rows is a column of noise.
 
-**A tag filter is a set, and its members stand beside the control.** `tag` repeats on the wire
-and repeating it narrows, so the control is a menu of checkboxes rather than a choice, and each
-chosen tag stands next to it as a chip that removes itself. Where a row already draws its tags,
+**A tag filter is a set, and the chip spells its members.** `tag` repeats on the wire and
+repeating it narrows, so `components/list/TagFilter` is a `FilterChip` with `multiple`, its
+menu rows the tag chips and its face the chosen tags in mono -- the first and `+N` past two --
+and its X clears the set. A tag the address names stays on the chip even before the menu of
+offered tags has been read. Where a row already draws its tags,
 the chip on the row adds it to that set: the filter is reached from the thing that shows what to
 reach for. Where a row's tags would be the same words repeated down a column -- every run of one
 pipeline -- the rows carry none and only the filter does, and a pipeline's row carries none
@@ -763,11 +769,12 @@ it is -- into the width the Tags column is drawn at, which `TagChips` reads from
 the column is a share with a floor rather than a fixed width. On a stacked card the chips wrap
 across the card, still no more than eight; outside a table they wrap.
 
-**A choice closes on its choice; a set stays open.** `components/list/Choice` is one value out of
-a menu of them, and picking one shuts the menu, because the question has been answered. A set is
-the other case: several tags mean AND, so `TagFilter`'s rows are checkboxes and the menu stays
-where it is until somebody is done with it. Neither trigger wears a count -- what has been chosen
-stands beside the control as chips that take themselves off.
+**A choice closes on its choice; a set stays open.** A single `FilterChip` is one value out of a
+menu headed by the row that unsets it (`filterWords(any)` in `lib/design-system`), and picking
+one shuts the menu, because the question has been answered; `oneChosen` holds that one value as
+the string the filters keep, `''` for none. A set is the other case: several tags mean AND, so
+the tag filter's rows are checkboxes and the menu stays where it is until somebody is done with
+it. Past eight values the menu is a list with a search over it, and the same rule holds.
 
 **A count says what it counts.** `rowsRead` writes "1 pipeline", "50 runs, more to load": the noun
 is the row's, singular where there is one of it, and a listing with a cursor left says so. A bare
@@ -1537,11 +1544,13 @@ too wide for its cell wraps onto a second line, because a cut word says less tha
 Folding the control into a picker instead would hide behind a press exactly what it exists to
 show.
 
-**Every control a finger lands on is at least 42px tall, whatever element it is made of.**
+**Every control a finger lands on is at least 44px tall, whatever element it is made of.**
 The height is one token, `--spacing-finger`, and below the breakpoint every control takes its
-minimum from it: in `index.css` against the generated primitives' slots, against every trigger
--- a menu's and a tooltip's carry the trigger's slot in place of the button's, so naming the
-button alone misses every filter, the instance menu and the palette button -- and against
+minimum from it. sokkel-ui sizes its own: buttons but the extra-small sizes, toggles, inputs,
+input groups, both selects, the combobox, `SearchField` and `FilterChip`, and icon buttons as
+wide -- so a listing's bar is a finger tall throughout. `index.css`
+grows the rest against the generated primitives' slots: a tab, a menu's or a tooltip's trigger
+not drawn through a `Button`, a command input, menu, command and combobox rows, and
 `control-link`, which is what a link drawn as a control wears: a drawer entry, a chip on a
 header strip, a row that navigates. The canvas's zoom cluster is sized there as well, being
 the graph library's button rather than one of ours. A menu opened at a point rather than under a
@@ -1549,7 +1558,7 @@ control -- the canvas's right-click menus -- anchors a zero-sized trigger at the
 `data-menu-anchor` keeps the rule off that one, because nothing draws it and no finger lands on
 it. A bare status dot is its own tooltip's trigger and is not grown: it keeps its own `dot` slot
 over the trigger's, so it stays one line tall, which a graph node's 15px row needs. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
-drawn as a square takes the width too, because a 42px tall target 28px wide is a target on one
+drawn as a square takes the width too, because a 44px tall target 28px wide is a target on one
 axis only. No screen sizes a control for a phone itself.
 
 **Text inside content is not a control.** A card's title link, a timestamp, the link in a
@@ -1698,7 +1707,7 @@ is a link to it, like the chip.
 
 A dropdown whose options are values the app already draws somewhere -- a status, a kind --
 renders each option as that drawing: the status filter's rows are the same chips the listing
-shows, and the trigger carries the chip it chose. Choosing becomes recognising. An option
+shows (`FilterOption.row`), and the chip carries the one it chose as its `value`. Choosing becomes recognising. An option
 never wraps; the menu grows to its longest row instead of folding a label in half.
 
 **The menu is floored at its control and capped at the screen.** It is never narrower than the
@@ -2503,6 +2512,7 @@ the one palette.
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
 | `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A titled listing is a `flush` `Section` with its count as `meta`, around a `DataTable` with `framed={false}` |
 | `DataTable` (sokkel-ui) | Every listing, spread with `LISTING` (`variant="list"`, `resizable={false}`, `stackBelow` and `minWidth`): grid tracks per column with the title `width: 'content'`, a cell's control pressed on its own without opening the row, `onOpen` and `opened` for what a row opens, `rowTone="muted"` for a row no longer live, `rowHeight="auto"` where a cell is two lines, `detail`, `hasDetail` and `expandLabel` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead` or, where the listing has a bar, through `words={countWords(...)}`, `search` and `toolbar` for the box and the filters that narrow it, and `empty` for the one line a listing with no rows says |
+| `FilterChip`, `ListingBar` (sokkel-ui) | A filter in a listing's bar: `facet`, `options` (a `row` where the value has a drawing of its own), `multiple` for a set, the chosen held through `selected` and `onSelectedChange` -- `oneChosen` for a single value -- and `words={filterWords(any)}`. `ListingBar` is the bar `DataTable` draws, for a search over several tables or over a list that is not one |
 | `ConsequenceList`, `DiffView` (sokkel-ui) | `ConsequenceList` is what an action changes or takes with it, a row per kind with its `count` and a `detail` line, under a heading from the catalogue: `neutral` for what changes, `critical` for what goes; it draws nothing without rows. `DiffView` is two versions of a text as one list of lines, `size="sm"` in a dialog, inside a `WindowedPane` with `WindowedPaneButton` at its default `icon-xs` in its `actions` slot; it folds unchanged runs in the pane and draws every line (`context={Infinity}`) in the window, with no `title` there so no header row is drawn, says `DIFF_WORDS`, and a caller that would hand it two equal texts draws nothing instead |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
