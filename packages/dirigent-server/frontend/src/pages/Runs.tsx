@@ -3,13 +3,13 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { Choice } from '@/components/list/Choice'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Refusal } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
 import { RunsByPipeline } from '@/components/run/RunsByPipeline'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented, type Segment } from '@winterop-com/sokkel-ui/Segmented'
@@ -20,7 +20,14 @@ import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { elapsedBetween, formatDuration, formatInstant, formatRelative } from '@/lib/format'
-import { countWords, LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import {
+    countWords,
+    filterWords,
+    LISTING,
+    oneChosen,
+    SEARCH_PLACEHOLDER,
+    SEARCH_WORDS,
+} from '@/lib/design-system'
 import { counted, LABELS } from '@/lib/labels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { readPipelineNames, readTagsOffered } from '@/lib/pipelines'
@@ -181,18 +188,18 @@ export function Runs() {
 
     const toolbar = (
         <>
-            <Choice
-                label={view.grouped ? LABELS.runs.grouped.latest_filter : LABELS.word.status}
-                value={filters.status}
+            <FilterChip
+                facet={view.grouped ? LABELS.runs.grouped.latest_filter : LABELS.word.status}
                 options={RUN_STATUSES.map((status) => ({
                     value: status,
                     label: statusLabel(status),
-                    mark: <StatusChip status={status} />,
+                    row: <StatusChip status={status} />,
                 }))}
-                anything={view.grouped ? LABELS.runs.grouped.any_latest : LABELS.runs.any_status}
-                onChange={(status) => {
+                value={filters.status === '' ? undefined : <StatusChip status={filters.status} />}
+                {...oneChosen(filters.status, (status) => {
                     setFilters((current) => ({ ...current, status }))
-                }}
+                })}
+                words={filterWords(view.grouped ? LABELS.runs.grouped.any_latest : LABELS.runs.any_status)}
             />
             {view.grouped ? (
                 <Segmented
@@ -208,17 +215,16 @@ export function Runs() {
                     }}
                 />
             ) : (
-                <Choice
-                    label={LABELS.word.window.label}
-                    value={filters.since}
+                <FilterChip
+                    facet={LABELS.word.window.label}
                     options={WINDOWS.map((window) => ({
                         value: window,
                         label: LABELS.runs.window_option(window),
                     }))}
-                    anything={LABELS.runs.any_window}
-                    onChange={(since) => {
+                    {...oneChosen(filters.since, (since) => {
                         setFilters((current) => ({ ...current, since }))
-                    }}
+                    })}
+                    words={filterWords(LABELS.runs.any_window)}
                 />
             )}
             <TagFilter

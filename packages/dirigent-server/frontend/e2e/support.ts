@@ -489,3 +489,16 @@ export function statusChip(scope: Page | Locator, status: string): Locator {
 export function anyStatusChip(scope: Page | Locator): Locator {
     return scope.locator('span[data-status]')
 }
+
+/** A filter chip's press target, named by its facet and then whatever it is set to. */
+export function filterChip(scope: Page | Locator, facet: string): Locator {
+    return scope.locator('[data-slot="filter-chip"]').getByRole('button', { name: new RegExp(`^${facet}`) })
+}
+
+/** A value in an open filter chip's menu: a menu row, or a row of the searchable list past eight values. */
+export function filterValue(page: Page, name: string): Locator {
+    return page
+        .getByRole('menuitemcheckbox', { name, exact: true })
+        .or(page.getByRole('menuitemradio', { name, exact: true }))
+        .or(page.getByRole('option', { name, exact: true }))
+}

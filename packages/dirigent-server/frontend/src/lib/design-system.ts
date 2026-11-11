@@ -16,6 +16,7 @@ import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
 import type { DiffViewWords } from '@winterop-com/sokkel-ui/DiffView'
 import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
+import type { FilterChipWords } from '@winterop-com/sokkel-ui/FilterChip'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
 import type { SchemeChoiceWords } from '@winterop-com/sokkel-ui/SchemeChoice'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
@@ -128,6 +129,27 @@ export const SEARCH_PLACEHOLDER = LABELS.shell.search
 /** What a search box's clear button is called. */
 export const SEARCH_WORDS: SearchFieldWords = { clear: LABELS.shell.clear_search }
 
+/** What a filter chip says: `any` heads a single choice's menu and unsets it. */
+export function filterWords(any = ''): FilterChipWords {
+    return {
+        any,
+        clear: LABELS.shell.stop_filtering,
+        more: LABELS.shell.more_chosen,
+        search: SEARCH_PLACEHOLDER,
+        empty: LABELS.shell.no_match,
+    }
+}
+
+/** A single-choice filter chip's selection, held as one value where `''` is no filter. */
+export function oneChosen(value: string, onChange: (value: string) => void) {
+    return {
+        selected: value === '' ? [] : [value],
+        onSelectedChange: (next: string[]) => {
+            onChange(next[0] ?? '')
+        },
+    }
+}
+
 /**
  * How every listing's `DataTable` lays out: the list look, columns that do not drag, and its rows
  * as cards once its own box is narrower than `lg` and than the least its columns take, which
@@ -142,11 +164,11 @@ export const LISTING = {
 
 /**
  * What a listing's bar says of its rows, in `rowsRead`'s words: "50 runs", and "50 runs, more to
- * load" while the cursor has more. No rows say nothing there; the table's `empty` says it.
+ * load" while the cursor has more.
  */
 export function countWords(noun: Counted<string>): Pick<DataTableWords, 'rows' | 'loaded'> {
     return {
-        rows: (count) => (count === 0 ? '' : rowsRead(count, noun, false)),
+        rows: (count) => rowsRead(count, noun, false),
         loaded: (count) => rowsRead(count, noun, true),
     }
 }

@@ -3,7 +3,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react
 import { useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
-import { ANY, Choice } from '@/components/list/Choice'
+import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState, Refusal } from '@/components/PageState'
@@ -35,7 +35,15 @@ import {
     type Holdings,
 } from '@/lib/examples'
 import { headingOf, itemOf, oneLine } from '@/lib/identity'
-import { chipWords, countWords, LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import {
+    chipWords,
+    countWords,
+    filterWords,
+    LISTING,
+    oneChosen,
+    SEARCH_PLACEHOLDER,
+    SEARCH_WORDS,
+} from '@/lib/design-system'
 import { counted, LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { closePanel, fillPanel, openPanelTab } from '@/lib/panels'
@@ -294,25 +302,23 @@ export function Examples() {
                                 change({ ...filters, tags })
                             }}
                         />
-                        <Choice
-                            label={LABELS.word.shelf}
-                            value={filters.shelf}
-                            anything={LABELS.examples.any_shelf}
+                        <FilterChip
+                            facet={LABELS.word.shelf}
                             options={shelves.map((shelf) => ({ value: shelf, label: shelf }))}
-                            onChange={(shelf) => {
-                                change({ ...filters, shelf: shelf === ANY ? '' : shelf })
-                            }}
+                            {...oneChosen(filters.shelf, (shelf) => {
+                                change({ ...filters, shelf })
+                            })}
+                            words={filterWords(LABELS.examples.any_shelf)}
                         />
                         {/* A choice of one is not a choice: the control appears when a pack is installed. */}
                         {plugins.length > 1 && (
-                            <Choice
-                                label={LABELS.word.plugin.label}
-                                value={filters.plugin}
-                                anything={LABELS.examples.any_plugin}
+                            <FilterChip
+                                facet={LABELS.word.plugin.label}
                                 options={plugins.map((plugin) => ({ value: plugin, label: plugin }))}
-                                onChange={(plugin) => {
-                                    change({ ...filters, plugin: plugin === ANY ? '' : plugin })
-                                }}
+                                {...oneChosen(filters.plugin, (plugin) => {
+                                    change({ ...filters, plugin })
+                                })}
+                                words={filterWords(LABELS.examples.any_plugin)}
                             />
                         )}
                         {/* The Blocks screen links here narrowed to one block, and the chip that says

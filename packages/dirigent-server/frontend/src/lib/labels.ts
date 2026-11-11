@@ -806,16 +806,14 @@ const shell = {
 
     /** The box that narrows what is on the screen. It names nothing: the heading above it does. */
     search: 'Search',
-    /** A filter menu's trigger: what it filters, and what it is set to. */
-    filter: (name: string, chosen: string) => `${name}: ${chosen}`,
+    /** A filter chip's remove button, named for what the chip filters on. */
+    stop_filtering: (facet: string) => `Stop filtering by ${facet.toLowerCase()}`,
+    /** What a filter chip adds after its first value when more than two are chosen. */
+    more_chosen: (count: number) => `+${String(count)}`,
     /** What a picker says when nothing in its list answers to what was typed. */
     no_match: 'No match.',
-    /** The tag filter, and the two things its trigger says. */
-    tag_filter: {
-        label: 'Filter by tag',
-        any: 'Any tag',
-        chosen: 'Tag',
-    },
+    /** What the tag filter filters on. */
+    tag_filter: 'Tag',
     /** One tag chip, which narrows the listing to itself. */
     filter_by_tag: (tag: string) => `Filter by ${tag}`,
     /** The same tag, once it is narrowing. */
@@ -2733,11 +2731,11 @@ const triggers = {
             last_day: 'on the last day of the month',
             /** `LW` in the day of the month. */
             last_weekday: 'on the last weekday of the month',
-            /** `15W`, the day arriving as an ordinal: "on the weekday nearest the 15th". */
+            /** `15W`, given the day as an ordinal. */
             nearest_weekday: (day: string) => `on the weekday nearest the ${day}`,
-            /** `5#2`, the place arriving as an ordinal: "on the 2nd Friday of the month". */
+            /** `5#2`, given the place as an ordinal and the day's name. */
             nth_of: (nth: string, day: string) => `on the ${nth} ${day} of the month`,
-            /** `5L`: "on the last Friday of the month". */
+            /** `5L`, given the day's name. */
             last_of: (day: string) => `on the last ${day} of the month`,
             /** A run of days of the week: "on Monday to Thursday". */
             weekday_range: (from: string, to: string) => `on ${from} to ${to}`,

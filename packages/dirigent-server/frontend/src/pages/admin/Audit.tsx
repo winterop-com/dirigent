@@ -7,7 +7,7 @@ import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Instant } from '@/components/Instant'
-import { Choice } from '@/components/list/Choice'
+import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { Refusal } from '@/components/PageState'
 import { usePaged } from '@/hooks/use-paged'
 import {
@@ -23,7 +23,14 @@ import {
     type AuditFilters,
 } from '@/lib/audit'
 import { ICONS } from '@/lib/icons'
-import { countWords, LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import {
+    countWords,
+    filterWords,
+    LISTING,
+    oneChosen,
+    SEARCH_PLACEHOLDER,
+    SEARCH_WORDS,
+} from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -133,15 +140,14 @@ function Audit() {
                 }
                 toolbar={
                     <>
-                        <Choice
-                            label={LABELS.word.subject}
-                            value={filters.subject_kind}
+                        <FilterChip
+                            facet={LABELS.word.subject}
                             options={AUDIT_SUBJECTS.map((kind) => ({
                                 value: kind,
                                 label: LABELS.audit.subjects[kind],
                             }))}
-                            anything={LABELS.audit.any_kind}
-                            onChange={choose('subject_kind')}
+                            {...oneChosen(filters.subject_kind, choose('subject_kind'))}
+                            words={filterWords(LABELS.audit.any_kind)}
                         />
                         <SearchField
                             placeholder={LABELS.audit.subject_placeholder}
@@ -152,25 +158,23 @@ function Audit() {
                             onChange={setSubject}
                             shortcut={false}
                         />
-                        <Choice
-                            label={LABELS.audit.action}
-                            value={filters.action}
+                        <FilterChip
+                            facet={LABELS.audit.action}
                             options={AUDIT_ACTIONS.map((action) => ({
                                 value: action,
                                 label: LABELS.audit.actions[action],
                             }))}
-                            anything={LABELS.audit.any_action}
-                            onChange={choose('action')}
+                            {...oneChosen(filters.action, choose('action'))}
+                            words={filterWords(LABELS.audit.any_action)}
                         />
-                        <Choice
-                            label={LABELS.word.window.label}
-                            value={filters.window}
+                        <FilterChip
+                            facet={LABELS.word.window.label}
                             options={AUDIT_WINDOWS.map((window) => ({
                                 value: window,
                                 label: LABELS.runs.window_option(window),
                             }))}
-                            anything={LABELS.runs.any_window}
-                            onChange={choose('window')}
+                            {...oneChosen(filters.window, choose('window'))}
+                            words={filterWords(LABELS.runs.any_window)}
                         />
                     </>
                 }

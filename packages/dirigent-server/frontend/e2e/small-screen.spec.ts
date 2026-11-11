@@ -110,9 +110,9 @@ test('the panel is a sheet raised from the tab strip', async ({ page }) => {
     await expect(sheet).toBeHidden()
 })
 
-test('what a finger lands on is at least 42px tall', async ({ page }) => {
+test('what a finger lands on is at least 44px tall', async ({ page }) => {
     // The token every control below the breakpoint takes its minimum from.
-    const FINGER = 42
+    const FINGER = 44
 
     await page.goto('/schemas')
     await page.getByRole('button', { name: LABELS.schemas.new }).click()
@@ -143,11 +143,14 @@ test('what a finger lands on is at least 42px tall', async ({ page }) => {
     // primitive's slot to take the minimum from.
     await page.goto('/pipelines')
 
-    // A TRIGGER CARRIES THE TRIGGER'S SLOT IN PLACE OF THE BUTTON'S, which is how a listing's
-    // filters stayed 28px while every other control grew.
-    const filter = page.getByRole('button', { name: LABELS.shell.tag_filter.label })
-    await expect(filter).toBeVisible()
-    expect((await filter.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
+    // The listing's bar is a finger tall throughout: the search box and every filter chip.
+    for (const control of [
+        page.locator('[data-slot="search-field"]'),
+        page.locator('[data-slot="filter-chip"]'),
+    ]) {
+        await expect(control).toBeVisible()
+        expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
+    }
 
     const api = page.getByRole('link', { name: 'API' })
     await expect(api).toBeVisible()
@@ -164,7 +167,7 @@ test('the trail is the way back: the last screen above alone', async ({ page }) 
     await expect(page).toHaveURL(new RegExp(`/pipelines/${PIPELINE}$`))
 })
 
-test('the drawer entries are at least 42px tall', async ({ page }) => {
+test('the drawer entries are at least 44px tall', async ({ page }) => {
     await page.goto('/pipelines')
     await page.getByRole('button', { name: LABELS.shell.open_nav }).click()
     const drawer = page.locator('[data-overlay]')
@@ -172,13 +175,13 @@ test('the drawer entries are at least 42px tall', async ({ page }) => {
     const entries = await drawer.getByRole('navigation').getByRole('link').all()
     expect(entries.length).toBeGreaterThan(0)
     for (const entry of entries) {
-        expect((await entry.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(42)
+        expect((await entry.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
     }
 })
 
 test('a bare status dot stays a dot, and is not grown to a finger', async ({ page }) => {
     // REVERT-PROOF: a bare dot is its own tooltip's trigger, and a finger rule for triggers drew
-    // it 42px tall, which a graph node's 15px row cannot hold. Neither its box nor its disc grows.
+    // it 44px tall, which a graph node's 15px row cannot hold. Neither its box nor its disc grows.
     await page.goto('/design')
     const dots = page.locator('[data-gallery="dots"] [data-slot="dot"][role="img"]')
     await expect(dots.first()).toBeVisible()
@@ -205,8 +208,8 @@ test('the palette button is a glyph, and the chord it would have drawn is not', 
 test('the palette button is a finger square', async ({ page }) => {
     const palette = page.getByRole('button', { name: LABELS.shell.palette_button })
     const box = await palette.boundingBox()
-    expect(box?.width ?? 0).toBeGreaterThanOrEqual(42)
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(42)
+    expect(box?.width ?? 0).toBeGreaterThanOrEqual(44)
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
 })
 
 test('a dialog fills the screen, with its verbs at the foot', async ({ page }) => {
@@ -232,7 +235,7 @@ test('the channels are folded behind their own heading, and open as a table', as
     await page.goto('/admin/alerting')
     const fold = page.getByRole('button', { name: LABELS.alerting.channels_heading })
     await expect(fold).toHaveAttribute('aria-expanded', 'false')
-    expect((await fold.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(42)
+    expect((await fold.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
     // Folded, the dots are the whole of what the strip says; the way in is not drawn at all.
     const door = page.getByRole('link', { name: 'Set up webhook' })
     await expect(door).toBeHidden()

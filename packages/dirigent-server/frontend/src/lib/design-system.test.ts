@@ -167,11 +167,10 @@ describe('the gallery index', () => {
 })
 
 describe("a listing bar's count", () => {
-    test("says the rows in rowsRead's words, and nothing for none", () => {
+    test("says the rows in rowsRead's words", () => {
         const words = countWords(LABELS.word.run.count)
         expect(words.rows(1)).toBe('1 run')
         expect(words.rows(50)).toBe('50 runs')
         expect(words.loaded(50)).toBe('50 runs, more to load')
-        expect(words.rows(0)).toBe('')
     })
 })

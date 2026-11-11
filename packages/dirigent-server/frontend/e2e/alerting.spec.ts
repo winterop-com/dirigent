@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, signIn, statusChip, writeInEditor } from './support.ts'
+import { apiPrefix, filterChip, signIn, statusChip, writeInEditor } from './support.ts'
 
 /**
  * The alerting screen: the channels, the rules, and the queue.
@@ -408,12 +408,12 @@ test('the queue narrows by status and by notifier', async ({ page }) => {
         timeout: 30_000,
     })
 
-    await page.getByRole('button', { name: /^Status:/ }).click()
+    await filterChip(page, LABELS.word.status).click()
     await page.getByRole('menuitemradio', { name: /failed/ }).click()
     await expect(page.getByRole('row').filter({ hasText: subject })).toHaveCount(0)
 
-    await page.getByRole('button', { name: /^Status:/ }).click()
-    await page.getByRole('menuitemradio', { name: 'Any status' }).click()
+    await filterChip(page, LABELS.word.status).click()
+    await page.getByRole('menuitemradio', { name: LABELS.alerting.any_status }).click()
     await expect(page.getByRole('row').filter({ hasText: subject })).toHaveCount(1)
 })
 
