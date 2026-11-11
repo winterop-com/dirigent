@@ -64,7 +64,7 @@ function fieldControl(
         if (held !== null)
             return {
                 control: <TextBox field={field} />,
-                note: <span className="text-xs text-faint">{LABELS.form.written_as_reference[held]}</span>,
+                note: LABELS.form.written_as_reference[held],
             }
         const drawn = drawnAs(field.schema, form.schema)
         if (drawn === 'program') return <ProgramBox field={field} />
