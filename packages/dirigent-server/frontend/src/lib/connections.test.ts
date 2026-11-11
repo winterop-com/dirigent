@@ -7,10 +7,8 @@ import {
     editedConfig,
     healthOf,
     isUsed,
-    mintedConfig,
     patchBody,
     REDACTED,
-    settingFields,
     settingsSummary,
     usersSaid,
     withCheck,
@@ -210,53 +208,6 @@ describe('what an edited connection sends back', () => {
             basic_password: REDACTED,
             bearer_token: null,
         })
-    })
-})
-
-/** A connection kind's published config schema, shaped the way pydantic writes one. */
-const SCHEMA = {
-    type: 'object',
-    properties: {
-        base_url: { type: 'string' },
-        basic_username: { anyOf: [{ type: 'string' }, { type: 'null' }], default: null },
-        basic_password: { anyOf: [{ type: 'string' }, { type: 'null' }], default: null },
-        verify_tls: { type: 'boolean', default: true },
-    },
-    required: ['base_url'],
-}
-
-describe('the fields a connection form has a control for', () => {
-    test("are the schema's, minus every field the kind declares secret", () => {
-        const fields = settingFields(SCHEMA, ['basic_password', 'bearer_token'])
-        expect(fields.map((field) => field.name)).toEqual(['base_url', 'basic_username', 'verify_tls'])
-        expect(fields.find((field) => field.name === 'base_url')?.required).toBe(true)
-    })
-
-    test('are none at all before a kind has been chosen, because no schema is known yet', () => {
-        expect(settingFields(null, [])).toEqual([])
-    })
-})
-
-describe('the config a new connection is minted with', () => {
-    test('carries the settings and every secret somebody typed', () => {
-        expect(mintedConfig({ base_url: 'https://example.test' }, { basic_password: CREDENTIAL })).toEqual({
-            base_url: 'https://example.test',
-            basic_password: CREDENTIAL,
-        })
-    })
-
-    /**
-     * THE THIRD REVERT-PROOF ONE. An empty string is a password somebody chose, so a connection
-     * minted from a form whose boxes were left alone must hold no credential rather than an
-     * empty one -- there is nothing here for a blank box to keep.
-     */
-    test('sets no credential at all for a box nobody typed into', () => {
-        const config = mintedConfig(
-            { base_url: 'https://example.test' },
-            { basic_password: '', bearer_token: '' },
-        )
-        expect(config).toEqual({ base_url: 'https://example.test' })
-        expect(Object.values(config)).not.toContain('')
     })
 })
 

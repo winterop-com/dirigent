@@ -1,12 +1,15 @@
 import { useCallback, useMemo, useState } from 'react'
+import {
+    useSchemaForm,
+    type SealedSecret,
+    type SchemaFormState,
+} from '@winterop-com/sokkel-ui/schema/SchemaForm'
 
 import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
-import { patchBody, settingFields, updateConnection, type ConnectionOut } from '@/lib/connections'
-import { LABELS } from '@/lib/labels'
+import { patchBody, updateConnection, type ConnectionOut } from '@/lib/connections'
+import { formSchema } from '@/lib/form-schema'
 import { refusalOf } from '@/lib/refusal'
-import { firstShut } from '@/lib/roles'
-import { maySubmit, validateFields, withUnreadable, type FieldDescriptor } from '@/lib/schema-form'
 
 /** What the edit state of a connection's dialog holds, and what its Save does. */
 export interface ConnectionEdit {
@@ -14,13 +17,8 @@ export interface ConnectionEdit {
     setNamed: (typed: string) => void
     description: string
     setDescription: (typed: string) => void
-    fields: FieldDescriptor[]
-    values: JsonMap
-    problems: Record<string, string>
-    secrets: Record<string, string>
-    setting: (name: string, value: unknown) => void
-    secret: (name: string, typed: string) => void
-    unreadable: (name: string, message: string | null) => void
+    /** The connection's settings, its secrets among them, drawn from its kind's schema. */
+    form: SchemaFormState
     problem: Problem | null
     busy: boolean
     /** Why Save is shut, or nothing when it is not. */
@@ -39,43 +37,41 @@ export interface ConnectionEdit {
  * itself carries, because a credential outliving its plugin still has to be readable and
  * deletable.
  *
- * A SECRET IS NOT A SCHEMA FIELD HERE. Every field the kind declares secret is taken out of the
- * generated form and drawn as a write-only password box. A box left blank is absent from the body,
- * so the marker the read showed goes back and the server keeps what it has.
+ * A SECRET IS WRITE-ONLY. Every field the kind declares secret is a secret field, shown as set
+ * where the connection holds one and left as it is unless it is replaced, so the marker the read
+ * showed goes back and the server keeps what it has.
  *
- * A BOX THAT DOES NOT PARSE SHUTS SAVE. The form keeps the last value that parsed, so saving over
- * a half-written JSON setting would send something other than what is on screen.
+ * SAVE SHOWS WHAT IS WRONG. Asking to save over a value the schema refuses, or a box that does not
+ * parse, sends nothing and marks every field at fault.
  */
 export function useConnectionEdit(connection: ConnectionOut, schema: JsonMap | null): ConnectionEdit {
     const [named, setNamed] = useState(connection.name ?? '')
     const [description, setDescription] = useState(connection.description ?? '')
-    const [values, setValues] = useState<JsonMap>(() => settingsOf(connection))
-    const [secrets, setSecrets] = useState<Record<string, string>>({})
-    const [unreadableNames, setUnreadableNames] = useState<ReadonlySet<string>>(() => new Set())
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
 
-    const fields = useMemo(() => formFields(connection, schema), [connection, schema])
-    const problems = useMemo(() => validateFields(fields, values), [fields, values])
-    const write = useMayWrite('admin')
-    const shut = firstShut(
-        write.why,
-        maySubmit(problems, unreadableNames) ? undefined : LABELS.connections.settings_refused,
+    const drawn = useMemo(
+        () => formSchema(schema ?? carriedSchema(connection), { secrets: connection.secret_fields }),
+        [connection, schema],
     )
+    const sealed = useMemo(() => sealedOf(connection), [connection])
+    const form = useSchemaForm(drawn, { initial: settingsOf(connection), sealed })
+    const write = useMayWrite('admin')
+    const shut = write.why
 
+    const replace = form.setValue
     const reset = useCallback(() => {
         setNamed(connection.name ?? '')
         setDescription(connection.description ?? '')
-        setValues(settingsOf(connection))
-        setSecrets({})
-        setUnreadableNames(new Set())
+        replace(settingsOf(connection))
         setProblem(null)
-    }, [connection])
+    }, [connection, replace])
 
     const save = (done: (row: ConnectionOut | null) => void) => {
+        if (!form.submit()) return
         const body = patchBody(
             connection,
-            editsOf(connection, values, secrets),
+            editsOf(connection, (form.value ?? {}) as JsonMap),
             given(named),
             given(description),
         )
@@ -99,19 +95,7 @@ export function useConnectionEdit(connection: ConnectionOut, schema: JsonMap | n
         setNamed,
         description,
         setDescription,
-        fields,
-        values,
-        problems,
-        secrets,
-        setting: (name, value) => {
-            setValues((current) => ({ ...current, [name]: value }))
-        },
-        secret: (name, typed) => {
-            setSecrets((current) => ({ ...current, [name]: typed }))
-        },
-        unreadable: (name, message) => {
-            setUnreadableNames((current) => withUnreadable(current, name, message))
-        },
+        form,
         problem,
         busy,
         shut,
@@ -120,28 +104,28 @@ export function useConnectionEdit(connection: ConnectionOut, schema: JsonMap | n
     }
 }
 
-/** The fields this form has a control for, from the schema or from what the row itself carries. */
-function formFields(connection: ConnectionOut, schema: JsonMap | null): FieldDescriptor[] {
+/**
+ * The schema of a connection whose kind publishes none: a line of text for each setting it holds
+ * as text, JSON for any other, and a secret field for each secret.
+ */
+function carriedSchema(connection: ConnectionOut): JsonMap {
     const secret = new Set(connection.secret_fields)
-    if (schema !== null) return settingFields(schema, connection.secret_fields)
-    return Object.keys(connection.config)
-        .filter((name) => !secret.has(name))
-        .map((name) => ({
-            name,
-            kind: typeof connection.config[name] === 'string' ? 'text' : 'json',
-            help: null,
-            required: false,
-            nullable: true,
-            fallback: undefined,
-            options: [],
-            mediaType: null,
-            refers: null,
-            hint: null,
-            placeholder: '',
-            bounds: {},
-            accepts: [],
-            holds: [],
-        }))
+    return {
+        type: 'object',
+        properties: Object.fromEntries(
+            Object.entries(connection.config).map(([name, value]) => [
+                name,
+                secret.has(name) || typeof value === 'string' ? { type: 'string' } : {},
+            ]),
+        ),
+    }
+}
+
+/** The secrets the connection holds, which the form shows as set. */
+function sealedOf(connection: ConnectionOut): SealedSecret[] {
+    return connection.secret_fields
+        .filter((name) => connection.config[name] !== null && connection.config[name] !== undefined)
+        .map((name) => ({ path: [name] }))
 }
 
 /** The values the form starts on: what the connection carries, minus its secrets. */
@@ -162,19 +146,17 @@ function given(text: string): string | null {
 }
 
 /**
- * What was actually changed, which is the only thing that goes into the config sent back.
- *
- * A SECRET BOX LEFT BLANK IS ABSENT. Not an empty string, which is a password somebody chose:
- * absent, so the value the read showed for it is what goes back on the wire.
+ * What was actually changed, which is the only thing that goes into the config sent back: a
+ * setting emptied is sent as cleared. A secret left as it is is absent from the form's value, so
+ * the value the read showed for it is what goes back on the wire.
  */
-function editsOf(connection: ConnectionOut, values: JsonMap, secrets: Record<string, string>): JsonMap {
+function editsOf(connection: ConnectionOut, values: JsonMap): JsonMap {
     const edits: JsonMap = {}
+    for (const name of Object.keys(settingsOf(connection))) {
+        if (!Object.hasOwn(values, name)) edits[name] = undefined
+    }
     for (const [name, value] of Object.entries(values)) {
         if (!Object.is(value, connection.config[name])) edits[name] = value
-    }
-    for (const [name, typed] of Object.entries(secrets)) {
-        if (typed === '') continue
-        edits[name] = typed
     }
     return edits
 }

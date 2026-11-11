@@ -15,12 +15,12 @@ function sourceFiles(dir: string): string[] {
     })
 }
 
-/** The library's component modules the app imports: `@winterop-com/sokkel-ui/<Module>`. */
+/** The library's component modules the app imports: `@winterop-com/sokkel-ui/<Module>`, or one folder down. */
 function importedModules(): Set<string> {
     const found = new Set<string>()
     for (const file of sourceFiles(SRC)) {
         for (const match of readFileSync(file, 'utf8').matchAll(
-            /from '@winterop-com\/sokkel-ui\/([A-Z][A-Za-z]+)'/g,
+            /from '@winterop-com\/sokkel-ui\/((?:[a-z]+\/)?[A-Z][A-Za-z]+)'/g,
         )) {
             found.add(match[1])
         }

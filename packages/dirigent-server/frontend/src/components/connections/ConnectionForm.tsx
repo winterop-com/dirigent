@@ -1,12 +1,10 @@
-import { SecretField } from '@/components/connections/SecretField'
 import { GroupLabel } from '@winterop-com/sokkel-ui/GroupLabel'
 import { Field } from '@winterop-com/sokkel-ui/Field'
-import { SchemaForm } from '@/components/pipeline/SchemaForm'
+import { GeneratedForm } from '@/components/schema/GeneratedForm'
 import { Refusal } from '@/components/Refusal'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { type ConnectionEdit } from '@/hooks/use-connection-edit'
-import { type ConnectionOut } from '@/lib/connections'
 import { LABELS } from '@/lib/labels'
 
 /**
@@ -16,7 +14,7 @@ import { LABELS } from '@/lib/labels'
  * and the config, and nothing else: a connection of a different kind is a different connection,
  * and one addressed by a different code is a different connection too.
  */
-export function ConnectionForm({ connection, form }: { connection: ConnectionOut; form: ConnectionEdit }) {
+export function ConnectionForm({ form }: { form: ConnectionEdit }) {
     return (
         <>
             <Field id="connection-name" label={LABELS.word.name.label}>
@@ -43,42 +41,10 @@ export function ConnectionForm({ connection, form }: { connection: ConnectionOut
 
             <div className="space-y-3">
                 <GroupLabel as="h3">{LABELS.connections.settings_heading}</GroupLabel>
-                <SchemaForm
-                    fields={form.fields}
-                    values={form.values}
-                    problems={form.problems}
-                    columns
-                    onChange={form.setting}
-                    onUnreadable={form.unreadable}
-                />
+                <GeneratedForm form={form.form} />
             </div>
-
-            {connection.secret_fields.length > 0 && (
-                <div className="space-y-3">
-                    <GroupLabel as="h3">{LABELS.connections.secrets_heading}</GroupLabel>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        {connection.secret_fields.map((name) => (
-                            <SecretField
-                                key={name}
-                                id={`secret-${name}`}
-                                name={name}
-                                stored={isSet(connection.config[name])}
-                                value={form.secrets[name] ?? ''}
-                                onChange={(typed) => {
-                                    form.secret(name, typed)
-                                }}
-                            />
-                        ))}
-                    </div>
-                </div>
-            )}
 
             {form.problem !== null && <Refusal problem={form.problem} />}
         </>
     )
-}
-
-/** Whether the instance holds a credential for this field, which is all a read can say. */
-function isSet(value: unknown): boolean {
-    return value !== null && value !== undefined
 }

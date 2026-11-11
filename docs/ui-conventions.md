@@ -597,9 +597,8 @@ screen. It reads first: the title, the kind and the code; the description; then 
 the check's own sentence, every setting that holds a value under its own key, every secret as dots
 or `not set`{ .label }, and when it was made and changed. Its footer is `Delete`, and `Check now`{ .label } and `Edit`
 at the other end, with the corner's close as the way out. `Edit` is the same dialog in its edit
-state, at the same width, so nothing moves under the hand: the schema-driven form in two columns,
-a required text field, a map, a JSON value and a program taking both, a footer of `Cancel` and
-`Save`, and no corner close. Cancel, Escape and a press outside all go back to the reading rather
+state, at the same width, so nothing moves under the hand: the kind's schema form, its secrets
+sealed in it, a footer of `Cancel` and `Save`, and no corner close. Cancel, Escape and a press outside all go back to the reading rather
 than closing, and a press outside does nothing at all while a form is open, because a typed
 credential is not something to lose to a stray click. A save checks the connection, because the
 health on screen was about the settings that were just replaced. `Delete` raises `ConfirmDialog`
@@ -876,36 +875,38 @@ well, so a frame rendered before the preference lands is still still.
 keyed on: which nodes there are, how wide and how tall each is, and what joins them. A step going from running
 to succeeded moves nothing, and neither does typing into a config field.
 
-## A form is a JSON Schema, read once
+## A form is a JSON Schema, drawn by the library
 
-`lib/schema-form` turns a JSON Schema into field descriptors: which control a field takes, what
-its bounds are, whether it is required, what its enum offers. A block's config schema and a
-pipeline's parameter schema are both fed through it, so the step form and the run dialog are one
-decision rendered twice, and every shape the shipped catalog publishes has a test.
+Every generated form -- a step's config, a step's engine groups, the run dialog's parameters, a
+schedule's pinned parameters, a connection's settings -- is sokkel-ui's `SchemaForm`, held by
+`useSchemaForm`, through `GeneratedForm` in `components/schema`. What a field's control is, what
+its bounds are and what is wrong with a value are the library's: it checks the value against the
+schema with ajv, the formats `lib/schema-formats` registers among the standard ones, and says
+each issue at its field with a colored edge and a mark at the end of the input. A field's issues
+show once it has been left with a value or the form asked to be sent, never on open. **A verb over
+a form asks the form**: pressing Run, Create or Save calls `submit()`, which shows every issue,
+focuses the first that stops it, and sends nothing while one stands; `SchemaIssueCount` beside the
+verb counts them. The verb is shut only for what the form cannot say, such as a role, a missing
+code or a window.
 
-**What no control fits is edited as JSON.** A list and a schema with no type at all are a
-textarea rather than a wrong control -- guessing at a list of integers with a text box is how a
-document ends up carrying `"[200]"`. The fallback has a test of its own, so a shape this bundle
-was built before degrades rather than misleads.
+`lib/form-schema` hands the library the schema: every `title` taken out, so the label is the key,
+and each field a connection kind declares secret marked `writeOnly`. `lib/schema-form` still reads
+a schema as field descriptors, for the screens that describe a schema rather than edit it: the
+catalog, the pipeline pane's parameters, a step group's summary line and the step panel's list of
+refusals.
 
-**A map of scalars is a key/value table.** An object schema with no `properties` of its own whose
-`additionalProperties` names one scalar type, or a union of them, is the `pairs` kind: two
-columns, one row per entry in the document's own order, a blank row at the foot to type the next
-pair into, and a remove control on each row that holds a pair. That is `headers` and `query` on
-`http.request`, `env` on `shell.run` and on each docker verb, `inputs` and `outputs` on
-`docker.run`, and `headers` on `webhook.post` and on the webhook connection kind. What the table writes is the plain object, so the document, a
-run's parameters and a connection's config keep the shape they had and nothing downstream learns
-a form was involved. A cell is a switch where the map holds booleans alone and a box otherwise,
-and what is typed is read as the narrowest shape the map takes -- a whole number where it takes
-integers, a number where it takes numbers, `true` or `false` where it takes booleans, and text
-last -- so `2` in `query` is the number 2 while `2` in `headers` is the text. A key written twice
-wears the same marking a refused box does and is not written until it is fixed. Every other map
-stays JSON, and the reason is always that a cell cannot hold what the values are: `pipeline.run`'s
-`params` takes any JSON value, a map of lists takes a list, a map whose values may be null takes
-something an empty cell is not. **A reference in place of the whole map is not a table.** The
-document language lets `${...}` stand wherever a value goes, so a map written as one is the text
-it was written as, with `a reference, not a table`{ .label } beside the label; clearing the box brings the
-table back.
+**A shape the library has a control for is the library's.** A map of scalars -- headers, query
+parameters, environment variables -- is its key/value rows, each key unique and the value a box
+named by its key. A union of scalars, such as a `Size`, written `16KB` or as a count of bytes, is one text
+box, read as the narrowest branch the text parses as: `16KB` stays text, `16384` is a number.
+A list of scalars is its list of rows.
+
+**What no control fits is edited as JSON.** A value with no type, a union with an object or a list
+among its branches, a map of objects and a list of them are a JSON buffer -- the same editor a
+document is written in, in `application/json`. `drawnAs` in `lib/form-schema` reads a field the
+way the library's own dispatch does, so the buffer takes exactly what the library would draw as
+JSON text. Text that does not parse is held as the form's draft and said at the field, and the
+form will not be sent over it.
 
 **A field that carries a program is edited as one.** A string whose schema published a
 `contentMediaType` -- `application/jq` for the three jq verbs, `text/x-shellscript` for the shell
@@ -913,7 +914,8 @@ string `shell.run` and `docker.run` take, `application/sql` for a query, `text/x
 report's template, `application/x-compose+yaml` for an inline compose file, `application/fhirpath`
 for the FHIR pack's FHIRPath verbs, `text/cql` for its CQL library -- gets the same editor a
 document is written in, through the same `CodePane`, so a jq program is read on the lines it was
-written on. `dirigent_common.programs` is where the
+written on. `GeneratedForm` hands it to `SchemaForm` as the control for that field, the label, the
+help and the issue mark staying the form's. `dirigent_common.programs` is where the
 seven are spelled, and the schema is what decides this and nothing else: every other string stays
 one line, however long a value it holds.
 
@@ -987,19 +989,27 @@ may change is what `SchemaUpdate` carries: the name, the description and the bod
 and every `validate.schema` step and `requires.schemas` entry names it.
 
 **The label is the key.** What is being edited is a document, and the word an author writes in it
-is `max_response` rather than "Max Response". `description` is the help under the label, and whether a
+is `max_response` rather than "Max Response", so `lib/form-schema` takes every `title` out and the
+library labels the field by its key in mono. `description` is the help under the label, and whether a
 field is required is said beside the label rather than inside it, so the control's accessible
 name stays the key. **The required word is in the muted ink, never amber**: amber is the brand's
-and the focus ring's, and a field label is neither. sokkel-ui's `Field` draws it with
-`requiredMark="word"`, and the control says it is required with `aria-required`.
+and the focus ring's, and a field label is neither. `SchemaForm` draws it with
+`requiredMark="word"`, and the control says it is required with `aria-required`. **A default is
+shown and never written.** A field left unset shows its schema `default` muted in the control,
+`GET (default)`, and the form's value leaves the key out, so what is sent carries only what was
+chosen and the server applies the rest. The default is also said under the control (`fallbacks`),
+as what applies when it is left empty; a `default` of `null` says nothing there.
 
 **Every field is a design-system control, and an empty one looks like an empty one.** A field
 renders through `ui/input`, `ui/textarea`, `ui/select` or `ui/switch` and never a bare element,
 and the treatment is checked in both palettes: the dark one fills a rung of the ladder and edges
 it with a hairline the ground shows, and the light one has to say the same thing with a fill and
 a stronger line, or a value floats in whitespace and an empty box is not there at all. A row is
-the key as its label, the annotation beside it, the control, and one muted line under. An unset
-secret is an empty password box with a placeholder saying so -- never the words "not set" as
+the key as its label, the annotation beside it, the control, and one muted line under. **A secret
+is the library's `SecretField`**: an unset one is an empty masked input with Show; one the
+connection already holds is sealed -- masked, saying it is set, with Replace, named by its field
+("Replace basic_password") so two sealed secrets are told apart -- and stays out of what is sent
+until it is replaced, so the server keeps what it has. Never the words "not set" as
 prose where a control belongs.
 
 **A section the document requires is open, and one it does not is a link.** A run dialog asks for
@@ -1011,14 +1021,8 @@ field the document cannot run without would have the server refuse what the form
 for; one that opened every optional section would make every dialog the longest form it could ever
 be.
 
-**A form opens on what the document needs.** A block such as `docker.run` publishes twenty config
-keys and a step takes two of them, so the step form draws the keys the schema requires and the
-optional ones the step already sets -- required in body ink with its marker beside it, optional in
-muted ink -- and the optional keys nothing has answered sit behind one plain link reading `N more
-fields`, which opens them in place. The split is `partition` in `lib/schema-form` and it is read
-from the values the form opened with, so a key being filled in does not jump over the fold under
-the hands typing it; it is above the fold the next time that step is chosen, because choosing
-another step is another form.
+**A form draws every field its schema publishes**, in the schema's order, required and
+optional alike; a short field takes half a row where the form is wide enough.
 
 **A value written as a reference is not checked against the field it stands in.** The document
 language lets `${...}` stand wherever a value goes, and what one stands for has no text, no bounds
@@ -1035,11 +1039,13 @@ names something the run will have is the whole document's question, and Validate
 The source pane holds to the same rule from the other end: `GET /schema/document` publishes each
 block's config with the reference beside every field's own type, so the two halves of the editor
 agree about one document.
-**A control that cannot hold a reference gives way to a box**: a key/value table, a choice and a
-switch each draw a value the schema describes, and drawn by their own control a reference would
-read as empty, unset or off and the first touch would write that over the document. So the text is
-drawn, what it is is said beside the label -- `a reference, not a table`{ .label }, `not a choice`, `not a
-switch` -- and clearing the box brings the control back.
+The form is told so with `deferred`, which `useSchemaForm` leaves unchecked: `deferReference` in
+`lib/form-schema`. **A control that cannot hold a reference gives way to a box**: a number, a
+choice and a switch each draw a value the schema describes, and drawn by their own control a
+reference would read as empty, unset or off and the first touch would write that over the
+document. So `GeneratedForm` draws the text in a mono box, and clearing the box brings the control
+back. The same holds for an object, a list or a map written whole as a reference. A union of
+scalars is already a text box and holds one as it is.
 
 **The refusal here is the client's half.** A field is checked against its own schema so a form can
 say what is wrong before it asks. Whether a document applies -- its graph, its references, the
@@ -1073,7 +1079,7 @@ says how to add the first step, and the source, whose schema would mark an empty
 before anything had been done, is a tab away.
 
 **The step panel reads the config first, then the engine, then the name.** What a step does is the
-block's own config, so the panel opens on that form, folded the way every generated form is. The
+block's own config, so the panel opens on that form. The
 engine's half sits under it as five groups in one order -- Waits for, Fan-out, Timing, Retry, Rule
 -- because `for_each`, the timings and a retry policy are the setting a step runs in rather than
 the question it answers, and a flat list of twelve controls buried the two keys the step was about.
@@ -1166,8 +1172,7 @@ from the other end. The row expands under itself instead, the gesture below for 
 needs a form, and nothing navigates. **The code and the kind are the document's own**, the row
 already draws both, and no box asks for either again: a create under a different code would
 leave the row exactly as it was, and the code is never on a screen twice. What the form asks for
-is the credential -- the kind's required settings, its optional ones folded behind the one link
-every generated form folds them behind, and a write-only box per secret field -- because
+is the credential -- the kind's settings, a secret field for each it declares secret -- because
 **nothing is read out of the carried connection**, which is the whole reason a connection is not
 created from a document. A kind this instance has not installed publishes no config schema, so
 that row offers no form at all and says `missing` alone. The instance is asked again the moment

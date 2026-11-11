@@ -1,7 +1,6 @@
-import { SecretField } from '@/components/connections/SecretField'
 import { Mark } from '@/components/Mark'
 import { Refusal } from '@/components/Refusal'
-import { SchemaForm } from '@/components/pipeline/SchemaForm'
+import { GeneratedForm } from '@/components/schema/GeneratedForm'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import {
@@ -28,12 +27,9 @@ import { kindMarks } from '@/lib/marks'
  * a thing this form can ask for.
  *
  * THE CONFIG IS THE KIND'S SCHEMA, the same form the panel builds beside the listing: the kind
- * is settled first, so what a control is for is known before one is drawn.
- *
- * A SECRET IS NOT A SCHEMA FIELD HERE. The schema says a secret is a string, and rendering it as
- * one would put a credential in a text box. Every field the kind declares secret is taken out of
- * the generated form and drawn below it as a write-only password box, and one left empty mints a
- * connection with no credential for it rather than one with an empty password.
+ * is settled first, so what a control is for is known before one is drawn. Every field the kind
+ * declares secret is a secret field in it, masked, and one left empty mints a connection with no
+ * credential for it rather than one with an empty password.
  *
  * WHAT A DOCUMENT ALREADY DECIDED IS NOT ASKED AGAIN. Mounted in the row of an offer that says
  * the document names a connection this instance has not got, the code and the kind are the
@@ -118,35 +114,7 @@ export function ConnectionFields({
                     <p className="text-xs font-semibold tracking-wide text-faint uppercase">
                         {LABELS.connections.settings_heading}
                     </p>
-                    <div className="space-y-3">
-                        <SchemaForm
-                            fields={form.fields}
-                            values={draft.values}
-                            problems={form.problems}
-                            stated={form.stated}
-                            // A form standing in a row of another decision opens on what the
-                            // kind requires, the rest behind the one link every generated form
-                            // folds them behind: the list this row is part of has to stay on
-                            // screen beside it. The dialog is the asking itself and folds
-                            // nothing.
-                            fold={decided !== undefined}
-                            onChange={form.setSetting}
-                            onTouch={form.touch}
-                            onUnreadable={form.markUnreadable}
-                        />
-                        {chosen.secret_fields.map((name) => (
-                            <SecretField
-                                key={name}
-                                id={`${ids}-secret-${name}`}
-                                name={name}
-                                stored={false}
-                                value={draft.secrets[name] ?? ''}
-                                onChange={(typed) => {
-                                    form.setSecret(name, typed)
-                                }}
-                            />
-                        ))}
-                    </div>
+                    <GeneratedForm form={form.form} />
                 </div>
             )}
 

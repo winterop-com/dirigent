@@ -1,48 +1,25 @@
 /**
- * A JSON Schema, read as the fields of a form.
- *
- * A block publishes its config as a JSON Schema and a pipeline publishes its parameters as one,
- * so the step form and the run dialog are the same problem twice. This module is the whole of
- * the decision -- schema in, field descriptors out -- and the components render descriptors and
- * decide nothing.
+ * A JSON Schema, read as field descriptors: which kind of value each field takes, its bounds,
+ * whether it is required, what its enum offers and what it falls back to. The catalog's
+ * descriptions, the pipeline pane's parameter list, a step group's summary line and the step
+ * panel's refusal list read them; the forms themselves are sokkel-ui's `SchemaForm`.
  *
  * THE LABEL IS THE KEY, not the schema's `title`. What is being edited is a document, and the
- * word an author writes in that document is `max_input` rather than "Max Input"; a form that
- * renamed it would be teaching the wrong name for the thing it is editing. The `description` is
- * the help under the label, which is what the schema carries prose for.
+ * word an author writes in that document is `max_input` rather than "Max Input".
  *
- * WHAT IT DOES NOT UNDERSTAND, IT SAYS SO ABOUT. A list and a schema with no type at all are
- * edited as JSON in a textarea rather than as a wrong control: the shipped catalog has both, and
- * guessing at a list of integers with a text box is how a document ends up carrying `"[200]"`.
- * Every shape the catalog actually uses is covered by a test.
+ * A MAP OF SCALARS is the `pairs` kind: an object schema whose `additionalProperties` names one
+ * scalar type, or a union of them, such as `headers`, `env` and `query`. A map of anything else
+ * is `json`, and so are a list and a schema with no type at all.
  *
- * A MAP OF SCALARS IS A TABLE OF PAIRS. An object schema whose `additionalProperties` names one
- * scalar type, or a union of them, is the `pairs` kind -- `headers`, `env`, `query` -- and its
- * table writes the plain object the document carries, in the order its rows are in. A map of
- * anything else stays JSON: `pipeline.run`'s `params` holds any JSON value, and a cell cannot.
- *
- * A FIELD THAT CARRIES A PROGRAM SAYS SO, and the schema is where it says it. A string with
- * `contentMediaType` is a `code` field carrying that media type, so a jq program is edited as
- * the several lines it is written on rather than crammed into one box. Every other string stays
- * one line: what earns an editor is the schema saying the value is source, not its length.
- *
- * A FIELD THAT NAMES A THING SAYS WHICH THING, and the schema is again where it says it. A
- * string with `x-dirigent-ref` holds the code of a connection or of a schema rather than a value
- * of its own, and a form that knows which can draw the thing under the box. Any other word there
- * is a kind this bundle has nothing to draw for, and reads as no reference at all.
- *
- * WHAT A STEP NEEDS IS WHAT IT OPENS WITH. `partition` splits a field list into what the schema
- * requires plus what the document already sets, and the optional keys it does not -- so a block
- * with twenty fields and two answers reads as two.
+ * A STRING WITH `contentMediaType` is a `code` field carrying that media type.
  *
  * A VALUE WRITTEN AS A REFERENCE IS NOT CHECKED AGAINST THE FIELD IT STANDS IN. `${...}` stands
- * wherever a value goes in a document, and what it stands for has no text, no bounds and no type
- * until the run resolves it, so a field carrying one is checked for nothing else. That holds only
- * where a document is being edited: a run's parameters and a connection's config are values, and
- * the server checks those literally, so `deferred` is what a caller says it is editing.
+ * wherever a value goes in a document, so under `deferred` a field carrying one is checked for
+ * nothing else; a run's parameters and a connection's config are values, and are checked
+ * literally.
  *
- * THE SERVER REMAINS THE AUTHORITY. `validateField` checks the bounds the descriptor carries so
- * a form can refuse before it asks, and an apply is what decides.
+ * THE SERVER REMAINS THE AUTHORITY. `validateField` checks the bounds the descriptor carries,
+ * and an apply is what decides.
  */
 
 import type { JsonMap } from '@/lib/api'
@@ -57,8 +34,6 @@ export type ReferenceKind = 'connection' | 'schema'
 
 /** The keyword a block's schema names a reference field with. `Reference` in dirigent_plugin. */
 export const REFERENCE_KEYWORD = 'x-dirigent-ref'
-
-const REFERENCE_KINDS: ReadonlySet<string> = new Set<ReferenceKind>(['connection', 'schema'])
 
 /** What `validateField` checks, gathered from the schema the descriptor came from. */
 export interface Bounds {
@@ -88,12 +63,8 @@ export interface FieldDescriptor {
     options: FieldOption[]
     /** The `contentMediaType` the schema published, which is the language a `code` field holds. */
     mediaType: string | null
-    /** What a value of this field addresses, from `x-dirigent-ref`, or null for a plain value. */
-    refers: ReferenceKind | null
     /** One line beside the label: the format, an example, or the shapes a union accepts. */
     hint: string | null
-    /** What an empty control shows: the default it would submit, else the shape it takes. */
-    placeholder: string
     bounds: Bounds
     /**
      * Every shape a several-branch union takes, in the schema's order; empty otherwise.
@@ -224,16 +195,6 @@ export function sameJson(a: unknown, b: unknown): boolean {
     return JSON.stringify(a) === JSON.stringify(b)
 }
 
-/**
- * The string a select addresses one choice by, which is not what the choice reads as.
- *
- * It is JSON for every value, strings included, because an enum holding `2` and `"2"` needs two
- * tokens and `optionLabel` is what a reader is shown instead.
- */
-export function optionToken(value: unknown): string {
-    return JSON.stringify(value) ?? String(value)
-}
-
 /** Which control one resolved schema is edited with. */
 function kindOf(schema: JsonMap): FieldKind {
     if (arrayAt(schema, 'enum').length > 0) return 'select'
@@ -271,11 +232,6 @@ function holdsOf(schema: JsonMap, defs: JsonMap): FieldKind[] {
     const branches = resolved.branches.length > 1 ? resolved.branches : [resolved.schema]
     const kinds = branches.map((one) => kindOf(one))
     return kinds.every((one) => CELL_KINDS.has(one)) ? kinds : []
-}
-
-/** Whether a `pairs` field's cells are switches, which is a map of booleans and nothing else. */
-export function switchCell(field: FieldDescriptor): boolean {
-    return field.holds.length === 1 && field.holds[0] === 'switch'
 }
 
 /**
@@ -319,28 +275,6 @@ function wordsOf(kinds: readonly FieldKind[]): string {
     return [...new Set(said.map((one) => wordFor(one)))].join(LABELS.form.or)
 }
 
-/**
- * What an empty control shows.
- *
- * A field with a default shows that default, because leaving the box empty is what submits it.
- * A list or a map without one shows the shape it takes instead: a bare textarea teaches
- * nothing, and `east, west` is what somebody types into one that has not said it wants JSON.
- */
-function placeholderOf(schema: JsonMap, kind: FieldKind, fallback: unknown): string {
-    if (fallback !== undefined && fallback !== null) {
-        return jsonWritten(kind) ? (JSON.stringify(fallback) ?? '') : String(fallback)
-    }
-    if (kind !== 'json') return ''
-    if (schema.type === 'array') return LABELS.form.placeholder.list
-    if (schema.type === 'object') return LABELS.form.placeholder.map
-    return ''
-}
-
-/** Whether a value of this kind reads as the JSON it is rather than as its own text. */
-function jsonWritten(kind: FieldKind): boolean {
-    return kind === 'json' || kind === 'pairs'
-}
-
 function boundsOf(schema: JsonMap): Bounds {
     const bounds: Bounds = {}
     for (const key of [
@@ -357,12 +291,6 @@ function boundsOf(schema: JsonMap): Bounds {
     const pattern = stringAt(schema, 'pattern')
     if (pattern !== null) bounds.pattern = pattern
     return bounds
-}
-
-/** What one resolved schema says its value addresses, or null when it says nothing this draws. */
-function refersTo(schema: JsonMap): ReferenceKind | null {
-    const named = stringAt(schema, REFERENCE_KEYWORD)
-    return named !== null && REFERENCE_KINDS.has(named) ? (named as ReferenceKind) : null
 }
 
 /**
@@ -394,9 +322,7 @@ export function fieldsOf(schema: JsonMap | null | undefined): FieldDescriptor[] 
                 fallback,
                 options: kind === 'select' ? optionsOf(resolved.schema) : [],
                 mediaType: stringAt(resolved.schema, 'contentMediaType'),
-                refers: refersTo(resolved.schema),
                 hint: kind === 'pairs' ? pairsHint(holds) : hintOf(resolved.schema, resolved.branches),
-                placeholder: placeholderOf(resolved.schema, kind, fallback),
                 bounds: boundsOf(resolved.schema),
                 accepts:
                     resolved.branches.length > 1
@@ -406,37 +332,6 @@ export function fieldsOf(schema: JsonMap | null | undefined): FieldDescriptor[] 
             },
         ]
     })
-}
-
-/** A field list split into what a form shows and what it folds away. */
-export interface Partitioned {
-    /** Required fields in schema order, then the optional ones the document already sets. */
-    open: FieldDescriptor[]
-    /** The optional fields the document does not set, in schema order. */
-    folded: FieldDescriptor[]
-}
-
-/**
- * Which fields a form opens with and which it folds.
- *
- * A block such as `docker.run` publishes twenty config fields and takes two, so a form that drew
- * all twenty at one weight said nothing about what the step needs. What it needs is what the
- * schema requires plus what the document already carries; the rest is offered behind a link.
- *
- * A field is set when the document carries its key, whatever the value: a switch written `false`
- * is a decision somebody made and stays in front of them.
- */
-export function partition(fields: FieldDescriptor[], values: JsonMap): Partitioned {
-    const set = (field: FieldDescriptor) => Object.hasOwn(values, field.name)
-    return {
-        open: [...fields.filter((one) => one.required), ...fields.filter((one) => !one.required && set(one))],
-        folded: fields.filter((one) => !one.required && !set(one)),
-    }
-}
-
-/** What the link over the folded fields reads. */
-export function foldLabel(count: number): string {
-    return counted(count, LABELS.form.more_fields)(String(count))
 }
 
 /**
@@ -622,241 +517,4 @@ export function validateFields(
         if (problem !== null) problems[field.name] = problem
     }
     return problems
-}
-
-/** What one control holds, or an error when the text is not the shape the field takes. */
-export type Parsed = { ok: true; value: unknown } | { ok: false; message: string }
-
-/**
- * Read what somebody typed as the value the document will carry.
- *
- * EMPTY IS NOT A VALUE. Clearing a control removes the key, so a field left blank falls back to
- * the schema's own default rather than writing an empty string into the document.
- *
- * A REFERENCE IS THE TEXT IT WAS TYPED AS, so a number field a document writes `${params.rows}`
- * in can be typed as well as read. JSON is the exception, because a reference is written there
- * the way every other string is, in quotes.
- */
-export function parseInput(field: FieldDescriptor, text: string, deferred = false): Parsed {
-    if (text.trim() === '') return { ok: true, value: undefined }
-    if (deferred && field.kind !== 'json' && hasReference(text)) return { ok: true, value: text }
-    switch (field.kind) {
-        case 'number':
-        case 'integer': {
-            const value = Number(text)
-            if (!Number.isFinite(value)) return { ok: false, message: LABELS.form.refusal.number(field.name) }
-            return { ok: true, value }
-        }
-        case 'json':
-            try {
-                return { ok: true, value: JSON.parse(text) }
-            } catch (error) {
-                return {
-                    ok: false,
-                    message: error instanceof Error ? error.message : LABELS.form.refusal.not_json,
-                }
-            }
-        default:
-            return { ok: true, value: text }
-    }
-}
-
-/** One row of a `pairs` table: the key, and whatever text is in the value cell beside it. */
-export interface Pair {
-    key: string
-    text: string
-}
-
-/** What is wrong with one cell of a `pairs` table, so the row it is in can be marked. */
-export interface PairProblem {
-    /** Which row, counted from the top as the table draws them. */
-    row: number
-    where: 'key' | 'value'
-    message: string
-}
-
-/**
- * The rows a map opens as: one per entry in the document's own order, then one blank row.
- *
- * THE TRAILING ROW IS WHERE THE NEXT PAIR IS TYPED, so a table always has one and an empty map
- * is that row alone. A map of booleans starts its blank row at `false`, which is a value, so
- * such a pair is written as soon as it is given a key.
- */
-export function pairsOf(field: FieldDescriptor, value: unknown): Pair[] {
-    const held: JsonMap =
-        value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as JsonMap) : {}
-    return pairRows(
-        field,
-        Object.entries(held).map(([key, one]) => ({ key, text: cellText(one) })),
-    )
-}
-
-/** The rows a table draws: the ones that were typed, and the blank row at the foot. */
-export function pairRows(field: FieldDescriptor, rows: readonly Pair[]): Pair[] {
-    const blank: Pair = { key: '', text: switchCell(field) ? 'false' : '' }
-    const last = rows.length === 0 ? undefined : rows[rows.length - 1]
-    const ends = last !== undefined && last.key === '' && last.text === blank.text
-    return ends ? [...rows] : [...rows, blank]
-}
-
-/** What a value cell shows for a value the document already carries. */
-function cellText(value: unknown): string {
-    return typeof value === 'string' ? value : (JSON.stringify(value) ?? '')
-}
-
-/** The reference a whole map field was written as, or null when the field holds a map. */
-export function pairsReference(value: unknown): string | null {
-    return typeof value === 'string' ? value : null
-}
-
-/**
- * Whether a field gives way to a box, because what it holds is text its own control cannot.
- *
- * A choice, a switch and a key/value table each draw a value the schema describes, and text is
- * none of those: drawn by its own control it would read as unset, off or empty, and the first
- * touch would write that over the document. So the text is drawn instead, and clearing the box
- * brings the control back. A table gives way to any text, having no cell that could hold it; a
- * choice and a switch only to a reference, because any other text is a value they may refuse.
- */
-export function drawnAsText(field: FieldDescriptor, value: unknown): boolean {
-    if (field.kind === 'pairs') return pairsReference(value) !== null
-    return (field.kind === 'select' || field.kind === 'switch') && hasReference(value)
-}
-
-/** What is said beside the label of a field written as a reference, or null when it is not. */
-export function referenceNote(field: FieldDescriptor, value: unknown): string | null {
-    if (!hasReference(value)) return null
-    switch (field.kind) {
-        case 'pairs':
-            return LABELS.form.written_as_reference.pairs
-        case 'select':
-            return LABELS.form.written_as_reference.select
-        case 'switch':
-            return LABELS.form.written_as_reference.switch
-        default:
-            return null
-    }
-}
-
-/**
- * What a table of rows writes: the plain object, in the order the rows are in.
- *
- * A ROW IS A PAIR ONLY ONCE IT IS ONE. A row with no key, a row whose cell is empty, and a row
- * whose cell is not a shape the map holds are all half-typed, so they contribute nothing rather
- * than writing a key with no value into the document. A key written twice is written once, by
- * the first row that carries it, and `pairProblems` is what marks the other.
- */
-export function pairsValue(field: FieldDescriptor, rows: readonly Pair[], deferred = false): JsonMap {
-    const written: JsonMap = {}
-    const seen = new Set<string>()
-    for (const row of rows) {
-        const key = row.key.trim()
-        if (key === '' || seen.has(key)) continue
-        seen.add(key)
-        const cell = parseCell(field, row.text, deferred)
-        if (!cell.ok || cell.value === undefined) continue
-        written[key] = cell.value
-    }
-    return written
-}
-
-/** Every cell of a table that is not a value, in the order a reader meets them. */
-export function pairProblems(field: FieldDescriptor, rows: readonly Pair[], deferred = false): PairProblem[] {
-    const problems: PairProblem[] = []
-    const seen = new Set<string>()
-    rows.forEach((row, index) => {
-        const key = row.key.trim()
-        if (key !== '') {
-            if (seen.has(key)) {
-                problems.push({
-                    row: index,
-                    where: 'key',
-                    message: LABELS.form.refusal.duplicate_key(field.name, key),
-                })
-            }
-            seen.add(key)
-        }
-        const cell = parseCell(field, row.text, deferred)
-        if (!cell.ok) problems.push({ row: index, where: 'value', message: cell.message })
-    })
-    return problems
-}
-
-/**
- * Read one value cell as the value the document will carry.
- *
- * THE NARROWEST SHAPE THE MAP TAKES WINS. `http.request`'s `query` takes a string, an integer, a
- * number or a boolean, and `2` in that box is the number 2 rather than the text "2" -- a query
- * string is the same either way, and a map that also took text would otherwise never carry a
- * number at all. Where the map takes text alone, `2` is the text "2" and nothing else.
- *
- * A cell written as a reference is the text it was typed as, whatever the map holds.
- */
-export function parseCell(field: FieldDescriptor, text: string, deferred = false): Parsed {
-    if (text.trim() === '') return { ok: true, value: undefined }
-    if (deferred && hasReference(text)) return { ok: true, value: text }
-    const reading = Number(text)
-    if (field.holds.includes('integer') && Number.isInteger(reading)) return { ok: true, value: reading }
-    if (field.holds.includes('number') && Number.isFinite(reading)) return { ok: true, value: reading }
-    if (field.holds.includes('switch') && (text === 'true' || text === 'false')) {
-        return { ok: true, value: text === 'true' }
-    }
-    if (field.holds.includes('text')) return { ok: true, value: text }
-    return { ok: false, message: LABELS.form.refusal.map_values(field.name, wordsOf(field.holds)) }
-}
-
-/** The default this field falls back to, as one line, or null when it declares none. */
-export function fallbackText(field: FieldDescriptor): string | null {
-    if (field.fallback === undefined || field.fallback === null) return null
-    if (jsonWritten(field.kind)) return JSON.stringify(field.fallback) ?? null
-    return String(field.fallback)
-}
-
-/**
- * Whether what is on a form may be sent.
- *
- * A box holding text that is not a value blocks as hard as a value the schema refuses: the
- * document still carries the last thing that parsed, and submitting that would send something
- * other than what is on screen.
- */
-export function maySubmit(problems: Record<string, string>, unreadable: ReadonlySet<string>): boolean {
-    return Object.keys(problems).length === 0 && unreadable.size === 0
-}
-
-/** The unreadable set with one field's state changed, or the same set when it did not change. */
-export function withUnreadable(
-    current: ReadonlySet<string>,
-    name: string,
-    message: string | null,
-): ReadonlySet<string> {
-    const held = current.has(name)
-    if (message === null ? !held : held) return current
-    const next = new Set(current)
-    if (message === null) next.delete(name)
-    else next.add(name)
-    return next
-}
-
-/** What a control shows for a field the document does not carry: the schema's own default. */
-export function effectiveValue(field: FieldDescriptor, value: unknown): unknown {
-    return value === undefined ? field.fallback : value
-}
-
-/** What a control shows for a value the document already carries. */
-export function inputText(field: FieldDescriptor, value: unknown): string {
-    if (value === undefined || value === null) return ''
-    if (field.kind === 'json') return JSON.stringify(value, null, 2) ?? ''
-    return String(value)
-}
-
-/**
- * Whether a field takes both columns of a two-column form.
- *
- * A required line of text is the one the form is about and is read whole; a map, a JSON value and a
- * program are as wide as what they hold.
- */
-export function spansColumns(field: Pick<FieldDescriptor, 'kind' | 'required' | 'mediaType'>): boolean {
-    if (field.mediaType !== null) return true
-    if (field.kind === 'pairs' || field.kind === 'json') return true
-    return field.required && field.kind === 'text'
 }

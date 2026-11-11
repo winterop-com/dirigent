@@ -112,31 +112,12 @@ export interface SurfaceEntry {
 }
 
 /**
- * The fields a generated form has a control for: a config schema, minus what it declares secret.
- *
- * A secret is a string in the schema, so a form built from the schema alone would edit a
- * credential -- or the marker standing in for one -- in a plain text box. Every declared secret
- * is left to a write-only password box of its own instead.
+ * The fields a config schema describes, minus what it declares secret, which a read only says
+ * is set or not.
  */
 export function settingFields(schema: JsonMap | null, secretFields: readonly string[]): FieldDescriptor[] {
     const secret = new Set(secretFields)
     return fieldsOf(schema).filter((field) => !secret.has(field.name))
-}
-
-/**
- * The config a new connection is minted with: its settings, and the secrets somebody typed.
- *
- * A SECRET BOX LEFT BLANK SETS NOTHING. An empty string is a password somebody chose, and a
- * connection minted with one holds a credential nobody meant to give it, so an untyped box is
- * absent from the config rather than present as "".
- */
-export function mintedConfig(values: JsonMap, secrets: Record<string, string>): JsonMap {
-    const config: JsonMap = { ...values }
-    for (const [name, typed] of Object.entries(secrets)) {
-        if (typed === '') continue
-        config[name] = typed
-    }
-    return config
 }
 
 /** The host's merged view of every contribution. `Catalog`, of which one member is read here. */

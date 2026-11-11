@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 
-import { SchemaForm } from '@/components/pipeline/SchemaForm'
+import { GeneratedForm } from '@/components/schema/GeneratedForm'
+import { SchemaIssueCount, useSchemaForm } from '@winterop-com/sokkel-ui/schema/SchemaForm'
 import { Refusable } from '@/components/Refusable'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
@@ -29,7 +30,7 @@ import { headingOf, type Addressable } from '@/lib/identity'
 import { paramsOf, startRun, type RunAccepted } from '@/lib/pipelines'
 import { readWindow, referencesWindow } from '@/lib/run-window'
 import { handEntryOf } from '@/lib/sources'
-import { fieldsOf, maySubmit, validateFields, withUnreadable } from '@/lib/schema-form'
+import { formSchema, hasFields } from '@/lib/form-schema'
 import { offsetMinutes, timesMode, zoneLabel } from '@/lib/times'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
 
@@ -38,17 +39,13 @@ const ENTRY = LABELS.editor.run.entry
 /**
  * Starting one ad hoc run of the version this instance holds.
  *
- * A REQUIRED FIELD IS NOT A COMPLAINT UNTIL SOMEBODY HAS BEEN THERE. Every empty required
- * parameter is a problem from the moment the dialog opens, and stating all of them at once
- * tells somebody off for opening it -- so the button stays disabled and the controls are
- * marked, and a field says what is wrong with it once it has been left or a run was asked for.
+ * A REQUIRED FIELD IS NOT A COMPLAINT UNTIL SOMEBODY HAS BEEN THERE. A field says what is wrong
+ * with it once it has been left with a value or a run was asked for; asking shows every issue,
+ * counts them beside the verb, and starts nothing while one stands, a box that does not parse
+ * among them.
  *
- * A BOX THAT DOES NOT PARSE SHUTS THE BUTTON. The document keeps the last value that parsed, so
- * a run started over a half-written JSON parameter would start on something other than what is
- * on screen: an unreadable field blocks the start exactly as a refused value does.
- *
- * THE FORM IS THE PIPELINE'S OWN PARAMETER SCHEMA, read through the same `lib/schema-form` a
- * block's config form is built with, so a parameter this pipeline does not take has no box.
+ * THE FORM IS THE PIPELINE'S OWN PARAMETER SCHEMA, drawn by the same `GeneratedForm` a block's
+ * config form is, so a parameter this pipeline does not take has no box.
  *
  * A WINDOW IS ASKED FOR WHERE THE DOCUMENT READS ONE. A step writing `${run.window.start}`
  * fails on a run carrying no window, so the section stands open and the button is shut until
@@ -86,23 +83,19 @@ export function RunDialog({
     onOpenChange: (open: boolean) => void
     onStarted: (accepted: RunAccepted) => void
 }) {
-    const fields = useMemo(() => fieldsOf(paramsOf(document)), [document])
+    const schema = useMemo(() => formSchema(paramsOf(document)), [document])
+    const takes = hasFields(schema)
+    const form = useSchemaForm(schema, { initial: {} })
     const needsWindow = useMemo(() => referencesWindow(document), [document])
     const entry = useMemo(() => handEntryOf(document), [document])
-    const [values, setValues] = useState<JsonMap>({})
     const [windowStart, setWindowStart] = useState('')
     const [windowEnd, setWindowEnd] = useState('')
     const [windowAsked, setWindowAsked] = useState(false)
     const mode = useStore(timesMode)
-    const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
-    const [unreadable, setUnreadable] = useState<ReadonlySet<string>>(() => new Set())
-    const [asked, setAsked] = useState(false)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [starting, setStarting] = useState(false)
     const [level, setLevel] = useState<'info' | 'debug'>('info')
     const write = useMayWrite()
-    const problems = validateFields(fields, values)
-    const stated = asked ? undefined : touched
     // Each end is read at its own wall clock, so a window that runs across the night the local
     // offset moves on still covers the interval it says it does.
     const window = readWindow(windowStart, windowEnd, needsWindow, (written) =>
@@ -112,11 +105,11 @@ export function RunDialog({
     const runNow = useRef<HTMLButtonElement>(null)
 
     const start = () => {
-        setAsked(true)
+        if (!form.submit()) return
         setStarting(true)
         void startRun(
             pipeline.code,
-            values,
+            form.value as JsonMap,
             level === 'debug' ? { '*': 'debug' } : null,
             window.kind === 'window' ? window.window : null,
         ).then(
@@ -143,7 +136,7 @@ export function RunDialog({
             <DialogContent
                 className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-lg"
                 showCloseButton={false}
-                initialFocus={fields.length === 0 ? runNow : undefined}
+                initialFocus={takes ? undefined : runNow}
             >
                 <DialogHeader>
                     {/* The title is the verb alone, since the pipeline is named beneath it. */}
@@ -159,30 +152,7 @@ export function RunDialog({
                 {/* The body scrolls and the footer does not: a long parameter form outgrows a short
                     screen, and Run is what somebody reaches for. */}
                 <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
-                    {fields.length > 0 && (
-                        <SchemaForm
-                            fields={fields}
-                            values={values}
-                            problems={problems}
-                            stated={stated}
-                            onChange={(name, value) => {
-                                setValues((current) => {
-                                    const next = { ...current }
-                                    if (value === undefined) delete next[name]
-                                    else next[name] = value
-                                    return next
-                                })
-                            }}
-                            onTouch={(name) => {
-                                setTouched((current) =>
-                                    current.has(name) ? current : new Set(current).add(name),
-                                )
-                            }}
-                            onUnreadable={(name, message) => {
-                                setUnreadable((current) => withUnreadable(current, name, message))
-                            }}
-                        />
-                    )}
+                    {takes && <GeneratedForm form={form} />}
 
                     {needsWindow || windowAsked ? (
                         <div className="space-y-2">
@@ -268,18 +238,14 @@ export function RunDialog({
                 </div>
 
                 <DialogFooter>
+                    <SchemaIssueCount form={form} />
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         {LABELS.action.cancel}
                     </Button>
                     <Refusable why={shut}>
                         <Button
                             ref={runNow}
-                            disabled={
-                                starting ||
-                                !write.may ||
-                                !maySubmit(problems, unreadable) ||
-                                shut !== undefined
-                            }
+                            disabled={starting || !write.may || shut !== undefined}
                             title={shut}
                             onClick={start}
                         >

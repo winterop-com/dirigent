@@ -44,6 +44,7 @@
 @import '@winterop-com/sokkel-ui/sources/Toolbar.css';
 @import '@winterop-com/sokkel-ui/sources/TopBar.css';
 @import '@winterop-com/sokkel-ui/sources/WindowedPane.css';
+@import '@winterop-com/sokkel-ui/sources/schema/SchemaForm.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/badge.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/button.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/card.css';

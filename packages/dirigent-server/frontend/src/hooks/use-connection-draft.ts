@@ -1,21 +1,14 @@
 import { useMemo, useState } from 'react'
+import { useSchemaForm, type SchemaFormState } from '@winterop-com/sokkel-ui/schema/SchemaForm'
 
 import { useMayWrite } from '@/hooks/use-may-write'
-import { type Problem } from '@/lib/api'
-import {
-    connectionBody,
-    createShut,
-    draftFor,
-    withKind,
-    withSecret,
-    withSetting,
-    type ConnectionDraft,
-} from '@/lib/connection-draft'
-import { createConnection, settingFields, type ConnectionOut, type SurfaceEntry } from '@/lib/connections'
+import { type JsonMap, type Problem } from '@/lib/api'
+import { connectionBody, createShut, draftFor, type ConnectionDraft } from '@/lib/connection-draft'
+import { createConnection, type ConnectionOut, type SurfaceEntry } from '@/lib/connections'
+import { formSchema } from '@/lib/form-schema'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
-import { validateFields, withUnreadable, type FieldDescriptor } from '@/lib/schema-form'
 
 /**
  * One connection being minted, wherever the form asking for it is drawn.
@@ -27,7 +20,9 @@ import { validateFields, withUnreadable, type FieldDescriptor } from '@/lib/sche
  *
  * THE FIELDS ARE THE KIND'S, so there are none until a kind is settled -- which is why a form
  * handed a kind by the document can draw its settings on the first render, and one asking for a
- * kind has nothing to draw until somebody picks one.
+ * kind has nothing to draw until somebody picks one. Choosing another kind empties the settings,
+ * which belong to the schema that asked for them. A field the kind declares secret is a secret
+ * field in that form, and one left empty is left out of what is sent.
  *
  * A REFUSAL IS THE SERVER'S AND NOTHING DISMISSES ON ONE. A code already taken and a config the
  * kind's model does not accept each arrive as a problem document, and the surface draws it
@@ -37,11 +32,8 @@ export interface ConnectionDraftForm {
     draft: ConnectionDraft
     /** The kind chosen, or null while none is, which is what publishes the settings schema. */
     chosen: SurfaceEntry | null
-    /** The controls the kind's schema asks for, minus every field it declares secret. */
-    fields: FieldDescriptor[]
-    problems: Record<string, string>
-    /** Which fields a problem may be stated for yet, or nothing once a create was asked for. */
-    stated: ReadonlySet<string> | undefined
+    /** The kind's settings, its secrets among them, drawn from the kind's schema. */
+    form: SchemaFormState
     /** Why Create is shut: this account's gate, or what the form is still missing. */
     shut: string | undefined
     busy: boolean
@@ -50,10 +42,6 @@ export interface ConnectionDraftForm {
     chooseKind: (kind: string) => void
     setName: (name: string) => void
     setDescription: (description: string) => void
-    setSetting: (name: string, value: unknown) => void
-    setSecret: (name: string, typed: string) => void
-    touch: (name: string) => void
-    markUnreadable: (name: string, message: string | null) => void
     /** Mint it, and hand the row back to whatever is behind the form. */
     create: (onCreated: (row: ConnectionOut) => void) => void
 }
@@ -70,33 +58,27 @@ export function useConnectionDraft(
     kind: string | null = null,
 ): ConnectionDraftForm {
     const [draft, setDraft] = useState<ConnectionDraft>(() => draftFor(code, kind))
-    const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
-    const [unreadable, setUnreadable] = useState<ReadonlySet<string>>(() => new Set())
-    const [asked, setAsked] = useState(false)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
 
     const write = useMayWrite('admin')
     const chosen = kinds.find((one) => one.id === draft.kind) ?? null
-    const fields = useMemo(
-        () => settingFields(chosen?.config_schema ?? null, chosen?.secret_fields ?? []),
+    const schema = useMemo(
+        () => formSchema(chosen?.config_schema, { secrets: chosen?.secret_fields ?? [] }),
         [chosen],
     )
-    const problems = useMemo(() => validateFields(fields, draft.values), [fields, draft.values])
+    const form = useSchemaForm(schema, { initial: {} })
 
     return {
         draft,
         chosen,
-        fields,
-        problems,
-        // A required field is not a complaint until somebody has been there or asked to create.
-        stated: asked ? undefined : touched,
+        form,
         // A kind settled by a document rather than picked from the catalog may be one this
         // instance has not installed, and there is no config schema to ask against -- so the
         // form says which kind rather than minting a credential with nothing in it.
         shut: firstShut(
             write.why,
-            createShut(draft, problems, unreadable),
+            createShut(draft),
             draft.kind !== '' && chosen === null ? LABELS.connections.kind_unknown(draft.kind) : undefined,
         ),
         busy,
@@ -105,10 +87,8 @@ export function useConnectionDraft(
             setDraft((current) => ({ ...current, code: next }))
         },
         chooseKind: (next) => {
-            setDraft((current) => withKind(current, next))
-            setTouched(new Set())
-            setUnreadable(new Set())
-            setAsked(false)
+            setDraft((current) => ({ ...current, kind: next }))
+            form.setValue({})
         },
         setName: (next) => {
             setDraft((current) => ({ ...current, name: next }))
@@ -116,29 +96,15 @@ export function useConnectionDraft(
         setDescription: (next) => {
             setDraft((current) => ({ ...current, description: next }))
         },
-        setSetting: (name, value) => {
-            setDraft((current) => withSetting(current, name, value))
-        },
-        setSecret: (name, typed) => {
-            setDraft((current) => withSecret(current, name, typed))
-        },
-        touch: (name) => {
-            setTouched((current) => (current.has(name) ? current : new Set(current).add(name)))
-        },
-        markUnreadable: (name, message) => {
-            setUnreadable((current) => withUnreadable(current, name, message))
-        },
         create: (onCreated) => {
-            setAsked(true)
+            if (!form.submit()) return
             setBusy(true)
             setProblem(null)
-            void createConnection(connectionBody(draft))
+            void createConnection(connectionBody(draft, (form.value ?? {}) as JsonMap))
                 .then(
                     (row) => {
                         setDraft(draftFor(code, kind))
-                        setTouched(new Set())
-                        setUnreadable(new Set())
-                        setAsked(false)
+                        form.setValue({})
                         onCreated(row)
                     },
                     (error: unknown) => {

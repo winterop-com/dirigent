@@ -42,7 +42,7 @@ const DURATION: JsonMap = { type: 'string', format: 'humane-duration' }
  * This mirrors `StepDefinition` in `dirigent_core.engine.definition`: the same defaults, the
  * same bounds, and the same words, so a control refuses here what an apply would refuse there.
  */
-const STEP_SCHEMA: JsonMap = {
+export const STEP_SCHEMA: JsonMap = {
     type: 'object',
     properties: {
         rule: {
@@ -52,7 +52,7 @@ const STEP_SCHEMA: JsonMap = {
             description: LABELS.editor.step_keys.rule,
         },
         for_each: {
-            anyOf: [{ type: 'string' }, { type: 'array', items: {} }],
+            type: 'string',
             description: LABELS.editor.step_keys.for_each,
             examples: ['${params.regions}', '${steps.spread.items}'],
         },
@@ -89,7 +89,7 @@ const STEP_SCHEMA: JsonMap = {
 }
 
 /** `RetryPolicy`, which is one map under `retry` rather than eight keys on the step. */
-const RETRY_SCHEMA: JsonMap = {
+export const RETRY_SCHEMA: JsonMap = {
     type: 'object',
     properties: {
         max_attempts: {
@@ -123,6 +123,15 @@ export const stepFields: FieldDescriptor[] = fieldsOf(STEP_SCHEMA)
 
 /** The controls the retry sub-form draws. */
 export const retryFields: FieldDescriptor[] = fieldsOf(RETRY_SCHEMA)
+
+/** The part of a schema holding only the named properties, in the schema's order. */
+export function pickedSchema(schema: JsonMap, names: readonly string[]): JsonMap {
+    const properties = (schema.properties ?? {}) as JsonMap
+    return {
+        ...schema,
+        properties: Object.fromEntries(Object.entries(properties).filter(([name]) => names.includes(name))),
+    }
+}
 
 /** One step's members, as the controls show them: a list under `for_each` reads as its JSON. */
 export function stepKeyValues(document: JsonMap | null, step: string): JsonMap {

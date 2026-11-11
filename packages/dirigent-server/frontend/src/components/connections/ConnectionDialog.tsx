@@ -140,7 +140,7 @@ export function ConnectionDialog({
                         },
                     }}
                 >
-                    <ConnectionForm connection={connection} form={form} />
+                    <ConnectionForm form={form} />
                 </DialogShell>
             ) : (
                 <DialogShell
