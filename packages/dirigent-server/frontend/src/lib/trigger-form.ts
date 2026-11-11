@@ -11,6 +11,9 @@
  * view can carry a value the other does not.
  */
 
+import type { CronFieldWords } from '@winterop-com/sokkel-ui/CronField'
+import { describeCron } from '@winterop-com/sokkel-ui/lib/cron'
+
 import type { JsonMap } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import type { RunPriority } from '@/lib/runs'
@@ -83,6 +86,30 @@ export function zoneOffset(zone: string, at: Date = new Date()): string {
     const named = parts.find((part) => part.type === 'timeZoneName')?.value ?? 'GMT'
     const offset = named.replace('GMT', 'UTC')
     return offset === 'UTC' ? LABELS.measure.utc_offset : offset
+}
+
+/** How many firings the instance reads back for a clock, which is how many rows the cron box draws. */
+export const FIRINGS_READ = 3
+
+/**
+ * What the cron box says. A blank expression says nothing under the box rather than that it
+ * never fires.
+ */
+export function cronWords(expression: string): Partial<CronFieldWords> {
+    const dialog = LABELS.triggers.schedule.dialog
+    return {
+        label: dialog.clock.cron.name,
+        invalid: dialog.unreadable_clock,
+        invalidDetail: dialog.cron_help,
+        next: () => dialog.next_firings,
+        never: expression.trim() === '' ? '' : dialog.never_fires,
+        checking: dialog.checking,
+    }
+}
+
+/** A cron expression read back in words; a blank one reads as nothing rather than as unreadable. */
+export function describeClock(expression: string): string | null {
+    return expression.trim() === '' ? '' : describeCron(expression)
 }
 
 /** Why Create is shut on a schedule, which is what the button carries as its title. */

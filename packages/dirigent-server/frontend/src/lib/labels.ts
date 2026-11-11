@@ -2654,8 +2654,19 @@ const triggers = {
                 },
             },
             timezone_hint: 'Search by zone or offset',
-            /** What goes where the next firings would, when the parser said nothing of its own. */
+            /**
+             * What goes where the next firings would, when the parser said nothing of its own,
+             * and the cron box's issue when the expression is not five fields it can read.
+             */
             unreadable_clock: 'This clock cannot be read.',
+            /** Under the cron box's issue: what an expression is written as. */
+            cron_help: 'Five fields: minute, hour, day of the month, month, weekday. As in 0 5 * * *.',
+            /** Over the cron box's list of the firings it would make. */
+            next_firings: 'Next firings',
+            /** A cron expression that names no moment ahead. */
+            never_fires: 'This clock never fires.',
+            /** Beside the firings while the instance is still reading them back. */
+            checking: 'Checking',
             /** Why Create is shut: no pipeline, no code, no clock, or parameters that do not fit. */
             no_pipeline: 'Choose a pipeline.',
             no_code: 'Enter a code.',

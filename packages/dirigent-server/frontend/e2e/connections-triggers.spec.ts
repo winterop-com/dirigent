@@ -716,20 +716,49 @@ test('a schedule is created by picking its pipeline and reading its clock back',
     await pick(page, 'Pipeline', CRON.pipeline, CRON.pipelineTitle)
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(code)
     await pick(page, 'Timezone', 'Europe/Oslo', 'Europe/Oslo')
+    const asked = page.waitForResponse(
+        (response) =>
+            response.url().endsWith('/schedules/$preview') &&
+            response.request().postDataJSON()?.cron === '0 5 * * *',
+    )
     await dialog
         .getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
         .fill('0 5 * * *')
 
-    // The clock is read back by the instance: three firings, in the zone that was chosen.
-    const reading = dialog.getByTestId('clock-reading')
-    await expect(reading).toContainText('05:00')
-    expect(((await reading.textContent()) ?? '').split(' · ')).toHaveLength(3)
+    // The clock is read back by the instance: three firings, drawn in the zone that was chosen.
+    const preview = await asked
+    expect(preview.request().postDataJSON()).toEqual({ cron: '0 5 * * *', timezone: 'Europe/Oslo' })
+    const firings = ((await preview.json()) as { firings: string[] }).firings
+    expect(firings).toHaveLength(3)
+    const list = dialog.getByRole('list')
+    await expect(list).not.toHaveAttribute('aria-busy')
+    await expect(dialog.getByText(LABELS.triggers.schedule.dialog.checking, { exact: true })).toHaveCount(0)
+    const rows = list.getByRole('listitem')
+    await expect(rows).toHaveCount(3)
+    for (const [at, firing] of firings.entries()) {
+        // Five in Oslo is four or three in UTC, so the day is the same on either clock.
+        const day = String(new Date(firing).getUTCDate())
+        await expect(rows.nth(at)).toContainText(new RegExp(`\\b${day} [A-Z][a-z]{2} 05:00$`))
+    }
+
+    const created = page.waitForRequest(
+        (request) =>
+            request.method() === 'POST' &&
+            request.url().endsWith(`/pipelines/${CRON.pipeline}/triggers/schedules`),
+    )
 
     // Choosing the pipeline drew its own parameter form, and a pinned value is sent with it.
     await dialog.getByLabel('day', { exact: true }).fill('2026-02-02')
 
     await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    // The schedule is declared with exactly the expression and the zone, and no other clock.
+    const sent = (await created).postDataJSON() as Record<string, unknown>
+    expect(sent.cron).toBe('0 5 * * *')
+    expect(sent.timezone).toBe('Europe/Oslo')
+    expect(sent.interval ?? null).toBeNull()
+    expect(sent.at ?? null).toBeNull()
 
     const row = rowOf(page, code)
     await expect(row).toContainText(LABELS.triggers.schedule.dialog.clock.cron.hint)
@@ -740,7 +769,9 @@ test('a schedule is created by picking its pipeline and reading its clock back',
     expect((await read.json()).params).toEqual({ day: '2026-02-02' })
 })
 
-test('a clock nothing can read says so where its firings would be, and shuts Create', async ({ page }) => {
+test('a cron clock the instance refuses carries its sentence as the issue, and shuts Create', async ({
+    page,
+}) => {
     await signIn(page)
     await applyExample(page.request, CRON.file)
 
@@ -752,8 +783,15 @@ test('a clock nothing can read says so where its firings would be, and shuts Cre
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill('never')
     await dialog
         .getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
-        .fill('not a cron expression')
+        .fill('0 5 31 2 *')
 
-    await expect(dialog.getByTestId('clock-reading')).toContainText('is not a cron expression')
+    // Five fields the box reads, naming a day February never has: the instance is what refuses it.
+    const box = dialog.getByLabel(LABELS.triggers.schedule.dialog.clock.cron.name, { exact: true })
+    const said = "'0 5 31 2 *' is not a cron expression: Bad day-of-month"
+    const mark = dialog.getByRole('button', { name: said })
+    await expect(mark).toBeVisible()
+    await expect(box).toHaveAttribute('aria-invalid', 'true')
+    await mark.click()
+    await expect(page.getByText(said, { exact: true })).toBeVisible()
     await expect(dialog.getByRole('button', { name: LABELS.action.create.verb })).toBeDisabled()
 })

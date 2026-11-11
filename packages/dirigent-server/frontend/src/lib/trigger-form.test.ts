@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
     browserZone,
+    cronWords,
+    describeClock,
     given,
     readValues,
     unreadySchedule,
@@ -69,5 +71,18 @@ describe('a box that was emptied', () => {
     it('is that member left unset rather than set to nothing', () => {
         expect(given('  ')).toBeNull()
         expect(given(' Nightly ')).toBe('Nightly')
+    })
+})
+
+describe('the cron box', () => {
+    it('reads a blank expression as nothing, and one it cannot parse as unreadable', () => {
+        expect(describeClock('  ')).toBe('')
+        expect(describeClock('not cron')).toBeNull()
+        expect(describeClock('0 5 * * *')).not.toBeNull()
+    })
+
+    it('says a blank expression fires nothing only once something is written', () => {
+        expect(cronWords('').never).toBe('')
+        expect(cronWords('0 5 31 2 *').never).toBe('This clock never fires.')
     })
 })
