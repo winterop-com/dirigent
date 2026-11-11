@@ -1,14 +1,13 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import { PipelineRef } from '@/components/PipelineRef'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
-import { dotOf, LISTING } from '@/lib/design-system'
+import { countWords, dotOf, LISTING } from '@/lib/design-system'
 import { formatDuration, formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import { rowsRead } from '@/lib/paging'
 import {
     countsShown,
     pipelineRunsLink,
@@ -24,9 +23,24 @@ const pipelineOf = (row: PipelineRuns) => row.pipeline
  * The runs of a window, one row per pipeline that ran in it.
  *
  * A row opens the flat list of that pipeline's runs over the same window; a dot in its strip
- * opens that one run.
+ * opens that one run. The screen's `search` and `toolbar` stand in the table's bar.
  */
-export function RunsByPipeline({ rows, window }: { rows: readonly PipelineRuns[]; window: GroupWindow }) {
+export function RunsByPipeline({
+    rows,
+    window,
+    search,
+    toolbar,
+    loading,
+    empty,
+}: {
+    rows: readonly PipelineRuns[]
+    window: GroupWindow
+    search: ReactNode
+    toolbar: ReactNode
+    loading: boolean
+    /** What the table says with no rows. */
+    empty: ReactNode
+}) {
     const navigate = useNavigate()
     const columns = useMemo(() => summaryColumns(), [])
     return (
@@ -37,7 +51,11 @@ export function RunsByPipeline({ rows, window }: { rows: readonly PipelineRuns[]
             rows={rows}
             rowKey={pipelineOf}
             onOpen={(row) => void navigate(pipelineRunsLink(row.pipeline, window))}
-            foot={rowsRead(rows.length, LABELS.word.pipeline.count, false)}
+            search={search}
+            toolbar={toolbar}
+            loading={loading}
+            words={countWords(LABELS.word.pipeline.count)}
+            empty={empty}
         />
     )
 }

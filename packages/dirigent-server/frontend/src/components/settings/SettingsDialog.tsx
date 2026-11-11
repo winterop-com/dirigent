@@ -9,7 +9,7 @@ import { SettingsDialog as LibrarySettingsDialog } from '@winterop-com/sokkel-ui
 import { ThemeCards } from '@winterop-com/sokkel-ui/ThemeCards'
 import { Refusal } from '@/components/Refusal'
 import { LINK_WORDS, SCHEME_WORDS, SETTINGS_WORDS, THEME_CARDS_WORDS } from '@/lib/design-system'
-import { Segmented } from '@/components/Segmented'
+import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import { STATUS_CSS } from '@winterop-com/sokkel-ui/lib/status'
 import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
@@ -206,7 +206,7 @@ function TimesControl() {
                 value: one,
                 label: TIMES_LABELS[one],
             }))}
-            onChoose={chooseTimes}
+            onValueChange={chooseTimes}
         />
     )
 }

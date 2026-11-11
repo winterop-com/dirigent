@@ -6,9 +6,9 @@ import { ApiChip } from '@/components/ApiChip'
 import { ANY, Choice } from '@/components/list/Choice'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { PageState } from '@/components/PageState'
+import { PageState, Refusal } from '@/components/PageState'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
-import { Segmented } from '@/components/Segmented'
+import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
@@ -35,11 +35,10 @@ import {
     type Holdings,
 } from '@/lib/examples'
 import { headingOf, itemOf, oneLine } from '@/lib/identity'
-import { chipWords, LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
-import { LABELS } from '@/lib/labels'
+import { chipWords, countWords, LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import { counted, LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { closePanel, fillPanel, openPanelTab } from '@/lib/panels'
-import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { STARTER_TAG, copyStarter } from '@/lib/starters'
@@ -258,105 +257,104 @@ export function Examples() {
 
     return (
         <>
-            <PageHeader
-                title={LABELS.screen.examples.name}
-                lead={
+            <PageHeader title={LABELS.screen.examples.name} lead={<ApiChip tag="examples" />} />
+
+            <DataTable
+                {...LISTING}
+                rowHeight="auto"
+                columns={columns}
+                rows={corpus.problem === null ? shown : []}
+                rowKey={exampleCode}
+                search={
+                    <SearchField
+                        placeholder={SEARCH_PLACEHOLDER}
+                        words={SEARCH_WORDS}
+                        value={filters.needle}
+                        label={LABELS.examples.search}
+                        onChange={(needle) => {
+                            change({ ...filters, needle })
+                        }}
+                    />
+                }
+                toolbar={
                     <>
-                        <ApiChip tag="examples" />
-                        {shown.length !== rows.length && (
-                            <span className="text-xs text-muted-foreground">
-                                {LABELS.examples.counted_of(String(shown.length), String(rows.length))}
-                            </span>
+                        <Segmented
+                            size="md"
+                            label={LABELS.examples.which.label}
+                            value={filters.starters ? 'starters' : 'all'}
+                            options={WHICH}
+                            onValueChange={(which) => {
+                                change({ ...filters, starters: which === 'starters' })
+                            }}
+                        />
+                        <TagFilter
+                            chosen={filters.tags}
+                            offered={offered}
+                            onChange={(tags) => {
+                                change({ ...filters, tags })
+                            }}
+                        />
+                        <Choice
+                            label={LABELS.word.shelf}
+                            value={filters.shelf}
+                            anything={LABELS.examples.any_shelf}
+                            options={shelves.map((shelf) => ({ value: shelf, label: shelf }))}
+                            onChange={(shelf) => {
+                                change({ ...filters, shelf: shelf === ANY ? '' : shelf })
+                            }}
+                        />
+                        {/* A choice of one is not a choice: the control appears when a pack is installed. */}
+                        {plugins.length > 1 && (
+                            <Choice
+                                label={LABELS.word.plugin.label}
+                                value={filters.plugin}
+                                anything={LABELS.examples.any_plugin}
+                                options={plugins.map((plugin) => ({ value: plugin, label: plugin }))}
+                                onChange={(plugin) => {
+                                    change({ ...filters, plugin: plugin === ANY ? '' : plugin })
+                                }}
+                            />
+                        )}
+                        {/* The Blocks screen links here narrowed to one block, and the chip that says
+                            so is the chip that takes it off again. */}
+                        {filters.block !== '' && (
+                            <Chip
+                                mono
+                                words={chipWords(LABELS.examples.stop_narrowing)}
+                                onRemove={() => {
+                                    change({ ...filters, block: '' })
+                                }}
+                            >
+                                {filters.block}
+                            </Chip>
                         )}
                     </>
                 }
-            />
-
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <SearchField
-                    placeholder={SEARCH_PLACEHOLDER}
-                    words={SEARCH_WORDS}
-                    className="w-64"
-                    value={filters.needle}
-                    label={LABELS.examples.search}
-                    onChange={(needle) => {
-                        change({ ...filters, needle })
-                    }}
-                />
-                <Segmented
-                    label={LABELS.examples.which.label}
-                    value={filters.starters ? 'starters' : 'all'}
-                    options={WHICH}
-                    onChoose={(which) => {
-                        change({ ...filters, starters: which === 'starters' })
-                    }}
-                />
-                <TagFilter
-                    chosen={filters.tags}
-                    offered={offered}
-                    onChange={(tags) => {
-                        change({ ...filters, tags })
-                    }}
-                />
-                <Choice
-                    label={LABELS.word.shelf}
-                    value={filters.shelf}
-                    anything={LABELS.examples.any_shelf}
-                    options={shelves.map((shelf) => ({ value: shelf, label: shelf }))}
-                    onChange={(shelf) => {
-                        change({ ...filters, shelf: shelf === ANY ? '' : shelf })
-                    }}
-                />
-                {/* A choice of one is not a choice: the control appears when a pack is installed. */}
-                {plugins.length > 1 && (
-                    <Choice
-                        label={LABELS.word.plugin.label}
-                        value={filters.plugin}
-                        anything={LABELS.examples.any_plugin}
-                        options={plugins.map((plugin) => ({ value: plugin, label: plugin }))}
-                        onChange={(plugin) => {
-                            change({ ...filters, plugin: plugin === ANY ? '' : plugin })
-                        }}
-                    />
-                )}
-                {/* The Blocks screen links here narrowed to one block, and the chip that says
-                    so is the chip that takes it off again. */}
-                {filters.block !== '' && (
-                    <Chip
-                        mono
-                        words={chipWords(LABELS.examples.stop_narrowing)}
-                        onRemove={() => {
-                            change({ ...filters, block: '' })
-                        }}
-                    >
-                        {filters.block}
-                    </Chip>
-                )}
-            </div>
-
-            <PageState
-                loading={!corpus.read}
-                problem={corpus.problem}
-                empty={shown.length === 0}
-                emptyMessage={
-                    rows.length === 0
-                        ? LABELS.examples.none_installed
-                        : anythingFiltered(filters)
-                          ? LABELS.examples.none_match
-                          : LABELS.examples.empty
+                loading={corpus.reading}
+                words={{
+                    ...countWords(LABELS.word.example.count),
+                    rows: (count) =>
+                        count === 0 || count === rows.length
+                            ? countWords(LABELS.word.example.count).rows(count)
+                            : LABELS.shell.rows_read(
+                                  LABELS.examples.counted_of(String(count), String(rows.length)),
+                                  counted(rows.length, LABELS.word.example.count),
+                              ),
+                }}
+                empty={
+                    corpus.problem !== null ? (
+                        <Refusal problem={corpus.problem} />
+                    ) : rows.length === 0 ? (
+                        LABELS.examples.none_installed
+                    ) : anythingFiltered(filters) ? (
+                        LABELS.examples.none_match
+                    ) : (
+                        LABELS.examples.empty
+                    )
                 }
-            >
-                <DataTable
-                    {...LISTING}
-                    rowHeight="auto"
-                    columns={columns}
-                    rows={shown}
-                    rowKey={exampleCode}
-                    foot={rowsRead(shown.length, LABELS.word.example.count, false)}
-                    onOpen={press}
-                    opened={(row) => row.code === chosen?.code}
-                />
-            </PageState>
+                onOpen={press}
+                opened={(row) => row.code === chosen?.code}
+            />
         </>
     )
 }

@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 
-import { Segmented } from '@/components/Segmented'
+import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import type { JsonMap } from '@/lib/api'
@@ -70,7 +70,7 @@ export function ReportPane({
                     value={choice}
                     options={CHOICES}
                     disabled={disabled !== undefined}
-                    onChoose={(chosen) => {
+                    onValueChange={(chosen) => {
                         if (section.template !== null) held.current = section.template
                         onChange(chosen, held.current)
                     }}

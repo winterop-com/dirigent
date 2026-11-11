@@ -6,13 +6,13 @@ import { ApiChip } from '@/components/ApiChip'
 import { Choice } from '@/components/list/Choice'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { PageState } from '@/components/PageState'
+import { Refusal } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
 import { RunsByPipeline } from '@/components/run/RunsByPipeline'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
-import { Segmented, type Segment } from '@/components/Segmented'
+import { Segmented, type Segment } from '@winterop-com/sokkel-ui/Segmented'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { useStore } from '@/hooks/use-store'
@@ -20,9 +20,8 @@ import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
 import { elapsedBetween, formatDuration, formatInstant, formatRelative } from '@/lib/format'
-import { LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import { countWords, LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { counted, LABELS } from '@/lib/labels'
-import { rowsRead } from '@/lib/paging'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { readPipelineNames, readTagsOffered } from '@/lib/pipelines'
 import {
@@ -170,16 +169,18 @@ export function Runs() {
         )
     }
 
-    const bar = (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-            <SearchField
-                placeholder={SEARCH_PLACEHOLDER}
-                words={SEARCH_WORDS}
-                className="w-64"
-                value={typed}
-                label={LABELS.runs.filter_pipeline}
-                onChange={setTyped}
-            />
+    const search = (
+        <SearchField
+            placeholder={SEARCH_PLACEHOLDER}
+            words={SEARCH_WORDS}
+            value={typed}
+            label={LABELS.runs.filter_pipeline}
+            onChange={setTyped}
+        />
+    )
+
+    const toolbar = (
+        <>
             <Choice
                 label={view.grouped ? LABELS.runs.grouped.latest_filter : LABELS.word.status}
                 value={filters.status}
@@ -195,13 +196,14 @@ export function Runs() {
             />
             {view.grouped ? (
                 <Segmented
+                    size="md"
                     label={LABELS.word.window.label}
                     value={view.window}
                     options={GROUP_WINDOWS.map((window) => ({
                         value: window,
                         label: LABELS.runs.window_option(window),
                     }))}
-                    onChoose={(window) => {
+                    onValueChange={(window) => {
                         show('pipeline', window)
                     }}
                 />
@@ -228,26 +230,33 @@ export function Runs() {
             />
             <div className="ml-auto">
                 <Segmented
+                    size="md"
                     label={LABELS.runs.view.label}
                     value={view.grouped ? VIEWS[1].value : VIEWS[0].value}
                     options={VIEWS}
-                    onChoose={(next) => {
+                    onValueChange={(next) => {
                         show(next, view.grouped ? view.window : groupWindowOf(filters.since))
                     }}
                 />
             </div>
-        </div>
+        </>
     )
 
     return view.grouped ? (
-        <GroupedRuns filters={filters} window={view.window} bar={bar} />
+        <GroupedRuns filters={filters} window={view.window} search={search} toolbar={toolbar} />
     ) : (
-        <FlatRuns filters={filters} bar={bar} />
+        <FlatRuns filters={filters} search={search} toolbar={toolbar} />
     )
 }
 
+/** The bar a view of the runs draws over its rows. */
+interface Bar {
+    search: ReactNode
+    toolbar: ReactNode
+}
+
 /** The flat list, newest first, paged. */
-function FlatRuns({ filters, bar }: { filters: RunFilters; bar: ReactNode }) {
+function FlatRuns({ filters, search, toolbar }: Bar & { filters: RunFilters }) {
     const navigate = useNavigate()
     const read = useCallback((after: string | null) => readRuns(filters, after), [filters])
     const { state, more, reload, note } = usePaged(read, runId, useStore(refreshSeconds))
@@ -277,33 +286,32 @@ function FlatRuns({ filters, bar }: { filters: RunFilters; bar: ReactNode }) {
                 }
             />
 
-            {bar}
-
-            <PageState
-                loading={!state.read}
-                problem={state.problem}
-                empty={state.rows.length === 0}
-                emptyMessage={emptyNote(filters)}
-            >
-                <DataTable
-                    {...LISTING}
-                    rowHeight="auto"
-                    columns={columns}
-                    rows={state.rows}
-                    rowKey={runId}
-                    onOpen={(row) => void navigate(`/runs/${row.id}`)}
-                    hasMore={state.next !== null}
-                    loading={state.reading}
-                    onLoadMore={more}
-                    foot={rowsRead(state.rows.length, LABELS.word.run.count, state.next !== null)}
-                />
-            </PageState>
+            <DataTable
+                {...LISTING}
+                rowHeight="auto"
+                columns={columns}
+                rows={state.problem === null ? state.rows : []}
+                rowKey={runId}
+                onOpen={(row) => void navigate(`/runs/${row.id}`)}
+                search={search}
+                toolbar={toolbar}
+                hasMore={state.problem === null && state.next !== null}
+                loading={state.reading}
+                onLoadMore={more}
+                words={countWords(LABELS.word.run.count)}
+                empty={state.problem === null ? emptyNote(filters) : <Refusal problem={state.problem} />}
+            />
         </>
     )
 }
 
 /** One row per pipeline that ran in the window, re-read on the app's cadence. */
-function GroupedRuns({ filters, window, bar }: { filters: RunFilters; window: GroupWindow; bar: ReactNode }) {
+function GroupedRuns({
+    filters,
+    window,
+    search,
+    toolbar,
+}: Bar & { filters: RunFilters; window: GroupWindow }) {
     const summary = useRead(useCallback(() => readSummary(filters, window), [filters, window]))
     const { again } = summary
     useHeartbeat(again, useStore(refreshSeconds))
@@ -318,16 +326,22 @@ function GroupedRuns({ filters, window, bar }: { filters: RunFilters; window: Gr
         <>
             <PageHeader title={LABELS.screen.runs.name} lead={<ApiChip tag="runs" />} />
 
-            {bar}
-
-            <PageState
-                loading={!summary.read}
-                problem={summary.problem}
-                empty={rows.length === 0}
-                emptyMessage={asked ? LABELS.runs.empty_filtered : LABELS.runs.grouped.empty(window)}
-            >
-                <RunsByPipeline rows={rows} window={window} />
-            </PageState>
+            <RunsByPipeline
+                rows={summary.problem === null ? rows : []}
+                window={window}
+                search={search}
+                toolbar={toolbar}
+                loading={summary.reading}
+                empty={
+                    summary.problem !== null ? (
+                        <Refusal problem={summary.problem} />
+                    ) : asked ? (
+                        LABELS.runs.empty_filtered
+                    ) : (
+                        LABELS.runs.grouped.empty(window)
+                    )
+                }
+            />
         </>
     )
 }

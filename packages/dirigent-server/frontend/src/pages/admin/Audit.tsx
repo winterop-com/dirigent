@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ds/PageHeader'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Instant } from '@/components/Instant'
 import { Choice } from '@/components/list/Choice'
-import { PageState } from '@/components/PageState'
+import { Refusal } from '@/components/PageState'
 import { usePaged } from '@/hooks/use-paged'
 import {
     actorOf,
@@ -23,9 +23,8 @@ import {
     type AuditFilters,
 } from '@/lib/audit'
 import { ICONS } from '@/lib/icons'
-import { LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
+import { countWords, LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
-import { rowsRead } from '@/lib/paging'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 
@@ -41,6 +40,9 @@ const entryId = (entry: AuditEntryOut) => String(entry.id)
  * WHAT IS FILTERED HERE IS WHAT THE SERVER FILTERS. `GET /audit` narrows by subject kind, action,
  * actor, subject code and a window, so the bar offers those and nothing narrows only the rows
  * that happen to have been read.
+ *
+ * WHO MADE A CHANGE IS THE SEARCH. The subject's code is a box of its own among the filters,
+ * beside the subject kind it narrows with.
  *
  * NO VALUE IS EVER ON SCREEN, because none is on the wire: an update names its fields.
  */
@@ -114,74 +116,70 @@ function Audit() {
         <>
             <PageHeader title={LABELS.screen.audit.name} lead={<ApiChip tag="audit" />} />
 
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <SearchField
-                    placeholder={SEARCH_PLACEHOLDER}
-                    words={SEARCH_WORDS}
-                    className="w-64"
-                    value={actor}
-                    label={LABELS.audit.filter_actor}
-                    onChange={setActor}
-                />
-                <SearchField
-                    placeholder={SEARCH_PLACEHOLDER}
-                    words={SEARCH_WORDS}
-                    className="w-64"
-                    value={subject}
-                    label={LABELS.audit.filter_subject}
-                    onChange={setSubject}
-                    shortcut={false}
-                />
-                <Choice
-                    label={LABELS.word.subject}
-                    value={filters.subject_kind}
-                    options={AUDIT_SUBJECTS.map((kind) => ({
-                        value: kind,
-                        label: LABELS.audit.subjects[kind],
-                    }))}
-                    anything={LABELS.audit.any_kind}
-                    onChange={choose('subject_kind')}
-                />
-                <Choice
-                    label={LABELS.audit.action}
-                    value={filters.action}
-                    options={AUDIT_ACTIONS.map((action) => ({
-                        value: action,
-                        label: LABELS.audit.actions[action],
-                    }))}
-                    anything={LABELS.audit.any_action}
-                    onChange={choose('action')}
-                />
-                <Choice
-                    label={LABELS.word.window.label}
-                    value={filters.window}
-                    options={AUDIT_WINDOWS.map((window) => ({
-                        value: window,
-                        label: LABELS.runs.window_option(window),
-                    }))}
-                    anything={LABELS.runs.any_window}
-                    onChange={choose('window')}
-                />
-            </div>
-
-            <PageState
-                loading={!state.read}
-                problem={state.problem}
-                empty={state.rows.length === 0}
-                emptyMessage={emptyNote(filters)}
-            >
-                <DataTable
-                    {...LISTING}
-                    rowHeight="auto"
-                    columns={COLUMNS}
-                    rows={state.rows}
-                    rowKey={entryId}
-                    hasMore={state.next !== null}
-                    loading={state.reading}
-                    onLoadMore={more}
-                    foot={rowsRead(state.rows.length, LABELS.audit.count, state.next !== null)}
-                />
-            </PageState>
+            <DataTable
+                {...LISTING}
+                rowHeight="auto"
+                columns={COLUMNS}
+                rows={state.problem === null ? state.rows : []}
+                rowKey={entryId}
+                search={
+                    <SearchField
+                        placeholder={SEARCH_PLACEHOLDER}
+                        words={SEARCH_WORDS}
+                        value={actor}
+                        label={LABELS.audit.filter_actor}
+                        onChange={setActor}
+                    />
+                }
+                toolbar={
+                    <>
+                        <Choice
+                            label={LABELS.word.subject}
+                            value={filters.subject_kind}
+                            options={AUDIT_SUBJECTS.map((kind) => ({
+                                value: kind,
+                                label: LABELS.audit.subjects[kind],
+                            }))}
+                            anything={LABELS.audit.any_kind}
+                            onChange={choose('subject_kind')}
+                        />
+                        <SearchField
+                            placeholder={LABELS.audit.subject_placeholder}
+                            words={SEARCH_WORDS}
+                            className="w-48"
+                            value={subject}
+                            label={LABELS.audit.filter_subject}
+                            onChange={setSubject}
+                            shortcut={false}
+                        />
+                        <Choice
+                            label={LABELS.audit.action}
+                            value={filters.action}
+                            options={AUDIT_ACTIONS.map((action) => ({
+                                value: action,
+                                label: LABELS.audit.actions[action],
+                            }))}
+                            anything={LABELS.audit.any_action}
+                            onChange={choose('action')}
+                        />
+                        <Choice
+                            label={LABELS.word.window.label}
+                            value={filters.window}
+                            options={AUDIT_WINDOWS.map((window) => ({
+                                value: window,
+                                label: LABELS.runs.window_option(window),
+                            }))}
+                            anything={LABELS.runs.any_window}
+                            onChange={choose('window')}
+                        />
+                    </>
+                }
+                hasMore={state.problem === null && state.next !== null}
+                loading={state.reading}
+                onLoadMore={more}
+                words={countWords(LABELS.audit.count)}
+                empty={state.problem === null ? emptyNote(filters) : <Refusal problem={state.problem} />}
+            />
         </>
     )
 }

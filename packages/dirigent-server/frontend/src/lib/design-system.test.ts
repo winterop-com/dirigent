@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 import type { IconButtonProps } from '@winterop-com/sokkel-ui/IconButton'
 import {
     copyWords,
+    countWords,
     DIALOG_WORDS,
     DIFF_WORDS,
     dotOf,
@@ -162,5 +163,15 @@ describe('the gallery index', () => {
             'Dialogs',
             'Lists of facts',
         ])
+    })
+})
+
+describe("a listing bar's count", () => {
+    test("says the rows in rowsRead's words, and nothing for none", () => {
+        const words = countWords(LABELS.word.run.count)
+        expect(words.rows(1)).toBe('1 run')
+        expect(words.rows(50)).toBe('50 runs')
+        expect(words.loaded(50)).toBe('50 runs, more to load')
+        expect(words.rows(0)).toBe('')
     })
 })

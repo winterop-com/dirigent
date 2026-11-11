@@ -3031,7 +3031,7 @@ const examples = {
     show_starters: 'Show only the templates',
     /** The palette row that takes every filter off. */
     clear_filters: 'Clear the filters on the examples listing',
-    /** How much of the corpus the filters left, drawn only where they left less than all of it. */
+    /** How much of the corpus the filters left, said in the listing's count where they left less than all of it. */
     counted_of: (shown: string, total: string) => `${shown} of ${total}`,
     search: 'Search examples by code, name, description or tag',
 
@@ -3346,6 +3346,8 @@ const audit = {
     /** The accessible names of the two boxes a code is typed into. */
     filter_actor: 'Filter changes by who made them',
     filter_subject: 'Filter changes by subject code',
+    /** What the subject code's box says while it is empty, beside the search for who made a change. */
+    subject_placeholder: 'Subject code',
     /** What the selects are worth when nothing is chosen. */
     any_kind: 'Any subject',
     any_action: 'Any action',
