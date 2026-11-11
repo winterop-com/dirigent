@@ -80,8 +80,15 @@ describe('the cron box', () => {
         expect(readCron('30 2 1,15 * *')).toBe('At 02:30 on the 1st and 15th')
         expect(readCron('0 */6 * * *')).toBe('Every 6 hours')
         expect(readCron('0 5 * * mon,wed,fri')).toBe('At 05:00 on Monday, Wednesday and Friday')
-        expect(readCron('0 5 L * *')).toBeNull()
         expect(readCron('not cron')).toBeNull()
+    })
+
+    it("reads the last day, the nearest weekday and the nth day of the week in the catalogue's words", () => {
+        expect(readCron('0 2 L * *')).toBe('At 02:00 on the last day of the month')
+        expect(readCron('0 2 * * 5#2')).toBe('At 02:00 on the 2nd Friday of the month')
+        expect(readCron('0 2 15W * *')).toBe('At 02:00 on the weekday nearest the 15th')
+        expect(readCron('0 2 * * 5L')).toBe('At 02:00 on the last Friday of the month')
+        expect(readCron('0 2 LW * *')).toBe('At 02:00 on the last weekday of the month')
     })
 
     it('counts the days of the month the way English does', () => {
