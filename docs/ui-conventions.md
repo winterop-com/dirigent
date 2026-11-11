@@ -887,7 +887,13 @@ show once it has been left with a value or the form asked to be sent, never on o
 a form asks the form**: pressing Run, Create or Save calls `submit()`, which shows every issue,
 focuses the first that stops it, and sends nothing while one stands; `SchemaIssueCount` beside the
 verb counts them. The verb is shut only for what the form cannot say, such as a role, a missing
-code or a window.
+code or a window, so the form's `blocking` never shuts one: a verb shut quietly over an issue
+nobody has been shown yet says nothing about where it is.
+
+**A form over a document is held by the document.** The step panel's forms take the step's map
+as `useSchemaForm`'s `value` and write each change back through `onChange` (`DocumentForm` in
+`components/schema`), so an edit in the source pane is what the form draws, and an edit the
+document store refuses leaves the form as the document is.
 
 `lib/form-schema` hands the library the schema: every `title` taken out, so the label is the key,
 and each field a connection kind declares secret marked `writeOnly`. `lib/schema-form` still reads
@@ -896,8 +902,9 @@ catalog, the pipeline pane's parameters, a step group's summary line and the ste
 refusals.
 
 **A shape the library has a control for is the library's.** A map of scalars -- headers, query
-parameters, environment variables -- is its key/value rows, each key unique and the value a box
-named by its key. A union of scalars, such as a `Size`, written `16KB` or as a count of bytes, is one text
+parameters, environment variables -- is its key/value rows, each key unique, the boxes named by
+the map and the row (`headers key 1`, `headers value 1`) and the row's Remove by the map and the
+key (`Remove headers Accept`). A union of scalars, such as a `Size`, written `16KB` or as a count of bytes, is one text
 box, read as the narrowest branch the text parses as: `16KB` stays text, `16384` is a number.
 A list of scalars is its list of rows.
 
@@ -967,7 +974,7 @@ control in the top bar; while it is open it is the last control in the panel's o
 panel it shuts. The rail's own collapse is beside the logo.
 
 **A field that names a thing shows the thing.** A string property carrying `x-dirigent-ref` holds
-the code of a connection or a schema, and under the box the form draws what that code resolves to,
+the code of a connection or a schema, and under the box -- the issue mark staying on the box -- the form draws what that code resolves to,
 in the step panel's own group gesture: a shut row with a one-line summary, and the definition under
 it against the group rule when it is opened. A schema the document carries in its top-level
 `schemas:` resolves before one the instance holds, which is the order the engine resolves them in,
@@ -997,7 +1004,8 @@ and the focus ring's, and a field label is neither. `SchemaForm` draws it with
 `requiredMark="word"`, and the control says it is required with `aria-required`. **A default is
 shown and never written.** A field left unset shows its schema `default` muted in the control,
 `GET (default)`, and the form's value leaves the key out, so what is sent carries only what was
-chosen and the server applies the rest. The default is also said under the control (`fallbacks`),
+chosen and the server applies the rest. An optional choice with a default offers `Default (GET)`
+first, which takes the key out again once something else was chosen. The default is also said under the control (`fallbacks`),
 as what applies when it is left empty; a `default` of `null` says nothing there.
 
 **Every field is a design-system control, and an empty one looks like an empty one.** A field
@@ -1006,7 +1014,7 @@ and the treatment is checked in both palettes: the dark one fills a rung of the 
 it with a hairline the ground shows, and the light one has to say the same thing with a fill and
 a stronger line, or a value floats in whitespace and an empty box is not there at all. A row is
 the key as its label, the annotation beside it, the control, and one muted line under. **A secret
-is the library's `SecretField`**: an unset one is an empty masked input with Show; one the
+is the library's `SecretField`**, in the library's words: an unset one is an empty masked input with Show; one the
 connection already holds is sealed -- masked, saying it is set, with Replace, named by its field
 ("Replace basic_password") so two sealed secrets are told apart -- and stays out of what is sent
 until it is replaced, so the server keeps what it has. Never the words "not set" as
@@ -1022,7 +1030,14 @@ for; one that opened every optional section would make every dialog the longest 
 be.
 
 **A form draws every field its schema publishes**, in the schema's order, required and
-optional alike; a short field takes half a row where the form is wide enough.
+optional alike; a short field takes half a row where the form is wide enough. **What is needed is
+in front, and the rest is one disclosure** where a form stands among other things: a step's config
+and a carried connection's row in the apply review open on the fields the schema requires and the
+ones already set, and the rest wait behind the library's `N more fields` (`fold`), which opens by
+itself while a folded field has an issue to show. Which fields are folded is decided when the form
+is first drawn, so a key being filled in does not jump under the hands typing it; another step is
+another form, and opens folded again. A dialog that is the asking itself -- Run, a trigger, a
+connection -- folds nothing.
 
 **A value written as a reference is not checked against the field it stands in.** The document
 language lets `${...}` stand wherever a value goes, and what one stands for has no text, no bounds
@@ -1043,7 +1058,8 @@ The form is told so with `deferred`, which `useSchemaForm` leaves unchecked: `de
 `lib/form-schema`. **A control that cannot hold a reference gives way to a box**: a number, a
 choice and a switch each draw a value the schema describes, and drawn by their own control a
 reference would read as empty, unset or off and the first touch would write that over the
-document. So `GeneratedForm` draws the text in a mono box, and clearing the box brings the control
+document. So `GeneratedForm` draws the text in a mono box, says beside the label what the box
+stands in for (`a reference, not a choice`{ .label }), and clearing the box brings the control
 back. The same holds for an object, a list or a map written whole as a reference. A union of
 scalars is already a text box and holds one as it is.
 

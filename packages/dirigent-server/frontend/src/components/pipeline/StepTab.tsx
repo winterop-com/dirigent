@@ -193,6 +193,7 @@ export function StepTab({
                             value={config}
                             references={{ document, schemas, connections }}
                             deferred
+                            fold
                             onChange={onConfig}
                         />
                     )}

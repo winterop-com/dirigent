@@ -29,7 +29,8 @@ import { kindMarks } from '@/lib/marks'
  * THE CONFIG IS THE KIND'S SCHEMA, the same form the panel builds beside the listing: the kind
  * is settled first, so what a control is for is known before one is drawn. Every field the kind
  * declares secret is a secret field in it, masked, and one left empty mints a connection with no
- * credential for it rather than one with an empty password.
+ * credential for it rather than one with an empty password. In the row of another decision the
+ * form opens on what the kind requires, the rest behind one disclosure.
  *
  * WHAT A DOCUMENT ALREADY DECIDED IS NOT ASKED AGAIN. Mounted in the row of an offer that says
  * the document names a connection this instance has not got, the code and the kind are the
@@ -114,7 +115,7 @@ export function ConnectionFields({
                     <p className="text-xs font-semibold tracking-wide text-faint uppercase">
                         {LABELS.connections.settings_heading}
                     </p>
-                    <GeneratedForm form={form.form} />
+                    <GeneratedForm key={chosen.id} form={form.form} fold={decided !== undefined} />
                 </div>
             )}
 

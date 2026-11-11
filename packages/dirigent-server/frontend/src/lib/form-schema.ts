@@ -141,6 +141,20 @@ export function drawnAs(schema: JsonSchema, root: JsonSchema = schema): DrawnAs 
     }
 }
 
+/** The control a field's value is drawn by where that control cannot hold text. */
+export type HeldAs = 'choice' | 'switch' | 'number' | 'map' | 'list' | 'object'
+
+/** Which control a field's resolved schema is drawn by that cannot hold a `${...}` reference, or null. */
+export function heldAs(schema: JsonSchema, root: JsonSchema = schema): HeldAs | null {
+    if (schema.enum !== undefined || schema.const !== undefined) return 'choice'
+    const kind = libraryKind(schema, root)
+    if (kind === 'object' || kind === 'list' || kind === 'map') return kind
+    const main = types(schema).main
+    if (kind !== 'scalar' || main.length !== 1) return null
+    if (main[0] === 'boolean') return 'switch'
+    return main[0] === 'number' || main[0] === 'integer' ? 'number' : null
+}
+
 /** What a field's schema says its value names, from `x-dirigent-ref`, or null. */
 export function refersTo(schema: JsonSchema): ReferenceKind | null {
     const named = schema[REFERENCE_KEYWORD]

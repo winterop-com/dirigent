@@ -211,20 +211,38 @@ test('the stored document reads as its graph, and a step reads as its own config
     await expect(panel.getByLabel('target', { exact: true })).toBeVisible()
 })
 
-test('a step draws every key its block takes, the ones it leaves unset among them', async ({ page }) => {
+test('a step opens on what it needs, and the keys it leaves unset are behind one disclosure', async ({
+    page,
+}) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
     await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
 
     // rows runs storage.read, which requires a source and offers a content_type and a max_size.
+    // The document sets only the source, so the two it says nothing about are folded.
     await page.locator('.react-flow__node').getByText('rows', { exact: true }).click()
 
     const panel = page.locator('aside')
     await expect(panel.getByText('storage.read', { exact: true })).toBeVisible()
     await expect(panel.getByLabel('source', { exact: true })).toBeVisible()
+    await expect(panel.getByLabel('content_type', { exact: true })).toBeHidden()
+    await expect(panel.getByText('max_size', { exact: true })).toBeHidden()
+
+    const more = panel.getByRole('button', { name: '2 more fields' })
+    await expect(more).toHaveAttribute('aria-expanded', 'false')
+    await more.click()
+
+    // THEY OPEN IN PLACE, and the disclosure turns to fold them again.
     await expect(panel.getByLabel('content_type', { exact: true })).toBeVisible()
     await expect(panel.getByText('max_size', { exact: true })).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Fewer fields' })).toHaveAttribute('aria-expanded', 'true')
+
+    // ANOTHER STEP IS ANOTHER FORM, and it opens folded again.
+    await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
+    await expect(panel.getByText('convert.std', { exact: true })).toBeVisible()
+    await page.locator('.react-flow__node').getByText('rows', { exact: true }).click()
+    await expect(panel.getByRole('button', { name: '2 more fields' })).toBeVisible()
 })
 
 /** An http step with a header set, and every other key its block takes left to its default. */
@@ -253,6 +271,7 @@ test("an http step's headers are rows, its sizes text, and its defaults stay unw
     await page.locator('.react-flow__node').getByText('fetch', { exact: true }).click()
     const panel = page.locator('aside')
     await expect(panel.getByText('http.request', { exact: true })).toBeVisible()
+    await panel.getByRole('button', { name: /^\d+ more fields?$/ }).click()
 
     // A map's field: the innermost box holding both its name and the control looked for.
     const field = (name: string, holding: Locator) =>
@@ -262,19 +281,19 @@ test("an http step's headers are rows, its sizes text, and its defaults stay unw
             .filter({ has: holding })
             .last()
 
-    // THE HEADER IS A ROW: its name in the key box, its value in a box named by the key.
-    const headers = field('headers', page.getByRole('button', { name: 'Remove Accept', exact: true }))
-    await expect(headers.getByLabel('Key 1', { exact: true })).toHaveValue('Accept')
-    await expect(headers.getByLabel('Accept', { exact: true })).toHaveValue('text/csv')
-    await headers.getByLabel('Accept', { exact: true }).fill('application/json')
+    // THE HEADER IS A ROW: its name in the key box, its value beside it, both named by the map.
+    const headers = field('headers', page.getByRole('button', { name: 'Remove headers Accept', exact: true }))
+    await expect(headers.getByLabel('headers key 1', { exact: true })).toHaveValue('Accept')
+    await expect(headers.getByLabel('headers value 1', { exact: true })).toHaveValue('text/csv')
+    await headers.getByLabel('headers value 1', { exact: true }).fill('application/json')
 
     // A query value is read as the narrowest thing it parses as: 5 is a number, not the text "5".
     await field('query', page.getByRole('button', { name: 'Add', exact: true }))
         .getByRole('button', { name: 'Add', exact: true })
         .click()
-    const query = field('query', page.getByLabel('Key 1', { exact: true }))
-    await query.getByLabel('Key 1', { exact: true }).fill('page')
-    await query.getByLabel('page', { exact: true }).fill('5')
+    const query = page.getByLabel('query key 1', { exact: true })
+    await query.fill('page')
+    await page.getByLabel('query value 1', { exact: true }).fill('5')
 
     // A SIZE IS ONE BOX. Unset, it shows the default as what applies; 16KB is a size it takes.
     const size = panel.getByLabel('max_response', { exact: true })
@@ -299,6 +318,21 @@ test("an http step's headers are rows, its sizes text, and its defaults stay unw
     await expect(source).toContainText('max_response: 16KB')
     await expect(source).not.toContainText('method:')
     await expect(source).not.toContainText("'5'")
+
+    // A CHOICE IS WRITTEN ONCE CHOSEN, and its default chosen again takes the key out.
+    await panel.getByRole('tab', { name: LABELS.word.step.label }).click()
+    await panel.getByRole('button', { name: /^\d+ more fields?$/ }).click()
+    await panel.getByLabel('method', { exact: true }).click()
+    await page.getByRole('option', { name: 'POST', exact: true }).click()
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    await expect(source).toContainText('method: POST', { timeout: 30_000 })
+    await panel.getByRole('tab', { name: LABELS.word.step.label }).click()
+    await panel.getByLabel('method', { exact: true }).click()
+    await page.getByRole('option', { name: 'Default (GET)', exact: true }).click()
+    await expect(panel.getByLabel('method', { exact: true })).toContainText('GET (default)')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    await expect(source).toContainText('max_response: 16KB', { timeout: 30_000 })
+    await expect(source).not.toContainText('method:')
 })
 
 /**
