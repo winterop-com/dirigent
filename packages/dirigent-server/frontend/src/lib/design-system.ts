@@ -15,6 +15,7 @@ import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
 import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
+import type { SchemeChoiceWords } from '@winterop-com/sokkel-ui/SchemeChoice'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
 import type { ServerMenuWords } from '@winterop-com/sokkel-ui/ServerMenu'
@@ -25,6 +26,7 @@ import type { TopBarWords } from '@winterop-com/sokkel-ui/TopBar'
 import type { ShortcutsDialogWords } from '@winterop-com/sokkel-ui/ShortcutsDialog'
 import type { SignInWords } from '@winterop-com/sokkel-ui/SignIn'
 import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
+import type { ThemeCardsWords } from '@winterop-com/sokkel-ui/ThemeCards'
 import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
 import type { WindowedPaneWords } from '@winterop-com/sokkel-ui/WindowedPane'
@@ -305,3 +307,14 @@ export const SETTINGS_WORDS: Partial<SettingsDialogWords> = {
     close: LABELS.settings.close,
     back: LABELS.settings.back,
 }
+
+/** What the Theme pane's mode control says: the row it is, and its three settings. */
+export const SCHEME_WORDS: SchemeChoiceWords = {
+    scheme: LABELS.settings.row.appearance,
+    system: LABELS.shell.mode.system,
+    light: LABELS.shell.mode.light,
+    dark: LABELS.shell.mode.dark,
+}
+
+/** What the Theme pane's palette cards are called, for a screen reader. */
+export const THEME_CARDS_WORDS: ThemeCardsWords = { theme: LABELS.settings.row.palette }
