@@ -11,6 +11,9 @@
  * view can carry a value the other does not.
  */
 
+import type { CronFieldWords } from '@winterop-com/sokkel-ui/CronField'
+import { describeCron, type CronWords } from '@winterop-com/sokkel-ui/lib/cron'
+
 import type { JsonMap } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import type { RunPriority } from '@/lib/runs'
@@ -83,6 +86,84 @@ export function zoneOffset(zone: string, at: Date = new Date()): string {
     const named = parts.find((part) => part.type === 'timeZoneName')?.value ?? 'GMT'
     const offset = named.replace('GMT', 'UTC')
     return offset === 'UTC' ? LABELS.measure.utc_offset : offset
+}
+
+/** How many firings the instance reads back for a clock, which is how many rows the cron box draws. */
+export const FIRINGS_READ = 3
+
+/**
+ * What the cron box says. Nothing is drawn beside its label: the dialog's timezone picker, above
+ * the clock, is what names the zone.
+ */
+export const CRON_FIELD_WORDS: Partial<CronFieldWords> = {
+    label: LABELS.triggers.schedule.dialog.cron_expression,
+    zone: '',
+    invalid: LABELS.triggers.schedule.dialog.unreadable_clock,
+    invalidDetail: LABELS.triggers.schedule.dialog.cron_help,
+    next: () => LABELS.triggers.schedule.dialog.next_firings,
+    never: LABELS.triggers.schedule.dialog.never_fires,
+    checking: LABELS.triggers.schedule.dialog.checking,
+}
+
+const READING = LABELS.triggers.schedule.reading
+
+/** A list joined as the catalogue joins one: "Monday, Tuesday and Friday". */
+function listed(items: readonly string[]): string {
+    if (items.length <= 1) return items.join('')
+    return READING.list_last(items.slice(0, -1).join(READING.list_separator), items[items.length - 1] ?? '')
+}
+
+/**
+ * The words a cron expression is read back in, in this interface's catalogue. Putting the phrases
+ * together as a sentence is left to the library, which holds no words for it.
+ */
+export const CRON_READING_WORDS: Partial<CronWords> = {
+    dayNames: [
+        READING.day.sunday,
+        READING.day.monday,
+        READING.day.tuesday,
+        READING.day.wednesday,
+        READING.day.thursday,
+        READING.day.friday,
+        READING.day.saturday,
+    ],
+    monthNames: [
+        READING.month.january,
+        READING.month.february,
+        READING.month.march,
+        READING.month.april,
+        READING.month.may,
+        READING.month.june,
+        READING.month.july,
+        READING.month.august,
+        READING.month.september,
+        READING.month.october,
+        READING.month.november,
+        READING.month.december,
+    ],
+    list: listed,
+    everyMinute: READING.every_minute,
+    everyMinutes: READING.every_minutes,
+    everyHour: READING.every_hour,
+    everyHours: READING.every_hours,
+    hourly: READING.hourly,
+    at: (times) => READING.at(listed(times)),
+    minutesBetween: READING.minutes_between,
+    minutesOfHours: (minutes, hours) =>
+        READING.minutes_of_hours(listed(minutes.map(String)), listed(hours.map(String))),
+    daily: READING.daily,
+    onDays: (days) => READING.on_days(listed(days.map(READING.ordinal))),
+    weekdays: READING.weekdays,
+    weekends: READING.weekends,
+    weekdayRange: READING.weekday_range,
+    onWeekdays: (days) => READING.on_weekdays(listed(days)),
+    either: READING.either,
+    inMonths: (months) => READING.in_months(listed(months)),
+}
+
+/** A cron expression read back in words, or null when it is not five fields the box can read. */
+export function readCron(expression: string): string | null {
+    return describeCron(expression, CRON_READING_WORDS)
 }
 
 /** Why Create is shut on a schedule, which is what the button carries as its title. */

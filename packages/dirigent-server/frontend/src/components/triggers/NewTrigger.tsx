@@ -1,6 +1,7 @@
 import { Clock3 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
+import { CronField } from '@winterop-com/sokkel-ui/CronField'
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Picker } from '@/components/Picker'
 import { GeneratedForm } from '@/components/schema/GeneratedForm'
@@ -45,9 +46,12 @@ import type { RunPriority } from '@/lib/runs'
 import { formSchema, hasFields } from '@/lib/form-schema'
 import {
     browserZone,
+    CRON_FIELD_WORDS,
+    FIRINGS_READ,
     given,
     INHERITED,
     PRIORITIES,
+    readCron,
     readValues,
     unreadySchedule,
     writeValues,
@@ -212,30 +216,6 @@ export function NewSchedule({
                         placeholder={LABELS.triggers.schedule.dialog.description_hint}
                     />
 
-                    <div className="space-y-2">
-                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div className="space-y-2">
-                                <Label>{LABELS.word.clock}</Label>
-                                <Segmented
-                                    label={LABELS.word.clock}
-                                    size="md"
-                                    value={clock}
-                                    options={CLOCKS.map((one) => ({ value: one.value, label: one.label }))}
-                                    onChoose={setClock}
-                                />
-                            </div>
-                            <Field
-                                id="schedule-expression"
-                                label={written.label}
-                                value={expression}
-                                onChange={setExpression}
-                                placeholder={written.hint}
-                                mono
-                            />
-                        </div>
-                        <ClockReading reading={reading} zone={timezone} />
-                    </div>
-
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="space-y-2">
                             <Label htmlFor="schedule-timezone">{LABELS.word.timezone}</Label>
@@ -255,6 +235,38 @@ export function NewSchedule({
                             onChange={setPriority}
                         />
                     </div>
+
+                    <div className="space-y-2">
+                        <Label>{LABELS.word.clock}</Label>
+                        <Segmented
+                            label={LABELS.word.clock}
+                            size="md"
+                            value={clock}
+                            options={CLOCKS.map((one) => ({ value: one.value, label: one.label }))}
+                            onChoose={setClock}
+                        />
+                    </div>
+
+                    {clock === 'cron' ? (
+                        <CronBox
+                            expression={expression}
+                            onChange={setExpression}
+                            zone={timezone}
+                            reading={reading}
+                        />
+                    ) : (
+                        <div className="space-y-2">
+                            <Field
+                                id="schedule-expression"
+                                label={written.label}
+                                value={expression}
+                                onChange={setExpression}
+                                placeholder={written.hint}
+                                mono
+                            />
+                            <ClockReading reading={reading} zone={timezone} />
+                        </div>
+                    )}
 
                     <ParamsBox chosen={pipeline !== ''} schema={chosen.schema} params={params} />
 
@@ -279,6 +291,8 @@ export function NewSchedule({
 type Reading =
     /** Nothing has been written yet, so there is nothing to read back. */
     | { kind: 'blank' }
+    /** The instance has yet to answer for what is written now. */
+    | { kind: 'pending' }
     /** The next firings, oldest first, in the zone the schedule declares. */
     | { kind: 'firings'; firings: string[] }
     /** What the parser made of it, in its own words. */
@@ -286,7 +300,7 @@ type Reading =
 
 /** The next three firings, or what is wrong with the expression, in one muted line. */
 function ClockReading({ reading, zone }: { reading: Reading; zone: string }) {
-    if (reading.kind === 'blank') return null
+    if (reading.kind === 'blank' || reading.kind === 'pending') return null
     return (
         <p className="flex items-baseline gap-1.5 text-xs text-muted-foreground" data-testid="clock-reading">
             <Clock3 className="size-3 shrink-0 self-center" aria-hidden />
@@ -295,6 +309,58 @@ function ClockReading({ reading, zone }: { reading: Reading; zone: string }) {
                 : reading.firings.map((firing) => formatMoment(firing, zone)).join(' · ')}
         </p>
     )
+}
+
+/**
+ * A cron clock, its reading in words, and the firings the instance reads back in the chosen zone.
+ *
+ * THE INSTANCE'S VERDICT IS THE FIELD'S. The box always carries an answer from the instance --
+ * the firings, a refusal, or none yet while it is asked -- so an expression the core reads and
+ * the box's own five-field parse does not (`L`, `#`) is never marked, not even for the moment
+ * before the answer lands. Until it does, the box's own count shows muted.
+ */
+function CronBox({
+    expression,
+    onChange,
+    zone,
+    reading,
+}: {
+    expression: string
+    onChange: (expression: string) => void
+    zone: string
+    reading: Reading
+}) {
+    // Now, as of the last keystroke, which is what the box counts its own reading from.
+    const [from, setFrom] = useState(() => new Date())
+    const runs = useMemo(
+        () => (reading.kind === 'firings' ? reading.firings.map((firing) => new Date(firing)) : []),
+        [reading],
+    )
+    return (
+        <CronField
+            id="schedule-expression"
+            value={expression}
+            onChange={(next) => {
+                setFrom(new Date())
+                onChange(next)
+            }}
+            placeholder={CLOCK.cron.hint}
+            from={from}
+            count={FIRINGS_READ}
+            timeZone={zone}
+            runs={runs}
+            runsPending={reading.kind === 'pending'}
+            invalid={reading.kind === 'refused' ? reading.detail : undefined}
+            describe={readCron}
+            format={firingOf}
+            words={CRON_FIELD_WORDS}
+        />
+    )
+}
+
+/** One firing as every clock in this dialog draws it, on the wall clock of the schedule's zone. */
+function firingOf(firing: Date, zone: string): string {
+    return formatMoment(firing.toISOString(), zone)
 }
 
 /**
@@ -332,7 +398,7 @@ function useFirings(open: boolean, clock: Clock, expression: string, timezone: s
     }, [open, asked, clock, timezone, written])
 
     if (written === '') return { kind: 'blank' }
-    return answered !== null && answered.asked === asked ? answered.reading : { kind: 'blank' }
+    return answered !== null && answered.asked === asked ? answered.reading : { kind: 'pending' }
 }
 
 /** Every pipeline the instance holds, as the picker's rows, in the order they are read in. */

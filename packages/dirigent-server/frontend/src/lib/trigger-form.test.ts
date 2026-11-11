@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
     browserZone,
+    CRON_READING_WORDS,
     given,
+    readCron,
     readValues,
     unreadySchedule,
     writeValues,
@@ -69,5 +71,23 @@ describe('a box that was emptied', () => {
     it('is that member left unset rather than set to nothing', () => {
         expect(given('  ')).toBeNull()
         expect(given(' Nightly ')).toBe('Nightly')
+    })
+})
+
+describe('the cron box', () => {
+    it("reads an expression back in the catalogue's words, and one it cannot parse as nothing", () => {
+        expect(readCron('0 5 * * 1-5')).toBe('At 05:00 on weekdays')
+        expect(readCron('0 5 * * *')).toBe('Every day at 05:00')
+        expect(readCron('30 2 1,15 * *')).toBe('At 02:30 on the 1st and 15th')
+        expect(readCron('0 */6 * * *')).toBe('Every 6 hours')
+        expect(readCron('0 5 * * mon,wed,fri')).toBe('At 05:00 on Monday, Wednesday and Friday')
+        expect(readCron('0 5 L * *')).toBeNull()
+        expect(readCron('not cron')).toBeNull()
+    })
+
+    it('counts the days of the month the way English does', () => {
+        expect(CRON_READING_WORDS.onDays?.([1, 2, 3, 11, 12, 13, 21, 22, 23])).toBe(
+            'on the 1st, 2nd, 3rd, 11th, 12th, 13th, 21st, 22nd and 23rd',
+        )
     })
 })
