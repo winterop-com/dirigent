@@ -610,7 +610,10 @@ test('a plan says when applying would take a source away', async ({ page }) => {
             answer: { depends_on: ['ask'], reply: { status: 200, body: 'done' } },
         },
     })
-    await expect(dialog).toContainText(LABELS.editor.plan.retiring.sources.one('ask'))
+    const removes = consequences(dialog, LABELS.editor.plan.retiring.heading)
+    await expect(removes).toHaveCount(1)
+    await expect(removes.first()).toContainText(LABELS.editor.plan.retiring.sources.one)
+    await expect(removes.first()).toContainText('ask')
 })
 
 test('a plan says when applying would take a schedule away', async ({ page }) => {
@@ -619,8 +622,45 @@ test('a plan says when applying would take a schedule away', async ({ page }) =>
         triggers: { schedules: [{ code: 'nightly', cron: '0 3 * * *' }] },
         steps: { plain: { block: 'http.request', config: { url: 'http://127.0.0.1:9/before' } } },
     })
-    await expect(dialog).toContainText(LABELS.editor.plan.retiring.schedules.one('nightly'))
+    // What changes is one list and what goes is another, each a row per kind with its codes.
+    const changes = consequences(dialog, LABELS.editor.plan.changes_heading)
+    await expect(changes.filter({ hasText: LABELS.editor.plan.steps_changed.one })).toContainText('plain')
+    await expect(changes.filter({ hasText: LABELS.editor.plan.triggers_changed })).toHaveCount(1)
+    const removes = consequences(dialog, LABELS.editor.plan.retiring.heading)
+    await expect(removes).toHaveCount(1)
+    await expect(removes.first()).toContainText(LABELS.editor.plan.retiring.schedules.one)
+    await expect(removes.first()).toContainText('nightly')
+
+    // And the stored document stands against this one, the dropped schedule among the removed lines.
+    const diff = dialog.locator('[data-slot="code-block"]').filter({
+        hasText: LABELS.editor.plan.diff_title('1', '2'),
+    })
+    await expect(diff.locator('[data-variant="removed"]').filter({ hasText: 'nightly' })).toHaveCount(1)
+    await expect(diff.locator('[data-variant="added"]').filter({ hasText: '127.0.0.1:9/after' })).toHaveCount(
+        1,
+    )
+    // Its window is opened from the diff's own header.
+    await expect(
+        diff.locator('[data-slot="code-block-header"]').getByRole('button', {
+            name: LABELS.shell.open_in_window(LABELS.editor.plan.diff_title('1', '2')),
+        }),
+    ).toBeVisible()
 })
+
+test('a plan that rewrites nothing in the document draws no diff', async ({ page }) => {
+    await signIn(page)
+    await applyExample(page.request, DOCUMENT_EXAMPLE)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
+    await page.getByRole('button', { name: LABELS.action.validate }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText(/Apply writes nothing/)).toBeVisible()
+    await expect(dialog.locator('[data-slot="code-block"]')).toHaveCount(0)
+})
+
+/** The rows of the plan's list named by its heading. */
+function consequences(dialog: Locator, heading: string): Locator {
+    return dialog.getByRole('list', { name: heading, exact: true }).getByRole('listitem')
+}
 
 test('a canvas with nothing on it offers nothing to zoom', async ({ page }) => {
     await signIn(page)

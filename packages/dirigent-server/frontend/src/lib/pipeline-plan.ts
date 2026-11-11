@@ -10,7 +10,9 @@
  * issues a refusal lists are laid out identically whichever of the two asked for them.
  */
 
+import type { JsonMap } from '@/lib/api'
 import { counted, type Counted, LABELS } from '@/lib/labels'
+import { toYaml } from '@/lib/pipeline-document'
 import type {
     ApplyResult,
     DiffSummary,
@@ -23,15 +25,26 @@ import type {
 /** How loudly a plan reads: a refusal is not the same news as a version being written. */
 export type PlanTone = 'good' | 'quiet' | 'critical'
 
+/** One kind of thing a plan changes or takes away: a row of its list. */
+export interface PlanItem {
+    label: string
+    /** How many of that kind, where the row names them. */
+    count?: number
+    /** The codes or keys of what the row counts. */
+    codes?: readonly string[]
+    /** One line of prose under the label. */
+    detail?: string
+}
+
 /** One plan, rendered. */
 export interface PlanView {
     /** The one line at the top of the dialog. */
     headline: string
     tone: PlanTone
-    /** What differs from the version the instance holds, one line per kind of change. */
-    changes: string[]
-    /** What applying would take away from the instance, one line per kind of thing. */
-    retiring: string[]
+    /** What differs from the version the instance holds, one row per kind of change. */
+    changes: PlanItem[]
+    /** What applying would take away from the instance, one row per kind of thing. */
+    retiring: PlanItem[]
     /** What the instance refuses about the document, each addressed at a place in it. */
     issues: ValidationIssue[]
     /** Whether applying is offered at all. */
@@ -100,36 +113,67 @@ export function planView(result: Pick<ApplyResult, 'plan' | 'triggers' | 'source
 }
 
 /** What a dry run says applying would take away, and nothing where it takes nothing. */
-export function retiringIn(result: Pick<ApplyResult, 'triggers' | 'sources'>): string[] {
-    const lines: string[] = []
+export function retiringIn(result: Pick<ApplyResult, 'triggers' | 'sources'>): PlanItem[] {
+    const items: PlanItem[] = []
     const said = LABELS.editor.plan.retiring
-    named(lines, result.sources.removed, said.sources)
-    named(lines, result.triggers.schedules_removed, said.schedules)
-    return lines
+    named(items, result.sources.removed, said.sources)
+    named(items, result.triggers.schedules_removed, said.schedules)
+    return items
 }
 
-/** What a diff amounts to, one line per kind of change, in the order a reader scans them. */
-export function changesIn(diff: DiffSummary | null): string[] {
+/** What a diff amounts to, one row per kind of change, in the order a reader scans them. */
+export function changesIn(diff: DiffSummary | null): PlanItem[] {
     if (diff === null) return []
-    const lines: string[] = []
-    named(lines, diff.steps_added, LABELS.editor.plan.steps_added)
-    named(lines, diff.steps_removed, LABELS.editor.plan.steps_removed)
-    named(lines, diff.steps_changed, LABELS.editor.plan.steps_changed)
-    if (diff.params_changed) lines.push(LABELS.editor.plan.params_changed)
-    if (diff.triggers_changed) lines.push(LABELS.editor.plan.triggers_changed)
-    if (diff.requires_changed) lines.push(LABELS.editor.plan.requires_changed)
-    if (diff.report_changed) lines.push(LABELS.editor.plan.report_changed)
-    named(lines, diff.alerts_added, LABELS.editor.plan.alerts_added)
-    named(lines, diff.alerts_removed, LABELS.editor.plan.alerts_removed)
-    named(lines, diff.alerts_changed, LABELS.editor.plan.alerts_changed)
-    if (diff.settings_changed) lines.push(LABELS.editor.plan.settings_changed)
-    return lines
+    const said = LABELS.editor.plan
+    const items: PlanItem[] = []
+    named(items, diff.steps_added, said.steps_added)
+    named(items, diff.steps_removed, said.steps_removed)
+    named(items, diff.steps_changed, said.steps_changed)
+    if (diff.params_changed) items.push({ label: said.params_changed })
+    if (diff.triggers_changed) items.push({ label: said.triggers_changed })
+    if (diff.requires_changed) items.push({ label: said.requires_changed })
+    if (diff.report_changed) items.push({ label: said.report_changed })
+    named(items, diff.alerts_added, said.alerts_added)
+    named(items, diff.alerts_removed, said.alerts_removed)
+    named(items, diff.alerts_changed, said.alerts_changed)
+    if (diff.settings_changed) items.push({ label: said.settings_changed, detail: said.settings_detail })
+    return items
 }
 
-/** One line naming the steps a diff put in one of its lists, and nothing where the list is empty. */
-function named(lines: string[], steps: readonly string[], sentence: Counted<(steps: string) => string>) {
-    if (steps.length === 0) return
-    lines.push(counted(steps.length, sentence)(steps.join(', ')))
+/** One row counting and naming what a diff put in one of its lists, and nothing where the list is empty. */
+function named(items: PlanItem[], codes: readonly string[], label: Counted<string>) {
+    if (codes.length === 0) return
+    items.push({ label: counted(codes.length, label), count: codes.length, codes })
+}
+
+/** The stored document and the one being applied, as the two texts a diff sets side by side. */
+export interface DocumentDiff {
+    title: string
+    before: string
+    after: string
+}
+
+/**
+ * The stored document against the one an update would write, or null where there is no stored
+ * one or the two render the same.
+ */
+export function documentDiff(
+    plan: PipelinePlan,
+    stored: JsonMap | null,
+    applying: JsonMap,
+): DocumentDiff | null {
+    if (plan.action !== 'update' || stored === null) return null
+    const before = toYaml(stored)
+    const after = toYaml(applying)
+    if (before === after) return null
+    return {
+        title: LABELS.editor.plan.diff_title(
+            String(plan.current_version ?? 0),
+            String(plan.next_version ?? 0),
+        ),
+        before,
+        after,
+    }
 }
 
 /** What an apply did to the triggers, or nothing when it left every one of them alone. */

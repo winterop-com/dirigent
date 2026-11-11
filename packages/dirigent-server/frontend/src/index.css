@@ -9,11 +9,13 @@
 @import '@winterop-com/sokkel-ui/sources/Chip.css';
 @import '@winterop-com/sokkel-ui/sources/CodeEditor.css';
 @import '@winterop-com/sokkel-ui/sources/CommandPalette.css';
+@import '@winterop-com/sokkel-ui/sources/ConsequenceList.css';
 @import '@winterop-com/sokkel-ui/sources/CopyButton.css';
 @import '@winterop-com/sokkel-ui/sources/CronField.css';
 @import '@winterop-com/sokkel-ui/sources/DataTable.css';
 @import '@winterop-com/sokkel-ui/sources/DescriptionList.css';
 @import '@winterop-com/sokkel-ui/sources/DialogShell.css';
+@import '@winterop-com/sokkel-ui/sources/DiffView.css';
 @import '@winterop-com/sokkel-ui/sources/Dot.css';
 @import '@winterop-com/sokkel-ui/sources/Field.css';
 @import '@winterop-com/sokkel-ui/sources/GroupLabel.css';
