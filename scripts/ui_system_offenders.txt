@@ -7,8 +7,6 @@ icon-button	packages/dirigent-server/frontend/src/components/run/Panel.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/ApiChip.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/RefreshControl.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/alerting/ChannelStrip.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/list/Choice.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/list/TagFilter.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/AddStepMenu.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/Disclosure.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/StepNode.tsx	1
