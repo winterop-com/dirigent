@@ -2055,20 +2055,6 @@ const form = {
     required: 'required',
     /** Beside the label: what an empty box would submit. */
     default_is: (value: string) => `default ${value}`,
-    /** Under a JSON box, where leaving it empty is what submits the default. */
-    empty_submits_default: 'An empty box submits the default.',
-    /** A choice with nothing chosen and no default behind it. */
-    unset: 'unset',
-    /** The link over the fields a form folds away; the count decides which form is drawn. */
-    more_fields: {
-        one: (count: string) => `${count} more field`,
-        many: (count: string) => `${count} more fields`,
-    },
-    /** What an empty box shows where the schema declares no default: the shape it takes. */
-    placeholder: {
-        list: '["one", "two"]',
-        map: '{"key": "value"}',
-    },
     /**
      * The reader's words for the formats the shipped schemas publish, keyed by the schema's
      * own `format` with its hyphen written as an underscore, because a code has no hyphens. A
@@ -2111,26 +2097,6 @@ const form = {
         pairs: 'a map',
         json: 'JSON',
     },
-    /** Beside the label of a field whose value is a reference its own control cannot draw. */
-    written_as_reference: {
-        pairs: 'a reference, not a table',
-        select: 'a reference, not a choice',
-        switch: 'a reference, not a switch',
-    },
-    /** The two-column table a map of scalars is edited as. */
-    pairs: {
-        key: 'key',
-        value: 'value',
-        /** The column the remove button stands in, which is headed for a reader who hears it. */
-        remove: 'remove',
-        /** One cell, named for the field it is in and the row it is on. */
-        key_cell: (field: string, row: string) => `${field} key ${row}`,
-        value_cell: (field: string, row: string) => `${field} value ${row}`,
-        /** The button that takes a row away, named by the key on it. */
-        remove_key: (key: string, field: string) => `Remove ${key} from ${field}`,
-        /** The same button on a row that has no key yet. */
-        remove_row: (row: string, field: string) => `Remove row ${row} from ${field}`,
-    },
     /** The pane a program or a JSON value is opened out into. */
     in_window: (field: string) => `${field}, in a window`,
     /** What a field says when its value is not one the schema accepts. */
@@ -2161,11 +2127,6 @@ const form = {
         maximum: (label: string, most: string) => `${label} must be at most ${most}`,
         greater_than: (label: string, least: string) => `${label} must be greater than ${least}`,
         less_than: (label: string, most: string) => `${label} must be less than ${most}`,
-        /** Text in a JSON box that does not parse, where the engine said nothing itself. */
-        not_json: 'that is not JSON',
-        /** One cell of a map, holding something the map does not take. */
-        map_values: (label: string, shapes: string) => `${label} values must be ${shapes}`,
-        duplicate_key: (label: string, key: string) => `${label} carries ${key} twice`,
     },
 } as const
 
@@ -2795,8 +2756,6 @@ const connections = {
     empty: 'No connections.',
     /** Beside Save: what writing the settings does. */
     save_checks: 'Saving checks the connection.',
-    /** The heading over the password boxes. */
-    secrets_heading: 'Secrets',
     /** A secret in the dialog's facts that holds nothing. */
     secret_not_set: 'not set',
     /** A connection created with its settings alone: how the dialog says to complete it, and why Check is shut. */
@@ -2838,10 +2797,6 @@ const connections = {
     description_placeholder: 'What this credential is for. Markdown is rendered.',
     /** The heading over the controls the kind's own schema built. */
     settings_heading: 'Settings',
-    /** Why Save or Create is shut. `Refusal` is drawn beside the boxes it is about, so the
-     * sentence does not have to say which way to look. */
-    settings_refused: 'A setting is not valid for this kind.',
-
     /** The dialog that mints one, under its title. */
     sealed: 'Secret fields are sealed on the way in and never read back out.',
     /** An example of the shape a code is typed in. */
@@ -2853,11 +2808,6 @@ const connections = {
     needs_kind: 'Choose a kind.',
     /** Why Create is shut on a kind nothing here publishes a config for. */
     kind_unknown: (kind: string) => `This instance has no connection kind coded ${kind}.`,
-    unreadable_setting: 'A setting holds text that is not a value.',
-
-    /** A write-only password box, which says whether the instance already holds one. */
-    secret_stored: 'stored — typing replaces it, blank keeps it',
-    secret_unset: 'not set — type to set one',
 } as const
 
 /**

@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState, type ReactNode } from 'react'
 
 import { KindChip } from '@/components/KindChip'
 import { Disclosure } from '@/components/pipeline/Disclosure'
-import { SchemaForm } from '@/components/pipeline/SchemaForm'
+import { DocumentForm } from '@/components/schema/DocumentForm'
 import { Section } from '@/components/run/Panel'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
@@ -30,7 +30,8 @@ import {
     stepName,
     stepNames,
 } from '@/lib/pipeline-document'
-import { fieldsOf, validateFields } from '@/lib/schema-form'
+import { formSchema } from '@/lib/form-schema'
+import { fieldsOf, sameJson, validateFields } from '@/lib/schema-form'
 import { said } from '@/lib/refusal'
 import { sampleBody, type SourceOut } from '@/lib/sources'
 import { SourceFacts } from '@/components/triggers/Endpoint'
@@ -42,8 +43,11 @@ import {
     type SummaryPart,
 } from '@/lib/step-groups'
 import {
+    pickedSchema,
+    RETRY_SCHEMA,
     retryFields,
     retryValues,
+    STEP_SCHEMA,
     stepFields,
     stepKeyValues,
     withRetryKey,
@@ -61,12 +65,8 @@ import { Chip } from '@winterop-com/sokkel-ui/Chip'
  * display string is the least of what a step is.
  *
  * THE FORM IS THE BLOCK'S OWN SCHEMA. `GET /blocks/{id}` publishes a closed schema per block and
- * `lib/schema-form` turns it into fields, so a config key this instance does not take has no box
- * to be typed into and a value outside the schema is refused under the field it was typed in.
- *
- * THE CONFIG OPENS ON WHAT THE STEP NEEDS. A block may publish twenty keys and take two, so the
- * form draws what the schema requires and what this step already sets, and offers the rest behind
- * one link.
+ * sokkel-ui's `SchemaForm` draws it, so a config key this instance does not take has no box to be
+ * typed into and a value outside the schema is refused at the field it was typed in.
  *
  * A CONFIG FIELD THAT NAMES A THING SHOWS IT. The listings this panel is handed go to the config
  * form, where a field the block's schema marked as holding a connection's or a schema's code
@@ -135,6 +135,8 @@ export function StepTab({
     const [named, setNamed] = useState(stepName(document, step) ?? '')
     const config = configOf(document, step)
     const fields = useMemo(() => fieldsOf(block?.config_schema), [block])
+    const locked = disabled !== undefined
+    const configSchema = useMemo(() => formSchema(block?.config_schema, { locked }), [block, locked])
     // A step's config is the document's, so a `${...}` in one is the run's to resolve. Its
     // clocks and its retry budget below are the engine's own keys and are read literally.
     const problems = useMemo(() => validateFields(fields, config, true), [fields, config])
@@ -183,23 +185,15 @@ export function StepTab({
                     ) : block === null ? (
                         <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                     ) : (
-                        <SchemaForm
+                        <DocumentForm
                             // Choosing another step is another form, not the same one with new
                             // values in it, so every control starts from what that step carries.
                             key={step}
-                            fields={fields}
-                            values={config}
-                            problems={problems}
-                            disabled={disabled}
-                            fold
+                            schema={configSchema}
+                            value={config}
                             references={{ document, schemas, connections }}
                             deferred
-                            onChange={(name, value) => {
-                                const next = { ...config }
-                                if (value === undefined) delete next[name]
-                                else next[name] = value
-                                onConfig(next)
-                            }}
+                            onChange={onConfig}
                         />
                     )}
                 </Section>
@@ -231,28 +225,38 @@ export function StepTab({
                                         onDependsOn={onDependsOn}
                                     />
                                 ) : group.id === 'retry' ? (
-                                    <SchemaForm
+                                    <DocumentForm
                                         key={`retry-${step}`}
-                                        fields={group.fields}
-                                        values={retry}
-                                        problems={retryProblems}
-                                        disabled={disabled}
-                                        onChange={(name, value) => {
+                                        schema={formSchema(RETRY_SCHEMA, { locked })}
+                                        value={retry}
+                                        onChange={(next) => {
                                             changeDocument((current) =>
-                                                withRetryKey(current, step, name, value),
+                                                changed(retry, next).reduce(
+                                                    (written, name) =>
+                                                        withRetryKey(written, step, name, next[name]),
+                                                    current,
+                                                ),
                                             )
                                         }}
                                     />
                                 ) : (
-                                    <SchemaForm
+                                    <DocumentForm
                                         key={`${group.id}-${step}`}
-                                        fields={group.fields}
-                                        values={keys}
-                                        problems={wrong}
-                                        disabled={disabled}
-                                        onChange={(name, value) => {
+                                        schema={formSchema(
+                                            pickedSchema(
+                                                STEP_SCHEMA,
+                                                group.fields.map((field) => field.name),
+                                            ),
+                                            { locked },
+                                        )}
+                                        value={keys}
+                                        onChange={(next) => {
                                             changeDocument((current) =>
-                                                withStepKey(current, step, name, value),
+                                                changed(keys, next).reduce(
+                                                    (written, name) =>
+                                                        withStepKey(written, step, name, next[name]),
+                                                    current,
+                                                ),
                                             )
                                         }}
                                     />
@@ -286,6 +290,13 @@ export function StepTab({
                 </Callout>
             )}
         </div>
+    )
+}
+
+/** The keys whose value differs between two maps. */
+function changed(before: JsonMap, after: JsonMap): string[] {
+    return [...new Set([...Object.keys(before), ...Object.keys(after)])].filter(
+        (name) => !sameJson(before[name], after[name]),
     )
 }
 

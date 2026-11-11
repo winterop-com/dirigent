@@ -3,7 +3,13 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Picker } from '@/components/Picker'
-import { SchemaForm } from '@/components/pipeline/SchemaForm'
+import { GeneratedForm } from '@/components/schema/GeneratedForm'
+import {
+    SchemaIssueCount,
+    useSchemaForm,
+    type SchemaFormState,
+} from '@winterop-com/sokkel-ui/schema/SchemaForm'
+import type { JsonSchema } from '@winterop-com/sokkel-ui/schema/read'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@/components/Segmented'
@@ -36,7 +42,7 @@ import { byTitle, paramsOf, priorityOf, readAllPipelines, readPipeline } from '@
 import { refusalOf, said } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
 import type { RunPriority } from '@/lib/runs'
-import { fieldsOf, maySubmit, validateFields, withUnreadable, type FieldDescriptor } from '@/lib/schema-form'
+import { formSchema, hasFields } from '@/lib/form-schema'
 import {
     browserZone,
     given,
@@ -108,11 +114,12 @@ export function NewSchedule({
     const [busy, setBusy] = useState(false)
 
     const chosen = useChosenPipeline(pipeline)
-    const params = usePinned(chosen.fields)
+    const params = usePinned(chosen.schema)
     const reading = useFirings(open, clock, expression, timezone)
     const zones = useZones()
 
     const send = () => {
+        if (!params.submit()) return
         const payload: ScheduleIn = {
             code: code.trim(),
             name: given(named),
@@ -249,12 +256,13 @@ export function NewSchedule({
                         />
                     </div>
 
-                    <ParamsBox chosen={pipeline !== ''} fields={chosen.fields} params={params} />
+                    <ParamsBox chosen={pipeline !== ''} schema={chosen.schema} params={params} />
 
                     {problem !== null && <Refusal problem={problem} />}
                 </div>
 
                 <DialogFooter>
+                    <SchemaIssueCount form={params.form} />
                     <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
                     <Refusable why={shut}>
                         <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
@@ -366,7 +374,7 @@ function useZones(): PickerOption[] {
 }
 
 /** What the chosen pipeline takes and what its own runs are claimed at. */
-function useChosenPipeline(code: string): { fields: FieldDescriptor[]; priority: RunPriority | null } {
+function useChosenPipeline(code: string): { schema: JsonSchema; priority: RunPriority | null } {
     // Keyed by the pipeline it was read for, so choosing another one draws that one's form
     // rather than the last one's for a frame, with nothing cleared from inside an effect.
     const [read, setRead] = useState<{ of: string; document: JsonMap | null }>({ of: '', document: null })
@@ -389,14 +397,15 @@ function useChosenPipeline(code: string): { fields: FieldDescriptor[]; priority:
     }, [code])
 
     const document = read.of === code ? read.document : null
-    const fields = useMemo(() => fieldsOf(paramsOf(document)), [document])
-    return { fields, priority: document === null ? null : priorityOf(document) }
+    const schema = useMemo(() => formSchema(paramsOf(document)), [document])
+    return { schema, priority: document === null ? null : priorityOf(document) }
 }
 
 /** The pinned parameters, held as one map and edited as either of its two readings. */
 interface Params {
+    form: SchemaFormState
     values: JsonMap
-    /** Whether what is on screen is a value the pipeline would take. */
+    /** Whether the JSON reading parses. */
     ready: boolean
     /** Which reading is in front of somebody. */
     mode: 'form' | 'json'
@@ -405,11 +414,8 @@ interface Params {
     text: string
     unreadable: string | null
     write: (text: string) => void
-    set: (name: string, value: unknown) => void
-    touch: (name: string) => void
-    report: (name: string, message: string | null) => void
-    stated: ReadonlySet<string> | undefined
-    problems: Record<string, string>
+    /** Shows every issue the form has, in the form, and whether none stops the create. */
+    submit: () => boolean
     reset: () => void
 }
 
@@ -419,28 +425,20 @@ interface Params {
  * THE TWO READINGS ARE ONE VALUE. Switching to JSON writes the map out; typing JSON that parses
  * writes it back, so a value entered in either is there in the other. What does not parse is the
  * box's own until it does -- the map stays the last one that parsed, and Create is shut, because
- * a schedule pinned from a half-written box would pin something nobody typed.
+ * a schedule pinned from a half-written box would pin something nobody typed. Asking to create
+ * over a value the form refuses opens the form on it.
  */
-function usePinned(fields: FieldDescriptor[]): Params {
-    const [values, setValues] = useState<JsonMap>({})
+function usePinned(schema: JsonSchema): Params {
+    const form = useSchemaForm(schema, { initial: {} })
     const [mode, setMode] = useState<'form' | 'json'>('form')
     const [text, setText] = useState('{}')
     const [unreadable, setUnreadable] = useState<string | null>(null)
-    const [touched, setTouched] = useState<ReadonlySet<string>>(() => new Set())
-    const [unreadableFields, setUnreadableFields] = useState<ReadonlySet<string>>(() => new Set())
-    const problems = validateFields(fields, values)
-
-    const reset = () => {
-        setValues({})
-        setText('{}')
-        setUnreadable(null)
-        setTouched(new Set())
-        setUnreadableFields(new Set())
-    }
+    const values = (form.value ?? {}) as JsonMap
 
     return {
+        form,
         values,
-        ready: unreadable === null && maySubmit(problems, unreadableFields),
+        ready: unreadable === null,
         mode,
         show: (next) => {
             if (next === 'json') setText(writeValues(values))
@@ -454,42 +452,35 @@ function usePinned(fields: FieldDescriptor[]): Params {
             const read = readValues(written)
             if (read.ok) {
                 setUnreadable(null)
-                setValues(read.values)
+                form.setValue(read.values)
                 return
             }
             setUnreadable(read.message)
         },
-        set: (name, value) => {
-            setValues((current) => {
-                const next = { ...current }
-                if (value === undefined) delete next[name]
-                else next[name] = value
-                return next
-            })
+        submit: () => {
+            const ok = form.submit()
+            if (!ok) setMode('form')
+            return ok
         },
-        touch: (name) => {
-            setTouched((current) => (current.has(name) ? current : new Set(current).add(name)))
-        },
-        report: (name, message) => {
-            setUnreadableFields((current) => withUnreadable(current, name, message))
-        },
-        stated: touched,
-        problems,
         // A value pinned for one pipeline is not a value for the next, so choosing another one
         // is what empties them; the caller is what knows a pipeline was chosen.
-        reset,
+        reset: () => {
+            form.setValue({})
+            setText('{}')
+            setUnreadable(null)
+        },
     }
 }
 
 /** The pinned parameters, in whichever of their two readings is in front of somebody. */
 function ParamsBox({
     chosen,
-    fields,
+    schema,
     params,
 }: {
     /** Whether a pipeline has been chosen, which is what an empty box says the reason is. */
     chosen: boolean
-    fields: FieldDescriptor[]
+    schema: JsonSchema
     params: Params
 }) {
     return (
@@ -507,20 +498,12 @@ function ParamsBox({
                 />
             </div>
             <Surface tone="well" pad>
-                {fields.length === 0 ? (
+                {!hasFields(schema) ? (
                     <p className="text-sm text-muted-foreground">
                         {chosen ? LABELS.triggers.dialog.no_params : LABELS.triggers.dialog.no_pipeline}
                     </p>
                 ) : params.mode === 'form' ? (
-                    <SchemaForm
-                        fields={fields}
-                        values={params.values}
-                        problems={params.problems}
-                        stated={params.stated}
-                        onChange={params.set}
-                        onTouch={params.touch}
-                        onUnreadable={params.report}
-                    />
+                    <GeneratedForm form={params.form} />
                 ) : (
                     <div className="space-y-1">
                         <Textarea

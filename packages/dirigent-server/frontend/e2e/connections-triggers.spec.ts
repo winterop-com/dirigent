@@ -313,7 +313,7 @@ test('at 1024 the connections listing is a table, and a long code beside a long 
     await removeConnection(page.request, LONG_CONNECTION.code)
 })
 
-test('a connection opens a form whose secret box is empty and whose kind is fixed', async ({
+test('a connection opens a form whose secret is sealed and whose kind is fixed', async ({
     page,
     baseURL,
 }) => {
@@ -329,12 +329,15 @@ test('a connection opens a form whose secret box is empty and whose kind is fixe
     await expect(dialog).not.toContainText('a credential nothing may ever show')
     await dialog.getByRole('button', { name: LABELS.action.edit, exact: true }).click()
 
-    // The form holds the connection's own settings, and the password box starts empty --
-    // there is nothing to put in it, because no read anywhere returns a credential.
-    const secret = dialog.getByLabel('basic_password')
+    // The form holds the connection's own settings, and the secret it holds is sealed: it says
+    // it is set, and Replace opens an empty password box, because no read returns a credential.
+    await expect(dialog.getByText('Set', { exact: true })).toHaveCount(1)
+    await expect(dialog).not.toContainText('a credential nothing may ever show')
+    await dialog.getByRole('button', { name: 'Replace', exact: true }).click()
+    const secret = dialog.getByLabel('basic_password', { exact: true })
     await expect(secret).toHaveValue('')
     await expect(secret).toHaveAttribute('type', 'password')
-    await expect(dialog.getByLabel('base_url')).toHaveValue(baseURL ?? '')
+    await expect(dialog.getByLabel('base_url', { exact: true })).toHaveValue(baseURL ?? '')
 })
 
 test('the API chip stands with the verbs, and the create is the primary', async ({ page }) => {
@@ -461,11 +464,11 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     const kindRow = page.getByRole('option', { name: 'http', exact: true })
     await expect(kindRow.locator('[data-slot="mark"]')).toHaveCount(1)
     await kindRow.click()
-    await dialog.getByLabel('base_url').fill(baseURL ?? '')
-    await dialog.getByLabel('basic_password').fill(MINTED)
+    await dialog.getByLabel('base_url', { exact: true }).fill(baseURL ?? '')
+    await dialog.getByLabel('basic_password', { exact: true }).fill(MINTED)
 
     // A secret is written and never read, here as much as in the connection's own dialog.
-    await expect(dialog.getByLabel('basic_password')).toHaveAttribute('type', 'password')
+    await expect(dialog.getByLabel('basic_password', { exact: true })).toHaveAttribute('type', 'password')
 
     await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -475,14 +478,13 @@ test('a connection is minted through the form its own kind publishes', async ({ 
     await expect(row).toContainText('http')
     await expect(page.locator('body')).not.toContainText(MINTED)
 
-    // And its own dialog says the same: a stored credential, and an empty box to replace it with.
+    // And its own dialog says the same: a sealed credential, and Replace to change it.
     await row.click()
     const opened = page.getByRole('dialog')
     await opened.getByRole('button', { name: LABELS.action.edit, exact: true }).click()
-    const secret = opened.getByLabel('basic_password')
-    await expect(secret).toHaveValue('')
-    await expect(secret).toHaveAttribute('placeholder', /stored/)
-    await expect(opened.getByLabel('base_url')).toHaveValue(baseURL ?? '')
+    await expect(opened.getByText('Set', { exact: true })).toHaveCount(1)
+    await expect(opened.getByRole('button', { name: 'Replace', exact: true })).toHaveCount(1)
+    await expect(opened.getByLabel('base_url', { exact: true })).toHaveValue(baseURL ?? '')
 })
 
 test('a schedule shows its clock and its zone', async ({ page }) => {

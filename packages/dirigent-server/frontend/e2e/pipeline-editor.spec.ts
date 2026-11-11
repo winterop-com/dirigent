@@ -211,36 +211,20 @@ test('the stored document reads as its graph, and a step reads as its own config
     await expect(panel.getByLabel('target', { exact: true })).toBeVisible()
 })
 
-test('a step opens on what it needs, and the keys it leaves unset are one link', async ({ page }) => {
+test('a step draws every key its block takes, the ones it leaves unset among them', async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
 
     await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
 
     // rows runs storage.read, which requires a source and offers a content_type and a max_size.
-    // The document sets only the source, so the two it says nothing about are behind the link.
     await page.locator('.react-flow__node').getByText('rows', { exact: true }).click()
 
     const panel = page.locator('aside')
     await expect(panel.getByText('storage.read', { exact: true })).toBeVisible()
     await expect(panel.getByLabel('source', { exact: true })).toBeVisible()
-    await expect(panel.getByLabel('content_type', { exact: true })).toBeHidden()
-    await expect(panel.getByLabel('max_size', { exact: true })).toBeHidden()
-
-    const more = panel.getByRole('button', { name: '2 more fields' })
-    await expect(more).toBeVisible()
-    await more.click()
-
-    // THEY OPEN IN PLACE, and the link that opened them is gone.
     await expect(panel.getByLabel('content_type', { exact: true })).toBeVisible()
-    await expect(panel.getByLabel('max_size', { exact: true })).toBeVisible()
-    await expect(more).toBeHidden()
-
-    // ANOTHER STEP IS ANOTHER FORM, and it opens folded again.
-    await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
-    await expect(panel.getByText('convert.std', { exact: true })).toBeVisible()
-    await page.locator('.react-flow__node').getByText('rows', { exact: true }).click()
-    await expect(panel.getByRole('button', { name: '2 more fields' })).toBeVisible()
+    await expect(panel.getByText('max_size', { exact: true })).toBeVisible()
 })
 
 /**
