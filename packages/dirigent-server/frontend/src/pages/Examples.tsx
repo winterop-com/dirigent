@@ -11,6 +11,7 @@ import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented } from '@/components/Segmented'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { TagChips } from '@/components/TagChips'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { useRead } from '@/hooks/use-read'
@@ -33,7 +34,7 @@ import {
     type ExampleOut,
     type Holdings,
 } from '@/lib/examples'
-import { headingOf, oneLine } from '@/lib/identity'
+import { headingOf, itemOf, oneLine } from '@/lib/identity'
 import { chipWords, LISTING, SEARCH_PLACEHOLDER, SEARCH_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
@@ -58,23 +59,65 @@ const EXAMPLE_TAB = 'example'
 
 const exampleCode = (row: ExampleOut) => row.code
 
-/** How wide the Tags column is, in pixels, which is the room its chips fold to. */
-const TAGS_ROOM = 256
-
-/** An example's title: cut on one line in a table row, wrapped in full on a stacked card. */
-function ExampleTitle({ title, named }: { title: string; named: boolean }) {
+/**
+ * An example's title with its starter badge and what it carries, then its code and the first line
+ * of its description: the code beside the description in a row, on a line of its own on a card.
+ */
+function ExampleHeading({ row }: { row: ExampleOut }) {
     const { stacked } = useTableCell()
+    const heading = headingOf(row)
+    const carries = carriesNote(row)
+    const description = row.description === null ? null : oneLine(row.description)
+    const marks =
+        row.starter || carries !== null ? (
+            <>
+                {row.starter && (
+                    <Badge variant="outline" className="shrink-0">
+                        {LABELS.examples.starter_badge}
+                    </Badge>
+                )}
+                {carries !== null && (
+                    <span
+                        className="shrink-0 text-xs text-muted-foreground"
+                        title={LABELS.examples.carries_hint}
+                    >
+                        {carries}
+                    </span>
+                )}
+            </>
+        ) : undefined
+    if (stacked)
+        return (
+            <ItemHeading
+                {...itemOf(row)}
+                as="span"
+                lines={3}
+                chips={marks}
+                description={description ?? undefined}
+            />
+        )
     return (
-        <span
-            className={cn(
-                'font-semibold',
-                stacked ? 'overflow-visible whitespace-normal' : 'truncate',
-                !named && 'font-mono',
-            )}
-            title={title}
-        >
-            {title}
-        </span>
+        <div className="min-w-0">
+            <span className="flex items-center gap-2">
+                <span
+                    className={cn('truncate font-semibold', !heading.named && 'font-mono')}
+                    title={heading.title}
+                >
+                    {heading.title}
+                </span>
+                {marks}
+            </span>
+            <p className="flex items-center gap-2 text-xs">
+                {heading.code !== null && (
+                    <span className="font-mono text-muted-foreground">{heading.code}</span>
+                )}
+                {description !== null && (
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground" title={description}>
+                        {description}
+                    </span>
+                )}
+            </p>
+        </div>
     )
 }
 
@@ -353,51 +396,16 @@ function exampleColumns(
             id: 'example',
             header: LABELS.word.example.label,
             width: 'minmax(12rem,2fr)',
-            cell: (row) => {
-                const heading = headingOf(row)
-                const carries = carriesNote(row)
-                return (
-                    <div className="min-w-0">
-                        <span className="flex items-center gap-2">
-                            <ExampleTitle title={heading.title} named={heading.named} />
-                            {row.starter && (
-                                <Badge variant="outline" className="shrink-0">
-                                    {LABELS.examples.starter_badge}
-                                </Badge>
-                            )}
-                            {carries !== null && (
-                                <span
-                                    className="shrink-0 text-xs text-muted-foreground"
-                                    title={LABELS.examples.carries_hint}
-                                >
-                                    {carries}
-                                </span>
-                            )}
-                        </span>
-                        <p className="flex items-center gap-2 text-xs">
-                            {heading.code !== null && (
-                                <span className="font-mono text-muted-foreground">{heading.code}</span>
-                            )}
-                            {row.description !== null && (
-                                <span
-                                    className="min-w-0 flex-1 truncate text-muted-foreground"
-                                    title={oneLine(row.description)}
-                                >
-                                    {oneLine(row.description)}
-                                </span>
-                            )}
-                        </p>
-                    </div>
-                )
-            },
+            stackTitle: 'free',
+            cell: (row) => <ExampleHeading row={row} />,
         },
         {
             id: 'tags',
             header: LABELS.word.tags,
-            width: `${String(TAGS_ROOM)}px`,
+            width: 'minmax(10rem,1fr)',
             cell: (row) => {
                 const tags = row.tags.filter((tag) => tag !== STARTER_TAG)
-                return tags.length === 0 ? null : <TagChips tags={tags} room={TAGS_ROOM} onSelect={onTag} />
+                return tags.length === 0 ? null : <TagChips tags={tags} onSelect={onTag} />
             },
         },
         {

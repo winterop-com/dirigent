@@ -5,7 +5,7 @@ import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { MarkdownLine } from '@/components/Markdown'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
-import { DataTable, DataTableGroup, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { DataTable, DataTableGroup, TableCellFill, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
@@ -229,6 +229,9 @@ export function Blocks() {
     )
 }
 
+/** The narrowest an id column is drawn, so the summary cut under a short id still says something. */
+const SUMMARY_FLOOR = '16rem'
+
 /**
  * The columns, which differ only by how many shipped documents require each block.
  *
@@ -244,6 +247,7 @@ function blockColumns(uses: ReadonlyMap<string, number>): DataColumn<BlockEntry>
             id: 'block',
             header: LABELS.word.block.label,
             width: 'content',
+            minWidth: SUMMARY_FLOOR,
             cell: (entry) => (
                 <div className="min-w-0">
                     <div className="flex min-w-0 items-center gap-2">
@@ -251,8 +255,8 @@ function blockColumns(uses: ReadonlyMap<string, number>): DataColumn<BlockEntry>
                         <span className="font-mono text-sm font-semibold">{entry.id}</span>
                         <UnsafeChip entry={entry} />
                     </div>
-                    <p className="truncate text-xs text-muted-foreground" title={entry.summary}>
-                        {entry.summary}
+                    <p className="text-xs text-muted-foreground" title={entry.summary}>
+                        <TableCellFill>{entry.summary}</TableCellFill>
                     </p>
                 </div>
             ),
@@ -325,14 +329,15 @@ function entryColumns(kind: Registry['key']): DataColumn<CatalogEntry>[] {
             id: 'entry',
             header: LABELS.blocks.entry_header,
             width: 'content',
+            minWidth: SUMMARY_FLOOR,
             cell: (entry) => {
                 const summary =
                     typeof entry.config_schema.description === 'string' ? entry.config_schema.description : ''
                 return (
                     <div className="min-w-0">
                         <span className="font-mono text-sm font-semibold">{entry.id}</span>
-                        <p className="truncate text-xs text-muted-foreground" title={summary}>
-                            {summary}
+                        <p className="text-xs text-muted-foreground" title={summary}>
+                            <TableCellFill>{summary}</TableCellFill>
                         </p>
                     </div>
                 )

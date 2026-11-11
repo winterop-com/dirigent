@@ -8,7 +8,7 @@ import { AdminOnly } from '@/components/admin/AdminOnly'
 import { CreateToken } from '@/components/admin/CreateToken'
 import { CreateUser } from '@/components/admin/CreateUser'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
-import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@/components/PageState'
@@ -143,12 +143,6 @@ function Users() {
     )
 
     const columns = useMemo(() => userColumns(counts, setMintingFor), [counts])
-    // A fresh array once the counts land: the table measures its Account column again on new rows,
-    // and the count beside a username widens the cell.
-    const rows = useMemo(
-        () => (counts === null ? users.state.rows : [...users.state.rows]),
-        [users.state.rows, counts],
-    )
 
     return (
         <>
@@ -169,7 +163,7 @@ function Users() {
                 <DataTable
                     {...LISTING}
                     columns={columns}
-                    rows={rows}
+                    rows={users.state.rows}
                     rowKey={usernameOf}
                     onOpen={setChosen}
                     opened={(user) => chosen !== null && user.id === chosen.id}
@@ -244,30 +238,8 @@ function userColumns(
             width: 'content',
             minWidth: '14rem',
             maxWidth: '22rem',
-            cell: (user) => {
-                const held = counts?.get(user.username) ?? 0
-                return (
-                    <span className="flex min-w-0 items-center gap-2">
-                        <span className="min-w-0" title={LABELS.users.open_account(user.username)}>
-                            <ItemHeading
-                                {...itemOf({ code: user.username, name: user.name })}
-                                variant="inline"
-                                as="span"
-                                chips={
-                                    user.active ? undefined : (
-                                        <Chip tone="absent">{LABELS.state.armed.deactivated}</Chip>
-                                    )
-                                }
-                            />
-                        </span>
-                        {held > 0 && (
-                            <span className="shrink-0 text-xs whitespace-nowrap text-faint">
-                                {counted(held, LABELS.users.tokens_held)(String(held))}
-                            </span>
-                        )}
-                    </span>
-                )
-            },
+            stackTitle: 'free',
+            cell: (user) => <Account user={user} held={counts?.get(user.username) ?? 0} />,
         },
         {
             id: 'role',
@@ -316,4 +288,28 @@ function userColumns(
             ),
         },
     ]
+}
+
+/** An account's username and name, beside each other in a row and the name over the username on a card, with how many live tokens it holds. */
+function Account({ user, held }: { user: UserOut; held: number }) {
+    const { stacked } = useTableCell()
+    return (
+        <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0" title={LABELS.users.open_account(user.username)}>
+                <ItemHeading
+                    {...itemOf({ code: user.username, name: user.name })}
+                    variant={stacked ? 'stacked' : 'inline'}
+                    as="span"
+                    chips={
+                        user.active ? undefined : <Chip tone="absent">{LABELS.state.armed.deactivated}</Chip>
+                    }
+                />
+            </span>
+            {held > 0 && (
+                <span className="shrink-0 text-xs whitespace-nowrap text-faint">
+                    {counted(held, LABELS.users.tokens_held)(String(held))}
+                </span>
+            )}
+        </span>
+    )
 }

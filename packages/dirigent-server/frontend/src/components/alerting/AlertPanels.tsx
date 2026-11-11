@@ -35,7 +35,7 @@ import { kindGlyph } from '@/lib/glyphs'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
-import { cn } from '@/lib/utils'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 
 /**
@@ -439,12 +439,13 @@ export function Target({ notifier, connection }: { notifier: string; connection:
     return (
         <span className="flex min-w-0 items-center gap-1.5">
             <Mark glyph={kindGlyph(notifier)} />
-            <span
-                className={cn('truncate', connection === null ? 'text-sm' : 'font-mono text-xs')}
-                title={connection ?? notifier}
-            >
-                {connection ?? notifier}
-            </span>
+            {connection === null ? (
+                <span className="truncate text-sm" title={notifier}>
+                    {notifier}
+                </span>
+            ) : (
+                <InlineCode value={connection} bare size="xs" />
+            )}
         </span>
     )
 }
@@ -454,14 +455,7 @@ export function Channel({ notifier, connection }: { notifier: string; connection
     return (
         <span className="flex min-w-0 flex-wrap items-baseline gap-1.5">
             <span className="text-sm">{notifier}</span>
-            {connection !== null && (
-                <span
-                    className="max-w-full truncate font-mono text-xs text-muted-foreground"
-                    title={connection}
-                >
-                    {connection}
-                </span>
-            )}
+            {connection !== null && <InlineCode value={connection} tone="muted" bare size="xs" />}
         </span>
     )
 }

@@ -687,7 +687,9 @@ from a fixed vocabulary is `width: 'content'`** -- a block id, a worker, a token
 wide as its widest drawn cell up to its `maxWidth`, so a reader tells one row from another before
 anything else is given room. Users' Account column is `content` with a `minWidth` of 14rem. A
 measured `content` column counts toward the listing's least width, so a wide one stacks the rows
-sooner. A value
+sooner. Prose under such a title is not measured: a Blocks row's summary is a `TableCellFill`,
+cut in the width the id and its chips gave the column -- never under its 16rem `minWidth` --
+with the whole of it in `title`, so the families' id columns line up on the ids. A value
 -- a chip, an instant, a duration, a count, a mark -- is drawn from a fixed vocabulary and
 declares the floor it needs to say itself on one line as `minmax(<floor>,1fr)`, sharing what the
 title left. Prose -- a description, a path, the sentence a run failed with -- is
@@ -733,9 +735,9 @@ says how many it is holding, spells them on hover, and opens them as the same fi
 other chip on the row is a door to -- and never more than eight chips are drawn whatever the
 room. **The fold is computed, not guessed**: a chip is mono at 12px, so how wide one is is
 arithmetic over its characters, and `lib/tag-fold` fits the words -- the `+N` counted as the chip
-it is -- into the fixed width the Tags column declares, passed to `TagChips` as its `room`. The
-fold is the table's: on a stacked card, which `TagChips` knows from `useTableCell`, the chips wrap
-across the card, still no more than eight.
+it is -- into the width the Tags column is drawn at, which `TagChips` reads from `useTableCell`, so
+the column is a share with a floor rather than a fixed width. On a stacked card the chips wrap
+across the card, still no more than eight; outside a table they wrap.
 
 **A choice closes on its choice; a set stays open.** `components/list/Choice` is one value out of
 a menu of them, and picking one shuts the menu, because the question has been answered. A set is
@@ -1424,7 +1426,10 @@ account menu lives at its foot.
 
 **A listing row becomes a card where the table will not fit**, which on a phone is every
 listing. `DataTable` draws a narrow list as one row per record: its first column as the row's
-title, on one line, and every other column on a line after its column's name. A column headed by
+title, and every other column on a line after its column's name. A title that is a name with its
+code is `stackTitle: 'free'`: its cell reads `stacked` from `useTableCell` and draws `ItemHeading`
+stacked (a run's `PipelineRef` is already name over code), so the code has a line of its own under
+the name and is never cut. Any other title is one line. A column headed by
 nothing is a control -- New token, Revoke -- and takes its line without a name, at the edge the
 facts start from. What a row does as a table it does here: a row that opens a panel opens it, and
 a row that is a link is one. An account's tokens stack the same way under its row.

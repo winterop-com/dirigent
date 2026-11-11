@@ -14,32 +14,34 @@ import { useTableCell } from '@winterop-com/sokkel-ui/DataTable'
 /**
  * Every tag a row wears, folded to the room its column has.
  *
- * THE FOLD IS COMPUTED, NOT GUESSED. `lib/tag-fold` fits the words into `room`, the width in
- * pixels of the column the chips stand in, counting the `+N` as the chip it is, so what is drawn
- * is what fits on one line and never one chip past it. Without a room every chip up to the cap
- * is drawn and wraps. On a stacked card the room is ignored and the chips wrap across the card's
- * width; outside a `DataTable` the chips are never stacked.
+ * THE FOLD IS COMPUTED, NOT GUESSED. `lib/tag-fold` fits the words into the room `useTableCell`
+ * measures for the cell's column, counting the `+N` as the chip it is, so what is drawn is what
+ * fits on one line and never one chip past it. Until the column is measured the chips stand on
+ * one line, cut at its edge. On a stacked card the chips wrap across the card's width. Outside a
+ * `DataTable` there is no room to fold to, and every chip up to the cap is drawn and wraps.
  */
 export function TagChips({
     tags,
-    room = 0,
     onSelect,
 }: {
     tags: readonly string[]
-    /** The width of the column the chips stand in, in pixels; 0 for no bound. */
-    room?: number
     /** What clicking a tag asks for, which is always "narrow to this". */
     onSelect?: (tag: string) => void
 }) {
-    const { stacked } = useTableCell()
+    const { width, stacked, columnWidth } = useTableCell()
     if (tags.length === 0) return null
-    const bound = stacked ? 0 : room
+    const inTable = width > 0
+    const bound = stacked ? 0 : columnWidth
     const fold = foldTags(tags, bound, 1)
     return (
         <span
             className={cn(
                 'flex items-center gap-1',
-                stacked ? 'flex-wrap' : bound > 0 ? 'flex-nowrap' : 'w-max max-w-[25cqi] flex-wrap',
+                stacked
+                    ? 'flex-wrap'
+                    : inTable
+                      ? 'flex-nowrap overflow-hidden'
+                      : 'w-max max-w-[25cqi] flex-wrap',
             )}
         >
             {fold.shown.map((tag) => (
