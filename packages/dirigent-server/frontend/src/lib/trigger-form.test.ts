@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
     browserZone,
-    CRON_READING_WORDS,
     given,
     readCron,
     readValues,
@@ -86,8 +85,8 @@ describe('the cron box', () => {
     })
 
     it('counts the days of the month the way English does', () => {
-        expect(CRON_READING_WORDS.onDays?.([1, 2, 3, 11, 12, 13, 21, 22, 23])).toBe(
-            'on the 1st, 2nd, 3rd, 11th, 12th, 13th, 21st, 22nd and 23rd',
+        expect(readCron('0 5 1,2,3,11,12,13,21,22,23 * *')).toBe(
+            'At 05:00 on the 1st, 2nd, 3rd, 11th, 12th, 13th, 21st, 22nd and 23rd',
         )
     })
 })

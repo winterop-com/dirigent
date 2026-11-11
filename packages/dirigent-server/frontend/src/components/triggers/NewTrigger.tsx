@@ -315,9 +315,10 @@ function ClockReading({ reading, zone }: { reading: Reading; zone: string }) {
  * A cron clock, its reading in words, and the firings the instance reads back in the chosen zone.
  *
  * THE INSTANCE'S VERDICT IS THE FIELD'S. The box always carries an answer from the instance --
- * the firings, a refusal, or none yet while it is asked -- so an expression the core reads and
+ * the firings, a refusal, or that it is still being asked -- so an expression the core reads and
  * the box's own five-field parse does not (`L`, `#`) is never marked, not even for the moment
- * before the answer lands. Until it does, the box's own count shows muted.
+ * before the answer lands. Until it does, the box's own count shows muted. Such an expression
+ * gets no words, since the instance reads back firings and no sentence.
  */
 function CronBox({
     expression,
@@ -333,7 +334,7 @@ function CronBox({
     // Now, as of the last keystroke, which is what the box counts its own reading from.
     const [from, setFrom] = useState(() => new Date())
     const runs = useMemo(
-        () => (reading.kind === 'firings' ? reading.firings.map((firing) => new Date(firing)) : []),
+        () => (reading.kind === 'firings' ? reading.firings.map((firing) => new Date(firing)) : null),
         [reading],
     )
     return (

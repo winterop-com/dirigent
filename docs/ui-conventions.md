@@ -533,9 +533,10 @@ expression read back in words from `triggers.schedule.reading`, and the three fi
 answers with, each on the zone's wall clock and spelled as `formatMoment` spells the other clocks'
 firings. The field always holds the instance's verdict, so an expression the core reads and the
 field's own parse does not, such as `0 5 L * *` or `0 5 * * 1#2`, is valid and shows the
-instance's firings. Until the answer for what is written now arrives, the field's own count shows
-muted beside "Checking"; a refusal is the field's issue, in this interface's sentence for its
-code, and it shuts Create. An empty field says nothing yet and draws dashed rows. An interval and
+instance's firings; the instance reads back firings and no sentence, so such an expression gets
+no words. Until the answer for what is written now arrives, the field's own count shows muted
+beside "Checking"; a refusal is the field's issue, in this interface's sentence for its code, it
+shuts Create, and a refused expression is not read back in words. An empty field says nothing yet and draws dashed rows. An interval and
 a one-time clock keep a plain box with the firings in one muted line under it.
 
 ## A listing is a cursor walk
@@ -1146,7 +1147,8 @@ by a count of each side that changed. In the dialog it opens on its changes: unc
 than three lines from a change fold into a row that opens on a press, and the window button sits
 in the diff's own header, after the counts. It declares no height, because folding is what keeps
 it short and the dialog's verbs stand in a footer its body scrolls under, so a cap would only put
-a second scroll inside the first. The window draws every line. Where the two render the same nothing is drawn -- not a diff saying "No changes" --
+a second scroll inside the first. The window draws every line, with no title of its own, since
+the window's title names the document: its counts float at the top end rather than take a row. Where the two render the same nothing is drawn -- not a diff saying "No changes" --
 and the plan's own line says it once. What an apply did to its sources and schedules is the note that follows
 it. **A token an apply created is shown once, the way a rotated one is**, because the answer to that
 apply is the only time it can be read: `MintedToken` stands over the editor before anything moves on.
@@ -2492,7 +2494,7 @@ the one palette.
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
 | `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A titled listing is a `flush` `Section` with its count as `meta`, around a `DataTable` with `framed={false}` |
 | `DataTable` (sokkel-ui) | Every listing, spread with `LISTING` (`variant="list"`, `resizable={false}`, `stackBelow` and `minWidth`): grid tracks per column with the title `width: 'content'`, a cell's control pressed on its own without opening the row, `onOpen` and `opened` for what a row opens, `rowTone="muted"` for a row no longer live, `rowHeight="auto"` where a cell is two lines, `detail`, `hasDetail` and `expandLabel` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead`, and `empty` for the one line a listing with no rows says |
-| `ConsequenceList`, `DiffView` (sokkel-ui) | `ConsequenceList` is what an action changes or takes with it, a row per kind with its `count` and a `detail` line, under a heading from the catalogue: `neutral` for what changes, `critical` for what goes; it draws nothing without rows. `DiffView` is two versions of a text as one list of lines, `size="sm"` in a dialog, inside a `WindowedPane` with `WindowedPaneButton` in its `actions` slot; it folds unchanged runs in the pane and draws every line (`context={Infinity}`) in the window, says `DIFF_WORDS`, and a caller that would hand it two equal texts draws nothing instead |
+| `ConsequenceList`, `DiffView` (sokkel-ui) | `ConsequenceList` is what an action changes or takes with it, a row per kind with its `count` and a `detail` line, under a heading from the catalogue: `neutral` for what changes, `critical` for what goes; it draws nothing without rows. `DiffView` is two versions of a text as one list of lines, `size="sm"` in a dialog, inside a `WindowedPane` with `WindowedPaneButton` at its default `icon-xs` in its `actions` slot; it folds unchanged runs in the pane and draws every line (`context={Infinity}`) in the window, with no `title` there so no header row is drawn, says `DIFF_WORDS`, and a caller that would hand it two equal texts draws nothing instead |
 | `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface

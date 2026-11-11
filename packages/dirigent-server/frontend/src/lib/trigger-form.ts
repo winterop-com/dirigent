@@ -107,17 +107,11 @@ export const CRON_FIELD_WORDS: Partial<CronFieldWords> = {
 
 const READING = LABELS.triggers.schedule.reading
 
-/** A list joined as the catalogue joins one: "Monday, Tuesday and Friday". */
-function listed(items: readonly string[]): string {
-    if (items.length <= 1) return items.join('')
-    return READING.list_last(items.slice(0, -1).join(READING.list_separator), items[items.length - 1] ?? '')
-}
-
 /**
  * The words a cron expression is read back in, in this interface's catalogue. Putting the phrases
  * together as a sentence is left to the library, which holds no words for it.
  */
-export const CRON_READING_WORDS: Partial<CronWords> = {
+const CRON_READING_WORDS: Partial<CronWords> = {
     dayNames: [
         READING.day.sunday,
         READING.day.monday,
@@ -141,24 +135,25 @@ export const CRON_READING_WORDS: Partial<CronWords> = {
         READING.month.november,
         READING.month.december,
     ],
-    list: listed,
+    separator: READING.separator,
+    lastSeparator: READING.last_separator,
+    ordinal: READING.ordinal,
     everyMinute: READING.every_minute,
     everyMinutes: READING.every_minutes,
     everyHour: READING.every_hour,
     everyHours: READING.every_hours,
     hourly: READING.hourly,
-    at: (times) => READING.at(listed(times)),
+    at: READING.at,
     minutesBetween: READING.minutes_between,
-    minutesOfHours: (minutes, hours) =>
-        READING.minutes_of_hours(listed(minutes.map(String)), listed(hours.map(String))),
+    minutesOfHours: READING.minutes_of_hours,
     daily: READING.daily,
-    onDays: (days) => READING.on_days(listed(days.map(READING.ordinal))),
+    onDays: READING.on_days,
     weekdays: READING.weekdays,
     weekends: READING.weekends,
     weekdayRange: READING.weekday_range,
-    onWeekdays: (days) => READING.on_weekdays(listed(days)),
+    onWeekdays: READING.on_weekdays,
     either: READING.either,
-    inMonths: (months) => READING.in_months(listed(months)),
+    inMonths: READING.in_months,
 }
 
 /** A cron expression read back in words, or null when it is not five fields the box can read. */
