@@ -796,9 +796,7 @@ test('a cron clock the instance refuses carries its sentence as the issue, and s
     await expect(dialog.getByRole('button', { name: LABELS.action.create.verb })).toBeDisabled()
 })
 
-test("a cron clock the instance reads and the box cannot is taken at the instance's word", async ({
-    page,
-}) => {
+test("the last day of the month is read back in words and taken at the instance's word", async ({ page }) => {
     await signIn(page)
     await applyExample(page.request, CRON.file)
 
@@ -815,7 +813,6 @@ test("a cron clock the instance reads and the box cannot is taken at the instanc
             response.request().postDataJSON()?.cron === '0 5 L * *',
     )
 
-    // The last day of the month is the core's syntax and not the box's five fields.
     const box = dialog.getByLabel(LABELS.triggers.schedule.dialog.cron_expression, { exact: true })
     await box.fill('0 5 L * *')
     await expect(box).not.toHaveAttribute('aria-invalid')
@@ -833,6 +830,7 @@ test("a cron clock the instance reads and the box cannot is taken at the instanc
         await expect(rows.nth(at)).toContainText(new RegExp(`\\b${day} [A-Z][a-z]{2} 05:00$`))
     }
     await expect(box).not.toHaveAttribute('aria-invalid')
+    await expect(dialog.getByText(LABELS.triggers.schedule.reading.last_day)).toBeVisible()
     await expect(
         dialog.getByText(LABELS.triggers.schedule.dialog.unreadable_clock, { exact: true }),
     ).toHaveCount(0)

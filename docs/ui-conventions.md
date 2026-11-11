@@ -531,10 +531,10 @@ above the clock, and that picker is the only place the dialog names it. A cron c
 sokkel-ui's `CronField`, with `0 5 * * *` as its placeholder and no zone beside its label: the
 expression read back in words from `triggers.schedule.reading`, and the three firings the instance
 answers with, each on the zone's wall clock and spelled as `formatMoment` spells the other clocks'
-firings. The field always holds the instance's verdict, so an expression the core reads and the
-field's own parse does not, such as `0 5 L * *` or `0 5 * * 1#2`, is valid and shows the
-instance's firings; the instance reads back firings and no sentence, so such an expression gets
-no words. Until the answer for what is written now arrives, the field's own count shows muted
+firings. The field always holds the instance's verdict, so the field's own parse never marks an
+expression the core reads. The last day (`L`), the last weekday (`LW`), the weekday nearest a day
+(`15W`), the nth (`5#2`) and the last (`5L`) day of the week are read back in words like any
+other expression. Until the answer for what is written now arrives, the field's own count shows muted
 beside "Checking"; a refusal is the field's issue, in this interface's sentence for its code, it
 shuts Create, and a refused expression is not read back in words. An empty field says nothing yet and draws dashed rows. An interval and
 a one-time clock keep a plain box with the firings in one muted line under it.

@@ -2729,6 +2729,16 @@ const triggers = {
             on_days: (days: string) => `on the ${days}`,
             weekdays: 'on weekdays',
             weekends: 'on weekends',
+            /** `L` in the day of the month. */
+            last_day: 'on the last day of the month',
+            /** `LW` in the day of the month. */
+            last_weekday: 'on the last weekday of the month',
+            /** `15W`, the day arriving as an ordinal: "on the weekday nearest the 15th". */
+            nearest_weekday: (day: string) => `on the weekday nearest the ${day}`,
+            /** `5#2`, the place arriving as an ordinal: "on the 2nd Friday of the month". */
+            nth_of: (nth: string, day: string) => `on the ${nth} ${day} of the month`,
+            /** `5L`: "on the last Friday of the month". */
+            last_of: (day: string) => `on the last ${day} of the month`,
             /** A run of days of the week: "on Monday to Thursday". */
             weekday_range: (from: string, to: string) => `on ${from} to ${to}`,
             on_weekdays: (days: string) => `on ${days}`,
