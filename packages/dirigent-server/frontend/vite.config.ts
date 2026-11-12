@@ -108,11 +108,21 @@ function appearanceScript(): Plugin {
     }
 }
 
+/**
+ * sokkel-ui-graph's fallback elk, `elkjs/lib/elk.bundled.js`, resolves to a stub that throws:
+ * the app sets its own elk, in a worker, before any graph is laid out.
+ */
 export default defineConfig({
     base: '/',
     plugins: [react(), tailwindcss(), precompress(), appearanceScript()],
     resolve: {
-        alias: [{ find: '@', replacement: path.resolve(import.meta.dirname, './src') }],
+        alias: [
+            { find: '@', replacement: path.resolve(import.meta.dirname, './src') },
+            {
+                find: /^elkjs\/lib\/elk\.bundled\.js$/,
+                replacement: path.resolve(import.meta.dirname, './src/lib/elk-bundled-stub.ts'),
+            },
+        ],
     },
     server: { proxy },
     build: {
