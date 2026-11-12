@@ -46,7 +46,7 @@ import { listeningLine, readPipelineSources, type SourceOut } from '@/lib/source
  *
  * Each box is titled by the step's name or key, its second line the key under a name and the
  * block it runs, or what a source listens to on a dashed box. A fan-out's count stands at the end
- * of the second line behind the stacked glyph, and pointing at it says what `for_each` does. A
+ * of the title line behind the stacked glyph, and pointing at it says what `for_each` does. A
  * step whose block this instance does not publish wears `not installed` and the issue saying why,
  * which gives its box the critical edge; one that differs from the version the instance holds
  * wears `edited`. Every box keeps room for either badge and for the issue mark, so an edit or the
