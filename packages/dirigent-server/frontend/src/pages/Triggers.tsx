@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
+import { Instant } from '@/components/Instant'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { SECTION_LISTING, shutWith } from '@/lib/design-system'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
@@ -16,7 +17,6 @@ import { SchedulePanel, SourcePanel } from '@/components/triggers/TriggerPanel'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRowPress } from '@/hooks/use-row-press'
-import { formatInstant, formatRelative } from '@/lib/format'
 import { headingOf, itemOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
@@ -355,9 +355,7 @@ const SOURCE_COLUMNS: DataColumn<SourceOut>[] = [
             row.last_input_at === null ? (
                 <span className="text-xs text-faint">{LABELS.word.never}</span>
             ) : (
-                <span className="text-xs text-muted-foreground" title={formatInstant(row.last_input_at)}>
-                    {formatRelative(row.last_input_at)}
-                </span>
+                <Instant className="text-xs text-muted-foreground" at={row.last_input_at} />
             ),
     },
 ]
@@ -470,9 +468,7 @@ function LastFiring({ row }: { row: ScheduleRow }) {
     return (
         <span className="flex flex-wrap items-center gap-x-2 text-xs">
             {view !== null && <Dot tone={view.tone} />}
-            <span className="text-muted-foreground" title={formatInstant(row.schedule.last_fired_at)}>
-                {formatRelative(row.schedule.last_fired_at)}
-            </span>
+            <Instant className="text-muted-foreground" at={row.schedule.last_fired_at} />
             {view !== null && <span>{view.label}</span>}
             {view !== null && view.runId !== null && (
                 <Link

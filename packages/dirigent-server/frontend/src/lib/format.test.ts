@@ -193,20 +193,36 @@ describe('how long ago something was', () => {
     const ago = (milliseconds: number) => formatRelative(new Date(now - milliseconds).toISOString(), now)
     const ahead = (milliseconds: number) => formatRelative(new Date(now + milliseconds).toISOString(), now)
 
-    test('is "just now" for the last three quarters of a minute, either side of now', () => {
+    test('is "just now" within a minute, either side of now', () => {
         expect(ago(0)).toBe('just now')
-        expect(ago(44_000)).toBe('just now')
-        expect(ahead(44_000)).toBe('just now')
+        expect(ago(59_000)).toBe('just now')
+        expect(ahead(59_000)).toBe('just now')
     })
 
-    test('rises through minutes, hours and days, one unit at a time', () => {
+    test('rises through minutes, hours, days and weeks, one unit at a time', () => {
         expect(ago(120_000)).toBe('2m ago')
         expect(ago(3 * 3_600_000)).toBe('3h ago')
         expect(ago(2 * 86_400_000)).toBe('2d ago')
-        expect(ago(30 * 86_400_000)).toBe('30d ago')
+        expect(ago(14 * 86_400_000)).toBe('2w ago')
     })
 
-    test('gives up on recency past a month and states the date', () => {
+    // Truncated, not rounded: a reading never claims more time has passed than has.
+    test('says the whole units the distance holds and drops the rest', () => {
+        expect(ago(59 * 60_000)).toBe('59m ago')
+        expect(ago(89 * 60_000)).toBe('1h ago')
+        expect(ago(119 * 60_000)).toBe('1h ago')
+        expect(ago(36 * 3_600_000)).toBe('1d ago')
+    })
+
+    test('keeps to numbers rather than words such as "yesterday"', () => {
+        expect(ago(86_400_000)).toBe('1d ago')
+        expect(ago(7 * 86_400_000)).toBe('1w ago')
+    })
+
+    test('gives up on recency at a month and states the date', () => {
+        timesMode.set('utc')
+        expect(ago(29 * 86_400_000)).toBe('4w ago')
+        expect(ago(30 * 86_400_000)).toBe('2026-02-02')
         expect(ago(400 * 86_400_000)).not.toMatch(/ago$/)
     })
 
@@ -222,17 +238,17 @@ describe('how long ago something was', () => {
     })
 
     test('crosses now at the same boundary in both directions', () => {
-        expect(ago(45_000)).toBe('1m ago')
-        expect(ahead(45_000)).toBe('in 1m')
+        expect(ago(60_000)).toBe('1m ago')
+        expect(ahead(60_000)).toBe('in 1m')
     })
 
     test('reads either side of now at the same distance the same way', () => {
-        expect(ago(30 * 86_400_000)).toBe('30d ago')
-        expect(ahead(30 * 86_400_000)).toBe('in 30d')
+        expect(ago(29 * 86_400_000)).toBe('4w ago')
+        expect(ahead(29 * 86_400_000)).toBe('in 4w')
     })
 
-    // A schedule declared for next year is no more readable as "in 400d" than a run from last
-    // year is as "400d ago": past the window both fall to the date, and the date is the answer.
+    // A schedule declared for next year is no more readable as "in 57w" than a run from last
+    // year is as "57w ago": past the window both fall to the date, and the date is the answer.
     test('gives up on a wait past the window and states the date, as the past does', () => {
         timesMode.set('utc')
         expect(ahead(400 * 86_400_000)).toBe('2027-04-08')

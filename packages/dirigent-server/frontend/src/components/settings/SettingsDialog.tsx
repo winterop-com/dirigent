@@ -23,7 +23,7 @@ import { useStore } from '@/hooks/use-store'
 import { type Problem } from '@/lib/api'
 import { authStore, signOut } from '@/lib/auth'
 import { API_DOCS_URL, DOCS_URL } from '@/lib/docs'
-import { formatRelative } from '@/lib/format'
+import { formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { LOGIN_PATH } from '@/lib/nav'
 import { changePassword, formProblem, NO_PASSWORD, refusalOf, type PasswordForm } from '@/lib/password'
@@ -381,7 +381,10 @@ function HealthControl() {
                 {LABELS.state.server[status.state === 'unknown' ? 'asking' : status.state]}
             </span>
             {status.checkedAt !== null && (
-                <span className="ml-1 text-xs text-faint">
+                <span
+                    className="ml-1 text-xs text-faint"
+                    title={formatInstant(new Date(status.checkedAt).toISOString())}
+                >
                     {LABELS.settings.checked(formatRelative(new Date(status.checkedAt).toISOString()))}
                 </span>
             )}

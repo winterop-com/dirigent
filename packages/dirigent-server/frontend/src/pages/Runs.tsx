@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useNavigate, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
+import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Refusal } from '@/components/PageState'
@@ -19,7 +20,7 @@ import { useStore } from '@/hooks/use-store'
 import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
-import { elapsedBetween, formatDuration, formatInstant, formatRelative } from '@/lib/format'
+import { elapsedBetween, formatDuration } from '@/lib/format'
 import {
     countWords,
     filterWords,
@@ -422,12 +423,7 @@ function runColumns(names: ReadonlyMap<string, string | null> | null): DataColum
             header: LABELS.word.started.label,
             width: 'minmax(5rem,1fr)',
             cell: (run) => (
-                <span
-                    className="text-xs text-muted-foreground"
-                    title={formatInstant(run.started_at ?? run.created_at)}
-                >
-                    {formatRelative(run.started_at ?? run.created_at)}
-                </span>
+                <Instant className="text-xs text-muted-foreground" at={run.started_at ?? run.created_at} />
             ),
         },
         {

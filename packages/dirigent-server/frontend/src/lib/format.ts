@@ -14,6 +14,8 @@
  * in the app at once instead of each screen deciding for itself.
  */
 
+import { relativeTime, type RelativeTimeOptions } from '@winterop-com/sokkel-ui/RelativeTime'
+
 import { LABELS } from '@/lib/labels'
 import { currentZone, timesMode, zoneSuffix } from '@/lib/times'
 
@@ -154,9 +156,15 @@ function partsOf(at: Date, shape: Intl.DateTimeFormatOptions): (field: InstantFi
 }
 
 /** A day, largest field first: `2026-09-02`. */
-function exactDate(at: Date): string {
+export function exactDate(at: Date): string {
     const part = partsOf(at, EXACT_DATE)
     return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+/** An instant that is known to be one, in the spelling `formatInstant` gives. */
+export function exactInstant(at: Date): string {
+    const part = partsOf(at, EXACT)
+    return `${exactDate(at)} ${part('hour')}:${part('minute')}:${part('second')}${zoneSuffix(timesMode.get())}`
 }
 
 /**
@@ -171,13 +179,27 @@ export function formatInstant(when: string | null | undefined): string {
     if (!when) return '--'
     const parsed = new Date(when)
     if (Number.isNaN(parsed.getTime())) return when
-    const part = partsOf(parsed, EXACT)
-    const exact = `${exactDate(parsed)} ${part('hour')}:${part('minute')}:${part('second')}`
-    return exact + zoneSuffix(timesMode.get())
+    return exactInstant(parsed)
 }
 
-/** Where a relative reading stops being useful and a date says more. */
-const RELATIVE_DAYS = 30
+/** Where a relative reading stops being useful and a date says more: thirty days either way. */
+const RELATIVE_HORIZON_MS = 30 * 86_400_000
+
+/**
+ * How every relative reading in this app is said, by sokkel-ui's `relativeTime` and by its
+ * `RelativeTime`: narrow English numbers (`3m ago`, `in 2h`, `2w ago`, never "yesterday"), the
+ * largest whole unit the distance holds, "just now" within a minute either side, and from thirty
+ * days either side the date half of the exact spelling.
+ */
+export const RELATIVE: Readonly<RelativeTimeOptions> = {
+    locale: 'en',
+    length: 'narrow',
+    numeric: 'always',
+    rounding: 'trunc',
+    now: LABELS.measure.just_now,
+    horizon: RELATIVE_HORIZON_MS,
+    horizonDate: exactDate,
+}
 
 /**
  * How far from now something is, in the coarsest unit that still says it.
@@ -195,22 +217,7 @@ export function formatRelative(when: string | null | undefined, now: number = Da
     if (!when) return '--'
     const at = Date.parse(when)
     if (Number.isNaN(at)) return when
-    const signed = Math.round((now - at) / 1000)
-    const seconds = Math.abs(signed)
-    if (seconds < 45) return LABELS.measure.just_now
-    const ahead = signed < 0
-    const minutes = Math.round(seconds / 60)
-    if (minutes < 60) return said(LABELS.measure.span.minutes(String(minutes)), ahead)
-    const hours = Math.round(minutes / 60)
-    if (hours < 24) return said(LABELS.measure.span.hours(String(hours)), ahead)
-    const days = Math.round(hours / 24)
-    if (days <= RELATIVE_DAYS) return said(LABELS.measure.span.days(String(days)), ahead)
-    return exactDate(new Date(at))
-}
-
-/** How a span reads on the side of now it falls: `3m ago` behind it, `in 3m` ahead of it. */
-function said(span: string, ahead: boolean): string {
-    return ahead ? LABELS.measure.ahead(span) : LABELS.measure.ago(span)
+    return relativeTime(new Date(at), new Date(now), RELATIVE)
 }
 
 /** The fields a firing is read by: the weekday, the day, the month, and the clock. */

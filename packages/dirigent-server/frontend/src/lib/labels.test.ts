@@ -54,6 +54,6 @@ describe('the label catalogue', () => {
     )
 
     it('renders a sentence around its value', () => {
-        expect(LABELS.measure.ago('3m')).toBe('3m ago')
+        expect(LABELS.workers.last_seen_ago('3m ago')).toBe('last seen 3m ago')
     })
 })

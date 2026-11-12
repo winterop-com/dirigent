@@ -185,8 +185,12 @@ test('the settings dialog switches the appearance and the clock behind it', asyn
     await ranToCompletion(page.request, runId)
 
     await page.goto('/runs')
-    const started = page.getByRole('row').filter({ hasText: EXAMPLE.code }).locator('[title]').last()
-    await expect(started).not.toHaveAttribute('title', /UTC/)
+    // The started cell is an Instant, whose exact reading is its tooltip on hover.
+    const started = page.getByRole('row').filter({ hasText: EXAMPLE.code }).locator('time').last()
+    const tip = page.locator('[data-slot="tooltip-content"]')
+    await started.hover()
+    await expect(tip).toHaveText(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+    await page.mouse.move(0, 0)
 
     await openSettings(page)
     const dialog = page.getByRole('dialog')
@@ -203,7 +207,8 @@ test('the settings dialog switches the appearance and the clock behind it', asyn
     await dialog.getByRole('button', { name: LABELS.settings.category.general, exact: true }).click()
     await dialog.getByRole('button', { name: LABELS.measure.utc, exact: true }).click()
     await page.keyboard.press('Escape')
-    await expect(started).toHaveAttribute('title', /UTC/)
+    await started.hover()
+    await expect(tip).toHaveText(/ UTC$/)
 })
 
 test('the settings search reaches across every category', async ({ page }) => {

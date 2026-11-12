@@ -1,3 +1,4 @@
+import { Instant } from '@/components/Instant'
 import { PageState } from '@/components/PageState'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
@@ -142,10 +143,6 @@ const COLUMNS: DataColumn<WorkerOut>[] = [
         id: 'seen',
         header: LABELS.word.last_seen,
         width: 'minmax(4rem,1fr)',
-        cell: (worker) => (
-            <span className="text-xs text-muted-foreground" title={formatInstant(worker.last_seen_at)}>
-                {formatRelative(worker.last_seen_at)}
-            </span>
-        ),
+        cell: (worker) => <Instant className="text-xs text-muted-foreground" at={worker.last_seen_at} />,
     },
 ]

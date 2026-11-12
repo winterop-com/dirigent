@@ -386,7 +386,11 @@ function Triggers({
                             {clock.text}
                         </span>
                         {next.kind === 'due' && (
-                            <Instant at={next.at} className="text-xs text-muted-foreground" />
+                            <Instant
+                                focusable={false}
+                                at={next.at}
+                                className="text-xs text-muted-foreground"
+                            />
                         )}
                         {next.kind === 'paused' && (
                             <span className="text-xs text-muted-foreground">{LABELS.state.armed.paused}</span>

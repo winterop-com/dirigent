@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
+import { Instant } from '@/components/Instant'
 import { ConnectionDialog } from '@/components/connections/ConnectionDialog'
 import { HealthSaid } from '@/components/connections/Health'
 import { NewConnection } from '@/components/connections/NewConnection'
@@ -31,7 +32,6 @@ import {
     type ConnectionOut,
     type SurfaceEntry,
 } from '@/lib/connections'
-import { formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { kindGlyph } from '@/lib/glyphs'
 import { kindMarks } from '@/lib/marks'
@@ -353,9 +353,5 @@ function Health({ row }: { row: ConnectionOut }) {
 
 /** When the last check was made. A row nothing has checked says so in the health cell. */
 function Checked({ at }: { at: string }) {
-    return (
-        <span className="text-xs text-muted-foreground" title={formatInstant(at)}>
-            {formatRelative(at)}
-        </span>
-    )
+    return <Instant className="text-xs text-muted-foreground" at={at} />
 }
