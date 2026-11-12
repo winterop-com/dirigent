@@ -666,7 +666,9 @@ discarded rather than left on screen.
 holds one event stream and needs nothing beside it. Two screens go stale standing still -- the
 runs listing and the dashboard -- so each reads itself again on the one
 cadence `lib/refresh` holds for the whole app: off, or five seconds to five minutes, thirty by
-default, chosen from the split refresh control and answering the same everywhere it is offered.
+default, chosen from the refresh control and answering the same everywhere it is offered. That
+control is sokkel-ui's `SplitButton`, outline and small: its face refreshes now and shows the
+cadence in force in mono, and its chevron lists the cadences with a check against that one.
 `hooks/use-heartbeat` is the beat. It fires only while the tab is visible, because a screen
 nobody can see asking anyway is heat, and it fires at once when the tab comes back, so what a
 reader returns to is the present. A beat is quiet: what is on screen stays until the answer

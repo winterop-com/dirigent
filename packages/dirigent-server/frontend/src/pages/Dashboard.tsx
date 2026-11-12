@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { RefreshCw } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
@@ -30,6 +29,7 @@ import {
     nextFires,
     readSchedulesAhead,
 } from '@/lib/home'
+import { ICONS } from '@/lib/icons'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
@@ -116,7 +116,7 @@ export function Dashboard() {
                 title: LABELS.dashboard.refresh,
                 group: DASHBOARD_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.refresh,
                 keywords: ['refresh', 'reload', 'home'],
                 run: again,
             },
