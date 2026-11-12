@@ -15,9 +15,11 @@
  */
 
 import type { MiniGraphStep } from '@winterop-com/sokkel-ui-graph/MiniGraph'
+import type { PipelineStep } from '@winterop-com/sokkel-ui-graph/PipelineGraph'
 
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
-import { titleOf } from '@/lib/identity'
+import { headingOf, titleOf } from '@/lib/identity'
+import { ICONS } from '@/lib/icons'
 import { counted, type Counted, LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
 import type { RunWindow } from '@/lib/run-window'
@@ -476,6 +478,36 @@ export function miniGraphSteps(shape: readonly StepShape[], failed: string | nul
         source: step.kind === 'source',
         hint: `${step.code} · ${step.block}`,
     }))
+}
+
+/**
+ * A pipeline's shape as its own page's graph draws it: each step titled by the quartet's rule, its
+ * block as its kind, after the steps it depends on. A source leads with its glyph on a dashed box
+ * and says on pointing what it listens to; a fan-out says `each` behind the stacked glyph at the end
+ * of its second line, and on pointing at it what `for_each` does.
+ */
+export function shapeSteps(shape: readonly StepShape[]): PipelineStep[] {
+    return shape.map((step) => {
+        const heading = headingOf(step)
+        const line = heading.code === null ? step.block : `${heading.code} · ${step.block}`
+        return {
+            code: step.code,
+            kind: step.block,
+            needs: step.depends_on,
+            ...(heading.named ? { name: heading.title } : {}),
+            ...(step.kind === 'source'
+                ? { source: true, icon: ICONS.source, lineHint: LABELS.editor.canvas.listens_to(line) }
+                : {}),
+            ...(step.fan_out
+                ? {
+                      count: LABELS.editor.canvas.fan_out_each,
+                      countIcon: ICONS.fan_out,
+                      countTitle: LABELS.editor.canvas.fan_out_each_title,
+                      countPlacement: 'title' as const,
+                  }
+                : {}),
+        }
+    })
 }
 
 /** The kinds of source a pipeline listens on, once each, which is what fires it besides a clock. */

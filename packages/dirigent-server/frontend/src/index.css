@@ -71,7 +71,9 @@
 @import '@winterop-com/sokkel-ui/sources/primitives/tooltip.css';
 @import '@winterop-com/sokkel-ui-graph/sources/GraphCanvas.css';
 @import '@winterop-com/sokkel-ui-graph/sources/GraphLayoutMenu.css';
+@import '@winterop-com/sokkel-ui-graph/sources/GraphViewButtons.css';
 @import '@winterop-com/sokkel-ui-graph/sources/MiniGraph.css';
+@import '@winterop-com/sokkel-ui-graph/sources/PipelineGraph.css';
 @import '@winterop-com/sokkel-ui-graph/sources/RunGraph.css';
 @import '@winterop-com/sokkel-ui/themes/amber.css';
 @import '@winterop-com/sokkel-ui/themes/paper.css';
@@ -695,7 +697,8 @@
     }
     /* The canvas's cluster is the graph library's button rather than one of ours, and a zoom
        step is pressed with a thumb like everything else. */
-    .react-flow.dg-graph .react-flow__controls-button {
+    .react-flow.dg-graph .react-flow__controls-button,
+    [data-slot='graph-view-buttons'] > button {
         min-height: var(--spacing-finger);
         min-inline-size: var(--spacing-finger);
     }

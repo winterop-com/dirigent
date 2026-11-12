@@ -17,8 +17,8 @@ import { cn } from '@/lib/utils'
  * draws, so a cluster in its corner would sit on a box; the bar has the room. The layout they
  * choose is the caller's, held for the visit, and the window draws with the same one. A canvas
  * that carries its own zoom passes `tools` for the bar instead, and `windowTools` for the window,
- * which stand over the window's top right corner; filled, such a canvas sizes the panel's body to
- * its own floor.
+ * which stand over the window's top right corner; such a canvas sizes the panel's body itself, to
+ * its drawing when fitted and to its floor when filled.
  *
  * THE WINDOW IS A STAGE. There the wheel zooms, as it does on any canvas that is the whole of
  * what is on screen, and its own corner carries the zoom and the layout. A box chosen in it is
@@ -85,7 +85,7 @@ export function GraphPanel({
                             bodyClassName={cn(filled && 'flex min-h-0 flex-1 flex-col')}
                         >
                             {'tools' in bar ? (
-                                <div className={cn('relative min-w-0', filled ? 'flex-1' : 'h-60')}>
+                                <div className={cn('relative min-w-0', filled && 'flex-1')}>
                                     {canvas(frame)}
                                 </div>
                             ) : (
@@ -101,9 +101,7 @@ export function GraphPanel({
                         <div className="relative min-h-0 flex-1" data-graph-window>
                             <div className="absolute inset-0">{canvas('window')}</div>
                             {'tools' in bar && bar.windowTools !== undefined && (
-                                <div className="absolute top-2 right-2 rounded-control border border-border bg-card p-0.5 shadow-node">
-                                    {bar.windowTools}
-                                </div>
+                                <div className="absolute top-2 right-2">{bar.windowTools}</div>
                             )}
                         </div>
                     </ReactFlowProvider>
