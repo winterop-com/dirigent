@@ -858,10 +858,14 @@ const shell = {
     },
     /** How many rows of a table file a preview shows, when it shows only the first of them. */
     preview_rows_first: (shown: string, total: string) => `First ${shown} of ${total} rows`,
+    /** How many rows of a table file a preview shows, when more follow that were not counted. */
+    preview_rows_start: (shown: string) => `First ${shown} rows`,
     /** What a preview of JSON says above its text when the text does not parse. */
     preview_unreadable: 'This JSON does not parse; its text is shown.',
     /** What a preview says of a kind of file it cannot draw. */
     preview_none: 'No preview for this kind of file.',
+    /** What a preview says above a file too long to read whole. */
+    preview_cut: 'Only the start of this file is shown.',
     /** The way out of a screen and into the requests behind it. */
     api_docs: (section: string) => `The ${section} section of this instance's API documentation`,
 

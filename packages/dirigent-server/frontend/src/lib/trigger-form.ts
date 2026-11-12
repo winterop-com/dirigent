@@ -15,6 +15,7 @@ import type { CronFieldWords } from '@winterop-com/sokkel-ui/CronField'
 import { describeCron, type CronWords } from '@winterop-com/sokkel-ui/lib/cron'
 
 import type { JsonMap } from '@/lib/api'
+import { formatMoment } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import type { RunPriority } from '@/lib/runs'
 
@@ -103,6 +104,24 @@ export const CRON_FIELD_WORDS: Partial<CronFieldWords> = {
     next: () => LABELS.triggers.schedule.dialog.next_firings,
     never: LABELS.triggers.schedule.dialog.never_fires,
     checking: LABELS.triggers.schedule.dialog.checking,
+}
+
+/**
+ * What the cron box says on a saved schedule's panel: the dialog's words, and the schedule's zone
+ * beside the label, since no picker above it names the zone there. A paused clock says nothing in
+ * place of its runs: the chip beside the schedule's name is what says paused.
+ */
+export const CRON_SAVED_WORDS: Partial<CronFieldWords> = {
+    label: CRON_FIELD_WORDS.label,
+    next: CRON_FIELD_WORDS.next,
+    never: CRON_FIELD_WORDS.never,
+    checking: CRON_FIELD_WORDS.checking,
+    paused: '',
+}
+
+/** One firing as every schedule clock draws it, on the wall clock of the schedule's zone. */
+export function firingOf(firing: Date, zone: string): string {
+    return formatMoment(firing.toISOString(), zone)
 }
 
 const READING = LABELS.triggers.schedule.reading

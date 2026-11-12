@@ -214,14 +214,16 @@ export const DIFF_WORDS: DiffViewWords = {
     folded: (count) => counted(count, LABELS.shell.diff_folded)(count.toLocaleString('en')),
 }
 
-/** What a file's preview says: how many rows of a table it shows, JSON that does not parse, and a kind it cannot draw. */
+/** What a file's preview says: how many rows of a table it shows, JSON that does not parse, a kind it cannot draw, and a file cut short. */
 export const FILE_PREVIEW_WORDS: FilePreviewWords = {
     rows: (shown, total) =>
         shown === total
             ? counted(total, LABELS.shell.preview_rows)(total.toLocaleString('en'))
             : LABELS.shell.preview_rows_first(shown.toLocaleString('en'), total.toLocaleString('en')),
+    firstRows: (shown) => LABELS.shell.preview_rows_start(shown.toLocaleString('en')),
     unreadable: LABELS.shell.preview_unreadable,
     none: LABELS.shell.preview_none,
+    cut: LABELS.shell.preview_cut,
 }
 
 /** What the sign-in screen says: its title and button, its two fields, the reveal toggle and the seam. No placeholders: the labels name the fields. */

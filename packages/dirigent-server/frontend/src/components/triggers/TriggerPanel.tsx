@@ -1,5 +1,7 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+
+import { CronField } from '@winterop-com/sokkel-ui/CronField'
 
 import { Description } from '@/components/Description'
 import { JsonBlock } from '@/components/JsonBlock'
@@ -9,6 +11,7 @@ import { sayRefusal } from '@/components/Refusal'
 import { EndpointAddress, NewToken } from '@/components/triggers/Endpoint'
 import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { useFirings } from '@/hooks/use-firings'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { asJson, formatInstant, formatRelative, shortId } from '@/lib/format'
@@ -27,6 +30,7 @@ import {
     type SourceInputOut,
     type SourceOut,
 } from '@/lib/sources'
+import { CRON_SAVED_WORDS, FIRINGS_READ, firingOf, readCron } from '@/lib/trigger-form'
 import {
     firingView,
     nextFireView,
@@ -91,15 +95,23 @@ export function SchedulePanel({
                 {schedule.paused && <Chip>{LABELS.state.armed.paused}</Chip>}
             </Head>
 
+            {schedule.cron !== null && (
+                <CronClock cron={schedule.cron} timezone={schedule.timezone} paused={schedule.paused} />
+            )}
+
             <dl className="space-y-1.5">
-                <Fact label={LABELS.word.clock}>
-                    <Clock schedule={schedule} />
-                </Fact>
-                <Fact label={LABELS.word.timezone}>{schedule.timezone}</Fact>
-                {nextFireView(schedule).kind !== 'paused' && (
-                    <Fact label={LABELS.word.next}>
-                        <NextFire schedule={schedule} />
-                    </Fact>
+                {schedule.cron === null && (
+                    <>
+                        <Fact label={LABELS.word.clock}>
+                            <Clock schedule={schedule} />
+                        </Fact>
+                        <Fact label={LABELS.word.timezone}>{schedule.timezone}</Fact>
+                        {nextFireView(schedule).kind !== 'paused' && (
+                            <Fact label={LABELS.word.next}>
+                                <NextFire schedule={schedule} />
+                            </Fact>
+                        )}
+                    </>
                 )}
                 {schedule.last_fired_at !== null && (
                     <Fact label={LABELS.word.firing.last}>
@@ -291,6 +303,41 @@ export function SourcePanel({
 }
 
 const firingId = (row: FiringOut) => String(row.id)
+
+/**
+ * A saved cron clock: the expression, its reading in words, its zone, and the firings the
+ * instance reads back from now. A paused clock is asked nothing and lists no firings, since
+ * resuming recomputes them from the moment it resumes.
+ */
+function CronClock({ cron, timezone, paused }: { cron: string; timezone: string; paused: boolean }) {
+    const reading = useFirings(!paused, 'cron', cron, timezone)
+    const [from] = useState(() => new Date())
+    const runs = useMemo(
+        () => (reading.kind === 'firings' ? reading.firings.map((firing) => new Date(firing)) : null),
+        [reading],
+    )
+    return (
+        <CronField
+            data-testid="schedule-clock"
+            readOnly
+            paused={paused}
+            value={cron}
+            onChange={ignore}
+            from={from}
+            count={FIRINGS_READ}
+            timeZone={timezone}
+            runs={runs}
+            runsPending={reading.kind === 'pending'}
+            invalid={reading.kind === 'refused' ? reading.detail : undefined}
+            describe={readCron}
+            format={firingOf}
+            words={CRON_SAVED_WORDS}
+        />
+    )
+}
+
+/** A read-only field's change handler, which nothing calls. */
+function ignore(): void {}
 
 /** One trigger's title over its code, the pipeline it fires, and whatever it is wearing. */
 function Head({
