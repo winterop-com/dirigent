@@ -1,4 +1,4 @@
-import type { ElkEngine } from '@/lib/dag-layout'
+import type { ElkEngine } from '@winterop-com/sokkel-ui-graph/layout'
 import { whenIdle } from '@/lib/idle'
 
 /**

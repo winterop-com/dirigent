@@ -1,8 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { GRAPH_WHEEL_STEP_MS, ZOOM_STEP as RUN_ZOOM_STEP } from '@winterop-com/sokkel-ui-graph/layout'
-
-import { WHEEL_ZOOM_LIMIT } from '../src/lib/dag-layout.ts'
+import {
+    GRAPH_WHEEL_STEP_MS,
+    wheelZoomFactor,
+    ZOOM_STEP as RUN_ZOOM_STEP,
+} from '@winterop-com/sokkel-ui-graph/layout'
 
 import { LABELS } from '../src/lib/labels.ts'
 import {
@@ -259,7 +261,7 @@ test("a plain wheel over a pipeline's canvas scrolls the page; a modified one zo
     await page.keyboard.up('Control')
     await expect.poll(() => transformOf(page)).not.toBe(before)
     const zoomed = await transformOf(page)
-    expect(viewOf(zoomed).zoom / viewOf(before).zoom).toBeCloseTo(WHEEL_ZOOM_LIMIT, 3)
+    expect(viewOf(zoomed).zoom / viewOf(before).zoom).toBeCloseTo(wheelZoomFactor(-100), 3)
 
     // The view is the reader's now: a page scroll does not take it back.
     await page.mouse.wheel(0, 200)

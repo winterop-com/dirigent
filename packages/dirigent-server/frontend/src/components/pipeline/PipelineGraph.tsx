@@ -22,9 +22,9 @@ import { pickerBlocks, pickerGroups } from '@/lib/add-step'
 import { catalogUnread, type BlockEntry } from '@/lib/blocks'
 import { addStepAsked, relayoutAsked } from '@/lib/canvas-actions'
 import { forgetPlacements, heldLayout, loadPlacements, placeStep, type Placement } from '@/lib/canvas-layout'
-import { FIT_MIN_ZOOM, RANK_SPACING, WRAP_WIDTH } from '@/lib/dag-layout'
 import { BLOCK_PICKER_WORDS, EDITOR_GRAPH_WORDS } from '@/lib/design-system'
 import { cycleRefusal } from '@/lib/graph-edits'
+import { FIT_MIN_ZOOM, WRAP_WIDTH } from '@/lib/graph-view'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import {
@@ -71,6 +71,9 @@ const NO_PLACEMENTS: Readonly<Record<string, Placement>> = {}
 
 /** Every badge a box may come to wear, which each box keeps room for. */
 const BADGES: readonly string[] = [LABELS.editor.canvas.edited, LABELS.editor.canvas.not_installed]
+
+/** How far to the right of a box a step added after it is placed, in pixels. */
+const ADD_AFTER_GAP = 28
 
 export interface PipelineGraphProps {
     /** The pipeline being edited, which is what an arrangement is kept under. */
@@ -310,7 +313,7 @@ export function PipelineGraph({
                         const box = controls.current?.nodeBox(onNode.step) ?? null
                         setOnNode(null)
                         if (box === null) return
-                        const place = { x: box.x + box.width + RANK_SPACING, y: box.y }
+                        const place = { x: box.x + box.width + ADD_AFTER_GAP, y: box.y }
                         setPicking({ at: place, after: onNode.step, place })
                     }}
                     onRemove={() => {

@@ -24,7 +24,7 @@ wrong is changed on this page first and in the code second.
 | UI | React 19, react-router 7 with `BrowserRouter` | The server answers a navigation nothing claimed with the shell, so paths stay clean and a deep link can be pasted |
 | Styling | Tailwind v4, CSS-first, entered through sokkel-ui's `styles-base.css` | There is no `tailwind.config.js` and there must not be one. The tokens, themes, fonts and base styles are [sokkel-ui](https://github.com/winterop-com/sokkel-ui)'s; `src/index.css` imports them, one `sources/<module>.css` line per library module the app imports, and then this app's own CSS |
 | Components | sokkel-ui's primitives, shadcn `base-nova` on **Base UI** (`@base-ui/react`) | Imported from `@winterop-com/sokkel-ui/primitives/*`. A primitive that needs an option dirigent lacks gets it in sokkel-ui |
-| Graphs | `@xyflow/react` for the canvas, `elkjs` for the layout | React Flow draws what it is given and decides no geometry; elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
+| Graphs | sokkel-ui-graph, on `@xyflow/react` for the canvas and `elkjs` for the layout | The library draws and places every graph: React Flow draws what it is given and decides no geometry, and elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
 | Editor | sokkel-ui's `CodeEditor`, on CodeMirror 6 | A pipeline document is YAML checked against a schema as it is typed, and the library's editor checks and completes JSON and YAML against JSON Schema 2020-12 itself, with ajv. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, a schema, and a config field whose schema says it carries a program |
 | YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
 | Markdown | `marked`, for its lexer only | A description is authored markdown and has to render as prose. Nothing here produces an HTML string, so what is drawn is a token tree React escapes -- see `lib/markdown` |
@@ -74,11 +74,10 @@ elk is the second of them: `components/graph/elk` is the one dynamic import of
 `components/graph/elk-engine`, so the graph screens' chunk carries React Flow and the canvas, and
 the 1.4 MB of layout algorithm arrives only once a canvas asks for geometry. It arrives in a web
 worker -- `elkjs/lib/elk-api` wrapping `elkjs/lib/elk-worker.min.js` -- so placing a fifty-step
-graph is not work the thread that draws is blocked on. sokkel-ui-graph is handed the same worker
-through `setElkEngine` in `main.tsx`, so the run's graph and the miniatures are placed there too.
-Nothing waits on it to draw either: `placedByRank` places the ranks by hand, wrapped onto rows at
-the same `WRAP_WIDTH` elk is handed, and that is what a canvas shows until elk answers and what it
-keeps showing if elk never does; the library's views do the same with its own `rankLayout`.
+graph is not work the thread that draws is blocked on. sokkel-ui-graph is handed that worker
+through `setElkEngine` in `main.tsx`, so every canvas and every miniature is placed there.
+Nothing waits on it to draw either: the library's `rankLayout` places the ranks by hand, and that
+is what a canvas shows until elk answers and what it keeps showing if elk never does.
 
 **A chunk two screens want is fetched before either is asked for.** `warmEditor` and `warmLayout`
 are those same imports, fired by the shell once there is a session and the browser is idle --
@@ -132,10 +131,9 @@ The sign-in screen's sizes are sokkel-ui's `SignIn`'s own -- its brand name, its
 eyebrow -- and no screen of this app sets a size there.
 
 A graph has two sizes of its own, because it is drawn at the scale of a diagram rather than of a
-page. On the editor's canvas they are set on `.step-node` and `.graph-words` in `index.css`
-rather than on each word, so a word added to a box inherits its size and no word on a canvas can
-come out at the page's; the pipeline page's graph and a run's are sokkel-ui-graph's, which sets the
-same two tokens itself.
+page. Every canvas is sokkel-ui-graph's, which sets the two tokens on a box itself, so a word added
+to a box inherits its size and no word on a canvas can come out at the page's; the words the
+editor stands over an empty canvas take them from `.graph-words` in `index.css`.
 
 `scripts/check_ui_classes.py` fails the gate on anything outside them, whether the sixth size
 arrives as `text-[17px]` or as `text-lg`. The check has no allowlist -- it knows `text-title`,
@@ -891,9 +889,10 @@ nobody receives the reply where the pipeline has one.
 
 ## A graph is a shape, and each screen reduces its own to it
 
-`lib/dag-layout` knows nothing about runs or documents, and every canvas is sokkel-ui-graph's:
-the library measures, places and draws each one, and `components/graph` holds what they share --
-the door that fetches elk for the library, the panel a view stands in, and the tools in its bar.
+Every canvas is sokkel-ui-graph's: the library measures, places and draws each one, and
+`components/graph` holds what they share -- the door that fetches elk for the library, the panel a
+view stands in, and the tools in its bar -- with `lib/graph-view` holding the layout every view
+opens on, the least zoom a fit goes to and the width a graph wraps at.
 **The editor's graph is sokkel-ui-graph's `PipelineGraph` with `editing`, handed data and
 callbacks only**: one `PipelineStep` per step of the stored document as edited -- its title by the
 quartet's rule, the block it runs (or what a source listens to) as its kind, a fan-out's count,
@@ -2060,8 +2059,8 @@ because it is a workspace somebody adds to.
 
 **A canvas on a page pans and zooms; a plain wheel is the page's unless the canvas is the
 screen.** Dragging the ground pans every canvas. A pinch, and a wheel with Ctrl or the platform's
-modifier held, zooms a canvas on a page about the pointer, each event held to one
-`WHEEL_ZOOM_LIMIT` step, so a mouse wheel's notch is a step and a pinch follows the fingers. On the
+modifier held, zooms a canvas on a page about the pointer, each event held to 15% either way,
+so a mouse wheel's notch is a step and a pinch follows the fingers. On the
 pipeline's page, whose canvas is as tall as its drawing and has panels under it, a wheel with
 neither scrolls the page, so a long page never traps it. On the run's page the canvas is the
 screen and there is nothing to scroll past it, so each notch of a plain wheel zooms it one zoom
@@ -2125,8 +2124,8 @@ browser suite asserts every node's box lies inside the canvas for a graph that f
 
 **A deep graph is wrapped onto rows rather than drawn as one**, on every canvas.
 Seventeen steps in one left-to-right row is three thousand pixels of canvas, and a fit answers that
-by putting a node's text under six pixels. Past `WRAP_WIDTH` -- which `rankDepth` measures a shape
-against before elk sees it -- elk is asked to cut the layering into chunks and stack them: the
+by putting a node's text under six pixels. Past `WRAP_WIDTH` in `lib/graph-view`, handed to the
+library as `wrapWidth`, elk is asked to cut the layering into chunks and stack them: the
 ranks still read left to right, and the height nothing was using carries the rest. The run's graph
 and the pipeline page's are wrapped to their canvas (`wrapToCanvas`): the room is the canvas's width at
 `fitMinZoom` -- at the narrow fit's 0.6 on a canvas narrower than 560px -- and its height at the lower

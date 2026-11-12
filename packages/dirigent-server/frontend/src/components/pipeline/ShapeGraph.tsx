@@ -4,9 +4,9 @@ import type { GraphControls } from '@winterop-com/sokkel-ui-graph/GraphCanvas'
 import type { GraphLayoutChoice } from '@winterop-com/sokkel-ui-graph/GraphLayoutMenu'
 import { PipelineGraph } from '@winterop-com/sokkel-ui-graph/PipelineGraph'
 import { GraphPanel } from '@/components/graph/GraphPanel'
-import { FIT_MIN_ZOOM, GRAPH_LAYOUT, TALL_FIT, ViewTools } from '@/components/graph/ViewTools'
-import { WRAP_WIDTH } from '@/lib/dag-layout'
+import { ViewTools } from '@/components/graph/ViewTools'
 import { GRAPH_WORDS } from '@/lib/design-system'
+import { FIT_MIN_ZOOM, GRAPH_LAYOUT, TALL_FIT, WRAP_WIDTH } from '@/lib/graph-view'
 import { shapeSteps, type StepShape } from '@/lib/pipelines'
 
 /**

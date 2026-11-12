@@ -8,19 +8,6 @@ import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { applePlatform, modifierLabel } from '@/lib/shortcuts'
 
-/** What a view of a graph opens on. */
-export const GRAPH_LAYOUT: GraphLayoutChoice = {
-    direction: 'right',
-    routing: 'orthogonal',
-    spacing: 'normal',
-}
-
-/** The least zoom a fit of a view goes to; on a canvas narrower than 560px it goes lower to fit the width, to 0.6. */
-export const FIT_MIN_ZOOM = 0.8
-
-/** The least zoom a fit goes to when the drawing fits across and only its height is short. */
-export const TALL_FIT = 0.7
-
 /** The edges a view's layout menu offers. */
 const ROUTINGS: readonly GraphRouting[] = ['orthogonal', 'splines']
 
