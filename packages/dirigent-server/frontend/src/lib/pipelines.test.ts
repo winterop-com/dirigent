@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'vitest'
 
+import { ICONS } from '@/lib/icons'
+import { LABELS } from '@/lib/labels'
+
 import {
     byTitle,
     emptyNote,
@@ -9,6 +12,7 @@ import {
     miniGraphSteps,
     pipelinesPath,
     retirement,
+    shapeSteps,
     sourceKinds,
     splitListing,
     tagsFromQuery,
@@ -276,6 +280,47 @@ describe("the pipelines screen's two lists", () => {
             },
         ])
         expect(miniGraphSteps(shape, null).every((step) => step.status === undefined)).toBe(true)
+    })
+
+    test("draws a step on the page's graph by its title, its block, its source glyph and what it listens to, and a fan-out's each on its second line", () => {
+        const shape = [
+            {
+                code: 'read',
+                name: 'Read',
+                kind: 'source' as const,
+                block: 'webhook',
+                depends_on: [],
+                fan_out: false,
+            },
+            {
+                code: 'load',
+                name: null,
+                kind: 'block' as const,
+                block: 'sql.load',
+                depends_on: ['read'],
+                fan_out: true,
+            },
+        ]
+        expect(shapeSteps(shape)).toEqual([
+            {
+                code: 'read',
+                name: 'Read',
+                kind: 'webhook',
+                needs: [],
+                source: true,
+                icon: ICONS.source,
+                lineHint: LABELS.editor.canvas.listens_to('read · webhook'),
+            },
+            {
+                code: 'load',
+                kind: 'sql.load',
+                needs: ['read'],
+                count: LABELS.editor.canvas.fan_out_each,
+                countIcon: ICONS.fan_out,
+                countTitle: LABELS.editor.canvas.fan_out_each_title,
+                countPlacement: 'title',
+            },
+        ])
     })
 
     test('names each kind of source once', () => {

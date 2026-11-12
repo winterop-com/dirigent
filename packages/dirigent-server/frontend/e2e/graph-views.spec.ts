@@ -323,10 +323,9 @@ test("a pipeline's page puts its chosen step in the address too", async ({ page 
     await page.locator('.react-flow__node').getByText('counts', { exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`/pipelines/${PIPELINE}/counts$`))
     await page.reload()
-    await expect(page.locator('.react-flow__node[data-id="counts"] .step-node')).toHaveAttribute(
-        'data-selected',
-        'true',
-    )
+    await expect(
+        page.locator('.react-flow__node[data-id="counts"] [data-slot="graph-node"]'),
+    ).toHaveAttribute('data-selected', 'true')
     await page.goto(`/pipelines/${PIPELINE}/nope`)
     await expect(page.getByText(LABELS.pipelines.page.no_such_step('nope'))).toBeVisible()
 })
