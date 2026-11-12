@@ -265,6 +265,9 @@ const LIVE_FLOW = {
     },
 }
 
+/** An edge of the run's graph, which wears what travels it as `data-motion`. */
+const EDGE = 'path[data-slot="graph-edge"]'
+
 /** Start a run whose first step hands its output to two steps that are still reading it. */
 async function liveFlow(page: Parameters<typeof signIn>[0]): Promise<string> {
     await applyDocument(page.request, LIVE_FLOW)
@@ -281,17 +284,16 @@ test('an edge moves while its downstream step is reading, and stills when the ru
     await expect(page.locator('.react-flow__edge')).toHaveCount(2)
 
     // Both edges out of the step that has produced, into the two still reading it.
-    await expect(page.locator('.react-flow__edge.dg-edge-flowing')).toHaveCount(2, { timeout: 30_000 })
+    await expect(page.locator(EDGE + '[data-motion="flowing"]')).toHaveCount(2, { timeout: 30_000 })
 
     // A terminal run has no motion anywhere on it, and neither has one opened again.
     await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
-    await expect(page.locator('.react-flow__edge.dg-edge-flowing')).toHaveCount(0)
-    await expect(page.locator('.react-flow__edge.dg-edge-handover')).toHaveCount(0)
+    await expect(page.locator(EDGE + '[data-motion]')).toHaveCount(0)
     await page.reload()
     await expect(page.locator('.react-flow__edge')).toHaveCount(2)
-    await expect(page.locator('.react-flow__edge.dg-edge-flowing')).toHaveCount(0)
+    await expect(page.locator(EDGE + '[data-motion]')).toHaveCount(0)
 })
 
 test('the header says the run is running while it still is, without a reload', async ({ page }) => {
@@ -332,8 +334,8 @@ test('an edge is lit rather than moving for somebody who asked for less motion',
     const runId = await liveFlow(page)
 
     await page.goto(`/runs/${runId}`)
-    await expect(page.locator('.react-flow__edge.dg-edge-lit')).toHaveCount(2, { timeout: 30_000 })
-    await expect(page.locator('.react-flow__edge.dg-edge-flowing')).toHaveCount(0)
+    await expect(page.locator(EDGE + '[data-motion="lit"]')).toHaveCount(2, { timeout: 30_000 })
+    await expect(page.locator(EDGE + '[data-motion="flowing"]')).toHaveCount(0)
 })
 
 test('a graph is laid out in the order its steps were written, in flight and once settled', async ({
@@ -524,11 +526,11 @@ test('a live wait draws how far it has come as a line on its node and under its 
     await expect(line).toBeVisible({ timeout: 15_000 })
     await expect(line).toHaveAttribute('aria-valuemin', '0')
     await expect(line).toHaveAttribute('aria-valuemax', '100')
-    await expect(waiting.locator('.step-node')).toHaveAttribute('title', /\(\d+%\)$/)
+    await expect(waiting.locator('[data-slot="graph-node"]')).toHaveAttribute('title', /\(\d+%\)$/)
 
     // The line lies inside the box, so the waiting node is the height its sibling is.
     const heights = await page.evaluate(() =>
-        [...document.querySelectorAll<HTMLElement>('.react-flow__node .step-node')].map(
+        [...document.querySelectorAll<HTMLElement>('.react-flow__node [data-slot="graph-node"]')].map(
             (node) => node.offsetHeight,
         ),
     )
@@ -586,7 +588,7 @@ test('a fan-out over a step output waits for it, then draws its items as they ar
     await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
-    await expect(each.locator('.step-node')).toHaveAttribute('data-outcome', 'succeeded')
+    await expect(each.locator('[data-slot="graph-node"]')).toHaveAttribute('data-status', 'succeeded')
     const expanded = await each.boundingBox()
     if (expanded === null) throw new Error('the fan-out box has no box on the screen')
     expect(expanded.height, 'the box keeps its height when the grid expands into it').toBe(waiting.height)

@@ -74,9 +74,11 @@ elk is the second of them: `components/graph/elk` is the one dynamic import of
 `components/graph/elk-engine`, so the graph screens' chunk carries React Flow and the canvas, and
 the 1.4 MB of layout algorithm arrives only once a canvas asks for geometry. It arrives in a web
 worker -- `elkjs/lib/elk-api` wrapping `elkjs/lib/elk-worker.min.js` -- so placing a fifty-step
-graph is not work the thread that draws is blocked on. Nothing waits on it to draw either:
-`placedByRank` places the ranks by hand, wrapped onto rows at the same `WRAP_WIDTH` elk is handed,
-and that is what a canvas shows until elk answers and what it keeps showing if elk never does.
+graph is not work the thread that draws is blocked on. sokkel-ui-graph is handed the same worker
+through `setElkEngine` in `main.tsx`, so the run's graph and the miniatures are placed there too.
+Nothing waits on it to draw either: `placedByRank` places the ranks by hand, wrapped onto rows at
+the same `WRAP_WIDTH` elk is handed, and that is what a canvas shows until elk answers and what it
+keeps showing if elk never does; the library's views do the same with its own `rankLayout`.
 
 **A chunk two screens want is fetched before either is asked for.** `warmEditor` and `warmLayout`
 are those same imports, fired by the shell once there is a session and the browser is idle --
@@ -119,7 +121,7 @@ added in sokkel-ui.
 | `text-title` | 16px | A section heading and a listing row's title, at weight 600 |
 | `text-page` | 24px | A page heading, at weight 500, and nothing else on any screen |
 | `text-stat` | 32px | A stat's number, and nothing else on any screen |
-| `--text-graph-title` | 12px | A step's title on a graph, in mono at weight 500, and nothing else on any screen |
+| `--text-graph-title` | 12px | A step's title on a graph -- at weight 500 on a pipeline's canvases and 600 on a run's, in mono where it is the key -- and nothing else on any screen |
 | `--text-graph-small` | 11px | Every other word drawn on a graph: the block or what a source listens to, a badge, a count, a duration, a fan-out's strip, words standing over an empty canvas |
 
 **Mono is for what is typed somewhere else**: a code, a step's key, a block, a kind, a duration, a
@@ -130,8 +132,9 @@ The sign-in screen's sizes are sokkel-ui's `SignIn`'s own -- its brand name, its
 eyebrow -- and no screen of this app sets a size there.
 
 A graph has two sizes of its own, because it is drawn at the scale of a diagram rather than of a
-page. They are set on `.step-node` and `.graph-words` in `index.css` rather than on each word, so a
-word added to a box inherits its size and no word on a canvas can come out at the page's.
+page. On a pipeline's canvases they are set on `.step-node` and `.graph-words` in `index.css`
+rather than on each word, so a word added to a box inherits its size and no word on a canvas can
+come out at the page's; a run's graph is sokkel-ui-graph's, which sets the same two tokens itself.
 
 `scripts/check_ui_classes.py` fails the gate on anything outside them, whether the sixth size
 arrives as `text-[17px]` or as `text-lg`. The check has no allowlist -- it knows `text-title`,
@@ -887,13 +890,18 @@ nobody receives the reply where the pipeline has one.
 
 ## A graph is a shape, and each screen reduces its own to it
 
-`lib/dag-layout` knows nothing about runs or documents. A run's graph is its pinned definition
-with a state on each node; the editor's is the stored document with an edit mark on each. The
-geometry of the two is one problem, so what elk is handed is an id, a width and a height per node
-and a pair per edge, and each screen reduces its own shape to that. `components/graph` is where React
-Flow and elk are actually imported -- the canvas with this app's props on it, the hook that asks
-elk for positions, and the door that fetches the engine -- and both graph components are lazy, so
-the two of them share one async chunk rather than shipping two copies.
+`lib/dag-layout` knows nothing about runs or documents. The editor's graph is the stored document
+with an edit mark on each node, and the pipeline page's is its shape; what elk is handed for
+either is an id, a width and a height per node and a pair per edge, and each screen reduces its
+own shape to that. `components/graph` is where React Flow and elk are imported for those two -- the
+canvas with this app's props on it, the hook that asks elk for positions, and the door that fetches
+the engine. **A run's graph is sokkel-ui-graph's `RunGraph`, handed data and nothing else**:
+`runSteps` in `lib/run-detail` reduces the pinned definition and everything the stream said to one
+`RunStep` per step -- its title by the quartet's rule, the block (or a reply's `sent` / `not sent`)
+as its kind, `nodeTone` as its status, its duration and progress, what it is doing as its hint, a
+fan-out's count and chips or counts line, and the words its box keeps room for -- and the library
+measures, places and draws it. Every graph component is lazy, and the screens share one copy of
+React Flow, the version dirigent and the library resolve to together.
 
 **Motion lives on edges, and it means data travelling.** Beside a live state's status dot, which
 breathes while the state is happening, a run's graph is the one place in this app that moves, and
@@ -906,13 +914,22 @@ A node gains nothing from any of it -- status colours stay the only colour voice
 there, and selection stays neutral -- so what a reader watches is where the data is, not which box
 is loud. A terminal run is still everywhere, and so is one opened after it settled. Somebody who
 has asked their machine for less motion gets the same reading standing still: a travelling edge is
-lit in the same ink and a handover is not drawn at all, decided in `lib/run-detail` from the
-setting rather than left to a stylesheet to hide -- and the stylesheet stops the animations as
-well, so a frame rendered before the preference lands is still still.
+lit in the same ink and a handover is not drawn at all, decided by the library from the setting
+rather than left to a stylesheet to hide -- and `index.css` stops the animations as well, so a
+frame rendered before the preference lands is still still. The library derives every edge from
+the tones of its two ends (`runLink`): the tint is the source's settled state mixed 35% toward the
+resting stroke, an edge into a skipped step is dashed, one out of a step that has produced into one
+running travels (`data-motion="flowing"`, `lit` under reduced motion), and a step the graph saw
+produce pulses each edge into a step that can still read it (`pulse`); an edge into a running step
+that nothing travels is drawn a little darker. The two keyframes the library's edge names come
+with sokkel-ui's base styles. A pulse is held 700ms from the handover that started it, so a live
+run's stream redrawing the graph every second neither cuts it short nor restarts it.
 
 **Layout is recomputed on the shape, not on the state.** `signatureOf` is what the elk call is
-keyed on: which nodes there are, how wide and how tall each is, and what joins them. A step going from running
-to succeeded moves nothing, and neither does typing into a config field.
+keyed on: which nodes there are, how wide and how tall each is, and what joins them, and the
+library keys its own on the same. A step going from running to succeeded moves nothing, because a
+run's box with a state keeps the room of a duration from the start and the room of every word in
+its `reserve`; typing into a config field moves nothing either.
 
 ## A form is a JSON Schema, drawn by the library
 
@@ -1979,11 +1996,12 @@ against their slots, or added to the library.
 
 **A node is 44 tall, two lines, and as wide as its words, on every canvas.** The title in mono, and
 under it the block it runs, with the key in front where the title is a name. **No key is ever
-cut**: before elk sees a box, `lib/node-size` measures each of its lines in the face the node sets
-it in -- on a canvas of its own, in the loaded font, read off the characters until the faces have
-loaded -- with every glyph, mark, count and dot that stands on that line, and elk is handed the
-widest plus the box's chrome, between a floor of 96px and a cap of `NODE_MAX_WIDTH`. Only past
-the cap does a word truncate, and it carries its whole value on hover. The editor's box holds the
+cut**: before elk sees a box, its lines are measured in the face the node sets them in -- on a
+canvas of its own, in the loaded font, read off the characters until the faces have loaded -- with
+every glyph, mark, count and dot that stands on that line, and elk is handed the widest plus the
+box's chrome, between a floor of 96px and a cap: `lib/node-size` and `NODE_MAX_WIDTH` (360px) on a
+pipeline's canvases, sokkel-ui-graph's `graphNodeSize` and its 280px on a run's. Only past the cap
+does a word truncate, and it carries its whole value on hover. The editor's box holds the
 room of its `edited` mark before it is edited, so the first keystroke into a step moves no box. A box is filled in `--node`, edged
 in a line a step above the canvas, and lifted by a shadow of its own; a status is the only colour
 on it -- a succeeded box takes the succeeded edge, a failed one the failed edge at 1.5px over a
@@ -1997,10 +2015,10 @@ the title line, and the duration at the end of the second. **What a step is doin
 for, how a retry went, why it failed -- is the box's tooltip and the panel's, not a third line**,
 because a line nobody can read at 11px across 138 pixels says less than the colour of the box. A
 run's fan-out holds its elements in a strip beneath the two lines, and **an element's key wraps
-rather than truncates**: the chips widen the box up to `STRIP_ROOM` and then wrap onto as many
-16px lines as they need, and the box is that much taller. A retry's countdown is given its widest
-room, so a box does not move every second. Past `ITEM_STRIP_LIMIT` elements the strip counts them
-on one line. Before a grid read from a step's output has expanded, that strip is the faint words
+rather than truncates**: the chips widen the box up to 240px and then wrap, each line adding 18px
+to the box. A retrying element's chip keeps the room of its widest countdown (the chip's own
+`reserve`, `try 99 in 999s`), so a countdown does not widen the box every second. Past `ITEM_STRIP_LIMIT` elements the strip counts
+them on one line. Before a grid read from a step's output has expanded, that strip is the words
 `waits for <step>`. Elk is told the height each is actually drawn at, or the rows come out spaced
 for a box that is not there.
 
@@ -2011,7 +2029,8 @@ their full value on their own `title`, with what the step is doing after it on a
 its second line is what it listens to and its title leads with `ICONS.source`, on a dashed box. In
 the editor that is the instance's own reading of the source -- `listensTo`, `POST /endpoints/signups`
 or what a polled kind says of itself -- and the document's `kind` until an apply has made one. On a
-run it is the kind, which is what the pinned graph carries. A reply says `reply`{ .label } there, on the editor's canvas
+run it is the kind, which is what the pinned graph carries, and pointing at that line says it
+whole after "Listens to" (the box's `lineHint`). A reply says `reply`{ .label } there, on the editor's canvas
 and its step panel as on a run. A step that is none of the three says `no block`{ .label }.
 
 
@@ -2020,78 +2039,105 @@ The pipeline's page draws the graph in a box whose height follows the layout's o
 the zoom the width allows, so a five-step chain is a strip and not a stage with a strip floating in
 it. The run's page is a column whose graph takes every pixel between the heading and the docked
 terminal -- less the failure panel, where there is one -- so there is no dead ground under a small
-graph, and dragging the terminal's seam is a resize the canvas refits to. It is never shorter than
-its drawing or 240px, whichever is less, and a drawing taller than that is fitted at the floor and
-panned. The editor keeps a stage, because it is a workspace somebody adds to.
+graph, and dragging the terminal's seam is a resize the canvas refits to. It is sokkel-ui-graph's
+`filled` frame with `fillFloor` 240: never shorter than its drawing or 240px, whichever is less,
+and a drawing taller than the room it is given is fitted at the floor and panned. The canvas itself is transparent and draws no dots;
+the graph panel's own body is the ground and the dot grid under it. The editor keeps a stage,
+because it is a workspace somebody adds to.
 
 **A canvas on a page pans and zooms; a plain wheel is the page's unless the canvas is the
 screen.** Dragging the ground pans every canvas. A pinch, and a wheel with Ctrl or the platform's
 modifier held, zooms a canvas on a page about the pointer, each event held to one
 `WHEEL_ZOOM_LIMIT` step, so a mouse wheel's notch is a step and a pinch follows the fingers. On the
 pipeline's page, whose canvas is as tall as its drawing and has panels under it, a wheel with
-neither scrolls the page, so a long page never traps it. On the run's page the filled canvas is the
-screen and there is nothing to scroll past it, so a plain wheel zooms it the same way, one
-`WHEEL_ZOOM_LIMIT` step per event about the pointer, and the page under it never scrolls. A
-trackpad's two-finger scroll is a plain wheel to the browser and cannot be told reliably from a
-mouse's, so on the run's canvas it zooms too, as it does on React Flow's own default canvas; the
-ground is dragged to pan. Below the breakpoint a finger on a page's canvas scrolls the page, and the
-graph's window is where it is panned. The zoom controls say how else to zoom on their tooltips, by
-the screen they stand on, and nothing is drawn over the graph to say it.
+neither scrolls the page, so a long page never traps it. On the run's page the canvas is the
+screen and there is nothing to scroll past it, so each notch of a plain wheel zooms it one zoom
+button's step about the pointer, and the page under it never scrolls; a pinch, or a wheel with
+Ctrl or Cmd held, zooms it smoothly. A trackpad's two-finger scroll is a plain wheel to the browser
+and cannot be told reliably from a mouse's, so on the run's canvas it zooms too, a burst within
+160ms counting as one notch; the ground is dragged to pan. Below the breakpoint a finger on either
+page's canvas scrolls the page, and the graph's window is where it is panned. Each page's zoom
+buttons say how else to zoom on their tooltips, and nothing is drawn over the graph to say it.
 
 **A view's layout is the reader's for the visit.** The run's graph and the pipeline page's carry a
-`Layout`{ .label } control: the direction (left to right, or top to bottom), the edges (the
-canvas's own stepped line, elk's orthogonal routes around the boxes, or elk's splines) and the
-spacing (normal, compact, roomy). The default is exactly the layout every canvas opens on; a routed
-or curved edge is drawn along the points elk answered, with each edge into a step arriving on its
-own rather than merged into a trunk. The choice is held by the screen and nowhere else -- not in
+`Layout`{ .label } control: the direction (left to right, or top to bottom), the edges and the
+spacing. The run's is sokkel-ui-graph's `GraphLayoutMenu`, whose order of spacings (compact,
+normal, roomy) and width are the library's, with `routings`
+limited to orthogonal and splines, opened by the same button the pipeline page's `LayoutMenu` is:
+an `IconButton` on `ICONS.graph_layout`, its tooltip saying `Layout`{ .label }, handed in as the
+menu's `trigger`. Both close on a choice (`closeOnChoice` on the run's). **The run's graph opens on elk's orthogonal routes around the
+boxes** and offers elk's splines beside them; the pipeline page's canvas still opens on its own
+stepped line and offers both. A routed or curved edge is drawn along the points elk answered, with
+each edge into a step arriving on its own rather than merged into a trunk. The run's graph is laid
+out in the direction chosen at every width, never turned on its own on a narrow screen. The choice is held by the screen and nowhere else -- not in
 storage, not in the address -- so the next screen, and the next visit, open on the default. The
 editor has no such control, because a document's arrangement there is the author's.
 
 **A view opens in a window.** The window's button stands in the canvas panel's head, after the
-layout control. The window is a stage: the wheel zooms, the ground pans, and its corner carries
-the zoom, the fit and the layout, which is the same choice as the page's. A box chosen in the
+layout control. The window is a stage: the wheel zooms, the ground pans, and it carries the zoom,
+the fit and the layout, which is the same choice as the page's -- the pipeline page's in its
+corner cluster, the run's as one cluster over the window's top right corner: zoom out, zoom in,
+fit and the layout, the same buttons the page's head carries. A box chosen in the
 window is chosen on the page -- the address and the panel follow it -- and the window stays open
 until it is dismissed.
 
-Every canvas opens with the whole DAG in view: `fitView` with padding, held between the two
-bounds in `lib/dag-layout`. `FIT_MAX_ZOOM` is 1, so a fit never draws a box above its own size and a pipeline of two boxes is
-not magnified to fill the space. `FIT_MIN_ZOOM` is 0.8, so a fit never draws a 13px title under
-10.4px or an 11px word under 8.8px. **Past that floor the graph is not shrunk: it stays at the floor,
+Every canvas opens with the whole DAG in view: `fitView` with padding, held between two bounds --
+`lib/dag-layout`'s on a pipeline's canvases (padding 0.14, `FIT_MIN_ZOOM` 0.8) and
+sokkel-ui-graph's on a run's (padding 0.12, and the run's graph hands it `fitMinZoom` 0.8 with
+`narrowFit={false}`, so its floor is 0.8 at every width and a narrow canvas does not go lower to
+fit the width). **A run's drawing that fits across and is only a little too tall goes under that
+floor, to `tallFit` 0.7 and no lower**, so a graph a few pixels taller than the room above the
+terminal is seen whole rather than hung off its foot; a drawing too wide keeps the floor. A run's
+fit frames the bends of its edges as well as its boxes, so an edge that runs round a row stays on
+the canvas. The upper bound is 1 on both, so a fit never draws a box above its
+own size and a pipeline of two boxes is not magnified to fill the space, and the floor keeps a
+12px title and an 11px word legible. **Past that floor the graph is not shrunk: it stays at the floor,
 hangs off the canvas, and is panned.** A view too wide or too tall for the canvas opens with the
 start of the graph at the top left and the rest off the far edges, because a graph is read from its
 first steps and a centred one has both ends cut, and dragging the ground is how the rest is reached.
-Zooming further out is still there by hand, down to `MIN_ZOOM`, and that view is the reader's. It
-re-fits when the node set changes, when the reader changes the layout, and when the canvas is
-resized -- the right panel opening and the terminal's seam moving are resizes, a page scrolling is
-not -- and stops the moment the reader pans, zooms or drags a box: after that the view is theirs,
-and the fit control, or Re-layout in the editor, is how they hand it back. A press that moves nothing, on
-the ground or on a run's box, is not a pan. A resize of a view the reader took over only brings
-the chosen box back onto the canvas, at their zoom, if the resize cut it. The browser suite
-asserts every node's box lies inside the canvas for a graph that fits at the floor.
+Zooming further out is still there by hand, down to `MIN_ZOOM` (0.3 on a pipeline's canvases, the
+library's 0.25 on a run's), and that view is the reader's. It re-fits when the node set changes,
+when the reader changes the layout, and when the canvas is resized -- the right panel opening and
+the terminal's seam moving are resizes, a page scrolling is not -- and stops the moment the reader
+pans, zooms or drags a box: after that the view is theirs, and the fit control, or Re-layout in the
+editor, is how they hand it back. On a run's graph a zoom press takes the view over as a pan
+does. A press that moves nothing, on the ground or on a run's box, is not a pan. On every canvas
+a layout chosen after the reader moved the view fits it again, and a resize of a view the reader
+took over brings the chosen box back onto the canvas, at their zoom, if the resize cut it. The
+browser suite asserts every node's box lies inside the canvas for a graph that fits at the floor.
 
-**A deep graph is wrapped onto rows rather than drawn as one.** Seventeen steps in one
-left-to-right row is three thousand pixels of canvas, and a fit answers that by putting a node's
-text under six pixels. Past `WRAP_WIDTH` -- which `rankDepth` measures a shape against before elk
-sees it -- elk is asked to cut the layering into chunks and stack them: the ranks still read left
-to right, and the height nothing was using carries the rest.
+**A deep graph is wrapped onto rows rather than drawn as one**, on every canvas.
+Seventeen steps in one left-to-right row is three thousand pixels of canvas, and a fit answers that
+by putting a node's text under six pixels. Past `WRAP_WIDTH` -- which `rankDepth` measures a shape
+against before elk sees it -- elk is asked to cut the layering into chunks and stack them: the
+ranks still read left to right, and the height nothing was using carries the rest. The run's graph
+is wrapped to its canvas (`wrapToCanvas`): the cut is the width the canvas holds at the least
+fit zoom, never wider than the same 1120px, handed as `wrapWidth`. The library wraps only when
+elk's own unwrapped layout is wider than that cut -- not on its rank estimate, which runs wider
+than elk -- and then takes the widest layout whose rows fit it, in the window as on the page. A row still wider than the canvas hangs
+off it at the floor and is panned.
 
-**The zoom controls are this app's.** React Flow's own step by a fixed twenty percent, which on a
-graph read at half size is four presses to nothing, and its fit button fits with the library's
-options rather than the ones both canvases share. `ZOOM_STEP` is one press either way, and the
-fit button is `fitCapped`, the same one every other fit goes through. A canvas with nothing on it
-has nothing to zoom, so it draws none of them, only the control the screen adds. **On a page they
-stand in the graph panel's bar** -- zoom out, zoom in, fit, layout -- rather than over a drawing
-that is only as tall as itself; a stage carries them in its corner.
+**A zoom press is one step, and the fit button is the fit every other fit is.** React Flow's own
+step by a fixed twenty percent, which on a graph read at half size is four presses to nothing. On
+a pipeline's canvases `ZOOM_STEP` (1.5) is one press either way and the fit button is `fitCapped`;
+on a run's the library's step (1.4) and its own fit. A canvas with nothing on it has nothing to
+zoom, so it draws none of them. **On the pipeline's page they stand in the graph panel's bar** --
+zoom out, zoom in, fit, layout -- rather than over a drawing that is only as tall as itself. **On
+the run's page the bar carries the same four and the window**: the canvas draws no buttons of its
+own (`controls={false}`) and hands its zoom and fit out through `onControls`, and the head's
+`IconButton`s press them; the window's corner carries them the same way. A stage elsewhere carries
+them in its corner.
 
 ## The canvas edits
 
 **One canvas, two modes.** `GraphCanvas` is a view until it is handed `editing`, and then it is
 an editor: draw an edge, delete one, move a box, finish moving it, drop a connection on empty
-ground. The run's graph passes nothing and is what it was -- a step is selectable there and
-nothing else, because what it draws already happened and no verb would change it. The same
-split is on the box itself: `StepPorts` draws the two anchors React Flow routes an edge to, and
-only the editable mode makes them ports -- visible, connectable, `.dg-port` in index.css. A
-run's graph keeps the anchors and shows none, and the browser suite asserts that.
+ground. The pipeline page passes nothing and is a view. The same split is on the box itself:
+`StepPorts` draws the two anchors React Flow routes an edge to, and only the editable mode makes
+them ports -- visible, connectable, `.dg-port` in index.css. **The run's graph is a view by
+construction**: sokkel-ui-graph's `RunGraph` takes no editing, so a step is selectable there and
+nothing else, because what it draws already happened and no verb would change it. Its boxes keep
+the anchors and show none, and the browser suite asserts that.
 
 **An edge is a `depends_on` entry, and it is one edit however it was made.** Dragging between
 two ports and choosing a step from the chips in its own pane end in the same `withDependsOn`
@@ -2217,9 +2263,9 @@ waiting on, what it saved to, what went wrong -- is on the box's tooltip, and th
 things as facts rather than as a second sentence.
 
 **A live wait's fraction is a foot line, never a number.** A step whose attempt reports how far
-its wait has come draws that as a 3px line in the hue of the box it sits in: along the node's
-bottom edge, inside its border and taking no height, and directly under the attempt row's waiting
-message. It is a `progressbar` with `aria-valuenow`, the node's tooltip gives the percentage, and
+its wait has come draws that as a line in the hue of the state it is in: 2px along the node's
+bottom edge, inside its border and taking no height, and 3px directly under the attempt row's
+waiting message. It is a `progressbar` with `aria-valuenow`, the node's tooltip gives the percentage, and
 no figure is drawn beside it, because the message already says how far. It is drawn only while the
 attempt is waiting or running: a settled attempt still carries the last fraction it reported, and
 `progressOf` in `lib/run-detail` is the one reading that drops it. No progress draws nothing.

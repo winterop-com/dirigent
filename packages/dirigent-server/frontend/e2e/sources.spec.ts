@@ -115,7 +115,9 @@ test('a pipeline page says where its endpoint is called, and a new token makes a
     await page.goto(`/runs/${String(run?.id)}`)
     await expect(page.getByText(LABELS.runs.a_call('ask'), { exact: true })).toBeVisible()
     await expect(
-        page.getByTestId('step-line').filter({ hasText: `reply · ${LABELS.runs.reply.sent}` }),
+        page
+            .locator('[data-slot="graph-node-line"]')
+            .filter({ hasText: `reply · ${LABELS.runs.reply.sent}` }),
     ).toBeVisible()
 })
 
@@ -133,5 +135,7 @@ test('a run started by hand says it took the sample and that its reply was not s
     const runId = await startRun(page.request, SAMPLED.code)
     await page.goto(`/runs/${runId}`)
     await expect(page.getByText(LABELS.runs.entered.sample)).toBeVisible()
-    await expect(page.getByTestId('step-line').filter({ hasText: LABELS.runs.reply.not_sent })).toBeVisible()
+    await expect(
+        page.locator('[data-slot="graph-node-line"]').filter({ hasText: LABELS.runs.reply.not_sent }),
+    ).toBeVisible()
 })

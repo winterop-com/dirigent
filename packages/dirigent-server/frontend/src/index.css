@@ -69,7 +69,10 @@
 @import '@winterop-com/sokkel-ui/sources/primitives/tabs.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/textarea.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/tooltip.css';
+@import '@winterop-com/sokkel-ui-graph/sources/GraphCanvas.css';
+@import '@winterop-com/sokkel-ui-graph/sources/GraphLayoutMenu.css';
 @import '@winterop-com/sokkel-ui-graph/sources/MiniGraph.css';
+@import '@winterop-com/sokkel-ui-graph/sources/RunGraph.css';
 @import '@winterop-com/sokkel-ui/themes/amber.css';
 @import '@winterop-com/sokkel-ui/themes/paper.css';
 @import '@winterop-com/sokkel-ui/themes/contrast.css';
@@ -489,70 +492,14 @@
     stroke-width: 2.5;
 }
 
-/* AN EDGE ON A RUN'S GRAPH CARRIES THE STATE ITS SOURCE SETTLED IN, AND WHISPERS IT. The hue is
-   mixed well toward the resting stroke, because what an edge says is which way the run went and
-   what a node says is what happened: a graph of succeeded steps has to read as a shape rather
-   than as a green diagram. `lib/run-detail` decides which class an edge wears; a document has no
-   state, so the editor's edges wear none of them. */
-.react-flow.dg-graph .react-flow__edge.dg-edge-good .react-flow__edge-path {
-    stroke: color-mix(in oklab, var(--good) 35%, var(--graph-edge));
-}
-.react-flow.dg-graph .react-flow__edge.dg-edge-warning .react-flow__edge-path {
-    stroke: color-mix(in oklab, var(--warning) 35%, var(--graph-edge));
-}
-.react-flow.dg-graph .react-flow__edge.dg-edge-critical .react-flow__edge-path {
-    stroke: color-mix(in oklab, var(--critical) 35%, var(--graph-edge));
-}
-/* Into a step that did not happen: dashed, the same mark its own box wears. It is independent of
-   the tint, so an edge from a succeeded step into a skipped one carries both. */
-.react-flow.dg-graph .react-flow__edge.dg-edge-skipped .react-flow__edge-path {
-    stroke-dasharray: 5 4;
-}
-
-/* AN EDGE MOVES WHILE DATA IS TRAVELLING IT, AND NOTHING ELSE ON THE GRAPH MOVES AT ALL. The
-   stroke is the ink, because motion here is the app acting rather than a state; a node keeps the
-   state hue it already has. `lib/run-detail` decides which class an edge wears, and these rules
-   follow the tints above so a moving edge is ink over whatever it carries. */
-.react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path,
-.react-flow.dg-graph .react-flow__edge.dg-edge-lit .react-flow__edge-path {
-    stroke: color-mix(in oklab, var(--foreground) 75%, var(--graph-edge));
-    stroke-width: 2;
-}
-.react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path {
-    stroke-dasharray: 6 5;
-    animation: dg-edge-flow 700ms linear infinite;
-}
-@keyframes dg-edge-flow {
-    to {
-        stroke-dashoffset: -11;
-    }
-}
-/* One handover, brighter and thicker, fading back into whatever the edge rests as -- which is
-   the keyframes naming no end state, so the end is the stroke the rules above already give it. */
-.react-flow.dg-graph .react-flow__edge.dg-edge-handover .react-flow__edge-path {
-    animation: dg-edge-handover 600ms ease-out 1;
-}
-@keyframes dg-edge-handover {
-    from {
-        stroke: var(--foreground);
-        stroke-width: 3;
-    }
-}
-
 /* ---------------------------------------------------------------------------
-   ONE STEP, AS A BOX ON THE GRAPH.
+   ONE STEP, AS A BOX ON THE PIPELINE'S CANVASES.
 
-   A box is filled in `--node`, edged a step above the canvas and lifted by its own shadow. A
-   state is the box's edge in the state's ink -- a failed one at 1.5px over a wash of its hue, a
-   skipped one dashed on no fill -- and nothing else on the box takes a colour.
+   A box is filled in `--node`, edged a step above the canvas and lifted by its own shadow.
 
-   SELECTION IS NEUTRAL, AND IT IS THE ONE THING ON THIS BOX THAT IS NOT ALLOWED A HUE. A ring in
-   the identity colour sits next to the green of a succeeded step and the red of a failed one and
-   argues with both -- three colours on one box, only one of which is about the run. So the ring
+   SELECTION IS NEUTRAL, AND IT IS THE ONE THING ON THIS BOX THAT IS NOT ALLOWED A HUE. The ring
    is drawn in the ink family: a halo of the foreground, which is a step out of every surface in
    either palette and is confusable with no state.
-
-   `--chip` is set on the element from the status token `lib/status` maps the state to.
    --------------------------------------------------------------------------- */
 .step-node {
     position: relative;
@@ -579,20 +526,6 @@
 .step-node:hover {
     border-color: var(--muted-foreground);
 }
-.step-node[data-outcome='succeeded'] {
-    border-color: var(--status-succeeded-ink);
-}
-.step-node[data-outcome='failed'] {
-    border: 1.5px solid var(--status-failed-ink);
-    background-color: color-mix(in oklab, var(--status-failed-ink) 12%, var(--node));
-}
-.step-node[data-outcome='completed_with_errors'] {
-    border-color: var(--status-completed-with-errors-ink);
-}
-.step-node[data-outcome='running'],
-.step-node[data-outcome='waiting'] {
-    border-color: var(--chip);
-}
 .step-node[data-selected='true'] {
     box-shadow:
         0 0 0 2px var(--canvas),
@@ -601,12 +534,6 @@
 .step-node:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
-}
-.step-node[data-outcome='skipped'] {
-    border-style: dashed;
-    background-color: transparent;
-    box-shadow: none;
-    color: var(--muted-foreground);
 }
 /* A source runs no block: it is where an input enters, on the ground rather than on a box. */
 .step-node[data-source='true'] {
@@ -638,31 +565,20 @@
     padding-left: 0.625rem;
 }
 
-/* How far a live wait has come, in the `--chip` of the element it sits in. `foot` lies along the
-   bottom edge of a positioned box inside its border and takes no room, so the box keeps the height
-   elk was given; `under` is a line in the flow beneath the text it belongs to. */
+/* How far a live wait has come, in the `--chip` of the element it sits in: a line in the flow
+   beneath the text it belongs to. */
 .progress-line {
     height: 3px;
     background-color: color-mix(in oklab, var(--chip) 18%, transparent);
-}
-.progress-line-fill {
-    height: 100%;
-    background-color: var(--chip);
-    transition: width 400ms ease-out;
-}
-.progress-line-foot {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-}
-.progress-line-under {
     border-radius: var(--radius-sm);
     overflow: hidden;
     margin: 0.25rem 0 0.125rem;
 }
-.progress-line-under .progress-line-fill {
+.progress-line-fill {
+    height: 100%;
     border-radius: var(--radius-sm);
+    background-color: var(--chip);
+    transition: width 400ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -673,9 +589,8 @@
     .react-flow.dg-graph .react-flow__handle.dg-port {
         transition: none;
     }
-    .react-flow.dg-graph .react-flow__edge.dg-edge-flowing .react-flow__edge-path,
-    .react-flow.dg-graph .react-flow__edge.dg-edge-handover .react-flow__edge-path {
-        animation: none;
+    [data-slot='graph-edge'] {
+        animation: none !important;
     }
 }
 

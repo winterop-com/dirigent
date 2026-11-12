@@ -405,7 +405,7 @@ function AttemptRow({
             {attempt.waiting_message !== null && (
                 <p className="text-xs text-muted-foreground">{attempt.waiting_message}</p>
             )}
-            <ProgressLine progress={progressOf(attempt)} placement="under" />
+            <ProgressLine progress={progressOf(attempt)} />
             {attempt.error !== null && (
                 /* The failure is the sentence this row exists for, so it gets a block of its
                    own rather than a red aside squeezed against the chips. */

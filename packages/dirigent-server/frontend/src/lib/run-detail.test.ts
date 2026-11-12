@@ -11,12 +11,7 @@ import {
     queuedOf,
     readsAsTheWholeStep,
     waitingOf,
-    drawnStates,
     emptyStripLabel,
-    edgeClasses,
-    edgeMotion,
-    edgeTone,
-    handovers,
     initialState,
     itemLabels,
     itemOfEntry,
@@ -30,6 +25,7 @@ import {
     reduce,
     resumeCursor,
     retryStory,
+    runSteps,
     stepViews,
     toleratedFanOut,
     withStream,
@@ -990,165 +986,113 @@ describe('the state a node is drawn in', () => {
     })
 })
 
-describe('what an edge is drawn as', () => {
-    test('takes a tint from the state its source settled in', () => {
-        expect(edgeTone(drawn({ outcome: 'succeeded' }), drawn())).toBe('dg-edge-good')
-        expect(edgeTone(drawn({ outcome: 'failed' }), drawn())).toBe('dg-edge-critical')
-    })
-
-    test('agrees with the box it leaves, so a tolerated fan-out tints its edges amber', () => {
-        const tolerated = drawn({
-            node: node({ fan_out: true, outcome: 'succeeded', items_total: 3, items_failed: 1 }),
-            outcome: 'failed',
-        })
-        expect(edgeTone(tolerated, drawn())).toBe('dg-edge-warning')
-    })
-
-    test('is dashed into a step that did not happen, on top of whatever tint it carries', () => {
-        expect(edgeTone(drawn({ outcome: 'succeeded' }), drawn({ outcome: 'skipped' }))).toBe(
-            'dg-edge-good dg-edge-skipped',
-        )
-        expect(edgeTone(drawn({ outcome: 'pending' }), drawn({ outcome: 'skipped' }))).toBe('dg-edge-skipped')
-    })
-
-    test('is plain for a step nothing has happened to, and for an end the graph does not carry', () => {
-        expect(edgeTone(drawn({ outcome: 'running' }), drawn({ outcome: 'pending' }))).toBe('')
-        expect(edgeTone(undefined, undefined)).toBe('')
-    })
-})
-
-describe('what an edge is carrying while a run is live', () => {
-    /** A step by the name its edges are keyed on. */
+describe('a step as the graph draws it', () => {
     function step(code: string, over: Partial<StepView> = {}): StepView {
         return drawn({ node: node({ code }), ...over })
     }
 
-    const moving = { handing: new Set<string>(), reduced: false }
-
-    test('moves out of a step that has produced into one still reading it', () => {
-        const motion = edgeMotion(
-            step('parse', { outcome: 'succeeded' }),
-            step('report', { outcome: 'running' }),
-            moving,
-        )
-        expect(motion).toBe('flowing')
-        expect(
-            edgeClasses(
-                step('parse', { outcome: 'succeeded' }),
-                step('report', { outcome: 'running' }),
-                moving,
-            ),
-        ).toBe('dg-edge-good dg-edge-flowing')
+    test('is titled by its name, with the key ahead of the block on the second line', () => {
+        const [named] = runSteps({ nodes: [], edges: [] }, [
+            step('fetch', { node: node({ name: 'Fetch the sheet' }), outcome: 'running', duration_ms: 1200 }),
+        ])
+        expect(named).toMatchObject({ code: 'fetch', name: 'Fetch the sheet', kind: 'http.request' })
+        expect(named?.status).toBe('running')
+        expect(named?.duration_ms).toBe(1200)
+        const [plain] = runSteps({ nodes: [], edges: [] }, [step('fetch')])
+        expect(plain?.name).toBeUndefined()
+        expect(plain?.duration_ms).toBeUndefined()
     })
 
-    test('moves out of a fan-out whose failures were tolerated, which produced a short batch', () => {
-        const tolerated = step('per_region', {
-            node: node({
-                name: 'per_region',
-                fan_out: true,
-                outcome: 'succeeded',
-                items_total: 3,
-                items_failed: 1,
-            }),
+    test('needs the steps its edges come from', () => {
+        const dag: DagView = {
+            nodes: [],
+            edges: [
+                ['a', 'c'],
+                ['b', 'c'],
+                ['a', 'b'],
+            ],
+        }
+        const steps = runSteps(dag, [step('a'), step('b'), step('c')])
+        expect(steps.map((one) => one.needs)).toEqual([[], ['a'], ['a', 'b']])
+    })
+
+    test('is drawn in the tone a tolerated fan-out takes, not its folded outcome', () => {
+        const tolerated = drawn({
+            node: node({ fan_out: true, outcome: 'succeeded', items_failed: 1 }),
             outcome: 'failed',
         })
-        expect(edgeMotion(tolerated, step('report', { outcome: 'running' }), moving)).toBe('flowing')
+        expect(runSteps({ nodes: [], edges: [] }, [tolerated])[0]?.status).toBe('completed_with_errors')
     })
 
-    test('is still out of a step that failed, was skipped, or has not produced anything yet', () => {
-        expect(
-            edgeMotion(step('parse', { outcome: 'failed' }), step('report', { outcome: 'running' }), moving),
-        ).toBe('still')
-        expect(
-            edgeMotion(step('parse', { outcome: 'skipped' }), step('report', { outcome: 'running' }), moving),
-        ).toBe('still')
-        expect(
-            edgeMotion(step('parse', { outcome: 'running' }), step('report', { outcome: 'pending' }), moving),
-        ).toBe('still')
+    test('says what it is doing as its hint, with the percentage a live wait reports', () => {
+        const [waiting] = runSteps({ nodes: [], edges: [] }, [
+            step('poll', { outcome: 'running', detail: 'waiting for the export', progress: 0.42 }),
+        ])
+        expect(waiting?.hint).toBe('waiting for the export (42%)')
+        expect(waiting?.progress).toBe(0.42)
+        const [quiet] = runSteps({ nodes: [], edges: [] }, [step('poll', { detail: 'saves to x' })])
+        expect(quiet?.hint).toBe('saves to x')
+        expect(quiet?.progress).toBeUndefined()
     })
 
-    test('is still where both ends have settled, which is every edge of a terminal run', () => {
-        expect(
-            edgeMotion(
-                step('parse', { outcome: 'succeeded' }),
-                step('report', { outcome: 'succeeded' }),
-                moving,
-            ),
-        ).toBe('still')
-        expect(edgeMotion(undefined, undefined, moving)).toBe('still')
+    test('is a source with its glyph on a dashed box, its line saying what it listens to', () => {
+        const [source] = runSteps({ nodes: [], edges: [] }, [
+            drawn({ node: node({ code: 'inbox', kind: 'source', block: 'webhook' }) }),
+        ])
+        expect(source?.source).toBe(true)
+        expect(source?.icon).toBeDefined()
+        expect(source?.kind).toBe('webhook')
+        expect(source?.lineHint).toBe('Listens to webhook')
     })
 
-    test('plays one handover into a step that can still read what just landed', () => {
-        const handing = { handing: new Set(['parse']), reduced: false }
-        expect(
-            edgeMotion(
-                step('parse', { outcome: 'succeeded' }),
-                step('report', { outcome: 'pending' }),
-                handing,
-            ),
-        ).toBe('handover')
-        // A handover comes first where a dependent is already running: one moment, then the flow.
-        expect(
-            edgeMotion(
-                step('parse', { outcome: 'succeeded' }),
-                step('report', { outcome: 'running' }),
-                handing,
-            ),
-        ).toBe('handover')
-        // Into a step that will never read it there is nothing to hand over.
-        expect(
-            edgeMotion(
-                step('parse', { outcome: 'succeeded' }),
-                step('report', { outcome: 'skipped' }),
-                handing,
-            ),
-        ).toBe('still')
+    test('says whether a reply was sent in place of its duration, and keeps the longer word', () => {
+        const replied = attempt({ status: 'succeeded', output: { delivered: false } })
+        const [reply] = runSteps({ nodes: [], edges: [] }, [
+            drawn({
+                node: node({ code: 'answer', kind: 'reply', block: 'reply' }),
+                outcome: 'succeeded',
+                latest: replied,
+                duration_ms: 40,
+            }),
+        ])
+        expect(reply?.kind).toBe('reply · not sent')
+        expect(reply?.duration_ms).toBeUndefined()
+        expect(reply?.reserve).toEqual(['reply · not sent'])
     })
 
-    test('lights rather than moves for somebody who asked for less motion', () => {
-        const reduced = { handing: new Set(['parse']), reduced: true }
-        expect(
-            edgeMotion(
-                step('parse', { outcome: 'succeeded' }),
-                step('report', { outcome: 'running' }),
-                reduced,
-            ),
-        ).toBe('lit')
-        expect(
-            edgeMotion(
-                step('parse', { outcome: 'succeeded' }),
-                step('report', { outcome: 'pending' }),
-                reduced,
-            ),
-        ).toBe('still')
-        expect(
-            edgeClasses(
-                step('parse', { outcome: 'succeeded' }),
-                step('report', { outcome: 'running' }),
-                reduced,
-            ),
-        ).toBe('dg-edge-good dg-edge-lit')
-    })
-})
-
-describe('when a step hands its output on', () => {
-    function step(code: string, outcome: StepView['outcome']): StepView {
-        return drawn({ node: node({ code }), outcome })
-    }
-
-    test('is the render that moved it there, and no other', () => {
-        const before = drawnStates([step('parse', 'running'), step('report', 'pending')])
-        expect(handovers(before, [step('parse', 'succeeded'), step('report', 'pending')])).toEqual(['parse'])
-        expect(handovers(before, [step('parse', 'running'), step('report', 'pending')])).toEqual([])
+    test('carries a fan-out as its count and its chips, a retrying chip keeping its widest room', () => {
+        const fan = drawn({
+            node: node({ code: 'each', fan_out: true }),
+            outcome: 'running',
+            items: 2,
+            strip: {
+                kind: 'chips',
+                items: [
+                    { id: 'i-1', key: 'oslo', status: 'succeeded', retry: null },
+                    { id: 'i-2', key: 'bergen', status: 'running', retry: 'try 2 in 8s' },
+                ],
+            },
+        })
+        const [each] = runSteps({ nodes: [], edges: [] }, [fan])
+        expect(each?.count).toBe('2 items')
+        expect(each?.items).toEqual([
+            { id: 'i-1', label: 'oslo', status: 'succeeded' },
+            { id: 'i-2', label: 'bergen', status: 'running', note: 'try 2 in 8s', reserve: 'try 99 in 999s' },
+        ])
+        expect(each?.reserve).toBeUndefined()
     })
 
-    test('is nothing at all for a run that had already settled when it was opened', () => {
-        expect(handovers(new Map(), [step('parse', 'succeeded'), step('report', 'succeeded')])).toEqual([])
-    })
-
-    test('is not repeated for a step that was already succeeded', () => {
-        const before = drawnStates([step('parse', 'succeeded')])
-        expect(handovers(before, [step('parse', 'succeeded')])).toEqual([])
+    test('counts a fan-out too wide to name, and says what an unexpanded one waits for', () => {
+        const wide = drawn({
+            node: node({ code: 'each', fan_out: true }),
+            items: 9,
+            strip: { kind: 'counts', counts: [{ status: 'succeeded', count: 9 }], total: 9 },
+        })
+        expect(runSteps({ nodes: [], edges: [] }, [wide])[0]?.itemsSummary).toBe('9 succeeded')
+        const late = drawn({ node: node({ code: 'each', fan_out: true, grid_source: 'list' }) })
+        const [waiting] = runSteps({ nodes: [], edges: [] }, [late])
+        expect(waiting?.itemsSummary).toBe('waits for list')
+        expect(waiting?.count).toBeUndefined()
     })
 })
 

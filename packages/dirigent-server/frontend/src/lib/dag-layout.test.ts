@@ -14,7 +14,6 @@ import {
     NODE_SPACING,
     NODE_WIDTH,
     RANK_SPACING,
-    STRIP_HEIGHT,
     WRAP_OPTIONS,
     WRAP_WIDTH,
     drawnSize,
@@ -24,7 +23,6 @@ import {
     nodeWidth,
     fittedZoom,
     fromElkGraph,
-    heightOf,
     layoutDag,
     layoutOptionsFor,
     placedByRank,
@@ -39,6 +37,9 @@ import {
     type ElkGraph,
     type LayoutShape,
 } from '@/lib/dag-layout'
+
+/** A box taller than an ordinary step, such as a fan-out's with its strip of elements. */
+const TALLER = NODE_HEIGHT + 16
 
 function node(id: string, height: number = NODE_HEIGHT) {
     return { id, height }
@@ -78,16 +79,6 @@ function rowEngine(): ElkEngine & { seen: ElkGraph[] } {
     }
 }
 
-describe('how tall a node is', () => {
-    test('is three lines for an ordinary step', () => {
-        expect(heightOf(false)).toBe(NODE_HEIGHT)
-    })
-
-    test('is that plus the strip for a fan-out step, which draws its elements inside itself', () => {
-        expect(heightOf(true)).toBe(NODE_HEIGHT + STRIP_HEIGHT)
-    })
-})
-
 describe('what decides the geometry', () => {
     test('is the nodes, their heights, and the edges, and nothing else about them', () => {
         expect(signatureOf(CHAIN)).toBe(signatureOf({ nodes: [...CHAIN.nodes], edges: [...CHAIN.edges] }))
@@ -99,7 +90,7 @@ describe('what decides the geometry', () => {
     })
 
     test('changes when a node grows an item strip, because the box it needs is taller', () => {
-        const fanned: LayoutShape = { nodes: [node('push', heightOf(true))], edges: [] }
+        const fanned: LayoutShape = { nodes: [node('push', TALLER)], edges: [] }
         expect(signatureOf(fanned)).not.toBe(signatureOf({ nodes: [node('push')], edges: [] }))
     })
 })
@@ -130,8 +121,8 @@ describe('the graph elk is handed', () => {
     })
 
     test('gives a fan-out step the room its item strip needs', () => {
-        const fanned: LayoutShape = { nodes: [node('push', heightOf(true))], edges: [] }
-        expect(toElkGraph(fanned).children[0]?.height).toBe(NODE_HEIGHT + STRIP_HEIGHT)
+        const fanned: LayoutShape = { nodes: [node('push', TALLER)], edges: [] }
+        expect(toElkGraph(fanned).children[0]?.height).toBe(TALLER)
     })
 })
 
@@ -187,10 +178,10 @@ describe('placing a graph', () => {
 })
 
 describe('the size a placed node is drawn at', () => {
-    const placed = { id: 'report', x: 300, y: 40, width: NODE_WIDTH, height: NODE_HEIGHT + STRIP_HEIGHT }
+    const placed = { id: 'report', x: 300, y: 40, width: NODE_WIDTH, height: TALLER }
 
     test('is the size elk was told, which is the size the box is', () => {
-        expect(drawnSize(placed)).toEqual({ width: NODE_WIDTH, height: NODE_HEIGHT + STRIP_HEIGHT })
+        expect(drawnSize(placed)).toEqual({ width: NODE_WIDTH, height: TALLER })
     })
 
     test('is what a node states as its measurement, which is what keeps an edge on the canvas', () => {

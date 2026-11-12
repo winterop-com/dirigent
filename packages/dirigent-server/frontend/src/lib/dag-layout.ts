@@ -105,39 +105,8 @@ export function fanOutRoom(word: string, measure: Measure = measureByCharacters)
     return Math.ceil(NODE_GAP + GLYPH_WIDTH + 4 + measure(word, 'small-mono'))
 }
 
-/** The gap between two chips of a fan-out's strip, side by side. */
-export const CHIP_GAP = 8
-
-/**
- * How many lines a fan-out's chips take in the room a box has, wrapped the way the strip wraps
- * them: as many to a line as fit, and never fewer than one.
- */
-export function stripLines(chips: readonly number[], room: number): number {
-    let lines = 1
-    let used = 0
-    for (const chip of chips) {
-        const next = used === 0 ? chip : used + CHIP_GAP + chip
-        if (used > 0 && next > room) {
-            lines += 1
-            used = chip
-        } else {
-            used = next
-        }
-    }
-    return lines
-}
-
-/** How wide a strip's chips are on one line, which is the most a strip asks of a box. */
-export function stripWidth(chips: readonly number[]): number {
-    if (chips.length === 0) return 0
-    return chips.reduce((sum, chip) => sum + chip, 0) + (chips.length - 1) * CHIP_GAP
-}
-
 /** How tall an ordinary node is: its title, one line under it, and its padding. */
 export const NODE_HEIGHT = 44
-
-/** What each line of a fan-out node's item strip adds to its height: one line of 11px text. */
-export const STRIP_HEIGHT = 16
 
 /** One node to place: what it is called, and how wide and how tall it will be drawn. */
 export interface LayoutNode {
@@ -380,11 +349,6 @@ export function layoutOptionsFor(
         ...routingOptions(choice.routing),
         ...(wraps ? WRAP_OPTIONS : {}),
     }
-}
-
-/** How tall one node is drawn: whether it carries an item strip, and how many lines that wraps to. */
-export function heightOf(fanOut: boolean, lines = 1): number {
-    return fanOut ? NODE_HEIGHT + STRIP_HEIGHT * Math.max(1, lines) : NODE_HEIGHT
 }
 
 /**

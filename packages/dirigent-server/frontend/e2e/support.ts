@@ -343,12 +343,18 @@ export async function canvasSettled(page: Page): Promise<void> {
         .toBe(true)
 }
 
-/** Whether every canvas on the page has its boxes where they will stay. */
+/**
+ * Whether every canvas on the page has its boxes where they will stay: a sokkel-ui-graph frame
+ * carries `data-graph-settled` once it has, and one of this app's canvases says `true` on itself.
+ */
 async function placementsSettled(page: Page): Promise<boolean> {
     return page.evaluate(() =>
-        [...document.querySelectorAll('.react-flow')].every(
-            (canvas) => canvas.getAttribute('data-graph-settled') === 'true',
-        ),
+        [...document.querySelectorAll('.react-flow')].every((canvas) => {
+            const frame = canvas.closest('[data-graph-view]')
+            return frame === null
+                ? canvas.getAttribute('data-graph-settled') === 'true'
+                : frame.hasAttribute('data-graph-settled')
+        }),
     )
 }
 
