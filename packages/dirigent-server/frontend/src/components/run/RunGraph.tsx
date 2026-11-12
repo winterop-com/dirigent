@@ -39,6 +39,9 @@ const ROUTINGS: readonly GraphRouting[] = ['orthogonal', 'splines']
 /** The least zoom a fit of the run's graph goes to, at every width. */
 const FIT_MIN_ZOOM = 0.8
 
+/** The tallest the filled panel insists on for the drawing, which is less when the drawing is. */
+const FILL_FLOOR = 240
+
 /**
  * The run's graph in its panel on the run's page, filling the room the page leaves it, with the
  * same graph in a window. The layout a reader chooses lasts as long as this run's screen does.
@@ -68,6 +71,12 @@ export function RunGraph({
             onValueChange={setLayout}
             routings={ROUTINGS}
             words={GRAPH_LAYOUT_WORDS}
+            closeOnChoice
+            trigger={
+                <IconButton label={LABELS.shell.layout.menu} size="icon-sm" className="text-muted-foreground">
+                    <ICONS.graph_layout aria-hidden />
+                </IconButton>
+            }
         />
     )
     const canvas = (frame: string) => {
@@ -86,6 +95,8 @@ export function RunGraph({
                 fitMinZoom={FIT_MIN_ZOOM}
                 narrowFit={false}
                 wrapWidth={WRAP_WIDTH}
+                wrapToCanvas
+                fillFloor={FILL_FLOOR}
                 formatDuration={formatDuration}
                 words={GRAPH_WORDS}
             />

@@ -15,6 +15,12 @@ import {
 } from './support.ts'
 
 /**
+ * sokkel-ui-graph's `GRAPH_WHEEL_STEP_MS`, the least time between two wheel notches on a canvas.
+ * Its module loads stylesheets, which this runner cannot import.
+ */
+const GRAPH_WHEEL_STEP_MS = 160
+
+/**
  * A graph on a page, read the way somebody reads the run of a wide pipeline: every step code
  * whole, the chosen step in the address, the layout changeable for the visit, a canvas that fills
  * the run screen and zooms on its wheel, and a pipeline page whose wheel scrolls and whose pinch
@@ -224,7 +230,7 @@ test('a plain wheel over the run canvas zooms it one step about the pointer, and
 
     // A notch the other way steps back out, and the page still stands where it was. Wheel events
     // closer together than the canvas's notch interval are one notch, so this one waits it out.
-    await page.waitForTimeout(250)
+    await page.waitForTimeout(GRAPH_WHEEL_STEP_MS + 50)
     await page.mouse.wheel(0, 100)
     await expect.poll(async () => viewOf(await transformOf(page)).zoom).toBeCloseTo(before.zoom, 3)
     await page.waitForTimeout(300)
@@ -343,8 +349,7 @@ test('a layout chosen for the view redraws the graph, and the next visit opens o
 
     await page.getByRole('button', { name: LABELS.shell.layout.menu }).first().click()
     await page.getByRole('menuitemradio', { name: LABELS.shell.layout.down }).click()
-    // The menu stays open for the next choice until it is dismissed.
-    await page.keyboard.press('Escape')
+    await expect(page.getByRole('menu')).toBeHidden()
     await expect.poll(async () => JSON.stringify(await boxes(page))).not.toBe(JSON.stringify(opened))
     await canvasSettled(page)
     const down = await boxes(page)

@@ -2040,8 +2040,8 @@ the zoom the width allows, so a five-step chain is a strip and not a stage with 
 it. The run's page is a column whose graph takes every pixel between the heading and the docked
 terminal -- less the failure panel, where there is one -- so there is no dead ground under a small
 graph, and dragging the terminal's seam is a resize the canvas refits to. It is sokkel-ui-graph's
-`filled` frame: never shorter than its drawing or 360px, whichever is less, and a drawing taller
-than that is fitted at the floor and panned. The canvas itself is transparent and draws no dots;
+`filled` frame with `fillFloor` 240: never shorter than its drawing or 240px, whichever is less,
+and a drawing taller than the room it is given is fitted at the floor and panned. The canvas itself is transparent and draws no dots;
 the graph panel's own body is the ground and the dot grid under it. The editor keeps a stage,
 because it is a workspace somebody adds to.
 
@@ -2061,10 +2061,10 @@ buttons say how else to zoom on their tooltips, and nothing is drawn over the gr
 
 **A view's layout is the reader's for the visit.** The run's graph and the pipeline page's carry a
 `Layout`{ .label } control: the direction (left to right, or top to bottom), the edges and the
-spacing (normal, compact, roomy). The run's is sokkel-ui-graph's `GraphLayoutMenu`, on the
-library's sliders glyph and its own button, with `routings` limited to orthogonal and splines; it
-stays open for the next choice until it is dismissed. The pipeline page's is the app's
-`LayoutMenu`, on `ICONS.graph_layout`. **The run's graph opens on elk's orthogonal routes around the
+spacing (normal, compact, roomy). The run's is sokkel-ui-graph's `GraphLayoutMenu`, with `routings`
+limited to orthogonal and splines, opened by the same button the pipeline page's `LayoutMenu` is:
+an `IconButton` on `ICONS.graph_layout`, its tooltip saying `Layout`{ .label }, handed in as the
+menu's `trigger`. Both close on a choice (`closeOnChoice` on the run's). **The run's graph opens on elk's orthogonal routes around the
 boxes** and offers elk's splines beside them; the pipeline page's canvas still opens on its own
 stepped line and offers both. A routed or curved edge is drawn along the points elk answered, with
 each edge into a step arriving on its own rather than merged into a trunk. The run's graph is laid
@@ -2106,8 +2106,10 @@ Seventeen steps in one left-to-right row is three thousand pixels of canvas, and
 by putting a node's text under six pixels. Past `WRAP_WIDTH` -- which `rankDepth` measures a shape
 against before elk sees it -- elk is asked to cut the layering into chunks and stack them: the
 ranks still read left to right, and the height nothing was using carries the rest. The run's graph
-hands sokkel-ui-graph the same 1120px as `wrapWidth`, and elk wraps it the same way, in the window
-as on the page. A row still wider than the canvas hangs off it at the floor and is panned.
+is wrapped to its canvas (`wrapToCanvas`): a row is cut to the width the canvas holds at the least
+fit zoom, never wider than the same 1120px, handed as `wrapWidth`, and the library chooses as many
+rows as keep each that wide, in the window as on the page. A row still wider than the canvas hangs
+off it at the floor and is panned.
 
 **A zoom press is one step, and the fit button is the fit every other fit is.** React Flow's own
 step by a fixed twenty percent, which on a graph read at half size is four presses to nothing. On
