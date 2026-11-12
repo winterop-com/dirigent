@@ -210,7 +210,7 @@ function ArtifactPreview({ row, kind, name }: { row: ArtifactOut; kind: PreviewK
     }, [row.id])
 
     return (
-        <div className="max-h-96 overflow-auto py-2" data-artifact-preview={row.id}>
+        <div className="py-2" data-artifact-preview={row.id}>
             {read === null ? (
                 <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
             ) : 'problem' in read ? (

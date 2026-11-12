@@ -60,10 +60,11 @@ describe('previewKindOf', () => {
 })
 
 describe('previewLanguageOf', () => {
-    test('markdown and YAML are highlighted, and any other text is plain', () => {
+    test('markdown, YAML and XML are highlighted, and any other text is plain', () => {
         expect(previewLanguageOf('text/markdown; charset=utf-8')).toBe('markdown')
         expect(previewLanguageOf('application/yaml')).toBe('yaml')
-        expect(previewLanguageOf('application/atom+xml')).toBe('text')
+        expect(previewLanguageOf('application/atom+xml')).toBe('xml')
+        expect(previewLanguageOf('text/xml')).toBe('xml')
         expect(previewLanguageOf('text/plain')).toBe('text')
         expect(previewLanguageOf(null)).toBe('text')
     })
