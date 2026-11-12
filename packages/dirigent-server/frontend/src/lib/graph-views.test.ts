@@ -4,7 +4,6 @@ import {
     boxWidth,
     DEFAULT_LAYOUT,
     fromElkGraph,
-    heightOf,
     LAYOUT_OPTIONS,
     layoutOptionsFor,
     measureByCharacters,
@@ -15,14 +14,12 @@ import {
     placedByRank,
     routedPath,
     signatureOf,
-    STRIP_HEIGHT,
-    stripLines,
     toElkGraph,
     WHEEL_ZOOM_LIMIT,
     wheelZoomFactor,
     type LayoutShape,
 } from '@/lib/dag-layout'
-import { chipWidth, shapeNodeWidth } from '@/lib/node-size'
+import { shapeNodeWidth } from '@/lib/node-size'
 import { chosenStep, pipelineStepPath, queryForStep, queryWith, runStepPath } from '@/lib/step-address'
 
 const FAN_IN: LayoutShape = {
@@ -144,24 +141,6 @@ describe('how wide a box is', () => {
         const words = { title: 'data_elements_by_domain', named: false, line: 'transform.jq' }
         const width = shapeNodeWidth(words, false, true, measureByCharacters)
         expect(width - NODE_CHROME).toBeGreaterThanOrEqual(measureByCharacters(words.title, 'title-mono'))
-    })
-})
-
-describe("a fan-out's chips", () => {
-    test('wrap onto as many lines as the room asks, never fewer than one', () => {
-        expect(stripLines([], 100)).toBe(1)
-        expect(stripLines([40, 40], 100)).toBe(1)
-        expect(stripLines([40, 40, 40], 100)).toBe(2)
-    })
-
-    test('make the box taller by a line each', () => {
-        expect(heightOf(true, 3) - heightOf(true, 1)).toBe(2 * STRIP_HEIGHT)
-    })
-
-    test('reserve a retry at its widest, so a countdown moves no box', () => {
-        const one = chipWidth({ key: 'tracker', retry: 'try 2 in 9s' }, measureByCharacters)
-        const other = chipWidth({ key: 'tracker', retry: 'try 2 in 59s' }, measureByCharacters)
-        expect(one).toBe(other)
     })
 })
 

@@ -15,7 +15,9 @@ import { cn } from '@/lib/utils'
  *
  * THE CONTROLS STAND IN THE BAR, NOT OVER THE DRAWING. A canvas on a page is as tall as what it
  * draws, so a cluster in its corner would sit on a box; the bar has the room. The layout they
- * choose is the caller's, held for the visit, and the window draws with the same one.
+ * choose is the caller's, held for the visit, and the window draws with the same one. A canvas
+ * that carries its own zoom passes `tools` for the bar instead, and `windowTools` for the window,
+ * which stand over the window's top right corner.
  *
  * THE WINDOW IS A STAGE. There the wheel zooms, as it does on any canvas that is the whole of
  * what is on screen, and its own corner carries the zoom and the layout. A box chosen in it is
@@ -24,24 +26,29 @@ import { cn } from '@/lib/utils'
 export function GraphPanel({
     name,
     frame,
-    layout,
-    onLayout,
     canvas,
     className,
     children,
+    ...bar
 }: {
     /** What the window is titled and the window's button names. */
     name: string
     /** How the canvas on the page is sized: to its drawing, or to the room the page leaves it. */
     frame: Extract<CanvasFrame, 'fitted' | 'filled'>
-    layout: LayoutChoice
-    onLayout: (layout: LayoutChoice) => void
     /** The canvas, drawn once in each frame. */
     canvas: (frame: CanvasFrame) => ReactNode
     className?: string
     /** What stands under the canvas inside the panel. */
     children?: ReactNode
-}) {
+} & (
+    | { layout: LayoutChoice; onLayout: (layout: LayoutChoice) => void }
+    | {
+          /** The bar's controls, for a canvas that carries its own zoom. */
+          tools: ReactNode
+          /** What stands over the window's corner. */
+          windowTools?: ReactNode
+      }
+)) {
     const filled = frame === 'filled'
     const windowName = LABELS.shell.graph_window(name)
     return (
@@ -61,16 +68,30 @@ export function GraphPanel({
                             flush
                             actions={
                                 <span className="flex items-center gap-0.5">
-                                    <PageCanvasTools frame={frame} layout={layout} onLayout={onLayout} />
+                                    {'tools' in bar ? (
+                                        bar.tools
+                                    ) : (
+                                        <PageCanvasTools
+                                            frame={frame}
+                                            layout={bar.layout}
+                                            onLayout={bar.onLayout}
+                                        />
+                                    )}
                                     <WindowedPaneButton size="icon-sm" className="text-muted-foreground" />
                                 </span>
                             }
                             className={cn(filled && 'flex min-h-0 flex-1 flex-col')}
                             bodyClassName={cn(filled && 'flex min-h-0 flex-1 flex-col')}
                         >
-                            <div className={cn('flex min-w-0 flex-col', filled && 'min-h-0 flex-1')}>
-                                {canvas(frame)}
-                            </div>
+                            {'tools' in bar ? (
+                                <div className={cn('relative min-w-0', filled ? 'min-h-60 flex-1' : 'h-60')}>
+                                    <div className="absolute inset-0">{canvas(frame)}</div>
+                                </div>
+                            ) : (
+                                <div className={cn('flex min-w-0 flex-col', filled && 'min-h-0 flex-1')}>
+                                    {canvas(frame)}
+                                </div>
+                            )}
                             {children}
                         </Section>
                     </ReactFlowProvider>
@@ -78,6 +99,11 @@ export function GraphPanel({
                     <ReactFlowProvider>
                         <div className="relative min-h-0 flex-1" data-graph-window>
                             <div className="absolute inset-0">{canvas('window')}</div>
+                            {'tools' in bar && bar.windowTools !== undefined && (
+                                <div className="absolute top-2 right-2 rounded-control border border-border bg-card shadow-node">
+                                    {bar.windowTools}
+                                </div>
+                            )}
                         </div>
                     </ReactFlowProvider>
                 )

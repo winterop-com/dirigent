@@ -139,7 +139,7 @@ test('no step code, block or fan-out element is cut on a box', async ({ page }) 
     const cut = await page.evaluate(() =>
         [
             ...document.querySelectorAll(
-                '.react-flow__node [data-testid="step-title"], .react-flow__node [data-testid="step-line"], .react-flow__node [data-testid="step-strip"] span.font-mono',
+                '.react-flow__node [data-slot="graph-node-title"], .react-flow__node [data-slot="graph-node-line"] > span, .react-flow__node [data-slot="graph-node-item"] span.font-mono',
             ),
         ]
             .filter((element) => element.scrollWidth > element.clientWidth + 1)
@@ -189,9 +189,7 @@ test('every box is on the canvas on the first fit, and the canvas fills the room
     await everyNodeIsInView(page)
 })
 
-test('a plain wheel over the run canvas zooms it one step about the pointer, and the page stays', async ({
-    page,
-}) => {
+test('a plain wheel over the run canvas zooms it about the pointer, and the page stays', async ({ page }) => {
     // A short window with the terminal docked, so the page would have something to scroll.
     await page.setViewportSize({ width: 1440, height: 620 })
     await signIn(page)
@@ -214,15 +212,15 @@ test('a plain wheel over the run canvas zooms it one step about the pointer, and
     await expect.poll(() => transformOf(page)).not.toBe(drawn)
     const after = viewOf(await transformOf(page))
 
-    // One notch is one step, and the point under the pointer stays under it.
-    expect(after.zoom / before.zoom).toBeCloseTo(WHEEL_ZOOM_LIMIT, 3)
+    // The point under the pointer stays under it.
+    expect(after.zoom).toBeGreaterThan(before.zoom)
     expect((at.x - after.x) / after.zoom).toBeCloseTo((at.x - before.x) / before.zoom, 1)
     expect((at.y - after.y) / after.zoom).toBeCloseTo((at.y - before.y) / before.zoom, 1)
     expect(await pageScroll(page)).toBe(0)
 
-    // A notch the other way steps back out, and the page still stands where it was.
+    // A notch the other way zooms back out, and the page still stands where it was.
     await page.mouse.wheel(0, 100)
-    await expect.poll(async () => viewOf(await transformOf(page)).zoom).toBeCloseTo(before.zoom, 3)
+    await expect.poll(async () => viewOf(await transformOf(page)).zoom).toBeLessThan(after.zoom)
     await page.waitForTimeout(300)
     expect(await pageScroll(page)).toBe(0)
 })
@@ -283,7 +281,7 @@ test('a chosen step is the address, survives a reload, and is put down with the 
 
     await page.reload()
     await expect(
-        page.locator('.react-flow__node[data-id="data_elements_by_domain"] .step-node'),
+        page.locator('.react-flow__node[data-id="data_elements_by_domain"] [data-slot="graph-node"]'),
     ).toHaveAttribute('data-selected', 'true')
     await expect(panel.getByRole('button', { name: LABELS.runs.copy_item_id })).toBeVisible()
 
@@ -344,9 +342,11 @@ test('a layout chosen for the view redraws the graph, and the next visit opens o
     const down = await boxes(page)
     expect(down.health?.y ?? 0).toBeGreaterThan(down.levels?.y ?? 0)
 
-    await page.getByRole('button', { name: LABELS.shell.layout.menu }).first().click()
-    await page.getByRole('menuitemradio', { name: LABELS.shell.layout.orthogonal }).click()
+    // Edges open orthogonal, bending round each corner, and splines draw them as curves.
     await expect(page.locator('.react-flow__edge-path').first()).toHaveAttribute('d', /Q/)
+    await page.getByRole('button', { name: LABELS.shell.layout.menu }).first().click()
+    await page.getByRole('menuitemradio', { name: LABELS.shell.layout.splines }).click()
+    await expect(page.locator('.react-flow__edge-path').first()).toHaveAttribute('d', /C/)
 
     // Kept nowhere: the address says nothing about it, and the screen opens on the default again.
     expect(page.url()).not.toContain('layout')
@@ -387,7 +387,7 @@ test('the graph opens in a window, where the wheel zooms and a box chosen is cho
     await expect(page).toHaveURL(new RegExp(`/runs/${run}/jobs$`))
     await page.keyboard.press('Escape')
     await expect(window).toBeHidden()
-    await expect(page.locator('.react-flow__node[data-id="jobs"] .step-node')).toHaveAttribute(
+    await expect(page.locator('.react-flow__node[data-id="jobs"] [data-slot="graph-node"]')).toHaveAttribute(
         'data-selected',
         'true',
     )

@@ -10,39 +10,53 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
-import type { EdgeRouting, LayoutChoice, LayoutDirection, LayoutSpacing } from '@/lib/dag-layout'
+import type { EdgeRouting, LayoutDirection, LayoutSpacing } from '@/lib/dag-layout'
 import { LABELS } from '@/lib/labels'
 
 const WORDS = LABELS.shell.layout
 
-const DIRECTIONS: readonly [LayoutDirection, string][] = [
+const DIRECTIONS: readonly (readonly [LayoutDirection, string])[] = [
     ['right', WORDS.right],
     ['down', WORDS.down],
 ]
-const ROUTINGS: readonly [EdgeRouting, string][] = [
+/** One way of drawing edges a menu offers, and its word. */
+export type RoutingOption<R extends string> = readonly [R, string]
+
+/** The edges a canvas of this app's offers. */
+export const ROUTINGS: readonly RoutingOption<EdgeRouting>[] = [
     ['default', WORDS.stepped],
     ['orthogonal', WORDS.orthogonal],
     ['splines', WORDS.splines],
 ]
-const SPACING: readonly [LayoutSpacing, string][] = [
+const SPACING: readonly (readonly [LayoutSpacing, string])[] = [
     ['default', WORDS.normal],
     ['compact', WORDS.compact],
     ['roomy', WORDS.roomy],
 ]
 
+/** A layout a menu chooses, with whichever routings its canvas draws. */
+interface Choice<R extends string> {
+    direction: LayoutDirection
+    routing: R
+    spacing: LayoutSpacing
+}
+
 /**
  * How a view of a graph is laid out: which way it runs, how its edges are drawn, and how much
  * room is between its boxes. The choice is the visit's and is kept nowhere.
  *
- * `trigger` is the button that opens it, which each canvas draws in its own chrome.
+ * `routings` are the edges the canvas it lays out can draw. `trigger` is the button that opens
+ * it, which each canvas draws in its own chrome.
  */
-export function LayoutMenu({
+export function LayoutMenu<R extends string>({
     choice,
     onChoose,
+    routings,
     trigger,
 }: {
-    choice: LayoutChoice
-    onChoose: (choice: LayoutChoice) => void
+    choice: Choice<R>
+    onChoose: (choice: Choice<R>) => void
+    routings: readonly RoutingOption<R>[]
     trigger: ReactElement
 }) {
     return (
@@ -61,7 +75,7 @@ export function LayoutMenu({
                 <Group
                     label={WORDS.edges}
                     value={choice.routing}
-                    options={ROUTINGS}
+                    options={routings}
                     onChoose={(routing) => {
                         onChoose({ ...choice, routing })
                     }}
@@ -88,7 +102,7 @@ function Group<T extends string>({
 }: {
     label: string
     value: T
-    options: readonly [T, string][]
+    options: readonly (readonly [T, string])[]
     onChoose: (value: T) => void
 }) {
     return (

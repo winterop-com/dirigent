@@ -15,7 +15,7 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
-import { LayoutMenu } from '@/components/graph/LayoutMenu'
+import { LayoutMenu, ROUTINGS } from '@/components/graph/LayoutMenu'
 import { DirectionContext, RoutedEdge } from '@/components/graph/RoutedEdge'
 import { useSmallScreen } from '@/hooks/use-small-screen'
 import { ICONS } from '@/lib/icons'
@@ -438,6 +438,7 @@ export function LayoutControl({
         <LayoutMenu
             choice={layout}
             onChoose={onLayout}
+            routings={ROUTINGS}
             trigger={
                 <ControlButton title={LAYOUT_LABEL} aria-label={LAYOUT_LABEL}>
                     <ICONS.graph_layout />
@@ -501,6 +502,7 @@ export function PageCanvasTools({
             <LayoutMenu
                 choice={layout}
                 onChoose={onLayout}
+                routings={ROUTINGS}
                 trigger={
                     <IconButton label={LAYOUT_LABEL} size="icon-sm" className="text-muted-foreground">
                         <ICONS.graph_layout aria-hidden />

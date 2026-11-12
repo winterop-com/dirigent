@@ -18,6 +18,7 @@ import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
 import type { FilePreviewWords } from '@winterop-com/sokkel-ui/FilePreview'
 import type { FilterChipWords } from '@winterop-com/sokkel-ui/FilterChip'
+import type { RunGraphProps } from '@winterop-com/sokkel-ui-graph/RunGraph'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
 import type { SchemeChoiceWords } from '@winterop-com/sokkel-ui/SchemeChoice'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
@@ -206,6 +207,15 @@ export const TOOLBAR_WORDS: ToolbarWords = {
 /** What a pane's window button and its window's close say, the button naming the pane. */
 export function windowWords(name: string): Partial<WindowedPaneWords> {
     return { expand: LABELS.shell.open_in_window(name), close: LABELS.shell.close_window }
+}
+
+/** What a sokkel-ui-graph canvas says: its name, its zoom buttons, and an empty canvas. */
+export const GRAPH_WORDS: RunGraphProps['words'] = {
+    label: LABELS.pipelines.page.graph,
+    zoomIn: LABELS.shell.zoom_in,
+    zoomOut: LABELS.shell.zoom_out,
+    fit: LABELS.shell.fit_view,
+    empty: LABELS.runs.graph_empty,
 }
 
 /** What a diff says when nothing changed, and on the row a run of unchanged lines folds into. */

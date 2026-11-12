@@ -18,8 +18,11 @@
  * restore; `resumeCursor` is that position and nothing else may be used as one.
  */
 
+import type { RunStep } from '@winterop-com/sokkel-ui-graph/RunGraph'
 import { elapsedBetween, formatDuration } from '@/lib/format'
-import { LABELS } from '@/lib/labels'
+import { ICONS } from '@/lib/icons'
+import { headingOf } from '@/lib/identity'
+import { counted, LABELS } from '@/lib/labels'
 import type { SseFrame } from '@/lib/sse'
 import {
     attemptSettled,
@@ -28,7 +31,15 @@ import {
     type AttemptStatus,
     type StepOutcome,
 } from '@/lib/status'
-import type { AttemptEvent, DagNode, DagView, LogEntryOut, RunDetailOut, RunOut } from '@/lib/runs'
+import {
+    replySent,
+    type AttemptEvent,
+    type DagNode,
+    type DagView,
+    type LogEntryOut,
+    type RunDetailOut,
+    type RunOut,
+} from '@/lib/runs'
 
 /** How much of a run's log this screen holds. A tail is a tail; the API pages the whole of it. */
 export const MAX_LOG_LINES = 5000
@@ -718,102 +729,76 @@ export function nodeTone(view: StepView): AnyStatus {
     return view.outcome === 'failed' || view.outcome === 'succeeded' ? 'completed_with_errors' : view.outcome
 }
 
-/** The tint an edge takes from the state its source settled in. */
-const EDGE_TONES: Readonly<Record<string, string>> = {
-    succeeded: 'dg-edge-good',
-    failed: 'dg-edge-critical',
-    completed_with_errors: 'dg-edge-warning',
+/** The words a counts strip says: how many elements are in each state. */
+function countsLabel(counts: readonly ItemCount[]): string {
+    return counts.map((count) => LABELS.runs.node_item_count(String(count.count), count.status)).join(' · ')
 }
 
 /**
- * What an edge on a run's graph is drawn as, as the classes `.dg-graph` paints it by.
+ * One step as the run's graph draws it.
  *
- * AN EDGE CARRIES WHERE THE RUN WENT, QUIETLY. The tint is its source's, because an edge is
- * that step's answer being handed on; the hue is mixed well toward the resting stroke in
- * index.css so a graph of succeeded steps reads as a shape rather than as a green diagram. An
- * edge into a step that did not happen is dashed, the same way that step's own box is, and the
- * two marks are independent: a skipped step after a succeeded one wears both.
+ * THE BOX SAYS WHAT THE EDITOR SAYS OF THE SAME STEP: the title is the name the document gave it
+ * and its key otherwise, and the second line is the block, with the key in front where the title
+ * is a name. A reply says whether it was sent in place of its duration, and keeps the room of the
+ * longer word so the box does not widen when it settles.
+ *
+ * WHAT IT IS DRAWN IN IS `nodeTone`, so a fan-out whose failures the run tolerated is amber.
+ *
+ * A FAN-OUT IS THIS ONE BOX: its elements are chips inside it while there are few enough to name,
+ * a counts line once there are not, and what it waits for before it has any. A retrying element's
+ * countdown keeps the room of its widest, so the box does not move every second.
+ *
+ * WHAT THE STEP IS DOING IS THE HINT, the box's tooltip, with the percentage a live wait reports.
  */
-export function edgeTone(source: StepView | undefined, target: StepView | undefined): string {
-    const marks: string[] = []
-    const tone = source === undefined ? undefined : EDGE_TONES[nodeTone(source)]
-    if (tone !== undefined) marks.push(tone)
-    if (target?.outcome === 'skipped') marks.push('dg-edge-skipped')
-    return marks.join(' ')
+export function runStepOf(view: StepView, needs: string[]): RunStep {
+    const heading = headingOf(view.node)
+    const source = view.node.kind === 'source'
+    const sent = view.node.kind === 'reply' ? replySent(view.latest) : null
+    const kind =
+        sent === null
+            ? view.node.block
+            : `${view.node.block} · ${sent ? LABELS.runs.reply.sent : LABELS.runs.reply.not_sent}`
+    const lineOf = (what: string) => (heading.code === null ? what : `${heading.code} · ${what}`)
+    const hint =
+        view.detail !== null && view.progress !== null
+            ? LABELS.runs.node_hint(view.detail, String(Math.round(view.progress * 100)))
+            : view.detail
+    const reserve: string[] = []
+    if (view.node.kind === 'reply') reserve.push(lineOf(`${view.node.block} · ${LABELS.runs.reply.not_sent}`))
+    const step: RunStep = {
+        code: view.node.code,
+        kind,
+        needs,
+        status: nodeTone(view),
+        ...(heading.named ? { name: heading.title } : {}),
+        ...(view.duration_ms === null || sent !== null ? {} : { duration_ms: view.duration_ms }),
+        ...(view.progress === null ? {} : { progress: view.progress }),
+        ...(hint === null ? {} : { hint }),
+        ...(source ? { source: true, icon: ICONS.source } : {}),
+    }
+    if (!view.node.fan_out) return reserve.length === 0 ? step : { ...step, reserve }
+    if (view.items > 0) step.count = counted(view.items, LABELS.runs.node_items)(String(view.items))
+    const strip = view.strip
+    if (strip.kind === 'empty') step.itemsSummary = emptyStripLabel(view)
+    else if (strip.kind === 'counts') step.itemsSummary = countsLabel(strip.counts)
+    else {
+        step.items = strip.items.map((item) => ({
+            id: item.id,
+            label: item.key,
+            status: item.status,
+            ...(item.retry === null ? {} : { note: item.retry }),
+        }))
+        for (const item of strip.items)
+            if (item.retry !== null) reserve.push(`${item.key} ${LABELS.runs.retry_try_in('99', '999')}`)
+    }
+    return reserve.length === 0 ? step : { ...step, reserve }
 }
 
-/** What an edge is doing right now, which is what the classes below are drawn from. */
-export type EdgeMotion = 'still' | 'flowing' | 'handover' | 'lit'
-
-/** The outcomes a step is in once it has an output to hand on. */
-const PRODUCED: ReadonlySet<string> = new Set(['succeeded', 'completed_with_errors'])
-
-/** The outcomes a step is in while it could still read what an edge carries it. */
-const CONSUMING: ReadonlySet<string> = new Set<StepOutcome>(['pending', 'running'])
-
-/**
- * Whether an edge is carrying anything, and what that looks like.
- *
- * MOTION MEANS DATA TRAVELLING, AND IT LIVES ON EDGES ALONE. A step that has produced its
- * output feeds every dependent still running, and that edge moves for as long as the reading
- * lasts; the instant a step succeeds, each edge into a step that could still read it plays one
- * handover and settles. Everything else is still, which is every edge of a terminal run and
- * every edge out of a step that failed or never happened.
- *
- * REDUCED MOTION IS NOT NO ANSWER. Somebody who has asked for less of it still needs to see
- * which way the run is going, so a moving edge becomes a lit one -- the same accent, standing
- * still -- and the handover, which is a moment rather than a state, is not drawn at all.
- */
-export function edgeMotion(
-    source: StepView | undefined,
-    target: StepView | undefined,
-    { handing, reduced }: { handing: ReadonlySet<string>; reduced: boolean },
-): EdgeMotion {
-    if (source === undefined || target === undefined) return 'still'
-    if (!PRODUCED.has(nodeTone(source))) return 'still'
-    if (!CONSUMING.has(target.outcome)) return 'still'
-    if (handing.has(source.node.code) && !reduced) return 'handover'
-    if (target.outcome !== 'running') return 'still'
-    return reduced ? 'lit' : 'flowing'
-}
-
-/** The class `.dg-graph` paints one motion by, or nothing at all for an edge at rest. */
-const MOTION_CLASSES: Readonly<Record<EdgeMotion, string>> = {
-    still: '',
-    flowing: 'dg-edge-flowing',
-    handover: 'dg-edge-handover',
-    lit: 'dg-edge-lit',
-}
-
-/** Everything one edge is drawn as: the state its source settled in, and what it is carrying. */
-export function edgeClasses(
-    source: StepView | undefined,
-    target: StepView | undefined,
-    motion: { handing: ReadonlySet<string>; reduced: boolean },
-): string {
-    const marks = [edgeTone(source, target), MOTION_CLASSES[edgeMotion(source, target, motion)]]
-    return marks.filter((mark) => mark !== '').join(' ')
-}
-
-/** What each step is drawn as, which is the half of a render a handover is measured against. */
-export function drawnStates(views: readonly StepView[]): Map<string, AnyStatus> {
-    return new Map(views.map((view) => [view.node.code, nodeTone(view)]))
-}
-
-/**
- * The steps that have just produced an output, which is one render moving them to succeeded.
- *
- * A STEP THE PREVIOUS RENDER DID NOT HOLD HAS NOT HANDED ANYTHING OVER. Opening a run that
- * settled long ago reads every step as succeeded at once, and a graph that pulsed all of them
- * would announce a handover that happened yesterday.
- */
-export function handovers(before: ReadonlyMap<string, AnyStatus>, views: readonly StepView[]): string[] {
-    return views
-        .filter((view) => {
-            const held = before.get(view.node.code)
-            return held !== undefined && !PRODUCED.has(held) && PRODUCED.has(nodeTone(view))
-        })
-        .map((view) => view.node.code)
+/** Every step of the run as its graph draws it, each needing the steps its edges come from. */
+export function runSteps(dag: DagView, views: readonly StepView[]): RunStep[] {
+    const needs = new Map<string, string[]>()
+    for (const [from, to] of dag.edges) needs.set(to, [...(needs.get(to) ?? []), from])
+    return views.map((view) => runStepOf(view, needs.get(view.node.code) ?? []))
 }
 
 /** Every node of the graph as the screen draws it, in the order the API laid them out. */
