@@ -72,6 +72,7 @@
 @import '@winterop-com/sokkel-ui-graph/sources/GraphCanvas.css';
 @import '@winterop-com/sokkel-ui-graph/sources/GraphLayoutMenu.css';
 @import '@winterop-com/sokkel-ui-graph/sources/MiniGraph.css';
+@import '@winterop-com/sokkel-ui-graph/sources/PipelineGraph.css';
 @import '@winterop-com/sokkel-ui-graph/sources/RunGraph.css';
 @import '@winterop-com/sokkel-ui/themes/amber.css';
 @import '@winterop-com/sokkel-ui/themes/paper.css';
