@@ -6,6 +6,9 @@ import {
     artifactUrl,
     artifactsPath,
     MARKDOWN_CONTENT_TYPE,
+    PREVIEW_MAX_BYTES,
+    previewKindOf,
+    previewLanguageOf,
     readReportDocument,
     renderedText,
     reportArtifact,
@@ -25,6 +28,46 @@ function artifact(over: Partial<ArtifactOut>): ArtifactOut {
         ...over,
     }
 }
+
+describe('previewKindOf', () => {
+    test('a CSV is a table, JSON a tree, and other text is text', () => {
+        expect(previewKindOf(artifact({ content_type: 'text/csv' }))).toBe('table')
+        expect(previewKindOf(artifact({ content_type: 'application/json' }))).toBe('json')
+        expect(previewKindOf(artifact({ content_type: 'application/geo+json' }))).toBe('json')
+        expect(previewKindOf(artifact({ content_type: 'text/plain' }))).toBe('text')
+        expect(previewKindOf(artifact({ content_type: 'application/x-ndjson' }))).toBe('text')
+        expect(previewKindOf(artifact({ content_type: 'application/yaml' }))).toBe('text')
+        expect(previewKindOf(artifact({ content_type: 'application/atom+xml' }))).toBe('text')
+    })
+
+    test('a content type is read without its parameters and its case', () => {
+        expect(previewKindOf(artifact({ content_type: 'Text/CSV; charset=utf-8' }))).toBe('table')
+        expect(previewKindOf(artifact({ content_type: 'application/json; charset=utf-8' }))).toBe('json')
+    })
+
+    test('a kind a preview cannot draw has none', () => {
+        expect(previewKindOf(artifact({ content_type: 'application/octet-stream' }))).toBeNull()
+        expect(previewKindOf(artifact({ content_type: 'application/vnd.apache.parquet' }))).toBeNull()
+        expect(previewKindOf(artifact({ content_type: 'image/png' }))).toBeNull()
+        expect(previewKindOf(artifact({ content_type: null }))).toBeNull()
+    })
+
+    test('an artifact past the cap, or of no stated size, has none', () => {
+        expect(previewKindOf(artifact({ size_bytes: PREVIEW_MAX_BYTES }))).toBe('json')
+        expect(previewKindOf(artifact({ size_bytes: PREVIEW_MAX_BYTES + 1 }))).toBeNull()
+        expect(previewKindOf(artifact({ size_bytes: null }))).toBeNull()
+    })
+})
+
+describe('previewLanguageOf', () => {
+    test('markdown and YAML are highlighted, and any other text is plain', () => {
+        expect(previewLanguageOf('text/markdown; charset=utf-8')).toBe('markdown')
+        expect(previewLanguageOf('application/yaml')).toBe('yaml')
+        expect(previewLanguageOf('application/atom+xml')).toBe('text')
+        expect(previewLanguageOf('text/plain')).toBe('text')
+        expect(previewLanguageOf(null)).toBe('text')
+    })
+})
 
 describe('reportArtifact', () => {
     test('a run with no artifacts has no report', () => {
