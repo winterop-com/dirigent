@@ -4,7 +4,7 @@ import type { GraphControls } from '@winterop-com/sokkel-ui-graph/GraphCanvas'
 import type { GraphLayoutChoice } from '@winterop-com/sokkel-ui-graph/GraphLayoutMenu'
 import { PipelineGraph } from '@winterop-com/sokkel-ui-graph/PipelineGraph'
 import { GraphPanel } from '@/components/graph/GraphPanel'
-import { FIT_MIN_ZOOM, GRAPH_LAYOUT, LayoutButton, TALL_FIT, ViewTools } from '@/components/graph/ViewTools'
+import { FIT_MIN_ZOOM, GRAPH_LAYOUT, TALL_FIT, ViewTools } from '@/components/graph/ViewTools'
 import { WRAP_WIDTH } from '@/lib/dag-layout'
 import { GRAPH_WORDS } from '@/lib/design-system'
 import { shapeSteps, type StepShape } from '@/lib/pipelines'
@@ -39,7 +39,6 @@ export function ShapeGraph({
     const [inWindow, setInWindow] = useState<GraphControls | null>(null)
     const drawn = useMemo(() => shapeSteps(steps), [steps])
 
-    const menu = <LayoutButton value={layout} onValueChange={setLayout} />
     const canvas = (frame: string) => {
         const windowed = frame === 'window'
         return (
@@ -55,7 +54,7 @@ export function ShapeGraph({
                 spacing={layout.spacing}
                 fitMinZoom={FIT_MIN_ZOOM}
                 tallFit={TALL_FIT}
-                narrowFit={false}
+                narrowFit
                 wrapWidth={WRAP_WIDTH}
                 wrapToCanvas
                 words={GRAPH_WORDS}
@@ -66,8 +65,10 @@ export function ShapeGraph({
         <GraphPanel
             name={name}
             frame="fitted"
-            tools={<ViewTools controls={onPage} frame="fitted" menu={menu} />}
-            windowTools={<ViewTools controls={inWindow} frame="window" menu={menu} />}
+            tools={<ViewTools controls={onPage} frame="fitted" layout={layout} onLayout={setLayout} />}
+            windowTools={
+                <ViewTools controls={inWindow} frame="window" layout={layout} onLayout={setLayout} />
+            }
             canvas={canvas}
             className="mt-6"
         >

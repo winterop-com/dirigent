@@ -483,7 +483,8 @@ export function miniGraphSteps(shape: readonly StepShape[], failed: string | nul
 /**
  * A pipeline's shape as its own page's graph draws it: each step titled by the quartet's rule, its
  * block as its kind, after the steps it depends on. A source leads with its glyph on a dashed box
- * and says on pointing what it listens to; a fan-out says `each` on its title line.
+ * and says on pointing what it listens to; a fan-out says `each` behind the stacked glyph at the end
+ * of its second line, and on pointing at it what `for_each` does.
  */
 export function shapeSteps(shape: readonly StepShape[]): PipelineStep[] {
     return shape.map((step) => {
@@ -498,7 +499,12 @@ export function shapeSteps(shape: readonly StepShape[]): PipelineStep[] {
                 ? { source: true, icon: ICONS.source, lineHint: LABELS.editor.canvas.listens_to(line) }
                 : {}),
             ...(step.fan_out
-                ? { count: LABELS.editor.canvas.fan_out_each, hint: LABELS.editor.canvas.fan_out_each_title }
+                ? {
+                      count: LABELS.editor.canvas.fan_out_each,
+                      countIcon: ICONS.fan_out,
+                      countTitle: LABELS.editor.canvas.fan_out_each_title,
+                      countPlacement: 'title' as const,
+                  }
                 : {}),
         }
     })

@@ -101,9 +101,7 @@ export function GraphPanel({
                         <div className="relative min-h-0 flex-1" data-graph-window>
                             <div className="absolute inset-0">{canvas('window')}</div>
                             {'tools' in bar && bar.windowTools !== undefined && (
-                                <div className="absolute top-2 right-2 rounded-control border border-border bg-card p-0.5 shadow-node">
-                                    {bar.windowTools}
-                                </div>
+                                <div className="absolute top-2 right-2">{bar.windowTools}</div>
                             )}
                         </div>
                     </ReactFlowProvider>

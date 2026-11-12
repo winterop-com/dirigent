@@ -1580,8 +1580,8 @@ wide -- so a listing's bar is a finger tall throughout. `index.css`
 grows the rest against the generated primitives' slots: a tab, a menu's or a tooltip's trigger
 not drawn through a `Button`, a command input, menu, command and combobox rows, and
 `control-link`, which is what a link drawn as a control wears: a drawer entry, a chip on a
-header strip, a row that navigates. The canvas's zoom cluster is sized there as well, being
-the graph library's button rather than one of ours. A menu opened at a point rather than under a
+header strip, a row that navigates. The canvas's zoom cluster and the window's
+`GraphViewButtons` are sized there as well, being the graph library's buttons rather than ours. A menu opened at a point rather than under a
 control -- the canvas's right-click menus -- anchors a zero-sized trigger at the cursor, and
 `data-menu-anchor` keeps the rule off that one, because nothing draws it and no finger lands on
 it. A bare status dot is its own tooltip's trigger and is not grown: it keeps its own `dot` slot
@@ -2013,10 +2013,10 @@ on it -- a succeeded box takes the succeeded edge, a failed one the failed edge 
 wash of the same hue, a skipped one a dashed edge on no fill -- and a chosen box is ringed in the
 foreground, which is no colour at all. A document's config is a map of any size and one
 truncated line of it crowds the box, so the step's own pane holds the whole of it. A step whose
-`for_each` fans it out says so -- in the editor on the second line, a stacked glyph and the count,
-or the word "each" where the list is an expression a run resolves; on the pipeline's page the word
-"each" at the end of the title line, where the library draws a count, with what `for_each` does on
-the box's tooltip -- in the neutral ink that line is already in,
+`for_each` fans it out says so -- a stacked glyph (`ICONS.fan_out`) and the count, or the word
+"each" where the list is an expression a run resolves, at the end of the title line --
+sokkel-ui-graph's `countIcon` with `countPlacement` `title` -- with what `for_each` does on pointing
+at it (`countTitle`) and nowhere else -- in the neutral ink,
 because a status is the only colour a node carries. On a run the state's dot stands at the end of
 the title line, and the duration at the end of the second. **What a step is doing -- what it waits
 for, how a retry went, why it failed -- is the box's tooltip and the panel's, not a third line**,
@@ -2082,16 +2082,19 @@ editor has no such control, because a document's arrangement there is the author
 **A view opens in a window.** The window's button stands in the canvas panel's head, after the
 layout control. The window is a stage: the wheel zooms, the ground pans, and it carries the zoom,
 the fit and the layout, which is the same choice as the page's, as one cluster over the window's
-top right corner: zoom out, zoom in,
+top right corner: zoom in, zoom out,
 fit and the layout, the same buttons the page's head carries. A box chosen in the
 window is chosen on the page -- the address and the panel follow it -- and the window stays open
 until it is dismissed.
 
 Every canvas opens with the whole DAG in view: `fitView` with padding, held between two bounds --
 `lib/dag-layout`'s on the editor's canvas (padding 0.14, `FIT_MIN_ZOOM` 0.8) and
-sokkel-ui-graph's on the pipeline page's and a run's (padding 0.12, and both hand it `fitMinZoom` 0.8 with
-`narrowFit={false}`, so its floor is 0.8 at every width and a narrow canvas does not go lower to
-fit the width). **A run's drawing that fits across and is only a little too tall goes under that
+sokkel-ui-graph's on the pipeline page's and a run's (padding 0.12, and both hand it `fitMinZoom` 0.8 and
+`narrowFit`, so its floor is 0.8 on a canvas 560px wide or wider). **On a canvas narrower than
+560px -- a phone -- a fit goes under that floor to fit the drawing's width, to 0.6 and no lower**,
+because there a finger on the canvas scrolls the page and nothing pans it, so a drawing hanging off
+the right edge could not be reached on the page. A graph is read at 0.6 there rather than cut; the
+window is where it is read larger. **A run's drawing that fits across and is only a little too tall goes under that
 floor, to `tallFit` 0.7 and no lower**, so a graph a few pixels taller than the room above the
 terminal is seen whole rather than hung off its foot; a drawing too wide keeps the floor. A run's
 fit frames the bends of its edges as well as its boxes, so an edge that runs round a row stays on
@@ -2117,8 +2120,9 @@ Seventeen steps in one left-to-right row is three thousand pixels of canvas, and
 by putting a node's text under six pixels. Past `WRAP_WIDTH` -- which `rankDepth` measures a shape
 against before elk sees it -- elk is asked to cut the layering into chunks and stack them: the
 ranks still read left to right, and the height nothing was using carries the rest. The run's graph
-and the pipeline page's are wrapped to their canvas (`wrapToCanvas`): the room is the canvas's width and height at the lower
-of `fitMinZoom` and `tallFit`, and no row is wider than the same 1120px, handed as `wrapWidth`. A
+and the pipeline page's are wrapped to their canvas (`wrapToCanvas`): the room is the canvas's width at
+`fitMinZoom` -- at the narrow fit's 0.6 on a canvas narrower than 560px -- and its height at the lower
+of that and `tallFit`, and no row is wider than the same 1120px, handed as `wrapWidth`. A
 graph whose own elk layout, edge bends counted, fits across that room stays one row; otherwise elk
 lays it out once in the room's shape, and the library keeps whichever of the whole graph and the
 cut fits the room at the larger zoom, so a cut that only adds height is not drawn. The pipeline
@@ -2131,10 +2135,12 @@ step by a fixed twenty percent, which on a graph read at half size is four press
 the editor's canvas `ZOOM_STEP` (1.5) is one press either way and the fit button is `fitCapped`;
 on the pipeline page's and a run's the library's step (1.4) and its own fit. A canvas with nothing on it has nothing to
 zoom, so it draws none of them. **On the pipeline's page and the run's they stand in the graph
-panel's bar** -- zoom out, zoom in, fit, layout, then the window -- rather than over a drawing:
+panel's bar** -- zoom in, zoom out, fit, layout, then the window -- rather than over a drawing:
 the canvas draws no buttons of its
 own (`controls={false}`) and hands its zoom and fit out through `onControls`, and the head's
-`IconButton`s press them; the window's corner carries them the same way. A stage elsewhere carries
+`IconButton`s press them, their tooltips saying how else the canvas zooms there. The window's
+corner carries the same four in the same order as sokkel-ui-graph's flush cluster,
+`GraphViewButtons`, with the layout menu's trigger a `GraphControlButton` in it. A stage elsewhere carries
 them in its corner.
 
 ## The canvas edits

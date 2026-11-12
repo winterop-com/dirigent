@@ -4,7 +4,7 @@ import type { GraphControls } from '@winterop-com/sokkel-ui-graph/GraphCanvas'
 import type { GraphLayoutChoice } from '@winterop-com/sokkel-ui-graph/GraphLayoutMenu'
 import { RunGraph as RunCanvas } from '@winterop-com/sokkel-ui-graph/RunGraph'
 import { GraphPanel } from '@/components/graph/GraphPanel'
-import { FIT_MIN_ZOOM, GRAPH_LAYOUT, LayoutButton, TALL_FIT, ViewTools } from '@/components/graph/ViewTools'
+import { FIT_MIN_ZOOM, GRAPH_LAYOUT, TALL_FIT, ViewTools } from '@/components/graph/ViewTools'
 import { WRAP_WIDTH } from '@/lib/dag-layout'
 import { GRAPH_WORDS } from '@/lib/design-system'
 import { formatDuration } from '@/lib/format'
@@ -53,7 +53,6 @@ export function RunGraph({
     const [inWindow, setInWindow] = useState<GraphControls | null>(null)
     const steps = useMemo(() => runSteps(dag, views), [dag, views])
 
-    const menu = <LayoutButton value={layout} onValueChange={setLayout} />
     const canvas = (frame: string) => {
         const windowed = frame === 'window'
         return (
@@ -69,7 +68,7 @@ export function RunGraph({
                 spacing={layout.spacing}
                 fitMinZoom={FIT_MIN_ZOOM}
                 tallFit={TALL_FIT}
-                narrowFit={false}
+                narrowFit
                 wrapWidth={WRAP_WIDTH}
                 wrapToCanvas
                 fillFloor={FILL_FLOOR}
@@ -82,8 +81,10 @@ export function RunGraph({
         <GraphPanel
             name={name}
             frame="filled"
-            tools={<ViewTools controls={onPage} frame="filled" menu={menu} />}
-            windowTools={<ViewTools controls={inWindow} frame="window" menu={menu} />}
+            tools={<ViewTools controls={onPage} frame="filled" layout={layout} onLayout={setLayout} />}
+            windowTools={
+                <ViewTools controls={inWindow} frame="window" layout={layout} onLayout={setLayout} />
+            }
             canvas={canvas}
         />
     )

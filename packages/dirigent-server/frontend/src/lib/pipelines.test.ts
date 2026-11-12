@@ -282,7 +282,7 @@ describe("the pipelines screen's two lists", () => {
         expect(miniGraphSteps(shape, null).every((step) => step.status === undefined)).toBe(true)
     })
 
-    test("draws a step on the page's graph by its title, its block, its source glyph and what it listens to, and a fan-out's each", () => {
+    test("draws a step on the page's graph by its title, its block, its source glyph and what it listens to, and a fan-out's each on its second line", () => {
         const shape = [
             {
                 code: 'read',
@@ -316,7 +316,9 @@ describe("the pipelines screen's two lists", () => {
                 kind: 'sql.load',
                 needs: ['read'],
                 count: LABELS.editor.canvas.fan_out_each,
-                hint: LABELS.editor.canvas.fan_out_each_title,
+                countIcon: ICONS.fan_out,
+                countTitle: LABELS.editor.canvas.fan_out_each_title,
+                countPlacement: 'title',
             },
         ])
     })
