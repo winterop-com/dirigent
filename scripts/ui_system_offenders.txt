@@ -4,7 +4,6 @@
 # keep a count a migration has lowered. One line per rule and file: rule, path, count.
 # Written by that script's --write; shrink it by moving a screen onto components/ds.
 lucide-import	packages/dirigent-server/frontend/src/components/ApiChip.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/RefreshControl.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/alerting/ChannelStrip.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/Disclosure.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/run/RunTerminal.tsx	1
@@ -12,7 +11,6 @@ lucide-import	packages/dirigent-server/frontend/src/components/run/StepTab.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/settings/SettingsDialog.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/triggers/NewTrigger.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/Connections.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/pages/Dashboard.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/Examples.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/PipelineEditor.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/pages/Runs.tsx	1

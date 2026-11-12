@@ -1,14 +1,7 @@
-import { ChevronDown, RefreshCw } from 'lucide-react'
-
-import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuRadioGroup,
-    DropdownMenuRadioItem,
-    DropdownMenuTrigger,
-} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
+import { SplitButton } from '@winterop-com/sokkel-ui/SplitButton'
 import { useStore } from '@/hooks/use-store'
+import { splitWords } from '@/lib/design-system'
+import { ICONS } from '@/lib/icons'
 import { REFRESH_CHOICES, refreshLabel, refreshSeconds, setRefreshSeconds } from '@/lib/refresh'
 import { LABELS } from '@/lib/labels'
 
@@ -18,51 +11,31 @@ export const CADENCE_LABEL = LABELS.shell.cadence
 /**
  * The refresh control: the verb, and how often it happens by itself.
  *
- * A SPLIT BUTTON, the same anatomy as the pipelines listing's New: the primary refreshes
- * now, and the chevron holds the cadence the screen then keeps on its own. The cadence is
- * the app's, not this screen's, so it reads back the same everywhere it is offered.
+ * sokkel-ui's `SplitButton`: the face refreshes now and shows the cadence, and the chevron
+ * holds the cadences as one set of choices, the one in force checked, and says on hover what it
+ * chooses. The cadence is the app's, not this screen's.
  */
 export function RefreshControl({ onRefresh }: { onRefresh: () => void }) {
     const seconds = useStore(refreshSeconds)
     return (
-        <div className="flex items-stretch">
-            <Button variant="outline" size="sm" className="rounded-r-none border-r-0" onClick={onRefresh}>
-                <RefreshCw aria-hidden />
-                {REFRESH_LABEL}
-            </Button>
-            <DropdownMenu>
-                <DropdownMenuTrigger
-                    render={
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            aria-label={CADENCE_LABEL}
-                            className="rounded-l-none px-2 font-mono text-xs text-muted-foreground"
-                        >
-                            {refreshLabel(seconds)}
-                            <ChevronDown aria-hidden />
-                        </Button>
-                    }
-                />
-                <DropdownMenuContent align="end">
-                    <DropdownMenuRadioGroup
-                        value={seconds === null ? 'off' : String(seconds)}
-                        onValueChange={(value) => {
-                            setRefreshSeconds(value === 'off' ? null : Number(value))
-                        }}
-                    >
-                        {REFRESH_CHOICES.map((choice) => (
-                            <DropdownMenuRadioItem
-                                key={choice === null ? 'off' : String(choice)}
-                                value={choice === null ? 'off' : String(choice)}
-                                closeOnClick
-                            >
-                                {refreshLabel(choice)}
-                            </DropdownMenuRadioItem>
-                        ))}
-                    </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        </div>
+        <SplitButton
+            variant="outline"
+            size="sm"
+            label={REFRESH_LABEL}
+            title={LABELS.shell.refresh_every(refreshLabel(seconds))}
+            onClick={onRefresh}
+            words={splitWords(CADENCE_LABEL, CADENCE_LABEL)}
+            items={REFRESH_CHOICES.map((choice) => ({
+                label: refreshLabel(choice),
+                checked: choice === seconds,
+                onSelect: () => {
+                    setRefreshSeconds(choice)
+                },
+            }))}
+        >
+            <ICONS.refresh aria-hidden />
+            {REFRESH_LABEL}
+            <span className="font-mono text-xs text-muted-foreground">{refreshLabel(seconds)}</span>
+        </SplitButton>
     )
 }

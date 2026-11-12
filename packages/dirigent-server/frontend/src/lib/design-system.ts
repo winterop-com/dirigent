@@ -195,9 +195,9 @@ export const DIALOG_WORDS: Partial<DialogShellWords> = { cancel: LABELS.action.c
 /** What a link out of this app says to a screen reader after its text. */
 export const LINK_WORDS: TextLinkWords = { newTab: LABELS.shell.new_tab }
 
-/** What a split button's chevron is called: "More ways to create a pipeline". */
-export function splitWords(more: string): SplitButtonWords {
-    return { more }
+/** What a split button's chevron is called, "More ways to create a pipeline", and what it says on hover. */
+export function splitWords(more: string, moreHint?: string): SplitButtonWords {
+    return moreHint === undefined ? { more } : { more, moreHint }
 }
 
 /** What a strip of verbs says: the menu the ones without room fold into, and a split verb's chevron. */

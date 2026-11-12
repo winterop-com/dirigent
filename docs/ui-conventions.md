@@ -666,7 +666,10 @@ discarded rather than left on screen.
 holds one event stream and needs nothing beside it. Two screens go stale standing still -- the
 runs listing and the dashboard -- so each reads itself again on the one
 cadence `lib/refresh` holds for the whole app: off, or five seconds to five minutes, thirty by
-default, chosen from the split refresh control and answering the same everywhere it is offered.
+default, chosen from the refresh control and answering the same everywhere it is offered. That
+control is sokkel-ui's `SplitButton`, outline and small: its face refreshes now and shows the
+cadence in force in mono, and its chevron lists the cadences as one set of choices, a check
+against that one, and says on hover what it chooses.
 `hooks/use-heartbeat` is the beat. It fires only while the tab is visible, because a screen
 nobody can see asking anyway is heat, and it fires at once when the tab comes back, so what a
 reader returns to is the present. A beat is quiet: what is on screen stays until the answer
@@ -2213,8 +2216,8 @@ it.
 are listed under the groups they themselves declare, which is what the Blocks screen shelves by, so
 the picker invents no filing of its own and `map.jq` and `transform.jq` sit in one group. Each row
 is titled by the block's id with its summary under it. A sensor sits in its group like anything
-else and wears the badge saying so, in the chart hue nearest the sensor kind's (`kindHue` in
-`lib/kinds`), whose tooltip says what a sensor does, because a badge on every
+else and wears the badge saying so, in the sensor kind's own color (`kindFamily` in
+`lib/kinds`, which the library's chip takes as its hue), whose tooltip says what a sensor does, because a badge on every
 row would say what the absence of one already says. The picker is the library's `lg` width, so
 the search field is wide enough for its placeholder; it is named `Search blocks`, its
 placeholder says what it searches, and the list is named `Blocks`. Typing narrows the list to what matches, each group keeping its heading, every term

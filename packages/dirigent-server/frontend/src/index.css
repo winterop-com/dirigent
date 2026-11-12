@@ -546,15 +546,25 @@
 
 /* A SECONDARY BUTTON IS RAISED, NOT EDGED. The generated outline variant is drawn on the raised
    rung with no line in the dark mode, and with a hairline ring in the light one, where the raised
-   rung is white on a near-white surface. */
-[data-slot='button'][class~='border-border'][class~='bg-background'] {
+   rung is white on a near-white surface. A split button's chevron is its menu's trigger, and is
+   drawn as the half beside it. */
+[data-slot='button'][class~='border-border'][class~='bg-background'],
+[data-slot='split-button']
+    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background'] {
     border-color: transparent;
     background-color: var(--secondary);
 }
-[data-slot='button'][class~='border-border'][class~='bg-background']:hover {
+[data-slot='button'][class~='border-border'][class~='bg-background']:hover,
+[data-slot='split-button']
+    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background']:hover,
+[data-slot='split-button']
+    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background'][aria-expanded='true'] {
     background-color: color-mix(in oklab, var(--secondary), var(--foreground) 7%);
 }
-html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-background'] {
+html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-background'],
+html:not(.dark)
+    [data-slot='split-button']
+    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background'] {
     box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
@@ -563,7 +573,9 @@ html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-backgrou
 [data-slot='button']:disabled,
 [data-slot='button'][aria-disabled='true'],
 [data-slot='button'][class~='border-border'][class~='bg-background']:disabled,
-[data-slot='button'][class~='border-border'][class~='bg-background'][aria-disabled='true'] {
+[data-slot='button'][class~='border-border'][class~='bg-background'][aria-disabled='true'],
+[data-slot='split-button']
+    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background']:disabled {
     opacity: 1;
     background-color: transparent;
     box-shadow: inset 0 0 0 1px var(--border-strong);
