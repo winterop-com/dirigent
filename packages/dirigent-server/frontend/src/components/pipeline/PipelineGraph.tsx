@@ -188,7 +188,7 @@ export function PipelineGraph({
                     : fan.items === null
                       ? LABELS.editor.canvas.fan_out_each_title
                       : LABELS.editor.canvas.fan_out_count_title(String(fan.items)),
-                countPlacement: 'line',
+                countPlacement: 'title',
                 badge: missing
                     ? { label: LABELS.editor.canvas.not_installed, tone: 'critical' }
                     : stepEdited(edits, name)

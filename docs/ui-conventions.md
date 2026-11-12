@@ -2018,8 +2018,8 @@ foreground, which is no colour at all. A document's config is a map of any size 
 truncated line of it crowds the box, so the step's own pane holds the whole of it. A step whose
 `for_each` fans it out says so in the neutral ink -- the count, or the word "each" where the list is
 an expression a run resolves -- because a status is the only colour a node carries: at the end of
-the second line behind a stacked glyph, on the pipeline page's canvas and in the editor alike (the
-library's `countIcon` and `countPlacement: 'line'`), and in the editor pointing at the count says
+the title line behind a stacked glyph, on the pipeline page's canvas and in the editor alike (the
+library's `countIcon` and `countPlacement: 'title'`), and in the editor pointing at the count says
 what `for_each` does (`countTitle`). On a run the state's dot stands at the end of
 the title line, and the duration at the end of the second. **What a step is doing -- what it waits
 for, how a retry went, why it failed -- is the box's tooltip and the panel's, not a third line**,
