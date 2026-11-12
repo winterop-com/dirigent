@@ -827,6 +827,8 @@ const shell = {
     cadence_off: 'Off',
     cadence_seconds: (value: string) => `${value}s`,
     cadence_minutes: (value: string) => `${value}m`,
+    /** The refresh control's hover: the verb, and the cadence in force. */
+    refresh_every: (cadence: string) => `Refresh now. On its own: ${cadence}`,
 
     /** The button that puts a pane in a window as large as the screen allows. */
     open_in_window: (name: string) => `Open ${name} in a window`,

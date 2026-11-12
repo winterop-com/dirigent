@@ -45,6 +45,7 @@ describe("what sokkel-ui's parts say", () => {
     test('a link out of this app says it opens a new tab, and a split names its chevron', () => {
         expect(LINK_WORDS).toEqual({ newTab: LABELS.shell.new_tab })
         expect(splitWords('More ways')).toEqual({ more: 'More ways' })
+        expect(splitWords('Cadence', 'How often')).toEqual({ more: 'Cadence', moreHint: 'How often' })
     })
 })
 
