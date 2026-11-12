@@ -80,6 +80,44 @@ export function artifactUrl(prefix: string, id: string): string {
     return apiUrl(prefix, artifactPath(id))
 }
 
+/** How a preview draws an artifact's content: as a table, as a tree of JSON, or as text. */
+export type PreviewKind = 'table' | 'json' | 'text'
+
+/** The largest artifact a preview reads, in bytes; a larger one is reached by its link alone. */
+export const PREVIEW_MAX_BYTES = 256 * 1024
+
+/** The media types beyond `text/*` that are text to read. */
+const TEXT_MEDIA_TYPES = new Set(['application/x-ndjson', 'application/yaml', 'application/xml'])
+
+/** A content type's media type alone, lower-cased and without its parameters. */
+function mediaTypeOf(contentType: string): string {
+    return contentType.split(';')[0].trim().toLowerCase()
+}
+
+/**
+ * How an artifact's preview draws it, or null when it draws none.
+ *
+ * A CSV is a table, JSON is a tree, and any other text is text. An artifact of another kind, of
+ * no stated kind, of no stated size, or larger than `PREVIEW_MAX_BYTES` has no preview.
+ */
+export function previewKindOf(row: ArtifactOut): PreviewKind | null {
+    if (row.content_type === null || row.size_bytes === null || row.size_bytes > PREVIEW_MAX_BYTES)
+        return null
+    const media = mediaTypeOf(row.content_type)
+    if (media === 'text/csv') return 'table'
+    if (media === 'application/json' || media.endsWith('+json')) return 'json'
+    if (media.startsWith('text/') || TEXT_MEDIA_TYPES.has(media) || media.endsWith('+xml')) return 'text'
+    return null
+}
+
+/** The highlighting a text artifact's preview reads it in, from its content type: markdown, YAML, or none. */
+export function previewLanguageOf(contentType: string | null): string {
+    const media = contentType === null ? '' : mediaTypeOf(contentType)
+    if (media === MARKDOWN_CONTENT_TYPE) return 'markdown'
+    if (media === 'application/yaml' || media === 'text/yaml') return 'yaml'
+    return 'text'
+}
+
 /** One artifact's content as text. */
 export function readArtifactText(id: string): Promise<string> {
     return apiText(artifactPath(id))

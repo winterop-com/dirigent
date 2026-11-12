@@ -16,6 +16,7 @@ import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
 import type { DiffViewWords } from '@winterop-com/sokkel-ui/DiffView'
 import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
+import type { FilePreviewWords } from '@winterop-com/sokkel-ui/FilePreview'
 import type { FilterChipWords } from '@winterop-com/sokkel-ui/FilterChip'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
 import type { SchemeChoiceWords } from '@winterop-com/sokkel-ui/SchemeChoice'
@@ -211,6 +212,16 @@ export function windowWords(name: string): Partial<WindowedPaneWords> {
 export const DIFF_WORDS: DiffViewWords = {
     unchanged: LABELS.shell.diff_unchanged,
     folded: (count) => counted(count, LABELS.shell.diff_folded)(count.toLocaleString('en')),
+}
+
+/** What a file's preview says: how many rows of a table it shows, JSON that does not parse, and a kind it cannot draw. */
+export const FILE_PREVIEW_WORDS: FilePreviewWords = {
+    rows: (shown, total) =>
+        shown === total
+            ? counted(total, LABELS.shell.preview_rows)(total.toLocaleString('en'))
+            : LABELS.shell.preview_rows_first(shown.toLocaleString('en'), total.toLocaleString('en')),
+    unreadable: LABELS.shell.preview_unreadable,
+    none: LABELS.shell.preview_none,
 }
 
 /** What the sign-in screen says: its title and button, its two fields, the reveal toggle and the seam. No placeholders: the labels name the fields. */

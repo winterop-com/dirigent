@@ -99,6 +99,39 @@ test('choosing a step on the graph opens it in the panel', async ({ page }) => {
     await expect(panel.getByRole('link', { name: PIPELINE })).toBeVisible()
 })
 
+test("a run's output opens a JSON artifact into its preview, read only when it is opened", async ({
+    page,
+}) => {
+    await signIn(page)
+    const runId = await runOfTheExample(page.request)
+    await ranToCompletion(page.request, runId)
+
+    let reads = 0
+    page.on('request', (request) => {
+        if (/\/artifacts\/[0-9a-f-]+$/.test(new URL(request.url()).pathname)) reads += 1
+    })
+
+    await page.goto(`/runs/${runId}`)
+    await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.output }).click()
+
+    // Every row keeps its link to the content; no preview is read before a row is opened.
+    await expect(panel.getByRole('link', { name: 'parse', exact: true })).toBeVisible()
+    expect(reads).toBe(0)
+
+    // A step's output is JSON, so its row opens into the tree of that JSON.
+    await panel.getByRole('button', { name: LABELS.runs.show_preview('parse') }).click()
+    const preview = panel.locator('[data-artifact-preview]')
+    await expect(preview).toHaveCount(1)
+    await expect(preview.getByText('target', { exact: false }).first()).toBeVisible()
+    expect(reads).toBe(1)
+
+    // The same control takes it back.
+    await panel.getByRole('button', { name: LABELS.runs.hide_preview('parse') }).click()
+    await expect(preview).toHaveCount(0)
+})
+
 test("a run this instance does not have is refused in this interface's own words", async ({ page }) => {
     await signIn(page)
     await page.goto(`/runs/${RUN_ID}`)

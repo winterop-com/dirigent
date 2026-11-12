@@ -344,6 +344,8 @@ const word = {
     output: 'Output',
     /** The files a run wrote. */
     artifacts: 'Artifacts',
+    /** How large a file is. */
+    size: 'Size',
     /** What a run rendered when it settled. */
     report: 'Report',
     /** The short form of what a run amounts to. */
@@ -849,6 +851,17 @@ const shell = {
         one: (count: string) => `${count} unchanged line`,
         many: (count: string) => `${count} unchanged lines`,
     },
+    /** How many rows of a table file a preview shows, when it shows all of them. */
+    preview_rows: {
+        one: (count: string) => `${count} row`,
+        many: (count: string) => `${count} rows`,
+    },
+    /** How many rows of a table file a preview shows, when it shows only the first of them. */
+    preview_rows_first: (shown: string, total: string) => `First ${shown} of ${total} rows`,
+    /** What a preview of JSON says above its text when the text does not parse. */
+    preview_unreadable: 'This JSON does not parse; its text is shown.',
+    /** What a preview says of a kind of file it cannot draw. */
+    preview_none: 'No preview for this kind of file.',
     /** The way out of a screen and into the requests behind it. */
     api_docs: (section: string) => `The ${section} section of this instance's API documentation`,
 
@@ -2463,6 +2476,11 @@ const runs = {
     artifacts_empty: 'No step of this run wrote an output.',
     /** What an artifact the run itself wrote is filed under, where a step's is filed under it. */
     artifact_of_run: 'the run',
+    /** An artifact of one element of a fan-out, named by its step and the element. */
+    artifact_of_item: (step: string, item: string) => `${step} · ${item}`,
+    /** The control under which an artifact's preview opens and closes, naming what it previews. */
+    show_preview: (artifact: string) => `Show a preview of ${artifact}`,
+    hide_preview: (artifact: string) => `Hide the preview of ${artifact}`,
 
     // The Report tab.
 
