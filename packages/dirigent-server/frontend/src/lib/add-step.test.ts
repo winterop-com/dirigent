@@ -4,7 +4,6 @@ import { groupBlocks } from '@winterop-com/sokkel-ui-graph/blocks'
 
 import { pickerBlocks, pickerGroups, stepKeyFor } from '@/lib/add-step'
 import type { BlockEntry } from '@/lib/blocks'
-import { kindHue } from '@/lib/kinds'
 import { LABELS } from '@/lib/labels'
 
 /** A catalog entry with only the members this module reads, which are five of them. */
@@ -73,7 +72,7 @@ describe('pickerBlocks', () => {
         const offered = pickerBlocks(DECLARED)
         expect(offered.find((one) => one.kind === 'http.ready')?.badge).toEqual({
             label: 'sensor',
-            hue: kindHue('sensor'),
+            hue: 'teal',
             title: LABELS.editor.canvas.sensor_title,
         })
         expect(offered.filter((one) => one.badge !== undefined)).toHaveLength(1)

@@ -12,7 +12,8 @@ export const CADENCE_LABEL = LABELS.shell.cadence
  * The refresh control: the verb, and how often it happens by itself.
  *
  * sokkel-ui's `SplitButton`: the face refreshes now and shows the cadence, and the chevron
- * holds the cadences, the one in force checked. The cadence is the app's, not this screen's.
+ * holds the cadences as one set of choices, the one in force checked, and says on hover what it
+ * chooses. The cadence is the app's, not this screen's.
  */
 export function RefreshControl({ onRefresh }: { onRefresh: () => void }) {
     const seconds = useStore(refreshSeconds)
@@ -23,10 +24,10 @@ export function RefreshControl({ onRefresh }: { onRefresh: () => void }) {
             label={REFRESH_LABEL}
             title={LABELS.shell.refresh_every(refreshLabel(seconds))}
             onClick={onRefresh}
-            words={splitWords(CADENCE_LABEL)}
+            words={splitWords(CADENCE_LABEL, CADENCE_LABEL)}
             items={REFRESH_CHOICES.map((choice) => ({
                 label: refreshLabel(choice),
-                icon: <ICONS.done aria-hidden className={choice === seconds ? undefined : 'invisible'} />,
+                checked: choice === seconds,
                 onSelect: () => {
                     setRefreshSeconds(choice)
                 },

@@ -10,7 +10,7 @@
 import type { BlockGroup, PipelineBlock } from '@winterop-com/sokkel-ui-graph/blocks'
 import { byGroup, type BlockEntry } from '@/lib/blocks'
 import { ICONS } from '@/lib/icons'
-import { kindHue, kindLabel } from '@/lib/kinds'
+import { kindFamily, kindLabel } from '@/lib/kinds'
 import { LABELS } from '@/lib/labels'
 
 /** What a step key may be, which is `StepName` in dirigent_common. */
@@ -38,7 +38,7 @@ export function pickerBlocks(blocks: readonly BlockEntry[]): PipelineBlock[] {
                 entry.kind === 'sensor'
                     ? {
                           label: kindLabel(entry.kind),
-                          hue: kindHue(entry.kind),
+                          hue: kindFamily(entry.kind),
                           title: LABELS.editor.canvas.sensor_title,
                       }
                     : undefined,

@@ -14,8 +14,6 @@
  * rather than falling into an uncoloured default beside the ones that have a family.
  */
 
-import type { ChipHue } from '@winterop-com/sokkel-ui/Chip'
-
 /** The families, which are the hues declared in index.css. */
 export const KIND_FAMILIES = ['green', 'jade', 'teal', 'blue', 'violet', 'pink'] as const
 
@@ -57,21 +55,6 @@ export function kindFamily(kind: string): KindFamily {
 export function kindTokens(kind: string): { '--chip': string; '--chip-ink': string } {
     const family = kindFamily(kind)
     return { '--chip': `var(--kind-${family})`, '--chip-ink': `var(--kind-${family}-ink)` }
-}
-
-/** The chart hue nearest each family's on the library's base chart palette, which a library chip wears. */
-const CHART_HUE: Readonly<Record<KindFamily, ChipHue>> = {
-    green: 3,
-    jade: 3,
-    teal: 2,
-    blue: 1,
-    violet: 4,
-    pink: 4,
-}
-
-/** The chart hue a library chip wears for one kind: its family's, as near as the chart palette comes. */
-export function kindHue(kind: string): ChipHue {
-    return CHART_HUE[kindFamily(kind)]
 }
 
 /**
