@@ -332,6 +332,10 @@ export function PipelineEditor() {
         [local],
     )
 
+    const refuse = useCallback((reason: string) => {
+        toast.warning(reason)
+    }, [])
+
     const disconnect = useCallback((from: string, to: string) => {
         changeDocument((current) => withoutEdge(current, from, to))
     }, [])
@@ -685,28 +689,6 @@ export function PipelineEditor() {
                 className="mt-3 flex min-h-96 flex-1 flex-col"
                 bodyClassName="relative min-h-0 flex-1"
             >
-                {steps.length === 0 && local !== null && (
-                    <div className="graph-words absolute top-4 left-4 z-10 flex items-center gap-3">
-                        <p className="pointer-events-none text-muted-foreground">
-                            {LABELS.editor.canvas.no_steps}
-                        </p>
-                        {/* THE OTHER WAY IN IS NOT ON THE SCREEN. Add step is a control on this
-                            canvas and needs no narrating; copying a shipped document is a door
-                            nothing here would otherwise show, so the empty state offers it. */}
-                        {creating && !small && mayWrite && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    setPicking(true)
-                                }}
-                            >
-                                <BookOpen aria-hidden />
-                                {LABELS.editor.canvas.from_starter}
-                            </Button>
-                        )}
-                    </div>
-                )}
                 {local === null ? (
                     <div className="graph-words flex flex-col items-start gap-3 p-4">
                         <p className="text-muted-foreground">{LABELS.editor.canvas.nothing_to_draw}</p>
@@ -733,15 +715,26 @@ export function PipelineEditor() {
                                 setSelected(chosen)
                                 if (chosen !== null) openPanelTab('step')
                             }}
-                            onAddStep={(block) => {
-                                addStep(block, null, null)
-                            }}
+                            onAddStep={addStep}
                             onConnect={connect}
                             onDisconnect={disconnect}
-                            onAddStepAfter={(from, block, at) => {
-                                addStep(block, from, at)
-                            }}
                             onRemoveStep={removeStep}
+                            onRefuse={refuse}
+                            emptyAction={
+                                // Copying a shipped document is a door nothing else here shows.
+                                creating && !small && mayWrite ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setPicking(true)
+                                        }}
+                                    >
+                                        <BookOpen aria-hidden />
+                                        {LABELS.editor.canvas.from_starter}
+                                    </Button>
+                                ) : undefined
+                            }
                             readOnly={small}
                         />
                     </Suspense>

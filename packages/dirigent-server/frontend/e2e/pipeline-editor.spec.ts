@@ -98,9 +98,25 @@ const WINDOWED = {
     },
 }
 
-/** The menu's heading, and the label its search box answers to. */
+/** The picker's heading, and the name its search box answers to. */
 const ADD_STEP_LABEL = 'Add step'
 const SEARCH_LABEL = 'Search blocks by id, summary or kind'
+
+/** The block picker, wherever it was opened from. */
+function picker(page: Page): Locator {
+    return page.locator('[data-slot="block-picker"]')
+}
+
+/** The picker's search box. */
+function searchBox(page: Page): Locator {
+    return picker(page).getByRole('combobox', { name: SEARCH_LABEL })
+}
+
+/** The picker's row for one block, by its id, in the picker or in one of its groups. */
+function blockOption(within: Page | Locator, block: string): Locator {
+    const scope = 'goto' in within ? picker(within) : within
+    return scope.getByRole('option').filter({ hasText: block })
+}
 
 /** Where this pipeline's own arrangement is kept, which is `lib/canvas-layout`'s key. */
 const APART_LAYOUT_KEY = `dirigent.layout.${APART_PIPELINE}`
@@ -140,7 +156,7 @@ async function topOf(locator: Locator): Promise<number> {
 
 /** One step's port, which is what an edge is dragged from and to. */
 function port(page: Page, step: string, end: 'source' | 'target') {
-    return page.locator(`.react-flow__handle.dg-port.${end}[data-nodeid="${step}"]`)
+    return page.locator(`.react-flow__handle.${end}[data-nodeid="${step}"]`)
 }
 
 /**
@@ -160,12 +176,12 @@ test('a step node is titled by its name over its key, and by its key alone when 
     await canvasSettled(page)
 
     const named = page.locator(`.react-flow__node[data-id="${NAMED_STEP}"]`)
-    await expect(named.getByTestId('step-title')).toHaveText(STEP_NAME)
-    await expect(named.getByTestId('step-line')).toContainText(NAMED_STEP)
+    await expect(named.locator('[data-slot="graph-node-title"]')).toHaveText(STEP_NAME)
+    await expect(named.locator('[data-slot="graph-node-line"]')).toContainText(NAMED_STEP)
 
     const plain = page.locator('.react-flow__node[data-id="report"]')
-    await expect(plain.getByTestId('step-title')).toHaveText('report')
-    await expect(plain.getByTestId('step-line')).not.toContainText('report')
+    await expect(plain.locator('[data-slot="graph-node-title"]')).toHaveText('report')
+    await expect(plain.locator('[data-slot="graph-node-line"]')).not.toContainText('report')
 })
 
 test("a pipeline row on the listing opens that pipeline's page, led by its graph", async ({ page }) => {
@@ -927,7 +943,7 @@ test('the editor draws a port on every step, and a run graph draws none', async 
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
 
     // Two per box, both visible and both connectable: this is the canvas that edits.
-    await expect(page.locator('.react-flow__handle.dg-port')).toHaveCount(4)
+    await expect(page.locator('.react-flow__handle')).toHaveCount(4)
     await expect(port(page, 'fetch', 'source')).toBeVisible()
     await expect(port(page, 'report', 'target')).toBeVisible()
     await expect(page.locator('.react-flow__handle.connectable')).toHaveCount(4)
@@ -1036,15 +1052,16 @@ test('a connection dropped on empty ground adds a step already waiting for the o
     await expect(page.locator('.react-flow__node')).toHaveCount(2)
     await canvasSettled(page)
 
-    // Let go over the ground rather than over a port: the menu opens where it was dropped, and
+    // Let go over the ground rather than over a port: the picker opens where it was dropped, and
     // says which step the one it is about to add will wait for.
     await dragBy(page, port(page, 'fetch', 'source'), 220, 140)
 
-    const menu = page.getByRole('menu')
-    await expect(menu.getByText(`${ADD_STEP_LABEL} after fetch`, { exact: true })).toBeVisible()
-    // The four transform verbs declare one group, so the block is one shelf in.
-    await menu.getByRole('menuitem', { name: 'transform', exact: true }).click()
-    await page.getByRole('menuitem', { name: /^transform\.jq/ }).click()
+    await expect(picker(page).getByText(`${ADD_STEP_LABEL} after fetch`, { exact: true })).toBeVisible()
+    // The four transform verbs declare one group, so the block is listed under it.
+    await blockOption(
+        picker(page).getByRole('group', { name: 'transform', exact: true }),
+        'transform.jq',
+    ).click()
 
     await expect(page.locator('.react-flow__node')).toHaveCount(3)
     await expect(page.locator('.react-flow__edge')).toHaveCount(1)
@@ -1071,18 +1088,16 @@ test('right-clicking the canvas adds a step from the menu, and the panel opens o
 
     await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 80, y: 80 } })
 
-    const menu = page.getByRole('menu')
-    await expect(menu.getByText(ADD_STEP_LABEL, { exact: true })).toBeVisible()
-    await expect(page.getByLabel(SEARCH_LABEL)).toBeFocused()
+    await expect(picker(page).getByText(ADD_STEP_LABEL, { exact: true })).toBeVisible()
+    await expect(searchBox(page)).toBeFocused()
     // Every group the catalog declares, and nothing else: a group of one -- webhook -- is
-    // still a group, so the root is one uniform arrangement of submenus.
-    await expect(menu.getByRole('menuitem', { name: 'transform', exact: true })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: 'execute', exact: true })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: 'webhook', exact: true })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: 'sensors', exact: true })).toHaveCount(0)
+    // still a group, so the list is one uniform arrangement of groups.
+    await expect(picker(page).getByRole('group', { name: 'transform', exact: true })).toBeVisible()
+    await expect(picker(page).getByRole('group', { name: 'execute', exact: true })).toBeVisible()
+    await expect(picker(page).getByRole('group', { name: 'webhook', exact: true })).toBeVisible()
+    await expect(picker(page).getByRole('group', { name: 'sensors', exact: true })).toHaveCount(0)
 
-    await menu.getByRole('menuitem', { name: 'webhook', exact: true }).click()
-    await page.getByRole('menuitem', { name: /^webhook\.post/ }).click()
+    await blockOption(page, 'webhook.post').click()
 
     await expect(page.locator('.react-flow__node')).toHaveCount(1)
     await expect(page.locator('.react-flow__node').getByText('post', { exact: true })).toBeVisible()
@@ -1148,14 +1163,11 @@ test('a chosen step is deleted by the key, and never while a text box has the fo
 /**
  * TYPING IS THE OTHER WAY IN.
  *
- * The shelves are for somebody who knows where a block lives; the box is for somebody who knows
- * what it is called. What it answers with is flat and breadcrumbed -- `shell ▸ run` -- because a
- * breadcrumb is faster to read than a tree is to walk, the arrows move through the results, and
- * the return key places the one they are on.
+ * The groups are for somebody who knows where a block lives; the box is for somebody who knows
+ * what it is called. It narrows the list to the blocks it matches, each titled by its whole id,
+ * the arrows move through them, and the return key places the one they are on.
  */
-test('the search box narrows the menu to breadcrumbed results, and the return key places one', async ({
-    page,
-}) => {
+test('the search box narrows the picker, and the return key places one', async ({ page }) => {
     // A document with no steps is `/pipelines/$new`: the instance refuses to store one, and it
     // is where an add-step gesture matters most.
     await signIn(page)
@@ -1163,23 +1175,19 @@ test('the search box narrows the menu to breadcrumbed results, and the return ke
     await expect(page.getByText(LABELS.editor.canvas.no_steps, { exact: false })).toBeVisible()
 
     await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 120, y: 120 } })
-    await page.getByLabel(SEARCH_LABEL).fill('ru')
+    await searchBox(page).fill('ru')
 
-    const menu = page.getByRole('menu')
-    await expect(menu.getByText('docker ▸ run')).toBeVisible()
-    await expect(menu.getByText('shell ▸ run')).toBeVisible()
-    // The shelves are gone while there is something in the box.
-    await expect(menu.getByRole('menuitem', { name: 'sensors', exact: true })).toHaveCount(0)
+    await expect(blockOption(page, 'docker.run')).toBeVisible()
+    await expect(blockOption(page, 'shell.run')).toBeVisible()
+    // Only the groups holding a match are left while there is something in the box.
+    await expect(picker(page).getByRole('group', { name: 'webhook', exact: true })).toHaveCount(0)
 
-    // Results are in id order: docker.run, filter.jq, git.checkout (its summary names the
-    // run's work directory), log.write (its summary names the run's log), pipeline.run, then
-    // shell.run.
-    await page.keyboard.press('ArrowDown')
-    await page.keyboard.press('ArrowDown')
-    await page.keyboard.press('ArrowDown')
-    await page.keyboard.press('ArrowDown')
-    await page.keyboard.press('ArrowDown')
-    await expect(page.locator('[data-active="true"]')).toContainText('shell ▸ run')
+    // The arrows walk the results from the first, and the return key places the one they are on.
+    const results = await picker(page).getByRole('option').allTextContents()
+    const at = results.findIndex((text) => text.includes('shell.run'))
+    expect(at).toBeGreaterThan(0)
+    for (let step = 0; step < at; step += 1) await page.keyboard.press('ArrowDown')
+    await expect(picker(page).locator('[role="option"][aria-selected="true"]')).toContainText('shell.run')
     await page.keyboard.press('Enter')
 
     await expect(page.locator('.react-flow__node')).toHaveCount(1)
@@ -1212,22 +1220,23 @@ test('the menu says it is reading the catalog rather than that nothing matches',
 
     await page.goto('/pipelines/$new')
     await page.getByRole('button', { name: ADD_STEP_LABEL }).click()
-    await expect(page.getByLabel(SEARCH_LABEL)).toBeFocused()
+    await expect(searchBox(page)).toBeFocused()
 
-    const menu = page.getByRole('menu')
-    // Before a search: no shelves to draw, and it says why rather than drawing an empty popup.
-    await expect(menu.getByText(LABELS.shell.reading, { exact: true })).toBeVisible()
+    // Before a search: no groups to draw, and it says why rather than drawing an empty popup.
+    await expect(picker(page).getByText(LABELS.shell.reading, { exact: true })).toBeVisible()
 
     // And during one: still reading, rather than the flat denial the same box used to answer with.
-    await page.getByLabel(SEARCH_LABEL).fill('shell')
-    await expect(menu.getByText(LABELS.shell.reading, { exact: true })).toBeVisible()
-    await expect(menu.getByText(LABELS.editor.canvas.no_block_matches, { exact: true })).toHaveCount(0)
+    await searchBox(page).fill('shell')
+    await expect(picker(page).getByText(LABELS.shell.reading, { exact: true })).toBeVisible()
+    await expect(picker(page).getByText(LABELS.editor.canvas.no_block_matches, { exact: true })).toHaveCount(
+        0,
+    )
 
     release()
     // The read lands under the search already typed, and the row it found is there to place.
-    const found = menu.getByRole('menuitem').filter({ hasText: 'shell ▸ run' })
+    const found = blockOption(page, 'shell.run')
     await expect(found).toHaveCount(1)
-    await expect(menu.getByText(LABELS.shell.reading, { exact: true })).toHaveCount(0)
+    await expect(picker(page).getByText(LABELS.shell.reading, { exact: true })).toHaveCount(0)
     await found.click()
     await expect(page.locator('.react-flow__node')).toHaveCount(1)
 })
@@ -1242,29 +1251,28 @@ test('escape clears the search before it closes the menu', async ({ page }) => {
     await signIn(page)
     await page.goto('/pipelines/$new')
     await page.locator('.react-flow__pane').click({ button: 'right', position: { x: 120, y: 120 } })
-    await page.getByLabel(SEARCH_LABEL).fill('sensor')
+    await searchBox(page).fill('sensor')
 
-    // The words a kind is named by find every block of that kind, whatever group it shelves under.
-    const menu = page.getByRole('menu')
-    await expect(menu.getByText('time ▸ sleep')).toBeVisible()
-    await expect(menu.getByText('storage ▸ exists')).toBeVisible()
-
-    await page.keyboard.press('Escape')
-    await expect(page.getByLabel(SEARCH_LABEL)).toHaveValue('')
-    await expect(menu.getByRole('menuitem', { name: 'transform', exact: true })).toBeVisible()
+    // The words a kind is named by find every block of that kind, whatever group it is listed under.
+    await expect(blockOption(page, 'time.sleep')).toBeVisible()
+    await expect(blockOption(page, 'storage.exists')).toBeVisible()
 
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('menu')).toHaveCount(0)
+    await expect(searchBox(page)).toHaveValue('')
+    await expect(picker(page).getByRole('group', { name: 'transform', exact: true })).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await expect(picker(page)).toHaveCount(0)
     await expect(page.locator('.react-flow__node')).toHaveCount(0)
 })
 
 /**
- * THE MENU IS PLACED AGAINST THE WINDOW, NOT AGAINST THE POINTER ALONE.
+ * THE PICKER IS PLACED AGAINST THE CANVAS, NOT AGAINST THE POINTER ALONE.
  *
  * A right-click in the far corner of the canvas is the ordinary case near the foot of a screen,
- * and a menu that hung off the window there would be a menu with rows nobody can reach.
+ * and a picker that hung off the canvas there would be a list with rows nobody can reach.
  */
-test('the menu opens inside the window wherever the pointer is', async ({ page }) => {
+test('the picker opens inside the canvas wherever the pointer is', async ({ page }) => {
     await signIn(page)
     await page.goto('/pipelines/$new')
     await expect(page.getByText(LABELS.editor.canvas.no_steps, { exact: false })).toBeVisible()
@@ -1274,26 +1282,28 @@ test('the menu opens inside the window wherever the pointer is', async ({ page }
     if (canvas === null) throw new Error('the canvas has no box on the screen')
     await pane.click({ button: 'right', position: { x: canvas.width - 6, y: canvas.height - 6 } })
 
-    await expect(page.getByRole('menu')).toBeVisible()
+    await expect(picker(page)).toBeVisible()
     const inside = await page.evaluate(() => {
-        const popup = document.querySelector('[data-slot="dropdown-menu-content"]')
-        if (popup === null) return null
+        const popup = document.querySelector('[data-slot="block-picker"]')
+        const frame = document.querySelector('[data-graph-view]')
+        if (popup === null || frame === null) return null
         const box = popup.getBoundingClientRect()
+        const room = frame.getBoundingClientRect()
         return (
-            box.left >= 0 &&
-            box.top >= 0 &&
-            box.right <= window.innerWidth + 1 &&
-            box.bottom <= window.innerHeight + 1
+            box.left >= room.left - 1 &&
+            box.top >= room.top - 1 &&
+            box.right <= room.right + 1 &&
+            box.bottom <= room.bottom + 1
         )
     })
     expect(inside).toBe(true)
 })
 
 /**
- * ONLY A SENSOR WEARS A CHIP: which block waits for something is what a shelf cannot say, and a
+ * ONLY A SENSOR WEARS A CHIP: which block waits for something is what a group cannot say, and a
  * chip on every row would say what the absence of one already says.
  */
-test('only a sensor wears a kind chip in its group shelf', async ({ page }) => {
+test('only a sensor wears a kind chip in its group', async ({ page }) => {
     await signIn(page)
     await page.goto('/pipelines/$new')
     // The palette is the keyboard way in, and reaches the same menu.
@@ -1304,26 +1314,22 @@ test('only a sensor wears a kind chip in its group shelf', async ({ page }) => {
         .filter({ hasText: /^Add step/ })
         .first()
         .click()
-    await page.getByRole('menuitem', { name: 'http', exact: true }).click()
-    const operator = page.getByRole('menuitem', { name: 'http.request', exact: false })
+    const http = picker(page).getByRole('group', { name: 'http', exact: true })
+    const operator = blockOption(http, 'http.request')
     await expect(operator).toBeVisible()
-    await expect(operator.locator('.kind-chip')).toHaveCount(0)
-    await expect(
-        page
-            .getByRole('menuitem', { name: 'http.ready', exact: false })
-            .locator('.kind-chip[data-kind="sensor"]'),
-    ).toHaveCount(1)
+    await expect(operator.locator('[data-slot="chip"]')).toHaveCount(0)
+    await expect(blockOption(http, 'http.ready').locator('[data-slot="chip"]')).toHaveText('sensor')
 })
 
 /**
  * THE ADD-STEP GESTURE THAT CAN BE SEEN.
  *
- * A right-click has to be known about and the palette has to be remembered; the button in the
- * canvas's corner is what a reader who has opened this screen for the first time can find, and
- * it is why the empty canvas states the fact instead of narrating a gesture. It opens the same
- * menu, anchored under itself, and it is reachable from the keyboard like any other button.
+ * A right-click has to be known about and the palette has to be remembered; the button on the
+ * canvas is what a reader who has opened this screen for the first time can find: under the
+ * empty canvas's words, then beside the zoom. It opens the same picker beside itself, and it is
+ * reachable from the keyboard like any other button.
  */
-test('the button in the corner opens the same menu, under itself', async ({ page }) => {
+test('the add button opens the same picker, beside itself', async ({ page }) => {
     await signIn(page)
     await page.goto('/pipelines/$new')
     // The empty state says what is true and nothing about how to change it: the control is there.
@@ -1333,35 +1339,33 @@ test('the button in the corner opens the same menu, under itself', async ({ page
     await expect(button).toBeVisible()
     await button.click()
 
-    const menu = page.getByRole('menu')
-    await expect(menu.getByText(ADD_STEP_LABEL, { exact: true })).toBeVisible()
-    const search = page.getByLabel(SEARCH_LABEL)
+    await expect(picker(page).getByText(ADD_STEP_LABEL, { exact: true })).toBeVisible()
+    const search = searchBox(page)
     await expect(search).toBeFocused()
-    // The menu focuses its own list as it settles; what is typed still lands in the box.
     await page.keyboard.type('shell')
     await expect(search).toHaveValue('shell')
 
-    // The popup hangs off the button rather than off a point, so it is over the corner it opened from.
+    // The picker opens beside the button rather than at a point elsewhere on the canvas.
     const anchor = await button.boundingBox()
-    const popup = await page.locator('[data-slot="dropdown-menu-content"]').boundingBox()
+    const popup = await picker(page).boundingBox()
     expect(anchor).not.toBeNull()
     expect(popup).not.toBeNull()
     if (anchor === null || popup === null) return
     expect(popup.x).toBeLessThan(anchor.x + anchor.width + 40)
+    expect(popup.y).toBeLessThan(anchor.y + anchor.height + 40)
 
-    // The catalog is a read that may not have landed when the menu opens, so the row is waited
+    // The catalog is a read that may not have landed when the picker opens, so the row is waited
     // for rather than a keystroke sent at whatever is there.
-    await page.getByLabel(SEARCH_LABEL).fill('shell')
-    const found = menu.getByRole('menuitem').filter({ hasText: 'shell ▸ run' })
+    const found = blockOption(page, 'shell.run')
     await expect(found).toHaveCount(1)
     await found.click()
     await expect(page.locator('.react-flow__node')).toHaveCount(1)
 
-    // And the keyboard alone opens it: the button takes the focus ring and answers Enter.
+    // And the keyboard alone opens it: the button beside the zoom takes the focus ring and answers Enter.
     await page.keyboard.press('Escape')
     await button.focus()
     await page.keyboard.press('Enter')
-    await expect(page.getByRole('menu')).toBeVisible()
+    await expect(picker(page)).toBeVisible()
 })
 
 /**

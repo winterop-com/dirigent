@@ -18,6 +18,7 @@ import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
 import type { FilePreviewWords } from '@winterop-com/sokkel-ui/FilePreview'
 import type { FilterChipWords } from '@winterop-com/sokkel-ui/FilterChip'
+import type { BlockPickerWords } from '@winterop-com/sokkel-ui-graph/BlockPicker'
 import type { GraphLayoutMenuWords } from '@winterop-com/sokkel-ui-graph/GraphLayoutMenu'
 import type { RunGraphProps } from '@winterop-com/sokkel-ui-graph/RunGraph'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
@@ -217,6 +218,20 @@ export const GRAPH_WORDS: RunGraphProps['words'] = {
     zoomOut: LABELS.shell.zoom_out,
     fit: LABELS.shell.fit_view,
     empty: LABELS.runs.graph_empty,
+}
+
+/** What the editor's graph says: the run graph's words, and its own empty canvas. */
+export const EDITOR_GRAPH_WORDS: RunGraphProps['words'] = {
+    ...GRAPH_WORDS,
+    empty: LABELS.editor.canvas.no_steps,
+}
+
+/** What the editor's block picker says: its search, a search that finds nothing, and a catalog still being read. */
+export const BLOCK_PICKER_WORDS: BlockPickerWords = {
+    search: LABELS.editor.canvas.search_blocks,
+    none: LABELS.editor.canvas.no_block_matches,
+    nothing: LABELS.editor.canvas.no_block_matches,
+    loading: LABELS.shell.reading,
 }
 
 /** What a sokkel-ui-graph layout menu says: its button, and the direction, edges and spacing it offers. */

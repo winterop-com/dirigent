@@ -1,84 +1,41 @@
 /**
- * What the add-step menu offers, as pure decisions over the catalog.
+ * What the block picker offers, as pure decisions over the catalog.
  *
- * THE SHELVES ARE THE CATALOG'S OWN. A block declares the group it belongs on, and that is
- * what `lib/blocks` shelves the /blocks screen by; the menu asks there rather than inventing a
- * second arrangement of the same blocks.
- *
- * A KEY IS DERIVED, NOT ASKED FOR. The menu places a step on one keystroke, so the key comes
- * from the block that was chosen and is made unique against the document's own; it is renamed
- * in the step's pane like anything else about it.
+ * The groups are the catalog's own: a block declares the group it belongs on, which is what
+ * `lib/blocks` shelves the /blocks screen by. A sensor wears a badge saying so, and a search for
+ * `sensor` or `operator` finds every block of that kind. A step's key comes from the block chosen,
+ * made unique against the document's own; it is renamed in the step's pane like anything else.
  */
 
-import { familyOf, byGroup, type BlockEntry } from '@/lib/blocks'
-
-/** One shelf of the menu: a heading and the blocks under it. */
-export interface BlockShelf {
-    /** The group the blocks declare. */
-    shelf: string
-    blocks: BlockEntry[]
-}
-
-/** One search result: the block, and the two halves its breadcrumb is drawn from. */
-export interface BlockCrumb {
-    entry: BlockEntry
-    /** Everything before the first dot. */
-    family: string
-    /** Everything after it, which is the id's own remainder when there is no dot. */
-    rest: string
-}
+import type { BlockGroup, PipelineBlock } from '@winterop-com/sokkel-ui-graph/blocks'
+import { byGroup, type BlockEntry } from '@/lib/blocks'
+import { ICONS } from '@/lib/icons'
+import { kindLabel } from '@/lib/kinds'
 
 /** What a step key may be, which is `StepName` in dirigent_common. */
 const STEP_KEY = /^[a-z][a-z0-9_]*$/
 
-/** The word a search may name a kind by, in the singular and in the plural. */
-const KIND_WORDS: Readonly<Record<string, BlockEntry['kind']>> = {
-    sensor: 'sensor',
-    sensors: 'sensor',
-    operator: 'operator',
-    operators: 'operator',
-}
-
-/** The two halves of a block id, which the menu draws as `family ▸ rest`. */
-export function crumbOf(entry: BlockEntry): BlockCrumb {
-    const family = familyOf(entry.id)
-    const dot = entry.id.indexOf('.')
-    return { entry, family, rest: dot === -1 ? entry.id : entry.id.slice(dot + 1) }
+/** The groups the picker lists blocks under: every group the catalog declares, in name order. */
+export function pickerGroups(blocks: readonly BlockEntry[]): BlockGroup[] {
+    return byGroup(blocks).map(([group]) => ({ id: group, label: group }))
 }
 
 /**
- * The shelves the menu opens on: every group, in name order.
- *
- * A sensor sits in its group like any other block, chipped so it reads as the one that
- * waits; searching the word `sensor` collects them when the kind is the question.
+ * The catalog as the picker offers it, in id order: each block titled by its id with its summary
+ * under it, a sensor badged, and its kind in the singular and the plural among the words a search
+ * finds it by.
  */
-export function blockShelves(blocks: readonly BlockEntry[]): BlockShelf[] {
-    return byGroup(blocks).map(([shelf, members]) => ({ shelf, blocks: members }))
-}
-
-/**
- * The blocks a search finds, breadcrumbed, in id order.
- *
- * EVERY TERM MUST MATCH, the same rule the command palette's filter follows, so typing another
- * word narrows rather than widens. A term matches a block's id or its summary -- and `sensor`
- * and `operator` match by kind, because what somebody is looking for is often the shape of the
- * block rather than its name.
- */
-export function searchBlocks(blocks: readonly BlockEntry[], needle: string): BlockCrumb[] {
-    const terms = needle
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((term) => term !== '')
-    if (terms.length === 0) return []
+export function pickerBlocks(blocks: readonly BlockEntry[]): PipelineBlock[] {
     return blocks
-        .filter((entry) => terms.every((term) => matches(entry, term)))
         .toSorted((a, b) => a.id.localeCompare(b.id))
-        .map(crumbOf)
-}
-
-function matches(entry: BlockEntry, term: string): boolean {
-    if (KIND_WORDS[term] === entry.kind) return true
-    return `${entry.id} ${entry.summary}`.toLowerCase().includes(term)
+        .map((entry) => ({
+            kind: entry.id,
+            description: entry.summary,
+            group: entry.group,
+            icon: ICONS.block,
+            badge: entry.kind === 'sensor' ? kindLabel(entry.kind) : undefined,
+            keywords: [entry.kind, `${entry.kind}s`],
+        }))
 }
 
 /**

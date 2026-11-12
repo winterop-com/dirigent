@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest'
 
-import { blockShelves, crumbOf, searchBlocks, stepKeyFor } from '@/lib/add-step'
+import { groupBlocks } from '@winterop-com/sokkel-ui-graph/blocks'
+
+import { pickerBlocks, pickerGroups, stepKeyFor } from '@/lib/add-step'
 import type { BlockEntry } from '@/lib/blocks'
 
 /** A catalog entry with only the members this module reads, which are five of them. */
@@ -40,100 +42,58 @@ const DECLARED: BlockEntry[] = [
     block('http.ready', 'sensor', 'Wait for an endpoint to report ready.', 'http'),
 ]
 
-describe('blockShelves', () => {
-    test('shelves every group in name order, blocks in id order within one', () => {
-        const shelves = blockShelves(DECLARED)
-
-        expect(shelves.map((shelf) => shelf.shelf)).toEqual(['execute', 'http', 'transform', 'webhook'])
-        expect(shelves[0]?.blocks.map((entry) => entry.id)).toEqual(['docker.run', 'shell.run'])
-    })
-
-    test('a block shelves where it says it belongs, not where the half of its id reads', () => {
-        const shelves = blockShelves(DECLARED)
-
-        expect(shelves.find((shelf) => shelf.shelf === 'transform')?.blocks.map((entry) => entry.id)).toEqual(
-            ['map.jq', 'transform.jq'],
-        )
-        expect(shelves.map((shelf) => shelf.shelf)).not.toContain('map')
-    })
-
-    test('a group of one is a shelf of one, which the menu draws as a row rather than a submenu', () => {
-        expect(blockShelves(DECLARED).find((shelf) => shelf.shelf === 'webhook')?.blocks).toHaveLength(1)
-    })
-
-    test('a sensor keeps its place in its own group as well', () => {
-        const shelves = blockShelves(CATALOG)
-
-        expect(shelves.find((shelf) => shelf.shelf === 'file')?.blocks.map((entry) => entry.id)).toEqual([
-            'file.wait',
+describe('pickerGroups', () => {
+    test('every group the catalog declares, in name order, a group of one still a group', () => {
+        expect(pickerGroups(DECLARED).map((group) => group.id)).toEqual([
+            'execute',
+            'http',
+            'transform',
+            'webhook',
         ])
     })
 })
 
-describe('crumbOf', () => {
-    test('splits an id at its first dot', () => {
-        expect(crumbOf(block('transform.jq', 'operator', ''))).toMatchObject({
-            family: 'transform',
-            rest: 'jq',
-        })
+/** What a search in the picker lists, by block id, in the order it lists them. */
+function found(blocks: readonly BlockEntry[], query: string): string[] {
+    return groupBlocks(pickerBlocks(blocks), pickerGroups(blocks), query).flatMap((entry) =>
+        entry.blocks.map((one) => one.kind),
+    )
+}
+
+describe('pickerBlocks', () => {
+    test('a block is offered under the group it declares, not the half of its id', () => {
+        const offered = pickerBlocks(DECLARED)
+        expect(offered.find((one) => one.kind === 'map.jq')?.group).toBe('transform')
+        expect(offered.find((one) => one.kind === 'docker.run')?.group).toBe('execute')
     })
 
-    test('an id with no dot is its own family and its own remainder', () => {
-        expect(crumbOf(block('noop', 'operator', ''))).toMatchObject({ family: 'noop', rest: 'noop' })
+    test('only a sensor wears a badge', () => {
+        const offered = pickerBlocks(DECLARED)
+        expect(offered.find((one) => one.kind === 'http.ready')?.badge).toBe('sensor')
+        expect(offered.filter((one) => one.badge !== undefined)).toHaveLength(1)
     })
 
-    test('only the first dot splits, so the rest keeps its own', () => {
-        expect(crumbOf(block('std.convert.csv', 'operator', ''))).toMatchObject({
-            family: 'std',
-            rest: 'convert.csv',
-        })
-    })
-})
-
-describe('searchBlocks', () => {
-    test('an empty needle finds nothing, because the shelves are what an empty box shows', () => {
-        expect(searchBlocks(CATALOG, '')).toEqual([])
-        expect(searchBlocks(CATALOG, '   ')).toEqual([])
+    test('a search narrows by id and summary alike', () => {
+        expect(found(CATALOG, 'worker')).toEqual(['shell.run'])
+        expect(found(CATALOG, 'jq')).toEqual(['transform.jq'])
     })
 
-    test('narrows by id and summary alike, in id order, breadcrumbed', () => {
-        // `run` is in one id and in another's summary, and both are what somebody typing it means.
-        expect(searchBlocks(CATALOG, 'ru')).toMatchObject([
-            { family: 'shell', rest: 'run' },
-            { family: 'transform', rest: 'jq' },
-        ])
+    test('the word sensor finds every sensor, in the singular and the plural', () => {
+        expect(found(CATALOG, 'sensor')).toEqual(['file.wait', 'http.poll'])
+        expect(found(CATALOG, 'sensors')).toEqual(['file.wait', 'http.poll'])
     })
 
-    test('narrows by summary as well as by id', () => {
-        expect(searchBlocks(CATALOG, 'worker').map((crumb) => crumb.entry.id)).toEqual(['shell.run'])
-    })
-
-    test('the word sensor matches by kind, in the singular and the plural', () => {
-        expect(searchBlocks(CATALOG, 'sensor').map((crumb) => crumb.entry.id)).toEqual([
-            'file.wait',
-            'http.poll',
-        ])
-        expect(searchBlocks(CATALOG, 'sensors').map((crumb) => crumb.entry.id)).toEqual([
-            'file.wait',
-            'http.poll',
-        ])
-    })
-
-    test('the word operator matches by kind, and no sensor with it', () => {
-        expect(searchBlocks(CATALOG, 'operator').map((crumb) => crumb.entry.id)).toEqual([
-            'http.request',
-            'shell.run',
-            'transform.jq',
-        ])
+    test('the word operator finds every operator, and no sensor', () => {
+        expect(found(CATALOG, 'operator')).toEqual(['http.request', 'shell.run', 'transform.jq'])
     })
 
     test('every term must match, so a second word narrows', () => {
-        expect(searchBlocks(CATALOG, 'http sensor').map((crumb) => crumb.entry.id)).toEqual(['http.poll'])
-        expect(searchBlocks(CATALOG, 'http nothing')).toEqual([])
+        expect(found(CATALOG, 'http sensor')).toEqual(['http.poll'])
+        expect(found(CATALOG, 'http nothing')).toEqual([])
     })
 
     test('the case somebody typed in is not the case the catalog is written in', () => {
-        expect(searchBlocks(CATALOG, 'JQ').map((crumb) => crumb.entry.id)).toEqual(['transform.jq'])
+        expect(found(CATALOG, 'JQ')).toEqual(['transform.jq'])
     })
 })
 

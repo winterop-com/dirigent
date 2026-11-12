@@ -890,12 +890,15 @@ nobody receives the reply where the pipeline has one.
 
 ## A graph is a shape, and each screen reduces its own to it
 
-`lib/dag-layout` knows nothing about runs or documents. The editor's graph is the stored document
-with an edit mark on each node, and the pipeline page's is its shape; what elk is handed for
-either is an id, a width and a height per node and a pair per edge, and each screen reduces its
-own shape to that. `components/graph` is where React Flow and elk are imported for those two -- the
-canvas with this app's props on it, the hook that asks elk for positions, and the door that fetches
-the engine. **A run's graph is sokkel-ui-graph's `RunGraph`, handed data and nothing else**:
+`lib/dag-layout` knows nothing about runs or documents. The pipeline page's graph is its shape;
+what elk is handed for it is an id, a width and a height per node and a pair per edge.
+`components/graph` is where React Flow and elk are imported for it -- the canvas with this app's
+props on it, the hook that asks elk for positions, and the door that fetches the engine. **The
+editor's graph is sokkel-ui-graph's `PipelineGraph` with `editing`, handed data and callbacks
+only**: one `PipelineStep` per step of the stored document as edited -- its title by the quartet's
+rule, the block it runs (or what a source listens to) as its kind, a fan-out's count, `edited` or
+`not installed` as its badge, and what `lib/requirements` says it lacks as its issues -- and every
+gesture ends in the same document mutations the step's pane makes. **A run's graph is sokkel-ui-graph's `RunGraph`, handed data and nothing else**:
 `runSteps` in `lib/run-detail` reduces the pinned definition and everything the stream said to one
 `RunStep` per step -- its title by the quartet's rule, the block (or a reply's `sent` / `not sent`)
 as its kind, `nodeTone` as its status, its duration and progress, what it is doing as its hint, a
@@ -1999,18 +2002,23 @@ under it the block it runs, with the key in front where the title is a name. **N
 cut**: before elk sees a box, its lines are measured in the face the node sets them in -- on a
 canvas of its own, in the loaded font, read off the characters until the faces have loaded -- with
 every glyph, mark, count and dot that stands on that line, and elk is handed the widest plus the
-box's chrome, between a floor of 96px and a cap: `lib/node-size` and `NODE_MAX_WIDTH` (360px) on a
-pipeline's canvases, sokkel-ui-graph's `graphNodeSize` and its 280px on a run's. Only past the cap
-does a word truncate, and it carries its whole value on hover. The editor's box holds the
-room of its `edited` mark before it is edited, so the first keystroke into a step moves no box. A box is filled in `--node`, edged
+box's chrome, between a floor of 96px and a cap: `lib/node-size` and `NODE_MAX_WIDTH` (360px) on the
+pipeline page's canvas, sokkel-ui-graph's `graphNodeSize` and its 280px on the editor's and a run's.
+Only past the cap does a word truncate, and it carries its whole value on hover. **The editor's box
+keeps room for both its badges and its issue mark before it wears any** (`reserveBadges` with
+`edited` and `not installed`, and `reserveIssue`), so the first keystroke into a step, or the
+catalog landing, moves no box. `not installed` is critical and wins over `edited`, which is
+neutral; a step whose block is not installed carries the same sentence as its issue, so the box
+takes the critical edge and its mark opens what is wrong. A box is filled in `--node`, edged
 in a line a step above the canvas, and lifted by a shadow of its own; a status is the only colour
 on it -- a succeeded box takes the succeeded edge, a failed one the failed edge at 1.5px over a
 wash of the same hue, a skipped one a dashed edge on no fill -- and a chosen box is ringed in the
 foreground, which is no colour at all. A document's config is a map of any size and one
 truncated line of it crowds the box, so the step's own pane holds the whole of it. A step whose
-`for_each` fans it out says so on the second line -- a stacked glyph and the count, or the word
-"each" where the list is an expression a run resolves -- in the neutral ink that line is already in,
-because a status is the only colour a node carries. On a run the state's dot stands at the end of
+`for_each` fans it out says so in the neutral ink -- the count, or the word "each" where the list is
+an expression a run resolves -- because a status is the only colour a node carries: on the pipeline
+page's canvas on the second line behind a stacked glyph, in the editor at the end of the title
+line, where pointing at the box says what it means. On a run the state's dot stands at the end of
 the title line, and the duration at the end of the second. **What a step is doing -- what it waits
 for, how a retry went, why it failed -- is the box's tooltip and the panel's, not a third line**,
 because a line nobody can read at 11px across 138 pixels says less than the colour of the box. A
@@ -2066,7 +2074,7 @@ normal, roomy) and width are the library's, with `routings`
 limited to orthogonal and splines, opened by the same button the pipeline page's `LayoutMenu` is:
 an `IconButton` on `ICONS.graph_layout`, its tooltip saying `Layout`{ .label }, handed in as the
 menu's `trigger`. Both close on a choice (`closeOnChoice` on the run's). **The run's graph opens on elk's orthogonal routes around the
-boxes** and offers elk's splines beside them; the pipeline page's canvas still opens on its own
+boxes** and offers elk's splines beside them, the editor draws those orthogonal routes and offers nothing else; the pipeline page's canvas still opens on its own
 stepped line and offers both. A routed or curved edge is drawn along the points elk answered, with
 each edge into a step arriving on its own rather than merged into a trunk. The run's graph is laid
 out in the direction chosen at every width, never turned on its own on a narrow screen. The choice is held by the screen and nowhere else -- not in
@@ -2085,7 +2093,8 @@ Every canvas opens with the whole DAG in view: `fitView` with padding, held betw
 `lib/dag-layout`'s on a pipeline's canvases (padding 0.14, `FIT_MIN_ZOOM` 0.8) and
 sokkel-ui-graph's on a run's (padding 0.12, and the run's graph hands it `fitMinZoom` 0.8 with
 `narrowFit={false}`, so its floor is 0.8 at every width and a narrow canvas does not go lower to
-fit the width). **A run's drawing that fits across and is only a little too tall goes under that
+fit the width). The editor's graph takes the library's padding and the same `fitMinZoom` 0.8 with
+`narrowFit={false}`. **A run's drawing that fits across and is only a little too tall goes under that
 floor, to `tallFit` 0.7 and no lower**, so a graph a few pixels taller than the room above the
 terminal is seen whole rather than hung off its foot; a drawing too wide keeps the floor. A run's
 fit frames the bends of its edges as well as its boxes, so an edge that runs round a row stays on
@@ -2095,8 +2104,8 @@ own size and a pipeline of two boxes is not magnified to fill the space, and the
 hangs off the canvas, and is panned.** A view too wide or too tall for the canvas opens with the
 start of the graph at the top left and the rest off the far edges, because a graph is read from its
 first steps and a centred one has both ends cut, and dragging the ground is how the rest is reached.
-Zooming further out is still there by hand, down to `MIN_ZOOM` (0.3 on a pipeline's canvases, the
-library's 0.25 on a run's), and that view is the reader's. It re-fits when the node set changes,
+Zooming further out is still there by hand, down to `MIN_ZOOM` (0.3 on the pipeline page's canvas,
+the library's 0.25 on the editor's and a run's), and that view is the reader's. It re-fits when the node set changes,
 when the reader changes the layout, and when the canvas is resized -- the right panel opening and
 the terminal's seam moving are resizes, a page scrolling is not -- and stops the moment the reader
 pans, zooms or drags a box: after that the view is theirs, and the fit control, or Re-layout in the
@@ -2116,27 +2125,33 @@ of `fitMinZoom` and `tallFit`, and no row is wider than the same 1120px, handed 
 graph whose own elk layout, edge bends counted, fits across that room stays one row; otherwise elk
 lays it out once in the room's shape, and the library keeps whichever of the whole graph and the
 cut fits the room at the larger zoom, so a cut that only adds height is not drawn. That holds in
-the window as on the page. A row still wider than the canvas hangs off it at the floor and is
-panned.
+the window as on the page. The editor's graph is wrapped at `WRAP_WIDTH` alone, not to its canvas,
+so the panel opening beside it never lays a document out again under somebody's pointer. A row
+still wider than the canvas hangs off it at the floor and is panned.
 
 **A zoom press is one step, and the fit button is the fit every other fit is.** React Flow's own
 step by a fixed twenty percent, which on a graph read at half size is four presses to nothing. On
-a pipeline's canvases `ZOOM_STEP` (1.5) is one press either way and the fit button is `fitCapped`;
-on a run's the library's step (1.4) and its own fit. A canvas with nothing on it has nothing to
+the pipeline page's canvas `ZOOM_STEP` (1.5) is one press either way and the fit button is
+`fitCapped`; on the editor's and a run's the library's step (1.4) and its own fit. A canvas with nothing on it has nothing to
 zoom, so it draws none of them. **On the pipeline's page they stand in the graph panel's bar** --
 zoom out, zoom in, fit, layout -- rather than over a drawing that is only as tall as itself. **On
 the run's page the bar carries the same four and the window**: the canvas draws no buttons of its
 own (`controls={false}`) and hands its zoom and fit out through `onControls`, and the head's
-`IconButton`s press them; the window's corner carries them the same way. A stage elsewhere carries
-them in its corner.
+`IconButton`s press them; the window's corner carries them the same way. **The editor is a stage,
+and carries the library's own cluster in its corner** -- zoom in, zoom out, fit -- with `Add step`
+after them in the same cluster (`extraControls`). An empty editor draws none of them; its words say
+it has no steps, and under them stand `Add step` and, on a document nothing has applied,
+`From a template…`{ .label } (`emptyAction`).
 
 ## The canvas edits
 
-**One canvas, two modes.** `GraphCanvas` is a view until it is handed `editing`, and then it is
-an editor: draw an edge, delete one, move a box, finish moving it, drop a connection on empty
-ground. The pipeline page passes nothing and is a view. The same split is on the box itself:
-`StepPorts` draws the two anchors React Flow routes an edge to, and only the editable mode makes
-them ports -- visible, connectable, `.dg-port` in index.css. **The run's graph is a view by
+**A graph is a view until it is handed `editing`.** The editor hands sokkel-ui-graph's
+`PipelineGraph` its gestures -- draw an edge, delete one, delete a box, let a box go, drop a
+connection on empty ground, right-click a box or the ground -- and each is reported, never applied
+by the canvas: the document changes only through the callbacks, and the graph draws the result.
+Only an editing canvas shows its boxes' handles as ports, visible and connectable. Below the
+breakpoint the editor hands it no `editing`, so a phone reads the document and changes nothing.
+The pipeline page passes nothing and is a view. **The run's graph is a view by
 construction**: sokkel-ui-graph's `RunGraph` takes no editing, so a step is selectable there and
 nothing else, because what it draws already happened and no verb would change it. Its boxes keep
 the anchors and show none, and the browser suite asserts that.
@@ -2155,33 +2170,41 @@ so a Backspace meant for a config field is never a step.
 
 **A loop is refused before it is drawn, and the refusal names it.** `cycleThrough` walks the
 document's own edges and answers the shortest loop the new edge would close -- `parse → active →
-report → parse` -- which is what the toast says. `$apply` refuses the same document; a canvas
+report → parse` -- which the canvas says beside the pointer while the connection is drawn over the
+box it would close it on (`canConnect`), and the toast says again when it is let go there
+(`onRefuse`). `$apply` refuses the same document; a canvas
 that accepted the gesture would have answered a pointer with a round trip.
 
 **elk places a graph; a reader places a box.** A dragged position is that pipeline's own, kept
 in `lib/canvas-layout` under `dirigent.layout.{pipeline}` as px-intent, exactly as the right
 panel's width is -- what somebody dragged a box to was a decision about that pipeline's shape,
-and it survives a reload. A step nobody has moved keeps elk's suggestion, which is what a step
-added to an arranged canvas gets. Re-layout clears the arrangement and fits the view to what elk
-decides afresh.
+and it survives a reload. The graph is handed those as its `positions`, and a box let go is kept
+there (`onMove`). A step nobody has moved keeps elk's suggestion, which is what a step added to an
+arranged canvas gets. Re-layout clears the arrangement and fits the view to what elk decides
+afresh.
 
-**A step is added from one menu, wherever the asking started.** A right-click on empty ground
-opens it at the pointer -- on a document with no steps as much as on a drawn one -- the button
-in the corner opens the same menu under itself, and a connection let go over empty ground is
-"and then this": it opens where it was dropped, says which step the new one will wait for, and
-the step lands there. A right-click on a box opens that box's own menu instead: one more step
-after this one, which is the same add-step menu with the edge already decided, and this one
-taken out.
+**A step is added from one picker, wherever the asking started.** It is sokkel-ui-graph's
+`BlockPicker` held over the canvas in a `GraphOverlay`, which opens beside the place it was asked
+from, turns to the side with room, and stays inside the canvas. A right-click on empty ground opens
+it at the pointer -- on a document with no steps as much as on a drawn one -- `Add step` opens it
+beside itself, the palette opens it over the canvas's middle, and a connection let go over empty
+ground is "and then this": it opens where it was dropped, a dashed line runs to it from the step it
+came from, its heading says which step the new one will wait for, and the step lands there. A
+right-click on a box opens that box's own menu instead: one more step after this one, which is the
+same picker with the edge already decided, and this one taken out. Escape or a press outside closes
+it.
 
-**The menu is shelved the way the catalog is, and searched the way the palette is.** The rows
-are the groups the blocks themselves declare, which is what the Blocks screen shelves by, so the
-menu invents no filing of its own and `map.jq` and `transform.jq` land on one shelf. A sensor sits
-in its group like anything else and wears the chip saying it waits, because a chip on every row
-would say what the absence of one already says. Typing replaces the shelves with flat breadcrumbed
-results -- `shell ▸ run` -- every term narrowing, `sensor` and `operator` matching by kind; the
-arrows walk them and the return key places one. The first Escape clears the box and the second
-closes the menu. `lib/add-step` is all of that as pure functions, so what the shelves hold and
-what a search finds are decided in Node.
+**The picker is grouped the way the catalog is, and searched the way the palette is.** The blocks
+are listed under the groups they themselves declare, which is what the Blocks screen shelves by, so
+the picker invents no filing of its own and `map.jq` and `transform.jq` sit in one group. Each row
+is titled by the block's id with its summary under it. A sensor sits in its group like anything
+else and wears the badge saying so, because a badge on every row would say what the absence of one
+already says. Typing narrows the list to what matches, each group keeping its heading, every term
+narrowing and `sensor` and `operator` matching by kind; the arrows walk the rows and the return key
+places one. The first Escape clears the box and the second closes the picker. While the catalog is
+still being read the picker says so, and the return key places nothing. `lib/add-step` maps the
+catalog to the picker's blocks and groups as pure functions, so what a group holds and what a
+search finds are decided in Node.
 
 **The key is derived, not asked for.** A menu that places a step on one keystroke cannot stop
 to ask what to call it, so `transform.jq` lands as `jq` and the next one as `jq_2`, and the

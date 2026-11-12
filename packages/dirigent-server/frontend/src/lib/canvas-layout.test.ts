@@ -9,10 +9,8 @@ import {
     loadPlacements,
     placeStep,
     readPlacements,
-    withHeld,
     writePlacements,
 } from '@/lib/canvas-layout'
-import type { PlacedNode } from '@/lib/dag-layout'
 
 /**
  * Storage is a browser's, and these tests run in Node, so the whole of what this module needs of
@@ -42,11 +40,6 @@ function stubStorage(): Map<string, string> {
 }
 
 /** What elk placed, before anybody moved anything. */
-const PLACED: PlacedNode[] = [
-    { id: 'fetch', x: 0, y: 0, width: 232, height: 58 },
-    { id: 'report', x: 304, y: 0, width: 232, height: 58 },
-]
-
 let stored: Map<string, string>
 
 beforeEach(() => {
@@ -114,29 +107,5 @@ describe('the arrangement in front of somebody', () => {
         loadPlacements('chain')
         loadPlacements('other')
         expect(heldLayout.get()).toEqual({ pipeline: 'other', placements: {} })
-    })
-})
-
-describe('elk placed it, and then somebody moved it', () => {
-    test('leaves every box where elk put it while nobody has moved one', () => {
-        expect(withHeld(PLACED, {})).toEqual(PLACED)
-    })
-
-    test('puts a moved box where it was dropped', () => {
-        expect(withHeld(PLACED, { report: { x: 40, y: 90 } })[1]).toEqual({
-            id: 'report',
-            x: 40,
-            y: 90,
-            width: 232,
-            height: 58,
-        })
-    })
-
-    test('leaves a step nobody moved on elk suggestion, which is what a new step gets', () => {
-        expect(withHeld(PLACED, { report: { x: 40, y: 90 } })[0]).toEqual(PLACED[0])
-    })
-
-    test('ignores a stored position for a step the document no longer has', () => {
-        expect(withHeld(PLACED, { gone: { x: 1, y: 1 } })).toHaveLength(PLACED.length)
     })
 })
