@@ -15,14 +15,14 @@ function sourceFiles(dir: string): string[] {
     })
 }
 
-/** The library's component modules the app imports: `@winterop-com/sokkel-ui/<Module>`, or one folder down. */
+/** The library's component modules the app imports, as `<package>/<Module>` or one folder down, from either package. */
 function importedModules(): Set<string> {
     const found = new Set<string>()
     for (const file of sourceFiles(SRC)) {
         for (const match of readFileSync(file, 'utf8').matchAll(
-            /from '@winterop-com\/sokkel-ui\/((?:[a-z]+\/)?[A-Z][A-Za-z]+)'/g,
+            /from '@winterop-com\/(sokkel-ui(?:-graph)?)\/((?:[a-z]+\/)?[A-Z][A-Za-z]+)'/g,
         )) {
-            found.add(match[1])
+            found.add(`${match[1]}/${match[2]}`)
         }
     }
     return found
@@ -33,9 +33,10 @@ describe('the library styles', () => {
     // sources line draws without the classes only it uses.
     test('every library module the app imports has its sources line in index.css', () => {
         const css = readFileSync(INDEX_CSS, 'utf8')
-        const missing = [...importedModules()].filter(
-            (name) => !css.includes(`@import '@winterop-com/sokkel-ui/sources/${name}.css';`),
-        )
+        const missing = [...importedModules()].filter((name) => {
+            const [pkg, ...module] = name.split('/')
+            return !css.includes(`@import '@winterop-com/${pkg}/sources/${module.join('/')}.css';`)
+        })
         expect(missing).toEqual([])
     })
 })

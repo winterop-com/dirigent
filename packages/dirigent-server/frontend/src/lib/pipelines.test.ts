@@ -6,6 +6,7 @@ import {
     failedStepOf,
     importanceMark,
     importanceOf,
+    miniGraphSteps,
     pipelinesPath,
     retirement,
     sourceKinds,
@@ -233,6 +234,48 @@ describe("the pipelines screen's two lists", () => {
     test('fills the step a troubled run failed in, and nothing for a good one', () => {
         expect(failedStepOf(ran('x', '2026-03-01T00:00:00Z'))).toBe('load')
         expect(failedStepOf(ROW)).toBeNull()
+    })
+
+    test('draws a step with what it needs, its source and fan-out marks, its key and block on hover, and only the failed step in a state', () => {
+        const shape = [
+            {
+                code: 'read',
+                name: 'Read',
+                kind: 'source' as const,
+                block: 'webhook',
+                depends_on: [],
+                fan_out: false,
+            },
+            {
+                code: 'load',
+                name: null,
+                kind: 'block' as const,
+                block: 'sql.load',
+                depends_on: ['read'],
+                fan_out: true,
+            },
+        ]
+        expect(miniGraphSteps(shape, 'load')).toEqual([
+            {
+                code: 'read',
+                name: 'Read',
+                needs: [],
+                status: undefined,
+                fanOut: false,
+                source: true,
+                hint: 'read · webhook',
+            },
+            {
+                code: 'load',
+                name: undefined,
+                needs: ['read'],
+                status: 'failed',
+                fanOut: true,
+                source: false,
+                hint: 'load · sql.load',
+            },
+        ])
+        expect(miniGraphSteps(shape, null).every((step) => step.status === undefined)).toBe(true)
     })
 
     test('names each kind of source once', () => {

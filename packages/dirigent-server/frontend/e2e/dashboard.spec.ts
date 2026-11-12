@@ -43,7 +43,8 @@ test('a run that failed is under needs a look, and the row opens it', async ({ p
     const row = page.getByRole('main').locator(`a[href="/runs/${runId}"]`).first()
     await expect(row).toBeVisible()
     await expect(row).toContainText('failed')
-    await expect(row.locator('svg.mini-graph')).toBeVisible()
+    await expect(row.locator('[data-slot="mini-graph"] svg')).toBeVisible()
+    await expect(row.locator('[data-slot="mini-graph"] svg [data-status="failed"]')).toHaveCount(1)
 
     // And it goes where it says it goes.
     await row.click()

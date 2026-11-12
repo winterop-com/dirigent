@@ -787,7 +787,7 @@ singular by rule, and the rule that makes a batch out of batches makes an entrie
 ## A pipeline is listed by its shape
 
 **A pipeline's row leads with its miniature graph**, because what a pipeline does is the shape of
-its steps before it is any sentence about them. `components/graph/MiniGraph` draws it from
+its steps before it is any sentence about them. sokkel-ui-graph's `MiniGraph` draws it from
 `PipelineOut.shape` -- the current version's steps reduced to a key, a block or the kind a source
 listens to, what each depends on and whether it fans out -- and from nothing else, so a listing of
 fifty pipelines is one request. Then the title, the code in mono beside it, and the description's
@@ -798,15 +798,17 @@ that has never run says nothing there, never "never run", because a column of th
 a column that says nothing. The row is the link to the pipeline's page, so it draws no arrow, and
 the listing draws no panel.
 
-**A miniature is drawn the same way everywhere.** A box is 14 by 10 at the miniature rung, 2px; a step
-that fans out is a box with a second one stacked behind it; a source is a dashed box on no fill;
-a step the last run failed in is filled in the failed hue, which is the only colour a miniature
-ever carries. Ranks are the longest path to a step, read left to right, and a rank's steps stack
-down. An edge is drawn only where it changes the shape -- an edge another path already implies is
+**A miniature is drawn the same way everywhere**, by sokkel-ui-graph's `MiniGraph`. A box is about
+14 by 7 pixels; a step that fans out is a box with a second one stacked behind it; a source is a
+dashed box on no fill; a step the last run failed in is filled in the failed hue, which is the only
+colour a miniature ever carries. The boxes are laid out by elk as the full graph is, read left to
+right. An edge is drawn only where it changes the shape -- an edge another path already implies is
 left out, so a step that waits for everything before it does not draw a fan of lines -- while the
 full graph on the pipeline's page keeps every one. **The scale is shared and capped**: every
-miniature is drawn at the same 22px per rank, so a longer strip is a longer pipeline, until the
-lead cell's width is reached, and a pipeline deeper than that is drawn smaller rather than cut.
+miniature is drawn at the same pitch, about 29 pixels per rank, standing at the start of the lead
+cell, so a longer strip is a longer pipeline, until the cell's width is reached, and a pipeline
+deeper than that is drawn smaller rather than cut. Pointing at a step names its key and the block
+it runs or the kind a source listens to; the miniature's accessible name is the pipeline's title.
 
 **A person's own pipelines and the shipped examples are two lists.** `PipelineOut.example` says
 whether a pipeline's code is one the installed example corpus ships. The person's own come first,
@@ -2515,7 +2517,7 @@ the one palette.
 | `DataTable` (sokkel-ui) | Every listing, spread with `LISTING` (`variant="list"`, `resizable={false}`, `stackBelow` and `minWidth`): grid tracks per column with the title `width: 'content'`, a cell's control pressed on its own without opening the row, `onOpen` and `opened` for what a row opens, `rowTone="muted"` for a row no longer live, `rowHeight="auto"` where a cell is two lines, `detail`, `hasDetail` and `expandLabel` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead` or, where the listing has a bar, through `words={countWords(...)}`, `search` and `toolbar` for the box and the filters that narrow it, and `empty` for the one line a listing with no rows says |
 | `FilterChip`, `ListingBar` (sokkel-ui) | A filter in a listing's bar: `facet`, `options` (a `row` where the value has a drawing of its own), `multiple` for a set, the chosen held through `selected` and `onSelectedChange` -- `oneChosen` for a single value -- and `words={filterWords(any)}`. `ListingBar` is the bar `DataTable` draws, for a search over several tables or over a list that is not one |
 | `ConsequenceList`, `DiffView` (sokkel-ui) | `ConsequenceList` is what an action changes or takes with it, a row per kind with its `count` and a `detail` line, under a heading from the catalogue: `neutral` for what changes, `critical` for what goes; it draws nothing without rows. `DiffView` is two versions of a text as one list of lines, `size="sm"` in a dialog, inside a `WindowedPane` with `WindowedPaneButton` at its default `icon-xs` in its `actions` slot; it folds unchanged runs in the pane and draws every line (`context={Infinity}`) in the window, with no `title` there so no header row is drawn, says `DIFF_WORDS`, and a caller that would hand it two equal texts draws nothing instead |
-| `MiniGraph` | A pipeline's shape at the scale of a row: the miniature rung, sources dashed, fan-outs stacked, a failed step filled, the scale shared and capped |
+| `MiniGraph` (sokkel-ui-graph) | A pipeline's shape at the scale of a row, from `miniGraphSteps`, with `scale="natural"`, `align="start"` and `reduce`: one pitch shrunk only to fit the lead cell, sources dashed, fan-outs stacked, implied edges left out, a failed step filled, the step's key and block on hover, `label` the pipeline's title |
 
 **A mark comes from `lib/icons` and nowhere else.** `ICONS` maps every concept the interface
 draws a mark for -- create, edit, delete, run, rerun, pause, resume, cancel, refresh, recheck,
