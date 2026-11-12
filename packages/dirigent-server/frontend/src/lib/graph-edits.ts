@@ -13,9 +13,10 @@
  * names the steps that close the loop rather than saying that something is wrong.
  */
 
+import { cyclePath, type StepNeeds } from '@winterop-com/sokkel-ui-graph/cycles'
 import type { JsonMap } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
-import { dependsOn, edgesIn, stepsIn, withDependsOn } from '@/lib/pipeline-document'
+import { dependsOn, edgesIn, stepNames, stepsIn, withDependsOn } from '@/lib/pipeline-document'
 
 /** A document where `to` waits for `from`, or the same document when it already did. */
 export function withEdge(document: JsonMap, from: string, to: string): JsonMap {
@@ -60,39 +61,19 @@ export function withoutStep(document: JsonMap, step: string): JsonMap {
     return left
 }
 
-/**
- * The loop an edge from `from` to `to` would close, or null when it closes none.
- *
- * The walk starts at the dependent and follows the document's own edges looking for the
- * prerequisite, so what comes back reads the way the pipeline runs -- `report → parse → report`
- * -- and it is the shortest such loop, because a message naming forty steps names none of them.
- */
-export function cycleThrough(document: JsonMap | null, from: string, to: string): string[] | null {
-    if (from === to) return [to, to]
-
-    const forward = new Map<string, string[]>()
-    for (const [source, target] of edgesIn(document)) {
-        forward.set(source, [...(forward.get(source) ?? []), target])
-    }
-
-    const seen = new Set([to])
-    let front: string[][] = [[to]]
-    while (front.length > 0) {
-        const next: string[][] = []
-        for (const path of front) {
-            for (const step of forward.get(path[path.length - 1] ?? '') ?? []) {
-                if (step === from) return [...path, from, to]
-                if (seen.has(step)) continue
-                seen.add(step)
-                next.push([...path, step])
-            }
-        }
-        front = next
-    }
-    return null
+/** The document's steps as a loop is told from: each step's key and the keys it waits for. */
+export function stepNeeds(document: JsonMap | null): StepNeeds[] {
+    const needs = new Map<string, string[]>()
+    for (const [from, to] of edgesIn(document)) needs.set(to, [...(needs.get(to) ?? []), from])
+    return stepNames(document).map((code) => ({ code, needs: needs.get(code) ?? [] }))
 }
 
-/** Why an edge was refused, in the words of the steps that refuse it. */
-export function cycleRefusal(from: string, to: string, cycle: string[]): string {
-    return LABELS.editor.canvas.cycle_refused(to, from, cycle.join(' → '))
+/**
+ * Why an edge from `from` to `to` is refused, naming the shortest loop it would close the way the
+ * pipeline runs -- `report → parse → report` -- or null when it closes none.
+ */
+export function cycleRefusal(steps: readonly StepNeeds[], from: string, to: string): string | null {
+    const loop = cyclePath(steps, from, to)
+    if (loop === null) return null
+    return LABELS.editor.canvas.cycle_refused(to, from, [...loop, to].join(' → '))
 }

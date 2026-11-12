@@ -399,168 +399,11 @@
     }
 }
 
-/* ---------------------------------------------------------------------------
-   A GRAPH.
-
-   React Flow ships its own palette, and this app has one. Everything the library paints --
-   the dotted ground, the edges, the handles, the controls -- is re-pointed at the tokens
-   above, so a graph is the same six surfaces and the same status hues as the table beside
-   it. Nothing below writes a colour; every value is a token.
-
-   A handle is where React Flow routes an edge to, and an edge cannot be drawn without one,
-   so both canvases place two on every box. Only the editor's are ports: `.dg-port` is the
-   dot that can be seen and dragged from, and a run's graph wears none of it.
-   --------------------------------------------------------------------------- */
-.react-flow.dg-graph {
-    --xy-background-color: var(--canvas);
-    --xy-background-pattern-dots-color: color-mix(in oklab, var(--node-line) 30%, transparent);
-    --xy-edge-stroke: var(--graph-edge);
-    --xy-edge-stroke-selected: var(--foreground);
-    --xy-edge-stroke-width: 1.4;
-    --xy-connectionline-stroke: var(--ring);
-    --xy-handle-background-color: transparent;
-    --xy-handle-border-color: transparent;
-    --xy-attribution-background-color: transparent;
-    --xy-controls-button-background-color: var(--card);
-    --xy-controls-button-background-color-hover: var(--accent);
-    --xy-controls-button-color: var(--foreground);
-    --xy-controls-button-color-hover: var(--accent-foreground);
-    --xy-controls-button-border-color: var(--border);
-    --xy-selection-background-color: color-mix(in oklab, var(--foreground) 8%, transparent);
-    --xy-selection-border: 1px dashed var(--foreground);
-}
-/* A canvas on a page stands on its panel's ground, with no dot grid of its own. */
-.react-flow.dg-graph.dg-fitted {
-    --xy-background-color: transparent;
-}
-/* The zoom controls carry this app's own icons, which are drawn as strokes; the library's
-   button rule fills whatever svg is inside one. */
-.react-flow.dg-graph .react-flow__controls-button svg {
-    fill: none;
-    stroke: currentColor;
-}
-.react-flow.dg-graph .react-flow__handle {
-    visibility: hidden;
-    pointer-events: none;
-}
-.react-flow.dg-graph .react-flow__attribution a {
-    color: var(--faint);
-}
-
-/* A PORT: where an edge is drawn from, on the one canvas that draws them.
-
-   It is quiet until it is wanted -- a hairline dot on the card's own surface -- and takes the
-   identity colour under the pointer and for as long as a connection is being dragged anywhere
-   on the canvas, because the question then is where it can be dropped. */
-.react-flow.dg-graph .react-flow__handle.dg-port {
-    visibility: visible;
-    pointer-events: all;
-    width: 9px;
-    height: 9px;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    background-color: var(--card);
-    transition:
-        background-color 120ms ease-out,
-        border-color 120ms ease-out,
-        box-shadow 120ms ease-out;
-}
-.step-node:hover .dg-port,
-.react-flow.dg-connecting .dg-port {
-    border-color: var(--ring);
-    background-color: color-mix(in oklab, var(--ring) 45%, var(--card));
-}
-.react-flow.dg-graph .react-flow__handle.dg-port:hover,
-.react-flow.dg-graph .react-flow__handle.dg-port.connectingto {
-    border-color: var(--ring);
-    background-color: var(--ring);
-    box-shadow: 0 0 0 4px color-mix(in oklab, var(--ring) 22%, transparent);
-}
-
-/* The line under the pointer while a connection is being drawn: the identity colour, dashed,
-   because it is a proposal rather than an edge the document has. */
-.react-flow.dg-graph .react-flow__connectionline .react-flow__connection-path {
-    stroke-width: 2;
-    stroke-dasharray: 5 4;
-}
-
-/* An edge on a canvas that edits is a thing that can be chosen and deleted, so it answers the
-   pointer. On a run's graph it is a line, and lines do not. */
-.react-flow.dg-editable .react-flow__edge {
-    cursor: pointer;
-}
-.react-flow.dg-editable .react-flow__edge:hover .react-flow__edge-path {
-    stroke: var(--muted-foreground);
-}
-.react-flow.dg-graph .react-flow__edge.selected .react-flow__edge-path {
-    stroke-width: 2.5;
-}
-
-/* ---------------------------------------------------------------------------
-   ONE STEP, AS A BOX ON THE PIPELINE'S CANVASES.
-
-   A box is filled in `--node`, edged a step above the canvas and lifted by its own shadow.
-
-   SELECTION IS NEUTRAL, AND IT IS THE ONE THING ON THIS BOX THAT IS NOT ALLOWED A HUE. The ring
-   is drawn in the ink family: a halo of the foreground, which is a step out of every surface in
-   either palette and is confusable with no state.
-   --------------------------------------------------------------------------- */
-.step-node {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    height: 100%;
-    overflow: hidden;
-    box-sizing: border-box;
-    border-radius: var(--radius-node);
-    border: 1px solid var(--node-line);
-    background-color: var(--node);
-    box-shadow: var(--elevation-node);
-    color: var(--foreground);
-    padding: 0.25rem 0.5625rem;
-    gap: 0.1875rem;
-    font-size: var(--text-graph-small);
-    line-height: var(--text-graph-small--line-height);
-    text-align: left;
-    transition:
-        box-shadow 120ms ease-out,
-        border-color 120ms ease-out;
-}
-.step-node:hover {
-    border-color: var(--muted-foreground);
-}
-.step-node[data-selected='true'] {
-    box-shadow:
-        0 0 0 2px var(--canvas),
-        0 0 0 4px var(--foreground);
-}
-.step-node:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
-}
-/* A source runs no block: it is where an input enters, on the ground rather than on a box. */
-.step-node[data-source='true'] {
-    border-style: dashed;
-    background-color: var(--canvas);
-}
-
-/* A node's title. Every other word on the box takes the size the box sets. */
-.step-node-title {
-    font-weight: 500;
-    font-size: var(--text-graph-title);
-    line-height: var(--text-graph-title--line-height);
-}
 /* Words standing on a canvas that are not on a box, controls among them. */
 .graph-words,
 .graph-words * {
     font-size: var(--text-graph-small);
     line-height: var(--text-graph-small--line-height);
-}
-
-/* A box with ports does not clip them: half a dot is not a dot. */
-.step-node[data-editable='true'] {
-    overflow: visible;
 }
 
 /* A left bar in a state's hue: an attempt row in the panel, and the item rows under it. */
@@ -587,10 +430,6 @@
 
 @media (prefers-reduced-motion: reduce) {
     .progress-line-fill {
-        transition: none;
-    }
-    .step-node,
-    .react-flow.dg-graph .react-flow__handle.dg-port {
         transition: none;
     }
     [data-slot='graph-edge'] {
@@ -699,7 +538,6 @@
     }
     /* The canvas's cluster is the graph library's button rather than one of ours, and a zoom
        step is pressed with a thumb like everything else. */
-    .react-flow.dg-graph .react-flow__controls-button,
     [data-slot='graph-view-buttons'] > button {
         min-height: var(--spacing-finger);
         min-inline-size: var(--spacing-finger);

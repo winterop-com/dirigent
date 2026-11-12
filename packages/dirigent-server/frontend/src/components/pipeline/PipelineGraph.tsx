@@ -4,11 +4,7 @@ import { BlockPicker } from '@winterop-com/sokkel-ui-graph/BlockPicker'
 import type { GraphControls, GraphEditing } from '@winterop-com/sokkel-ui-graph/GraphCanvas'
 import { GraphOverlay, type GraphAnchor } from '@winterop-com/sokkel-ui-graph/GraphOverlay'
 import { GraphControlButton } from '@winterop-com/sokkel-ui-graph/GraphViewButtons'
-import {
-    PipelineGraph as StepCanvas,
-    cyclePath,
-    type PipelineStep,
-} from '@winterop-com/sokkel-ui-graph/PipelineGraph'
+import { PipelineGraph as StepCanvas, type PipelineStep } from '@winterop-com/sokkel-ui-graph/PipelineGraph'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -22,9 +18,9 @@ import { pickerBlocks, pickerGroups } from '@/lib/add-step'
 import { catalogUnread, type BlockEntry } from '@/lib/blocks'
 import { addStepAsked, relayoutAsked } from '@/lib/canvas-actions'
 import { forgetPlacements, heldLayout, loadPlacements, placeStep, type Placement } from '@/lib/canvas-layout'
-import { FIT_MIN_ZOOM, RANK_SPACING, WRAP_WIDTH } from '@/lib/dag-layout'
 import { BLOCK_PICKER_WORDS, EDITOR_GRAPH_WORDS } from '@/lib/design-system'
 import { cycleRefusal } from '@/lib/graph-edits'
+import { FIT_MIN_ZOOM, WRAP_WIDTH } from '@/lib/graph-view'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import {
@@ -46,11 +42,11 @@ import { listeningLine, readPipelineSources, type SourceOut } from '@/lib/source
  *
  * Each box is titled by the step's name or key, its second line the key under a name and the
  * block it runs, or what a source listens to on a dashed box. A fan-out's count stands at the end
- * of the title line behind the stacked glyph, and pointing at it says what `for_each` does. A
- * step whose block this instance does not publish wears `not installed` and the issue saying why,
- * which gives its box the critical edge; one that differs from the version the instance holds
- * wears `edited`. Every box keeps room for either badge and for the issue mark, so an edit or the
- * catalog landing moves nothing.
+ * of the second line behind the stacked glyph, and pointing at it says what `for_each` does. A
+ * step whose block this instance does not publish wears the critical `not installed`, which gives
+ * its box the critical edge and says on pointing which block is missing; one that differs from the
+ * version the instance holds wears `edited`. Every box keeps room for either badge and for an
+ * issue mark, so an edit or the catalog landing moves nothing.
  *
  * Given `editing`, the canvas reports every gesture and the document changes only through the
  * callbacks: an edge drawn or deleted is a `depends_on` entry, a box deleted is a step, a box let
@@ -71,6 +67,9 @@ const NO_PLACEMENTS: Readonly<Record<string, Placement>> = {}
 
 /** Every badge a box may come to wear, which each box keeps room for. */
 const BADGES: readonly string[] = [LABELS.editor.canvas.edited, LABELS.editor.canvas.not_installed]
+
+/** How far to the right of a box a step added after it is placed, in pixels. */
+const ADD_AFTER_GAP = 28
 
 export interface PipelineGraphProps {
     /** The pipeline being edited, which is what an arrangement is kept under. */
@@ -168,7 +167,6 @@ export function PipelineGraph({
             const line = heading.code === null ? said : `${heading.code} · ${said}`
             const fan = fanOutOf(document, name)
             const missing = stepMissing(unmet, name)
-            const notInstalled = LABELS.editor.canvas.not_installed_title(block)
             return {
                 code: name,
                 name: heading.named ? heading.title : undefined,
@@ -188,15 +186,18 @@ export function PipelineGraph({
                     : fan.items === null
                       ? LABELS.editor.canvas.fan_out_each_title
                       : LABELS.editor.canvas.fan_out_count_title(String(fan.items)),
-                countPlacement: 'title',
+                countPlacement: 'line',
                 badge: missing
-                    ? { label: LABELS.editor.canvas.not_installed, tone: 'critical' }
+                    ? {
+                          label: LABELS.editor.canvas.not_installed,
+                          tone: 'critical',
+                          title: LABELS.editor.canvas.not_installed_title(block),
+                      }
                     : stepEdited(edits, name)
                       ? { label: LABELS.editor.canvas.edited }
                       : undefined,
                 reserveBadges: BADGES,
                 reserveIssue: true,
-                issues: missing ? [{ tone: 'critical', text: notInstalled }] : undefined,
             }
         })
     }, [document, edits, sources, unmet])
@@ -227,10 +228,7 @@ export function PipelineGraph({
                 setOnNode(null)
                 setPicking({ at: { x: at.x, y: at.y }, after: from, place: { x: at.x, y: at.y } })
             },
-            canConnect: (from, to) => {
-                const cycle = cyclePath(steps, from, to)
-                return cycle === null ? null : cycleRefusal(from, to, [...cycle, to])
-            },
+            canConnect: (from, to) => cycleRefusal(steps, from, to),
             onRefuse: (_from, _to, reason) => {
                 onRefuse(reason)
             },
@@ -286,6 +284,7 @@ export function PipelineGraph({
                             groups={groups}
                             loading={catalogUnread(blocks)}
                             showDescription
+                            width="lg"
                             title={
                                 picking.after === null
                                     ? LABELS.editor.canvas.add_step
@@ -310,7 +309,7 @@ export function PipelineGraph({
                         const box = controls.current?.nodeBox(onNode.step) ?? null
                         setOnNode(null)
                         if (box === null) return
-                        const place = { x: box.x + box.width + RANK_SPACING, y: box.y }
+                        const place = { x: box.x + box.width + ADD_AFTER_GAP, y: box.y }
                         setPicking({ at: place, after: onNode.step, place })
                     }}
                     onRemove={() => {

@@ -31,7 +31,7 @@ import { placeStep, type Placement } from '@/lib/canvas-layout'
 import { headingOf, titleOf } from '@/lib/identity'
 import { shutWith, TOOLBAR_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
-import { cycleRefusal, cycleThrough, withEdge, withoutEdge, withoutStep } from '@/lib/graph-edits'
+import { cycleRefusal, stepNeeds, withEdge, withoutEdge, withoutStep } from '@/lib/graph-edits'
 import { fillPanel, openPanelTab, type PanelTab } from '@/lib/panels'
 import { askAddStep, askRelayout } from '@/lib/canvas-actions'
 import { RUN_GROUP, registerActions } from '@/lib/palette'
@@ -322,9 +322,9 @@ export function PipelineEditor() {
     // chips in the step's pane are the same edit against the same local document.
     const connect = useCallback(
         (from: string, to: string) => {
-            const cycle = cycleThrough(local, from, to)
-            if (cycle !== null) {
-                toast.warning(cycleRefusal(from, to, cycle))
+            const refused = cycleRefusal(stepNeeds(local), from, to)
+            if (refused !== null) {
+                toast.warning(refused)
                 return
             }
             changeDocument((current) => withEdge(current, from, to))

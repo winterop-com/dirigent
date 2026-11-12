@@ -888,7 +888,6 @@ const shell = {
         right: 'Left to right',
         down: 'Top to bottom',
         edges: 'Edges',
-        stepped: 'Stepped',
         orthogonal: 'Orthogonal',
         splines: 'Splines',
         spacing: 'Spacing',

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { KIND_FAMILIES, kindFamily, kindLabel, kindTokens } from '@/lib/kinds'
+import { KIND_FAMILIES, kindFamily, kindHue, kindLabel, kindTokens } from '@/lib/kinds'
 
 /** Every kind this bundle names itself, plus the shapes a plugin can put on the wire. */
 const NAMED = ['operator', 'sensor', 'schedule', 'webhook', 'cron', 'interval', 'one_time']
@@ -43,6 +43,16 @@ describe('the properties a kind chip is filled from', () => {
             const tokens = kindTokens(kind)
             expect(tokens['--chip-ink']).toBe(tokens['--chip'].replace(')', '-ink)'))
         }
+    })
+})
+
+describe('the chart hue a library chip wears for a kind', () => {
+    test('is one of the five, for every kind', () => {
+        for (const kind of [...NAMED, 'acme', 'http']) expect([1, 2, 3, 4, 5]).toContain(kindHue(kind))
+    })
+
+    test('keeps an operator and a sensor apart', () => {
+        expect(kindHue('operator')).not.toBe(kindHue('sensor'))
     })
 })
 

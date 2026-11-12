@@ -1,7 +1,7 @@
 import ELK from 'elkjs/lib/elk-api.js'
 import ElkWorker from 'elkjs/lib/elk-worker.min.js?worker'
 
-import type { ElkEngine } from '@/lib/dag-layout'
+import type { ElkEngine } from '@winterop-com/sokkel-ui-graph/layout'
 
 /**
  * elk itself, in a worker of its own.

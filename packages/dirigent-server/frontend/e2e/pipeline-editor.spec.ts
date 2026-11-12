@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test'
 
-import { FIT_MIN_ZOOM } from '../src/lib/dag-layout.ts'
+import { FIT_MIN_ZOOM } from '../src/lib/graph-view.ts'
 import { LABELS } from '../src/lib/labels.ts'
 import {
     apiPrefix,
@@ -888,8 +888,8 @@ test('the editor opens with the whole graph in view, at a zoom that does not blo
     await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
     await expect(page.locator('.react-flow__node')).toHaveCount(STEPS.length)
     await everyNodeIsInView(page)
-    // FIT_MAX_ZOOM in lib/dag-layout: a graph of a few boxes sits at a size worth reading
-    // rather than blown up to fill the canvas.
+    // A fit never zooms past a box's own size: a graph of a few boxes sits at a size worth
+    // reading rather than blown up to fill the canvas.
     expect(await graphZoom(page)).toBeLessThanOrEqual(1)
 })
 

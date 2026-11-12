@@ -162,7 +162,6 @@ test("a run's graph offers no port, and nothing on it can be dragged or connecte
     // The anchors an edge ends at are there, because React Flow routes to them and draws no
     // edge without one. Not one of them is a port: none is visible, and none is connectable.
     await expect(page.locator('.react-flow__handle')).not.toHaveCount(0)
-    await expect(page.locator('.react-flow__handle.dg-port')).toHaveCount(0)
     await expect(page.locator('.react-flow__handle.connectable')).toHaveCount(0)
     await expect(page.locator('.react-flow__handle').first()).toBeHidden()
     await expect(page.locator('.react-flow__node.draggable')).toHaveCount(0)
