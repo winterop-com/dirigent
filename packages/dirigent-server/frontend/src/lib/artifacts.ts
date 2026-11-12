@@ -15,6 +15,8 @@
  * href a download link carries.
  */
 
+import type { FileKind } from '@winterop-com/sokkel-ui/FilePreview'
+
 import { apiJson, apiText, apiUrl, type Page } from '@/lib/api'
 import { PAGE } from '@/lib/paging'
 import type { AttemptOut } from '@/lib/runs'
@@ -81,7 +83,7 @@ export function artifactUrl(prefix: string, id: string): string {
 }
 
 /** How a preview draws an artifact's content: as a table, as a tree of JSON, or as text. */
-export type PreviewKind = 'table' | 'json' | 'text'
+export type PreviewKind = Extract<FileKind, 'table' | 'json' | 'text'>
 
 /** The largest artifact a preview reads, in bytes; a larger one is reached by its link alone. */
 export const PREVIEW_MAX_BYTES = 256 * 1024
@@ -110,11 +112,12 @@ export function previewKindOf(row: ArtifactOut): PreviewKind | null {
     return null
 }
 
-/** The highlighting a text artifact's preview reads it in, from its content type: markdown, YAML, or none. */
+/** The highlighting a text artifact's preview reads it in, from its content type: markdown, YAML, XML, or none. */
 export function previewLanguageOf(contentType: string | null): string {
     const media = contentType === null ? '' : mediaTypeOf(contentType)
     if (media === MARKDOWN_CONTENT_TYPE) return 'markdown'
     if (media === 'application/yaml' || media === 'text/yaml') return 'yaml'
+    if (media === 'application/xml' || media === 'text/xml' || media.endsWith('+xml')) return 'xml'
     return 'text'
 }
 
