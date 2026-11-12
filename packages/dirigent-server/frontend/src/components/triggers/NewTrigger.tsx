@@ -40,7 +40,7 @@ import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
 import { byTitle, paramsOf, priorityOf, readAllPipelines, readPipeline } from '@/lib/pipelines'
-import { refusalOf, said } from '@/lib/refusal'
+import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
 import type { RunPriority } from '@/lib/runs'
 import { formSchema, hasFields } from '@/lib/form-schema'
@@ -48,6 +48,7 @@ import {
     browserZone,
     CRON_FIELD_WORDS,
     FIRINGS_READ,
+    firingOf,
     given,
     INHERITED,
     PRIORITIES,
@@ -58,7 +59,8 @@ import {
     zoneOffset,
     zonesOffered,
 } from '@/lib/trigger-form'
-import { createSchedule, previewSchedule, type ScheduleIn } from '@/lib/triggers'
+import { createSchedule, type ScheduleIn } from '@/lib/triggers'
+import { useFirings, type Reading } from '@/hooks/use-firings'
 
 /** Which clock a new schedule is declared with. Exactly one, which is what the core accepts. */
 type Clock = 'cron' | 'interval' | 'at'
@@ -70,9 +72,6 @@ const CLOCKS: { value: Clock; label: string; hint: string }[] = [
     { value: 'interval', label: CLOCK.interval.name, hint: CLOCK.interval.hint },
     { value: 'at', label: CLOCK.at.name, hint: CLOCK.at.hint },
 ]
-
-/** How long a clock is left alone before it is read back, so a keystroke is not a request. */
-const PREVIEW_DELAY = 300
 
 /** Why Create is shut while the pinned parameters are not a value the pipeline would take. */
 const PARAMS_SHUT = LABELS.triggers.schedule.dialog.params_refused
@@ -287,17 +286,6 @@ export function NewSchedule({
     )
 }
 
-/** What a clock says about itself under the box it was written in. */
-type Reading =
-    /** Nothing has been written yet, so there is nothing to read back. */
-    | { kind: 'blank' }
-    /** The instance has yet to answer for what is written now. */
-    | { kind: 'pending' }
-    /** The next firings, oldest first, in the zone the schedule declares. */
-    | { kind: 'firings'; firings: string[] }
-    /** What the parser made of it, in its own words. */
-    | { kind: 'refused'; detail: string }
-
 /** The next three firings, or what is wrong with the expression, in one muted line. */
 function ClockReading({ reading, zone }: { reading: Reading; zone: string }) {
     if (reading.kind === 'blank' || reading.kind === 'pending') return null
@@ -356,49 +344,6 @@ function CronBox({
             words={CRON_FIELD_WORDS}
         />
     )
-}
-
-/** One firing as every clock in this dialog draws it, on the wall clock of the schedule's zone. */
-function firingOf(firing: Date, zone: string): string {
-    return formatMoment(firing.toISOString(), zone)
-}
-
-/**
- * What a clock would fire, read back from the instance as it is typed.
- *
- * A KEYSTROKE IS NOT A REQUEST. The expression is left alone for a moment before it is asked
- * about, and an answer to an expression somebody has since changed is dropped rather than
- * drawn under the one they are now writing.
- */
-function useFirings(open: boolean, clock: Clock, expression: string, timezone: string): Reading {
-    const written = expression.trim()
-    // What the answer on screen belongs to, so an answer to a clock somebody has since changed
-    // is not drawn under the one they are now writing.
-    const asked = `${clock} ${timezone} ${written}`
-    const [answered, setAnswered] = useState<{ asked: string; reading: Reading } | null>(null)
-
-    useEffect(() => {
-        if (!open || written === '') return
-        let live = true
-        const timer = setTimeout(() => {
-            void previewSchedule({ [clock]: written, timezone }).then(
-                (answer) => {
-                    if (live) setAnswered({ asked, reading: { kind: 'firings', firings: answer.firings } })
-                },
-                (error: unknown) => {
-                    const detail = said(refusalOf(error)) || LABELS.triggers.schedule.dialog.unreadable_clock
-                    if (live) setAnswered({ asked, reading: { kind: 'refused', detail } })
-                },
-            )
-        }, PREVIEW_DELAY)
-        return () => {
-            live = false
-            clearTimeout(timer)
-        }
-    }, [open, asked, clock, timezone, written])
-
-    if (written === '') return { kind: 'blank' }
-    return answered !== null && answered.asked === asked ? answered.reading : { kind: 'pending' }
 }
 
 /** Every pipeline the instance holds, as the picker's rows, in the order they are read in. */

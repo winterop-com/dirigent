@@ -494,9 +494,10 @@ reads as "just now" rather than as a firing already overdue.
 **A schedule says what is true of it where the next firing would go.** Pausing keeps the
 computed `next_fire_at` on the row -- resuming recomputes it from now, so it has to carry on
 from somewhere -- and a paused schedule that drew that instant would promise a firing the
-scheduler will not make. It says "paused" instead, muted, in the listing cell and in the panel
-fact both; the chip beside its name is what a chip is for, and this is the answer to the
-question the column asked. A schedule with no next instant at all says nothing is scheduled
+scheduler will not make. The panel lists no firings for it, and the chip beside its name is
+what says paused. A saved cron clock is drawn in the panel by the library's read-only
+`CronField`: the expression, its zone, its reading in words and the next firings the instance
+reads back, so the panel carries no separate clock, zone or next fact for it. A schedule with no next instant at all says nothing is scheduled
 rather than drawing a dash, and that reading comes first: a one-time schedule pauses itself
 once its moment has gone by, so the flag alone would have a spent clock read as a stopped one.
 

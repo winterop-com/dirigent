@@ -566,12 +566,17 @@ test('a schedule opens its own facts and its firing history beside the listing',
     await expect(panel).toContainText(LABELS.word.firing.heading)
     await expect(panel).toContainText(LABELS.triggers.schedule.no_firings)
 
+    // A cron clock is read back by the instance: its next firings, each on the zone's wall clock.
+    const firings = panel.getByTestId('schedule-clock').getByRole('listitem')
+    await expect(firings).toHaveCount(3)
+    await expect(firings.first()).toHaveText(/\d\d:\d\d$/)
+    await expect(panel.getByTestId('next-fire')).toHaveCount(0)
+
     // A paused schedule fires at no instant. The row keeps the one the scheduler computed, so
     // that it has somewhere to resume from, and the screen says it is paused once: the chip.
-    await expect(panel.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)
     await panel.getByRole('button', { name: 'Pause' }).click()
     await expect(panel.getByRole('button', { name: 'Resume' })).toBeVisible()
-    await expect(panel.getByTestId('next-fire')).toHaveCount(0)
+    await expect(firings).toHaveCount(0)
     await expect(panel.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(1)
     // The row behind says it the same way: its chip, and no Next beside it. The row and not the
     // page, because other schedules an earlier spec left on the instance are on the page too.
@@ -580,7 +585,8 @@ test('a schedule opens its own facts and its firing history beside the listing',
     await expect(row.getByText(LABELS.state.armed.paused, { exact: true })).toHaveCount(1)
 
     await panel.getByRole('button', { name: 'Resume' }).click()
-    await expect(panel.getByTestId('next-fire')).toHaveText(/^in \d+[mhd]$/)
+    await expect(firings).toHaveCount(3)
+    await expect(firings.first()).toHaveText(/\d\d:\d\d$/)
 })
 
 /** A pipeline with no name of its own, carrying a named schedule that fires once a year. */
