@@ -1,131 +1,112 @@
-import { ReactFlowProvider, useReactFlow, type Edge } from '@xyflow/react'
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 
-import { fitCapped, GraphCanvas, type CanvasEditing } from '@/components/graph/GraphCanvas'
-import { measuresByFont, useMeasure } from '@/components/graph/measure'
-import { usePlacedGraph } from '@/components/graph/use-placed'
-import { AddStepButton, AddStepMenuAt } from '@/components/pipeline/AddStepMenu'
+import { BlockPicker } from '@winterop-com/sokkel-ui-graph/BlockPicker'
+import type { GraphControls, GraphEditing } from '@winterop-com/sokkel-ui-graph/GraphCanvas'
+import { GraphOverlay, type GraphAnchor } from '@winterop-com/sokkel-ui-graph/GraphOverlay'
+import { GraphControlButton } from '@winterop-com/sokkel-ui-graph/GraphViewButtons'
+import {
+    PipelineGraph as StepCanvas,
+    cyclePath,
+    type PipelineStep,
+} from '@winterop-com/sokkel-ui-graph/PipelineGraph'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
-import { addStepAsked, relayoutAsked } from '@/lib/canvas-actions'
-import { StepNode, type DocumentNode } from '@/components/pipeline/StepNode'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
-import type { BlockEntry } from '@/lib/blocks'
+import { pickerBlocks, pickerGroups } from '@/lib/add-step'
+import { catalogUnread, type BlockEntry } from '@/lib/blocks'
+import { addStepAsked, relayoutAsked } from '@/lib/canvas-actions'
+import { forgetPlacements, heldLayout, loadPlacements, placeStep, type Placement } from '@/lib/canvas-layout'
+import { FIT_MIN_ZOOM, RANK_SPACING, WRAP_WIDTH } from '@/lib/dag-layout'
+import { BLOCK_PICKER_WORDS, EDITOR_GRAPH_WORDS } from '@/lib/design-system'
+import { cycleRefusal } from '@/lib/graph-edits'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import {
-    forgetPlacements,
-    heldLayout,
-    holdPlacement,
-    keepPlacements,
-    loadPlacements,
-    withHeld,
-    type Placement,
-    type Placements,
-} from '@/lib/canvas-layout'
-import { drawnSize, NODE_HEIGHT, RANK_SPACING, type LayoutShape } from '@/lib/dag-layout'
-import { documentNodeWidth } from '@/lib/node-size'
-import {
-    stepRuns,
     edgesIn,
     fanOutOf,
     sourceKindOf,
     stepEdited,
     stepHeading,
     stepNames,
+    stepRuns,
     type DocumentEdits,
 } from '@/lib/pipeline-document'
 import { stepMissing, type Unmet } from '@/lib/requirements'
 import { listeningLine, readPipelineSources, type SourceOut } from '@/lib/sources'
 
 /**
- * The document's graph: the steps it declares and the edges its `depends_on` draws.
+ * The document's graph: the steps it declares and the edges its `depends_on` draws, drawn by
+ * sokkel-ui-graph's `PipelineGraph` from one `PipelineStep` per step.
  *
- * THIS IS THE DOCUMENT, NOT A RUN. It is the current version's steps as edited here, so a step
- * added in the panel appears the moment it is added and wears the mark saying it is unapplied.
+ * Each box is titled by the step's name or key, its second line the key under a name and the
+ * block it runs, or what a source listens to on a dashed box. A fan-out's count stands at the end
+ * of the title line behind the stacked glyph, and pointing at it says what `for_each` does. A
+ * step whose block this instance does not publish wears `not installed` and the issue saying why,
+ * which gives its box the critical edge; one that differs from the version the instance holds
+ * wears `edited`. Every box keeps room for either badge and for the issue mark, so an edit or the
+ * catalog landing moves nothing.
  *
- * THE CANVAS EDITS. An edge dragged between two ports is a `depends_on` entry, the same one the
- * chips in the step's pane add and remove, and a selected edge deleted with the key takes it
- * away again. A connection let go over empty ground opens the add-step menu already waiting for
- * the step it came from. None of it is written to the instance: every gesture ends in the local
- * document, and the topbar counts it with every other unapplied edit.
+ * Given `editing`, the canvas reports every gesture and the document changes only through the
+ * callbacks: an edge drawn or deleted is a `depends_on` entry, a box deleted is a step, a box let
+ * go is a placement kept in `lib/canvas-layout`, and an edge that would close a loop is refused
+ * while it is drawn. A connection let go over empty ground, a right-click on the ground, the
+ * button beside the zoom and the palette all open one block picker, at the place they were asked
+ * from; a right-click on a box opens that box's own menu.
  *
- * THE GROUND IS WHERE A STEP IS ADDED. A right-click on empty canvas opens the add-step menu at
- * the pointer, and the button in the corner opens the same menu under itself. A right-click on a
- * box opens that box's own menu instead: one more step after this one, which is the add-step menu
- * again with the edge already decided, and this one taken out.
- *
- * A CHOSEN STEP IS DELETED BY THE KEY, the way a chosen edge is. It takes its own edges with it:
- * a `depends_on` naming a step the document no longer has is what an apply refuses.
- *
- * ELK DECIDES WHERE A BOX GOES UNTIL SOMEBODY MOVES IT. A dragged position is that pipeline's,
- * kept in `lib/canvas-layout` and surviving a reload; laying out again gives the whole arrangement back
- * to elk and fits the view to it again.
- *
- * This module is loaded lazily. React Flow is shared with the run graph and is not in the entry
- * chunk; elk is a chunk of its own, fetched when this canvas asks for geometry.
+ * This module is loaded lazily: React Flow is a large part of what this screen costs, and elk is a
+ * chunk of its own fetched when the canvas asks for geometry.
  */
-
-/** The one node kind this graph draws. Built once: React Flow re-mounts every node on a new object. */
-const NODE_TYPES = { step: StepNode }
 
 /** What a document with no read of its sources has: nothing, and the same nothing each time. */
 const NO_SOURCES: readonly SourceOut[] = []
 
 /** What another pipeline's arrangement amounts to here: nothing, and the same nothing each time. */
-const NO_PLACEMENTS: Placements = {}
+const NO_PLACEMENTS: Readonly<Record<string, Placement>> = {}
+
+/** Every badge a box may come to wear, which each box keeps room for. */
+const BADGES: readonly string[] = [LABELS.editor.canvas.edited, LABELS.editor.canvas.not_installed]
 
 export interface PipelineGraphProps {
     /** The pipeline being edited, which is what an arrangement is kept under. */
     pipeline: string
     document: JsonMap
-    /** The catalog this instance answered with, which is what the add-step menu offers. */
+    /** The catalog this instance answered with, which is what the block picker offers. */
     blocks: BlockEntry[]
     edits: DocumentEdits
     /** What this instance has not got of what the document names. */
     unmet: Unmet
     selected: string | null
     onSelect: (step: string | null) => void
-    /** A block was chosen, from the pointer or from the button: a step runs it. */
-    onAddStep: (block: string) => void
+    /** A block was chosen: a step runs it, waits for `after` when given, and stands at `at` when given. */
+    onAddStep: (block: string, after: string | null, at: Placement | null) => void
     /** An edge was drawn: `to` is to wait for `from`. */
     onConnect: (from: string, to: string) => void
     /** An edge was deleted: `to` is to stop waiting for `from`. */
     onDisconnect: (from: string, to: string) => void
-    /** A block was chosen after a connection was dropped on empty ground, at that point in
-     * flow coordinates: the step runs it, waits for `from`, and stays where it was dropped. */
-    onAddStepAfter: (from: string, block: string, at: Placement) => void
     /** A step was deleted: it goes, and so does every reference to it. */
     onRemoveStep: (step: string) => void
-    /**
-     * Draw the document rather than edit it.
-     *
-     * The canvas keeps its ports as anchors and shows none, the add-step control and both
-     * menus are not drawn, and a step is chosen and nothing else -- which is what the run's
-     * own graph has always been.
-     */
+    /** An edge was refused, for this reason. */
+    onRefuse: (reason: string) => void
+    /** What the empty canvas offers besides adding a step. */
+    emptyAction?: ReactNode
+    /** Draws the document and edits nothing: no ports, no menus, no add button. */
     readOnly?: boolean
 }
 
-/**
- * The provider is this component's own, so what is inside it can ask the canvas where a point on
- * the screen is on the graph. React Flow uses one that already exists rather than making a
- * second.
- */
-export function PipelineGraph(props: PipelineGraphProps) {
-    return (
-        <ReactFlowProvider>
-            <EditableGraph {...props} />
-        </ReactFlowProvider>
-    )
+/** Where the block picker stands, the step it adds after, and where that step is placed. */
+interface Picking {
+    at: GraphAnchor
+    after: string | null
+    place: Placement | null
 }
 
-function EditableGraph({
+export function PipelineGraph({
     pipeline,
     document,
     blocks,
@@ -136,51 +117,37 @@ function EditableGraph({
     onAddStep,
     onConnect,
     onDisconnect,
-    onAddStepAfter,
     onRemoveStep,
+    onRefuse,
+    emptyAction,
     readOnly = false,
 }: PipelineGraphProps) {
-    const flow = useReactFlow()
     const layout = useStore(heldLayout)
-    const [chosenEdge, setChosenEdge] = useState<string | null>(null)
-    // Where the pointer opened the menu, in viewport coordinates, or null while it is shut.
-    const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null)
-    // A connection let go over empty ground: what it was drawn from, where the menu opens, and
-    // where in the graph the step it adds is drawn.
-    const [dropped, setDropped] = useState<{
-        from: string
-        at: Placement
-        over: { x: number; y: number }
-    } | null>(null)
-    // A box that was right-clicked: which step, and where its menu opens.
+    const controls = useRef<GraphControls | null>(null)
+    const [picking, setPicking] = useState<Picking | null>(null)
     const [onNode, setOnNode] = useState<{ step: string; over: { x: number; y: number } } | null>(null)
 
     useEffect(() => {
         loadPlacements(pipeline)
     }, [pipeline])
 
-    // The palette's asks: the menu opens over the canvas's middle, since the palette is a
-    // keyboard gesture with no place on the screen to hang off.
+    // The palette's ask opens the picker over the canvas's middle, since a keyboard gesture has no place on the screen.
     const asked = useStore(addStepAsked)
     useEffect(() => {
-        if (asked === 0) return
-        const host = globalThis.document.querySelector('[data-canvas-host]')
-        if (host === null) return
-        const box = host.getBoundingClientRect()
-        // The palette's ask is the external event this synchronizes with; the menu opens once
-        // per bump, over the canvas's middle.
+        if (asked === 0 || readOnly) return
+        // The palette's ask is the external event this synchronizes with; the picker opens once per bump.
         // oxlint-disable-next-line react/set-state-in-effect
-        setPointer({ x: box.x + box.width / 2, y: box.y + box.height / 3 })
-    }, [asked])
+        setPicking({ at: 'center', after: null, place: null })
+    }, [asked, readOnly])
     const tidy = useStore(relayoutAsked)
     useEffect(() => {
         if (tidy === 0) return
         forgetPlacements()
-        void fitCapped(flow)
-    }, [tidy, flow])
+        controls.current?.fit()
+    }, [tidy])
 
-    // What this instance says each source listens to, which is asked only of a document with one.
-    // A pipeline nothing has applied answers 404, and its boxes say their kind.
+    // What this instance says each source listens to, asked only of a document with one. A
+    // pipeline nothing has applied answers 404, and its boxes say their kind.
     const hasSource = stepNames(document).some((name) => sourceKindOf(document, name) !== null)
     const held = useRead(
         useCallback(
@@ -190,159 +157,161 @@ function EditableGraph({
     )
     const sources = held.value?.items ?? NO_SOURCES
 
-    const measure = useMeasure()
-    const shape = useMemo<LayoutShape>(
-        () => ({
-            nodes: stepNames(document).map((name) => {
-                const heading = stepHeading(document, name)
-                const kind = sourceKindOf(document, name)
-                const said = kind === null ? stepRuns(document, name) : listeningLine(sources, name, kind)
-                const fan = fanOutOf(document, name)
-                const width = documentNodeWidth(
-                    {
-                        title: heading.title,
-                        named: heading.named,
-                        line: heading.code === null ? said : `${heading.code} · ${said}`,
-                    },
-                    {
-                        source: kind !== null,
-                        missing: stepMissing(unmet, name),
-                        fanOut: !fan.fanOut
-                            ? null
-                            : fan.items === null
-                              ? LABELS.editor.canvas.fan_out_each
-                              : LABELS.editor.canvas.fan_out_count(String(fan.items)),
-                    },
-                    measure,
-                )
-                return { id: name, width, height: NODE_HEIGHT }
-            }),
-            edges: edgesIn(document),
-        }),
-        [document, measure, sources, unmet],
-    )
-    const placed = usePlacedGraph(shape)
-
-    // An arrangement is one pipeline's, so another pipeline's is nothing until its own is read.
-    const placements = layout.pipeline === pipeline ? layout.placements : NO_PLACEMENTS
-
-    const nodes = useMemo<DocumentNode[]>(() => {
-        return withHeld(placed.nodes, placements).map((node) => {
-            const fan = fanOutOf(document, node.id)
-            const kind = sourceKindOf(document, node.id)
+    const steps = useMemo<PipelineStep[]>(() => {
+        const needs = new Map<string, string[]>()
+        for (const [from, to] of edgesIn(document)) needs.set(to, [...(needs.get(to) ?? []), from])
+        return stepNames(document).map((name) => {
+            const heading = stepHeading(document, name)
+            const kind = sourceKindOf(document, name)
+            const block = stepRuns(document, name)
+            const said = kind === null ? block : listeningLine(sources, name, kind)
+            const line = heading.code === null ? said : `${heading.code} · ${said}`
+            const fan = fanOutOf(document, name)
+            const missing = stepMissing(unmet, name)
+            const notInstalled = LABELS.editor.canvas.not_installed_title(block)
             return {
-                id: node.id,
-                type: 'step' as const,
-                position: { x: node.x, y: node.y },
-                width: node.width,
-                height: node.height,
-                measured: drawnSize(node),
-                selected: node.id === selected,
-                data: {
-                    ...stepHeading(document, node.id),
-                    block: stepRuns(document, node.id),
-                    listens: kind === null ? null : listeningLine(sources, node.id, kind),
-                    edited: stepEdited(edits, node.id),
-                    missing: stepMissing(unmet, node.id),
-                    fanOut: fan.fanOut,
-                    fanOutItems: fan.items,
-                    editable: true,
-                },
+                code: name,
+                name: heading.named ? heading.title : undefined,
+                kind: said,
+                needs: needs.get(name) ?? [],
+                icon: kind === null ? undefined : ICONS.source,
+                source: kind !== null,
+                lineHint: kind === null ? undefined : LABELS.editor.canvas.listens_to(line),
+                count: !fan.fanOut
+                    ? undefined
+                    : fan.items === null
+                      ? LABELS.editor.canvas.fan_out_each
+                      : LABELS.editor.canvas.fan_out_count(String(fan.items)),
+                countIcon: fan.fanOut ? ICONS.fan_out : undefined,
+                countTitle: !fan.fanOut
+                    ? undefined
+                    : fan.items === null
+                      ? LABELS.editor.canvas.fan_out_each_title
+                      : LABELS.editor.canvas.fan_out_count_title(String(fan.items)),
+                countPlacement: 'title',
+                badge: missing
+                    ? { label: LABELS.editor.canvas.not_installed, tone: 'critical' }
+                    : stepEdited(edits, name)
+                      ? { label: LABELS.editor.canvas.edited }
+                      : undefined,
+                reserveBadges: BADGES,
+                reserveIssue: true,
+                issues: missing ? [{ tone: 'critical', text: notInstalled }] : undefined,
             }
         })
-    }, [document, edits, placed, placements, selected, sources, unmet])
+    }, [document, edits, sources, unmet])
 
-    const edges = useMemo<Edge[]>(() => {
-        return placed.edges.map((edge) => ({
-            id: edge.id,
-            source: edge.source,
-            target: edge.target,
-            selected: edge.id === chosenEdge,
-        }))
-    }, [chosenEdge, placed])
+    const groups = useMemo(() => pickerGroups(blocks), [blocks])
+    const offered = useMemo(() => pickerBlocks(blocks), [blocks])
 
-    const editing = useMemo<CanvasEditing>(
+    // An arrangement is one pipeline's, so another pipeline's is nothing until its own is read.
+    const positions = layout.pipeline === pipeline ? layout.placements : NO_PLACEMENTS
+
+    const editing = useMemo<GraphEditing>(
         () => ({
             onConnect,
-            onDisconnect,
-            // ONE THING IS CHOSEN AT A TIME. A key deletes what is chosen, and a canvas holding
-            // both a step and an edge chosen would answer one press by taking away two.
-            onChooseEdge: (id) => {
-                setChosenEdge(id)
-                if (id !== null) onSelect(null)
-            },
-            onMove: (id, at) => {
-                holdPlacement(id, at)
-            },
-            onMoveEnd: keepPlacements,
-            onDropped: (from, at) => {
-                setDropped({
-                    from,
-                    at: flow.screenToFlowPosition({ x: at.clientX, y: at.clientY }),
-                    over: { x: at.clientX, y: at.clientY },
-                })
+            onDisconnect: (_edge, from, to) => {
+                onDisconnect(from, to)
             },
             onRemove: onRemoveStep,
+            onMove: placeStep,
             onNodeMenu: (step, at) => {
-                setPointer(null)
-                setDropped(null)
+                setPicking(null)
                 setOnNode({ step, over: { x: at.clientX, y: at.clientY } })
             },
+            onPaneMenu: (at) => {
+                setOnNode(null)
+                setPicking({ at: { x: at.x, y: at.y }, after: null, place: null })
+            },
+            onDrop: (from, at) => {
+                setOnNode(null)
+                setPicking({ at: { x: at.x, y: at.y }, after: from, place: { x: at.x, y: at.y } })
+            },
+            canConnect: (from, to) => {
+                const cycle = cyclePath(steps, from, to)
+                return cycle === null ? null : cycleRefusal(from, to, [...cycle, to])
+            },
+            onRefuse: (_from, _to, reason) => {
+                onRefuse(reason)
+            },
         }),
-        [flow, onConnect, onDisconnect, onRemoveStep, onSelect],
+        [steps, onConnect, onDisconnect, onRefuse, onRemoveStep],
     )
 
-    const choose = (id: string | null) => {
-        setChosenEdge(null)
-        onSelect(id)
+    // The picker opens beside the button it was asked from, and that button closes it again.
+    const pickFrom = (event: MouseEvent<HTMLButtonElement>) => {
+        const button = event.currentTarget
+        setOnNode(null)
+        setPicking((open) =>
+            open !== null && typeof open.at === 'object' && 'element' in open.at && open.at.element === button
+                ? null
+                : { at: { element: button }, after: null, place: null },
+        )
     }
 
-    // A box answers with its own menu, so the ground is what this one answers for.
-    const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {
-        if (readOnly) return
-        if (event.target instanceof Element && event.target.closest('.react-flow__node') !== null) return
-        event.preventDefault()
-        setDropped(null)
-        setOnNode(null)
-        setPointer({ x: event.clientX, y: event.clientY })
+    const close = () => {
+        setPicking(null)
     }
 
     return (
-        <div className="absolute inset-0" data-canvas-host onContextMenu={onContextMenu}>
-            <GraphCanvas
-                nodes={nodes}
-                edges={edges}
-                nodeTypes={NODE_TYPES}
+        <div className="absolute inset-0">
+            <StepCanvas
+                steps={steps}
+                selected={selected}
+                onSelect={onSelect}
+                direction="right"
+                routing="orthogonal"
+                fitMinZoom={FIT_MIN_ZOOM}
+                narrowFit={false}
+                wrapWidth={WRAP_WIDTH}
+                positions={positions}
                 editing={readOnly ? undefined : editing}
-                onSelect={choose}
-                settled={placed.settled && measuresByFont(measure)}
-                control={readOnly ? undefined : <AddStepButton blocks={blocks} onChoose={onAddStep} />}
-            />
-
-            {pointer !== null && (
-                <AddStepMenuAt
-                    blocks={blocks}
-                    at={pointer}
-                    onChoose={onAddStep}
-                    onClose={() => {
-                        setPointer(null)
-                    }}
-                />
-            )}
+                onControls={(handed) => {
+                    controls.current = handed
+                }}
+                extraControls={
+                    readOnly ? undefined : (
+                        <GraphControlButton label={LABELS.editor.canvas.add_step} onClick={pickFrom}>
+                            <ICONS.create aria-hidden />
+                        </GraphControlButton>
+                    )
+                }
+                emptyAction={emptyAction}
+                words={EDITOR_GRAPH_WORDS}
+            >
+                {picking !== null && !readOnly && (
+                    <GraphOverlay at={picking.at} link={picking.after ?? undefined} onClose={close}>
+                        <BlockPicker
+                            blocks={offered}
+                            groups={groups}
+                            loading={catalogUnread(blocks)}
+                            showDescription
+                            title={
+                                picking.after === null
+                                    ? LABELS.editor.canvas.add_step
+                                    : LABELS.editor.canvas.add_step_after(picking.after)
+                            }
+                            onPick={(block) => {
+                                close()
+                                onAddStep(block.kind, picking.after, picking.place)
+                            }}
+                            onClose={close}
+                            words={BLOCK_PICKER_WORDS}
+                        />
+                    </GraphOverlay>
+                )}
+            </StepCanvas>
 
             {onNode !== null && (
                 <StepMenuAt
                     step={onNode.step}
                     at={onNode.over}
                     onAddAfter={() => {
-                        const box = flow.getNode(onNode.step)
+                        const box = controls.current?.nodeBox(onNode.step) ?? null
                         setOnNode(null)
-                        if (box === undefined) return
-                        setDropped({
-                            from: onNode.step,
-                            at: { x: box.position.x + (box.width ?? 0) + RANK_SPACING, y: box.position.y },
-                            over: onNode.over,
-                        })
+                        if (box === null) return
+                        const place = { x: box.x + box.width + RANK_SPACING, y: box.y }
+                        setPicking({ at: place, after: onNode.step, place })
                     }}
                     onRemove={() => {
                         setOnNode(null)
@@ -353,29 +322,13 @@ function EditableGraph({
                     }}
                 />
             )}
-
-            {dropped !== null && (
-                <AddStepMenuAt
-                    blocks={blocks}
-                    at={dropped.over}
-                    after={dropped.from}
-                    onChoose={(block) => {
-                        onAddStepAfter(dropped.from, block, dropped.at)
-                    }}
-                    onClose={() => {
-                        setDropped(null)
-                    }}
-                />
-            )}
         </div>
     )
 }
 
 /**
- * A box's own menu: what a step on this canvas can be asked for.
- *
- * The anchor is an element of no size at the pointer, the way the add-step menu's is, so the
- * popup stays inside the viewport rather than being placed by hand.
+ * A box's own menu: one more step after this one, and this one taken out. Its anchor is an
+ * element of no size at the pointer, so the popup stays inside the viewport.
  */
 function StepMenuAt({
     step,

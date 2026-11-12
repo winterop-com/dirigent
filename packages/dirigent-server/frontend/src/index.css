@@ -69,8 +69,10 @@
 @import '@winterop-com/sokkel-ui/sources/primitives/tabs.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/textarea.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/tooltip.css';
+@import '@winterop-com/sokkel-ui-graph/sources/BlockPicker.css';
 @import '@winterop-com/sokkel-ui-graph/sources/GraphCanvas.css';
 @import '@winterop-com/sokkel-ui-graph/sources/GraphLayoutMenu.css';
+@import '@winterop-com/sokkel-ui-graph/sources/GraphOverlay.css';
 @import '@winterop-com/sokkel-ui-graph/sources/GraphViewButtons.css';
 @import '@winterop-com/sokkel-ui-graph/sources/MiniGraph.css';
 @import '@winterop-com/sokkel-ui-graph/sources/PipelineGraph.css';

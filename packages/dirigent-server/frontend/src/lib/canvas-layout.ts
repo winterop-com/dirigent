@@ -1,10 +1,10 @@
 /**
  * Where the boxes are, once somebody has moved one.
  *
- * ELK PLACES A GRAPH; A READER PLACES A BOX. `lib/dag-layout` is the layered geometry a document
- * gets the first time it is drawn, and it stays the answer for every step nobody has dragged. A
- * step that was dragged has an answer of its own, and it is that one -- otherwise the next
- * re-layout would undo the arrangement somebody made to read their own pipeline.
+ * ELK PLACES A GRAPH; A READER PLACES A BOX. The editor's graph lays a document out, and that
+ * stays the answer for every step nobody has dragged. A step that was dragged has an answer of
+ * its own, handed to the graph as its position -- otherwise the next re-layout would undo the
+ * arrangement somebody made to read their own pipeline.
  *
  * PX-INTENT, PER PIPELINE, exactly as the right panel's width is. What somebody dragged a box to
  * was a decision about that pipeline's shape, so it is kept as the flow coordinates it was
@@ -15,7 +15,6 @@
  * and neither is inside the other. `lib/store` imports no React, so all of this runs in Node.
  */
 
-import type { PlacedNode } from '@/lib/dag-layout'
 import { createStore } from '@/lib/store'
 
 /** Every stored layout is one key under this, so a pipeline's own is found by its code. */
@@ -116,17 +115,4 @@ export function forgetPlacements(): void {
     const held = heldLayout.get()
     if (held.pipeline !== null) writePlacements(held.pipeline, {})
     heldLayout.set({ pipeline: held.pipeline, placements: {} })
-}
-
-/**
- * elk's placement, overruled by what somebody dragged.
- *
- * A STEP NOBODY HAS MOVED KEEPS ELK'S SUGGESTION, which is what makes a step added to an
- * arranged canvas land somewhere sensible instead of at the origin.
- */
-export function withHeld(placed: readonly PlacedNode[], placements: Placements): PlacedNode[] {
-    return placed.map((node) => {
-        const at = placements[node.id]
-        return at === undefined ? node : { ...node, x: at.x, y: at.y }
-    })
 }

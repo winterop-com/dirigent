@@ -1695,8 +1695,13 @@ const editor = {
         add_step: 'Add step',
         /** The same menu, opened out of a step, which the new one will wait for. */
         add_step_after: (step: string) => `Add step after ${step}`,
-        /** What the menu's box narrows, in the words of what it searches. */
-        search_blocks: 'Search blocks by id, summary or kind',
+        /** The menu's search field and its list, as a screen reader names them. */
+        search_blocks: 'Search blocks',
+        block_list: 'Blocks',
+        /** What the menu's empty search field shows, in the words of what it searches. */
+        search_blocks_placeholder: 'Search blocks by id, summary or kind',
+        /** A sensor's chip in the menu, and what pointing at it says. */
+        sensor_title: 'A sensor: it waits for something outside the run, and the steps after it wait for it',
         /** A source's tooltip on a graph: what the line under its title says, whole. */
         listens_to: (what: string) => `Listens to ${what}`,
         no_block_matches: 'No block matches that.',
