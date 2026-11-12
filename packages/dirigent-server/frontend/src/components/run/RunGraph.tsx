@@ -39,6 +39,9 @@ const ROUTINGS: readonly GraphRouting[] = ['orthogonal', 'splines']
 /** The least zoom a fit of the run's graph goes to, at every width. */
 const FIT_MIN_ZOOM = 0.8
 
+/** The least zoom a fit goes to when the drawing fits across and only its height is short. */
+const TALL_FIT = 0.7
+
 /** The tallest the filled panel insists on for the drawing, which is less when the drawing is. */
 const FILL_FLOOR = 240
 
@@ -93,6 +96,7 @@ export function RunGraph({
                 routing={layout.routing}
                 spacing={layout.spacing}
                 fitMinZoom={FIT_MIN_ZOOM}
+                tallFit={TALL_FIT}
                 narrowFit={false}
                 wrapWidth={WRAP_WIDTH}
                 wrapToCanvas

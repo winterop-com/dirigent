@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { ZOOM_STEP as RUN_ZOOM_STEP } from '@winterop-com/sokkel-ui-graph/layout'
+import { GRAPH_WHEEL_STEP_MS, ZOOM_STEP as RUN_ZOOM_STEP } from '@winterop-com/sokkel-ui-graph/layout'
 
 import { WHEEL_ZOOM_LIMIT } from '../src/lib/dag-layout.ts'
 
@@ -13,12 +13,6 @@ import {
     signIn,
     startRun,
 } from './support.ts'
-
-/**
- * sokkel-ui-graph's `GRAPH_WHEEL_STEP_MS`, the least time between two wheel notches on a canvas.
- * Its module loads stylesheets, which this runner cannot import.
- */
-const GRAPH_WHEEL_STEP_MS = 160
 
 /**
  * A graph on a page, read the way somebody reads the run of a wide pipeline: every step code

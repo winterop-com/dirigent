@@ -2061,7 +2061,8 @@ buttons say how else to zoom on their tooltips, and nothing is drawn over the gr
 
 **A view's layout is the reader's for the visit.** The run's graph and the pipeline page's carry a
 `Layout`{ .label } control: the direction (left to right, or top to bottom), the edges and the
-spacing (normal, compact, roomy). The run's is sokkel-ui-graph's `GraphLayoutMenu`, with `routings`
+spacing. The run's is sokkel-ui-graph's `GraphLayoutMenu`, whose order of spacings (compact,
+normal, roomy) and width are the library's, with `routings`
 limited to orthogonal and splines, opened by the same button the pipeline page's `LayoutMenu` is:
 an `IconButton` on `ICONS.graph_layout`, its tooltip saying `Layout`{ .label }, handed in as the
 menu's `trigger`. Both close on a choice (`closeOnChoice` on the run's). **The run's graph opens on elk's orthogonal routes around the
@@ -2084,7 +2085,11 @@ Every canvas opens with the whole DAG in view: `fitView` with padding, held betw
 `lib/dag-layout`'s on a pipeline's canvases (padding 0.14, `FIT_MIN_ZOOM` 0.8) and
 sokkel-ui-graph's on a run's (padding 0.12, and the run's graph hands it `fitMinZoom` 0.8 with
 `narrowFit={false}`, so its floor is 0.8 at every width and a narrow canvas does not go lower to
-fit the width). The upper bound is 1 on both, so a fit never draws a box above its
+fit the width). **A run's drawing that fits across and is only a little too tall goes under that
+floor, to `tallFit` 0.7 and no lower**, so a graph a few pixels taller than the room above the
+terminal is seen whole rather than hung off its foot; a drawing too wide keeps the floor. A run's
+fit frames the bends of its edges as well as its boxes, so an edge that runs round a row stays on
+the canvas. The upper bound is 1 on both, so a fit never draws a box above its
 own size and a pipeline of two boxes is not magnified to fill the space, and the floor keeps a
 12px title and an 11px word legible. **Past that floor the graph is not shrunk: it stays at the floor,
 hangs off the canvas, and is panned.** A view too wide or too tall for the canvas opens with the
@@ -2106,9 +2111,10 @@ Seventeen steps in one left-to-right row is three thousand pixels of canvas, and
 by putting a node's text under six pixels. Past `WRAP_WIDTH` -- which `rankDepth` measures a shape
 against before elk sees it -- elk is asked to cut the layering into chunks and stack them: the
 ranks still read left to right, and the height nothing was using carries the rest. The run's graph
-is wrapped to its canvas (`wrapToCanvas`): a row is cut to the width the canvas holds at the least
-fit zoom, never wider than the same 1120px, handed as `wrapWidth`, and the library chooses as many
-rows as keep each that wide, in the window as on the page. A row still wider than the canvas hangs
+is wrapped to its canvas (`wrapToCanvas`): the cut is the width the canvas holds at the least
+fit zoom, never wider than the same 1120px, handed as `wrapWidth`. The library wraps only when
+elk's own unwrapped layout is wider than that cut -- not on its rank estimate, which runs wider
+than elk -- and then takes the widest layout whose rows fit it, in the window as on the page. A row still wider than the canvas hangs
 off it at the floor and is panned.
 
 **A zoom press is one step, and the fit button is the fit every other fit is.** React Flow's own
