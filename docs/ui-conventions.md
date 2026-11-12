@@ -473,10 +473,27 @@ plays elsewhere, and the step's optional `name` is the title drawn above it.
 ## One way to say a time
 
 **How long ago on screen, the exact instant on hover.** What somebody asks of a timestamp is how
-recent it is, so `formatRelative` is the visible text everywhere -- in a listing cell, in a panel
-fact, beside a version -- and the wall clock is the element's `title`. `components/Instant` is
-that pair written once, and a screen that spelled a wall clock out where the listing beside it
-said "2m ago" would be two answers to one question on two halves of the same screen.
+recent it is, so the relative reading is the visible text everywhere -- in a listing cell, in a
+panel fact, beside a version -- and the wall clock is what hover and focus show. `components/Instant`
+is that pair written once: sokkel-ui's `RelativeTime`, in tabular figures, keeping its own clock,
+said with `RELATIVE` from `lib/format` and with `formatInstant`'s spelling in its tooltip; a moment
+that is not there is a dash. Every plain time on a screen is an `Instant`. Where the reading sits
+inside a sentence or a link's own text ("last seen 3m ago", "due in 2h", "from the run 2h ago"),
+`formatRelative` is the text and `formatInstant` the `title`, and both say what `Instant` says,
+because `formatRelative` is sokkel-ui's `relativeTime` given the same `RELATIVE`. A screen that
+spelled a wall clock out where the listing beside it said "2m ago" would be two answers to one
+question on two halves of the same screen.
+
+**The reading is the largest whole unit, in numbers.** Narrow English, `3m ago`, `5h ago`,
+`2d ago`, `3w ago`, never "yesterday" or "last week"; a distance is cut to the whole units it holds
+rather than rounded, so 89 minutes is `1h ago` and 119 minutes is still `1h ago` -- a reading
+never claims more time than has passed. Within a minute either side of now it is "just now".
+
+**An `Instant` inside a link or a button row is not a tab stop of its own.** A row that is already
+one stop -- a run on the dashboard, a firing in a pipeline's schedules, a run in the editor's pane
+-- passes `focusable={false}`: the exact instant moves to the element's `title` and the row takes
+one Tab, not two. Everywhere else, listing cells included, the `Instant` keeps its stop, so the
+tooltip opens on focus as it does on hover.
 
 **An exact instant is written largest field first**: `2026-09-02 11:36:05`, and ` UTC` after it
 when `lib/times` is set to that clock. `formatInstant` is the only place it is spelled, and it is
@@ -486,7 +503,7 @@ means two different days to two readers. A relative reading that has run past it
 falls back to the date half of the same spelling rather than to a locale date.
 
 **Time speaks in both directions.** `formatRelative` measures either side of now -- `3m ago`
-behind it, `in 3m` ahead of it -- through the same units and the same thirty-day horizon, past
+behind it, `in 3m` ahead of it -- through the same units and the same thirty-day horizon, from
 which both fall to the date half of the exact spelling. When a schedule fires next is the same
 question as when a run started, so a next fire time is an `Instant` like every other moment in
 the app rather than a wall clock spelled out where the column beside it says "2m ago". The

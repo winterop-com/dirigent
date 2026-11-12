@@ -223,7 +223,7 @@ export function PipelineTab({
                                     to={`/runs/${run.id}`}
                                 >
                                     <StatusChip status={run.status} />
-                                    <Instant className="text-faint" at={run.created_at} />
+                                    <Instant focusable={false} className="text-faint" at={run.created_at} />
                                 </Link>
                             </li>
                         ))}

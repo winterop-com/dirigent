@@ -248,6 +248,7 @@ export function Dashboard() {
                                     {schedule.title}
                                 </span>
                                 <Instant
+                                    focusable={false}
                                     className="w-18 shrink-0 text-right text-xs text-muted-foreground"
                                     at={fire.at}
                                 />
@@ -369,6 +370,7 @@ function TroubledRow({ entry }: { entry: LookEntry }) {
                 <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs">
                     <StatusChip status={run.status} />
                     <Instant
+                        focusable={false}
                         className="text-muted-foreground"
                         at={run.finished_at ?? run.started_at ?? run.created_at}
                     />
@@ -395,6 +397,7 @@ function RecentRow({ run, name }: { run: RunOut; name: string | null }) {
                 {took === null ? null : formatDuration(took)}
             </span>
             <Instant
+                focusable={false}
                 className="w-18 shrink-0 text-right text-xs text-muted-foreground"
                 at={run.started_at ?? run.created_at}
             />

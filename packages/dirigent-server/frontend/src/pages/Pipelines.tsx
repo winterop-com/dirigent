@@ -334,6 +334,7 @@ function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
                     <span className="inline-flex items-center gap-2 text-xs">
                         <StatusChip status={row.last_run.status} />
                         <Instant
+                            focusable={false}
                             at={row.last_run.finished_at ?? row.last_run.started_at}
                             className="text-muted-foreground"
                         />

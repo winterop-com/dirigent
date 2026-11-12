@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { CronField } from '@winterop-com/sokkel-ui/CronField'
 
 import { Description } from '@/components/Description'
+import { Instant } from '@/components/Instant'
 import { JsonBlock } from '@/components/JsonBlock'
 import { PipelineRef } from '@/components/PipelineRef'
 import { Refusable } from '@/components/Refusable'
@@ -115,9 +116,7 @@ export function SchedulePanel({
                 )}
                 {schedule.last_fired_at !== null && (
                     <Fact label={LABELS.word.firing.last}>
-                        <span title={formatInstant(schedule.last_fired_at)}>
-                            {formatRelative(schedule.last_fired_at)}
-                        </span>
+                        <Instant at={schedule.last_fired_at} />
                     </Fact>
                 )}
                 {Object.keys(schedule.params).length > 0 && (
@@ -219,9 +218,7 @@ export function SourcePanel({
                 )}
                 {source.next_poll_at !== null && !paused && (
                     <Fact label={LABELS.triggers.source.next_poll}>
-                        <span title={formatInstant(source.next_poll_at)}>
-                            {formatRelative(source.next_poll_at)}
-                        </span>
+                        <Instant at={source.next_poll_at} />
                     </Fact>
                 )}
                 {source.last_error !== null && (
@@ -263,9 +260,7 @@ export function SourcePanel({
                     {source.last_input_at === null ? (
                         <span className="text-faint">{LABELS.word.never}</span>
                     ) : (
-                        <span title={formatInstant(source.last_input_at)}>
-                            {formatRelative(source.last_input_at)}
-                        </span>
+                        <Instant at={source.last_input_at} />
                     )}
                 </Fact>
             </dl>
@@ -469,9 +464,7 @@ function Received({ input }: { input: SourceInputOut }) {
                 {input.status !== null && (
                     <span className="font-mono text-muted-foreground">{input.status}</span>
                 )}
-                <span className="text-faint" title={formatInstant(input.created_at)}>
-                    {formatRelative(input.created_at)}
-                </span>
+                <Instant className="text-faint" at={input.created_at} />
                 {view.runId !== null && (
                     <Link
                         className="font-mono text-foreground underline-offset-2 hover:underline"

@@ -477,7 +477,11 @@ export function Run({ notification }: { notification: NotificationOut }) {
         >
             <span className="text-sm">{named}</span>
             {notification.run_started_at !== null && (
-                <Instant className="ml-1.5 text-xs text-muted-foreground" at={notification.run_started_at} />
+                <Instant
+                    focusable={false}
+                    className="ml-1.5 text-xs text-muted-foreground"
+                    at={notification.run_started_at}
+                />
             )}
         </Link>
     )

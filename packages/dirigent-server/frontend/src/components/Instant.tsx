@@ -1,21 +1,33 @@
-import { formatInstant, formatRelative } from '@/lib/format'
+import { RelativeTime } from '@winterop-com/sokkel-ui/RelativeTime'
+
+import { exactInstant, RELATIVE } from '@/lib/format'
+
+const { now: nowWord, ...relative } = RELATIVE
 
 /**
- * A moment, said the one way this app says one.
- *
- * HOW LONG AGO ON SCREEN, THE EXACT INSTANT ON HOVER. What a reader asks of a timestamp is how
- * recent it is, and the wall clock is what they need only once they are asking something else --
- * so the coarse reading is the text and `formatInstant` is the title, in the zone `lib/times` is
- * set to. A panel that spelled the wall clock out where a listing beside it said "2m ago" would
- * be two answers to one question on two halves of one screen.
- *
- * A FUTURE INSTANT IS ONE OF THESE TOO. `formatRelative` measures either side of now, so a
- * schedule's next firing reads "in 2h" here and spells the wall clock on hover like the rest.
+ * A moment, as sokkel-ui's `RelativeTime` says it with this app's `RELATIVE` reading: how long
+ * ago or how long until on screen, `formatInstant`'s spelling on hover and on focus. Inside a row
+ * that is already a link or a button, `focusable={false}` drops its own tab stop and the exact
+ * instant becomes its title. A moment that is not there is a dash.
  */
-export function Instant({ at, className }: { at: string | null | undefined; className?: string }) {
+export function Instant({
+    at,
+    focusable = true,
+    className,
+}: {
+    at: string | null | undefined
+    focusable?: boolean
+    className?: string
+}) {
+    if (!at) return <span className={className}>--</span>
     return (
-        <span className={className} title={at ? formatInstant(at) : undefined}>
-            {formatRelative(at)}
-        </span>
+        <RelativeTime
+            date={at}
+            {...relative}
+            words={{ now: nowWord }}
+            exact={exactInstant}
+            focusable={focusable}
+            className={className}
+        />
     )
 }

@@ -85,7 +85,11 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
                                     {row.detail}
                                 </span>
                                 {row.at !== null && (
-                                    <Instant className="shrink-0 text-xs text-faint" at={row.at} />
+                                    <Instant
+                                        focusable={to === null}
+                                        className="shrink-0 text-xs text-faint"
+                                        at={row.at}
+                                    />
                                 )}
                             </span>
                         </>

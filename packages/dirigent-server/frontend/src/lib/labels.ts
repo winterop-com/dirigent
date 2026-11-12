@@ -594,16 +594,6 @@ const measure = {
     bytes: (value: string) => `${value} B`,
     /** Close enough to now that a span would be noise. */
     just_now: 'just now',
-    /** A span, when it is behind us. */
-    ago: (span: string) => `${span} ago`,
-    /** A span, when it is ahead of us. */
-    ahead: (span: string) => `in ${span}`,
-    /** The short spans a relative time is written in. */
-    span: {
-        minutes: (value: string) => `${value}m`,
-        hours: (value: string) => `${value}h`,
-        days: (value: string) => `${value}d`,
-    },
     /** The zone a timestamp is read in, when it is not the reader's own. */
     utc: 'UTC',
     /** A zone's offset, where a zone has none of its own. */

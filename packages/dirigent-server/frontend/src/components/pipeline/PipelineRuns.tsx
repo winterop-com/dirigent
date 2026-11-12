@@ -92,6 +92,7 @@ function RunLine({ run }: { run: RunOut }) {
                 {took === null ? null : formatDuration(took)}
             </span>
             <Instant
+                focusable={false}
                 className="w-18 shrink-0 text-right text-xs text-muted-foreground"
                 at={run.started_at ?? run.created_at}
             />

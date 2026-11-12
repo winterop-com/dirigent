@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { Section } from '@winterop-com/sokkel-ui/Section'
+import { Instant } from '@/components/Instant'
 import { Mark } from '@/components/Mark'
 import { Dot as LibraryDot } from '@winterop-com/sokkel-ui/Dot'
 import { TONE_FILL } from '@/lib/design-system'
@@ -16,7 +17,7 @@ import {
     type Channel,
     type ChannelView,
 } from '@/lib/alerting'
-import { formatRelative } from '@/lib/format'
+import { formatInstant, formatRelative } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -123,7 +124,9 @@ function ChannelFacts({ channel, view }: { channel: Channel; view: ChannelView }
             <span className="font-medium">
                 {channel.notifier} · {view.label}
                 {channel.last_check_at !== null && (
-                    <span className="font-normal opacity-70"> {formatRelative(channel.last_check_at)}</span>
+                    <span className="font-normal opacity-70" title={formatInstant(channel.last_check_at)}>
+                        {formatRelative(channel.last_check_at)}
+                    </span>
                 )}
             </span>
             {channel.connection !== null && <span className="font-mono">{channel.connection}</span>}
@@ -226,7 +229,7 @@ function ChannelRow({ channel }: { channel: Channel }) {
                     <span className="text-xs text-faint">
                         {channelWord(channel)}
                         {channelWord(channel) !== null && channel.last_check_at !== null && ' · '}
-                        {channel.last_check_at !== null && formatRelative(channel.last_check_at)}
+                        {channel.last_check_at !== null && <Instant at={channel.last_check_at} />}
                     </span>
                 )}
             </td>

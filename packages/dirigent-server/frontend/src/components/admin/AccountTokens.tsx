@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { Instant } from '@/components/Instant'
 import { Question } from '@/components/Question'
 import { RefusalLine } from '@/components/Refusal'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
@@ -158,21 +159,18 @@ function tokenColumns(
             id: 'used',
             header: LABELS.users.last_used_column,
             width: 'minmax(5rem,1fr)',
-            cell: (token) => (
-                <span className="text-xs text-muted-foreground" title={formatInstant(token.last_used_at)}>
-                    {token.last_used_at === null ? LABELS.word.never : formatRelative(token.last_used_at)}
-                </span>
-            ),
+            cell: (token) =>
+                token.last_used_at === null ? (
+                    <span className="text-xs text-muted-foreground">{LABELS.word.never}</span>
+                ) : (
+                    <Instant className="text-xs text-muted-foreground" at={token.last_used_at} />
+                ),
         },
         {
             id: 'created',
             header: LABELS.word.created.label,
             width: 'minmax(4.5rem,1fr)',
-            cell: (token) => (
-                <span className="text-xs text-muted-foreground" title={formatInstant(token.created_at)}>
-                    {formatRelative(token.created_at)}
-                </span>
-            ),
+            cell: (token) => <Instant className="text-xs text-muted-foreground" at={token.created_at} />,
         },
         {
             id: 'revoke',

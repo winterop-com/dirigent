@@ -2,6 +2,7 @@ import { KeyRound, RefreshCw, UserPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ApiChip } from '@/components/ApiChip'
+import { Instant } from '@/components/Instant'
 import { AccountDialog } from '@/components/admin/AccountDialog'
 import { AccountTokens } from '@/components/admin/AccountTokens'
 import { AdminOnly } from '@/components/admin/AdminOnly'
@@ -18,7 +19,6 @@ import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import { LISTING } from '@/lib/design-system'
-import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { itemOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
@@ -251,21 +251,18 @@ function userColumns(
             id: 'seen',
             header: LABELS.word.last_signed_in.label,
             width: 'minmax(5.5rem,1fr)',
-            cell: (user) => (
-                <span className="text-xs text-muted-foreground" title={formatInstant(user.last_login_at)}>
-                    {user.last_login_at === null ? LABELS.word.never : formatRelative(user.last_login_at)}
-                </span>
-            ),
+            cell: (user) =>
+                user.last_login_at === null ? (
+                    <span className="text-xs text-muted-foreground">{LABELS.word.never}</span>
+                ) : (
+                    <Instant className="text-xs text-muted-foreground" at={user.last_login_at} />
+                ),
         },
         {
             id: 'created',
             header: LABELS.word.created.label,
             width: 'minmax(4.5rem,1fr)',
-            cell: (user) => (
-                <span className="text-xs text-muted-foreground" title={formatInstant(user.created_at)}>
-                    {formatRelative(user.created_at)}
-                </span>
-            ),
+            cell: (user) => <Instant className="text-xs text-muted-foreground" at={user.created_at} />,
         },
         {
             id: 'token',

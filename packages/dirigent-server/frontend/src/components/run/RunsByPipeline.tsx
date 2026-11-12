@@ -1,12 +1,13 @@
 import { useMemo, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 
+import { Instant } from '@/components/Instant'
 import { PipelineRef } from '@/components/PipelineRef'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import { countWords, dotOf, LISTING } from '@/lib/design-system'
-import { formatDuration, formatInstant, formatRelative } from '@/lib/format'
+import { formatDuration, formatInstant } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import {
     countsShown,
@@ -108,11 +109,7 @@ function summaryColumns(): DataColumn<PipelineRuns>[] {
             id: 'last',
             header: LABELS.runs.grouped.last_ran,
             width: 'minmax(4rem,1fr)',
-            cell: (row) => (
-                <span className="text-xs text-muted-foreground" title={formatInstant(row.latest.created_at)}>
-                    {formatRelative(row.latest.created_at)}
-                </span>
-            ),
+            cell: (row) => <Instant className="text-xs text-muted-foreground" at={row.latest.created_at} />,
         },
         {
             id: 'median',
