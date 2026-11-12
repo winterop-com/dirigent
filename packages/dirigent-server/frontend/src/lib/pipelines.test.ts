@@ -236,7 +236,7 @@ describe("the pipelines screen's two lists", () => {
         expect(failedStepOf(ROW)).toBeNull()
     })
 
-    test('draws a step with what it needs, and only the failed step in a state', () => {
+    test('draws a step with what it needs, its source and fan-out marks, its key and block on hover, and only the failed step in a state', () => {
         const shape = [
             {
                 code: 'read',
@@ -256,8 +256,24 @@ describe("the pipelines screen's two lists", () => {
             },
         ]
         expect(miniGraphSteps(shape, 'load')).toEqual([
-            { code: 'read', name: 'Read', needs: [], status: undefined },
-            { code: 'load', name: undefined, needs: ['read'], status: 'failed' },
+            {
+                code: 'read',
+                name: 'Read',
+                needs: [],
+                status: undefined,
+                fanOut: false,
+                source: true,
+                hint: 'read · webhook',
+            },
+            {
+                code: 'load',
+                name: undefined,
+                needs: ['read'],
+                status: 'failed',
+                fanOut: true,
+                source: false,
+                hint: 'load · sql.load',
+            },
         ])
         expect(miniGraphSteps(shape, null).every((step) => step.status === undefined)).toBe(true)
     })

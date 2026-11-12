@@ -329,7 +329,14 @@ function TroubledRow({ entry }: { entry: LookEntry }) {
             to={`/runs/${run.id}`}
             className="flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-border px-5 py-4 first:border-t-0 hover:bg-muted"
         >
-            <MiniGraph steps={steps} label={entry.name ?? run.pipeline} className="h-13 w-59 shrink-0" />
+            <MiniGraph
+                steps={steps}
+                scale="natural"
+                align="start"
+                reduce
+                label={entry.name ?? run.pipeline}
+                className="h-13 w-59 shrink-0"
+            />
             <div className="min-w-0 flex-[999_1_320px]">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
                     <span

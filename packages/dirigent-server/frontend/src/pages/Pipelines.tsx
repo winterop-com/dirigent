@@ -355,6 +355,9 @@ function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
         >
             <MiniGraph
                 steps={steps}
+                scale="natural"
+                align="start"
+                reduce
                 label={heading.title}
                 className={cn('w-59 shrink-0', dense ? 'h-10' : 'h-13')}
             />

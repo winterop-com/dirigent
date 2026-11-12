@@ -462,13 +462,19 @@ export function failedStepOf(row: Pick<PipelineOut, 'last_run'>): string | null 
     return last.status === 'failed' || last.status === 'completed_with_errors' ? last.failed_step : null
 }
 
-/** A pipeline's shape as its miniature draws it: each step with what it needs, the failed one in the failed state. */
+/**
+ * A pipeline's shape as its miniature draws it: each step with what it needs, a source and a fan-out
+ * marked, its key and block named on hover, the failed one in the failed state.
+ */
 export function miniGraphSteps(shape: readonly StepShape[], failed: string | null): MiniGraphStep[] {
     return shape.map((step) => ({
         code: step.code,
         name: step.name ?? undefined,
         needs: step.depends_on,
         status: step.code === failed ? 'failed' : undefined,
+        fanOut: step.fan_out,
+        source: step.kind === 'source',
+        hint: `${step.code} · ${step.block}`,
     }))
 }
 
