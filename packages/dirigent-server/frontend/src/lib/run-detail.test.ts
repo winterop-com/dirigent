@@ -1035,13 +1035,14 @@ describe('a step as the graph draws it', () => {
         expect(quiet?.progress).toBeUndefined()
     })
 
-    test('is a source with its glyph on a dashed box', () => {
+    test('is a source with its glyph on a dashed box, its line saying what it listens to', () => {
         const [source] = runSteps({ nodes: [], edges: [] }, [
             drawn({ node: node({ code: 'inbox', kind: 'source', block: 'webhook' }) }),
         ])
         expect(source?.source).toBe(true)
         expect(source?.icon).toBeDefined()
         expect(source?.kind).toBe('webhook')
+        expect(source?.lineHint).toBe('Listens to webhook')
     })
 
     test('says whether a reply was sent in place of its duration, and keeps the longer word', () => {
@@ -1059,7 +1060,7 @@ describe('a step as the graph draws it', () => {
         expect(reply?.reserve).toEqual(['reply · not sent'])
     })
 
-    test('carries a fan-out as its count and its chips, a retry keeping its widest room', () => {
+    test('carries a fan-out as its count and its chips, a retrying chip keeping its widest room', () => {
         const fan = drawn({
             node: node({ code: 'each', fan_out: true }),
             outcome: 'running',
@@ -1076,9 +1077,9 @@ describe('a step as the graph draws it', () => {
         expect(each?.count).toBe('2 items')
         expect(each?.items).toEqual([
             { id: 'i-1', label: 'oslo', status: 'succeeded' },
-            { id: 'i-2', label: 'bergen', status: 'running', note: 'try 2 in 8s' },
+            { id: 'i-2', label: 'bergen', status: 'running', note: 'try 2 in 8s', reserve: 'try 99 in 999s' },
         ])
-        expect(each?.reserve).toEqual(['bergen try 99 in 999s'])
+        expect(each?.reserve).toBeUndefined()
     })
 
     test('counts a fan-out too wide to name, and says what an unexpanded one waits for', () => {

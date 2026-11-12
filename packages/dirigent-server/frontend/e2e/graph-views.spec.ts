@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { ZOOM_STEP as RUN_ZOOM_STEP } from '@winterop-com/sokkel-ui-graph/layout'
+
 import { WHEEL_ZOOM_LIMIT } from '../src/lib/dag-layout.ts'
 
 import { LABELS } from '../src/lib/labels.ts'
@@ -189,7 +191,9 @@ test('every box is on the canvas on the first fit, and the canvas fills the room
     await everyNodeIsInView(page)
 })
 
-test('a plain wheel over the run canvas zooms it about the pointer, and the page stays', async ({ page }) => {
+test('a plain wheel over the run canvas zooms it one step about the pointer, and the page stays', async ({
+    page,
+}) => {
     // A short window with the terminal docked, so the page would have something to scroll.
     await page.setViewportSize({ width: 1440, height: 620 })
     await signIn(page)
@@ -212,15 +216,17 @@ test('a plain wheel over the run canvas zooms it about the pointer, and the page
     await expect.poll(() => transformOf(page)).not.toBe(drawn)
     const after = viewOf(await transformOf(page))
 
-    // The point under the pointer stays under it.
-    expect(after.zoom).toBeGreaterThan(before.zoom)
+    // One notch is one zoom button's step, and the point under the pointer stays under it.
+    expect(after.zoom / before.zoom).toBeCloseTo(RUN_ZOOM_STEP, 3)
     expect((at.x - after.x) / after.zoom).toBeCloseTo((at.x - before.x) / before.zoom, 1)
     expect((at.y - after.y) / after.zoom).toBeCloseTo((at.y - before.y) / before.zoom, 1)
     expect(await pageScroll(page)).toBe(0)
 
-    // A notch the other way zooms back out, and the page still stands where it was.
+    // A notch the other way steps back out, and the page still stands where it was. Wheel events
+    // closer together than the canvas's notch interval are one notch, so this one waits it out.
+    await page.waitForTimeout(250)
     await page.mouse.wheel(0, 100)
-    await expect.poll(async () => viewOf(await transformOf(page)).zoom).toBeLessThan(after.zoom)
+    await expect.poll(async () => viewOf(await transformOf(page)).zoom).toBeCloseTo(before.zoom, 3)
     await page.waitForTimeout(300)
     expect(await pageScroll(page)).toBe(0)
 })
@@ -337,6 +343,8 @@ test('a layout chosen for the view redraws the graph, and the next visit opens o
 
     await page.getByRole('button', { name: LABELS.shell.layout.menu }).first().click()
     await page.getByRole('menuitemradio', { name: LABELS.shell.layout.down }).click()
+    // The menu stays open for the next choice until it is dismissed.
+    await page.keyboard.press('Escape')
     await expect.poll(async () => JSON.stringify(await boxes(page))).not.toBe(JSON.stringify(opened))
     await canvasSettled(page)
     const down = await boxes(page)

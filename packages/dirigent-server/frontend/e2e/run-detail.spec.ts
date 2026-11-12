@@ -140,13 +140,13 @@ test("a run this instance does not have is refused in this interface's own words
     await expect(page.getByText(LABELS.refused.server.no_run.replace('{run_id}', RUN_ID))).toBeVisible()
 })
 
-test("a run's graph opens at a zoom that does not blow it up", async ({ page }) => {
+test("a run's graph opens with every step in view, at a zoom that does not blow it up", async ({ page }) => {
     await signIn(page)
     const runId = await runOfTheExample(page.request)
 
     await page.goto(`/runs/${runId}`)
     await expect(page.locator('.react-flow__node')).toHaveCount(STEPS.length)
-    await canvasSettled(page)
+    await everyNodeIsInView(page)
     expect(await graphZoom(page)).toBeLessThanOrEqual(1.25)
 })
 
@@ -410,7 +410,9 @@ test('choosing the last step keeps it on the canvas the opening panel narrows', 
     await everyNodeIsInView(page)
 })
 
-test('a view the reader moved is kept when the panel opens', async ({ page }) => {
+test('a view the reader moved is kept when the panel opens, with the chosen step brought onto it', async ({
+    page,
+}) => {
     await signIn(page)
     await applyDocument(page.request, IN_A_ROW)
     const runId = await startRun(page.request, 'three-in-a-row')
@@ -429,6 +431,7 @@ test('a view the reader moved is kept when the panel opens', async ({ page }) =>
     await page.locator('.react-flow__node[data-id="third"]').click()
     await expect(page.locator('[inert] aside')).toHaveCount(0)
     await canvasSettled(page)
+    await expect.poll(async () => nodeInView(page, 'third')).toBe(true)
     expect(await graphZoom(page), 'a moved view is not re-fitted').toBe(zoom)
 })
 

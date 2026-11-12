@@ -746,9 +746,10 @@ function countsLabel(counts: readonly ItemCount[]): string {
  *
  * A FAN-OUT IS THIS ONE BOX: its elements are chips inside it while there are few enough to name,
  * a counts line once there are not, and what it waits for before it has any. A retrying element's
- * countdown keeps the room of its widest, so the box does not move every second.
+ * chip keeps the room of its countdown's widest, so the box does not move every second.
  *
  * WHAT THE STEP IS DOING IS THE HINT, the box's tooltip, with the percentage a live wait reports.
+ * A source's second line says, pointed at, what it listens to.
  */
 export function runStepOf(view: StepView, needs: string[]): RunStep {
     const heading = headingOf(view.node)
@@ -774,7 +775,9 @@ export function runStepOf(view: StepView, needs: string[]): RunStep {
         ...(view.duration_ms === null || sent !== null ? {} : { duration_ms: view.duration_ms }),
         ...(view.progress === null ? {} : { progress: view.progress }),
         ...(hint === null ? {} : { hint }),
-        ...(source ? { source: true, icon: ICONS.source } : {}),
+        ...(source
+            ? { source: true, icon: ICONS.source, lineHint: LABELS.editor.canvas.listens_to(lineOf(kind)) }
+            : {}),
     }
     if (!view.node.fan_out) return reserve.length === 0 ? step : { ...step, reserve }
     if (view.items > 0) step.count = counted(view.items, LABELS.runs.node_items)(String(view.items))
@@ -782,14 +785,12 @@ export function runStepOf(view: StepView, needs: string[]): RunStep {
     if (strip.kind === 'empty') step.itemsSummary = emptyStripLabel(view)
     else if (strip.kind === 'counts') step.itemsSummary = countsLabel(strip.counts)
     else {
-        step.items = strip.items.map((item) => ({
-            id: item.id,
-            label: item.key,
-            status: item.status,
-            ...(item.retry === null ? {} : { note: item.retry }),
-        }))
-        for (const item of strip.items)
-            if (item.retry !== null) reserve.push(`${item.key} ${LABELS.runs.retry_try_in('99', '999')}`)
+        const widest = LABELS.runs.retry_try_in('99', '999')
+        step.items = strip.items.map((item) =>
+            item.retry === null
+                ? { id: item.id, label: item.key, status: item.status }
+                : { id: item.id, label: item.key, status: item.status, note: item.retry, reserve: widest },
+        )
     }
     return reserve.length === 0 ? step : { ...step, reserve }
 }

@@ -69,6 +69,8 @@
 @import '@winterop-com/sokkel-ui/sources/primitives/tabs.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/textarea.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/tooltip.css';
+@import '@winterop-com/sokkel-ui-graph/sources/GraphCanvas.css';
+@import '@winterop-com/sokkel-ui-graph/sources/GraphLayoutMenu.css';
 @import '@winterop-com/sokkel-ui-graph/sources/MiniGraph.css';
 @import '@winterop-com/sokkel-ui-graph/sources/RunGraph.css';
 @import '@winterop-com/sokkel-ui/themes/amber.css';
@@ -488,21 +490,6 @@
 }
 .react-flow.dg-graph .react-flow__edge.selected .react-flow__edge-path {
     stroke-width: 2.5;
-}
-
-/* WHAT TRAVELS AN EDGE OF THE RUN'S GRAPH. sokkel-ui-graph's edge names these two animations
-   and its lean sources do not carry them: dashes moving toward the reader, one dash period a
-   cycle, and one brighter handover settling into the stroke the edge rests in. */
-@keyframes graph-edge-flow {
-    to {
-        stroke-dashoffset: -11;
-    }
-}
-@keyframes graph-edge-pulse {
-    from {
-        stroke: var(--foreground);
-        stroke-width: 3;
-    }
 }
 
 /* ---------------------------------------------------------------------------
