@@ -9,7 +9,10 @@ import { StatusProvider } from '@winterop-com/sokkel-ui/StatusProvider'
 import { Toaster } from '@winterop-com/sokkel-ui/primitives/sonner'
 import { TooltipProvider } from '@winterop-com/sokkel-ui/primitives/tooltip'
 
+import { setElkEngine } from '@winterop-com/sokkel-ui-graph/layout'
+
 import App from '@/App'
+import { elkEngine } from '@/components/graph/elk'
 import { servedByInstance } from '@/lib/docs'
 import { FALLBACK, STATUSES } from '@/lib/status'
 import { registerDirigentFormats } from '@/lib/schema-formats'
@@ -34,6 +37,9 @@ window.addEventListener('vite:preloadError', (event) => {
 })
 
 registerDirigentFormats()
+
+// Every library graph lays out with the app's elk: its own chunk, one worker for the tab.
+setElkEngine(() => elkEngine())
 
 /** Wears the stored look on `<html>`, both theme axes, and follows it as it changes. */
 function Appearance() {
