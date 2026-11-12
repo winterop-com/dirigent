@@ -108,13 +108,15 @@ export const CRON_FIELD_WORDS: Partial<CronFieldWords> = {
 
 /**
  * What the cron box says on a saved schedule's panel: the dialog's words, and the schedule's zone
- * beside the label, since no picker above it names the zone there.
+ * beside the label, since no picker above it names the zone there. A paused clock says nothing in
+ * place of its runs: the chip beside the schedule's name is what says paused.
  */
 export const CRON_SAVED_WORDS: Partial<CronFieldWords> = {
     label: CRON_FIELD_WORDS.label,
     next: CRON_FIELD_WORDS.next,
     never: CRON_FIELD_WORDS.never,
     checking: CRON_FIELD_WORDS.checking,
+    paused: '',
 }
 
 /** One firing as every schedule clock draws it, on the wall clock of the schedule's zone. */

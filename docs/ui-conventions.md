@@ -497,9 +497,13 @@ from somewhere -- and a paused schedule that drew that instant would promise a f
 scheduler will not make. The panel lists no firings for it, and the chip beside its name is
 what says paused. A saved cron clock is drawn in the panel by the library's read-only
 `CronField`: the expression, its zone, its reading in words and the next firings the instance
-reads back, so the panel carries no separate clock, zone or next fact for it. A schedule with no next instant at all says nothing is scheduled
-rather than drawing a dash, and that reading comes first: a one-time schedule pauses itself
-once its moment has gone by, so the flag alone would have a spent clock read as a stopped one.
+reads back, so the panel carries no separate clock, zone or next fact for it. A paused cron
+clock is the same field marked `paused`: it asks the instance nothing, keeps the expression, its
+zone and its reading in words, and draws no firings, no heading over them and no words in their
+place, since the chip already says it. A schedule with no next instant at all says nothing is
+scheduled rather than drawing a dash, and that reading comes first: a one-time schedule pauses
+itself once its moment has gone by, so the flag alone would have a spent clock read as a stopped
+one.
 
 **A window is the exception, and it is read exactly.** Every other instant on a run answers how
 recent it is, so it wears the relative form; the interval a run covers is what a step filtered its

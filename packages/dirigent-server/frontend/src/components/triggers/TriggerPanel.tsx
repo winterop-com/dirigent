@@ -317,26 +317,22 @@ function CronClock({ cron, timezone, paused }: { cron: string; timezone: string;
         [reading],
     )
     return (
-        <div data-testid="schedule-clock">
-            <CronField
-                readOnly
-                value={cron}
-                onChange={ignore}
-                from={from}
-                count={paused ? 0 : FIRINGS_READ}
-                timeZone={timezone}
-                runs={paused ? [] : runs}
-                runsPending={reading.kind === 'pending'}
-                invalid={reading.kind === 'refused' ? reading.detail : undefined}
-                describe={readCron}
-                format={firingOf}
-                words={
-                    paused
-                        ? { ...CRON_SAVED_WORDS, never: readCron(cron) ?? '', next: () => '' }
-                        : CRON_SAVED_WORDS
-                }
-            />
-        </div>
+        <CronField
+            data-testid="schedule-clock"
+            readOnly
+            paused={paused}
+            value={cron}
+            onChange={ignore}
+            from={from}
+            count={FIRINGS_READ}
+            timeZone={timezone}
+            runs={runs}
+            runsPending={reading.kind === 'pending'}
+            invalid={reading.kind === 'refused' ? reading.detail : undefined}
+            describe={readCron}
+            format={firingOf}
+            words={CRON_SAVED_WORDS}
+        />
     )
 }
 
