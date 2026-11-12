@@ -2,7 +2,7 @@
  * What the block picker offers, as pure decisions over the catalog.
  *
  * The groups are the catalog's own: a block declares the group it belongs on, which is what
- * `lib/blocks` shelves the /blocks screen by. A sensor wears a badge saying so, and a search for
+ * `lib/blocks` shelves the /blocks screen by. A sensor wears a badge saying so and what it means, and a search for
  * `sensor` or `operator` finds every block of that kind. A step's key comes from the block chosen,
  * made unique against the document's own; it is renamed in the step's pane like anything else.
  */
@@ -11,6 +11,7 @@ import type { BlockGroup, PipelineBlock } from '@winterop-com/sokkel-ui-graph/bl
 import { byGroup, type BlockEntry } from '@/lib/blocks'
 import { ICONS } from '@/lib/icons'
 import { kindLabel } from '@/lib/kinds'
+import { LABELS } from '@/lib/labels'
 
 /** What a step key may be, which is `StepName` in dirigent_common. */
 const STEP_KEY = /^[a-z][a-z0-9_]*$/
@@ -33,7 +34,10 @@ export function pickerBlocks(blocks: readonly BlockEntry[]): PipelineBlock[] {
             description: entry.summary,
             group: entry.group,
             icon: ICONS.block,
-            badge: entry.kind === 'sensor' ? kindLabel(entry.kind) : undefined,
+            badge:
+                entry.kind === 'sensor'
+                    ? { label: kindLabel(entry.kind), title: LABELS.editor.canvas.sensor_title }
+                    : undefined,
             keywords: [entry.kind, `${entry.kind}s`],
         }))
 }

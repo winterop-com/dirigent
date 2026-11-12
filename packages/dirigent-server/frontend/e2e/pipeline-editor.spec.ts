@@ -100,7 +100,7 @@ const WINDOWED = {
 
 /** The picker's heading, and the name its search box answers to. */
 const ADD_STEP_LABEL = 'Add step'
-const SEARCH_LABEL = 'Search blocks by id, summary or kind'
+const SEARCH_LABEL = LABELS.editor.canvas.search_blocks
 
 /** The block picker, wherever it was opened from. */
 function picker(page: Page): Locator {

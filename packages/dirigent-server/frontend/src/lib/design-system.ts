@@ -226,9 +226,11 @@ export const EDITOR_GRAPH_WORDS: RunGraphProps['words'] = {
     empty: LABELS.editor.canvas.no_steps,
 }
 
-/** What the editor's block picker says: its search, a search that finds nothing, and a catalog still being read. */
+/** What the editor's block picker says: its search and list, a search that finds nothing, and a catalog still being read. */
 export const BLOCK_PICKER_WORDS: BlockPickerWords = {
     search: LABELS.editor.canvas.search_blocks,
+    placeholder: LABELS.editor.canvas.search_blocks_placeholder,
+    list: LABELS.editor.canvas.block_list,
     none: LABELS.editor.canvas.no_block_matches,
     nothing: LABELS.editor.canvas.no_block_matches,
     loading: LABELS.shell.reading,

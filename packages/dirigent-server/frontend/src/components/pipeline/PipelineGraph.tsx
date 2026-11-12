@@ -1,18 +1,20 @@
-import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 
 import { BlockPicker } from '@winterop-com/sokkel-ui-graph/BlockPicker'
 import type { GraphControls, GraphEditing } from '@winterop-com/sokkel-ui-graph/GraphCanvas'
 import { GraphOverlay, type GraphAnchor } from '@winterop-com/sokkel-ui-graph/GraphOverlay'
-import { GraphToolbarButton } from '@winterop-com/sokkel-ui-graph/GraphToolbar'
-import { PipelineGraph as StepCanvas, type PipelineStep } from '@winterop-com/sokkel-ui-graph/PipelineGraph'
+import { GraphControlButton } from '@winterop-com/sokkel-ui-graph/GraphViewButtons'
+import {
+    PipelineGraph as StepCanvas,
+    cyclePath,
+    type PipelineStep,
+} from '@winterop-com/sokkel-ui-graph/PipelineGraph'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
-import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
@@ -22,7 +24,7 @@ import { addStepAsked, relayoutAsked } from '@/lib/canvas-actions'
 import { forgetPlacements, heldLayout, loadPlacements, placeStep, type Placement } from '@/lib/canvas-layout'
 import { FIT_MIN_ZOOM, RANK_SPACING, WRAP_WIDTH } from '@/lib/dag-layout'
 import { BLOCK_PICKER_WORDS, EDITOR_GRAPH_WORDS } from '@/lib/design-system'
-import { cycleRefusal, cycleThrough } from '@/lib/graph-edits'
+import { cycleRefusal } from '@/lib/graph-edits'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import {
@@ -44,17 +46,18 @@ import { listeningLine, readPipelineSources, type SourceOut } from '@/lib/source
  *
  * Each box is titled by the step's name or key, its second line the key under a name and the
  * block it runs, or what a source listens to on a dashed box. A fan-out's count stands at the end
- * of the title line. A step whose block this instance does not publish wears `not installed` and
- * the issue saying so; one that differs from the version the instance holds wears `edited`. Every
- * box keeps room for either badge and for the issue mark, so an edit or the catalog landing
- * moves nothing.
+ * of the second line behind the stacked glyph, and pointing at it says what `for_each` does. A
+ * step whose block this instance does not publish wears `not installed` and the issue saying why,
+ * which gives its box the critical edge; one that differs from the version the instance holds
+ * wears `edited`. Every box keeps room for either badge and for the issue mark, so an edit or the
+ * catalog landing moves nothing.
  *
  * Given `editing`, the canvas reports every gesture and the document changes only through the
  * callbacks: an edge drawn or deleted is a `depends_on` entry, a box deleted is a step, a box let
  * go is a placement kept in `lib/canvas-layout`, and an edge that would close a loop is refused
  * while it is drawn. A connection let go over empty ground, a right-click on the ground, the
- * button beside the zoom, the empty canvas's button and the palette all open one block picker,
- * at the place they were asked from; a right-click on a box opens that box's own menu.
+ * button beside the zoom and the palette all open one block picker, at the place they were asked
+ * from; a right-click on a box opens that box's own menu.
  *
  * This module is loaded lazily: React Flow is a large part of what this screen costs, and elk is a
  * chunk of its own fetched when the canvas asks for geometry.
@@ -103,16 +106,7 @@ interface Picking {
     place: Placement | null
 }
 
-/** The provider is this component's own, so it can turn a point on the screen into one on the graph. */
-export function PipelineGraph(props: PipelineGraphProps) {
-    return (
-        <ReactFlowProvider>
-            <EditorGraph {...props} />
-        </ReactFlowProvider>
-    )
-}
-
-function EditorGraph({
+export function PipelineGraph({
     pipeline,
     document,
     blocks,
@@ -128,8 +122,6 @@ function EditorGraph({
     emptyAction,
     readOnly = false,
 }: PipelineGraphProps) {
-    const flow = useReactFlow()
-    const host = useRef<HTMLDivElement | null>(null)
     const layout = useStore(heldLayout)
     const controls = useRef<GraphControls | null>(null)
     const [picking, setPicking] = useState<Picking | null>(null)
@@ -142,13 +134,11 @@ function EditorGraph({
     // The palette's ask opens the picker over the canvas's middle, since a keyboard gesture has no place on the screen.
     const asked = useStore(addStepAsked)
     useEffect(() => {
-        if (asked === 0 || readOnly || host.current === null) return
-        const box = host.current.getBoundingClientRect()
-        const at = flow.screenToFlowPosition({ x: box.x + box.width / 2, y: box.y + box.height / 3 })
+        if (asked === 0 || readOnly) return
         // The palette's ask is the external event this synchronizes with; the picker opens once per bump.
         // oxlint-disable-next-line react/set-state-in-effect
-        setPicking({ at, after: null, place: null })
-    }, [asked, flow, readOnly])
+        setPicking({ at: 'center', after: null, place: null })
+    }, [asked, readOnly])
     const tidy = useStore(relayoutAsked)
     useEffect(() => {
         if (tidy === 0) return
@@ -192,13 +182,15 @@ function EditorGraph({
                     : fan.items === null
                       ? LABELS.editor.canvas.fan_out_each
                       : LABELS.editor.canvas.fan_out_count(String(fan.items)),
-                hint: !fan.fanOut
+                countIcon: fan.fanOut ? ICONS.fan_out : undefined,
+                countTitle: !fan.fanOut
                     ? undefined
                     : fan.items === null
                       ? LABELS.editor.canvas.fan_out_each_title
                       : LABELS.editor.canvas.fan_out_count_title(String(fan.items)),
+                countPlacement: 'line',
                 badge: missing
-                    ? { label: LABELS.editor.canvas.not_installed, tone: 'critical', title: notInstalled }
+                    ? { label: LABELS.editor.canvas.not_installed, tone: 'critical' }
                     : stepEdited(edits, name)
                       ? { label: LABELS.editor.canvas.edited }
                       : undefined,
@@ -236,25 +228,25 @@ function EditorGraph({
                 setPicking({ at: { x: at.x, y: at.y }, after: from, place: { x: at.x, y: at.y } })
             },
             canConnect: (from, to) => {
-                const cycle = cycleThrough(document, from, to)
-                return cycle === null ? null : cycleRefusal(from, to, cycle)
+                const cycle = cyclePath(steps, from, to)
+                return cycle === null ? null : cycleRefusal(from, to, [...cycle, to])
             },
             onRefuse: (_from, _to, reason) => {
                 onRefuse(reason)
             },
         }),
-        [document, onConnect, onDisconnect, onRefuse, onRemoveStep],
+        [steps, onConnect, onDisconnect, onRefuse, onRemoveStep],
     )
 
-    // The picker opens beside the button it was asked from.
+    // The picker opens beside the button it was asked from, and that button closes it again.
     const pickFrom = (event: MouseEvent<HTMLButtonElement>) => {
-        const box = event.currentTarget.getBoundingClientRect()
+        const button = event.currentTarget
         setOnNode(null)
-        setPicking({
-            at: flow.screenToFlowPosition({ x: box.left, y: box.bottom }),
-            after: null,
-            place: null,
-        })
+        setPicking((open) =>
+            open !== null && typeof open.at === 'object' && 'element' in open.at && open.at.element === button
+                ? null
+                : { at: { element: button }, after: null, place: null },
+        )
     }
 
     const close = () => {
@@ -262,7 +254,7 @@ function EditorGraph({
     }
 
     return (
-        <div ref={host} className="absolute inset-0">
+        <div className="absolute inset-0">
             <StepCanvas
                 steps={steps}
                 selected={selected}
@@ -279,28 +271,12 @@ function EditorGraph({
                 }}
                 extraControls={
                     readOnly ? undefined : (
-                        <GraphToolbarButton
-                            label={LABELS.editor.canvas.add_step}
-                            className="rounded-none"
-                            onClick={pickFrom}
-                        >
+                        <GraphControlButton label={LABELS.editor.canvas.add_step} onClick={pickFrom}>
                             <ICONS.create aria-hidden />
-                        </GraphToolbarButton>
+                        </GraphControlButton>
                     )
                 }
-                emptyAction={
-                    readOnly && emptyAction === undefined ? undefined : (
-                        <div className="flex items-center gap-2">
-                            {!readOnly && (
-                                <Button variant="outline" size="sm" onClick={pickFrom}>
-                                    <ICONS.create aria-hidden />
-                                    {LABELS.editor.canvas.add_step}
-                                </Button>
-                            )}
-                            {emptyAction}
-                        </div>
-                    )
-                }
+                emptyAction={emptyAction}
                 words={EDITOR_GRAPH_WORDS}
             >
                 {picking !== null && !readOnly && (
@@ -331,13 +307,10 @@ function EditorGraph({
                     step={onNode.step}
                     at={onNode.over}
                     onAddAfter={() => {
-                        const box = flow.getNode(onNode.step)
+                        const box = controls.current?.nodeBox(onNode.step) ?? null
                         setOnNode(null)
-                        if (box === undefined) return
-                        const place = {
-                            x: box.position.x + (box.width ?? 0) + RANK_SPACING,
-                            y: box.position.y,
-                        }
+                        if (box === null) return
+                        const place = { x: box.x + box.width + RANK_SPACING, y: box.y }
                         setPicking({ at: place, after: onNode.step, place })
                     }}
                     onRemove={() => {

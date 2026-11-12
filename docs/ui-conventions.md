@@ -2008,17 +2008,19 @@ Only past the cap does a word truncate, and it carries its whole value on hover.
 keeps room for both its badges and its issue mark before it wears any** (`reserveBadges` with
 `edited` and `not installed`, and `reserveIssue`), so the first keystroke into a step, or the
 catalog landing, moves no box. `not installed` is critical and wins over `edited`, which is
-neutral; a step whose block is not installed carries the same sentence as its issue, so the box
-takes the critical edge and its mark opens what is wrong. A box is filled in `--node`, edged
+neutral; the badge says the word and nothing more, and the sentence naming the block that is
+missing is the step's issue, so it is said once, the box takes the critical edge, and its mark opens
+what is wrong. A box is filled in `--node`, edged
 in a line a step above the canvas, and lifted by a shadow of its own; a status is the only colour
 on it -- a succeeded box takes the succeeded edge, a failed one the failed edge at 1.5px over a
 wash of the same hue, a skipped one a dashed edge on no fill -- and a chosen box is ringed in the
 foreground, which is no colour at all. A document's config is a map of any size and one
 truncated line of it crowds the box, so the step's own pane holds the whole of it. A step whose
 `for_each` fans it out says so in the neutral ink -- the count, or the word "each" where the list is
-an expression a run resolves -- because a status is the only colour a node carries: on the pipeline
-page's canvas on the second line behind a stacked glyph, in the editor at the end of the title
-line, where pointing at the box says what it means. On a run the state's dot stands at the end of
+an expression a run resolves -- because a status is the only colour a node carries: at the end of
+the second line behind a stacked glyph, on the pipeline page's canvas and in the editor alike (the
+library's `countIcon` and `countPlacement: 'line'`), and in the editor pointing at the count says
+what `for_each` does (`countTitle`). On a run the state's dot stands at the end of
 the title line, and the duration at the end of the second. **What a step is doing -- what it waits
 for, how a retry went, why it failed -- is the box's tooltip and the panel's, not a third line**,
 because a line nobody can read at 11px across 138 pixels says less than the colour of the box. A
@@ -2139,9 +2141,9 @@ the run's page the bar carries the same four and the window**: the canvas draws 
 own (`controls={false}`) and hands its zoom and fit out through `onControls`, and the head's
 `IconButton`s press them; the window's corner carries them the same way. **The editor is a stage,
 and carries the library's own cluster in its corner** -- zoom in, zoom out, fit -- with `Add step`
-after them in the same cluster (`extraControls`). An empty editor draws none of them; its words say
-it has no steps, and under them stand `Add step` and, on a document nothing has applied,
-`From a template…`{ .label } (`emptyAction`).
+after them in the same cluster (`extraControls`, a `GraphControlButton`). An empty editor draws no
+zoom buttons and keeps `Add step` in the corner; its words say it has no steps, and under them, on
+a document nothing has applied, stands `From a template…`{ .label } (`emptyAction`).
 
 ## The canvas edits
 
@@ -2168,11 +2170,12 @@ declares is what an apply refuses. Only one thing on the canvas is chosen at a t
 of the key would take two away. React Flow answers neither key while the focus is in a text box,
 so a Backspace meant for a config field is never a step.
 
-**A loop is refused before it is drawn, and the refusal names it.** `cycleThrough` walks the
-document's own edges and answers the shortest loop the new edge would close -- `parse → active →
+**A loop is refused before it is drawn, and the refusal names it.** sokkel-ui-graph's `cyclePath`
+walks the steps' own edges and answers the shortest loop the new edge would close -- `parse → active →
 report → parse` -- which the canvas says beside the pointer while the connection is drawn over the
 box it would close it on (`canConnect`), and the toast says again when it is let go there
-(`onRefuse`). `$apply` refuses the same document; a canvas
+(`onRefuse`). A prerequisite chosen in the step's pane is checked by `cycleThrough` in
+`lib/graph-edits`, which answers the same loop without loading the canvas. `$apply` refuses the same document; a canvas
 that accepted the gesture would have answered a pointer with a round trip.
 
 **elk places a graph; a reader places a box.** A dragged position is that pipeline's own, kept
@@ -2187,7 +2190,7 @@ afresh.
 `BlockPicker` held over the canvas in a `GraphOverlay`, which opens beside the place it was asked
 from, turns to the side with room, and stays inside the canvas. A right-click on empty ground opens
 it at the pointer -- on a document with no steps as much as on a drawn one -- `Add step` opens it
-beside itself, the palette opens it over the canvas's middle, and a connection let go over empty
+beside itself and closes it again, the palette opens it over the canvas's middle, and a connection let go over empty
 ground is "and then this": it opens where it was dropped, a dashed line runs to it from the step it
 came from, its heading says which step the new one will wait for, and the step lands there. A
 right-click on a box opens that box's own menu instead: one more step after this one, which is the
@@ -2198,8 +2201,9 @@ it.
 are listed under the groups they themselves declare, which is what the Blocks screen shelves by, so
 the picker invents no filing of its own and `map.jq` and `transform.jq` sit in one group. Each row
 is titled by the block's id with its summary under it. A sensor sits in its group like anything
-else and wears the badge saying so, because a badge on every row would say what the absence of one
-already says. Typing narrows the list to what matches, each group keeping its heading, every term
+else and wears the badge saying so, whose tooltip says what a sensor does, because a badge on every
+row would say what the absence of one already says. The search field is named `Search blocks`, its
+placeholder says what it searches, and the list is named `Blocks`. Typing narrows the list to what matches, each group keeping its heading, every term
 narrowing and `sensor` and `operator` matching by kind; the arrows walk the rows and the return key
 places one. The first Escape clears the box and the second closes the picker. While the catalog is
 still being read the picker says so, and the return key places nothing. `lib/add-step` maps the
