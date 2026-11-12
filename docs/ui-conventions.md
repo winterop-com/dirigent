@@ -473,10 +473,14 @@ plays elsewhere, and the step's optional `name` is the title drawn above it.
 ## One way to say a time
 
 **How long ago on screen, the exact instant on hover.** What somebody asks of a timestamp is how
-recent it is, so `formatRelative` is the visible text everywhere -- in a listing cell, in a panel
-fact, beside a version -- and the wall clock is the element's `title`. `components/Instant` is
-that pair written once, and a screen that spelled a wall clock out where the listing beside it
-said "2m ago" would be two answers to one question on two halves of the same screen.
+recent it is, so the relative reading is the visible text everywhere -- in a listing cell, in a
+panel fact, beside a version -- and the wall clock is what hover and focus show. `components/Instant`
+is that pair written once: sokkel-ui's `RelativeTime`, in tabular figures, keeping its own clock,
+given the zone `lib/times` is set to, English words in their narrow form (`3m ago`, `in 2h`) and a
+24-hour clock in its tooltip; a moment that is not there is a dash. Where the reading sits inside a
+sentence, `formatRelative` is the text and `formatInstant` the `title`. A screen that spelled a
+wall clock out where the listing beside it said "2m ago" would be two answers to one question on
+two halves of the same screen.
 
 **An exact instant is written largest field first**: `2026-09-02 11:36:05`, and ` UTC` after it
 when `lib/times` is set to that clock. `formatInstant` is the only place it is spelled, and it is
