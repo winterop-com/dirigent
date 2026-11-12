@@ -109,7 +109,7 @@ test('the pipelines listing carries the identity, the shape and the last run', a
     await expect(rowOf(page, RAN.title)).not.toContainText('v1')
     await expect(rowOf(page, IDLE.title)).toContainText(IDLE.code)
     await expect(rowOf(page, NAMELESS.code)).toBeVisible()
-    await expect(rowOf(page, RAN.title).locator('svg.mini-graph')).toBeVisible()
+    await expect(rowOf(page, RAN.title).getByRole('img', { name: RAN.title })).toBeVisible()
 
     // The one that ran says how it went; the one that has not run says nothing there at all.
     await expect(statusChip(rowOf(page, RAN.title), 'succeeded')).toBeVisible()

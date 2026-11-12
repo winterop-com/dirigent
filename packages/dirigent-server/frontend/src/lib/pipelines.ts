@@ -14,6 +14,8 @@
  * the same request, and cannot disagree about what a document means.
  */
 
+import type { MiniGraphStep } from '@winterop-com/sokkel-ui-graph/MiniGraph'
+
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
 import { titleOf } from '@/lib/identity'
 import { counted, type Counted, LABELS } from '@/lib/labels'
@@ -458,6 +460,16 @@ export function failedStepOf(row: Pick<PipelineOut, 'last_run'>): string | null 
     const last = row.last_run
     if (last === null) return null
     return last.status === 'failed' || last.status === 'completed_with_errors' ? last.failed_step : null
+}
+
+/** A pipeline's shape as its miniature draws it: each step with what it needs, the failed one in the failed state. */
+export function miniGraphSteps(shape: readonly StepShape[], failed: string | null): MiniGraphStep[] {
+    return shape.map((step) => ({
+        code: step.code,
+        name: step.name ?? undefined,
+        needs: step.depends_on,
+        status: step.code === failed ? 'failed' : undefined,
+    }))
 }
 
 /** The kinds of source a pipeline listens on, once each, which is what fires it besides a clock. */

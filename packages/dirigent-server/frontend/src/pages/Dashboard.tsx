@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { Link } from 'react-router'
 
@@ -7,7 +7,7 @@ import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
-import { MiniGraph } from '@/components/graph/MiniGraph'
+import { MiniGraph } from '@winterop-com/sokkel-ui-graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { HealthPanel } from '@/components/overview/HealthPanel'
 import { RunsChart } from '@/components/overview/RunsChart'
@@ -33,6 +33,7 @@ import {
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
+import { miniGraphSteps } from '@/lib/pipelines'
 import { DAY, needsALook, TILE_PAGE, withPipelines, type LookEntry } from '@/lib/overview'
 import { DASHBOARD_GROUP, registerActions } from '@/lib/palette'
 import { refreshSeconds } from '@/lib/refresh'
@@ -322,14 +323,13 @@ function PipelineTitle({ code, name }: { code: string; name: string | null }) {
 /** A run that needs a look: its pipeline's shape with the failed step filled, and what it said. */
 function TroubledRow({ entry }: { entry: LookEntry }) {
     const { run } = entry
+    const steps = useMemo(() => miniGraphSteps(entry.shape, entry.failedStep), [entry])
     return (
         <Link
             to={`/runs/${run.id}`}
             className="flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-border px-5 py-4 first:border-t-0 hover:bg-muted"
         >
-            <div className="flex h-13 w-59 shrink-0 items-center overflow-hidden">
-                <MiniGraph steps={entry.shape} failed={entry.failedStep} width={236} height={52} />
-            </div>
+            <MiniGraph steps={steps} label={entry.name ?? run.pipeline} className="h-13 w-59 shrink-0" />
             <div className="min-w-0 flex-[999_1_320px]">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
                     <span

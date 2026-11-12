@@ -68,6 +68,7 @@
 @import '@winterop-com/sokkel-ui/sources/primitives/tabs.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/textarea.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/tooltip.css';
+@import '@winterop-com/sokkel-ui-graph/sources/MiniGraph.css';
 @import '@winterop-com/sokkel-ui/themes/amber.css';
 @import '@winterop-com/sokkel-ui/themes/paper.css';
 @import '@winterop-com/sokkel-ui/themes/contrast.css';
@@ -612,30 +613,6 @@
     background-color: var(--canvas);
 }
 
-/* A PIPELINE'S SHAPE AT THE SCALE OF A ROW. A box at the miniature rung in the graph's own box
-   colours, a source dashed on no fill, a fan-out a second box behind, and the failed step filled
-   in the failed ink, which is the only colour a miniature carries. */
-.mini-graph .mini-edge {
-    fill: none;
-    stroke: var(--graph-edge);
-    stroke-width: 1.2;
-    stroke-linejoin: round;
-    stroke-linecap: round;
-}
-.mini-graph .mini-box {
-    fill: var(--node);
-    stroke: var(--node-line);
-    stroke-width: 1;
-    rx: var(--radius-mini);
-}
-.mini-graph .mini-box[data-source] {
-    fill: none;
-    stroke-dasharray: 2 1.5;
-}
-.mini-graph .mini-box[data-failed] {
-    fill: var(--status-failed-ink);
-    stroke: var(--status-failed-ink);
-}
 /* A node's title. Every other word on the box takes the size the box sets. */
 .step-node-title {
     font-weight: 500;

@@ -10,7 +10,7 @@ import { shutWith } from '@/lib/design-system'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Section } from '@winterop-com/sokkel-ui/Section'
-import { MiniGraph } from '@/components/graph/MiniGraph'
+import { MiniGraph } from '@winterop-com/sokkel-ui-graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageState } from '@/components/PageState'
@@ -28,6 +28,7 @@ import {
     emptyNote,
     failedStepOf,
     importanceMark,
+    miniGraphSteps,
     readAllPipelines,
     readTagsOffered,
     retirement,
@@ -312,6 +313,7 @@ function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
     const retired = retirement(row)
     const mark = importanceMark(row.importance)
     const sources = sourceKinds(row)
+    const steps = useMemo(() => miniGraphSteps(row.shape, failedStepOf(row)), [row])
     const sentence = row.description === null ? null : oneLine(row.description)
     const facts = (
         <div className={cn('flex flex-wrap items-center gap-x-3.5 gap-y-2', !dense && 'mt-2.5')}>
@@ -351,14 +353,11 @@ function PipelineRow({ row, dense }: { row: PipelineOut; dense: boolean }) {
             )}
             data-testid="pipeline-row"
         >
-            <div className={cn('flex w-59 shrink-0 items-center overflow-hidden', dense ? 'h-10' : 'h-13')}>
-                <MiniGraph
-                    steps={row.shape}
-                    failed={failedStepOf(row)}
-                    width={236}
-                    height={dense ? 40 : 52}
-                />
-            </div>
+            <MiniGraph
+                steps={steps}
+                label={heading.title}
+                className={cn('w-59 shrink-0', dense ? 'h-10' : 'h-13')}
+            />
             <div className="min-w-0 flex-[999_1_320px]">
                 <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
                     <span
