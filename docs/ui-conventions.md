@@ -2111,11 +2111,13 @@ Seventeen steps in one left-to-right row is three thousand pixels of canvas, and
 by putting a node's text under six pixels. Past `WRAP_WIDTH` -- which `rankDepth` measures a shape
 against before elk sees it -- elk is asked to cut the layering into chunks and stack them: the
 ranks still read left to right, and the height nothing was using carries the rest. The run's graph
-is wrapped to its canvas (`wrapToCanvas`): the cut is the width the canvas holds at the least
-fit zoom, never wider than the same 1120px, handed as `wrapWidth`. The library wraps only when
-elk's own unwrapped layout is wider than that cut -- not on its rank estimate, which runs wider
-than elk -- and then takes the widest layout whose rows fit it, in the window as on the page. A row still wider than the canvas hangs
-off it at the floor and is panned.
+is wrapped to its canvas (`wrapToCanvas`): the room is the canvas's width and height at the lower
+of `fitMinZoom` and `tallFit`, and no row is wider than the same 1120px, handed as `wrapWidth`. A
+graph whose own elk layout, edge bends counted, fits across that room stays one row; otherwise elk
+lays it out once in the room's shape, and the library keeps whichever of the whole graph and the
+cut fits the room at the larger zoom, so a cut that only adds height is not drawn. That holds in
+the window as on the page. A row still wider than the canvas hangs off it at the floor and is
+panned.
 
 **A zoom press is one step, and the fit button is the fit every other fit is.** React Flow's own
 step by a fixed twenty percent, which on a graph read at half size is four presses to nothing. On
