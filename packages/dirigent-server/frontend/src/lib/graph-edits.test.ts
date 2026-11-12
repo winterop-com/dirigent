@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 
 import type { JsonMap } from '@/lib/api'
-import { cycleRefusal, cycleThrough, withEdge, withoutEdge, withoutStep } from '@/lib/graph-edits'
+import { cycleRefusal, stepNeeds, withEdge, withoutEdge, withoutStep } from '@/lib/graph-edits'
 import {
     changeDocument,
     dependsOn,
@@ -34,23 +34,29 @@ function copy(document: JsonMap): JsonMap {
 }
 
 describe('the loop an edge would close', () => {
+    /** The loop the refusal names, or null when the edge is not refused. */
+    function loop(document: JsonMap, from: string, to: string): string | null {
+        const said = cycleRefusal(stepNeeds(document), from, to)
+        return said === null ? null : said.slice(said.lastIndexOf(', ') + 2)
+    }
+
     test('is nothing for an edge that only adds a step to the chain', () => {
-        expect(cycleThrough(CHAIN, 'parse', 'report')).toBeNull()
+        expect(loop(CHAIN, 'parse', 'report')).toBeNull()
     })
 
     test('is the step itself for a step made to wait for itself', () => {
-        expect(cycleThrough(CHAIN, 'parse', 'parse')).toEqual(['parse', 'parse'])
+        expect(loop(CHAIN, 'parse', 'parse')).toBe('parse → parse')
     })
 
     test('is the pair for an edge drawn back the way it came', () => {
         // parse already feeds active, so active feeding parse closes the shortest loop there is.
-        expect(cycleThrough(CHAIN, 'active', 'parse')).toEqual(['parse', 'active', 'parse'])
+        expect(loop(CHAIN, 'active', 'parse')).toBe('parse → active → parse')
     })
 
     test('is the whole chain for a loop closed through steps in between', () => {
         // REVERT-PROOF: a detector that only looked at the step's own `depends_on` would let
         // report feed parse, and the apply would then refuse a document the canvas accepted.
-        expect(cycleThrough(CHAIN, 'report', 'parse')).toEqual(['parse', 'active', 'report', 'parse'])
+        expect(loop(CHAIN, 'report', 'parse')).toBe('parse → active → report → parse')
     })
 
     test('is the shortest loop, because a message naming forty steps names none of them', () => {
@@ -62,19 +68,17 @@ describe('the loop an edge would close', () => {
                 d: { block: 'x', depends_on: ['a', 'c'] },
             },
         }
-        expect(cycleThrough(diamond, 'd', 'a')).toEqual(['a', 'd', 'a'])
+        expect(loop(diamond, 'd', 'a')).toBe('a → d → a')
     })
 
     test('is named in the refusal, so the reader is told which steps close it', () => {
-        const cycle = cycleThrough(CHAIN, 'report', 'parse')
-        expect(cycle).not.toBeNull()
-        expect(cycleRefusal('report', 'parse', cycle as string[])).toBe(
+        expect(cycleRefusal(stepNeeds(CHAIN), 'report', 'parse')).toBe(
             'parse cannot wait for report: that closes a loop, parse → active → report → parse',
         )
     })
 
     test('is nothing in a document with no edges at all', () => {
-        expect(cycleThrough(APART, 'fetch', 'report')).toBeNull()
+        expect(loop(APART, 'fetch', 'report')).toBeNull()
     })
 })
 

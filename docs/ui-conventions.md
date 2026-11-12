@@ -896,8 +896,8 @@ opens on, the least zoom a fit goes to and the width a graph wraps at.
 **The editor's graph is sokkel-ui-graph's `PipelineGraph` with `editing`, handed data and
 callbacks only**: one `PipelineStep` per step of the stored document as edited -- its title by the
 quartet's rule, the block it runs (or what a source listens to) as its kind, a fan-out's count,
-`edited` or `not installed` as its badge, and what `lib/requirements` says it lacks as its issues
--- and every gesture ends in the same document mutations the step's pane makes. **The pipeline
+`edited` or `not installed` as its badge, the latter naming on pointing the block
+`lib/requirements` says is missing -- and every gesture ends in the same document mutations the step's pane makes. **The pipeline
 page's graph is the same `PipelineGraph`, handed data and nothing else**: `shapeSteps` in
 `lib/pipelines` reduces the current version's shape to one `PipelineStep` per step -- its title by
 the quartet's rule, its block as its kind, what it depends on, a source's glyph and what it
@@ -1582,8 +1582,8 @@ wide -- so a listing's bar is a finger tall throughout. `index.css`
 grows the rest against the generated primitives' slots: a tab, a menu's or a tooltip's trigger
 not drawn through a `Button`, a command input, menu, command and combobox rows, and
 `control-link`, which is what a link drawn as a control wears: a drawer entry, a chip on a
-header strip, a row that navigates. The canvas's zoom cluster and the window's
-`GraphViewButtons` are sized there as well, being the graph library's buttons rather than ours. A menu opened at a point rather than under a
+header strip, a row that navigates. The canvas's zoom cluster and every
+`GraphViewButtons`, in a graph panel's bar and in the window's corner, are sized there as well, being the graph library's buttons rather than ours. A menu opened at a point rather than under a
 control -- the canvas's right-click menus -- anchors a zero-sized trigger at the cursor, and
 `data-menu-anchor` keeps the rule off that one, because nothing draws it and no finger lands on
 it. A bare status dot is its own tooltip's trigger and is not grown: it keeps its own `dot` slot
@@ -2007,12 +2007,11 @@ canvas of its own, in the loaded font, read off the characters until the faces h
 every glyph, mark, count and dot that stands on that line, and elk is handed the widest plus the
 box's chrome, between a floor of 96px and a cap of 280px: sokkel-ui-graph's `graphNodeSize`, on
 every canvas. Only past the cap does a word truncate, and it carries its whole value on hover. **The editor's box
-keeps room for both its badges and its issue mark before it wears any** (`reserveBadges` with
-`edited` and `not installed`, and `reserveIssue`), so the first keystroke into a step, or the
-catalog landing, moves no box. `not installed` is critical and wins over `edited`, which is
-neutral; the badge says the word and nothing more, and the sentence naming the block that is
-missing is the step's issue, so it is said once, the box takes the critical edge, and its mark opens
-what is wrong. A box is filled in `--node`, edged
+keeps room for both its badges and an issue mark before it wears any** (`reserveBadges` with
+`edited` and `not installed`, and `reserveIssue`), so the first keystroke into a step, or the catalog landing, moves no box.
+`not installed` is critical and wins over `edited`, which is neutral; the critical badge gives
+the box the critical edge, the badge says the word, and pointing at it says the sentence naming
+the block that is missing, so it is said once and the box carries no issue mark repeating it. A box is filled in `--node`, edged
 in a line a step above the canvas, and lifted by a shadow of its own; a status is the only colour
 on it -- a succeeded box takes the succeeded edge, a failed one the failed edge at 1.5px over a
 wash of the same hue, a skipped one a dashed edge on no fill -- and a chosen box is ringed in the
@@ -2020,8 +2019,8 @@ foreground, which is no colour at all. A document's config is a map of any size 
 truncated line of it crowds the box, so the step's own pane holds the whole of it. A step whose
 `for_each` fans it out says so in the neutral ink, because a status is the only colour a node
 carries: a stacked glyph (`ICONS.fan_out`) and the count, or the word "each" where the list is an
-expression a run resolves, at the end of the title line -- sokkel-ui-graph's `countIcon` with
-`countPlacement` `title`, on the pipeline page's canvas and in the editor alike -- with what
+expression a run resolves, at the end of the second line -- sokkel-ui-graph's `countIcon` with
+`countPlacement` `line`, on the pipeline page's canvas and in the editor alike -- with what
 `for_each` does on pointing at it (`countTitle`) and nowhere else. On a run the state's dot stands at the end of
 the title line, and the duration at the end of the second. **What a step is doing -- what it waits
 for, how a retry went, why it failed -- is the box's tooltip and the panel's, not a third line**,
@@ -2094,7 +2093,9 @@ window is chosen on the page -- the address and the panel follow it -- and the w
 until it is dismissed.
 
 Every canvas opens with the whole DAG in view: `fitView` with padding, held between two bounds --
-sokkel-ui-graph's on every canvas (padding 0.12, and each graph hands it `fitMinZoom` 0.8). The
+sokkel-ui-graph's on every canvas (padding 0.12, and each graph hands it `fitMinZoom` 0.8). A
+frame sized to its drawing, the pipeline page's, keeps the 0.12 across and a fixed ground above
+and below, 20px each, rather than a share of a tall drawing's height. The
 pipeline page's and a run's hand it `narrowFit` as well, so their floor is 0.8 on a canvas 560px
 wide or wider; the editor's hands it `narrowFit={false}`, so its floor is 0.8 at every width.
 **On the pipeline page's or a run's canvas narrower than 560px -- a phone -- a fit goes under that
@@ -2145,10 +2146,11 @@ every canvas the library's step (1.4) is one press either way, and the fit butto
 A canvas with nothing on it has nothing to zoom, so it draws none of them. **On the pipeline's page
 and the run's they stand in the graph panel's bar** -- zoom in, zoom out, fit, layout, then the
 window -- rather than over a drawing: the canvas draws no buttons of its
-own (`controls={false}`) and hands its zoom and fit out through `onControls`, and the head's
-`IconButton`s press them, their tooltips saying how else the canvas zooms there. The window's
-corner carries the same four in the same order as sokkel-ui-graph's flush cluster,
-`GraphViewButtons`, with the layout menu's trigger a `GraphControlButton` in it. **The editor is a
+own (`controls={false}`) and hands its zoom and fit out through `onControls`, and the bar's
+sokkel-ui-graph flush cluster, `GraphViewButtons`, presses them, the zoom buttons' tooltips
+saying how else the canvas zooms there (`zoomInHint`, `zoomOutHint`), with the layout menu's
+trigger a `GraphControlButton` in it. The window's corner carries the same cluster, the same
+four in the same order, its tooltips saying the buttons' names. **The editor is a
 stage, and carries the library's own cluster in its corner** -- zoom in, zoom out, fit -- with
 `Add step` after them in the same cluster (`extraControls`, a `GraphControlButton`). An empty
 editor draws no zoom buttons and keeps `Add step` in the corner; its words say it has no steps, and
@@ -2183,8 +2185,9 @@ so a Backspace meant for a config field is never a step.
 walks the steps' own edges and answers the shortest loop the new edge would close -- `parse → active →
 report → parse` -- which the canvas says beside the pointer while the connection is drawn over the
 box it would close it on (`canConnect`), and the toast says again when it is let go there
-(`onRefuse`). A prerequisite chosen in the step's pane is checked by `cycleThrough` in
-`lib/graph-edits`, which answers the same loop without loading the canvas. `$apply` refuses the same document; a canvas
+(`onRefuse`). A prerequisite chosen in the step's pane is checked against the same `cyclePath`,
+from `sokkel-ui-graph/cycles`, which loads none of the canvas, and `cycleRefusal` in
+`lib/graph-edits` says both refusals in one sentence. `$apply` refuses the same document; a canvas
 that accepted the gesture would have answered a pointer with a round trip.
 
 **elk places a graph; a reader places a box.** A dragged position is that pipeline's own, kept
@@ -2210,8 +2213,10 @@ it.
 are listed under the groups they themselves declare, which is what the Blocks screen shelves by, so
 the picker invents no filing of its own and `map.jq` and `transform.jq` sit in one group. Each row
 is titled by the block's id with its summary under it. A sensor sits in its group like anything
-else and wears the badge saying so, whose tooltip says what a sensor does, because a badge on every
-row would say what the absence of one already says. The search field is named `Search blocks`, its
+else and wears the badge saying so, in the chart hue nearest the sensor kind's (`kindHue` in
+`lib/kinds`), whose tooltip says what a sensor does, because a badge on every
+row would say what the absence of one already says. The picker is the library's `lg` width, so
+the search field is wide enough for its placeholder; it is named `Search blocks`, its
 placeholder says what it searches, and the list is named `Blocks`. Typing narrows the list to what matches, each group keeping its heading, every term
 narrowing and `sensor` and `operator` matching by kind; the arrows walk the rows and the return key
 places one. The first Escape clears the box and the second closes the picker. While the catalog is

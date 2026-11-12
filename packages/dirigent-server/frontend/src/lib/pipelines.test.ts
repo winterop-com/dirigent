@@ -318,7 +318,7 @@ describe("the pipelines screen's two lists", () => {
                 count: LABELS.editor.canvas.fan_out_each,
                 countIcon: ICONS.fan_out,
                 countTitle: LABELS.editor.canvas.fan_out_each_title,
-                countPlacement: 'title',
+                countPlacement: 'line',
             },
         ])
     })

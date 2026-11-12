@@ -393,6 +393,10 @@ test('the graph opens in a window, where the wheel zooms and a box chosen is cho
 
     await window.locator('.react-flow__node').getByText('jobs', { exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`/runs/${run}/jobs$`))
+    // Escape is pressed once the box is seen chosen in the window, as a person would press it.
+    await expect(
+        window.locator('.react-flow__node[data-id="jobs"] [data-slot="graph-node"]'),
+    ).toHaveAttribute('data-selected', 'true')
     await page.keyboard.press('Escape')
     await expect(window).toBeHidden()
     await expect(page.locator('.react-flow__node[data-id="jobs"] [data-slot="graph-node"]')).toHaveAttribute(

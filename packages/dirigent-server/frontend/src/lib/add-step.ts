@@ -10,7 +10,7 @@
 import type { BlockGroup, PipelineBlock } from '@winterop-com/sokkel-ui-graph/blocks'
 import { byGroup, type BlockEntry } from '@/lib/blocks'
 import { ICONS } from '@/lib/icons'
-import { kindLabel } from '@/lib/kinds'
+import { kindHue, kindLabel } from '@/lib/kinds'
 import { LABELS } from '@/lib/labels'
 
 /** What a step key may be, which is `StepName` in dirigent_common. */
@@ -23,7 +23,7 @@ export function pickerGroups(blocks: readonly BlockEntry[]): BlockGroup[] {
 
 /**
  * The catalog as the picker offers it, in id order: each block titled by its id with its summary
- * under it, a sensor badged, and its kind in the singular and the plural among the words a search
+ * under it, a sensor badged in its kind's hue, and its kind in the singular and the plural among the words a search
  * finds it by.
  */
 export function pickerBlocks(blocks: readonly BlockEntry[]): PipelineBlock[] {
@@ -36,7 +36,11 @@ export function pickerBlocks(blocks: readonly BlockEntry[]): PipelineBlock[] {
             icon: ICONS.block,
             badge:
                 entry.kind === 'sensor'
-                    ? { label: kindLabel(entry.kind), title: LABELS.editor.canvas.sensor_title }
+                    ? {
+                          label: kindLabel(entry.kind),
+                          hue: kindHue(entry.kind),
+                          title: LABELS.editor.canvas.sensor_title,
+                      }
                     : undefined,
             keywords: [entry.kind, `${entry.kind}s`],
         }))
