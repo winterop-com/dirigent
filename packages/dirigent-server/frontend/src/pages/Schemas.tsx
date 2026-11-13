@@ -6,7 +6,8 @@ import { PageHeader } from '@/components/ds/PageHeader'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { LISTING, shutWith } from '@/lib/design-system'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { NewSchema } from '@/components/schemas/NewSchema'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
@@ -95,7 +96,7 @@ export function Schemas() {
             />
             <PageState
                 loading={!state.read}
-                problem={state.problem}
+                {...refusedRead(state.problem)}
                 empty={rows.length === 0}
                 emptyMessage={LABELS.schemas.empty}
             >

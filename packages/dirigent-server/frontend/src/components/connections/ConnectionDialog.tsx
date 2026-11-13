@@ -8,8 +8,8 @@ import { Refusable } from '@/components/Refusable'
 import { ConnectionForm } from '@/components/connections/ConnectionForm'
 import { HealthSaid } from '@/components/connections/Health'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
 import { Question } from '@/components/Question'
-import { RefusalLine } from '@/components/Refusal'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
@@ -38,7 +38,7 @@ import { DIALOG_WORDS } from '@/lib/design-system'
 import { itemOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
-import { refusalOf } from '@/lib/refusal'
+import { refusalLine, refusalOf } from '@/lib/refusal'
 import { cn } from '@/lib/utils'
 
 /**
@@ -223,9 +223,8 @@ export function ConnectionDialog({
                     busyLabel: LABELS.action.delete.busy,
                 }}
                 words={DIALOG_WORDS}
-            >
-                {refused === null ? undefined : <RefusalLine problem={refused} />}
-            </ConfirmDialog>
+                status={refused === null ? undefined : <ProblemLine>{refusalLine(refused)}</ProblemLine>}
+            />
         </>
     )
 }

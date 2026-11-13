@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
 import { FilePreview } from '@winterop-com/sokkel-ui/FilePreview'
-import { RefusalLine } from '@/components/Refusal'
 import { useApiPrefix } from '@/hooks/use-api-prefix'
 import type { Problem } from '@/lib/api'
 import {
@@ -19,7 +19,7 @@ import { FILE_PREVIEW_WORDS } from '@/lib/design-system'
 import { formatBytes, shortenUri } from '@/lib/format'
 import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'
-import { refusalOf } from '@/lib/refusal'
+import { refusalLine, refusalOf } from '@/lib/refusal'
 import type { RunDetailState } from '@/lib/run-detail'
 import { runSettled } from '@/lib/status'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
@@ -209,7 +209,7 @@ function ArtifactPreview({ row, kind, name }: { row: ArtifactOut; kind: PreviewK
             {read === null ? (
                 <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
             ) : 'problem' in read ? (
-                <RefusalLine problem={read.problem} />
+                <ProblemLine>{refusalLine(read.problem)}</ProblemLine>
             ) : (
                 <FilePreview
                     name={name}

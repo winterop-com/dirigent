@@ -10,7 +10,8 @@ import { MiniGraph } from '@winterop-com/sokkel-ui-graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { HealthPanel } from '@/components/overview/HealthPanel'
 import { RunsChart } from '@/components/overview/RunsChart'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { RefreshControl } from '@/components/RefreshControl'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
@@ -162,8 +163,9 @@ export function Dashboard() {
             {(failed.problem !== null || messy.problem !== null || look.length > 0) && (
                 <Section title={LABELS.dashboard.troubled_runs} to="/runs" count={look.length}>
                     <PageState
+                        frame={false}
                         loading={!failed.read || !messy.read}
-                        problem={failed.problem ?? messy.problem}
+                        {...refusedRead(failed.problem ?? messy.problem)}
                         empty={false}
                     >
                         {look.map((entry) => (
@@ -178,7 +180,7 @@ export function Dashboard() {
                     {day.problem === null ? (
                         <RunsChart buckets={buckets} reading={!day.read} />
                     ) : (
-                        <PageState loading={false} problem={day.problem} empty={false}>
+                        <PageState loading={false} {...refusedRead(day.problem)} empty={false}>
                             {null}
                         </PageState>
                     )}

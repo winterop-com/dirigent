@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { useStore } from '@/hooks/use-store'
 import type { Problem } from '@/lib/api'
 import { authStore, isAdmin } from '@/lib/auth'
@@ -36,7 +37,7 @@ export function AdminOnly({ children }: { children: ReactNode }) {
     const auth = useStore(authStore)
     if (!isAdmin(auth)) {
         return (
-            <PageState loading={false} problem={ADMIN_REFUSAL} empty={false}>
+            <PageState loading={false} {...refusedRead(ADMIN_REFUSAL)} empty={false}>
                 {null}
             </PageState>
         )

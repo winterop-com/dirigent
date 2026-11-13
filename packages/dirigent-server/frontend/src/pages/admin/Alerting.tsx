@@ -14,7 +14,8 @@ import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { Section } from '@winterop-com/sokkel-ui/Section'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
@@ -283,27 +284,32 @@ function Alerting() {
                     }
                     flush
                 >
-                    <PageState
-                        bare
-                        loading={!rules.state.read}
-                        problem={rules.state.problem}
-                        empty={ruleRows.length === 0}
-                        emptyMessage={LABELS.alerting.rules_empty}
-                    >
-                        <DataTable
-                            {...SECTION_LISTING}
-                            rowHeight="auto"
-                            columns={RULE_COLUMNS}
-                            rows={ruleRows}
-                            rowKey={ruleId}
-                            rowTone={(rule) => (ruleLive(rule) ? undefined : 'muted')}
-                            hasMore={rules.state.next !== null}
-                            loading={rules.state.reading}
-                            onLoadMore={rules.more}
-                            onOpen={pressRule}
-                            opened={(rule) => rule.id === chosenRule}
-                        />
-                    </PageState>
+                    <DataTable
+                        {...SECTION_LISTING}
+                        rowHeight="auto"
+                        columns={RULE_COLUMNS}
+                        rows={ruleRows}
+                        rowKey={ruleId}
+                        rowTone={(rule) => (ruleLive(rule) ? undefined : 'muted')}
+                        hasMore={rules.state.next !== null}
+                        loading={!rules.state.read || rules.state.reading}
+                        onLoadMore={rules.more}
+                        onOpen={pressRule}
+                        opened={(rule) => rule.id === chosenRule}
+                        empty={
+                            rules.state.problem === null ? (
+                                LABELS.alerting.rules_empty
+                            ) : (
+                                <PageState
+                                    frame={false}
+                                    loading={false}
+                                    {...refusedRead(rules.state.problem)}
+                                >
+                                    {null}
+                                </PageState>
+                            )
+                        }
+                    />
                 </Section>
 
                 <Section
@@ -346,30 +352,35 @@ function Alerting() {
                     }
                     flush
                 >
-                    <PageState
-                        bare
-                        loading={!notifications.state.read}
-                        problem={notifications.state.problem}
-                        empty={notificationRows.length === 0}
-                        emptyMessage={
-                            narrowed(filters)
-                                ? LABELS.alerting.notifications_empty_filtered
-                                : LABELS.alerting.notifications_empty
+                    <DataTable
+                        {...SECTION_LISTING}
+                        rowHeight="auto"
+                        columns={NOTIFICATION_COLUMNS}
+                        rows={notificationRows}
+                        rowKey={notificationId}
+                        hasMore={notifications.state.next !== null}
+                        loading={!notifications.state.read || notifications.state.reading}
+                        onLoadMore={notifications.more}
+                        onOpen={pressNotification}
+                        opened={(row) => row.id === chosenNotification}
+                        empty={
+                            notifications.state.problem === null ? (
+                                narrowed(filters) ? (
+                                    LABELS.alerting.notifications_empty_filtered
+                                ) : (
+                                    LABELS.alerting.notifications_empty
+                                )
+                            ) : (
+                                <PageState
+                                    frame={false}
+                                    loading={false}
+                                    {...refusedRead(notifications.state.problem)}
+                                >
+                                    {null}
+                                </PageState>
+                            )
                         }
-                    >
-                        <DataTable
-                            {...SECTION_LISTING}
-                            rowHeight="auto"
-                            columns={NOTIFICATION_COLUMNS}
-                            rows={notificationRows}
-                            rowKey={notificationId}
-                            hasMore={notifications.state.next !== null}
-                            loading={notifications.state.reading}
-                            onLoadMore={notifications.more}
-                            onOpen={pressNotification}
-                            opened={(row) => row.id === chosenNotification}
-                        />
-                    </PageState>
+                    />
                 </Section>
             </div>
 

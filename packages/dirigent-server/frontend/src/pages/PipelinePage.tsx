@@ -10,7 +10,7 @@ import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { Instant } from '@/components/Instant'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { LatestReport, RecentRuns, RECENT_ROWS, REPORT_RUNS } from '@/components/pipeline/PipelineRuns'
 import { RunDialog } from '@/components/pipeline/RunDialog'
 import { ShapeGraph } from '@/components/pipeline/ShapeGraph'
@@ -31,7 +31,7 @@ import { EVERY_RUN, readRuns, readSettledRuns } from '@/lib/runs'
 import { connectionsNamed } from '@/lib/requirements'
 import { authLine, readPipelineSources, sampleBody, type SourceOut } from '@/lib/sources'
 import type { JsonMap } from '@/lib/api'
-import { sayRefusal } from '@/components/Refusal'
+import { refusedRead, sayRefusal } from '@/components/Refusal'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 import { chosenStep, pipelineStepPath } from '@/lib/step-address'
 import { clockOf, nextFireView, readSchedules, type ScheduleOut } from '@/lib/triggers'
@@ -111,7 +111,7 @@ export function PipelinePage() {
 
     if (pipeline === null) {
         return (
-            <PageState loading={detail.problem === null} problem={detail.problem} empty={false}>
+            <PageState loading={detail.problem === null} {...refusedRead(detail.problem)} empty={false}>
                 {null}
             </PageState>
         )
