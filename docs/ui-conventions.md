@@ -90,6 +90,9 @@ either, each happens once, and the login screen is outside the shell and asks fo
 
 **No chunk is over vite's default 500 kB, and the limit stays the default.** elk's worker is
 larger and is not a chunk at all, so the warning still means something when a chunk grows.
+React, react-dom, react-router and scheduler are one `react` chunk of their own, named in
+`vite.config.ts`: rolldown folds every chunk the entry already preloads into the entry once no
+cycle stops it, and the named group keeps that fold under the limit.
 
 **oxfmt owns whitespace, quotes, semicolons and the order of Tailwind classes**, at four spaces,
 single quotes outside JSX, no semicolons and a print width of 110. Nothing about that is worth an
