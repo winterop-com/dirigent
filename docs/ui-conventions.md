@@ -1582,9 +1582,12 @@ the same shape, filled. **The strip draws its verbs by their words alone** (`wor
 lists each with its mark and its full label. The editor's strip is one row at every width
 (`nowrap`): the document's code is cut short with the whole of it on hover, and the verbs fold.
 
-**A dialog is a sheet.** Full width, full height, its footer pinned to the foot and its body the
-part that scrolls. It is the generated dialog's own slots that are restyled in `index.css`, not
-a second dialog.
+**A form dialog is a sheet; a question fits.** sokkel-ui's `DialogShell` places a dialog on a
+phone itself, below its own `sm` at 640px rather than the shell's `md`, and nothing in
+`index.css` restyles the dialog's slots. A form keeps the default `phone="sheet"`: full width,
+full height, its footer held at the foot and its body the part that scrolls. A `ConfirmDialog` is `phone="fit"`: sized to its question inside the screen's margins,
+with its verbs under the sentence. The settings dialog is a sheet as well, and the command
+palette and the template picker are the palette's card, held near the top.
 
 **The right panel opens from the foot.** Below `lg` the shell draws it as a sheet sliding over
 the screen from the right, raised by its toggle; below `md` the shell's `panelStrip` puts the
