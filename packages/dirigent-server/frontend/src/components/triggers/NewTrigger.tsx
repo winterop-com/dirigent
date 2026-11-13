@@ -162,6 +162,7 @@ export function NewSchedule({
             width="lg"
             title={LABELS.triggers.schedule.new}
             count={<SchemaIssueCount form={params.form} />}
+            status={problem === null ? undefined : <Refusal problem={problem} />}
             confirm={{
                 label: LABELS.action.create.verb,
                 busy,
@@ -253,8 +254,6 @@ export function NewSchedule({
             )}
 
             <ParamsBox chosen={pipeline !== ''} schema={chosen.schema} params={params} />
-
-            {problem !== null && <Refusal problem={problem} />}
         </DialogShell>
     )
 }

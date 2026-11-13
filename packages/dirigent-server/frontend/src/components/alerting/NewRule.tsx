@@ -124,6 +124,7 @@ export function NewRule({
             width="xl"
             title={LABELS.alerting.new_rule.button}
             footer={LABELS.alerting.declare_only}
+            status={problem === null ? undefined : <Refusal problem={problem} />}
             confirm={{
                 label: LABELS.action.create.verb,
                 busy,
@@ -255,8 +256,6 @@ export function NewRule({
                     mono
                 />
             </div>
-
-            {problem !== null && <Refusal problem={problem} />}
         </DialogShell>
     )
 }
