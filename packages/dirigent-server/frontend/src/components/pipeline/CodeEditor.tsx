@@ -9,7 +9,7 @@ import {
 } from '@winterop-com/sokkel-ui/CodeEditor'
 import { JSON_SCHEMA_2020_12 } from '@winterop-com/sokkel-ui/json-schema'
 
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
 import { SCHEMA_CHECK_WORDS } from '@/lib/design-system'
 import { highlightLine } from '@/lib/preferences'

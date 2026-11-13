@@ -10,12 +10,12 @@
  *
  * THE RECHECK FOLDS IN AT THE HEAD. A pulsed listing reads page one again every few watched
  * seconds and prepends what is new; a hidden tab pulses not at all, and one that comes back
- * reads page one immediately. A beat that fails changes nothing and the next one asks again.
+ * reads page one at once if a beat fell due while it was hidden. A beat that fails changes nothing and the next one asks again.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
-import { useHeartbeat } from '@/hooks/use-heartbeat'
+import { useRefresh } from '@winterop-com/sokkel-ui/hooks/use-refresh'
 
 import { ApiError, type Page } from '@/lib/api'
 import { appended, noRows, noted, prepended, refused, started, type Paged } from '@/lib/paging'
@@ -132,7 +132,7 @@ export function usePaged<T>(
             },
         )
     }, [apply, idOf, read])
-    useHeartbeat(look, pulse ?? null)
+    useRefresh(look, { interval: pulse ?? 0 })
 
     const note = useCallback(() => {
         apply(noted)

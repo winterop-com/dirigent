@@ -8,20 +8,19 @@ import { RunTab } from '@/components/run/RunTab'
 import { RunTerminal } from '@/components/run/RunTerminal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { StepTab } from '@/components/run/StepTab'
-import { ScreenTrail } from '@/components/ScreenTrail'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { Section } from '@winterop-com/sokkel-ui/Section'
+import { ShellHead, useShellTrail } from '@winterop-com/sokkel-ui/Shell'
+import { useIsMobile } from '@winterop-com/sokkel-ui/hooks/use-mobile'
 import { connectionOf, RunFailure } from '@/components/run/RunFailure'
-import { PageHead } from '@/components/PageHead'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { READ_WORDS, refusedRead, sayRefusal } from '@/components/Refusal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
-import { useSmallScreen } from '@/hooks/use-small-screen'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { readConnections } from '@/lib/connections'
 import { shutWith, TOOLBAR_WORDS } from '@/lib/design-system'
 import { ICONS } from '@/lib/icons'
@@ -262,7 +261,7 @@ export function RunDetail() {
     }, [selected])
 
     // Closing the panel puts the step down, so the address says what the screen shows.
-    const small = useSmallScreen()
+    const small = useIsMobile()
     const standing = useStore(small ? panelSheet : panelOpen)
     const stood = useRef(standing)
     useEffect(() => {
@@ -458,6 +457,20 @@ export function RunDetail() {
         if (failedRun) openTerminal()
     }, [failedRun])
 
+    useShellTrail(
+        state === null
+            ? undefined
+            : [
+                  { label: LABELS.screen.runs.name, href: '/runs' },
+                  {
+                      label: document?.name ?? state.run.pipeline,
+                      href: `/pipelines/${state.run.pipeline}`,
+                      code: document === null || document.name === null,
+                  },
+              ],
+        { ends: 'ancestor' },
+    )
+
     if (state === null) {
         return (
             <PageState loading={problem === null} {...refusedRead(problem)} empty={false}>
@@ -492,143 +505,136 @@ export function RunDetail() {
     const trigger = startedBy(run, Object.values(state.attempts))
 
     // The page scrolls above the terminal, which stands at the foot of the content area. The graph
-    // takes whatever height the column has left over, and never less than its drawing needs.
+    // takes whatever height the column has left over, and never less than its drawing needs, so
+    // the body stands half the page's top inset under the head's rule.
     return (
-        <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex flex-1 flex-col pb-6">
-                <PageHead>
-                    <ScreenTrail
-                        trail={[
-                            { label: LABELS.screen.runs.name, href: '/runs' },
-                            {
-                                label: document?.name ?? run.pipeline,
-                                href: `/pipelines/${run.pipeline}`,
-                                code: document === null || document.name === null,
-                            },
-                        ]}
-                    />
-                    <LibraryPageHeader
-                        title={document?.name ?? run.pipeline}
-                        code={run.pipeline}
-                        meta={
-                            <span title={run.id}>
-                                <InlineCode
-                                    value={formatInstant(run.started_at ?? run.created_at)}
-                                    tone="muted"
-                                    bare
-                                    size="xs"
-                                    className="pointer-events-none"
-                                />
-                            </span>
-                        }
-                        lead={
-                            <IconButton
-                                size="icon-sm"
-                                label={TERMINAL_LABEL}
-                                pressed={terminal}
-                                onClick={toggleTerminal}
-                            >
-                                <ICONS.terminal aria-hidden />
-                            </IconButton>
-                        }
-                        items={
-                            // A settled run will never be paused, resumed or cancelled, so those
-                            // three are not drawn on one; Rerun stands alone.
-                            settled
-                                ? []
-                                : [
-                                      {
-                                          id: 'pause',
-                                          label: LABELS.action.pause,
-                                          icon: <ICONS.pause aria-hidden />,
-                                          ...shutWith(
-                                              !write.may || !verbs.pause.open,
-                                              write.why ?? verbs.pause.why,
-                                          ),
-                                          onSelect: pause,
-                                      },
-                                      {
-                                          id: 'resume',
-                                          label: LABELS.action.resume,
-                                          icon: <ICONS.resume aria-hidden />,
-                                          ...shutWith(
-                                              !write.may || !verbs.resume.open,
-                                              write.why ?? verbs.resume.why,
-                                          ),
-                                          onSelect: resume,
-                                      },
-                                      {
-                                          id: 'cancel',
-                                          label: LABELS.action.cancel_run,
-                                          icon: <ICONS.cancel aria-hidden />,
-                                          destructive: verbs.cancel.open,
-                                          ...shutWith(
-                                              !write.may || !verbs.cancel.open || cancel === null,
-                                              write.why ?? verbs.cancel.why,
-                                          ),
-                                          onSelect: () => {
-                                              cancel?.()
+        <div className="-mt-3 flex min-w-0 flex-1 flex-col">
+            <div className="flex flex-1 flex-col gap-3.5 pb-3">
+                <ShellHead>
+                    <div>
+                        <LibraryPageHeader
+                            title={document?.name ?? run.pipeline}
+                            code={run.pipeline}
+                            meta={
+                                <span title={run.id}>
+                                    <InlineCode
+                                        value={formatInstant(run.started_at ?? run.created_at)}
+                                        tone="muted"
+                                        bare
+                                        size="xs"
+                                        className="pointer-events-none"
+                                    />
+                                </span>
+                            }
+                            lead={
+                                <IconButton
+                                    size="icon-sm"
+                                    label={TERMINAL_LABEL}
+                                    pressed={terminal}
+                                    onClick={toggleTerminal}
+                                >
+                                    <ICONS.terminal aria-hidden />
+                                </IconButton>
+                            }
+                            items={
+                                // A settled run will never be paused, resumed or cancelled, so those
+                                // three are not drawn on one; Rerun stands alone.
+                                settled
+                                    ? []
+                                    : [
+                                          {
+                                              id: 'pause',
+                                              label: LABELS.action.pause,
+                                              icon: <ICONS.pause aria-hidden />,
+                                              ...shutWith(
+                                                  !write.may || !verbs.pause.open,
+                                                  write.why ?? verbs.pause.why,
+                                              ),
+                                              onSelect: pause,
                                           },
-                                      },
-                                  ]
-                        }
-                        primary={{
-                            id: 'rerun',
-                            variant: verbs.rerun.open ? 'default' : 'outline',
-                            label: LABELS.action.rerun,
-                            icon: <ICONS.rerun aria-hidden />,
-                            ...shutWith(
-                                !write.may || !verbs.rerun.open || rerun === null,
-                                write.why ?? verbs.rerun.why,
-                            ),
-                            onSelect: () => {
-                                rerun?.()
-                            },
-                        }}
-                        wordsOnly
-                        words={TOOLBAR_WORDS}
-                    />
+                                          {
+                                              id: 'resume',
+                                              label: LABELS.action.resume,
+                                              icon: <ICONS.resume aria-hidden />,
+                                              ...shutWith(
+                                                  !write.may || !verbs.resume.open,
+                                                  write.why ?? verbs.resume.why,
+                                              ),
+                                              onSelect: resume,
+                                          },
+                                          {
+                                              id: 'cancel',
+                                              label: LABELS.action.cancel_run,
+                                              icon: <ICONS.cancel aria-hidden />,
+                                              destructive: verbs.cancel.open,
+                                              ...shutWith(
+                                                  !write.may || !verbs.cancel.open || cancel === null,
+                                                  write.why ?? verbs.cancel.why,
+                                              ),
+                                              onSelect: () => {
+                                                  cancel?.()
+                                              },
+                                          },
+                                      ]
+                            }
+                            primary={{
+                                id: 'rerun',
+                                variant: verbs.rerun.open ? 'default' : 'outline',
+                                label: LABELS.action.rerun,
+                                icon: <ICONS.rerun aria-hidden />,
+                                ...shutWith(
+                                    !write.may || !verbs.rerun.open || rerun === null,
+                                    write.why ?? verbs.rerun.why,
+                                ),
+                                onSelect: () => {
+                                    rerun?.()
+                                },
+                            }}
+                            wordsOnly
+                            words={TOOLBAR_WORDS}
+                        />
 
-                    <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
-                        <StatusChip status={run.status} className="text-sm" />
-                        {failedAt !== null && troubled && (
-                            <span>
-                                {LABELS.runs.line.at}{' '}
-                                <InlineCode
-                                    value={failedAt}
-                                    className="font-medium"
-                                    tone="neutral"
-                                    bare
-                                    size="sm"
-                                />
-                            </span>
-                        )}
-                        {took !== null && (
-                            <span className="font-mono text-muted-foreground">{formatDuration(took)}</span>
-                        )}
-                        <span className="text-muted-foreground">{trigger}</span>
-                        {run.stored_bytes > 0 && (
-                            <span
-                                className="text-muted-foreground"
-                                title={LABELS.runs.line.stored(String(run.stored_bytes))}
-                            >
-                                {LABELS.runs.line.stored(formatBytes(run.stored_bytes))}
-                            </span>
-                        )}
-                        {priority !== null && (
-                            <span className={cn('text-xs', priority.className)}>{priority.label}</span>
-                        )}
-                        {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
+                        <div className="mt-4 flex flex-wrap items-center gap-x-4.5 gap-y-2 text-sm">
+                            <StatusChip status={run.status} className="text-sm" />
+                            {failedAt !== null && troubled && (
+                                <span>
+                                    {LABELS.runs.line.at}{' '}
+                                    <InlineCode
+                                        value={failedAt}
+                                        className="font-medium"
+                                        tone="neutral"
+                                        bare
+                                        size="sm"
+                                    />
+                                </span>
+                            )}
+                            {took !== null && (
+                                <span className="font-mono text-muted-foreground">
+                                    {formatDuration(took)}
+                                </span>
+                            )}
+                            <span className="text-muted-foreground">{trigger}</span>
+                            {run.stored_bytes > 0 && (
+                                <span
+                                    className="text-muted-foreground"
+                                    title={LABELS.runs.line.stored(String(run.stored_bytes))}
+                                >
+                                    {LABELS.runs.line.stored(formatBytes(run.stored_bytes))}
+                                </span>
+                            )}
+                            {priority !== null && (
+                                <span className={cn('text-xs', priority.className)}>{priority.label}</span>
+                            )}
+                            {waiting !== null && <span className="text-xs text-warning">{waiting}</span>}
+                        </div>
                     </div>
-                </PageHead>
+                </ShellHead>
 
                 {chosenAt.kind === 'unknown' && (
-                    <Callout tone="warning" className="mt-3.5">
-                        {LABELS.runs.no_such_step(chosenAt.code)}
-                    </Callout>
+                    <Callout tone="warning">{LABELS.runs.no_such_step(chosenAt.code)}</Callout>
                 )}
 
-                <div className="mt-3.5 flex flex-1 flex-col">
+                <div className="flex flex-1 flex-col">
                     {state.dag.nodes.length === 0 ? (
                         <Section title={LABELS.pipelines.page.graph} tone="graph" flush>
                             <p className="p-4 text-sm text-muted-foreground">{LABELS.runs.graph_empty}</p>
@@ -656,7 +662,7 @@ export function RunDetail() {
                 </div>
 
                 {troubled && (
-                    <div className="mt-5">
+                    <div className="mt-1.5">
                         <RunFailure
                             run={run}
                             step={failedAt}
@@ -675,7 +681,7 @@ export function RunDetail() {
                 )}
             </div>
             {terminal && (
-                <div className="sticky -bottom-12 -mb-12 flex flex-col bg-background pb-3">
+                <div className="sticky -bottom-10 -mb-10 flex flex-col bg-background pb-3">
                     <RunTerminal state={state} runId={id} step={selected} onSelectStep={readStep} />
                 </div>
             )}

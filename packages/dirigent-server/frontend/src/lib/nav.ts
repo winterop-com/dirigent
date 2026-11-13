@@ -237,3 +237,16 @@ export function entryAt(path: string): NavEntry | null {
         .toSorted((left, right) => right.path.length - left.path.length)
     return candidates[0] ?? null
 }
+
+/**
+ * The screen a path shows, which is what the scroller's place is kept under: a step chosen on a
+ * run or a pipeline, and a row chosen in the connections listing, are the screen they were chosen
+ * on, so choosing one leaves the page where it is.
+ */
+export function screenPath(pathname: string): string {
+    const parts = pathname.split('/').filter((part) => part !== '')
+    if (parts[0] === 'runs' && parts.length > 2) return `/runs/${parts[1]}`
+    if (parts[0] === 'pipelines' && parts.length > 2 && parts[2] !== 'edit') return `/pipelines/${parts[1]}`
+    if (parts[0] === 'connections' && parts.length > 1) return '/connections'
+    return pathname
+}

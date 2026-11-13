@@ -492,6 +492,11 @@ export function statusChip(scope: Page | Locator, status: string): Locator {
 }
 
 /** Any state's chip. */
+/** A screen's head, which the shell holds above its one scroller. */
+export function pageHead(page: Page): Locator {
+    return page.locator('[data-shell-head-rule]')
+}
+
 export function anyStatusChip(scope: Page | Locator): Locator {
     return scope.locator('span[data-status]')
 }

@@ -1,5 +1,7 @@
 import { LABELS } from '@/lib/labels'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
+
+import '@/lib/stored-prefix'
 
 /**
  * How often a watched screen quietly reads itself again.
@@ -19,28 +21,14 @@ export function refreshLabel(seconds: number | null): string {
     return LABELS.shell.cadence_minutes(String(seconds / 60))
 }
 
-const KEY = 'dirigent.refreshSeconds'
 const DEFAULT_SECONDS = 30
 
-function readStored(): number | null {
-    try {
-        const stored = localStorage.getItem(KEY)
-        if (stored === null) return DEFAULT_SECONDS
-        if (stored === 'off') return null
-        const seconds = Number(stored)
-        return REFRESH_CHOICES.includes(seconds) ? seconds : DEFAULT_SECONDS
-    } catch {
-        return DEFAULT_SECONDS
-    }
-}
-
-export const refreshSeconds = createStore<number | null>(readStored())
+/** The cadence kept between visits; one the control no longer offers reads as the default. */
+export const refreshSeconds = createStore<number | null>(DEFAULT_SECONDS, {
+    key: 'refreshSeconds',
+    check: (value) => REFRESH_CHOICES.includes(value as number | null),
+})
 
 export function setRefreshSeconds(seconds: number | null): void {
     refreshSeconds.set(seconds)
-    try {
-        localStorage.setItem(KEY, seconds === null ? 'off' : String(seconds))
-    } catch {
-        // Storage denied: the cadence holds for as long as this document is open.
-    }
 }

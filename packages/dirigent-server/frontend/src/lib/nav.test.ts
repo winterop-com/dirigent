@@ -1,7 +1,16 @@
 import { describe, expect, test } from 'vitest'
 
 import { LABELS } from '@/lib/labels'
-import { DASHBOARD_PATH, NAV, entriesFor, entryAt, marksOnlyItself, railGroups, sectionsFor } from '@/lib/nav'
+import {
+    DASHBOARD_PATH,
+    NAV,
+    entriesFor,
+    entryAt,
+    marksOnlyItself,
+    railGroups,
+    screenPath,
+    sectionsFor,
+} from '@/lib/nav'
 
 describe('the navigation', () => {
     test('sends a reader with no address of their own to a screen that exists', () => {
@@ -157,5 +166,21 @@ describe('the rail', () => {
             LABELS.screen.admin,
         ])
         expect(railGroups('viewer', '/').map((group) => group.id)).not.toContain('admin')
+    })
+})
+
+describe('the screen a path shows', () => {
+    test('is the run or the pipeline whatever step is chosen on it', () => {
+        expect(screenPath('/runs/r-1/fetch')).toBe('/runs/r-1')
+        expect(screenPath('/runs/r-1')).toBe('/runs/r-1')
+        expect(screenPath('/pipelines/daily/fetch')).toBe('/pipelines/daily')
+    })
+
+    test('is the connections listing whichever row is open', () => {
+        expect(screenPath('/connections/ops-db')).toBe('/connections')
+    })
+
+    test("is the editor apart from the pipeline's page", () => {
+        expect(screenPath('/pipelines/daily/edit')).toBe('/pipelines/daily/edit')
     })
 })

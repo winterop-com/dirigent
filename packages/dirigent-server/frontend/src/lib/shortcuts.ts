@@ -1,5 +1,5 @@
 /**
- * Every key this app answers, and the rules that decide when a press is one of them.
+ * Every key this app answers, as the shortcuts dialog lists them.
  *
  * KEYS ARE MATCHED BY THE CHARACTER THEY PRODUCE, NOT BY THE KEY THAT PRODUCED IT, and every
  * chord sits on a letter. On a Norwegian layout the bracket, brace, pipe and backslash keys all
@@ -7,10 +7,9 @@
  * can press. A letter is a letter on every layout, and `?` is tested as the character rather
  * than as Shift plus a physical key, because which physical key makes it moves with the layout.
  *
- * THE PRESS IS DECIDED HERE AND READ ELSEWHERE. These take a plain description of the press and
- * of whatever has focus, so the awkward half of a shortcut -- "not while somebody is typing",
- * "which modifier on which platform" -- is a pure function with a test rather than a condition
- * buried in an effect.
+ * The shell binds the rail's chord and the terminal's letter through sokkel-ui's `useShortcuts`,
+ * which decides "not while somebody is typing" and "which modifier on which platform"; this is
+ * the list the shortcuts dialog shows.
  */
 
 import { LABELS } from '@/lib/labels'
@@ -26,67 +25,6 @@ export const TERMINAL_KEY = 't'
 
 /** The character that puts the caret in the screen's search box. */
 export const SEARCH_KEY = '/'
-
-/** The tags a person types into. A press that lands in one of these is typing, not a shortcut. */
-export const TYPING_TAG_NAMES = ['INPUT', 'TEXTAREA', 'SELECT']
-
-/** One key press, reduced to what a shortcut has to know about it. */
-export interface KeyPress {
-    /** The character or named key the press produced -- `event.key`, verbatim. */
-    key: string
-    ctrlKey: boolean
-    metaKey: boolean
-    altKey: boolean
-}
-
-/** Whatever has focus, reduced to what a shortcut has to know about it. */
-export interface FocusedField {
-    /** The element's tag, upper case as the DOM gives it. */
-    tagName: string
-    /** True inside a rich-text region, where the browser claims plain letters. */
-    isContentEditable: boolean
-    /** True inside the code editor, whose focused element need not be a field at all. */
-    inEditor?: boolean
-}
-
-/** Whether something is being typed into, which a bare-character shortcut must never interrupt. */
-export function isTypingField(focused: FocusedField | null): boolean {
-    if (focused === null) return false
-    return (
-        TYPING_TAG_NAMES.includes(focused.tagName.toUpperCase()) ||
-        focused.isContentEditable ||
-        focused.inEditor === true
-    )
-}
-
-/**
- * Whether this press hides or shows the navigation rail.
- *
- * CMD ON APPLE KEYBOARDS AND CTRL EVERYWHERE ELSE, rather than either modifier. Ctrl+B on macOS
- * is the emacs-style "back one character" that every text field answers, and a binding that
- * swallowed it would take a caret movement away from every input in the app.
- */
-export function togglesRail(press: KeyPress, focused: FocusedField | null, apple: boolean): boolean {
-    if (press.key.toLowerCase() !== RAIL_KEY) return false
-    if (press.altKey) return false
-    if (apple ? !press.metaKey : !press.ctrlKey || press.metaKey) return false
-    return !(focused?.isContentEditable ?? false)
-}
-
-/**
- * Whether this press shows or hides the run terminal.
- *
- * A BARE LETTER, AND NO MODIFIER AT ALL. Every chord this app has is already spoken for, and
- * `t` is not: a modifier over it would be a third thing to remember for a drawer somebody opens
- * and closes while reading. Never while something is being typed into -- a `t` typed into the
- * drawer's own match box is a letter -- and never under a modifier, where it is the browser's
- * new tab and not this app's to take.
- */
-export function togglesTerminal(press: KeyPress, focused: FocusedField | null): boolean {
-    if (press.key.toLowerCase() !== TERMINAL_KEY) return false
-    if (press.ctrlKey || press.metaKey || press.altKey) return false
-    return !isTypingField(focused)
-}
 
 /** Whether this browser runs on an Apple keyboard, which decides how a chord is spelled. */
 export function applePlatform(userAgent: string): boolean {

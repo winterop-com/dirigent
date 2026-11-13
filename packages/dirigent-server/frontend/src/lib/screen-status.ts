@@ -11,7 +11,7 @@
 
 import { LABELS } from '@/lib/labels'
 import type { StreamState } from '@/lib/run-detail'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** How loudly the note is drawn: a live stream is not a warning and must not read as one. */
 export type StatusTone = 'live' | 'quiet' | 'warn'

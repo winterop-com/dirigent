@@ -17,7 +17,7 @@ import { refusedRead, sayRefusal } from '@/components/Refusal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import {
     checkConnection,
     connectionPath,

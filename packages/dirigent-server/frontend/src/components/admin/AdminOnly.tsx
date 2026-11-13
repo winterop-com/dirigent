@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { refusedRead } from '@/components/Refusal'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import type { Problem } from '@/lib/api'
 import { authStore, isAdmin } from '@/lib/auth'
 import { LABELS } from '@/lib/labels'

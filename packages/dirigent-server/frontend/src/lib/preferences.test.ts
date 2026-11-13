@@ -42,7 +42,7 @@ describe('the current-line preference', () => {
     test('is kept under a key of its own', async () => {
         stubStorage()
         const { HIGHLIGHT_LINE_KEY } = await reload()
-        expect(HIGHLIGHT_LINE_KEY).toBe('dirigent.highlightLine')
+        expect(HIGHLIGHT_LINE_KEY).toBe('highlightLine')
     })
 
     test('is off for a reader who has never asked for it', async () => {
@@ -63,9 +63,9 @@ describe('the current-line preference', () => {
         const { HIGHLIGHT_LINE_KEY, highlightLine, setHighlightLine } = await reload()
         setHighlightLine(true)
         expect(highlightLine.get()).toBe(true)
-        expect(held.get(HIGHLIGHT_LINE_KEY)).toBe('true')
+        expect(held.get(`dirigent.${HIGHLIGHT_LINE_KEY}`)).toBe('true')
         setHighlightLine(false)
-        expect(held.get(HIGHLIGHT_LINE_KEY)).toBe('false')
+        expect(held.get(`dirigent.${HIGHLIGHT_LINE_KEY}`)).toBe('false')
     })
 
     // An editor already on screen subscribes rather than remounting, so the change has to be
@@ -96,7 +96,7 @@ describe('the log-following preference', () => {
     test('opens following the tail unless somebody said otherwise', async () => {
         stubStorage()
         const { DEFAULT_FOLLOW_TAILS, FOLLOW_TAILS_KEY, followTails } = await reload()
-        expect(FOLLOW_TAILS_KEY).toBe('dirigent.followTails')
+        expect(FOLLOW_TAILS_KEY).toBe('followTails')
         expect(DEFAULT_FOLLOW_TAILS).toBe(true)
         expect(followTails.get()).toBe(true)
     })
@@ -111,6 +111,6 @@ describe('the log-following preference', () => {
         const held = stubStorage()
         const { FOLLOW_TAILS_KEY, setFollowTails } = await reload()
         setFollowTails(false)
-        expect(held.get(FOLLOW_TAILS_KEY)).toBe('false')
+        expect(held.get(`dirigent.${FOLLOW_TAILS_KEY}`)).toBe('false')
     })
 })

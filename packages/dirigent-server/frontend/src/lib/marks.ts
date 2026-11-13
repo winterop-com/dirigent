@@ -12,7 +12,7 @@
 
 import { apiJson } from '@/lib/api'
 import { NO_MARKS, type KindMarks } from '@/lib/glyphs'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** The host's merged view of every contribution. `Catalog`, of which one member is read here. */
 interface Catalog {

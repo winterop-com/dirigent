@@ -1,58 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { applePlatform, isTypingField, shortcuts, togglesRail, togglesTerminal } from '@/lib/shortcuts'
-
-function press(
-    key: string,
-    modifiers: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean }> = {},
-) {
-    return { key, ctrlKey: false, metaKey: false, altKey: false, ...modifiers }
-}
-
-const TEXT_BOX = { tagName: 'INPUT', isContentEditable: false }
-const PROSE = { tagName: 'DIV', isContentEditable: true }
-
-describe('the rail chord', () => {
-    test('is Cmd on an Apple keyboard and Ctrl everywhere else', () => {
-        expect(togglesRail(press('b', { metaKey: true }), null, true)).toBe(true)
-        expect(togglesRail(press('b', { ctrlKey: true }), null, false)).toBe(true)
-    })
-
-    test('leaves Ctrl+B alone on macOS, where every text field answers it', () => {
-        expect(togglesRail(press('b', { ctrlKey: true }), null, true)).toBe(false)
-    })
-
-    test('fires while a box has focus, because that is when clearing the screen is worth most', () => {
-        expect(togglesRail(press('b', { metaKey: true }), TEXT_BOX, true)).toBe(true)
-    })
-
-    test('leaves a rich-text region alone, where the chord has meant bold for forty years', () => {
-        expect(togglesRail(press('b', { metaKey: true }), PROSE, true)).toBe(false)
-    })
-})
-
-describe('the terminal key', () => {
-    test('is a bare letter, matched by the character the press produced', () => {
-        expect(togglesTerminal(press('t'), null)).toBe(true)
-        expect(togglesTerminal(press('T'), null)).toBe(true)
-    })
-
-    test('never interrupts something being typed into', () => {
-        // The drawer has a match box of its own, and a `t` typed into it is a letter.
-        expect(togglesTerminal(press('t'), TEXT_BOX)).toBe(false)
-        expect(togglesTerminal(press('t'), PROSE)).toBe(false)
-    })
-
-    test("refuses every modifier, each of which is somebody else's binding", () => {
-        expect(togglesTerminal(press('t', { metaKey: true }), null)).toBe(false)
-        expect(togglesTerminal(press('t', { ctrlKey: true }), null)).toBe(false)
-        expect(togglesTerminal(press('t', { altKey: true }), null)).toBe(false)
-    })
-
-    test('is claimed by nothing else this app binds', () => {
-        expect(togglesRail(press('t'), null, true)).toBe(false)
-    })
-})
+import { applePlatform, shortcuts } from '@/lib/shortcuts'
 
 describe('the list of shortcuts', () => {
     test('binds letters and nothing else, because a bracket needs Alt on a Nordic layout', () => {
@@ -63,16 +11,6 @@ describe('the list of shortcuts', () => {
     test('spells the modifier the way the platform spells it', () => {
         expect(shortcuts(true)[0].keys[0]).toBe('⌘')
         expect(shortcuts(false)[0].keys[0]).toBe('Ctrl')
-    })
-})
-
-describe('what counts as typing', () => {
-    test('is a field, a text area, a select, or a rich-text region', () => {
-        expect(isTypingField(TEXT_BOX)).toBe(true)
-        expect(isTypingField({ tagName: 'TEXTAREA', isContentEditable: false })).toBe(true)
-        expect(isTypingField(PROSE)).toBe(true)
-        expect(isTypingField({ tagName: 'BUTTON', isContentEditable: false })).toBe(false)
-        expect(isTypingField(null)).toBe(false)
     })
 })
 

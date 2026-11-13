@@ -17,7 +17,7 @@
  */
 
 import { ApiError, apiJson, apiSend, type Problem } from '@/lib/api'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** What an account may do. Mirrors `dirigent_client.enums.UserRole`. */
 export type UserRole = 'admin' | 'operator' | 'viewer'

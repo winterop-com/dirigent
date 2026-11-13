@@ -10,7 +10,7 @@
  *
  * IT IS A MODULE STORE because three unrelated parts of the screen read it -- a node on the
  * canvas, a chip in the topbar, a pane in the right panel -- and none of them is inside the
- * others. `lib/store` imports no React, so every decision here is exercised in plain Node.
+ * others. The library's `lib/stored` imports no React, so every decision here is exercised in plain Node.
  *
  * THE SOURCE PANE MAY HOLD TEXT THAT IS NOT A DOCUMENT, and while it does, the local document
  * is the last one that parsed. Nothing else may write to it in that state: a form quietly
@@ -24,7 +24,7 @@ import type { JsonMap } from '@/lib/api'
 import { headingOf, type Heading } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { uncarry } from '@/lib/starters'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** What this screen holds for one pipeline. */
 export interface DocumentState {

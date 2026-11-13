@@ -9,7 +9,7 @@ import { Mark } from '@/components/Mark'
 import { Dot as LibraryDot } from '@winterop-com/sokkel-ui/Dot'
 import { TONE_FILL } from '@/lib/design-system'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
-import { useSmallScreen } from '@/hooks/use-small-screen'
+import { useIsMobile } from '@winterop-com/sokkel-ui/hooks/use-mobile'
 import {
     channelCode,
     channelLink,
@@ -41,7 +41,7 @@ const REACHED =
  * that opens on a table of channels is a screen whose rules are below the fold.
  */
 export function ChannelStrip({ channels, read }: { channels: readonly Channel[]; read: boolean }) {
-    const small = useSmallScreen()
+    const small = useIsMobile()
     const note = channelNote(channels.length, read)
     if (small) return <ChannelFold channels={channels} note={note} />
     return (

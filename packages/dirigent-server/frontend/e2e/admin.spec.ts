@@ -75,7 +75,7 @@ test('there is no admin overview: the heading is a word, and the bare address is
     ).toBeVisible()
 
     await page.goto('/admin')
-    await expect(page.getByRole('main')).toContainText(LABELS.screen.nowhere)
+    await expect(page.getByRole('heading', { name: LABELS.screen.nowhere })).toBeVisible()
 })
 
 test('an account is made, and then turned off', async ({ page }) => {

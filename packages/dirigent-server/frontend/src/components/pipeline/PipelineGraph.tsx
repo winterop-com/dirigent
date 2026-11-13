@@ -6,7 +6,7 @@ import { GraphOverlay, type GraphAnchor } from '@winterop-com/sokkel-ui-graph/Gr
 import { GraphControlButton } from '@winterop-com/sokkel-ui-graph/GraphViewButtons'
 import { PipelineGraph as StepCanvas, type PipelineStep } from '@winterop-com/sokkel-ui-graph/PipelineGraph'
 import { useRead } from '@/hooks/use-read'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
 import { pickerBlocks, pickerGroups } from '@/lib/add-step'
 import { catalogUnread, type BlockEntry } from '@/lib/blocks'

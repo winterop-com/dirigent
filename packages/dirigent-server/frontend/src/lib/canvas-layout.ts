@@ -12,17 +12,22 @@
  * given back: the stored positions go and elk decides again.
  *
  * It is a module store because the canvas draws it and the screen adding a step writes to it,
- * and neither is inside the other. `lib/store` imports no React, so all of this runs in Node.
+ * and neither is inside the other. The library's `lib/stored` imports no React, so all of this runs in Node.
  */
 
-import { createStore } from '@/lib/store'
+import {
+    createStore,
+    parseStored,
+    readStored,
+    storedKey,
+    writeStored,
+} from '@winterop-com/sokkel-ui/lib/stored'
 
-/** Every stored layout is one key under this, so a pipeline's own is found by its code. */
-export const LAYOUT_KEY_PREFIX = 'dirigent.layout.'
+import '@/lib/stored-prefix'
 
-/** Where one pipeline's dragged positions are kept. */
+/** Where one pipeline's dragged positions are kept, under the app's prefix. */
 export function layoutKey(pipeline: string): string {
-    return `${LAYOUT_KEY_PREFIX}${pipeline}`
+    return storedKey(`layout.${pipeline}`)
 }
 
 /** Where one box was dropped, in flow coordinates. */
@@ -52,19 +57,7 @@ export const heldLayout = createStore<HeldLayout>(NOTHING)
  * a convenience, and a box placed at NaN is a box nobody can find.
  */
 export function readPlacements(pipeline: string): Placements {
-    let stored: string | null = null
-    try {
-        stored = localStorage.getItem(layoutKey(pipeline))
-    } catch {
-        return {}
-    }
-    if (stored === null) return {}
-    let parsed: unknown
-    try {
-        parsed = JSON.parse(stored) as unknown
-    } catch {
-        return {}
-    }
+    const parsed = parseStored<unknown>(readStored(layoutKey(pipeline)), null)
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
     const held: Placements = {}
     for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
@@ -79,12 +72,7 @@ export function readPlacements(pipeline: string): Placements {
 
 /** Keep one pipeline's arrangement between visits, or forget it when there is none left. */
 export function writePlacements(pipeline: string, placements: Placements): void {
-    try {
-        if (Object.keys(placements).length === 0) localStorage.removeItem(layoutKey(pipeline))
-        else localStorage.setItem(layoutKey(pipeline), JSON.stringify(placements))
-    } catch {
-        // Storage denied: the arrangement holds for as long as this document is open.
-    }
+    writeStored(layoutKey(pipeline), Object.keys(placements).length === 0 ? null : JSON.stringify(placements))
 }
 
 /** Take one pipeline's stored arrangement as the one being drawn. */
