@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 
 import { LogView, type LogLevel, type LogLine } from '@winterop-com/sokkel-ui/LogView'
 
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { formatClock } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { itemOfEntry } from '@/lib/run-detail'

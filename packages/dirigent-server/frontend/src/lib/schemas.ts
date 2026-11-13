@@ -14,7 +14,7 @@
 import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
 import { counted, LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /**
  * The schema text typed and not yet saved, by code, for as long as the tab is open.

@@ -406,9 +406,18 @@ and a stale frame not moving a settled state backwards are decisions a Node test
 
 A page holds its own reads in `useState`, and a fact that genuinely spans screens -- who is
 signed in, whether the rail is collapsed, which palette is painted, how often a watched screen
-reads itself again -- is a module store from `src/lib/store.ts`, read in a component through
-`useStore`. `store.ts` imports no React, so a store is exercised in plain Node. That is the whole
-of the state layer: no react-query, no swr, no zustand.
+reads itself again -- is a module store, sokkel-ui's `createStore` from `lib/stored`, read in a
+component through its `useStore`. `lib/stored` imports no React, so a store is exercised in plain
+Node. That is the whole of the state layer: no react-query, no swr, no zustand.
+
+**A fact kept between visits is a store given a `key`**, and nothing in this app reads or writes
+`localStorage` itself. The key is under `dirigent.`, which `lib/stored-prefix` sets for every kept
+store and which a module building one imports first, because a store reads its key as it is built.
+`check` refuses a kept value this build cannot use, which then reads as the default, and
+`normalize` repairs one it can, so a width kept wider than the room now allowed is clamped as it is
+read. A fact with two halves -- the panel and the run terminal stand open for one visit without
+changing what the reader chose -- keeps the reader's half in its own store, and the visit's in a
+store with no key.
 
 The rule that makes it work: a store publishes only when its value actually changed by `Object.is`,
 and holds the reference it was given, so `useSyncExternalStore` sees a stable snapshot and does
@@ -699,9 +708,9 @@ default, chosen from the refresh control and answering the same everywhere it is
 control is sokkel-ui's `SplitButton`, outline and small: its face refreshes now and shows the
 cadence in force in mono, and its chevron lists the cadences as one set of choices, a check
 against that one, and says on hover what it chooses.
-`hooks/use-heartbeat` is the beat. It fires only while the tab is visible, because a screen
-nobody can see asking anyway is heat, and it fires at once when the tab comes back, so what a
-reader returns to is the present. A beat is quiet: what is on screen stays until the answer
+sokkel-ui's `useRefresh` is the beat. It skips a tick while the tab is hidden, because a screen
+nobody can see asking anyway is heat, and it fires at once when the tab comes back if a tick fell
+due meanwhile, so what a reader returns to is the present. A beat is quiet: what is on screen stays until the answer
 lands, a beat that fails changes nothing and the next one asks again, and a listing's beat folds
 page one in at the head matched by id -- so a row already on screen is refreshed in place rather
 than moved, and the count of what arrived is the pill the runs screen offers.
@@ -1400,8 +1409,11 @@ all need Alt to reach at all, so a binding over one of them is a binding nobody 
 The platform's modifier plus K opens the palette and `?` opens the list of every key, both bound by
 the shell; the platform's own modifier plus B hides and shows the rail, and `T` shows and hides a
 run's terminal -- each matched as the character it produced, never as Shift plus a physical key.
-`src/lib/shortcuts.ts` decides the two this app binds itself as pure functions, and
-`hooks/use-app-shortcuts.ts` is the one place it reads a real `KeyboardEvent`. The shortcuts dialog
+The shell binds those two with sokkel-ui's `useShortcuts`, which keeps a bare letter out of a
+field being typed in -- an input, a text area, a select and anything contenteditable, the code
+editor among them -- and out from under an open dialog or menu; the rail's chord asks to be heard
+in a field too (`inFields`), because a box with focus is when clearing the screen is worth most.
+The shortcuts dialog
 is the shell's: the keys the shell and the screens bind with sokkel-ui's `useShortcuts`, then
 `shortcuts()` for the rest, under one heading.
 
@@ -1492,7 +1504,7 @@ every width. Whether it is hidden is the reader's, and kept.
 `trailEnds="ancestor"`. At its left stands the crumb: where a screen is one thing, the trail back
 to the listing it belongs to -- the screens above it only, every step a link and none of them
 marked as the page, because the page's own heading names it. A screen states its trail with
-`ScreenTrail` (or a `PageHeader`'s `trail`) into `lib/trail` for as long as it is mounted, and the
+sokkel-ui's `useShellTrail` with `ends: 'ancestor'` (or a `PageHeader`'s `trail`) for as long as it is mounted, and the
 bar draws it, so the page opens on its heading. A listing has no crumb. At the right, the palette's
 button, the library's: the search glyph, the word `Search`{ .label } and the chord; the instance's
 dot; and the panel's toggle in the window's corner, where the screen has filled a panel.
@@ -1503,12 +1515,18 @@ screen states there is something its own page already says -- how many rows were
 table's -- and an instant is the house's relative form. A settled stream says nothing.
 
 **A page's head stands still and its body scrolls.** Under the top bar a page is two parts: the
-head -- the title, the code under it, a line of facts and the screen's verbs, which `PageHeader`
-and `PageHead` draw into the shell's head slot -- and the body, which is the one scroller. So the
-track starts below the verbs, never beside them. The scroller spans the content column to the
-window's edge with the page's padding inside it, and its thin track, in the line tokens, sits in the
-right margin that padding leaves: it takes no width the content had, nothing moves sideways when it
-appears, and the body and a docked terminal end at one right edge, the same edge as the head.
+head -- the title, the code under it, a line of facts and the screen's verbs, which a screen holds
+in sokkel-ui's `ShellHead` (a `PageHeader` does it itself) -- and the body, the shell's `main`,
+which is the one scroller. So the track starts below the verbs, never beside them, and the head
+stands over a rule in the page's inset. The scroller and the head both wear the library's
+`scroller-thin`: a thin track in the line tokens whose room is kept whether or not the body
+scrolls, so nothing moves sideways when it appears, and the head, the body and a docked terminal
+end at one right edge. The body's inset is the library's `Page`, which the shell puts every screen
+in at the scroller's height, as a column whose parts shrink to it: a listing that fills the page
+scrolls under its own header, a graph fills the room a terminal leaves, and what does not shrink
+runs on past it with the page's foot after it. The shell keeps where its scroller was left per
+screen with `useScrollMemory`, keyed by `screenPath` in `lib/nav`, so a step or a row chosen on a
+screen leaves the page where it is.
 
 **A fact appears once in the shell.** How this instance is doing belongs to the dot, and nothing
 true of the session rather than of the screen stands beside the crumb.
@@ -1540,10 +1558,11 @@ its columns take, never under 36rem (`minWidth`). A listing beside an open panel
 the window around it is as wide as it ever was; at 1024 with the rail open and no panel, every
 listing is a table.
 
-**A utility hides; `useSmallScreen` chooses.** `md:hidden` on one of two renderings leaves both
+**A utility hides; sokkel-ui's `useIsMobile` chooses.** `md:hidden` on one of two renderings leaves both
 in the document -- every row and every control twice, two elements with one accessible name --
-so where the same content is drawn two ways, the hook is what decides and only one is built. A
-class is still the answer for hiding a thing that has no second form.
+so where the same content is drawn two ways, the hook is what decides and only one is built. It
+answers as a component first draws, so a phone paints its narrow form first rather than snapping
+into it. A class is still the answer for hiding a thing that has no second form.
 
 **The rail becomes a drawer**, the shell's. Below `md` it is off screen until a menu button at
 the left of the top bar -- icon only, `aria-label` "Open navigation" -- opens it over a scrim,
@@ -2653,7 +2672,7 @@ the one palette.
 | `SecretReveal` (sokkel-ui) | A secret the server answers with once: the value whole in mono on its own field, wrapped rather than cut, a copy button that says it copied and resets, and the line in the warning ink saying it is shown once. `secretWords` names the copy button for the secret and says that line |
 | `CopyButton` (sokkel-ui) | The ghost icon button beside a string somebody pastes elsewhere -- a secret, a URL, a command line, a run's or an attempt's id: it puts the string on the clipboard, says it copied, and resets. `copyWords` gives it its name and the copied word |
 | `Code` (sokkel-ui) | A value to read as JSON, always through `JsonBlock`: highlighted in `json`, unwrapped so its lines scroll sideways, a head row over the text holding the window button in `actions` beside the library's copy button, named for the block, and a stated height |
-| `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` drawn into the shell's head slot by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds, a `SplitButton` when it carries `more`, its chevron named by the item's `moreLabel`. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
+| `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` held in the shell's `ShellHead` by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds, a `SplitButton` when it carries `more`, its chevron named by the item's `moreLabel`. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
 | `Unfoldable` (sokkel-ui) | Every row that opens what is under it in place: a step's engine groups, the reference row under a field, a fan-out element's output on a run's Step tab, the channel strip's fold on a phone, the gallery's icon shelves. The whole heading row is the button with `aria-expanded` and the chevron; `open` with `onOpenChange` where the app holds the state, `summary` for the line it reads while shut, `wrapSummary` where that line may run long, `aside` for a count or fact at the row's right end, `forced` to hold it open with no button. On a phone an unfolding row is a finger tall. A row with nothing to open is the same component without children: no chevron and no button, lined up with the rest |

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 
 import { SignIn, type SignInValues } from '@winterop-com/sokkel-ui/SignIn'
 import { FlowLines } from '@winterop-com/sokkel-ui/SignInArt'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { appConfig } from '@/lib/api'
 import { authStore, refreshIdentity, signIn } from '@/lib/auth'
 import { SIGN_IN_WORDS } from '@/lib/design-system'

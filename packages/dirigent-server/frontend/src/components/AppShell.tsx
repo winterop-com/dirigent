@@ -1,23 +1,23 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
 import { AccountMenu } from '@winterop-com/sokkel-ui/AccountMenu'
 import type { PaletteSearch } from '@winterop-com/sokkel-ui/CommandPalette'
 import { Rail } from '@winterop-com/sokkel-ui/Rail'
 import { ServerMenu } from '@winterop-com/sokkel-ui/ServerMenu'
-import { Shell, type ShortcutGroup } from '@winterop-com/sokkel-ui/Shell'
+import { Page, Shell, type ShortcutGroup } from '@winterop-com/sokkel-ui/Shell'
 import { SidePanel } from '@winterop-com/sokkel-ui/SidePanel'
 import { StatusItem, StatusLine } from '@winterop-com/sokkel-ui/StatusLine'
 import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
+import { useIsMobile } from '@winterop-com/sokkel-ui/hooks/use-mobile'
 import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
+import { useScrollMemory } from '@winterop-com/sokkel-ui/hooks/use-scroll-memory'
+import { useShortcuts } from '@winterop-com/sokkel-ui/hooks/use-shortcuts'
 
-import { headSlot } from '@/components/PageHead'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { refusedRead } from '@/components/Refusal'
 import { warmLayout } from '@/components/graph/elk'
-import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
-import { useSmallScreen } from '@/hooks/use-small-screen'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
 import { authStore, refreshIdentity, signOut } from '@/lib/auth'
 import {
@@ -35,7 +35,7 @@ import { ICONS } from '@/lib/icons'
 import { addressOfId, idResults } from '@/lib/id-jump'
 import { LABELS } from '@/lib/labels'
 import { loadKindMarks } from '@/lib/marks'
-import { DASHBOARD_PATH, DESIGN_PATH, entriesFor, LOGIN_PATH, railGroups } from '@/lib/nav'
+import { DASHBOARD_PATH, DESIGN_PATH, entriesFor, LOGIN_PATH, railGroups, screenPath } from '@/lib/nav'
 import {
     APPEARANCE_GROUP,
     GO_GROUP,
@@ -77,10 +77,10 @@ import {
     serverChecks,
     serverStatus,
 } from '@/lib/server-status'
-import { applePlatform, shortcuts } from '@/lib/shortcuts'
+import { applePlatform, RAIL_KEY, shortcuts, TERMINAL_KEY } from '@/lib/shortcuts'
 import { MODE_ICONS, MODES, MODE_LABELS } from '@/lib/theme'
-import { screenTrail } from '@/lib/trail'
 import { loadContributedWording } from '@/lib/wording'
+import { toggleTerminal } from '@/lib/terminal'
 import { warmEditor } from '@/components/pipeline/CodePane'
 
 /** The settings pane the top bar's dot opens on. */
@@ -117,7 +117,7 @@ export function AppShell() {
     const collapsed = useStore(railCollapsed)
     const width = useStore(railWidth)
     const tabs = useStore(panelTabs)
-    const small = useSmallScreen()
+    const small = useIsMobile()
     const open = useStore(small ? panelSheet : panelOpen)
     const actions = useStore(paletteActions)
     const server = useStore(serverStatus)
@@ -170,7 +170,14 @@ export function AppShell() {
         void signOut().then(() => navigate(LOGIN_PATH, { replace: true }))
     }, [navigate])
 
-    useAppShortcuts()
+    // The rail's chord is heard in a box too, where clearing the screen is worth most.
+    useShortcuts(
+        [
+            { id: 'rail', key: RAIL_KEY, mod: true, inFields: true, run: toggleRail },
+            { id: 'terminal', key: TERMINAL_KEY, run: toggleTerminal },
+        ],
+        [],
+    )
 
     const role = auth.identity?.role ?? null
     const signedIn = auth.status === 'signed-in'
@@ -293,10 +300,6 @@ export function AppShell() {
         [navigate],
     )
 
-    const setHead = useCallback((element: HTMLDivElement | null) => {
-        headSlot.set(element)
-    }, [])
-
     const panel = tabs.length === 0 ? undefined : <ScreenPanel />
 
     const identity = auth.identity
@@ -357,18 +360,15 @@ export function AppShell() {
             shortcutsWords={SHORTCUTS_WORDS}
             words={SHELL_WORDS}
         >
-            <div className="flex h-full min-h-0 flex-col">
-                <div ref={setHead} data-page-head className="shrink-0 px-4 pt-3 md:px-8" />
-                <div data-page-scroller className="dg-scroller flex min-h-0 flex-1 flex-col pt-px">
-                    {auth.status === 'unknown' ? (
-                        <PageState loading={problem === null} {...refusedRead(problem)} empty={false}>
-                            {null}
-                        </PageState>
-                    ) : (
-                        <Outlet />
-                    )}
-                </div>
-            </div>
+            <ScreenPage>
+                {auth.status === 'unknown' ? (
+                    <PageState loading={problem === null} {...refusedRead(problem)} empty={false}>
+                        {null}
+                    </PageState>
+                ) : (
+                    <Outlet />
+                )}
+            </ScreenPage>
             {settingsAsked && (
                 <Suspense fallback={null}>
                     <SettingsDialog
@@ -384,19 +384,29 @@ export function AppShell() {
 }
 
 /**
+ * The screen's body in the shell's one scroller, inset as a page, and where the scroller was left
+ * kept per screen.
+ */
+function ScreenPage({ children }: { children: ReactNode }) {
+    useScrollMemory(screenPath(useLocation().pathname))
+    // The page is the scroller's height, as a column whose parts shrink to it, so a listing fills
+    // the page and scrolls under its own header, and a graph fills the room a terminal leaves. What
+    // does not shrink runs on past it, and the page's foot is a part after the last, so it follows.
+    return (
+        <div className="flex h-full flex-col">
+            <Page className="min-h-0 flex-1 gap-0 pb-0 after:h-10 after:shrink-0 after:content-['']">
+                {children}
+            </Page>
+        </div>
+    )
+}
+
+/**
  * The top bar, sokkel-ui's `TopBar`: the trail the screen stated, every crumb a link to a screen
  * above it, then the palette's button and the instance's dot, last.
  */
 function TopStrip({ onServer }: { onServer: () => void }) {
-    const trail = useStore(screenTrail)
-    return (
-        <TopBar
-            trail={trail}
-            trailEnds="ancestor"
-            words={TOP_BAR_WORDS}
-            actions={<InstanceDot onPress={onServer} />}
-        />
-    )
+    return <TopBar trailEnds="ancestor" words={TOP_BAR_WORDS} actions={<InstanceDot onPress={onServer} />} />
 }
 
 /**

@@ -12,7 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@winterop-com/sokkel-ui/primitives/select'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { ApiError } from '@/lib/api'
 import { formatClock } from '@/lib/format'
 import { ICONS } from '@/lib/icons'

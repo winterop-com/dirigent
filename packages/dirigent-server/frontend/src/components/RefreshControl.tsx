@@ -1,5 +1,5 @@
 import { SplitButton } from '@winterop-com/sokkel-ui/SplitButton'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { splitWords } from '@/lib/design-system'
 import { ICONS } from '@/lib/icons'
 import { REFRESH_CHOICES, refreshLabel, refreshSeconds, setRefreshSeconds } from '@/lib/refresh'

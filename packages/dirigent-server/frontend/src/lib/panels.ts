@@ -14,7 +14,9 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
+
+import '@/lib/stored-prefix'
 
 /** The rail's width when nobody has dragged it: its longest word, and room either side of it. */
 export const RAIL_WIDTH = 168
@@ -34,38 +36,6 @@ export const PANEL_MIN_WIDTH = 240
 /** Wider than this and the screen the panel is beside stops being the screen. */
 export const PANEL_MAX_WIDTH = 720
 
-const RAIL_KEY = 'dirigent.railHidden'
-const RAIL_COLLAPSED_KEY = 'dirigent.railCollapsed'
-const RAIL_WIDTH_KEY = 'dirigent.railWidth'
-const PANEL_OPEN_KEY = 'dirigent.panelOpen'
-const PANEL_WIDTH_KEY = 'dirigent.panelWidth'
-
-function readFlag(key: string, fallback: boolean): boolean {
-    try {
-        const stored = localStorage.getItem(key)
-        return stored === null ? fallback : stored === 'true'
-    } catch {
-        return fallback
-    }
-}
-
-function readWidth(key: string, fallback: number, clamp: (width: number) => number): number {
-    try {
-        const stored = Number(localStorage.getItem(key))
-        return Number.isFinite(stored) && stored > 0 ? clamp(stored) : fallback
-    } catch {
-        return fallback
-    }
-}
-
-function write(key: string, value: string): void {
-    try {
-        localStorage.setItem(key, value)
-    } catch {
-        // Storage denied: the layout holds for as long as this document is open.
-    }
-}
-
 /** Hold a dragged width inside what the shell can actually draw. */
 export function clampPanelWidth(width: number): number {
     return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, Math.round(width)))
@@ -76,26 +46,30 @@ export function clampRailWidth(width: number): number {
     return Math.min(RAIL_MAX_WIDTH, Math.max(RAIL_MIN_WIDTH, Math.round(width)))
 }
 
+const isFlag = (value: unknown) => typeof value === 'boolean'
+const isWidth = (value: unknown) => typeof value === 'number' && Number.isFinite(value) && value > 0
+
 /** Whether the rail is taken off screen, which is the reader's and is kept. */
-export const railHidden = createStore(readFlag(RAIL_KEY, false))
+export const railHidden = createStore(false, { key: 'railHidden', check: isFlag })
 
 /** The rail's width in pixels, which the reader drags and which is kept. */
-export const railWidth = createStore(readWidth(RAIL_WIDTH_KEY, RAIL_WIDTH, clampRailWidth))
+export const railWidth = createStore(RAIL_WIDTH, {
+    key: 'railWidth',
+    check: isWidth,
+    normalize: clampRailWidth,
+})
 
 /** Set the rail's width, in pixels, clamped to what it can draw, and keep it. */
 export function setRailWidth(width: number): void {
-    const clamped = clampRailWidth(width)
-    railWidth.set(clamped)
-    write(RAIL_WIDTH_KEY, String(clamped))
+    railWidth.set(clampRailWidth(width))
 }
 
 /** Whether the rail is narrowed to its marks, which is the reader's and is kept. */
-export const railCollapsed = createStore(readFlag(RAIL_COLLAPSED_KEY, false))
+export const railCollapsed = createStore(false, { key: 'railCollapsed', check: isFlag })
 
 /** Narrow the rail to its marks, or widen it again, and keep that. */
 export function setRailCollapsed(collapsed: boolean): void {
     railCollapsed.set(collapsed)
-    write(RAIL_COLLAPSED_KEY, String(collapsed))
 }
 
 /**
@@ -105,19 +79,21 @@ export function setRailCollapsed(collapsed: boolean): void {
  * the only thing written to storage. A screen opening the panel -- a selection, a link that
  * names a row -- opens it for that visit alone: the next screen starts from the preference.
  */
-export const panelOpen = createStore(readFlag(PANEL_OPEN_KEY, false))
+const panelPreferred = createStore(false, { key: 'panelOpen', check: isFlag })
 
-let preferredOpen = panelOpen.get()
+export const panelOpen = createStore(panelPreferred.get())
 
 /** An open asked for by a screen that has not filled the panel since. */
 let visitOpenPending = false
-export const panelWidth = createStore(readWidth(PANEL_WIDTH_KEY, PANEL_DEFAULT_WIDTH, clampPanelWidth))
+export const panelWidth = createStore(PANEL_DEFAULT_WIDTH, {
+    key: 'panelWidth',
+    check: isWidth,
+    normalize: clampPanelWidth,
+})
+
 /** Take the navigation rail off screen, or bring it back. */
 export function toggleRail(): void {
-    railHidden.update((hidden) => {
-        write(RAIL_KEY, String(!hidden))
-        return !hidden
-    })
+    railHidden.update((hidden) => !hidden)
 }
 
 /**
@@ -167,17 +143,14 @@ export function panelStanding(small: boolean): boolean {
 /** Show or hide the right panel, and keep that as the reader's preference. */
 export function togglePanel(): void {
     const open = !panelOpen.get()
-    preferredOpen = open
     visitOpenPending = false
-    write(PANEL_OPEN_KEY, String(open))
+    panelPreferred.set(open)
     panelOpen.set(open)
 }
 
 /** Set the right panel's width, in pixels, clamped to what the shell can draw. */
 export function setPanelWidth(width: number): void {
-    const clamped = clampPanelWidth(width)
-    write(PANEL_WIDTH_KEY, String(clamped))
-    panelWidth.set(clamped)
+    panelWidth.set(clampPanelWidth(width))
 }
 
 /**
@@ -235,7 +208,7 @@ export function fillPanel(tabs: readonly PanelTab[], owner?: PanelOwner): () => 
         // last screen raised comes down rather than being carried across.
         if (!visitOpenPending) {
             panelSheet.set(false)
-            panelOpen.set(owner.shut === true ? false : preferredOpen)
+            panelOpen.set(owner.shut === true ? false : panelPreferred.get())
         }
     }
     if (owner !== undefined) visitOpenPending = false

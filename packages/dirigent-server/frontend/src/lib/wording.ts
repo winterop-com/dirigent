@@ -17,7 +17,7 @@
 
 import { apiJson, type JsonMap } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** A named hole in a template, as both this table and the server's own write one. */
 const HOLE = /\{([a-z_][a-z0-9_]*)\}/g

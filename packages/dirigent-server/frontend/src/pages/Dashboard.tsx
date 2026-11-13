@@ -15,9 +15,9 @@ import { refusedRead } from '@/components/Refusal'
 import { RefreshControl } from '@/components/RefreshControl'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
-import { useHeartbeat } from '@/hooks/use-heartbeat'
+import { useRefresh } from '@winterop-com/sokkel-ui/hooks/use-refresh'
 import { useRead } from '@/hooks/use-read'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { readConnections } from '@/lib/connections'
 import { dotOf } from '@/lib/design-system'
 import { elapsedBetween, formatDuration } from '@/lib/format'
@@ -124,7 +124,7 @@ export function Dashboard() {
         ])
     }, [again])
 
-    useHeartbeat(again, useStore(refreshSeconds))
+    useRefresh(again, { interval: useStore(refreshSeconds) ?? 0 })
 
     const live = liveRuns(running.value?.items ?? [], queued.value?.items ?? [])
     const look = withPipelines(

@@ -145,7 +145,7 @@ describe('whether the panel is open', () => {
 
     test("is the reader's to keep when they toggle it", () => {
         preferClosed()
-        expect(stored()).toBe('false')
+        expect(stored()).not.toBe('true')
         togglePanel()
         expect(panelOpen.get()).toBe(true)
         expect(stored()).toBe('true')

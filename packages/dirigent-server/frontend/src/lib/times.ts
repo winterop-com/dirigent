@@ -11,7 +11,9 @@
  */
 
 import { LABELS } from '@/lib/labels'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
+
+import '@/lib/stored-prefix'
 
 /** Which clock instants are read against. */
 export type TimesMode = 'local' | 'utc'
@@ -27,39 +29,17 @@ export const TIMES_LABELS: Record<TimesMode, string> = {
 
 export const DEFAULT_TIMES: TimesMode = 'local'
 
-/** Where the choice is kept between visits. */
-export const TIMES_STORAGE_KEY = 'dirigent.times'
-
 /** Whether a string names a setting this build has. */
-export function isTimesMode(candidate: string | null): candidate is TimesMode {
-    return candidate !== null && (TIMES_MODES as string[]).includes(candidate)
+export function isTimesMode(candidate: unknown): candidate is TimesMode {
+    return typeof candidate === 'string' && (TIMES_MODES as string[]).includes(candidate)
 }
 
-/**
- * The setting this browser last chose, or the default.
- *
- * Storage that refuses to be read is the same answer as storage holding nothing: the choice
- * simply does not survive the reload.
- */
-export function storedTimes(): TimesMode {
-    try {
-        const stored = localStorage.getItem(TIMES_STORAGE_KEY)
-        return isTimesMode(stored) ? stored : DEFAULT_TIMES
-    } catch {
-        return DEFAULT_TIMES
-    }
-}
-
-export const timesMode = createStore<TimesMode>(storedTimes())
+/** The setting this browser last chose, or the default; one this build does not have reads as the default. */
+export const timesMode = createStore<TimesMode>(DEFAULT_TIMES, { key: 'times', check: isTimesMode })
 
 /** Choose one setting, and keep it for the next visit. */
 export function chooseTimes(mode: string): TimesMode {
     const chosen = isTimesMode(mode) ? mode : DEFAULT_TIMES
-    try {
-        localStorage.setItem(TIMES_STORAGE_KEY, chosen)
-    } catch {
-        // Storage denied: the choice holds for as long as this document is open.
-    }
     timesMode.set(chosen)
     return chosen
 }

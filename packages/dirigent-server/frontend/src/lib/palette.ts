@@ -20,7 +20,7 @@ import type { PaletteGroup } from '@winterop-com/sokkel-ui/CommandPalette'
 
 import { NEUTRAL_GLYPH } from '@/lib/glyphs'
 import { LABELS } from '@/lib/labels'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** One thing the palette offers. */
 export interface PaletteAction {

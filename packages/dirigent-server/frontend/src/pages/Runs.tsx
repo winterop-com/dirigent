@@ -15,8 +15,8 @@ import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented, type Segment } from '@winterop-com/sokkel-ui/Segmented'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import { useHeartbeat } from '@/hooks/use-heartbeat'
-import { useStore } from '@/hooks/use-store'
+import { useRefresh } from '@winterop-com/sokkel-ui/hooks/use-refresh'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { ICONS } from '@/lib/icons'
 import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
@@ -330,7 +330,7 @@ function GroupedRuns({
 }: Bar & { filters: RunFilters; window: GroupWindow }) {
     const summary = useRead(useCallback(() => readSummary(filters, window), [filters, window]))
     const { again } = summary
-    useHeartbeat(again, useStore(refreshSeconds))
+    useRefresh(again, { interval: useStore(refreshSeconds) ?? 0 })
 
     useEffect(() => {
         return registerActions([reloadAction(again)])

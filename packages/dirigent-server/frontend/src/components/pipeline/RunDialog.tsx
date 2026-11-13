@@ -12,7 +12,7 @@ import {
 } from '@winterop-com/sokkel-ui/primitives/select'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { useMayWrite } from '@/hooks/use-may-write'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'

@@ -1,4 +1,4 @@
-import { useSmallScreen } from '@/hooks/use-small-screen'
+import { useIsMobile } from '@winterop-com/sokkel-ui/hooks/use-mobile'
 import { panelStanding } from '@/lib/panels'
 
 /**
@@ -13,7 +13,7 @@ export function useRowPress<T>(
     isOpen: (row: T) => boolean,
     close: () => void,
 ): (row: T) => void {
-    const small = useSmallScreen()
+    const small = useIsMobile()
     return (row: T) => {
         if (isOpen(row) && panelStanding(small)) close()
         else select(row)

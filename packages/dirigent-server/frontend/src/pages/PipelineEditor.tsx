@@ -9,11 +9,11 @@ import { ReportPane } from '@/components/pipeline/ReportPane'
 import { RunDialog } from '@/components/pipeline/RunDialog'
 import { SourceTab } from '@/components/pipeline/SourceTab'
 import { StepTab } from '@/components/pipeline/StepTab'
-import { ScreenTrail } from '@/components/ScreenTrail'
-import { PageHead } from '@/components/PageHead'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Section } from '@winterop-com/sokkel-ui/Section'
+import { ShellHead, useShellTrail } from '@winterop-com/sokkel-ui/Shell'
+import { useIsMobile } from '@winterop-com/sokkel-ui/hooks/use-mobile'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { READ_WORDS, refusedRead } from '@/components/Refusal'
 import { Toolbar } from '@winterop-com/sokkel-ui/Toolbar'
@@ -22,8 +22,7 @@ import { readConnections, type ConnectionOut } from '@/lib/connections'
 import { ICONS } from '@/lib/icons'
 import { readSchemas, type SchemaOut } from '@/lib/schemas'
 import { useMayWrite } from '@/hooks/use-may-write'
-import { useSmallScreen } from '@/hooks/use-small-screen'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { stepKeyFor } from '@/lib/add-step'
 import { ApiError, type JsonMap, type Problem } from '@/lib/api'
 import { authStore } from '@/lib/auth'
@@ -131,7 +130,7 @@ export function PipelineEditor() {
     // A file picked on the listing arrives as the navigation state, and only matters once.
     const preloaded = (useLocation().state as { document?: string } | null)?.document
     const auth = useStore(authStore)
-    const small = useSmallScreen()
+    const small = useIsMobile()
     const write = useMayWrite()
     const mayWrite = write.may
     const state = useStore(documentStore)
@@ -586,6 +585,19 @@ export function PipelineEditor() {
         [tabs, code, creating, preloaded],
     )
 
+    const heading = pipeline === null ? null : headingOf(pipeline)
+    useShellTrail(
+        !creating && pipeline === null
+            ? undefined
+            : [
+                  { label: LABELS.screen.pipelines.name, href: '/pipelines' },
+                  ...(heading === null
+                      ? []
+                      : [{ label: heading.title, href: `/pipelines/${code}`, code: !heading.named }]),
+              ],
+        { ends: 'ancestor' },
+    )
+
     if (!creating && pipeline === null) {
         return (
             <PageState loading={problem === null} {...refusedRead(problem)} empty={false}>
@@ -594,21 +606,12 @@ export function PipelineEditor() {
         )
     }
 
-    const heading = pipeline === null ? null : headingOf(pipeline)
     // The document on the canvas rather than the row: the mark moves with the edit that moved it.
     const matters = importanceMark(importanceOf(local))
 
     return (
-        <div className="-mb-9 flex min-h-0 flex-1 flex-col gap-3">
-            <PageHead>
-                <ScreenTrail
-                    trail={[
-                        { label: LABELS.screen.pipelines.name, href: '/pipelines' },
-                        ...(heading === null
-                            ? []
-                            : [{ label: heading.title, href: `/pipelines/${code}`, code: !heading.named }]),
-                    ]}
-                />
+        <div className="-mb-7 flex min-h-0 flex-1 flex-col">
+            <ShellHead>
                 <div className="flex min-h-9 items-center">
                     <Toolbar
                         className="flex-1"
@@ -682,12 +685,12 @@ export function PipelineEditor() {
                         )}
                     </Toolbar>
                 </div>
-            </PageHead>
+            </ShellHead>
 
             <Section
                 title={LABELS.pipelines.page.graph}
                 flush
-                className="mt-3 flex min-h-96 flex-1 flex-col"
+                className="flex min-h-96 flex-1 flex-col"
                 bodyClassName="relative min-h-0 flex-1"
             >
                 {local === null ? (

@@ -118,7 +118,7 @@ function viewOf(transform: string): { x: number; y: number; zoom: number } {
 
 /** How far the page has scrolled. */
 async function pageScroll(page: Page): Promise<number> {
-    return page.evaluate(() => document.querySelector('[data-page-scroller]')?.scrollTop ?? 0)
+    return page.evaluate(() => document.querySelector('main')?.scrollTop ?? 0)
 }
 
 /** Where each box stands on the page, by its step. */
@@ -209,8 +209,9 @@ test('a plain wheel over the run canvas zooms it one step about the pointer, and
 
     const canvas = await page.locator('.react-flow').first().boundingBox()
     if (canvas === null) throw new Error('no canvas')
-    // Near the canvas's top, which is on screen however short the window.
-    const at = { x: canvas.width / 3, y: 40 }
+    // Near the canvas's top, which is on screen however short the window, on a whole pixel, since
+    // the pointer lands on one.
+    const at = { x: Math.round(canvas.width / 3), y: 40 }
     await page.mouse.move(canvas.x + at.x, canvas.y + at.y)
     const drawn = await transformOf(page)
     const before = viewOf(drawn)

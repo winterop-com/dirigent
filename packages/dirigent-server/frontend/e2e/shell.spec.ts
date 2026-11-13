@@ -57,15 +57,15 @@ test('the foot is one line across the window, the account in its corner and the 
 
 test('the rail hides whole, and the menu button opens it as a drawer meanwhile', async ({ page }) => {
     const rail = page.locator('[data-shell-rail]')
-    // The suite's browser says it is on Windows, so the rail's chord is Control there.
-    await page.keyboard.press('Control+b')
+    // The rail's chord is the platform's modifier, which the library reads off the machine.
+    await page.keyboard.press('ControlOrMeta+b')
     await expect(rail).toHaveCount(0)
     await page.getByRole('button', { name: LABELS.shell.open_nav }).click()
     await expect(
         page.locator('[data-overlay]').getByRole('link', { name: LABELS.screen.pipelines.name }),
     ).toBeVisible()
     await page.keyboard.press('Escape')
-    await page.keyboard.press('Control+b')
+    await page.keyboard.press('ControlOrMeta+b')
     await expect(rail.getByRole('link', { name: LABELS.screen.pipelines.name })).toBeVisible()
 
     const strips = await topStrips(page)

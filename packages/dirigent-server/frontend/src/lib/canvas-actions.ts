@@ -6,7 +6,7 @@
  * once per bump, and nothing holds a ref across the boundary.
  */
 
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 /** Bumped when somebody asks for the add-step menu without pointing at the canvas. */
 export const addStepAsked = createStore(0)

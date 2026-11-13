@@ -19,7 +19,7 @@ import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useConnectionEdit } from '@/hooks/use-connection-edit'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
 import {
     deleteConnection,

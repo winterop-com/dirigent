@@ -24,7 +24,7 @@ import type { StatusMap } from '@winterop-com/sokkel-ui/lib/status'
 
 import { rootFetch } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 import { readSystemInfo, type SystemInfo } from '@/lib/system'
 
 /** How often the corner dot re-asks while the tab is visible. */

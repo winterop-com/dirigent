@@ -21,7 +21,9 @@ import { counted, LABELS } from '@/lib/labels'
 import type { RunDetailState } from '@/lib/run-detail'
 import type { LogEntryOut } from '@/lib/runs'
 import { runSettled, statusLabel, type LogLevel } from '@/lib/status'
-import { createStore } from '@/lib/store'
+import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
+
+import '@/lib/stored-prefix'
 
 /** Where the drawer opens when nobody has dragged it. Roughly a dozen lines and its header. */
 export const TERMINAL_DEFAULT_HEIGHT = 280
@@ -32,61 +34,39 @@ export const TERMINAL_MIN_HEIGHT = 140
 /** Taller than this and the graph the drawer sits under stops being on screen. */
 export const TERMINAL_MAX_HEIGHT = 720
 
-const OPEN_KEY = 'dirigent.terminalOpen'
-const HEIGHT_KEY = 'dirigent.terminalHeight'
-
-function readFlag(key: string, fallback: boolean): boolean {
-    try {
-        const stored = localStorage.getItem(key)
-        return stored === null ? fallback : stored === 'true'
-    } catch {
-        return fallback
-    }
-}
-
-function readHeight(): number {
-    try {
-        const stored = Number(localStorage.getItem(HEIGHT_KEY))
-        return Number.isFinite(stored) && stored > 0 ? clampTerminalHeight(stored) : TERMINAL_DEFAULT_HEIGHT
-    } catch {
-        return TERMINAL_DEFAULT_HEIGHT
-    }
-}
-
-function write(key: string, value: string): void {
-    try {
-        localStorage.setItem(key, value)
-    } catch {
-        // Storage denied: the drawer holds for as long as this document is open.
-    }
-}
-
 /** Hold a dragged height inside what the content area can actually draw. */
 export function clampTerminalHeight(height: number): number {
     return Math.min(TERMINAL_MAX_HEIGHT, Math.max(TERMINAL_MIN_HEIGHT, Math.round(height)))
 }
 
-export const terminalOpen = createStore(readFlag(OPEN_KEY, false))
-export const terminalHeight = createStore(readHeight())
+/** Whether the reader keeps the drawer open, which is what the toggle writes. */
+const terminalPreferred = createStore(false, {
+    key: 'terminalOpen',
+    check: (value) => typeof value === 'boolean',
+})
+
+export const terminalOpen = createStore(terminalPreferred.get())
+export const terminalHeight = createStore(TERMINAL_DEFAULT_HEIGHT, {
+    key: 'terminalHeight',
+    check: (value) => typeof value === 'number' && Number.isFinite(value) && value > 0,
+    normalize: clampTerminalHeight,
+})
 
 /** Show or hide the drawer, and remember which for the next visit. */
 export function toggleTerminal(): void {
-    terminalOpen.update((open) => {
-        write(OPEN_KEY, String(!open))
-        return !open
-    })
+    const open = !terminalOpen.get()
+    terminalPreferred.set(open)
+    terminalOpen.set(open)
 }
 
-/** Set the drawer's height, in pixels, clamped to what the content area can draw. */
 /** Open the drawer for this visit, leaving the reader's stored preference as it was. */
 export function openTerminal(): void {
     terminalOpen.set(true)
 }
 
+/** Set the drawer's height, in pixels, clamped to what the content area can draw. */
 export function setTerminalHeight(height: number): void {
-    const clamped = clampTerminalHeight(height)
-    write(HEIGHT_KEY, String(clamped))
-    terminalHeight.set(clamped)
+    terminalHeight.set(clampTerminalHeight(height))
 }
 
 /**

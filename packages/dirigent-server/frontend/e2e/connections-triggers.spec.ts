@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { counted, LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyDocument, applyExample, removeConnection, signIn } from './support.ts'
+import { apiPrefix, applyDocument, applyExample, pageHead, removeConnection, signIn } from './support.ts'
 
 /**
  * The two screens that show what an instance is wired to, against a real one.
@@ -381,7 +381,7 @@ test('the API chip stands with the verbs, and the create is the primary', async 
     await page.goto('/triggers')
     const create = page.getByRole('button', { name: LABELS.triggers.schedule.new })
     await expect(create).toBeVisible()
-    const chip = page.getByRole('main').getByRole('link', { name: /API/ })
+    const chip = pageHead(page).getByRole('link', { name: /API/ })
     const [from, to] = await Promise.all([chip.boundingBox(), create.boundingBox()])
     expect((to?.x ?? 0) - ((from?.x ?? 0) + (from?.width ?? 0))).toBeLessThan(20)
     await expect(create).toHaveClass(/bg-primary/)

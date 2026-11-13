@@ -1,4 +1,4 @@
-import { useStore } from '@/hooks/use-store'
+import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import { whyShut, type Gate } from '@/lib/roles'
 
