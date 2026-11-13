@@ -9,7 +9,6 @@ import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Field } from '@winterop-com/sokkel-ui/Field'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { useMayWrite } from '@/hooks/use-may-write'
 import {
     ANY_IMPORTANCE,
@@ -148,31 +147,22 @@ export function NewRule({
             }}
         >
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <Field
+                <TextField
                     id="rule-code"
                     label={LABELS.word.code}
                     required
                     requiredMark="word"
                     words={FIELD_WORDS}
                     error={codeIssue}
-                >
-                    <Input
-                        id="rule-code"
-                        className="font-mono"
-                        spellCheck={false}
-                        autoComplete="off"
-                        aria-required
-                        aria-invalid={codeIssue !== null || undefined}
-                        value={code}
-                        placeholder={LABELS.alerting.code_placeholder}
-                        onChange={(next) => {
-                            setCode(next.target.value)
-                        }}
-                        onBlur={() => {
-                            setLeft((was) => ({ ...was, code: true }))
-                        }}
-                    />
-                </Field>
+                    mono
+                    autoComplete="off"
+                    value={code}
+                    placeholder={LABELS.alerting.code_placeholder}
+                    onChange={setCode}
+                    onBlur={() => {
+                        setLeft((was) => ({ ...was, code: true }))
+                    }}
+                />
                 <TextField
                     id="rule-name"
                     label={LABELS.word.name.label}

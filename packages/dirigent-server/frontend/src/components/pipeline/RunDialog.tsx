@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react'
 import { GeneratedForm } from '@/components/schema/GeneratedForm'
 import { SchemaIssueCount, useSchemaForm } from '@winterop-com/sokkel-ui/schema/SchemaForm'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import {
     Select,
     SelectContent,
@@ -25,8 +24,8 @@ import { handEntryOf } from '@/lib/sources'
 import { formSchema, hasFields } from '@/lib/form-schema'
 import { offsetMinutes, timesMode, zoneLabel } from '@/lib/times'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
-import { Field } from '@winterop-com/sokkel-ui/Field'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
+import { DateTimeField } from '@winterop-com/sokkel-ui/DateTimeField'
+import { FieldGroup } from '@winterop-com/sokkel-ui/FieldGroup'
 
 const ENTRY = LABELS.editor.run.entry
 
@@ -149,11 +148,7 @@ export function RunDialog({
             {takes && <GeneratedForm form={form} />}
 
             {needsWindow || windowAsked ? (
-                <div className="space-y-2">
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                        <Label>{LABELS.word.window.label}</Label>
-                        <span className="font-mono text-xs text-faint">{zoneLabel(mode)}</span>
-                    </div>
+                <FieldGroup label={LABELS.word.window.label} hint={zoneLabel(mode)} keyHint>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         {[
                             {
@@ -169,28 +164,21 @@ export function RunDialog({
                                 set: setWindowEnd,
                             },
                         ].map((end) => (
-                            <Field
+                            <DateTimeField
                                 key={end.id}
                                 id={end.id}
                                 label={end.label}
                                 required={needsWindow}
                                 requiredMark="word"
                                 words={FIELD_WORDS}
-                            >
-                                <Input
-                                    id={end.id}
-                                    type="datetime-local"
-                                    className="font-mono"
-                                    aria-required={needsWindow || undefined}
-                                    value={end.value}
-                                    onChange={(event) => {
-                                        end.set(event.target.value)
-                                    }}
-                                />
-                            </Field>
+                                value={end.value === '' ? null : end.value}
+                                onValueChange={(next) => {
+                                    end.set(next ?? '')
+                                }}
+                            />
                         ))}
                     </div>
-                </div>
+                </FieldGroup>
             ) : (
                 <Button
                     variant="link"

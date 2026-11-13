@@ -4,7 +4,6 @@ import { Refusal } from '@/components/Refusal'
 import { RoleSelect } from '@/components/admin/RoleSelect'
 import { Field } from '@winterop-com/sokkel-ui/Field'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { type Problem } from '@/lib/api'
 import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
@@ -108,34 +107,23 @@ export function CreateUser({
                 onConfirm: send,
             }}
         >
-            <Field
+            <TextField
                 id="new-username"
                 label={LABELS.word.username}
-                mono
                 required
                 requiredMark="word"
                 words={FIELD_WORDS}
                 error={usernameIssue}
-            >
-                <Input
-                    id="new-username"
-                    className="font-mono"
-                    spellCheck={false}
-                    aria-required
-                    aria-invalid={usernameIssue !== null || undefined}
-                    value={form.username}
-                    autoComplete="off"
-                    onChange={(event) => {
-                        setForm((current) => ({
-                            ...current,
-                            username: event.target.value,
-                        }))
-                    }}
-                    onBlur={() => {
-                        setLeft((was) => ({ ...was, username: true }))
-                    }}
-                />
-            </Field>
+                mono
+                value={form.username}
+                autoComplete="off"
+                onChange={(username) => {
+                    setForm((current) => ({ ...current, username }))
+                }}
+                onBlur={() => {
+                    setLeft((was) => ({ ...was, username: true }))
+                }}
+            />
 
             <TextField
                 id="new-name"
@@ -157,32 +145,23 @@ export function CreateUser({
                 }}
             />
 
-            <Field
+            <TextField
                 id="new-password"
                 label={LABELS.word.password}
                 required
                 requiredMark="word"
                 words={FIELD_WORDS}
                 error={passwordIssue}
-            >
-                <Input
-                    id="new-password"
-                    type="password"
-                    aria-required
-                    aria-invalid={passwordIssue !== null || undefined}
-                    value={form.password}
-                    autoComplete="new-password"
-                    onChange={(event) => {
-                        setForm((current) => ({
-                            ...current,
-                            password: event.target.value,
-                        }))
-                    }}
-                    onBlur={() => {
-                        setLeft((was) => ({ ...was, password: true }))
-                    }}
-                />
-            </Field>
+                type="password"
+                value={form.password}
+                autoComplete="new-password"
+                onChange={(password) => {
+                    setForm((current) => ({ ...current, password }))
+                }}
+                onBlur={() => {
+                    setLeft((was) => ({ ...was, password: true }))
+                }}
+            />
 
             <Field id="new-role" label={LABELS.word.role}>
                 <RoleSelect
