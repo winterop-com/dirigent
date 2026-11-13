@@ -86,7 +86,8 @@ const DOWNLOAD_PAGE_LIMIT = 50
  * is a plain label rather than a control.
  *
  * It is sokkel-ui's `Dock` holding sokkel-ui's `LogView`: the dock's top edge is the drag, at
- * the height `lib/terminal` holds, and the filters stand in its head beside the tools.
+ * the height `lib/terminal` holds, the tools stand in its head, and the filters and their count in
+ * its bar under the head.
  */
 export function RunTerminal({
     state,
@@ -211,10 +212,10 @@ export function RunTerminal({
                     {LABELS.terminal.heading}
                 </span>
             }
-            tools={
+            bar={
                 <>
-                    {/* In a narrow dock the filters stand in a row of their own under the title and the tools, and on a phone the count in one more. */}
-                    <div className="flex min-w-0 basis-full gap-2 @max-3xl:order-last @3xl:grow-3 @3xl:basis-0 @3xl:justify-end">
+                    {/* A dock narrower than 48rem has no room for the count. */}
+                    <div className="flex min-w-0 flex-1 gap-2">
                         <Select
                             value={filters.level}
                             onValueChange={(chosen) => {
@@ -281,10 +282,14 @@ export function RunTerminal({
                         />
                     </div>
                     {countNote !== null && (
-                        <span className="text-xs whitespace-nowrap text-muted-foreground max-md:order-last">
+                        <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground @max-3xl:hidden">
                             {countNote}
                         </span>
                     )}
+                </>
+            }
+            tools={
+                <>
                     <IconButton
                         label={COPY_LINES_LABEL}
                         size="icon-sm"
@@ -314,9 +319,7 @@ export function RunTerminal({
             words={{ resize: RESIZE_TERMINAL_LABEL }}
         >
             <div className="flex h-full flex-col">
-                {/* A new filter is a new log: it opens on its newest line, following again. */}
                 <LogView
-                    key={`${filters.level}\n${filters.step}\n${filters.match}`}
                     lines={lines}
                     follow={following}
                     wrap

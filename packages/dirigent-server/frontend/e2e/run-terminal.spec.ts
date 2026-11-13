@@ -108,6 +108,37 @@ test('the three filters narrow the lines, and the count says how far', async ({ 
     await expect(terminal.getByText(/No line matches these filters/)).toBeVisible()
 })
 
+test('a filter that leaves too few lines to scroll takes the jump to the newest line away', async ({
+    page,
+}) => {
+    await signIn(page)
+    const runId = await settledRun(page.request)
+
+    await page.goto(`/runs/${runId}`)
+    await openTerminal(page)
+    const terminal = page.getByRole('region', { name: LABELS.terminal.name })
+    await expect(terminal.locator(LINE)).toHaveCount(LINES)
+
+    // At its least height the drawer cannot hold six lines, so scrolling to the top leaves the
+    // tail and offers the way back to it.
+    await page.getByRole('separator', { name: RESIZE }).press('Home')
+    await terminal
+        .locator(LINE)
+        .first()
+        .evaluate((line) => {
+            const scroller = line.closest('table')?.parentElement
+            if (scroller) scroller.scrollTop = 0
+        })
+    const jump = terminal.getByRole('button', { name: LABELS.terminal.newest })
+    await expect(jump).toBeVisible()
+
+    // One step is one line, which fills nothing, so there is no tail left to be away from.
+    await page.getByLabel(STEP_FILTER).click()
+    await page.getByRole('option', { name: 'cold', exact: true }).click()
+    await expect(terminal.locator(LINE)).toHaveCount(1)
+    await expect(jump).toBeHidden()
+})
+
 test("a line's step prefix opens that step in the panel", async ({ page }) => {
     await signIn(page)
     const runId = await settledRun(page.request)

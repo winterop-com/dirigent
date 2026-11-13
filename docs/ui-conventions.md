@@ -224,10 +224,10 @@ library's `--density-panel-head` -- 36px, 32px in the compact density -- the hei
 head row is drawn to, so two panels standing beside each other put their labels on one baseline.
 A control in a bar is compact, `xs` or `sm`, and fits the bar rather than growing it. A failure's
 rule along the top adds no height to the bar. The run terminal is sokkel-ui's `Dock`, whose head
-bar is the library's own and the one bar that may wrap onto a second line, because it stands alone
-and carries filters rather than a label: the three filters stand in it beside the count and the
-tools, and take a row of their own under them in a dock narrower than 48rem, a container query
-because the panel beside it narrows the dock as much as the window does.
+bar is the library's own and carries the title and the tools; its three filters and their count
+stand in the dock's `bar`, a row of its own under the head at every width. In a dock narrower
+than 48rem the count is not drawn, a container query because the panel beside it narrows the
+dock as much as the window does.
 
 **A listing is a headed panel too.** sokkel-ui's `DataTable` with `variant="list"` draws
 `Section`'s edge and ground: its row of column headings is the panel's bar, and its rows stand on
@@ -2396,7 +2396,9 @@ surface ladder, which is what keeps every control in it a design-system control 
 re-inked.
 
 **Three filters compose, and the count says how far.** A level threshold, one step, and a match
-over the line are three predicates over one list; the head bar says "{shown} of {total} lines".
+over the line are three predicates over one list, and the bar they stand in says "{shown} of
+{total} lines". A filter that leaves too few lines to scroll leaves nothing to jump back to, so
+the jump to the newest line goes with it.
 Client-side narrowing here is not the listing rule being broken: a listing's filter must be the
 server's because a listing is a window onto rows nobody has read, and this is the opposite case.
 
