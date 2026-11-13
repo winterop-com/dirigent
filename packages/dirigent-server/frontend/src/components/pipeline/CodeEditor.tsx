@@ -2,7 +2,6 @@ import { useMemo } from 'react'
 
 import {
     CodeEditor as LibraryCodeEditor,
-    defineLanguage,
     languageForMediaType,
     type CodeLanguage,
     type CodeMark,
@@ -14,7 +13,6 @@ import { useStore } from '@/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
 import { SCHEMA_CHECK_WORDS } from '@/lib/design-system'
 import { highlightLine } from '@/lib/preferences'
-import { cqlParser, fhirpathParser } from '@/lib/program-grammars'
 
 /**
  * The editor every piece of source in this app is written in: a pipeline document, a schema, and
@@ -28,24 +26,16 @@ import { cqlParser, fhirpathParser } from '@/lib/program-grammars'
  * for it.
  *
  * The language comes from the media type the field's schema published, YAML when none is named.
- * FHIRPath and CQL are this app's own grammars; every other media type is the editor's to read,
+ * The editor reads every media type, FHIRPath and CQL through the fhir plugin `main.tsx` installs,
  * and one it does not know is plain text.
  */
 
-const FHIRPATH = defineLanguage(fhirpathParser)
-const CQL = defineLanguage(cqlParser)
-
 const SCHEMA_DOCUMENT = 'application/schema+json'
-
-const OWN_LANGUAGES: Record<string, CodeLanguage> = {
-    'application/fhirpath': FHIRPATH,
-    'text/cql': CQL,
-}
 
 /** The language a buffer of this media type is read in. */
 export function languageOf(mediaType: string | null | undefined): CodeLanguage {
     if (mediaType === null || mediaType === undefined) return 'yaml'
-    return OWN_LANGUAGES[mediaType] ?? languageForMediaType(mediaType)
+    return languageForMediaType(mediaType)
 }
 
 /** A range of the buffer a check refused, by character offset, and why. */

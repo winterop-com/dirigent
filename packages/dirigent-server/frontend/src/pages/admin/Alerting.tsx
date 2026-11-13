@@ -1,4 +1,3 @@
-import { BellPlus, RefreshCw, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { AdminOnly } from '@/components/admin/AdminOnly'
@@ -38,6 +37,7 @@ import {
     type NotificationOut,
 } from '@/lib/alerting'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
+import { ICONS } from '@/lib/icons'
 import { itemOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
@@ -184,7 +184,7 @@ function Alerting() {
                           title: LABELS.alerting.new_rule.palette,
                           group: ADMIN_GROUP,
                           screen: true,
-                          icon: BellPlus,
+                          icon: ICONS.create_rule,
                           keywords: ['alert', 'event', 'create'],
                           run: () => {
                               setCreating(true)
@@ -195,7 +195,7 @@ function Alerting() {
                           title: LABELS.alerting.palette.send_test,
                           group: ADMIN_GROUP,
                           screen: true,
-                          icon: Send,
+                          icon: ICONS.send_test,
                           keywords: ['alert', 'notification', 'try'],
                           run: () => {
                               openTest(EMPTY_TEST)
@@ -208,7 +208,7 @@ function Alerting() {
                 title: LABELS.alerting.palette.reload,
                 group: ADMIN_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.refresh,
                 keywords: ['refresh', 'reload'],
                 run: () => {
                     reloadRules()
@@ -253,7 +253,7 @@ function Alerting() {
                     {
                         id: 'test',
                         label: LABELS.action.asks(LABELS.action.send_test),
-                        icon: <Send aria-hidden />,
+                        icon: <ICONS.send_test aria-hidden />,
                         ...shutWith(!write.may, write.why),
                         onSelect: () => {
                             openTest(EMPTY_TEST)
@@ -263,7 +263,7 @@ function Alerting() {
                 primary={{
                     id: 'rule',
                     label: LABELS.alerting.new_rule.button,
-                    icon: <BellPlus aria-hidden />,
+                    icon: <ICONS.create_rule aria-hidden />,
                     ...shutWith(!write.may, write.why),
                     onSelect: () => {
                         setCreating(true)

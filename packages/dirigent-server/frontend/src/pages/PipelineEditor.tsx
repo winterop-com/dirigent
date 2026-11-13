@@ -1,4 +1,3 @@
-import { BookOpen, CheckCircle2, Play, ShieldCheck, Plus, LayoutGrid } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
@@ -19,6 +18,7 @@ import { PageState } from '@/components/PageState'
 import { Toolbar } from '@winterop-com/sokkel-ui/Toolbar'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
+import { ICONS } from '@/lib/icons'
 import { readSchemas, type SchemaOut } from '@/lib/schemas'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useSmallScreen } from '@/hooks/use-small-screen'
@@ -410,7 +410,7 @@ export function PipelineEditor() {
                           title: LABELS.editor.apply.validate_title,
                           group: shelf,
                           screen: true,
-                          icon: ShieldCheck,
+                          icon: ICONS.validate,
                           keywords: ['check', 'dry run', 'plan'],
                           run: () => {
                               setDialog('validate')
@@ -421,7 +421,7 @@ export function PipelineEditor() {
                           title: LABELS.editor.apply.title,
                           group: shelf,
                           screen: true,
-                          icon: CheckCircle2,
+                          icon: ICONS.apply,
                           keywords: ['write', 'version', 'save'],
                           run: () => {
                               if (applyRefusal === undefined) setDialog('apply')
@@ -438,7 +438,7 @@ export function PipelineEditor() {
                           title: LABELS.editor.topbar.run_pipeline,
                           group: shelf,
                           screen: true,
-                          icon: Play,
+                          icon: ICONS.run,
                           keywords: ['start', 'adhoc'],
                           run: () => {
                               setDialog('run')
@@ -453,7 +453,7 @@ export function PipelineEditor() {
                           title: LABELS.action.asks(LABELS.editor.canvas.add_step),
                           group: shelf,
                           screen: true,
-                          icon: Plus,
+                          icon: ICONS.create,
                           keywords: ['block', 'new', 'insert'],
                           run: askAddStep,
                       },
@@ -463,7 +463,7 @@ export function PipelineEditor() {
                 title: LABELS.editor.topbar.relayout,
                 group: shelf,
                 screen: true,
-                icon: LayoutGrid,
+                icon: ICONS.relayout,
                 keywords: ['tidy', 'arrange', 'elk'],
                 run: askRelayout,
             },
@@ -626,7 +626,7 @@ export function PipelineEditor() {
                                       {
                                           id: 'validate',
                                           label: LABELS.action.validate,
-                                          icon: <ShieldCheck aria-hidden />,
+                                          icon: <ICONS.validate aria-hidden />,
                                           ...shutWith(sent !== undefined, sent),
                                           onSelect: () => {
                                               setDialog('validate')
@@ -635,7 +635,7 @@ export function PipelineEditor() {
                                       {
                                           id: 'run',
                                           label: LABELS.action.asks(LABELS.action.run),
-                                          icon: <Play aria-hidden />,
+                                          icon: <ICONS.run aria-hidden />,
                                           ...shutWith(runRefusal !== undefined, runRefusal),
                                           onSelect: () => {
                                               setDialog('run')
@@ -650,7 +650,7 @@ export function PipelineEditor() {
                                       id: 'apply',
                                       variant: applyVariant(edits, creating),
                                       label: LABELS.action.apply,
-                                      icon: <CheckCircle2 aria-hidden />,
+                                      icon: <ICONS.apply aria-hidden />,
                                       ...shutWith(applyRefusal !== undefined, applyRefusal),
                                       onSelect: () => {
                                           setDialog('apply')
@@ -730,7 +730,7 @@ export function PipelineEditor() {
                                             setPicking(true)
                                         }}
                                     >
-                                        <BookOpen aria-hidden />
+                                        <ICONS.example aria-hidden />
                                         {LABELS.editor.canvas.from_starter}
                                     </Button>
                                 ) : undefined

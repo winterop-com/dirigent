@@ -113,6 +113,30 @@ const SHELL: Group[] = [
     },
 ]
 
+const FHIRPATH: Group[] = [
+    {
+        title: LABELS.reference.fhirpath.runtime.title,
+        entries: [
+            { form: '%resource', says: LABELS.reference.fhirpath.runtime.resource },
+            { form: '%name', says: LABELS.reference.fhirpath.runtime.variable },
+            { form: 'max_output', says: LABELS.reference.fhirpath.runtime.max_output },
+        ],
+    },
+]
+
+const CQL: Group[] = [
+    {
+        title: LABELS.reference.cql.runtime.title,
+        entries: [
+            { form: "using FHIR version '4.0.1'", says: LABELS.reference.cql.runtime.model },
+            { form: 'parameter "Name" Integer', says: LABELS.reference.cql.runtime.parameter },
+            { form: 'data', says: LABELS.reference.cql.runtime.data },
+            { form: 'definitions', says: LABELS.reference.cql.runtime.definitions },
+            { form: 'max_output', says: LABELS.reference.cql.runtime.max_output },
+        ],
+    },
+]
+
 const JINJA: Group[] = [
     {
         title: LABELS.reference.jinja.facts.title,
@@ -160,6 +184,16 @@ const REFERENCES: Record<string, Reference> = {
     },
     'application/sql': { title: LABELS.reference.sql.title, groups: SQL, manual: null },
     'text/x-shellscript': { title: LABELS.reference.shell.title, groups: SHELL, manual: null },
+    'application/fhirpath': {
+        title: LABELS.reference.fhirpath.title,
+        groups: FHIRPATH,
+        manual: { label: LABELS.reference.fhirpath.manual, href: 'https://hl7.org/fhirpath/' },
+    },
+    'text/cql': {
+        title: LABELS.reference.cql.title,
+        groups: CQL,
+        manual: { label: LABELS.reference.cql.manual, href: 'https://cql.hl7.org/' },
+    },
     'text/x-jinja': {
         title: LABELS.reference.jinja.title,
         groups: JINJA,

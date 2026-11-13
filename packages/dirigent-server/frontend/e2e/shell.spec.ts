@@ -195,7 +195,7 @@ test('the top bar is one dot, named for the instance, and its checks are the too
     await expect(head).toContainText('local')
     await expect(head.locator('.font-mono')).toHaveText(/^\S+$/)
     await expect(tip.locator('time')).toHaveText(
-        new RegExp(`^${LABELS.shell.instance.checked_at('(now|\\d+ seconds? ago)')}$`),
+        new RegExp(`^${LABELS.shell.instance.checked_at(`(${LABELS.measure.just_now}|\\d+m ago)`)}$`),
     )
     await expect(tip).toContainText('database')
     await expect(tip).toContainText(LABELS.state.server.healthy)

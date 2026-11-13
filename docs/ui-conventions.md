@@ -64,8 +64,9 @@ rather than fetched, the reader's caret-line preference, the word the schema che
 deprecated key (`SCHEMA_CHECK_WORDS`), and the marks and reveal the schema tester draws in its own
 offsets. The library reads
 JSON, YAML, jq, SQL, shell and Jinja itself and loads SQL, shell and Jinja the first time a
-buffer shows one; FHIRPath and CQL are dirigent's, written as CodeMirror stream parsers in
-`lib/program-grammars` and handed to the library's `defineLanguage`. The schema checker, ajv,
+buffer shows one; FHIRPath and CQL come from `@winterop-com/sokkel-ui-fhir`, the plugin `main.tsx`
+installs with `registerPlugins`, so `application/fhirpath` and `text/cql` read as them through the
+library's `languageForMediaType` like every other media type. The schema checker, ajv,
 compiles each schema into a function, which is why the UI policy's `script-src` carries
 `'unsafe-eval'`; the policy for the API viewers does not.
 
@@ -2027,8 +2028,8 @@ canvas of its own, in the loaded font, read off the characters until the faces h
 every glyph, mark, count and dot that stands on that line, and elk is handed the widest plus the
 box's chrome, between a floor of 96px and a cap of 280px: sokkel-ui-graph's `graphNodeSize`, on
 every canvas. Only past the cap does a word truncate, and it carries its whole value on hover. **The editor's box
-keeps room for both its badges and an issue mark before it wears any** (`reserveBadges` with
-`edited` and `not installed`, and `reserveIssue`), so the first keystroke into a step, or the catalog landing, moves no box.
+keeps room for both its badges before it wears either** (`reserveBadges` with `edited` and
+`not installed`), so the first keystroke into a step, or the catalog landing, moves no box.
 `not installed` is critical and wins over `edited`, which is neutral; the critical badge gives
 the box the critical edge, the badge says the word, and pointing at it says the sentence naming
 the block that is missing, so it is said once and the box carries no issue mark repeating it. A box is filled in `--node`, edged
