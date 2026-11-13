@@ -16,6 +16,7 @@
 @import '@winterop-com/sokkel-ui/sources/DescriptionList.css';
 @import '@winterop-com/sokkel-ui/sources/DialogShell.css';
 @import '@winterop-com/sokkel-ui/sources/DiffView.css';
+@import '@winterop-com/sokkel-ui/sources/Dock.css';
 @import '@winterop-com/sokkel-ui/sources/Dot.css';
 @import '@winterop-com/sokkel-ui/sources/Field.css';
 @import '@winterop-com/sokkel-ui/sources/FilePreview.css';
@@ -26,6 +27,7 @@
 @import '@winterop-com/sokkel-ui/sources/ItemHeading.css';
 @import '@winterop-com/sokkel-ui/sources/Link.css';
 @import '@winterop-com/sokkel-ui/sources/ListingBar.css';
+@import '@winterop-com/sokkel-ui/sources/LogView.css';
 @import '@winterop-com/sokkel-ui/sources/PageHeader.css';
 @import '@winterop-com/sokkel-ui/sources/Rail.css';
 @import '@winterop-com/sokkel-ui/sources/RelativeTime.css';
@@ -105,71 +107,6 @@
 }
 
 /* ---------------------------------------------------------------------------
-   A RESIZE HANDLE.
-
-   The panel edges are dragged, and a drag edge that lights up in border gray reads as a
-   second scrollbar beside the real one. The identity tint says "control", and saying it
-   once here keeps the right panel's edge and the rail's edge from drifting apart.
-   --------------------------------------------------------------------------- */
-.resize-handle {
-    position: relative;
-    background-color: transparent;
-    transition: background-color 150ms ease-out;
-}
-/* The strip is 6px; pointer hits count 4px beyond it on both sides. */
-.resize-handle::before {
-    content: '';
-    position: absolute;
-    inset: 0 -4px;
-}
-/* A resting grip mark, so the edge says it can be held before anyone hovers it. */
-.resize-handle::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 3px;
-    height: 36px;
-    border-radius: var(--radius-sm);
-    transform: translate(-50%, -50%);
-    background-color: var(--border-strong);
-    transition:
-        background-color 150ms ease-out,
-        height 150ms ease-out;
-}
-.resize-handle:hover::after,
-.resize-handle:focus-visible::after,
-.resize-handle[data-dragging='true']::after {
-    background-color: var(--primary);
-    height: 56px;
-}
-.resize-handle:hover,
-.resize-handle:focus-visible {
-    background-color: color-mix(in oklab, var(--primary) 35%, transparent);
-    outline: none;
-}
-.resize-handle[data-dragging='true'] {
-    background-color: color-mix(in oklab, var(--primary) 55%, transparent);
-}
-
-/* The same handle turned on its side, for an edge dragged up and down rather than across: the
-   run terminal's top edge. The orientation is the one the separator already states, so nothing
-   carries a second attribute saying it twice. */
-.resize-handle[aria-orientation='horizontal']::before {
-    inset: -4px 0;
-}
-.resize-handle[aria-orientation='horizontal']::after {
-    width: 36px;
-    height: 3px;
-}
-.resize-handle[aria-orientation='horizontal']:hover::after,
-.resize-handle[aria-orientation='horizontal']:focus-visible::after,
-.resize-handle[aria-orientation='horizontal'][data-dragging='true']::after {
-    width: 56px;
-    height: 3px;
-}
-
-/* ---------------------------------------------------------------------------
    A ROW THE POINTER IS OVER.
 
    A list of rows is read by running down it, and a row that lights as the pointer crosses it
@@ -217,38 +154,19 @@
 }
 
 /* ---------------------------------------------------------------------------
-   A LISTING'S FRAME AND THE TERMINAL'S, DRAWN AS sokkel-ui's `Section` IS.
+   THE GENERATED CARD, DRAWN AS sokkel-ui's `Section` IS.
 
-   A section of a page is sokkel-ui's `Section`; a listing and the run terminal frame themselves
-   here in its edge and ground, so a listing and a section beside it read as one kind of box: the
-   strong hairline all round, the card ground, no shadow, and a head on the section heads' ground
-   over their rule. The generated card follows the same edge and ground.
+   The strong hairline all round, the card ground and no shadow, so a card and a section beside
+   it read as one kind of box.
    --------------------------------------------------------------------------- */
 [data-slot='card'] {
     flex-shrink: 0;
-}
-.dg-panel,
-[data-slot='card'] {
     position: relative;
     overflow: clip;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-surface);
     background-color: var(--card);
     box-shadow: none;
-}
-.dg-panel-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    box-sizing: border-box;
-    height: var(--spacing-panel-head);
-    padding: 0 1rem;
-    border-bottom: 1px solid var(--section-head-line);
-    background-color: var(--section-head-ground);
-    font-size: var(--text-sm);
-    line-height: var(--text-sm--line-height);
-    font-weight: 600;
 }
 
 [data-slot='combobox-content'][class~='w-(--anchor-width)'],
@@ -392,12 +310,6 @@
     font-size: var(--text-xs);
     color: var(--faint);
     word-break: break-all;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .resize-handle {
-        transition: none;
-    }
 }
 
 /* Words standing on a canvas that are not on a box, controls among them. */
@@ -600,22 +512,6 @@ html:not(.dark)
 .kind-chip {
     box-sizing: border-box;
     height: 1.25rem;
-}
-
-/* The run terminal's title bar: one height. Below the breakpoint it is taller, to hold a control a
-   finger tall. */
-:root {
-    --spacing-panel-head: 2.5rem;
-}
-@media (width < 48rem) {
-    :root {
-        --spacing-panel-head: 2.875rem;
-    }
-    .dg-panel-head[data-wraps] {
-        height: auto;
-        min-height: var(--spacing-panel-head);
-        padding-block: 0.25rem;
-    }
 }
 
 /* ---------------------------------------------------------------------------

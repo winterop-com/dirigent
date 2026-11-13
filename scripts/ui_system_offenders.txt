@@ -6,7 +6,6 @@
 lucide-import	packages/dirigent-server/frontend/src/components/ApiChip.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/alerting/ChannelStrip.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/pipeline/Disclosure.tsx	1
-lucide-import	packages/dirigent-server/frontend/src/components/run/RunTerminal.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/run/StepTab.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/settings/SettingsDialog.tsx	1
 lucide-import	packages/dirigent-server/frontend/src/components/triggers/NewTrigger.tsx	1

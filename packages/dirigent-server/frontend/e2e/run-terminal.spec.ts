@@ -32,6 +32,10 @@ const LEVEL_FILTER = LABELS.terminal.level_filter
 const MATCH_FILTER = LABELS.terminal.match_filter
 const RESIZE = LABELS.terminal.resize
 
+/** A drawn line, and the step each one opens from its source. */
+const LINE = '[data-slot="log-line"]'
+const SOURCE = '[data-slot="log-source"] button'
+
 /** Apply the example, run it, and wait for it to settle, answering with the run's id. */
 async function settledRun(request: APIRequestContext): Promise<string> {
     await applyExample(request, EXAMPLE)
@@ -49,7 +53,8 @@ async function openTerminal(page: Page): Promise<void> {
 /** The step each line on screen is prefixed with, in the order the lines are drawn. */
 async function stepsOnScreen(page: Page): Promise<string[]> {
     return page
-        .locator('[data-log-line] button')
+        .getByRole('region', { name: LABELS.terminal.name })
+        .locator(SOURCE)
         .allTextContents()
         .then((names) => names.map((name) => name.trim()))
 }
@@ -63,7 +68,7 @@ test('the terminal draws every step of a run, interleaved in the order it wrote 
 
     const terminal = page.getByRole('region', { name: LABELS.terminal.name })
     await expect(terminal.getByText(WROTE).first()).toBeVisible({ timeout: 30_000 })
-    await expect(terminal.locator('[data-log-line]')).toHaveCount(LINES)
+    await expect(terminal.locator(LINE)).toHaveCount(LINES)
 
     // MORE THAN ONE STEP, IN THE RUN'S OWN ORDER. store writes the object reload reads, so the
     // chain is drawn in the order the run happened in rather than grouped by step. keep and
@@ -81,25 +86,25 @@ test('the three filters narrow the lines, and the count says how far', async ({ 
     await page.goto(`/runs/${runId}`)
     await openTerminal(page)
     const terminal = page.getByRole('region', { name: LABELS.terminal.name })
-    await expect(terminal.locator('[data-log-line]')).toHaveCount(LINES)
+    await expect(terminal.locator(LINE)).toHaveCount(LINES)
 
     // ONE STEP.
     await page.getByLabel(STEP_FILTER).click()
     await page.getByRole('option', { name: 'cold', exact: true }).click()
-    await expect(terminal.locator('[data-log-line]')).toHaveCount(1)
+    await expect(terminal.locator(LINE)).toHaveCount(1)
     expect(await stepsOnScreen(page)).toEqual(['cold'])
     await expect(terminal.getByText(`1 of ${String(LINES)} lines`)).toBeVisible()
 
     // AND A MATCH ON TOP OF IT, because the three compose rather than replace one another.
     await page.getByLabel(MATCH_FILTER).fill('nothing writes this')
-    await expect(terminal.locator('[data-log-line]')).toHaveCount(0)
+    await expect(terminal.locator(LINE)).toHaveCount(0)
     await expect(terminal.getByText(/No line matches these filters/)).toBeVisible()
 
     // AND A THRESHOLD NO LINE MEETS, which says the same thing rather than "nothing logged".
     await page.getByLabel(MATCH_FILTER).fill('')
     await page.getByLabel(LEVEL_FILTER).click()
     await page.getByRole('option', { name: LABELS.terminal.level.error }).click()
-    await expect(terminal.locator('[data-log-line]')).toHaveCount(0)
+    await expect(terminal.locator(LINE)).toHaveCount(0)
     await expect(terminal.getByText(/No line matches these filters/)).toBeVisible()
 })
 
@@ -109,7 +114,8 @@ test("a line's step prefix opens that step in the panel", async ({ page }) => {
 
     await page.goto(`/runs/${runId}`)
     await openTerminal(page)
-    await expect(page.locator('[data-log-line]')).toHaveCount(LINES)
+    const terminal = page.getByRole('region', { name: LABELS.terminal.name })
+    await expect(terminal.locator(LINE)).toHaveCount(LINES)
 
     // Put the reader on another tab first, so what is asserted is the prefix moving them rather
     // than the panel happening to open on its first tab.
@@ -119,11 +125,11 @@ test("a line's step prefix opens that step in the panel", async ({ page }) => {
     await expect(panel.getByRole('tab', { name: 'Run' })).toHaveAttribute('aria-selected', 'true')
 
     // Choosing a box narrows the terminal to its step; the step filter takes it back.
-    await expect(page.locator('[data-log-line] button', { hasText: 'generate' })).toHaveCount(0)
+    await expect(terminal.locator(SOURCE, { hasText: 'generate' })).toHaveCount(0)
     await page.getByLabel(LABELS.terminal.step_filter).click()
     await page.getByRole('option', { name: LABELS.terminal.every_step }).click()
 
-    await page.locator('[data-log-line] button', { hasText: 'generate' }).first().click()
+    await terminal.locator(SOURCE, { hasText: 'generate' }).first().click()
 
     await expect(panel.getByRole('tab', { name: LABELS.word.step.label })).toHaveAttribute(
         'aria-selected',
@@ -169,7 +175,7 @@ test("download raw saves the run's whole log as NDJSON", async ({ page }) => {
 
     await page.goto(`/runs/${runId}`)
     await openTerminal(page)
-    await expect(page.locator('[data-log-line]')).toHaveCount(LINES)
+    await expect(page.getByRole('region', { name: LABELS.terminal.name }).locator(LINE)).toHaveCount(LINES)
 
     // FETCHED AND BLOBBED, NOT LINKED. `$logs` answers a page of JSON with no
     // content-disposition, so the pages are walked and written out here -- which is why this
@@ -205,7 +211,7 @@ test('opening the terminal opens no second stream', async ({ page }) => {
     expect(streamsBefore).toBeGreaterThan(0)
 
     await openTerminal(page)
-    await expect(page.locator('[data-log-line]')).toHaveCount(LINES)
+    await expect(page.getByRole('region', { name: LABELS.terminal.name }).locator(LINE)).toHaveCount(LINES)
 
     // THE ONE STREAM IS THE ONE STREAM. The drawer draws the run's whole log off the connection
     // the screen already holds, so opening it costs neither a second event stream nor a log tail.
@@ -226,7 +232,7 @@ test('the bare `t` shows and hides the drawer, and never out of a box being type
 
     await page.locator('body').press('t')
     await expect(terminal).toBeVisible()
-    await expect(terminal.locator('[data-log-line]')).toHaveCount(LINES)
+    await expect(terminal.locator(LINE)).toHaveCount(LINES)
 
     await page.locator('body').press('t')
     await expect(terminal).toBeHidden()
