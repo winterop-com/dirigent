@@ -1,4 +1,4 @@
-import { Link } from 'react-router'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 
 import { headingOf } from '@/lib/identity'
 import { cn } from '@/lib/utils'
@@ -28,20 +28,18 @@ export function PipelineRef({
             data-testid="pipeline-ref"
             className={cn('flex min-w-0', inline ? 'items-baseline gap-2 text-xs' : 'flex-col')}
         >
-            <Link
-                className={cn(
-                    'truncate',
-                    inline ? 'text-muted-foreground hover:text-foreground' : 'hover:underline',
-                    !heading.named && 'font-mono',
-                )}
-                to={`/pipelines/${encodeURIComponent(code)}`}
+            <TextLink
+                variant={inline ? 'aside' : 'quiet'}
+                code={!heading.named}
+                className="truncate"
+                href={`/pipelines/${encodeURIComponent(code)}`}
                 title={heading.title}
                 onClick={(event) => {
                     event.stopPropagation()
                 }}
             >
                 {heading.title}
-            </Link>
+            </TextLink>
             {heading.code !== null && (
                 <span
                     className={cn(

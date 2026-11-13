@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router'
 
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
+import { ListRow, ListRows } from '@winterop-com/sokkel-ui/ListRow'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Description } from '@/components/Description'
 import { Group } from '@winterop-com/sokkel-ui/Group'
@@ -584,37 +585,35 @@ function Failures({
     onShow: (error: SchemaViolation) => void
 }) {
     return (
-        <ul className="divide-y divide-border" aria-label={LABELS.schemas.tester.failures_label}>
+        <ListRows className="divide-y divide-border" label={LABELS.schemas.tester.failures_label}>
             {errors.map((error) => (
-                <li key={`${error.at} ${error.schema_at} ${error.message}`}>
-                    <button
-                        type="button"
-                        className="flex w-full min-w-0 flex-col gap-1 px-4 py-2 text-left hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
-                        title={LABELS.schemas.tester.show_failure(pointerLabel(error.at))}
-                        onClick={() => {
-                            onShow(error)
-                        }}
-                    >
-                        <span className="flex min-w-0 items-center justify-between gap-3">
-                            {error.at === '' ? (
-                                <span className="truncate text-xs text-muted-foreground">
-                                    {pointerLabel(error.at)}
-                                </span>
-                            ) : (
-                                <InlineCode value={error.at} tone="neutral" bare size="xs" />
-                            )}
-                            <Chip mono>{error.keyword}</Chip>
+                <ListRow
+                    key={`${error.at} ${error.schema_at} ${error.message}`}
+                    className="rounded-none px-4"
+                    title={
+                        error.at === '' ? (
+                            <span className="text-xs text-muted-foreground">{pointerLabel(error.at)}</span>
+                        ) : (
+                            <InlineCode value={error.at} tone="neutral" bare size="xs" />
+                        )
+                    }
+                    detail={
+                        <span className="text-sm break-words whitespace-normal text-foreground">
+                            {error.message}
                         </span>
-                        <span className="min-w-0 text-sm break-words">{error.message}</span>
-                    </button>
-                </li>
+                    }
+                    aside={<Chip mono>{error.keyword}</Chip>}
+                    onPress={() => {
+                        onShow(error)
+                    }}
+                />
             ))}
             {omitted > 0 && (
-                <li className="px-4 py-2 text-sm text-muted-foreground">
+                <p className="px-4 py-2 text-sm text-muted-foreground">
                     {LABELS.schemas.tester.omitted(String(omitted))}
-                </li>
+                </p>
             )}
-        </ul>
+        </ListRows>
     )
 }
 

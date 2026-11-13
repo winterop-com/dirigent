@@ -192,10 +192,11 @@ export function Dashboard() {
                         >
                             <div>
                                 {durations.map((row) => (
-                                    <Link
+                                    <TextLink
                                         key={row.pipeline}
-                                        to={`/pipelines/${encodeURIComponent(row.pipeline)}`}
-                                        className="flex items-baseline gap-3 border-t border-border py-2 text-sm first:border-t-0 hover:underline"
+                                        variant="quiet"
+                                        href={`/pipelines/${encodeURIComponent(row.pipeline)}`}
+                                        className="flex items-baseline gap-3 rounded-none border-t border-border py-2 text-sm first:border-t-0"
                                     >
                                         <PipelineTitle
                                             code={row.pipeline}
@@ -204,7 +205,7 @@ export function Dashboard() {
                                         <span className="w-16 shrink-0 text-right font-mono text-xs font-medium">
                                             {formatDuration(row.median_ms)}
                                         </span>
-                                    </Link>
+                                    </TextLink>
                                 ))}
                             </div>
                         </LibrarySection>
@@ -290,9 +291,9 @@ function Section({
             className="mb-6 last:mb-0"
             flush
             title={
-                <Link to={to} className="hover:underline">
+                <TextLink variant="quiet" href={to}>
                     {title}
-                </Link>
+                </TextLink>
             }
             meta={count === undefined ? undefined : String(count)}
             actions={
