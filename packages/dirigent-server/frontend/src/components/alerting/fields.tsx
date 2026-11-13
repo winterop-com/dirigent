@@ -1,47 +1,7 @@
-import { type ReactNode } from 'react'
-
+import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Picker } from '@/components/Picker'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
-
-/** One labelled box, which is what every field on these dialogs is. */
-export function Field({
-    id,
-    label,
-    value,
-    onChange,
-    placeholder,
-    mono,
-    hint,
-}: {
-    id: string
-    label: string
-    value: string
-    onChange: (value: string) => void
-    placeholder: string
-    mono?: boolean
-    hint?: ReactNode
-}) {
-    return (
-        <div className="space-y-2">
-            <Label htmlFor={id}>{label}</Label>
-            <Input
-                id={id}
-                className={mono === true ? 'font-mono' : undefined}
-                spellCheck={false}
-                autoComplete="off"
-                value={value}
-                placeholder={placeholder}
-                onChange={(event) => {
-                    onChange(event.target.value)
-                }}
-            />
-            {hint !== undefined && <p className="text-xs text-faint">{hint}</p>}
-        </div>
-    )
-}
 
 /**
  * Which channel a rule or a test delivers through: the process log, or a credential.
@@ -63,8 +23,7 @@ export function TargetPicker({
     onChange: (value: string) => void
 }) {
     return (
-        <div className="space-y-2">
-            <Label htmlFor={id}>{LABELS.word.delivers_through}</Label>
+        <Field id={id} label={LABELS.word.delivers_through}>
             <Picker
                 id={id}
                 label={LABELS.word.delivers_through}
@@ -73,6 +32,6 @@ export function TargetPicker({
                 placeholder={LABELS.alerting.target_search}
                 onChange={onChange}
             />
-        </div>
+        </Field>
     )
 }

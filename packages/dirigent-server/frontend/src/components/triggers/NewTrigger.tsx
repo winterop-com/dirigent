@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { CronField } from '@winterop-com/sokkel-ui/CronField'
+import { Field } from '@winterop-com/sokkel-ui/Field'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Picker } from '@/components/Picker'
 import { GeneratedForm } from '@/components/schema/GeneratedForm'
@@ -25,7 +27,7 @@ import {
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
 import { formatMoment } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { headingOf } from '@/lib/identity'
@@ -53,6 +55,9 @@ import {
 } from '@/lib/trigger-form'
 import { createSchedule, type ScheduleIn } from '@/lib/triggers'
 import { useFirings, type Reading } from '@/hooks/use-firings'
+
+/** No box left yet: what a dialog opens on. */
+const NONE_LEFT = { code: false, expression: false }
 
 /** Which clock a new schedule is declared with. Exactly one, which is what the core accepts. */
 type Clock = 'cron' | 'interval' | 'at'
@@ -107,6 +112,8 @@ export function NewSchedule({
     const [priority, setPriority] = useState<string>(INHERITED)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
+    // Which boxes have been left once, so a required one says so only after somebody was there.
+    const [left, setLeft] = useState(NONE_LEFT)
 
     const chosen = useChosenPipeline(pipeline)
     const params = usePinned(chosen.schema)
@@ -134,6 +141,7 @@ export function NewSchedule({
                     setNamed('')
                     setDescription('')
                     setExpression('')
+                    setLeft(NONE_LEFT)
                     onOpenChange(false)
                 },
                 (error: unknown) => {
@@ -145,6 +153,9 @@ export function NewSchedule({
             })
     }
 
+    const codeIssue = left.code && code.trim() === '' ? LABELS.triggers.schedule.dialog.no_code : null
+    const clockIssue =
+        left.expression && expression.trim() === '' ? LABELS.triggers.schedule.dialog.no_clock : null
     const written = CLOCKS.find((one) => one.value === clock) ?? CLOCKS[0]
     const write = useMayWrite()
     const shut = firstShut(
@@ -158,7 +169,10 @@ export function NewSchedule({
         <DialogShell
             words={DIALOG_WORDS}
             open={open}
-            onOpenChange={onOpenChange}
+            onOpenChange={(next) => {
+                if (!next) setLeft(NONE_LEFT)
+                onOpenChange(next)
+            }}
             width="lg"
             title={LABELS.triggers.schedule.new}
             count={<SchemaIssueCount form={params.form} />}
@@ -171,8 +185,13 @@ export function NewSchedule({
                 onConfirm: send,
             }}
         >
-            <div className="space-y-2">
-                <Label htmlFor="schedule-pipeline">{LABELS.word.pipeline.label}</Label>
+            <Field
+                id="schedule-pipeline"
+                label={LABELS.word.pipeline.label}
+                required
+                requiredMark="word"
+                words={FIELD_WORDS}
+            >
                 <Picker
                     id="schedule-pipeline"
                     label={LABELS.word.pipeline.label}
@@ -184,21 +203,42 @@ export function NewSchedule({
                         params.reset()
                     }}
                 />
-            </div>
+            </Field>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <Field
                     id="schedule-code"
                     label={LABELS.word.code}
-                    value={code}
-                    onChange={setCode}
-                    placeholder={LABELS.triggers.schedule.dialog.code_hint}
-                    mono
+                    required
+                    requiredMark="word"
+                    words={FIELD_WORDS}
+                    error={codeIssue}
+                >
+                    <Input
+                        id="schedule-code"
+                        className="font-mono"
+                        spellCheck={false}
+                        aria-required
+                        aria-invalid={codeIssue !== null || undefined}
+                        value={code}
+                        placeholder={LABELS.triggers.schedule.dialog.code_hint}
+                        onChange={(event) => {
+                            setCode(event.target.value)
+                        }}
+                        onBlur={() => {
+                            setLeft((was) => ({ ...was, code: true }))
+                        }}
+                    />
+                </Field>
+                <TextField
+                    id="schedule-name"
+                    label={LABELS.word.name.label}
+                    value={named}
+                    onChange={setNamed}
                 />
-                <Field id="schedule-name" label={LABELS.word.name.label} value={named} onChange={setNamed} />
             </div>
 
-            <Field
+            <TextField
                 id="schedule-description"
                 label={LABELS.word.description}
                 value={description}
@@ -207,8 +247,7 @@ export function NewSchedule({
             />
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                    <Label htmlFor="schedule-timezone">{LABELS.word.timezone}</Label>
+                <Field id="schedule-timezone" label={LABELS.word.timezone}>
                     <Picker
                         id="schedule-timezone"
                         label={LABELS.word.timezone}
@@ -217,7 +256,7 @@ export function NewSchedule({
                         placeholder={LABELS.triggers.schedule.dialog.timezone_hint}
                         onChange={setTimezone}
                     />
-                </div>
+                </Field>
                 <PriorityField
                     id="schedule-priority"
                     value={priority}
@@ -226,16 +265,19 @@ export function NewSchedule({
                 />
             </div>
 
-            <div className="space-y-2">
-                <Label>{LABELS.word.clock}</Label>
+            <Field id="schedule-clock-kind" label={LABELS.word.clock}>
                 <Segmented
+                    id="schedule-clock-kind"
                     label={LABELS.word.clock}
                     size="md"
                     value={clock}
-                    options={CLOCKS.map((one) => ({ value: one.value, label: one.label }))}
+                    options={CLOCKS.map((one) => ({
+                        value: one.value,
+                        label: one.label,
+                    }))}
                     onValueChange={setClock}
                 />
-            </div>
+            </Field>
 
             {clock === 'cron' ? (
                 <CronBox expression={expression} onChange={setExpression} zone={timezone} reading={reading} />
@@ -244,11 +286,27 @@ export function NewSchedule({
                     <Field
                         id="schedule-expression"
                         label={written.label}
-                        value={expression}
-                        onChange={setExpression}
-                        placeholder={written.hint}
-                        mono
-                    />
+                        required
+                        requiredMark="word"
+                        words={FIELD_WORDS}
+                        error={clockIssue}
+                    >
+                        <Input
+                            id="schedule-expression"
+                            className="font-mono"
+                            spellCheck={false}
+                            aria-required
+                            aria-invalid={clockIssue !== null || undefined}
+                            value={expression}
+                            placeholder={written.hint}
+                            onChange={(event) => {
+                                setExpression(event.target.value)
+                            }}
+                            onBlur={() => {
+                                setLeft((was) => ({ ...was, expression: true }))
+                            }}
+                        />
+                    </Field>
                     <ClockReading reading={reading} zone={timezone} />
                 </div>
             )}
@@ -331,7 +389,11 @@ function usePipelines(open: boolean): PickerOption[] {
                 setOptions(
                     rows.toSorted(byTitle).map((row) => {
                         const heading = headingOf(row)
-                        return { value: row.code, label: heading.title, aside: heading.code ?? '' }
+                        return {
+                            value: row.code,
+                            label: heading.title,
+                            aside: heading.code ?? '',
+                        }
                     }),
                 )
             },
@@ -351,16 +413,27 @@ function usePipelines(open: boolean): PickerOption[] {
 /** Every zone this browser knows, each with what it is at right now. */
 function useZones(): PickerOption[] {
     return useMemo(
-        () => zonesOffered().map((zone) => ({ value: zone, label: zone, aside: zoneOffset(zone) })),
+        () =>
+            zonesOffered().map((zone) => ({
+                value: zone,
+                label: zone,
+                aside: zoneOffset(zone),
+            })),
         [],
     )
 }
 
 /** What the chosen pipeline takes and what its own runs are claimed at. */
-function useChosenPipeline(code: string): { schema: JsonSchema; priority: RunPriority | null } {
+function useChosenPipeline(code: string): {
+    schema: JsonSchema
+    priority: RunPriority | null
+} {
     // Keyed by the pipeline it was read for, so choosing another one draws that one's form
     // rather than the last one's for a frame, with nothing cleared from inside an effect.
-    const [read, setRead] = useState<{ of: string; document: JsonMap | null }>({ of: '', document: null })
+    const [read, setRead] = useState<{ of: string; document: JsonMap | null }>({
+        of: '',
+        document: null,
+    })
 
     useEffect(() => {
         if (code === '') return
@@ -474,8 +547,14 @@ function ParamsBox({
                     label={LABELS.triggers.dialog.params_written}
                     value={params.mode}
                     options={[
-                        { value: 'form' as const, label: LABELS.triggers.dialog.params_form },
-                        { value: 'json' as const, label: LABELS.triggers.dialog.params_json },
+                        {
+                            value: 'form' as const,
+                            label: LABELS.triggers.dialog.params_form,
+                        },
+                        {
+                            value: 'json' as const,
+                            label: LABELS.triggers.dialog.params_json,
+                        },
                     ]}
                     onValueChange={params.show}
                 />
@@ -524,8 +603,7 @@ function PriorityField({
     onChange: (value: string) => void
 }) {
     return (
-        <div className="space-y-2">
-            <Label htmlFor={id}>{LABELS.word.priority}</Label>
+        <Field id={id} label={LABELS.word.priority}>
             <Select
                 value={value}
                 onValueChange={(chosen: string | null) => {
@@ -550,7 +628,7 @@ function PriorityField({
                     ))}
                 </SelectContent>
             </Select>
-        </div>
+        </Field>
     )
 }
 
@@ -562,38 +640,5 @@ function Priority({ chosen, pipeline }: { chosen: string; pipeline: RunPriority 
             {LABELS.triggers.dialog.priority_inherited}
             {pipeline !== null && <span className="font-mono text-muted-foreground"> {pipeline}</span>}
         </>
-    )
-}
-
-/** One labelled box, which is most of the dialog. */
-function Field({
-    id,
-    label,
-    value,
-    onChange,
-    placeholder,
-    mono,
-}: {
-    id: string
-    label: string
-    value: string
-    onChange: (value: string) => void
-    placeholder?: string
-    mono?: boolean
-}) {
-    return (
-        <div className="space-y-2">
-            <Label htmlFor={id}>{label}</Label>
-            <Input
-                id={id}
-                className={mono === true ? 'font-mono' : undefined}
-                spellCheck={false}
-                value={value}
-                onChange={(event) => {
-                    onChange(event.target.value)
-                }}
-                placeholder={placeholder}
-            />
-        </div>
     )
 }

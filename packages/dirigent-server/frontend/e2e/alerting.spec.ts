@@ -85,7 +85,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await expect(create).toBeDisabled()
     await expect(create).toHaveAttribute('title', LABELS.alerting.unready.code_missing)
 
-    await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
     await dialog.getByLabel(LABELS.word.name.label).fill(RULE.name)
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
@@ -135,7 +135,7 @@ test('escape on the target picker leaves the text saying what is chosen', async 
     await expect(page.getByRole('listbox')).toHaveCount(0)
 
     // What the box reads is what is created.
-    await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
     await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
@@ -147,7 +147,7 @@ test('escape on the target picker leaves the text saying what is chosen', async 
     await expect(field).toHaveValue('The process log')
     await field.press('Escape')
     await expect(field).toHaveValue('The process log')
-    await dialog.getByLabel(LABELS.word.code).fill(WIDE.code)
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(WIDE.code)
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
     await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
@@ -273,7 +273,7 @@ test("a rule's body is written in the dialog and edited in its panel", async ({ 
     await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
     const dialog = page.getByRole('dialog')
 
-    await dialog.getByLabel(LABELS.word.code).fill(RULE.code)
+    await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
     await dialog.getByLabel(LABELS.word.name.label).fill(RULE.name)
     await dialog.getByLabel(LABELS.word.subject).fill('{{ run.pipeline }} failed')
 

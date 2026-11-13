@@ -11,9 +11,9 @@ import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Refusable } from '@/components/Refusable'
 import { Refusal, sayRefusal } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
+import { Field } from '@winterop-com/sokkel-ui/Field'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { BODY_HINT, given, SUBJECT_HINT, TEMPLATE_MEDIA_TYPE } from '@/lib/alert-form'
@@ -73,7 +73,10 @@ export function RulePanel({
     const editing = editingCode === rule.code
     const write = useMayWrite()
     const declared = rule.declared ? LABELS.alerting.declared_why(rule.pipeline ?? '') : undefined
-    const rewrite = { may: write.may && declared === undefined, why: write.why ?? declared }
+    const rewrite = {
+        may: write.may && declared === undefined,
+        why: write.why ?? declared,
+    }
     const floor = importanceNote(rule.importance)
     const settings: FactItem[] = [
         { term: LABELS.word.event, value: LABELS.alerting.event[rule.event] },
@@ -276,6 +279,7 @@ function RuleText({
     const [busy, setBusy] = useState(false)
 
     const subjectId = `rule-${rule.code}-subject`
+    const bodyId = `rule-${rule.code}-body`
 
     const save = () => {
         const patch: AlertRuleUpdate = {}
@@ -298,26 +302,20 @@ function RuleText({
 
     return (
         <Surface tone="well" pad className="space-y-3">
-            <div className="space-y-2">
-                <Label htmlFor={subjectId}>{LABELS.word.subject}</Label>
-                <Input
-                    id={subjectId}
-                    className="font-mono"
-                    spellCheck={false}
-                    autoComplete="off"
-                    value={template}
-                    placeholder={LABELS.alerting.subject_placeholder}
-                    onChange={(event) => {
-                        setTemplate(event.target.value)
-                    }}
-                />
-                <p className="text-xs text-faint">{SUBJECT_HINT}</p>
-            </div>
+            <TextField
+                id={subjectId}
+                label={LABELS.word.subject}
+                mono
+                autoComplete="off"
+                value={template}
+                placeholder={LABELS.alerting.subject_placeholder}
+                onChange={setTemplate}
+                help={SUBJECT_HINT}
+            />
 
-            <div className="space-y-2">
-                <Label>{LABELS.word.body}</Label>
-                <p className="text-xs text-faint">{BODY_HINT}</p>
+            <Field id={bodyId} label={LABELS.word.body} description={BODY_HINT}>
                 <WindowedSource
+                    id={bodyId}
                     name={LABELS.alerting.body_pane}
                     label={LABELS.alerting.body_pane}
                     windowLabel={LABELS.alerting.body_pane_windowed(LABELS.alerting.body_pane)}
@@ -328,7 +326,7 @@ function RuleText({
                     aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
                     onChange={setBody}
                 />
-            </div>
+            </Field>
 
             {problem !== null && <Refusal problem={problem} />}
 
@@ -396,8 +394,15 @@ export function NotificationPanel({
                               },
                           ]
                         : [
-                              { term: LABELS.word.event, value: LABELS.alerting.event[notification.event] },
-                              { term: LABELS.word.rule.label, value: notification.rule, code: true },
+                              {
+                                  term: LABELS.word.event,
+                                  value: LABELS.alerting.event[notification.event],
+                              },
+                              {
+                                  term: LABELS.word.rule.label,
+                                  value: notification.rule,
+                                  code: true,
+                              },
                           ]),
                     {
                         term: LABELS.word.delivers_through,
@@ -405,11 +410,23 @@ export function NotificationPanel({
                             <Channel notifier={notification.notifier} connection={notification.connection} />
                         ),
                     },
-                    { term: LABELS.word.run.label, value: <Run notification={notification} /> },
-                    { term: LABELS.alerting.queued_at, value: instantFact(notification.created_at) },
+                    {
+                        term: LABELS.word.run.label,
+                        value: <Run notification={notification} />,
+                    },
+                    {
+                        term: LABELS.alerting.queued_at,
+                        value: instantFact(notification.created_at),
+                    },
                     notification.status === 'sent'
-                        ? { term: LABELS.alerting.sent_at, value: instantFact(notification.sent_at) }
-                        : { term: LABELS.alerting.next_try, value: instantFact(notification.available_at) },
+                        ? {
+                              term: LABELS.alerting.sent_at,
+                              value: instantFact(notification.sent_at),
+                          }
+                        : {
+                              term: LABELS.alerting.next_try,
+                              value: instantFact(notification.available_at),
+                          },
                     {
                         term: LABELS.word.attempt.heading,
                         value: LABELS.alerting.attempts_of.bare(
