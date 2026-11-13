@@ -27,8 +27,9 @@ const WROTE = 'wrote'
 
 /** The labels this screen's own controls carry, read from the catalogue that carries them. */
 const TOGGLE = LABELS.runs.toggle_terminal
-const STEP_FILTER = LABELS.terminal.step_filter
-const LEVEL_FILTER = LABELS.terminal.level_filter
+/** The two filter chips, each named for its facet and then for what it is set to. */
+const STEP_FILTER = new RegExp(`^${LABELS.terminal.step_facet}`)
+const LEVEL_FILTER = new RegExp(`^${LABELS.terminal.level_facet}`)
 const MATCH_FILTER = LABELS.terminal.match_filter
 const RESIZE = LABELS.terminal.resize
 
@@ -89,8 +90,8 @@ test('the three filters narrow the lines, and the count says how far', async ({ 
     await expect(terminal.locator(LINE)).toHaveCount(LINES)
 
     // ONE STEP.
-    await page.getByLabel(STEP_FILTER).click()
-    await page.getByRole('option', { name: 'cold', exact: true }).click()
+    await page.getByRole('button', { name: STEP_FILTER }).click()
+    await page.getByRole('menuitemradio', { name: 'cold', exact: true }).click()
     await expect(terminal.locator(LINE)).toHaveCount(1)
     expect(await stepsOnScreen(page)).toEqual(['cold'])
     await expect(terminal.getByText(`1 of ${String(LINES)} lines`)).toBeVisible()
@@ -102,8 +103,8 @@ test('the three filters narrow the lines, and the count says how far', async ({ 
 
     // AND A THRESHOLD NO LINE MEETS, which says the same thing rather than "nothing logged".
     await page.getByLabel(MATCH_FILTER).fill('')
-    await page.getByLabel(LEVEL_FILTER).click()
-    await page.getByRole('option', { name: LABELS.terminal.level.error }).click()
+    await page.getByRole('button', { name: LEVEL_FILTER }).click()
+    await page.getByRole('menuitemradio', { name: LABELS.terminal.level.error }).click()
     await expect(terminal.locator(LINE)).toHaveCount(0)
     await expect(terminal.getByText(/No line matches these filters/)).toBeVisible()
 })
@@ -133,8 +134,8 @@ test('a filter that leaves too few lines to scroll takes the jump to the newest 
     await expect(jump).toBeVisible()
 
     // One step is one line, which fills nothing, so there is no tail left to be away from.
-    await page.getByLabel(STEP_FILTER).click()
-    await page.getByRole('option', { name: 'cold', exact: true }).click()
+    await page.getByRole('button', { name: STEP_FILTER }).click()
+    await page.getByRole('menuitemradio', { name: 'cold', exact: true }).click()
     await expect(terminal.locator(LINE)).toHaveCount(1)
     await expect(jump).toBeHidden()
 })
@@ -157,8 +158,8 @@ test("a line's step prefix opens that step in the panel", async ({ page }) => {
 
     // Choosing a box narrows the terminal to its step; the step filter takes it back.
     await expect(terminal.locator(SOURCE, { hasText: 'generate' })).toHaveCount(0)
-    await page.getByLabel(LABELS.terminal.step_filter).click()
-    await page.getByRole('option', { name: LABELS.terminal.every_step }).click()
+    await page.getByRole('button', { name: STEP_FILTER }).click()
+    await page.getByRole('menuitemradio', { name: LABELS.terminal.every_step }).click()
 
     await terminal.locator(SOURCE, { hasText: 'generate' }).first().click()
 

@@ -4,16 +4,11 @@ import { toast } from 'sonner'
 import { Dock } from '@winterop-com/sokkel-ui/Dock'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { LogView, type LogLevel as LineLevel, type LogLine } from '@winterop-com/sokkel-ui/LogView'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@winterop-com/sokkel-ui/primitives/select'
+import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
+import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { useStore } from '@/hooks/use-store'
 import { ApiError } from '@/lib/api'
+import { filterWords, oneChosen, SEARCH_WORDS } from '@/lib/design-system'
 import { formatClock } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
@@ -50,8 +45,6 @@ export const HIDE_TERMINAL_LABEL = LABELS.terminal.hide
 export const RESIZE_TERMINAL_LABEL = LABELS.terminal.resize
 export const COPY_LINES_LABEL = LABELS.terminal.copy_lines
 export const DOWNLOAD_LOG_LABEL = LABELS.terminal.download
-export const LEVEL_LABEL = LABELS.terminal.level_filter
-export const STEP_LABEL = LABELS.terminal.step_filter
 export const MATCH_LABEL = LABELS.terminal.match_filter
 export const NEWEST_LABEL = LABELS.terminal.newest
 
@@ -215,70 +208,53 @@ export function RunTerminal({
             bar={
                 <>
                     {/* A dock narrower than 48rem has no room for the count. */}
-                    <div className="flex min-w-0 flex-1 gap-2">
-                        <Select
-                            value={filters.level}
-                            onValueChange={(chosen) => {
-                                setFilters((current) => ({
-                                    ...current,
-                                    level: String(chosen) as LogLevel,
-                                }))
-                            }}
-                        >
-                            <SelectTrigger
-                                size="sm"
-                                className="min-w-0 flex-1 @3xl:max-w-40"
-                                aria-label={LEVEL_LABEL}
-                            >
-                                <SelectValue>
-                                    {(value) => LABELS.terminal.level[String(value) as LogLevel]}
-                                </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                                {LEVELS.map((level) => (
-                                    <SelectItem key={level} value={level}>
-                                        {LABELS.terminal.level[level]}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <FilterChip
+                            facet={LABELS.terminal.level_facet}
+                            options={LEVELS.filter((level) => level !== EVERY_LINE.level).map((level) => ({
+                                value: level,
+                                label: LABELS.terminal.level[level],
+                            }))}
+                            {...oneChosen(
+                                filters.level === EVERY_LINE.level ? '' : filters.level,
+                                (level) => {
+                                    setFilters((current) => ({
+                                        ...current,
+                                        level: level === '' ? EVERY_LINE.level : (level as LogLevel),
+                                    }))
+                                },
+                            )}
+                            words={filterWords(LABELS.terminal.level[EVERY_LINE.level])}
+                        />
 
-                        <Select
-                            value={filters.step}
-                            onValueChange={(chosen) => {
-                                setFilters((current) => ({ ...current, step: String(chosen) }))
-                            }}
-                        >
-                            <SelectTrigger
-                                size="sm"
-                                className="min-w-0 flex-1 @3xl:max-w-44"
-                                aria-label={STEP_LABEL}
-                            >
-                                <SelectValue>
-                                    {(value) =>
-                                        value === EVERY_STEP ? LABELS.terminal.every_step : String(value)
-                                    }
-                                </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value={EVERY_STEP}>{LABELS.terminal.every_step}</SelectItem>
-                                {steps.map((step) => (
-                                    <SelectItem key={step} value={step}>
-                                        {step}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <FilterChip
+                            facet={LABELS.terminal.step_facet}
+                            options={steps.map((step) => ({
+                                value: step,
+                                label: step,
+                                row: <span className="font-mono">{step}</span>,
+                            }))}
+                            value={
+                                filters.step === EVERY_STEP ? undefined : (
+                                    <span className="font-mono">{filters.step}</span>
+                                )
+                            }
+                            {...oneChosen(filters.step, (step) => {
+                                setFilters((current) => ({ ...current, step }))
+                            })}
+                            words={filterWords(LABELS.terminal.every_step)}
+                        />
 
-                        <Input
-                            className="h-7 min-w-0 flex-1 @3xl:max-w-48"
+                        <SearchField
+                            className="min-w-0 flex-1 @3xl:max-w-48"
+                            shortcut={false}
                             value={filters.match}
-                            onChange={(event) => {
-                                const match = event.target.value
+                            onChange={(match) => {
                                 setFilters((current) => ({ ...current, match }))
                             }}
                             placeholder={LABELS.terminal.match_placeholder}
-                            aria-label={MATCH_LABEL}
+                            label={MATCH_LABEL}
+                            words={SEARCH_WORDS}
                         />
                     </div>
                     {countNote !== null && (

@@ -1,7 +1,11 @@
+import type { ReactNode } from 'react'
+
+import { AsyncSelect } from '@winterop-com/sokkel-ui/AsyncSelect'
 import { Field } from '@winterop-com/sokkel-ui/Field'
-import { Picker } from '@/components/Picker'
+import { Mark } from '@/components/Mark'
+import { pickerWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
-import type { PickerOption } from '@/lib/picker'
+import { matchesOption, type PickerOption } from '@/lib/picker'
 
 /**
  * Which channel a rule or a test delivers through: the process log, or a credential.
@@ -24,14 +28,25 @@ export function TargetPicker({
 }) {
     return (
         <Field id={id} label={LABELS.word.delivers_through}>
-            <Picker
+            <AsyncSelect
                 id={id}
-                label={LABELS.word.delivers_through}
-                value={value}
-                options={options}
-                placeholder={LABELS.alerting.target_search}
-                onChange={onChange}
+                items={options}
+                filter={matchesOption}
+                itemKey={(option) => option.value}
+                itemLabel={(option) => option.label}
+                itemDetail={(option) => option.aside}
+                itemMark={markOf}
+                value={options.find((option) => option.value === value) ?? null}
+                words={pickerWords(LABELS.alerting.target_search)}
+                onValueChange={(picked) => {
+                    onChange(picked === null ? '' : picked.value)
+                }}
             />
         </Field>
     )
+}
+
+/** A target's channel, as the mark its kind wears. */
+function markOf(option: PickerOption): ReactNode {
+    return option.mark === undefined ? undefined : <Mark glyph={option.mark} />
 }

@@ -6,7 +6,7 @@ import { FieldGroup } from '@winterop-com/sokkel-ui/FieldGroup'
 import { SelectField } from '@winterop-com/sokkel-ui/SelectField'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Surface } from '@winterop-com/sokkel-ui/Section'
-import { Picker } from '@/components/Picker'
+import { AsyncSelect } from '@winterop-com/sokkel-ui/AsyncSelect'
 import { GeneratedForm } from '@/components/schema/GeneratedForm'
 import {
     SchemaIssueCount,
@@ -20,12 +20,12 @@ import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
-import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS, pickerWords } from '@/lib/design-system'
 import { formatMoment } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
-import type { PickerOption } from '@/lib/picker'
+import { matchesOption, type PickerOption } from '@/lib/picker'
 import { byTitle, paramsOf, priorityOf, readAllPipelines, readPipeline } from '@/lib/pipelines'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
@@ -185,14 +185,17 @@ export function NewSchedule({
                 requiredMark="word"
                 words={FIELD_WORDS}
             >
-                <Picker
+                <AsyncSelect
                     id="schedule-pipeline"
-                    label={LABELS.word.pipeline.label}
-                    value={pipeline}
-                    options={pipelines}
-                    placeholder={LABELS.triggers.dialog.pipeline_hint}
-                    onChange={(picked) => {
-                        setPipeline(picked)
+                    items={pipelines}
+                    filter={matchesOption}
+                    itemKey={(option) => option.value}
+                    itemLabel={(option) => option.label}
+                    itemDetail={(option) => option.aside}
+                    value={pipelines.find((option) => option.value === pipeline) ?? null}
+                    words={pickerWords(LABELS.triggers.dialog.pipeline_hint)}
+                    onValueChange={(picked) => {
+                        setPipeline(picked === null ? '' : picked.value)
                         params.reset()
                     }}
                 />
@@ -232,13 +235,18 @@ export function NewSchedule({
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <Field id="schedule-timezone" label={LABELS.word.timezone}>
-                    <Picker
+                    <AsyncSelect
                         id="schedule-timezone"
-                        label={LABELS.word.timezone}
-                        value={timezone}
-                        options={zones}
-                        placeholder={LABELS.triggers.schedule.dialog.timezone_hint}
-                        onChange={setTimezone}
+                        items={zones}
+                        filter={matchesOption}
+                        itemKey={(option) => option.value}
+                        itemLabel={(option) => option.label}
+                        itemDetail={(option) => option.aside}
+                        value={zones.find((option) => option.value === timezone) ?? null}
+                        words={pickerWords(LABELS.triggers.schedule.dialog.timezone_hint)}
+                        onValueChange={(picked) => {
+                            setTimezone(picked === null ? '' : picked.value)
+                        }}
                     />
                 </Field>
                 <PriorityField
@@ -585,6 +593,7 @@ function PriorityField({
             id={id}
             label={LABELS.word.priority}
             value={value}
+            chosenDetail
             options={[
                 {
                     value: INHERITED,

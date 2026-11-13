@@ -91,7 +91,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
 
     // A rule names one target and the sender follows from it: one picker, opened on the log.
-    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toContainText('The process log')
     await expect(dialog.getByLabel(LABELS.alerting.notifier)).toHaveCount(0)
 
     // A target is a channel, so every row of the picker wears its kind's mark.
@@ -99,7 +99,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     const logRow = page.getByRole('option', { name: LABELS.alerting.log_target })
     await expect(logRow.locator('[data-slot="mark"]')).toHaveCount(1)
     await logRow.click()
-    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toContainText('The process log')
 
     await dialog.getByLabel(LABELS.word.throttle).fill('15m')
     await expect(create).toBeEnabled()
@@ -120,19 +120,22 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     ).toHaveCount(1)
 })
 
-test('escape on the target picker leaves the text saying what is chosen', async ({ page }) => {
+test('escape on the target picker leaves the box saying what is chosen', async ({ page }) => {
     await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
     const dialog = page.getByRole('dialog')
     const field = dialog.getByLabel(LABELS.word.delivers_through)
-    await expect(field).toHaveValue('The process log')
+    await expect(field).toContainText('The process log')
 
-    // A filter typed and abandoned: the popup closes and the box reads the chosen row again.
+    // A filter typed and abandoned: the popup closes, the dialog stays, and the box reads the
+    // chosen row again.
     await field.click()
-    await field.fill('zzz')
-    await field.press('Escape')
-    // At once, not once the popup has finished closing: read without a retry.
-    expect(await field.inputValue()).toBe('The process log')
+    const search = page.getByRole('combobox', { name: LABELS.alerting.target_search })
+    await expect(search).toBeFocused()
+    await search.fill('proc')
+    await search.press('Escape')
     await expect(page.getByRole('listbox')).toHaveCount(0)
+    await expect(dialog).toBeVisible()
+    await expect(field).toContainText('The process log')
 
     // What the box reads is what is created.
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
@@ -144,9 +147,7 @@ test('escape on the target picker leaves the text saying what is chosen', async 
 
     // A press on the closed box clears nothing, and the choice is still the one created with.
     await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
-    await expect(field).toHaveValue('The process log')
-    await field.press('Escape')
-    await expect(field).toHaveValue('The process log')
+    await expect(field).toContainText('The process log')
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(WIDE.code)
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
@@ -184,9 +185,7 @@ test.describe('on a phone', () => {
         expect(sideways).toBeLessThanOrEqual(0)
     })
 
-    test('a target row wider than the picker is read whole, and the popup stays on screen', async ({
-        page,
-    }) => {
+    test('a target row is read whole on a phone, and the popup stays on screen', async ({ page }) => {
         await declareChannel(page)
         await page.reload()
 
@@ -199,21 +198,17 @@ test.describe('on a phone', () => {
         await expect(row).toBeVisible()
 
         // The popup scales in, so its box is read once every animation on it has finished. It
-        // outgrew the box it hangs from, and it did it without leaving the screen.
-        const popup = page.locator('[data-slot="combobox-content"]')
+        // stays on the screen.
+        const popup = page.getByRole('listbox')
         await expect
             .poll(async () => {
                 const box = await popup.boundingBox()
-                const anchor = await field.boundingBox()
-                if (box === null || anchor === null) return null
-                return {
-                    wider: box.width > anchor.width,
-                    inside: box.x >= 0 && box.x + box.width <= 390,
-                }
+                if (box === null) return null
+                return box.x >= 0 && box.x + box.width <= 390
             })
-            .toEqual({ wider: true, inside: true })
+            .toBe(true)
 
-        // Nothing in the row is cut: the popup grew to the label rather than the label to it.
+        // Nothing in the row is cut: where the row is narrow, the code goes under the label.
         const cut = await row.evaluate((node) =>
             Math.max(
                 ...[node, ...node.querySelectorAll('*')].map((one) => one.scrollWidth - one.clientWidth),
@@ -377,7 +372,7 @@ test('a test stays open until the row settles, and reaches sent through the log 
 
     // A test names one target the way a rule does: one picker, opened on the log, and nothing
     // to fill in before it can be sent.
-    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toContainText('The process log')
     await expect(dialog.getByLabel(LABELS.alerting.notifier)).toHaveCount(0)
     await expect(dialog.getByLabel(LABELS.word.connection.label)).toHaveCount(0)
     await expect(send).toBeEnabled()
@@ -468,7 +463,7 @@ async function declareChannel(page: Page): Promise<void> {
 async function sendTest(page: Page, subject: string): Promise<void> {
     await page.getByRole('button', { name: LABELS.action.send_test }).click()
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toContainText('The process log')
     await dialog.getByLabel(LABELS.word.subject).fill(subject)
     await dialog.getByRole('button', { name: LABELS.alerting.send, exact: true }).click()
     // Closed only once the row has settled, so the listing behind has been read again with it.

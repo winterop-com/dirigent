@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { TargetPicker } from '@/components/alerting/fields'
 import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
-import { Picker } from '@/components/Picker'
+import { AsyncSelect } from '@winterop-com/sokkel-ui/AsyncSelect'
 import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
@@ -29,10 +29,10 @@ import {
 import { ALERT_EVENTS, createRule, type AlertEvent, type AlertScope } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
-import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS, pickerWords } from '@/lib/design-system'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
-import type { PickerOption } from '@/lib/picker'
+import { matchesOption, type PickerOption } from '@/lib/picker'
 import { byTitle, readAllPipelines, type Importance } from '@/lib/pipelines'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
@@ -215,13 +215,18 @@ export function NewRule({
                         requiredMark="word"
                         words={FIELD_WORDS}
                     >
-                        <Picker
+                        <AsyncSelect
                             id="rule-pipeline"
-                            label={LABELS.word.pipeline.label}
-                            value={pipeline}
-                            options={pipelines}
-                            placeholder={LABELS.alerting.pipeline_search}
-                            onChange={setPipeline}
+                            items={pipelines}
+                            filter={matchesOption}
+                            itemKey={(option) => option.value}
+                            itemLabel={(option) => option.label}
+                            itemDetail={(option) => option.aside}
+                            value={pipelines.find((option) => option.value === pipeline) ?? null}
+                            words={pickerWords(LABELS.alerting.pipeline_search)}
+                            onValueChange={(picked) => {
+                                setPipeline(picked === null ? '' : picked.value)
+                            }}
                         />
                     </Field>
                 )}

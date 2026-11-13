@@ -2,11 +2,11 @@ import { useState } from 'react'
 
 import { Refusal } from '@/components/Refusal'
 import { RoleSelect } from '@/components/admin/RoleSelect'
-import { Field } from '@winterop-com/sokkel-ui/Field'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
+import { SecretField } from '@winterop-com/sokkel-ui/SecretField'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { type Problem } from '@/lib/api'
-import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS, SECRET_FIELD_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import type { UserRole } from '@/lib/auth'
@@ -145,33 +145,30 @@ export function CreateUser({
                 }}
             />
 
-            <TextField
+            <SecretField
                 id="new-password"
                 label={LABELS.word.password}
                 required
                 requiredMark="word"
-                words={FIELD_WORDS}
+                words={SECRET_FIELD_WORDS}
                 error={passwordIssue}
-                type="password"
-                value={form.password}
-                autoComplete="new-password"
+                mono={false}
+                value={form.password === '' ? undefined : form.password}
                 onChange={(password) => {
-                    setForm((current) => ({ ...current, password }))
+                    setForm((current) => ({ ...current, password: password ?? '' }))
                 }}
                 onBlur={() => {
                     setLeft((was) => ({ ...was, password: true }))
                 }}
             />
 
-            <Field id="new-role" label={LABELS.word.role}>
-                <RoleSelect
-                    id="new-role"
-                    value={form.role}
-                    onChange={(role) => {
-                        setForm((current) => ({ ...current, role }))
-                    }}
-                />
-            </Field>
+            <RoleSelect
+                id="new-role"
+                value={form.role}
+                onChange={(role) => {
+                    setForm((current) => ({ ...current, role }))
+                }}
+            />
 
             {problem !== null && <Refusal problem={problem} />}
         </DialogShell>

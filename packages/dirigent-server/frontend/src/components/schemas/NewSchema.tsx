@@ -1,10 +1,8 @@
 import { useState } from 'react'
 
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { Field } from '@winterop-com/sokkel-ui/Field'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Refusal } from '@/components/Refusal'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
@@ -94,7 +92,7 @@ export function NewSchema({
                 onConfirm: create,
             }}
         >
-            <Field
+            <TextField
                 id="new-schema-code"
                 label={LABELS.word.code}
                 mono
@@ -103,41 +101,29 @@ export function NewSchema({
                 words={FIELD_WORDS}
                 hint={LABELS.schemas.create.code_hint}
                 error={touched ? (why ?? null) : null}
-            >
-                <Input
-                    id="new-schema-code"
-                    className="font-mono"
-                    aria-required
-                    value={code}
-                    autoFocus
-                    onChange={(event) => {
-                        setCode(event.target.value)
-                    }}
-                    onBlur={() => {
-                        setTouched(true)
-                    }}
-                />
-            </Field>
-            <Field id="new-schema-name" label={LABELS.word.name.label}>
-                <Input
-                    id="new-schema-name"
-                    value={named}
-                    onChange={(event) => {
-                        setNamed(event.target.value)
-                    }}
-                />
-            </Field>
-            <Field id="new-schema-description" label={LABELS.word.description}>
-                <Textarea
-                    id="new-schema-description"
-                    className="min-h-20"
-                    value={description}
-                    placeholder={LABELS.schemas.description_placeholder}
-                    onChange={(event) => {
-                        setDescription(event.target.value)
-                    }}
-                />
-            </Field>
+                value={code}
+                autoFocus
+                onChange={setCode}
+                onBlur={() => {
+                    setTouched(true)
+                }}
+            />
+            <TextField
+                id="new-schema-name"
+                label={LABELS.word.name.label}
+                value={named}
+                onChange={setNamed}
+            />
+            <TextField
+                id="new-schema-description"
+                label={LABELS.word.description}
+                multiline
+                rows={3}
+                maxRows={12}
+                value={description}
+                placeholder={LABELS.schemas.description_placeholder}
+                onChange={setDescription}
+            />
             {problem !== null && <Refusal problem={problem} />}
         </DialogShell>
     )
