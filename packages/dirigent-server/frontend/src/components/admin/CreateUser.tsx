@@ -5,16 +5,25 @@ import { RoleSelect } from '@/components/admin/RoleSelect'
 import { Field } from '@winterop-com/sokkel-ui/Field'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { type Problem } from '@/lib/api'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import type { UserRole } from '@/lib/auth'
 import { createUser, MIN_PASSWORD_LENGTH } from '@/lib/users'
 
 /** Nothing typed yet. A new account is a viewer until somebody says otherwise. */
-const BLANK = { username: '', password: '', name: '', email: '', role: 'viewer' as UserRole }
+const BLANK = {
+    username: '',
+    password: '',
+    name: '',
+    email: '',
+    role: 'viewer' as UserRole,
+}
+
+/** No box left yet: what the dialog opens on. */
+const NONE_LEFT = { username: false, password: false }
 
 /**
  * Make a local account.
@@ -39,6 +48,8 @@ export function CreateUser({
     const [form, setForm] = useState(BLANK)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
+    // Which boxes have been left once, so a required one says so only after somebody was there.
+    const [left, setLeft] = useState(NONE_LEFT)
 
     const send = () => {
         if (form.password.length < MIN_PASSWORD_LENGTH) {
@@ -57,6 +68,7 @@ export function CreateUser({
             .then(
                 () => {
                     setForm(BLANK)
+                    setLeft(NONE_LEFT)
                     onCreated()
                     onOpenChange(false)
                 },
@@ -75,12 +87,18 @@ export function CreateUser({
             : form.password === ''
               ? LABELS.users.account_needs_password
               : undefined
+    const usernameIssue =
+        left.username && form.username.trim() === '' ? LABELS.users.account_needs_username : null
+    const passwordIssue = left.password && form.password === '' ? LABELS.users.account_needs_password : null
 
     return (
         <DialogShell
             words={DIALOG_WORDS}
             open={open}
-            onOpenChange={onOpenChange}
+            onOpenChange={(next) => {
+                if (!next) setLeft(NONE_LEFT)
+                onOpenChange(next)
+            }}
             title={LABELS.users.new_account}
             confirm={{
                 label: LABELS.action.create.verb,
@@ -90,54 +108,81 @@ export function CreateUser({
                 onConfirm: send,
             }}
         >
-            <div className="space-y-2">
-                <Label htmlFor="new-username">{LABELS.word.username}</Label>
+            <Field
+                id="new-username"
+                label={LABELS.word.username}
+                mono
+                required
+                requiredMark="word"
+                words={FIELD_WORDS}
+                error={usernameIssue}
+            >
                 <Input
                     id="new-username"
+                    className="font-mono"
+                    spellCheck={false}
+                    aria-required
+                    aria-invalid={usernameIssue !== null || undefined}
                     value={form.username}
                     autoComplete="off"
                     onChange={(event) => {
-                        setForm((current) => ({ ...current, username: event.target.value }))
+                        setForm((current) => ({
+                            ...current,
+                            username: event.target.value,
+                        }))
+                    }}
+                    onBlur={() => {
+                        setLeft((was) => ({ ...was, username: true }))
                     }}
                 />
-            </div>
+            </Field>
 
-            <div className="space-y-2">
-                <Label htmlFor="new-name">{LABELS.word.name.label}</Label>
-                <Input
-                    id="new-name"
-                    value={form.name}
-                    autoComplete="off"
-                    onChange={(event) => {
-                        setForm((current) => ({ ...current, name: event.target.value }))
-                    }}
-                />
-            </div>
+            <TextField
+                id="new-name"
+                label={LABELS.word.name.label}
+                value={form.name}
+                autoComplete="off"
+                onChange={(name) => {
+                    setForm((current) => ({ ...current, name }))
+                }}
+            />
 
-            <div className="space-y-2">
-                <Label htmlFor="new-email">{LABELS.word.email}</Label>
-                <Input
-                    id="new-email"
-                    value={form.email}
-                    autoComplete="off"
-                    onChange={(event) => {
-                        setForm((current) => ({ ...current, email: event.target.value }))
-                    }}
-                />
-            </div>
+            <TextField
+                id="new-email"
+                label={LABELS.word.email}
+                value={form.email}
+                autoComplete="off"
+                onChange={(email) => {
+                    setForm((current) => ({ ...current, email }))
+                }}
+            />
 
-            <div className="space-y-2">
-                <Label htmlFor="new-password">{LABELS.word.password}</Label>
+            <Field
+                id="new-password"
+                label={LABELS.word.password}
+                required
+                requiredMark="word"
+                words={FIELD_WORDS}
+                error={passwordIssue}
+            >
                 <Input
                     id="new-password"
                     type="password"
+                    aria-required
+                    aria-invalid={passwordIssue !== null || undefined}
                     value={form.password}
                     autoComplete="new-password"
                     onChange={(event) => {
-                        setForm((current) => ({ ...current, password: event.target.value }))
+                        setForm((current) => ({
+                            ...current,
+                            password: event.target.value,
+                        }))
+                    }}
+                    onBlur={() => {
+                        setLeft((was) => ({ ...was, password: true }))
                     }}
                 />
-            </div>
+            </Field>
 
             <Field id="new-role" label={LABELS.word.role}>
                 <RoleSelect

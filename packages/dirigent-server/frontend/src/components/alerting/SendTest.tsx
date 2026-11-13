@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 
 import { Surface } from '@winterop-com/sokkel-ui/Section'
-import { Field, TargetPicker } from '@/components/alerting/fields'
+import { TargetPicker } from '@/components/alerting/fields'
 import { Instant } from '@/components/Instant'
 import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -157,12 +158,13 @@ export function SendTest({
                 onChange={setConnection}
             />
 
-            <Field
+            <TextField
                 id="test-subject"
                 label={LABELS.word.subject}
                 value={subject}
                 onChange={setSubject}
                 placeholder={LABELS.alerting.test_subject}
+                autoComplete="off"
             />
 
             {problem !== null && <Refusal problem={problem} />}
