@@ -896,6 +896,16 @@ const shell = {
     copy_secret: (secret: string) => `Copy ${secret}`,
     /** The line under a secret the server answers with once. */
     shown_once: 'Shown once. Copy it now: it cannot be read again.',
+    /** The copy button on a code block inside a description or a report. */
+    copy_code: 'Copy the code',
+    /** The title of each callout a description writes as `> [!NOTE]` and so on. */
+    callout: {
+        note: 'Note',
+        tip: 'Tip',
+        important: 'Important',
+        warning: 'Warning',
+        caution: 'Caution',
+    },
 } as const
 
 /**

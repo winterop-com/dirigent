@@ -53,7 +53,7 @@ import { STARTER_TAG, copyStarter } from '@/lib/starters'
 import { cn } from '@/lib/utils'
 
 /**
- * The pane a chosen row opens, which carries the markdown lexer and the editor's own door.
+ * The pane a chosen row opens, which carries the markdown renderer and the editor's own door.
  *
  * A reader who never opens a row downloads neither.
  */

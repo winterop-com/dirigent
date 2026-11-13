@@ -27,7 +27,7 @@ wrong is changed on this page first and in the code second.
 | Graphs | sokkel-ui-graph, on `@xyflow/react` for the canvas and `elkjs` for the layout | The library draws and places every graph: React Flow draws what it is given and decides no geometry, and elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
 | Editor | sokkel-ui's `CodeEditor`, on CodeMirror 6 | A pipeline document is YAML checked against a schema as it is typed, and the library's editor checks and completes JSON and YAML against JSON Schema 2020-12 itself, with ajv. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, a schema, and a config field whose schema says it carries a program |
 | YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
-| Markdown | `marked`, for its lexer only | A description is authored markdown and has to render as prose. Nothing here produces an HTML string, so what is drawn is a token tree React escapes -- see `lib/markdown` |
+| Markdown | sokkel-ui's `PlainMarkdown`, on react-markdown and remark-gfm | A description is authored markdown and has to render as prose. The library builds React elements from a syntax tree and leaves raw markup as text, so no HTML string reaches the DOM -- see `components/Description` |
 | Palette | cmdk | |
 | Toasts | sonner | |
 | Mode and palette | sokkel-ui's appearance: `useAppearance`, `useScheme`, and its `appearance.js` before the first paint | |
@@ -449,16 +449,23 @@ pipelines listing sorts by `titleOf`, without case, with the code breaking a tie
 headed the same way: `RunOut.pipeline` is a code and nothing else, so the runs screen reads the
 pipeline names once and joins, and a code the read did not reach is still headed by its code.
 
-**`description` renders as markdown, sanitised by construction rather than by filtering.**
-`lib/markdown` uses `marked` for its lexer alone and answers a tree of blocks and inline runs;
-`components/Markdown` turns that tree into React elements. No HTML string is ever produced, so
-there is nothing for a sanitiser to clean and nothing `dangerouslySetInnerHTML` could be
-handed -- a `<script>` in a description arrives as a token and leaves as text React escapes.
-Paragraphs, headings, emphasis, inline code, code blocks, lists, quotes, tables and links are
-the subset a description needs; anything else is drawn as the source it was written as, and a
-link is followed only for `http`, `https` and `mailto`. A table is set the way its column
-declared and scrolls inside its own box, because a description is drawn in a panel narrower than
-some tables are. A listing row is the exception, because a
+**`description` renders as markdown, and no HTML string reaches the DOM.**
+`components/Description` draws it through sokkel-ui's `PlainMarkdown`, in a chunk of its own that
+arrives with the first description, and draws the words themselves while it arrives. The library
+builds React elements from a syntax tree and leaves raw markup as text, so a `<script>` in a
+description is drawn as the characters somebody typed; `components/Description.test` holds that,
+and refuses `dangerouslySetInnerHTML` anywhere in this app and in every library module the
+renderer reaches. A description is GitHub-flavored markdown: paragraphs, headings, emphasis,
+inline code, code blocks highlighted with a copy button, lists and task lists, quotes and
+callouts, tables and links. Raw HTML is never allowed. Nothing in a description reaches out: an
+image is drawn as its alt text and address and is never fetched, and a link is live only to an
+`https` address or a `mailto:` mailbox and opens in a new tab; any other link, a relative one
+included, is drawn as its words. A description's headings sit under the heading it is set
+beneath, so a `#` on a pipeline's page is an `h2` and in a panel or a dialog an `h3`. A table is
+set the way its columns declared and scrolls inside its own box, because a description is drawn
+in a panel narrower than some tables are, and a key/value table's empty heading row is not drawn.
+A field's help in the block catalog is drawn inline, as one line at the help size. A listing row
+is the exception, because a
 cell is a glance: `oneLine` closes up the whitespace and the row truncates the words rather
 than rendering a heading cut in half.
 

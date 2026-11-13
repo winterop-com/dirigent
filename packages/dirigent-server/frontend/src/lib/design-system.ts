@@ -21,6 +21,7 @@ import type { FilterChipWords } from '@winterop-com/sokkel-ui/FilterChip'
 import type { BlockPickerWords } from '@winterop-com/sokkel-ui-graph/BlockPicker'
 import type { GraphLayoutMenuWords } from '@winterop-com/sokkel-ui-graph/GraphLayoutMenu'
 import type { RunGraphProps } from '@winterop-com/sokkel-ui-graph/RunGraph'
+import type { PlainMarkdownProps } from '@winterop-com/sokkel-ui/PlainMarkdown'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
 import type { SchemeChoiceWords } from '@winterop-com/sokkel-ui/SchemeChoice'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
@@ -121,6 +122,22 @@ export function chipWords(remove: (text: string) => string): ChipWords {
 export function copyWords(copy: string): CopyButtonWords {
     return { copy, copied: LABELS.action.copy.done }
 }
+
+/** What a description's code blocks and callouts say. */
+export const MARKDOWN_WORDS: NonNullable<PlainMarkdownProps['words']> = {
+    ...LABELS.shell.callout,
+    code: copyWords(LABELS.shell.copy_code),
+}
+
+/**
+ * How every description is read: its words, no image fetched, and a link live only to an https
+ * address or a mailbox. Raw HTML stays off.
+ */
+export const DESCRIPTION_MARKDOWN = {
+    words: MARKDOWN_WORDS,
+    images: false,
+    linkSchemes: ['https', 'mailto'],
+} as const satisfies Partial<PlainMarkdownProps>
 
 /** What a secret shown once says: its name, its copy button named for it, and that it is shown once. */
 export function secretWords(noun: string): SecretRevealWords {
