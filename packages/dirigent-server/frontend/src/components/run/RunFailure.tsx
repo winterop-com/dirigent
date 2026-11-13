@@ -100,6 +100,7 @@ export function RunFailure({
             )}
             {params.length > 0 && (
                 <DescriptionList
+                    termWidth="auto"
                     className="mt-4 border-t border-critical/20 pt-3.5"
                     items={params.map(([key, value]) => ({
                         term: <InlineCode value={key} tone="muted" bare size="xs" />,
