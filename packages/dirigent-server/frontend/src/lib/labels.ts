@@ -2873,7 +2873,7 @@ const triggers = {
     dialog: {
         pipeline_hint: 'Search by name or code',
         /** The priority row that declares none, so the pipeline's own is what a run takes. */
-        priority_inherited: "The pipeline's",
+        priority_inherited: 'Same as the pipeline',
         /** Which reading of the pinned parameters is in front of somebody. */
         params_written: 'How the parameters are written',
         params_form: 'Form',
