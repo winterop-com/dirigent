@@ -398,7 +398,7 @@ test('a column heading is a label, whatever face its cells are in', async ({ pag
 test('a small button is on the type scale', async ({ page }) => {
     await signIn(page)
     await page.goto('/')
-    const small = page.locator('[data-slot="button"].h-7').first()
+    const small = page.locator('[data-slot="button"][class*="h-(--density-control-sm)"]').first()
     await expect(small).toBeVisible()
     await expect(small).toHaveCSS('font-size', '13px')
 })

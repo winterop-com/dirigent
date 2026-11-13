@@ -118,12 +118,18 @@ export function pickerWords(search: string): Partial<AsyncSelectWords> {
     return { placeholder: LABELS.shell.choose, search, empty: LABELS.shell.no_match }
 }
 
-/** What a field says beside its label when it is required. */
-export const FIELD_WORDS: FieldWords = { required: LABELS.form.required }
+/** What a screen reader hears before an error and before a warning, wherever an issue is marked. */
+export const ISSUE_WORDS: Pick<FieldWords, 'issueCritical' | 'issueWarning'> = {
+    issueCritical: LABELS.form.issue_critical,
+    issueWarning: LABELS.form.issue_warning,
+}
+
+/** What a field says beside its label when it is required, and before its issues. */
+export const FIELD_WORDS: FieldWords = { required: LABELS.form.required, ...ISSUE_WORDS }
 
 /** What a password box says: the required word, and its Show and Hide. */
 export const SECRET_FIELD_WORDS: Partial<SecretFieldWords> = {
-    required: LABELS.form.required,
+    ...FIELD_WORDS,
     show: LABELS.form.secret.show,
     hide: LABELS.form.secret.hide,
 }
@@ -187,12 +193,24 @@ export function oneChosen(value: string, onChange: (value: string) => void) {
 }
 
 /**
+ * What every listing says that is not about its rows: a refused cell's issues, and over a read that
+ * failed, the heading for no answer and the button that reads again. A refusal's own heading is
+ * the problem document's, given where it is drawn.
+ */
+export const TABLE_WORDS: Partial<DataTableWords> = {
+    ...ISSUE_WORDS,
+    unreachable: LABELS.refusal.no_answer.title,
+    retry: LABELS.shell.read_again,
+}
+
+/**
  * How every listing's `DataTable` lays out: the list look, columns that do not drag, and its rows
  * as cards once its own box is narrower than `lg` and than the least its columns take, which
  * is never under 36rem. The next page is asked for as the rows near the end of the box.
  */
 export const LISTING = {
     variant: 'list',
+    words: TABLE_WORDS,
     resizable: false,
     stackBelow: '64rem',
     minWidth: '36rem',
@@ -202,8 +220,11 @@ export const LISTING = {
  * What a listing's bar says of its rows, in `rowsRead`'s words: "50 runs", and "50 runs, more to
  * load" while the cursor has more.
  */
-export function countWords(noun: Counted<string>): Pick<DataTableWords, 'rows' | 'loaded'> {
+export function countWords(
+    noun: Counted<string>,
+): Partial<DataTableWords> & Pick<DataTableWords, 'rows' | 'loaded'> {
     return {
+        ...TABLE_WORDS,
         rows: (count) => rowsRead(count, noun, false),
         loaded: (count) => rowsRead(count, noun, true),
     }
@@ -218,7 +239,10 @@ export const SECTION_LISTING = {
     framed: false,
     loadMore: 'button',
     loadMoreCount: PAGE,
-    words: { loadMore: (count: number | undefined) => LABELS.shell.load_more(String(count ?? PAGE)) },
+    words: {
+        ...TABLE_WORDS,
+        loadMore: (count: number | undefined) => LABELS.shell.load_more(String(count ?? PAGE)),
+    },
 } as const
 
 /** The one dismissal word a dialog's footer says. */

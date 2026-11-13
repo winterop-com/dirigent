@@ -2,8 +2,10 @@ import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
+import type { DataTableWords } from '@winterop-com/sokkel-ui/DataTable'
 import type { PageStateWords, ReadOutcome } from '@winterop-com/sokkel-ui/PageState'
 import type { Problem } from '@/lib/api'
+import { TABLE_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalLine, refusalLines, refusalOf } from '@/lib/refusal'
 
@@ -72,6 +74,32 @@ export function refusedRead(problem: Problem | null): {
         problems: lines.problems,
         status: problem.status === 0 ? 'unreachable' : problem.status,
         words: { ...READ_WORDS, refused: problem.title, missing: problem.title },
+    }
+}
+
+/**
+ * A refused read as the library's `DataTable` draws it in place of its rows: `refusedRead`'s
+ * diagnostic, failures and outcome, the table's own `words` headed with the status phrase, and
+ * Try again where the read can simply be asked again.
+ */
+export function refusedTable(
+    problem: Problem | null,
+    onRetry?: () => void,
+    words: Partial<DataTableWords> = TABLE_WORDS,
+): {
+    error: ReactNode
+    problems: readonly ReactNode[] | undefined
+    status: ReadOutcome | undefined
+    onRetry: (() => void) | undefined
+    words: Partial<DataTableWords>
+} {
+    const read = refusedRead(problem)
+    return {
+        error: read.error,
+        problems: read.problems,
+        status: read.status,
+        onRetry,
+        words: problem === null ? words : { ...words, refused: problem.title, missing: problem.title },
     }
 }
 

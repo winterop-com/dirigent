@@ -3,12 +3,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { ApiChip } from '@/components/ApiChip'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
-import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Instant } from '@/components/Instant'
-import { refusedRead } from '@/components/Refusal'
+import { refusedTable } from '@/components/Refusal'
 import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { usePaged } from '@/hooks/use-paged'
 import {
@@ -182,16 +181,8 @@ function Audit() {
                 hasMore={state.problem === null && state.next !== null}
                 loading={state.reading}
                 onLoadMore={more}
-                words={countWords(LABELS.audit.count)}
-                empty={
-                    state.problem === null ? (
-                        emptyNote(filters)
-                    ) : (
-                        <PageState frame={false} loading={false} {...refusedRead(state.problem)}>
-                            {null}
-                        </PageState>
-                    )
-                }
+                {...refusedTable(state.problem, reload, countWords(LABELS.audit.count))}
+                empty={emptyNote(filters)}
             />
         </>
     )

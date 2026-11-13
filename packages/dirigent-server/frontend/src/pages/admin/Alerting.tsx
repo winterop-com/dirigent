@@ -14,8 +14,7 @@ import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { Section } from '@winterop-com/sokkel-ui/Section'
-import { PageState } from '@winterop-com/sokkel-ui/PageState'
-import { refusedRead } from '@/components/Refusal'
+import { refusedTable } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
@@ -296,19 +295,8 @@ function Alerting() {
                         onLoadMore={rules.more}
                         onOpen={pressRule}
                         opened={(rule) => rule.id === chosenRule}
-                        empty={
-                            rules.state.problem === null ? (
-                                LABELS.alerting.rules_empty
-                            ) : (
-                                <PageState
-                                    frame={false}
-                                    loading={false}
-                                    {...refusedRead(rules.state.problem)}
-                                >
-                                    {null}
-                                </PageState>
-                            )
-                        }
+                        {...refusedTable(rules.state.problem, reloadRules, SECTION_LISTING.words)}
+                        empty={LABELS.alerting.rules_empty}
                     />
                 </Section>
 
@@ -363,22 +351,15 @@ function Alerting() {
                         onLoadMore={notifications.more}
                         onOpen={pressNotification}
                         opened={(row) => row.id === chosenNotification}
+                        {...refusedTable(
+                            notifications.state.problem,
+                            reloadNotifications,
+                            SECTION_LISTING.words,
+                        )}
                         empty={
-                            notifications.state.problem === null ? (
-                                narrowed(filters) ? (
-                                    LABELS.alerting.notifications_empty_filtered
-                                ) : (
-                                    LABELS.alerting.notifications_empty
-                                )
-                            ) : (
-                                <PageState
-                                    frame={false}
-                                    loading={false}
-                                    {...refusedRead(notifications.state.problem)}
-                                >
-                                    {null}
-                                </PageState>
-                            )
+                            narrowed(filters)
+                                ? LABELS.alerting.notifications_empty_filtered
+                                : LABELS.alerting.notifications_empty
                         }
                     />
                 </Section>

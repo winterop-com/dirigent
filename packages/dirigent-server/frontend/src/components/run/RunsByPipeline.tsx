@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router'
 
 import { Instant } from '@/components/Instant'
 import { PipelineRef } from '@/components/PipelineRef'
+import { refusedTable } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
+import type { Problem } from '@/lib/api'
 import { countWords, dotOf, LISTING } from '@/lib/design-system'
 import { formatDuration, formatInstant } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
@@ -32,6 +34,8 @@ export function RunsByPipeline({
     search,
     toolbar,
     loading,
+    problem,
+    onRetry,
     empty,
 }: {
     rows: readonly PipelineRuns[]
@@ -39,6 +43,9 @@ export function RunsByPipeline({
     search: ReactNode
     toolbar: ReactNode
     loading: boolean
+    /** The refusal of the read the rows come from, drawn in their place. */
+    problem: Problem | null
+    onRetry: () => void
     /** What the table says with no rows. */
     empty: ReactNode
 }) {
@@ -55,7 +62,7 @@ export function RunsByPipeline({
             search={search}
             toolbar={toolbar}
             loading={loading}
-            words={countWords(LABELS.word.pipeline.count)}
+            {...refusedTable(problem, onRetry, countWords(LABELS.word.pipeline.count))}
             empty={empty}
         />
     )
