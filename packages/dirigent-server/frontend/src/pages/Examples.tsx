@@ -1,4 +1,3 @@
-import { FilePlus2, RefreshCw } from 'lucide-react'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
@@ -34,6 +33,7 @@ import {
     type ExampleOut,
     type Holdings,
 } from '@/lib/examples'
+import { ICONS } from '@/lib/icons'
 import { headingOf, itemOf, oneLine } from '@/lib/identity'
 import {
     chipWords,
@@ -208,7 +208,7 @@ export function Examples() {
                 title: LABELS.examples.show_starters,
                 group: LIST_GROUP,
                 screen: true,
-                icon: FilePlus2,
+                icon: ICONS.starter,
                 keywords: ['starter', 'copy', 'new'],
                 run: () => {
                     change({ ...filters, starters: true })
@@ -219,7 +219,7 @@ export function Examples() {
                 title: LABELS.examples.clear_filters,
                 group: LIST_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.clear_filter,
                 keywords: ['reset', 'all'],
                 run: () => {
                     change({ needle: '', tags: [], shelf: '', plugin: '', starters: false, block: '' })

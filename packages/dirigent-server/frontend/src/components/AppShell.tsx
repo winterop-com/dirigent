@@ -29,6 +29,7 @@ import {
     SIDE_PANEL_WORDS,
     TOP_BAR_WORDS,
 } from '@/lib/design-system'
+import { RELATIVE } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { addressOfId, idResults } from '@/lib/id-jump'
 import { LABELS } from '@/lib/labels'
@@ -431,6 +432,7 @@ function InstanceDot({ onPress }: { onPress: () => void }) {
             quiet
             checks={checks}
             checkedAt={status.checkedAt ?? undefined}
+            relative={RELATIVE}
             recheck={recheckServer}
             onPress={onPress}
             words={SERVER_MENU_WORDS}

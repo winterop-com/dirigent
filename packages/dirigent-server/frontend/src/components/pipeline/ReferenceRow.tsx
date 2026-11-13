@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
-import { Disclosure } from '@/components/pipeline/Disclosure'
+import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
 import { JsonBlock } from '@/components/JsonBlock'
 import { Mark } from '@/components/Mark'
 import type { JsonMap } from '@/lib/api'
@@ -61,29 +61,28 @@ export function ReferenceRow({
             : connectionRow(resolveConnection(code, connections), marks)
     if (found === null) return null
 
-    // A code nothing holds has nothing under it to open, so it is one muted line and no chevron.
-    if (found.body === null) return <p className="py-1.5 text-xs text-muted-foreground">{found.words}</p>
+    // A code nothing holds has nothing under it to open, so it is a static row with no chevron.
+    if (found.body === null)
+        return (
+            <Unfoldable
+                heading={<span className="text-xs font-normal text-muted-foreground">{found.words}</span>}
+            />
+        )
 
     return (
-        <Disclosure
-            title={
+        <Unfoldable
+            heading={
                 <span className="flex items-center gap-1.5 text-xs font-normal">
                     {found.mark !== null && <Mark glyph={found.mark} />}
                     {found.named ?? found.words}
                 </span>
             }
-            summary={
-                found.named === null ? undefined : (
-                    <span className="ml-auto text-xs text-muted-foreground">{found.words}</span>
-                )
-            }
+            summary={found.named === null ? undefined : found.words}
             open={open}
-            onToggle={() => {
-                setOpen(!open)
-            }}
+            onOpenChange={setOpen}
         >
             {found.body}
-        </Disclosure>
+        </Unfoldable>
     )
 }
 
@@ -164,7 +163,7 @@ function connectionRow(resolution: ReturnType<typeof resolveConnection>, marks: 
     }
 }
 
-/** A definition, in the same coloured box and the same window every piece of JSON here gets. */
+/** A definition, in the same box and the same window every piece of JSON here gets. */
 function Body({ title, value }: { title: string; value: JsonMap }) {
     return <JsonBlock title={title} text={JSON.stringify(value, null, 2)} />
 }

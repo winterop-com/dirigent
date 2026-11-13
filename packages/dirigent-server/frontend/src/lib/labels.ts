@@ -834,6 +834,8 @@ const shell = {
     open_in_window: (name: string) => `Open ${name} in a window`,
     /** What the pane inside that window is called. */
     in_window: (name: string) => `${name}, in a window`,
+    /** The button that puts what a pane holds on the clipboard. */
+    copy_pane: (name: string) => `Copy ${name}`,
     /** The button that closes that window. */
     close_window: 'Close the window',
     /** What a diff says in place of its counts when the two texts are the same. */
@@ -2236,6 +2238,30 @@ const reference = {
             command: '/bin/sh -c, for a pipe or a redirect',
             environment: 'variables set here, and the worker variables let through',
             cwd: 'relative to the run’s work directory, never absolute',
+        },
+    },
+    /** What the fhir pack's transform, map and filter steps evaluate. */
+    fhirpath: {
+        title: 'FHIRPath',
+        manual: 'The FHIRPath specification',
+        runtime: {
+            title: 'In this runtime',
+            resource: 'the value the expression is evaluated over, when it is an object',
+            variable: 'a value from variables; a reference goes there, never in the expression',
+            max_output: 'the cap on one answer, as JSON',
+        },
+    },
+    /** What a fhir.cql or fhir.measure step's library is written in. */
+    cql: {
+        title: 'CQL',
+        manual: 'The CQL specification',
+        runtime: {
+            title: 'In this runtime',
+            model: 'the data model the library reads its resources in',
+            parameter: 'a value from parameters, under the name the library declares',
+            data: 'the resources it reads: a Bundle, or a list of resources',
+            definitions: 'which definitions fhir.cql answers; every one when unset',
+            max_output: 'the cap on the answer, as JSON',
         },
     },
     /** What a report is templated in. */

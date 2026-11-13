@@ -1,9 +1,9 @@
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 
 import { KindChip } from '@/components/KindChip'
-import { Disclosure } from '@/components/pipeline/Disclosure'
 import { DocumentForm } from '@/components/schema/DocumentForm'
 import { Section } from '@/components/run/Panel'
+import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import {
@@ -209,14 +209,11 @@ export function StepTab({
                             <Group
                                 key={group.id}
                                 group={group}
-                                open={refused || opened.has(group.id)}
-                                onToggle={
-                                    refused
-                                        ? null
-                                        : () => {
-                                              setOpened(toggled(opened, group.id))
-                                          }
-                                }
+                                open={opened.has(group.id)}
+                                held={refused}
+                                onToggle={() => {
+                                    setOpened(toggled(opened, group.id))
+                                }}
                             >
                                 {group.id === 'depends_on' ? (
                                     <Prerequisites
@@ -312,30 +309,33 @@ function toggled(open: ReadonlySet<StepGroupId>, id: StepGroupId): ReadonlySet<S
 /**
  * One group: the row that says where it stands, and its form under it while it is open.
  *
- * A group nothing may shut -- one holding a refusal -- has no button, because a control that
- * cannot carry out what it offers is chrome. Its chevron still says which way the group is.
+ * A group holding a refusal is held open with no button to shut it until the refusal is gone.
  */
 function Group({
     group,
     open,
+    held,
     onToggle,
     children,
 }: {
     group: StepGroup
     open: boolean
-    /** How to turn the group over, or nothing where it may not be shut. */
-    onToggle: (() => void) | null
+    /** Whether the group is held open, as it is while it holds a refusal. */
+    held: boolean
+    onToggle: () => void
     children: ReactNode
 }) {
     return (
-        <Disclosure
-            title={group.title}
+        <Unfoldable
+            heading={group.title}
             summary={<Summary parts={group.summary} chips={group.chips} />}
             open={open}
-            onToggle={onToggle}
+            forced={held}
+            onOpenChange={onToggle}
+            wrapSummary
         >
             {children}
-        </Disclosure>
+        </Unfoldable>
     )
 }
 
@@ -343,7 +343,7 @@ function Group({
 function Summary({ parts, chips }: { parts: SummaryPart[]; chips: boolean }) {
     if (chips) {
         return (
-            <span className="ml-auto flex flex-wrap items-center justify-end gap-1">
+            <span className="flex flex-wrap items-center gap-1">
                 {parts.map((part) => (
                     <Chip key={part.text} mono>
                         {part.text}
@@ -353,7 +353,7 @@ function Summary({ parts, chips }: { parts: SummaryPart[]; chips: boolean }) {
         )
     }
     return (
-        <span className="ml-auto min-w-0 text-right font-mono text-xs break-words">
+        <span className="font-mono break-words">
             {parts.map((part, index) => (
                 <Fragment key={part.text}>
                     {index > 0 && <span className="text-faint"> · </span>}
