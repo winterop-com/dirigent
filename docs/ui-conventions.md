@@ -25,7 +25,7 @@ wrong is changed on this page first and in the code second.
 | Styling | Tailwind v4, CSS-first, entered through sokkel-ui's `styles-base.css` | There is no `tailwind.config.js` and there must not be one. The tokens, themes, fonts and base styles are [sokkel-ui](https://github.com/winterop-com/sokkel-ui)'s; `src/index.css` imports them, one `sources/<module>.css` line per library module the app imports, and then this app's own CSS |
 | Components | sokkel-ui's primitives, shadcn `base-nova` on **Base UI** (`@base-ui/react`) | Imported from `@winterop-com/sokkel-ui/primitives/*`. A primitive that needs an option dirigent lacks gets it in sokkel-ui |
 | Graphs | sokkel-ui-graph, on `@xyflow/react` for the canvas and `elkjs` for the layout | The library draws and places every graph: React Flow draws what it is given and decides no geometry, and elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
-| Charts | sokkel-ui-charts' `Chart`, on ECharts | The dashboard's runs chart. The library loads the engine and each kind's parts on first draw, so they are chunks of their own and none rides in a screen's chunk |
+| Charts | sokkel-ui-charts' `Chart` and `ChartLegend`, on ECharts | The dashboard's runs chart and its legend, whose toggles hide a band. The library loads the engine and the one kind's parts on first draw, so they are chunks of their own and none rides in a screen's chunk; the legend loads no builder |
 | Editor | sokkel-ui's `CodeEditor`, on CodeMirror 6 | A pipeline document is YAML checked against a schema as it is typed, and the library's editor checks and completes JSON and YAML against JSON Schema 2020-12 itself, with ajv. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, a schema, and a config field whose schema says it carries a program |
 | Highlighting | `shiki`, the peer sokkel-ui's `Code` and `FilePreview` highlight with | Its core, its regex engine and each grammar are chunks of their own, fetched the first time something highlighted is drawn |
 | YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
@@ -1413,7 +1413,8 @@ run's terminal -- each matched as the character it produced, never as Shift plus
 The shell binds those two with sokkel-ui's `useShortcuts`, which keeps a bare letter out of a
 field being typed in -- an input, a text area, a select and anything contenteditable, the code
 editor among them -- and out from under an open dialog or menu; the rail's chord asks to be heard
-in a field too (`inFields`), because a box with focus is when clearing the screen is worth most.
+in an input too (`inFields: 'inputs'`), because a box with focus is when clearing the screen is
+worth most, and stays out of the code editor, which keeps its own keys.
 The shortcuts dialog
 is the shell's: the keys the shell and the screens bind with sokkel-ui's `useShortcuts`, then
 `shortcuts()` for the rest, under one heading.
@@ -1636,11 +1637,10 @@ The height is one token, `--spacing-finger`, and below the breakpoint every cont
 minimum from it. sokkel-ui sizes its own: buttons but the extra-small sizes, toggles, inputs,
 input groups, both selects, the combobox, tabs, menu, command and combobox rows, `SearchField`,
 `FilterChip` and a `Chip` of `size="control"` -- the API chip on a heading's strip -- icon buttons as
-wide, and a finger-square hit area on a menu's or a tooltip's trigger the library draws itself --
-so a listing's bar is a finger tall throughout. `index.css` grows the rest: a command input, and
-`control-link`, which is what a link drawn as a control wears: a drawer entry, a row that
-navigates. The canvas's zoom cluster and every
-`GraphViewButtons`, in a graph panel's bar and in the window's corner, are sized there as well, being the graph library's buttons rather than ours. A bare status dot is its own tooltip's
+wide, a finger-square hit area on a menu's or a tooltip's trigger, the one given `render` too, the
+command input, and the graph library's `GraphViewButtons` -- so a listing's bar is a finger tall
+throughout. `index.css` grows the one thing left: `control-link`, which is what a link drawn as a
+control wears: a drawer entry, a row that navigates. A bare status dot is its own tooltip's
 trigger and is not grown, so it stays one line tall, which a graph node's 15px row needs. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
 drawn as a square takes the width too, because a 44px tall target 28px wide is a target on one
 axis only. No screen sizes a control for a phone itself.
@@ -1827,8 +1827,8 @@ reading, 24px when empty and 48px when refused, for no reason anybody could stat
 
 **A surface that lays out its own body zeroes the primitive's padding and spends the same 16px
 itself.** The command palette is the one: a search row, a scrolling list and a footer rather than
-a form, so `index.css` states the inset once as `--palette-inset` and every part of the dialog
-stands on it -- the search glyph, a shelf heading, a row's icon tile, the footer's key chips.
+a form, so sokkel-ui's `CommandPalette` states the inset once as `--palette-inset` and every part
+of the dialog stands on it -- the search glyph, a shelf heading, a row's icon tile, the footer's key chips.
 A strip that crosses the whole width (the generated footer's `-mx-4 p-4`, the palette's search
 row and footer) takes the inset back inside itself, so the seam runs edge to edge and the words
 still land on the edge. A strip's height is the inset above and below what it holds, which is
@@ -2466,6 +2466,11 @@ scoped to, such as the run being read. **A row is a mark and a title, nothing el
 action says about itself (`hint`) is a word the row is found by and is never drawn: beside every
 title it is a column of glosses saying what the titles already say. A row with no icon gets the
 neutral glyph rather than a gap.
+
+The template picker is the same `CommandPalette` standing as a chooser: `width="lg"`, a
+`description` over the search, and rows that `wrap` rather than cut a title short. A row is the
+starter's title, what it needs of this instance as its hint, in the critical ink where some of it
+is missing, and its code.
 
 ## Adding a screen
 

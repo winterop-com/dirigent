@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 import { TOOLBAR_WORDS } from '@/lib/design-system'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
-import { ShellHead, useShellTrail } from '@winterop-com/sokkel-ui/Shell'
+import { ShellHead } from '@winterop-com/sokkel-ui/Shell'
 import type { ToolbarItem } from '@winterop-com/sokkel-ui/Toolbar'
 import type { Crumb } from '@winterop-com/sokkel-ui/TopBar'
 
@@ -39,7 +39,6 @@ export function PageHeader({
     /** Drawn where it is rendered rather than in the shell's head, as the gallery does. */
     inPlace?: boolean
 }) {
-    useShellTrail(inPlace ? undefined : trail, { ends: 'ancestor' })
     const header = (
         <div className="*:min-h-9">
             <LibraryPageHeader
@@ -50,6 +49,8 @@ export function PageHeader({
                 lead={lead}
                 items={items}
                 primary={primary}
+                trail={trail}
+                trailInTop
                 wordsOnly
                 words={TOOLBAR_WORDS}
             />
