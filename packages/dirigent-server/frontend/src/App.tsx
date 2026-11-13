@@ -67,7 +67,7 @@ const Blocks = lazy(() => import('@/pages/Blocks').then((module) => ({ default: 
 
 /**
  * The examples corpus, which is a reference read the same way the catalog is -- and a heavier
- * one: the panel behind a row carries the markdown lexer and the door to the editor.
+ * one: the panel behind a row carries the markdown renderer and the door to the editor.
  */
 const Examples = lazy(() => import('@/pages/Examples').then((module) => ({ default: module.Examples })))
 

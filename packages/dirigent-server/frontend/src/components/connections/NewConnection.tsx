@@ -1,17 +1,8 @@
 import { ConnectionFields } from '@/components/connections/ConnectionFields'
-import { Refusable } from '@/components/Refusable'
-import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { useConnectionDraft } from '@/hooks/use-connection-draft'
 import { type ConnectionOut, type SurfaceEntry } from '@/lib/connections'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 
 /**
@@ -41,40 +32,27 @@ export function NewConnection({
     const form = useConnectionDraft(kinds, '', startKind)
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-xl"
-                showCloseButton={false}
-            >
-                <DialogHeader>
-                    <DialogTitle>{LABELS.connections.new}</DialogTitle>
-                    <DialogDescription>{LABELS.connections.sealed}</DialogDescription>
-                </DialogHeader>
-
-                {/* The boxes scroll and the verbs do not: a kind with a dozen settings is
-                    taller than a short screen, and Create is what somebody reaches for. */}
-                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
-                    <ConnectionFields form={form} kinds={kinds} ids="connection-new" />
-                </div>
-
-                <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
-                    <Refusable why={form.shut}>
-                        <Button
-                            disabled={form.busy || form.shut !== undefined}
-                            title={form.shut}
-                            onClick={() => {
-                                form.create((row) => {
-                                    onCreated(row)
-                                    onOpenChange(false)
-                                })
-                            }}
-                        >
-                            {form.busy ? LABELS.action.create.busy : LABELS.action.create.verb}
-                        </Button>
-                    </Refusable>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <DialogShell
+            words={DIALOG_WORDS}
+            open={open}
+            onOpenChange={onOpenChange}
+            width="lg"
+            title={LABELS.connections.new}
+            description={LABELS.connections.sealed}
+            confirm={{
+                label: LABELS.action.create.verb,
+                busy: form.busy,
+                busyLabel: LABELS.action.create.busy,
+                why: form.shut,
+                onConfirm: () => {
+                    form.create((row) => {
+                        onCreated(row)
+                        onOpenChange(false)
+                    })
+                },
+            }}
+        >
+            <ConnectionFields form={form} kinds={kinds} ids="connection-new" />
+        </DialogShell>
     )
 }

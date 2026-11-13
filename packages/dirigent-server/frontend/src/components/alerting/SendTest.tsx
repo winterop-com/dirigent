@@ -7,20 +7,13 @@ import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { LOG_TARGET, targetChosen, targetOptions } from '@/lib/alert-form'
 import { deliverySettled, readNotification, sendTest, type NotificationOut } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 
@@ -119,37 +112,22 @@ export function SendTest({
             })
     }
 
+    // Before a send: Cancel and Send. After one: the corner close, Open in queue and Send again.
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg" showCloseButton={watching !== null}>
-                <DialogHeader>
-                    <DialogTitle>{LABELS.action.send_test}</DialogTitle>
-                    <DialogDescription>{LABELS.alerting.test_explained}</DialogDescription>
-                </DialogHeader>
-
-                <TargetPicker
-                    id="test-connection"
-                    options={targetOptions(notifiers, connections)}
-                    value={connection}
-                    onChange={setConnection}
-                />
-
-                <Field
-                    id="test-subject"
-                    label={LABELS.word.subject}
-                    value={subject}
-                    onChange={setSubject}
-                    placeholder={LABELS.alerting.test_subject}
-                />
-
-                {problem !== null && <Refusal problem={problem} />}
-                {delivery !== null && <Delivery row={delivery} />}
-
-                <DialogFooter>
-                    {watching === null && (
-                        <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
-                    )}
-                    {watching !== null && (
+        <DialogShell
+            words={DIALOG_WORDS}
+            open={open}
+            onOpenChange={onOpenChange}
+            title={LABELS.action.send_test}
+            description={LABELS.alerting.test_explained}
+            confirm={
+                watching === null
+                    ? { label: LABELS.alerting.send, busy, why: shut, onConfirm: send }
+                    : undefined
+            }
+            actions={
+                watching === null ? undefined : (
+                    <>
                         <Button
                             variant="outline"
                             onClick={() => {
@@ -158,15 +136,38 @@ export function SendTest({
                         >
                             {LABELS.alerting.open_in_queue}
                         </Button>
-                    )}
-                    <Refusable why={shut}>
-                        <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {watching === null ? LABELS.alerting.send : LABELS.alerting.send_again}
-                        </Button>
-                    </Refusable>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                        <Refusable why={shut}>
+                            <Button
+                                autoFocus
+                                disabled={busy || shut !== undefined}
+                                title={shut}
+                                onClick={send}
+                            >
+                                {LABELS.alerting.send_again}
+                            </Button>
+                        </Refusable>
+                    </>
+                )
+            }
+        >
+            <TargetPicker
+                id="test-connection"
+                options={targetOptions(notifiers, connections)}
+                value={connection}
+                onChange={setConnection}
+            />
+
+            <Field
+                id="test-subject"
+                label={LABELS.word.subject}
+                value={subject}
+                onChange={setSubject}
+                placeholder={LABELS.alerting.test_subject}
+            />
+
+            {problem !== null && <Refusal problem={problem} />}
+            {delivery !== null && <Delivery row={delivery} />}
+        </DialogShell>
     )
 }
 

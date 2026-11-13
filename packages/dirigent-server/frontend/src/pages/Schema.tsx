@@ -8,13 +8,13 @@ import { Section } from '@/components/run/Panel'
 import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { shutWith, windowWords } from '@/lib/design-system'
+import { DIALOG_WORDS, shutWith, windowWords } from '@/lib/design-system'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { Refusal } from '@/components/Refusal'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import { Dialog, DialogContent, DialogTitle } from '@winterop-com/sokkel-ui/primitives/dialog'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { WindowedPane, WindowedPaneButton } from '@winterop-com/sokkel-ui/WindowedPane'
@@ -346,17 +346,17 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                     }
                 </WindowedPane>
             </div>
-            <Dialog open={trying} onOpenChange={setTrying}>
-                <DialogContent
-                    finalFocus={false}
-                    className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none flex-col gap-3 sm:max-w-none"
-                >
-                    <div className="flex flex-wrap items-center gap-2 pr-8">
-                        <DialogTitle className="text-sm">{LABELS.schemas.try_title(schema.code)}</DialogTitle>
+            <DialogShell
+                words={DIALOG_WORDS}
+                open={trying}
+                onOpenChange={setTrying}
+                width="full"
+                finalFocus={false}
+                title={LABELS.schemas.try_title(schema.code)}
+                actions={
+                    <>
                         <Button
                             variant="outline"
-                            size="sm"
-                            className="ml-auto"
                             disabled={sample === undefined}
                             title={sample === undefined ? LABELS.schemas.tester.no_example : undefined}
                             onClick={() => {
@@ -365,46 +365,42 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                         >
                             {LABELS.schemas.tester.example}
                         </Button>
-                        <Button
-                            size="sm"
-                            disabled={busy || saveWhy !== undefined}
-                            title={saveWhy}
-                            onClick={send}
-                        >
+                        <Button disabled={busy || saveWhy !== undefined} title={saveWhy} onClick={send}>
                             {busy ? LABELS.action.save.busy : LABELS.action.save.verb}
                         </Button>
-                    </div>
-                    <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,22rem)]">
-                        <LibrarySection
-                            title={LABELS.word.schema.label}
-                            flush
-                            className="flex min-h-0 flex-col"
-                            bodyClassName="flex min-h-0 flex-1 flex-col"
-                        >
-                            {schemaPane('min-h-48 flex-1', 'pane')}
-                        </LibrarySection>
-                        <LibrarySection
-                            title={LABELS.schemas.tester.value_heading}
-                            flush
-                            className="flex min-h-0 flex-col"
-                            bodyClassName="flex min-h-0 flex-1 flex-col"
-                        >
-                            <CodePane
-                                value={value}
-                                mediaType="application/json"
-                                label={LABELS.schemas.tester.value_label}
-                                wrap
-                                variant="pane"
-                                className="min-h-48 flex-1"
-                                marks={marks}
-                                reveal={reveal}
-                                onChange={setValue}
-                            />
-                        </LibrarySection>
-                        <Result shown={shown} onShow={show} />
-                    </div>
-                </DialogContent>
-            </Dialog>
+                    </>
+                }
+            >
+                <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,22rem)]">
+                    <LibrarySection
+                        title={LABELS.word.schema.label}
+                        flush
+                        className="flex min-h-0 flex-col"
+                        bodyClassName="flex min-h-0 flex-1 flex-col"
+                    >
+                        {schemaPane('min-h-48 flex-1', 'pane')}
+                    </LibrarySection>
+                    <LibrarySection
+                        title={LABELS.schemas.tester.value_heading}
+                        flush
+                        className="flex min-h-0 flex-col"
+                        bodyClassName="flex min-h-0 flex-1 flex-col"
+                    >
+                        <CodePane
+                            value={value}
+                            mediaType="application/json"
+                            label={LABELS.schemas.tester.value_label}
+                            wrap
+                            variant="pane"
+                            className="min-h-48 flex-1"
+                            marks={marks}
+                            reveal={reveal}
+                            onChange={setValue}
+                        />
+                    </LibrarySection>
+                    <Result shown={shown} onShow={show} />
+                </div>
+            </DialogShell>
         </>
     )
 }
@@ -503,7 +499,7 @@ function Details({
                         {description.trim() === '' ? (
                             <p className="text-sm text-muted-foreground">{LABELS.schemas.no_description}</p>
                         ) : (
-                            <Description text={description} />
+                            <Description text={description} under={1} />
                         )}
                     </div>
                     {mayWrite && toggle}

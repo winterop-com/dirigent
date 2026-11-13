@@ -12,12 +12,12 @@ const DOCUMENT_NAME = 'report.md'
 /**
  * How the document is set in the window: prose at a reading measure, tables the whole width.
  *
- * The markdown component draws one flat column of blocks and knows nothing about a measure, so
- * the measure is put on the blocks that are read as sentences. A table is not one of them: it
+ * The markdown is drawn as one flat column of blocks with no measure of its own, so the measure
+ * is put on the blocks that are read as sentences. A table is not one of them: it
  * is drawn in its own scrolling box, and what a window buys it is the room not to scroll.
  */
 export const READING =
-    '[&_p]:mx-auto [&_p]:max-w-[68ch] [&_ul]:mx-auto [&_ul]:max-w-[68ch] [&_ol]:mx-auto [&_ol]:max-w-[68ch] [&_pre]:mx-auto [&_pre]:max-w-[68ch] [&_blockquote]:mx-auto [&_blockquote]:max-w-[68ch]'
+    '[&_p]:mx-auto [&_p]:max-w-[68ch] [&_ul]:mx-auto [&_ul]:max-w-[68ch] [&_ol]:mx-auto [&_ol]:max-w-[68ch] [&_[data-slot=code-block]]:mx-auto [&_[data-slot=code-block]]:max-w-[68ch] [&_blockquote]:mx-auto [&_blockquote]:max-w-[68ch]'
 
 /**
  * A run's rendered report: the markdown in place, the same document in a window, and the raw

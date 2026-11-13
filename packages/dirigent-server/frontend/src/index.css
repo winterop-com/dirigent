@@ -7,6 +7,7 @@
 @import '@winterop-com/sokkel-ui/sources/AccountMenu.css';
 @import '@winterop-com/sokkel-ui/sources/Callout.css';
 @import '@winterop-com/sokkel-ui/sources/Chip.css';
+@import '@winterop-com/sokkel-ui/sources/Code.css';
 @import '@winterop-com/sokkel-ui/sources/CodeEditor.css';
 @import '@winterop-com/sokkel-ui/sources/CommandPalette.css';
 @import '@winterop-com/sokkel-ui/sources/ConsequenceList.css';
@@ -29,6 +30,7 @@
 @import '@winterop-com/sokkel-ui/sources/ListingBar.css';
 @import '@winterop-com/sokkel-ui/sources/LogView.css';
 @import '@winterop-com/sokkel-ui/sources/PageHeader.css';
+@import '@winterop-com/sokkel-ui/sources/PlainMarkdown.css';
 @import '@winterop-com/sokkel-ui/sources/Rail.css';
 @import '@winterop-com/sokkel-ui/sources/RelativeTime.css';
 @import '@winterop-com/sokkel-ui/sources/ResizeHandle.css';
@@ -61,7 +63,6 @@
 @import '@winterop-com/sokkel-ui/sources/primitives/card.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/combobox.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/command.css';
-@import '@winterop-com/sokkel-ui/sources/primitives/dialog.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/dropdown-menu.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/input.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/input-group.css';
