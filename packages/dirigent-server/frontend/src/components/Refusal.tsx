@@ -1,41 +1,63 @@
+import type { ReactNode } from 'react'
 import { toast } from 'sonner'
 
+import { Callout } from '@winterop-com/sokkel-ui/Callout'
+import type { PageStateWords, ReadOutcome } from '@winterop-com/sokkel-ui/PageState'
 import type { Problem } from '@/lib/api'
+import { LABELS } from '@/lib/labels'
 import { refusalLine, refusalLines, refusalOf } from '@/lib/refusal'
 
 /**
- * A refusal inside something already on screen: a dialog, a form, a panel.
+ * The words of a refusal: the sentence, and under it the failures it does not already spell out.
  *
- * `PageState` is the card a whole screen becomes when its read was refused. This is the same
- * problem document beside the thing that was refused, which is where a form's refusal belongs.
+ * A FAILURE IS A SENTENCE, NOT AN IDENTIFIER. The server writes each one for a person to act on,
+ * so the list is set in the prose face and wraps on spaces. Inside a paragraph, which is what
+ * `PageState` draws its diagnostic in, the list is lines of phrasing content rather than a `ul`.
+ */
+function RefusalWords({ problem, inline = false }: { problem: Problem; inline?: boolean }) {
+    const lines = refusalLines(problem)
+    if (lines.problems.length === 0) return <>{lines.detail}</>
+    if (inline) {
+        return (
+            <>
+                {lines.detail}
+                <span className={lines.detail === null ? 'block pl-4' : 'mt-1 block pl-4'}>
+                    {lines.problems.map((one) => (
+                        <span key={one} className="list-item list-disc break-words">
+                            {one}
+                        </span>
+                    ))}
+                </span>
+            </>
+        )
+    }
+    return (
+        <>
+            {lines.detail}
+            <ul className="list-disc space-y-0.5 pl-4">
+                {lines.problems.map((one) => (
+                    <li key={one} className="break-words">
+                        {one}
+                    </li>
+                ))}
+            </ul>
+        </>
+    )
+}
+
+/**
+ * A refusal inside something already on screen: a dialog, a form, a panel, as the library's
+ * critical `Callout`.
  *
  * IT IS NOT HEADED BY THE STATUS PHRASE. `Problem.title` is what the status says rather than
  * what happened, so every refusal a dialog can make would be headed "Unprocessable Content".
- * What the server wrote for a person to act on leads instead, and `lib/refusal` is what decides
- * whether the failures under it add anything to that sentence or repeat it.
- *
- * A FAILURE IS A SENTENCE, NOT AN IDENTIFIER. The server writes each one for a person to act
- * on, so the list is set in the prose face and wraps on spaces; a mono line broken mid-word
- * reads as something that went wrong with the page rather than with the request.
- *
- * It is an `alert`, because a refusal that appears where somebody is typing is not read unless
- * it is announced.
+ * What the server wrote for a person to act on leads instead.
  */
 export function Refusal({ problem }: { problem: Problem }) {
-    const lines = refusalLines(problem)
     return (
-        <div className="space-y-1 rounded-md border border-critical/35 bg-critical/8 p-2" role="alert">
-            {lines.detail !== null && <p className="text-sm break-words text-critical">{lines.detail}</p>}
-            {lines.problems.length > 0 && (
-                <ul className="list-disc space-y-0.5 pl-4 text-xs text-critical">
-                    {lines.problems.map((one) => (
-                        <li key={one} className="break-words">
-                            {one}
-                        </li>
-                    ))}
-                </ul>
-            )}
-        </div>
+        <Callout tone="critical">
+            <RefusalWords problem={problem} />
+        </Callout>
     )
 }
 
@@ -46,6 +68,29 @@ export function RefusalLine({ problem }: { problem: Problem }) {
             {refusalLine(problem)}
         </p>
     )
+}
+
+/** What the library's `PageState` says while a read is on its way, and over one that never came back. */
+export const READ_WORDS: Partial<PageStateWords> = {
+    loading: LABELS.shell.reading,
+    unreachable: LABELS.refusal.no_answer.title,
+}
+
+/**
+ * A refused read as the library's `PageState` takes it: the refusal's words as the diagnostic,
+ * how the read came back, and the status phrase as the heading over a refusal and an absence.
+ */
+export function refusedRead(problem: Problem | null): {
+    error: ReactNode
+    status: ReadOutcome | undefined
+    words: Partial<PageStateWords>
+} {
+    if (problem === null) return { error: undefined, status: undefined, words: READ_WORDS }
+    return {
+        error: <RefusalWords problem={problem} inline />,
+        status: problem.status === 0 ? 'unreachable' : problem.status,
+        words: { ...READ_WORDS, refused: problem.title, missing: problem.title },
+    }
 }
 
 /**

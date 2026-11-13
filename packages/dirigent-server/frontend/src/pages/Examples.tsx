@@ -5,7 +5,8 @@ import { ApiChip } from '@/components/ApiChip'
 import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { PageState, Refusal } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { READ_WORDS, refusedRead } from '@/components/Refusal'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
@@ -349,7 +350,9 @@ export function Examples() {
                 }}
                 empty={
                     corpus.problem !== null ? (
-                        <Refusal problem={corpus.problem} />
+                        <PageState loading={false} {...refusedRead(corpus.problem)}>
+                            {null}
+                        </PageState>
                     ) : rows.length === 0 ? (
                         LABELS.examples.none_installed
                     ) : anythingFiltered(filters) ? (
@@ -369,7 +372,7 @@ export function Examples() {
 function PanelReading() {
     return (
         <div className="p-4">
-            <PageState loading problem={null} empty={false}>
+            <PageState loading words={READ_WORDS} empty={false}>
                 {null}
             </PageState>
         </div>

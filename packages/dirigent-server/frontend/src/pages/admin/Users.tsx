@@ -11,7 +11,8 @@ import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
@@ -158,7 +159,7 @@ function Users() {
                 }}
             />
 
-            <PageState loading={!users.state.read} problem={users.state.problem} empty={false}>
+            <PageState loading={!users.state.read} {...refusedRead(users.state.problem)} empty={false}>
                 <DataTable
                     {...LISTING}
                     columns={columns}

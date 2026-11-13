@@ -1,5 +1,6 @@
 import { Instant } from '@/components/Instant'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
@@ -38,7 +39,7 @@ export function WorkersTable({
     return (
         <PageState
             loading={!state.read}
-            problem={state.problem}
+            {...refusedRead(state.problem)}
             empty={state.rows.length === 0}
             emptyMessage={empty}
         >

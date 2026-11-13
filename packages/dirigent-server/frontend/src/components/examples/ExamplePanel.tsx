@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react'
 
 import { Description } from '@/components/Description'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { TagChip } from '@/components/TagChip'
@@ -136,7 +137,7 @@ export function ExamplePanel({
 
             <PanelGroup title={LABELS.word.source}>
                 {!detail.read || detail.problem !== null ? (
-                    <PageState loading={!detail.read} problem={detail.problem} empty={false}>
+                    <PageState loading={!detail.read} {...refusedRead(detail.problem)} empty={false}>
                         {null}
                     </PageState>
                 ) : (

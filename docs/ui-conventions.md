@@ -1816,8 +1816,8 @@ what makes a 24px line of search text a 56px row.
 **Half the inset is the only other number, and it is the gutter a floating box gets.** A list of
 rounded rows needs room or the highlight touches the surface's sides, so the list is padded 8px
 and each row is padded 8px again: the wash is inset 8, its content lands on the 16 like
-everything else. A box nested inside a surface that is already inset takes the same 8 --
-`Refusal` inside a form or a dialog is `p-2`, not a second 16.
+everything else. A box nested inside a surface that is already inset takes the library's own
+inset -- `Refusal` inside a form or a dialog is sokkel-ui's critical `Callout`, not a second 16.
 
 **A surface scrolls; a block inside it does not.** A dialog above the breakpoint has no height
 of its own, so one that outgrows a short screen is capped at `max-h-[calc(100vh-4rem)]`, laid

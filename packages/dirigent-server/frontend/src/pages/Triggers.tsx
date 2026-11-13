@@ -8,7 +8,8 @@ import { SECTION_LISTING, shutWith } from '@/lib/design-system'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { Section } from '@winterop-com/sokkel-ui/Section'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { PipelineRef } from '@/components/PipelineRef'
 import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
 import { NewSchedule } from '@/components/triggers/NewTrigger'
@@ -206,7 +207,7 @@ export function Triggers() {
 
             <PageState
                 loading={!state.read || !listed.state.read}
-                problem={state.problem ?? listed.state.problem}
+                {...refusedRead(state.problem ?? listed.state.problem)}
                 empty={schedules.length === 0 && sources.length === 0}
                 emptyMessage={LABELS.triggers.empty}
             >
@@ -224,26 +225,19 @@ export function Triggers() {
                         }
                         flush
                     >
-                        <PageState
-                            bare
-                            loading={false}
-                            problem={null}
-                            empty={sources.length === 0}
-                            emptyMessage={LABELS.triggers.source.empty}
-                        >
-                            <DataTable
-                                {...SECTION_LISTING}
-                                rowHeight="auto"
-                                columns={sourceColumns(sources)}
-                                rows={sources}
-                                rowKey={sourceId}
-                                hasMore={listed.state.next !== null}
-                                loading={listed.state.reading}
-                                onLoadMore={listed.more}
-                                onOpen={pressSource}
-                                opened={(row) => sourceId(row) === chosenSource}
-                            />
-                        </PageState>
+                        <DataTable
+                            {...SECTION_LISTING}
+                            rowHeight="auto"
+                            columns={sourceColumns(sources)}
+                            rows={sources}
+                            rowKey={sourceId}
+                            hasMore={listed.state.next !== null}
+                            loading={listed.state.reading}
+                            onLoadMore={listed.more}
+                            onOpen={pressSource}
+                            opened={(row) => sourceId(row) === chosenSource}
+                            empty={LABELS.triggers.source.empty}
+                        />
                     </Section>
 
                     <Section
@@ -255,26 +249,19 @@ export function Triggers() {
                         }
                         flush
                     >
-                        <PageState
-                            bare
-                            loading={false}
-                            problem={null}
-                            empty={schedules.length === 0}
-                            emptyMessage={LABELS.triggers.schedule.empty}
-                        >
-                            <DataTable
-                                {...SECTION_LISTING}
-                                rowHeight="auto"
-                                columns={scheduleCols}
-                                rows={schedules}
-                                rowKey={scheduleId}
-                                hasMore={state.next !== null}
-                                loading={state.reading}
-                                onLoadMore={more}
-                                onOpen={pressSchedule}
-                                opened={(row) => scheduleId(row) === chosen}
-                            />
-                        </PageState>
+                        <DataTable
+                            {...SECTION_LISTING}
+                            rowHeight="auto"
+                            columns={scheduleCols}
+                            rows={schedules}
+                            rowKey={scheduleId}
+                            hasMore={state.next !== null}
+                            loading={state.reading}
+                            onLoadMore={more}
+                            onOpen={pressSchedule}
+                            opened={(row) => scheduleId(row) === chosen}
+                            empty={LABELS.triggers.schedule.empty}
+                        />
                     </Section>
                 </div>
             </PageState>

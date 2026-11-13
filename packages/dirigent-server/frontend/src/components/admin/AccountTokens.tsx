@@ -3,10 +3,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { Instant } from '@/components/Instant'
 import { Question } from '@/components/Question'
-import { RefusalLine } from '@/components/Refusal'
+import { RefusalLine, refusedRead } from '@/components/Refusal'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
 import { usePaged } from '@/hooks/use-paged'
@@ -62,7 +62,7 @@ export function AccountTokens({
 
     return (
         <div className="flex max-h-96 flex-col" data-account-tokens>
-            <PageState loading={!state.read} problem={state.problem} empty={false}>
+            <PageState loading={!state.read} {...refusedRead(state.problem)} empty={false}>
                 <DataTable
                     variant="list"
                     columns={columns}

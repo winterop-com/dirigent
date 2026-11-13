@@ -10,9 +10,9 @@ import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { DIALOG_WORDS, shutWith, windowWords } from '@/lib/design-system'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { Refusal } from '@/components/Refusal'
+import { Refusal, refusedRead } from '@/components/Refusal'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
@@ -103,7 +103,7 @@ export function Schema() {
             )}
             <PageState
                 loading={schema === null && read.problem === null}
-                problem={read.problem}
+                {...refusedRead(read.problem)}
                 empty={false}
             >
                 {schema !== null && <SchemaPage key={schema.code} schema={schema} onSaved={setFresher} />}

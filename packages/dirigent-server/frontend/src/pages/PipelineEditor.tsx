@@ -14,7 +14,8 @@ import { PageHead } from '@/components/PageHead'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Section } from '@winterop-com/sokkel-ui/Section'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { READ_WORDS, refusedRead } from '@/components/Refusal'
 import { Toolbar } from '@winterop-com/sokkel-ui/Toolbar'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
@@ -587,7 +588,7 @@ export function PipelineEditor() {
 
     if (!creating && pipeline === null) {
         return (
-            <PageState loading={problem === null} problem={problem} empty={false}>
+            <PageState loading={problem === null} {...refusedRead(problem)} empty={false}>
                 {null}
             </PageState>
         )
@@ -696,7 +697,7 @@ export function PipelineEditor() {
                 ) : (
                     <Suspense
                         fallback={
-                            <PageState loading problem={null} empty={false}>
+                            <PageState loading words={READ_WORDS} empty={false}>
                                 {null}
                             </PageState>
                         }
