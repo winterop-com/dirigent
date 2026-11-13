@@ -1,9 +1,11 @@
 import { Chart } from '@winterop-com/sokkel-ui-charts/Chart'
+import { chartLegend } from '@winterop-com/sokkel-ui-charts/chart-legend'
+import { ChartLegend } from '@winterop-com/sokkel-ui-charts/ChartLegend'
+import type { ChartSpec } from '@winterop-com/sokkel-ui-charts/kinds'
 import { Section } from '@winterop-com/sokkel-ui/Section'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { chartSummary, stackOf, tallest, type HourBucket } from '@/lib/home'
 import { LABELS } from '@/lib/labels'
-import { cn } from '@/lib/utils'
 
 /** How often the foot of the chart names an hour. Every sixth, so the day reads 00, 06, 12, 18. */
 const LABEL_EVERY = 6
@@ -11,29 +13,15 @@ const LABEL_EVERY = 6
 /** Which of an hour's counts a band draws. */
 type Band = 'succeeded' | 'withErrors' | 'failed'
 
-/**
- * The three outcomes a bar is stacked out of, worst at the top: the chart's color token for each,
- * and the same color as a class for the legend's swatch.
- */
-const BANDS: readonly { id: Band; label: string; color: string; swatch: string }[] = [
-    {
-        id: 'failed',
-        label: LABELS.state.run.failed.tile,
-        color: 'status-failed/80',
-        swatch: 'bg-status-failed/80',
-    },
+/** The three outcomes a bar is stacked out of, worst at the top, and the chart's color token for each. */
+const BANDS: readonly { id: Band; label: string; color: string }[] = [
+    { id: 'failed', label: LABELS.state.run.failed.tile, color: 'status-failed/80' },
     {
         id: 'withErrors',
         label: LABELS.state.run.completed_with_errors.tile,
         color: 'status-completed-with-errors/80',
-        swatch: 'bg-status-completed-with-errors/80',
     },
-    {
-        id: 'succeeded',
-        label: LABELS.state.run.succeeded.tile,
-        color: 'muted-foreground/45',
-        swatch: 'bg-muted-foreground/45',
-    },
+    { id: 'succeeded', label: LABELS.state.run.succeeded.tile, color: 'muted-foreground/45' },
 ]
 
 const COLORS = Object.fromEntries(BANDS.map((band) => [band.label, band.color]))
@@ -41,20 +29,25 @@ const COLORS = Object.fromEntries(BANDS.map((band) => [band.label, band.color]))
 /** The stack from the bottom up: succeeded first, failed on top. */
 const STACK_ORDER = BANDS.map((band) => band.label).toReversed()
 
-const hourLabel = (bucket: HourBucket) => `${String(bucket.hour).padStart(2, '0')}:00`
+/** The hour a bar stands for, as the clock's two digits: what the rows key it by. */
+const hourOf = (bucket: HourBucket) => String(bucket.hour).padStart(2, '0')
+
+/** The hour as the axis and the tooltip write it: on the hour. */
+const onTheHour = (hour: string) => `${hour}:00`
 
 /**
- * One row per outcome an hour has, and a single zero for an hour with none, which the chart draws
- * as its one-pixel baseline.
+ * Three rows an hour, one per outcome, keyed by the hour's two digits. An outcome the hour
+ * did not have is missing rather than zero, so it draws nothing and its tooltip leaves it out, and
+ * an hour with no settled run has a zero for the chart's one-pixel baseline.
  */
 function chartRows(buckets: readonly HourBucket[]) {
     return buckets.flatMap((bucket) => {
-        const hour = hourLabel(bucket)
-        if (stackOf(bucket) === 0) return [{ hour, outcome: LABELS.state.run.succeeded.tile, runs: 0 }]
-        return BANDS.filter((band) => bucket[band.id] > 0).map((band) => ({
+        const hour = hourOf(bucket)
+        const empty = stackOf(bucket) === 0
+        return BANDS.map((band) => ({
             hour,
             outcome: band.label,
-            runs: bucket[band.id],
+            runs: bucket[band.id] > 0 ? bucket[band.id] : empty && band.id === 'succeeded' ? 0 : null,
         }))
     })
 }
@@ -74,7 +67,26 @@ export function RunsChart({
     reading: boolean
     className?: string
 }) {
-    const rows = useMemo(() => chartRows(buckets), [buckets])
+    const spec = useMemo<ChartSpec>(
+        () => ({
+            rows: chartRows(buckets),
+            x: 'hour',
+            y: 'runs',
+            series: 'outcome',
+            stack: 'stacked',
+            seriesOrder: STACK_ORDER,
+            colors: COLORS,
+            labelEvery: LABEL_EVERY,
+            formatCategory: onTheHour,
+            quiet: true,
+            baseline: true,
+        }),
+        [buckets],
+    )
+    // Worst first, as the bars are read from the top.
+    const legend = useMemo(() => chartLegend('bar', spec).toReversed(), [spec])
+    const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set())
+    const [hovered, setHovered] = useState<string | null>(null)
     if (!reading && tallest(buckets) === 0) {
         return (
             <Section
@@ -96,27 +108,24 @@ export function RunsChart({
             <Chart
                 kind="bar"
                 label={chartSummary(buckets)}
-                rows={rows}
-                x="hour"
-                y="runs"
-                series="outcome"
-                stack="stacked"
-                seriesOrder={STACK_ORDER}
-                colors={COLORS}
-                labelEvery={LABEL_EVERY}
-                quiet
-                baseline
+                {...spec}
+                hidden={hidden}
+                hovered={hovered}
                 className="h-40"
             />
-
-            <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                {BANDS.map((band) => (
-                    <li key={band.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <span className={cn('size-2 shrink-0 rounded-sm', band.swatch)} aria-hidden />
-                        {band.label}
-                    </li>
-                ))}
-            </ul>
+            <ChartLegend
+                items={legend}
+                hidden={hidden}
+                onToggle={(key) => {
+                    setHidden((now) => {
+                        const next = new Set(now)
+                        if (!next.delete(key)) next.add(key)
+                        return next
+                    })
+                }}
+                onHover={setHovered}
+                className="-mx-1.5"
+            />
         </Section>
     )
 }

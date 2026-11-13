@@ -91,21 +91,22 @@ function ChannelChip({ channel }: { channel: Channel }) {
             {word !== null && <span className="font-sans">{word}</span>}
         </span>
     )
-    // The trigger is a box around the chip, so a pointer over it and the focus inside it both
-    // open the tooltip.
+    // The chip is the trigger, so a pointer over it and the focus inside it both open the tooltip.
     return (
         <Tooltip>
-            <TooltipTrigger render={<span className="inline-flex" />}>
-                <Chip
-                    tone="outline"
-                    size="control"
-                    mono
-                    icon={<Mark glyph={kindGlyph(channel.notifier)} />}
-                    {...(to === null ? { onSelect: () => {} } : { href: to })}
-                >
-                    {body}
-                </Chip>
-            </TooltipTrigger>
+            <TooltipTrigger
+                render={
+                    <Chip
+                        tone="outline"
+                        size="control"
+                        mono
+                        icon={<Mark glyph={kindGlyph(channel.notifier)} />}
+                        {...(to === null ? { onSelect: () => {} } : { href: to })}
+                    >
+                        {body}
+                    </Chip>
+                }
+            />
             <TooltipContent className="flex-col items-start gap-1" side="bottom">
                 <ChannelFacts channel={channel} view={view} />
             </TooltipContent>
