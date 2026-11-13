@@ -163,6 +163,7 @@ export function Dashboard() {
             {(failed.problem !== null || messy.problem !== null || look.length > 0) && (
                 <Section title={LABELS.dashboard.troubled_runs} to="/runs" count={look.length}>
                     <PageState
+                        frame={false}
                         loading={!failed.read || !messy.read}
                         {...refusedRead(failed.problem ?? messy.problem)}
                         empty={false}

@@ -637,7 +637,7 @@ export function RunDetail() {
                         <Suspense
                             fallback={
                                 <Section title={LABELS.pipelines.page.graph} tone="graph" flush>
-                                    <PageState loading words={READ_WORDS} empty={false}>
+                                    <PageState frame={false} loading words={READ_WORDS}>
                                         {null}
                                     </PageState>
                                 </Section>

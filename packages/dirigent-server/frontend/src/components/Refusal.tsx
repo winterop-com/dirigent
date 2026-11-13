@@ -11,26 +11,11 @@ import { refusalLine, refusalLines, refusalOf } from '@/lib/refusal'
  * The words of a refusal: the sentence, and under it the failures it does not already spell out.
  *
  * A FAILURE IS A SENTENCE, NOT AN IDENTIFIER. The server writes each one for a person to act on,
- * so the list is set in the prose face and wraps on spaces. Inside a paragraph, which is what
- * `PageState` draws its diagnostic in, the list is lines of phrasing content rather than a `ul`.
+ * so the list is set in the prose face and wraps on spaces.
  */
-function RefusalWords({ problem, inline = false }: { problem: Problem; inline?: boolean }) {
+function RefusalWords({ problem }: { problem: Problem }) {
     const lines = refusalLines(problem)
     if (lines.problems.length === 0) return <>{lines.detail}</>
-    if (inline) {
-        return (
-            <>
-                {lines.detail}
-                <span className={lines.detail === null ? 'block pl-4' : 'mt-1 block pl-4'}>
-                    {lines.problems.map((one) => (
-                        <span key={one} className="list-item list-disc break-words">
-                            {one}
-                        </span>
-                    ))}
-                </span>
-            </>
-        )
-    }
     return (
         <>
             {lines.detail}
@@ -61,15 +46,6 @@ export function Refusal({ problem }: { problem: Problem }) {
     )
 }
 
-/** A refusal as one short line with no box, under a question that already names the thing. */
-export function RefusalLine({ problem }: { problem: Problem }) {
-    return (
-        <p className="text-sm text-critical-ink" role="alert">
-            {refusalLine(problem)}
-        </p>
-    )
-}
-
 /** What the library's `PageState` says while a read is on its way, and over one that never came back. */
 export const READ_WORDS: Partial<PageStateWords> = {
     loading: LABELS.shell.reading,
@@ -77,17 +53,23 @@ export const READ_WORDS: Partial<PageStateWords> = {
 }
 
 /**
- * A refused read as the library's `PageState` takes it: the refusal's words as the diagnostic,
- * how the read came back, and the status phrase as the heading over a refusal and an absence.
+ * A refused read as the library's `PageState` takes it: the refusal's sentence as the diagnostic
+ * and its failures listed under it, how the read came back, and the status phrase as the heading
+ * over a refusal and an absence.
  */
 export function refusedRead(problem: Problem | null): {
     error: ReactNode
+    problems: readonly ReactNode[] | undefined
     status: ReadOutcome | undefined
     words: Partial<PageStateWords>
 } {
-    if (problem === null) return { error: undefined, status: undefined, words: READ_WORDS }
+    if (problem === null)
+        return { error: undefined, problems: undefined, status: undefined, words: READ_WORDS }
+    const lines = refusalLines(problem)
     return {
-        error: <RefusalWords problem={problem} inline />,
+        // An empty diagnostic still draws the failure, with the list as all it says.
+        error: lines.detail ?? '',
+        problems: lines.problems,
         status: problem.status === 0 ? 'unreachable' : problem.status,
         words: { ...READ_WORDS, refused: problem.title, missing: problem.title },
     }

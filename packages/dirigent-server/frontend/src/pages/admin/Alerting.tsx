@@ -300,7 +300,11 @@ function Alerting() {
                             rules.state.problem === null ? (
                                 LABELS.alerting.rules_empty
                             ) : (
-                                <PageState loading={false} {...refusedRead(rules.state.problem)}>
+                                <PageState
+                                    frame={false}
+                                    loading={false}
+                                    {...refusedRead(rules.state.problem)}
+                                >
                                     {null}
                                 </PageState>
                             )
@@ -367,7 +371,11 @@ function Alerting() {
                                     LABELS.alerting.notifications_empty
                                 )
                             ) : (
-                                <PageState loading={false} {...refusedRead(notifications.state.problem)}>
+                                <PageState
+                                    frame={false}
+                                    loading={false}
+                                    {...refusedRead(notifications.state.problem)}
+                                >
                                     {null}
                                 </PageState>
                             )

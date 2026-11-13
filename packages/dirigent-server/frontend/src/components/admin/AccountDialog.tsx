@@ -2,10 +2,11 @@ import { useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Instant } from '@/components/Instant'
-import { Refusal, RefusalLine } from '@/components/Refusal'
+import { Refusal } from '@/components/Refusal'
 import { RoleSelect } from '@/components/admin/RoleSelect'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
 import { Question } from '@/components/Question'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
@@ -19,7 +20,7 @@ import { ICONS } from '@/lib/icons'
 import { DIALOG_WORDS } from '@/lib/design-system'
 import { itemOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
-import { local, refusalOf } from '@/lib/refusal'
+import { local, refusalLine, refusalOf } from '@/lib/refusal'
 import {
     MIN_PASSWORD_LENGTH,
     resetPassword,
@@ -239,9 +240,8 @@ export function AccountDialog({
                     busy: busy,
                 }}
                 words={DIALOG_WORDS}
-            >
-                {problem === null ? undefined : <RefusalLine problem={problem} />}
-            </ConfirmDialog>
+                status={problem === null ? undefined : <ProblemLine>{refusalLine(problem)}</ProblemLine>}
+            />
             {resetting && (
                 <ResetPassword
                     username={user.username}
@@ -321,6 +321,7 @@ function ResetPassword({ username, onDone }: { username: string; onDone: () => v
                 busy: busy,
             }}
             words={DIALOG_WORDS}
+            status={problem === null ? undefined : <ProblemLine>{refusalLine(problem)}</ProblemLine>}
         >
             <Field id="reset-password" label={LABELS.users.new_password}>
                 <Input
@@ -333,7 +334,6 @@ function ResetPassword({ username, onDone }: { username: string; onDone: () => v
                     }}
                 />
             </Field>
-            {problem !== null && <RefusalLine problem={problem} />}
         </ConfirmDialog>
     )
 }

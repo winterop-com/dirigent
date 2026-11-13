@@ -187,7 +187,7 @@ function Audit() {
                     state.problem === null ? (
                         emptyNote(filters)
                     ) : (
-                        <PageState loading={false} {...refusedRead(state.problem)}>
+                        <PageState frame={false} loading={false} {...refusedRead(state.problem)}>
                             {null}
                         </PageState>
                     )

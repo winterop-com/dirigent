@@ -697,7 +697,7 @@ export function PipelineEditor() {
                 ) : (
                     <Suspense
                         fallback={
-                            <PageState loading words={READ_WORDS} empty={false}>
+                            <PageState frame={false} loading words={READ_WORDS}>
                                 {null}
                             </PageState>
                         }

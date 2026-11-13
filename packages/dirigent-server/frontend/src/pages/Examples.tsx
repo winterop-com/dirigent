@@ -350,7 +350,7 @@ export function Examples() {
                 }}
                 empty={
                     corpus.problem !== null ? (
-                        <PageState loading={false} {...refusedRead(corpus.problem)}>
+                        <PageState frame={false} loading={false} {...refusedRead(corpus.problem)}>
                             {null}
                         </PageState>
                     ) : rows.length === 0 ? (
@@ -371,11 +371,9 @@ export function Examples() {
 /** What the panel holds while its own chunk is being fetched. */
 function PanelReading() {
     return (
-        <div className="p-4">
-            <PageState loading words={READ_WORDS} empty={false}>
-                {null}
-            </PageState>
-        </div>
+        <PageState frame={false} loading words={READ_WORDS}>
+            {null}
+        </PageState>
     )
 }
 

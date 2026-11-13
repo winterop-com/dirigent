@@ -137,7 +137,7 @@ export function ExamplePanel({
 
             <PanelGroup title={LABELS.word.source}>
                 {!detail.read || detail.problem !== null ? (
-                    <PageState loading={!detail.read} {...refusedRead(detail.problem)} empty={false}>
+                    <PageState frame={false} loading={!detail.read} {...refusedRead(detail.problem)}>
                         {null}
                     </PageState>
                 ) : (

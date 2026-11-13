@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
 import { Instant } from '@/components/Instant'
 import { Question } from '@/components/Question'
-import { RefusalLine, refusedRead } from '@/components/Refusal'
+import { refusedRead } from '@/components/Refusal'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
@@ -16,7 +17,7 @@ import { ICONS } from '@/lib/icons'
 import { DIALOG_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { rowsRead } from '@/lib/paging'
-import { refusalOf } from '@/lib/refusal'
+import { refusalLine, refusalOf } from '@/lib/refusal'
 import { isLive, readAccountTokens, revokeToken, sharedNames, type TokenOut } from '@/lib/users'
 
 const tokenId = (token: TokenOut) => token.id
@@ -62,7 +63,7 @@ export function AccountTokens({
 
     return (
         <div className="flex max-h-96 flex-col" data-account-tokens>
-            <PageState loading={!state.read} {...refusedRead(state.problem)} empty={false}>
+            <PageState frame={false} loading={!state.read} {...refusedRead(state.problem)}>
                 <DataTable
                     variant="list"
                     columns={columns}
@@ -118,9 +119,8 @@ export function AccountTokens({
                     busy: busy,
                 }}
                 words={DIALOG_WORDS}
-            >
-                {refused === null ? undefined : <RefusalLine problem={refused} />}
-            </ConfirmDialog>
+                status={refused === null ? undefined : <ProblemLine>{refusalLine(refused)}</ProblemLine>}
+            />
         </div>
     )
 }

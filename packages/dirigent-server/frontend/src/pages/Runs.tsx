@@ -311,7 +311,7 @@ function FlatRuns({ filters, search, toolbar }: Bar & { filters: RunFilters }) {
                     state.problem === null ? (
                         emptyNote(filters)
                     ) : (
-                        <PageState loading={false} {...refusedRead(state.problem)}>
+                        <PageState frame={false} loading={false} {...refusedRead(state.problem)}>
                             {null}
                         </PageState>
                     )
@@ -350,7 +350,7 @@ function GroupedRuns({
                 loading={summary.reading}
                 empty={
                     summary.problem !== null ? (
-                        <PageState loading={false} {...refusedRead(summary.problem)}>
+                        <PageState frame={false} loading={false} {...refusedRead(summary.problem)}>
                             {null}
                         </PageState>
                     ) : asked ? (
