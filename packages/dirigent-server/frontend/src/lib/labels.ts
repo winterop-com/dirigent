@@ -1470,12 +1470,6 @@ const dashboard = {
         title: 'Runs over time',
         /** The panel's fact: the window the bars cover, and what one bar is. */
         window: 'last 24 hours, by hour',
-        /** One bar's title, where nothing was started in that hour. */
-        hour_empty: (hour: string) => `${hour} — nothing ran`,
-        /** One bar's title: the hour, how much started in it, and how that came out. */
-        hour: (hour: string, started: string, settled: string) => `${hour} — ${started} started, ${settled}`,
-        /** Runs were started in the hour and none of them has settled. */
-        none_settled: 'none finished',
         /** The chart's accessible name, where the window held nothing. */
         summary_empty: 'No run was started in the last 24 hours.',
         /** The chart's accessible name: how much was started, then how it came out. */

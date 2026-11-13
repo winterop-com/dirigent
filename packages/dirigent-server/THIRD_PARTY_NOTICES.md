@@ -7,8 +7,8 @@ appears once, with the packages it covers listed above it.
 Python dependencies are resolved and installed by the package manager rather than
 redistributed inside any wheel published here, so they are not listed.
 
-The bundle is built on `@winterop-com/sokkel-ui`, `@winterop-com/sokkel-ui-graph` and
-`@winterop-com/sokkel-ui-fhir`, Copyright (c) 2026 Morten Olav Hansen, the copyright holder of
+The bundle is built on `@winterop-com/sokkel-ui`, `@winterop-com/sokkel-ui-graph`,
+`@winterop-com/sokkel-ui-charts` and `@winterop-com/sokkel-ui-fhir`, Copyright (c) 2026 Morten Olav Hansen, the copyright holder of
 this software, under the same terms as its LICENSE. The third-party code and fonts they carry
 into the bundle are listed below with the rest.
 
@@ -127,6 +127,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 - `fast-uri` -- Copyright (c) 2011-2021, Gary Court; Copyright (c) 2021-present The Fastify team
 - `d3-ease` -- Copyright 2010-2026 Mike Bostock; Copyright 2001 Robert Penner
+- `zrender` -- Copyright (c) 2017, Baidu Inc.
+- The parts of d3 that `echarts` embeds (`lib/chart/treemap/treemapLayout.js`, `lib/chart/tree/layoutHelper.js`, `lib/chart/graph/forceHelper.js`, `lib/util/number.js`) -- Copyright 2010-2016 Mike Bostock
 - The JSON Schema 2020-12 meta-schema and its vocabulary meta-schemas, as `ajv` and `@winterop-com/sokkel-ui` carry them -- Copyright (c) 2022 JSON Schema Specification Authors. The specification sources are offered under the Academic Free License 3.0 or the BSD 3-Clause License; they are redistributed here under the BSD 3-Clause License.
 
 ```
@@ -156,6 +158,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ## Apache License 2.0
 
 - `class-variance-authority` -- Copyright (c) 2022 Joe Bell
+- `echarts` -- Copyright 2017-2026 The Apache Software Foundation. Its NOTICE file reads:
+
+  > Apache ECharts
+  > Copyright 2017-2026 The Apache Software Foundation
+  >
+  > This product includes software developed at
+  > The Apache Software Foundation (https://www.apache.org/).
 
 ```
                                  Apache License

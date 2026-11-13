@@ -86,6 +86,7 @@
 @import '@winterop-com/sokkel-ui/sources/primitives/textarea.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/toggle.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/tooltip.css';
+@import '@winterop-com/sokkel-ui-charts/sources/Chart.css';
 @import '@winterop-com/sokkel-ui-graph/sources/BlockPicker.css';
 @import '@winterop-com/sokkel-ui-graph/sources/GraphCanvas.css';
 @import '@winterop-com/sokkel-ui-graph/sources/GraphLayoutMenu.css';
