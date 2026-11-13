@@ -16,8 +16,8 @@ import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { connectionOf, RunFailure } from '@/components/run/RunFailure'
 import { PageHead } from '@/components/PageHead'
-import { PageState } from '@/components/PageState'
-import { sayRefusal } from '@/components/Refusal'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { READ_WORDS, refusedRead, sayRefusal } from '@/components/Refusal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useSmallScreen } from '@/hooks/use-small-screen'
@@ -460,7 +460,7 @@ export function RunDetail() {
 
     if (state === null) {
         return (
-            <PageState loading={problem === null} problem={problem} empty={false}>
+            <PageState loading={problem === null} {...refusedRead(problem)} empty={false}>
                 {null}
             </PageState>
         )
@@ -637,7 +637,7 @@ export function RunDetail() {
                         <Suspense
                             fallback={
                                 <Section title={LABELS.pipelines.page.graph} tone="graph" flush>
-                                    <PageState loading problem={null} empty={false}>
+                                    <PageState frame={false} loading words={READ_WORDS}>
                                         {null}
                                     </PageState>
                                 </Section>

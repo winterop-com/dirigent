@@ -18,7 +18,8 @@ import { SwitchField } from '@winterop-com/sokkel-ui/SwitchField'
 import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { KindChip } from '@/components/KindChip'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { READ_WORDS } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
@@ -722,14 +723,19 @@ export function DesignSystem() {
                         </Specimen>
                         <Specimen title={VARIANT.loading}>
                             <div className="w-full max-w-md">
-                                <PageState loading problem={null} empty={false}>
+                                <PageState loading words={READ_WORDS} empty={false}>
                                     {null}
                                 </PageState>
                             </div>
                         </Specimen>
                         <Specimen title={VARIANT.empty}>
                             <div className="w-full max-w-md">
-                                <PageState loading={false} problem={null} empty emptyMessage={SAMPLE.empty}>
+                                <PageState
+                                    loading={false}
+                                    words={READ_WORDS}
+                                    empty
+                                    emptyMessage={SAMPLE.empty}
+                                >
                                     {null}
                                 </PageState>
                             </div>

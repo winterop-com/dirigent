@@ -2,7 +2,8 @@ import { Suspense, lazy } from 'react'
 import { Route, Routes } from 'react-router'
 
 import { AppShell } from '@/components/AppShell'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { READ_WORDS } from '@/components/Refusal'
 import { useStore } from '@/hooks/use-store'
 import { DESIGN_PATH, LOGIN_PATH } from '@/lib/nav'
 import { timesMode } from '@/lib/times'
@@ -98,7 +99,7 @@ const DesignSystem = lazy(() =>
 /** What stands in the content column while a screen's chunk is being fetched. */
 function Loading() {
     return (
-        <PageState loading problem={null} empty={false}>
+        <PageState loading words={READ_WORDS} empty={false}>
             {null}
         </PageState>
     )

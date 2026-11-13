@@ -13,7 +13,8 @@ import { Section } from '@winterop-com/sokkel-ui/Section'
 import { MiniGraph } from '@winterop-com/sokkel-ui-graph/MiniGraph'
 import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
@@ -230,7 +231,7 @@ export function Pipelines() {
 
             <PageState
                 loading={listing.value === null && listing.problem === null}
-                problem={listing.problem}
+                {...refusedRead(listing.problem)}
                 empty={shown === 0}
                 emptyMessage={emptyNote(rows.length, tags)}
             >
