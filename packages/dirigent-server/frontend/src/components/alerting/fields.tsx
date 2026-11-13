@@ -34,7 +34,9 @@ export function TargetPicker({
                 filter={matchesOption}
                 itemKey={(option) => option.value}
                 itemLabel={(option) => option.label}
-                itemDetail={(option) => option.aside}
+                itemMeta={(option) => option.aside}
+                monoMeta
+                metaInValue
                 itemMark={markOf}
                 value={options.find((option) => option.value === value) ?? null}
                 words={pickerWords(LABELS.alerting.target_search)}

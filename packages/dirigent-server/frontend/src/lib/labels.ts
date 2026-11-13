@@ -1739,6 +1739,8 @@ const editor = {
         /** Above the list of what one field's own schema refuses. */
         refused_at_apply: 'Applying will be refused because of this step.',
         add_prerequisite: 'Add a prerequisite',
+        /** The search box over the steps a step may wait for. */
+        prerequisite_search: 'Search the steps',
         stop_waiting: (step: string) => `Stop waiting for ${step}`,
     },
 

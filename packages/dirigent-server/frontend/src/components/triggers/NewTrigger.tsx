@@ -191,7 +191,9 @@ export function NewSchedule({
                     filter={matchesOption}
                     itemKey={(option) => option.value}
                     itemLabel={(option) => option.label}
-                    itemDetail={(option) => option.aside}
+                    itemMeta={(option) => option.aside}
+                    monoMeta
+                    metaInValue
                     value={pipelines.find((option) => option.value === pipeline) ?? null}
                     words={pickerWords(LABELS.triggers.dialog.pipeline_hint)}
                     onValueChange={(picked) => {
@@ -241,7 +243,9 @@ export function NewSchedule({
                         filter={matchesOption}
                         itemKey={(option) => option.value}
                         itemLabel={(option) => option.label}
-                        itemDetail={(option) => option.aside}
+                        itemMeta={(option) => option.aside}
+                        monoMeta
+                        metaInValue
                         value={zones.find((option) => option.value === timezone) ?? null}
                         words={pickerWords(LABELS.triggers.schedule.dialog.timezone_hint)}
                         onValueChange={(picked) => {

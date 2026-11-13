@@ -331,6 +331,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
             <div className="flex flex-col gap-3 md:flex-row">
                 <SecretField
                     id="password-current"
+                    autoComplete="current-password"
                     label={LABELS.settings.current_password}
                     required
                     requiredMark="word"

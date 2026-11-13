@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, filterChip, signIn, statusChip, writeInEditor } from './support.ts'
+import { apiPrefix, applyDocument, filterChip, signIn, statusChip, writeInEditor } from './support.ts'
 
 /**
  * The alerting screen: the channels, the rules, and the queue.
@@ -19,6 +19,15 @@ const RULE = { code: 'e2e-page-ops', name: 'Page the on-call' }
 
 /** A channel whose picker row is wider than the box the picker hangs from, on a phone. */
 const CHANNEL = { code: 'e2e-ops-alert', name: 'On-call mobile' }
+
+/** A pipeline whose picker row is wider than the half-width field a 1024 dialog gives it. */
+const WIDE_PIPELINE = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: 'e2e-picker-wide',
+    name: 'A pipeline whose title runs well past the field it is chosen in',
+    steps: { wait: { block: 'time.sleep', config: { for: '1s' } } },
+}
 
 /** A rule whose name is long enough to be cut in the column a 1024 window leaves the table. */
 const WIDE = {
@@ -131,10 +140,10 @@ test('escape on the target picker leaves the box saying what is chosen', async (
     await field.click()
     const search = page.getByRole('combobox', { name: LABELS.alerting.target_search })
     await expect(search).toBeFocused()
-    await search.fill('proc')
+    await search.fill('zzz')
     await search.press('Escape')
     await expect(page.getByRole('listbox')).toHaveCount(0)
-    await expect(dialog).toBeVisible()
+    await expect(page.getByRole('dialog', { name: LABELS.alerting.new_rule.button })).toBeVisible()
     await expect(field).toContainText('The process log')
 
     // What the box reads is what is created.
@@ -197,8 +206,9 @@ test.describe('on a phone', () => {
         const row = page.getByRole('option', { name: CHANNEL.name })
         await expect(row).toBeVisible()
 
-        // The popup scales in, so its box is read once every animation on it has finished. It
-        // stays on the screen.
+        // The popup scales in, so its box is read once every animation on it has finished. On a
+        // phone the field already spans the screen less its gutters, so the popup has no room to
+        // grow past it, and it stays on the screen.
         const popup = page.getByRole('listbox')
         await expect
             .poll(async () => {
@@ -208,7 +218,7 @@ test.describe('on a phone', () => {
             })
             .toBe(true)
 
-        // Nothing in the row is cut: where the row is narrow, the code goes under the label.
+        // Nothing in the row is cut.
         const cut = await row.evaluate((node) =>
             Math.max(
                 ...[node, ...node.querySelectorAll('*')].map((one) => one.scrollWidth - one.clientWidth),
@@ -225,6 +235,46 @@ test.describe('on a phone', () => {
 
 test.describe('in the 792px column a 1024 window leaves', () => {
     test.use({ viewport: { width: 1024, height: 768 } })
+
+    test('a picker popup grows to its longest row, past the half-width field it hangs from', async ({
+        page,
+    }) => {
+        await applyDocument(page.request, WIDE_PIPELINE)
+        await page.reload()
+
+        await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
+        const dialog = page.getByRole('dialog')
+        await dialog.getByRole('button', { name: LABELS.alerting.scope.pipeline }).click()
+        const field = dialog.getByLabel(LABELS.word.pipeline.label, { exact: true })
+        await field.click()
+        await page.locator('input[role="combobox"]:focus').fill(WIDE_PIPELINE.code)
+
+        const row = page.getByRole('option', { name: WIDE_PIPELINE.name })
+        await expect(row).toBeVisible()
+        const popup = page.getByRole('listbox')
+        await expect
+            .poll(async () => {
+                const box = await popup.boundingBox()
+                const anchor = await field.boundingBox()
+                if (box === null || anchor === null) return null
+                return {
+                    wider: box.width > anchor.width,
+                    inside: box.x >= 0 && box.x + box.width <= 1024,
+                }
+            })
+            .toEqual({ wider: true, inside: true })
+
+        // Nothing in the row is cut: the popup grew to the label rather than the label to it.
+        const cut = await row.evaluate((node) =>
+            Math.max(
+                ...[node, ...node.querySelectorAll('*')].map((one) => one.scrollWidth - one.clientWidth),
+            ),
+        )
+        expect(cut).toBeLessThanOrEqual(0)
+
+        const prefix = await apiPrefix(page.request)
+        await page.request.delete(`${prefix}/pipelines/${WIDE_PIPELINE.code}`)
+    })
 
     test('the rules table holds its column, and a long name is cut rather than widening it', async ({
         page,

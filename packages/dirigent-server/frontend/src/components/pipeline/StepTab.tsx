@@ -2,19 +2,13 @@ import { Fragment, useMemo, useState, type ReactNode } from 'react'
 
 import { KindChip } from '@/components/KindChip'
 import { DocumentForm } from '@/components/schema/DocumentForm'
+import { AsyncSelect } from '@winterop-com/sokkel-ui/AsyncSelect'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@winterop-com/sokkel-ui/primitives/select'
 import type { JsonMap, Problem } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
 import type { ConnectionOut } from '@/lib/connections'
-import { chipWords } from '@/lib/design-system'
+import { pickerWords } from '@/lib/design-system'
 import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'
 import type { SchemaOut } from '@/lib/schemas'
@@ -385,56 +379,23 @@ function Prerequisites({
     disabled?: string
     onDependsOn: (names: string[]) => void
 }) {
+    if (disabled !== undefined && prerequisites.length === 0)
+        return <span className="text-xs text-muted-foreground">{LABELS.editor.no_prerequisites}</span>
     return (
-        <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-1.5">
-                {prerequisites.length === 0 && (
-                    <span className="text-xs text-muted-foreground">{LABELS.editor.no_prerequisites}</span>
-                )}
-                {prerequisites.map((name) =>
-                    disabled === undefined ? (
-                        <Chip
-                            key={name}
-                            mono
-                            words={chipWords(LABELS.editor.step.stop_waiting)}
-                            onRemove={() => {
-                                onDependsOn(prerequisites.filter((one) => one !== name))
-                            }}
-                        >
-                            {name}
-                        </Chip>
-                    ) : (
-                        <Chip key={name} mono>
-                            {name}
-                        </Chip>
-                    ),
-                )}
-            </div>
-            {offered.length > 0 && (
-                <Select
-                    value=""
-                    disabled={disabled !== undefined}
-                    onValueChange={(chosen) => {
-                        const name = String(chosen)
-                        if (name !== '') onDependsOn([...prerequisites, name])
-                    }}
-                >
-                    <SelectTrigger
-                        size="sm"
-                        className="w-full"
-                        aria-label={LABELS.editor.step.add_prerequisite}
-                    >
-                        <SelectValue placeholder={LABELS.editor.step.add_prerequisite} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {offered.map((name) => (
-                            <SelectItem key={name} value={name}>
-                                {name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            )}
-        </div>
+        <AsyncSelect
+            multiple
+            mono
+            readOnly={disabled !== undefined}
+            items={[...prerequisites, ...offered]}
+            itemKey={(name) => name}
+            itemLabel={(name) => name}
+            value={prerequisites}
+            onValueChange={onDependsOn}
+            words={{
+                ...pickerWords(LABELS.editor.step.prerequisite_search),
+                placeholder: LABELS.editor.step.add_prerequisite,
+                remove: LABELS.editor.step.stop_waiting,
+            }}
+        />
     )
 }
