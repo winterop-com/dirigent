@@ -170,10 +170,11 @@ export function AppShell() {
         void signOut().then(() => navigate(LOGIN_PATH, { replace: true }))
     }, [navigate])
 
-    // The rail's chord is heard in a box too, where clearing the screen is worth most.
+    // The rail's chord is heard in a box too, where clearing the screen is worth most, but not in
+    // the code editor, which keeps its own keys.
     useShortcuts(
         [
-            { id: 'rail', key: RAIL_KEY, mod: true, inFields: true, run: toggleRail },
+            { id: 'rail', key: RAIL_KEY, mod: true, inFields: 'inputs', run: toggleRail },
             { id: 'terminal', key: TERMINAL_KEY, run: toggleTerminal },
         ],
         [],

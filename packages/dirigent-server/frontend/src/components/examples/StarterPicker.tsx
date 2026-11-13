@@ -1,14 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import {
-    Command,
-    CommandDialog,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from '@winterop-com/sokkel-ui/primitives/command'
+    CommandPalette,
+    type PaletteCommand,
+    type PaletteGroup,
+} from '@winterop-com/sokkel-ui/CommandPalette'
 import { useRead } from '@/hooks/use-read'
 import {
     missingCount,
@@ -26,7 +22,6 @@ import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { sayRefusal } from '@/components/Refusal'
 import { copyStarter } from '@/lib/starters'
-import { cn } from '@/lib/utils'
 
 export const FROM_A_STARTER = LABELS.pipelines.starters.title
 
@@ -70,8 +65,6 @@ export function StarterPicker({
     /** The copy, and the code it was copied from. */
     onChoose: (document: string, starter: string) => void
 }) {
-    const [query, setQuery] = useState('')
-
     const corpus = useRead(readAllExamples)
     const instance = useRead(readHoldings)
     const holdings = useMemo<Holdings>(
@@ -80,104 +73,62 @@ export function StarterPicker({
     )
 
     const starters = useMemo(() => (corpus.value ?? []).filter((row) => row.starter), [corpus.value])
-    const shelves = useMemo(
-        () => shelveStarters(starters.filter((row) => starterMatches(row, query))),
-        [query, starters],
-    )
-
-    function choose(starter: ExampleOut): void {
-        void readExample(starter.code).then(
-            (detail) => {
-                onOpenChange(false)
-                setQuery('')
-                onChoose(copyStarter(detail.source, detail.code), detail.code)
-            },
-            (error: unknown) => {
-                sayRefusal(error)
-            },
-        )
-    }
+    const byCode = useMemo(() => new Map(starters.map((row) => [row.code, row])), [starters])
+    const groups = useMemo<PaletteGroup[]>(() => {
+        function choose(starter: ExampleOut): void {
+            void readExample(starter.code).then(
+                (detail) => {
+                    onChoose(copyStarter(detail.source, detail.code), detail.code)
+                },
+                (error: unknown) => {
+                    sayRefusal(error)
+                },
+            )
+        }
+        return shelveStarters(starters).map((shelf) => ({
+            title: shelf.label,
+            commands: shelf.rows.map((row) =>
+                starterCommand(row, holdings, () => {
+                    choose(row)
+                }),
+            ),
+        }))
+    }, [starters, holdings, onChoose])
 
     return (
-        <CommandDialog
+        <CommandPalette
             open={open}
-            onOpenChange={(next) => {
-                onOpenChange(next)
-                if (!next) setQuery('')
+            onOpenChange={onOpenChange}
+            groups={groups}
+            filter={(command, query) => {
+                const row = byCode.get(command.id)
+                return row !== undefined && starterMatches(row, query) ? 1 : 0
             }}
-            title={FROM_A_STARTER}
+            width="lg"
             description={LABELS.pipelines.starters.description}
-            className="top-[15vh] w-full p-0 shadow-2xl sm:max-w-[768px]"
-        >
-            <Command shouldFilter={false} label={FROM_A_STARTER} className="dg-palette p-0">
-                <CommandInput
-                    placeholder={PICKER_PLACEHOLDER}
-                    value={query}
-                    onValueChange={setQuery}
-                    autoFocus
-                    className="text-base"
-                />
-                <CommandList className="max-h-[26rem] p-2">
-                    <CommandEmpty>
-                        {!corpus.read ? PICKER_READING : starters.length === 0 ? PICKER_NONE : PICKER_EMPTY}
-                    </CommandEmpty>
-                    {shelves.map((shelf) => (
-                        <CommandGroup key={shelf.label} heading={shelf.label} className="p-0 pb-1">
-                            {shelf.rows.map((row) => (
-                                <Row
-                                    key={row.code}
-                                    starter={row}
-                                    holdings={holdings}
-                                    onChoose={() => {
-                                        choose(row)
-                                    }}
-                                />
-                            ))}
-                        </CommandGroup>
-                    ))}
-                </CommandList>
-            </Command>
-        </CommandDialog>
+            wrap
+            words={{
+                title: FROM_A_STARTER,
+                placeholder: PICKER_PLACEHOLDER,
+                empty: !corpus.read ? PICKER_READING : starters.length === 0 ? PICKER_NONE : PICKER_EMPTY,
+                close: LABELS.palette.close,
+            }}
+        />
     )
 }
 
 /** One starter: what it is called, the code a copy keeps, and what it needs of this instance. */
-function Row({
-    starter,
-    holdings,
-    onChoose,
-}: {
-    starter: ExampleOut
-    holdings: Holdings
-    onChoose: () => void
-}) {
+function starterCommand(starter: ExampleOut, holdings: Holdings, onSelect: () => void): PaletteCommand {
     const heading = headingOf(starter)
     const items = requirementsOf(starter.requires, holdings)
     const summary = requirementsSummary(items)
-    const missing = missingCount(items)
-
-    return (
-        <CommandItem value={starter.code} onSelect={onChoose} className="h-11 gap-3 rounded-md px-2">
-            <span className={cn('shrink-0 truncate text-sm', !heading.named && 'font-mono')}>
-                {heading.title}
-            </span>
-            {/* The code takes the slack, so what a row says about its requirements is in one
-                column down the list rather than wherever that row's code happened to end. */}
-            {heading.code !== null && (
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                    {heading.code}
-                </span>
-            )}
-            {summary !== null && (
-                <span
-                    className={cn(
-                        'shrink-0 text-xs',
-                        missing === 0 ? 'text-muted-foreground' : 'text-critical',
-                    )}
-                >
-                    {summary}
-                </span>
-            )}
-        </CommandItem>
-    )
+    return {
+        id: starter.code,
+        label: heading.title,
+        mono: !heading.named,
+        code: heading.code ?? undefined,
+        hint: summary ?? undefined,
+        tone: missingCount(items) === 0 ? undefined : 'critical',
+        onSelect,
+    }
 }
