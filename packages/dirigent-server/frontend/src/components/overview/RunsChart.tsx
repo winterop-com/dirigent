@@ -1,4 +1,6 @@
+import { Chart } from '@winterop-com/sokkel-ui-charts/Chart'
 import { Section } from '@winterop-com/sokkel-ui/Section'
+import { useMemo } from 'react'
 import { chartSummary, stackOf, tallest, type HourBucket } from '@/lib/home'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -9,38 +11,58 @@ const LABEL_EVERY = 6
 /** Which of an hour's counts a band draws. */
 type Band = 'succeeded' | 'withErrors' | 'failed'
 
-/** The three outcomes a bar is stacked out of, worst at the top, and the token each is drawn in. */
-const BANDS: readonly { id: Band; label: string; fill: string }[] = [
-    { id: 'failed', label: LABELS.state.run.failed.tile, fill: 'bg-status-failed/80' },
+/**
+ * The three outcomes a bar is stacked out of, worst at the top: the chart's color token for each,
+ * and the same color as a class for the legend's swatch.
+ */
+const BANDS: readonly { id: Band; label: string; color: string; swatch: string }[] = [
+    {
+        id: 'failed',
+        label: LABELS.state.run.failed.tile,
+        color: 'status-failed/80',
+        swatch: 'bg-status-failed/80',
+    },
     {
         id: 'withErrors',
         label: LABELS.state.run.completed_with_errors.tile,
-        fill: 'bg-status-completed-with-errors/80',
+        color: 'status-completed-with-errors/80',
+        swatch: 'bg-status-completed-with-errors/80',
     },
-    { id: 'succeeded', label: LABELS.state.run.succeeded.tile, fill: 'bg-muted-foreground/45' },
+    {
+        id: 'succeeded',
+        label: LABELS.state.run.succeeded.tile,
+        color: 'muted-foreground/45',
+        swatch: 'bg-muted-foreground/45',
+    },
 ]
 
-/** One hour, said the way the panel's own legend says it. */
-function bucketNote(bucket: HourBucket): string {
-    const hour = `${String(bucket.hour).padStart(2, '0')}:00`
-    if (bucket.total === 0) return LABELS.dashboard.chart.hour_empty(hour)
-    const said = BANDS.filter((band) => bucket[band.id] > 0).map((band) =>
-        LABELS.dashboard.counted(String(bucket[band.id]), band.label.toLowerCase()),
-    )
-    const settled = said.length === 0 ? LABELS.dashboard.chart.none_settled : said.join(', ')
-    return LABELS.dashboard.chart.hour(hour, String(bucket.total), settled)
+const COLORS = Object.fromEntries(BANDS.map((band) => [band.label, band.color]))
+
+/** The stack from the bottom up: succeeded first, failed on top. */
+const STACK_ORDER = BANDS.map((band) => band.label).toReversed()
+
+const hourLabel = (bucket: HourBucket) => `${String(bucket.hour).padStart(2, '0')}:00`
+
+/**
+ * One row per outcome an hour has, and a single zero for an hour with none, which the chart draws
+ * as its one-pixel baseline.
+ */
+function chartRows(buckets: readonly HourBucket[]) {
+    return buckets.flatMap((bucket) => {
+        const hour = hourLabel(bucket)
+        if (stackOf(bucket) === 0) return [{ hour, outcome: LABELS.state.run.succeeded.tile, runs: 0 }]
+        return BANDS.filter((band) => bucket[band.id] > 0).map((band) => ({
+            hour,
+            outcome: band.label,
+            runs: bucket[band.id],
+        }))
+    })
 }
 
 /**
- * The last day of runs, one bar an hour, stacked by how each hour came out.
- *
- * PLAIN ELEMENTS, NOT A CHART LIBRARY. Twenty-four stacks of three is a row of divs whose
- * heights are a fraction, and every colour in it is a status token this app already owns -- a
- * charting library would arrive with a palette of its own and a megabyte to draw it in.
- *
- * THE AXIS IS QUIET. No gridlines and no scale: a bar chart of counts is read by comparing bars
- * to each other, and the hour under every sixth bar is what says which part of the day is which.
- * The whole of an hour is on the bar's title, and the whole of the chart is its accessible name.
+ * The last day of runs, one bar an hour, stacked by how each hour came out, on a quiet axis: no
+ * gridlines and no scale, the hour under every sixth bar. An hour's counts are on its tooltip, and
+ * the whole of the chart is its accessible name.
  */
 export function RunsChart({
     buckets,
@@ -52,8 +74,8 @@ export function RunsChart({
     reading: boolean
     className?: string
 }) {
-    const most = tallest(buckets)
-    if (!reading && most === 0) {
+    const rows = useMemo(() => chartRows(buckets), [buckets])
+    if (!reading && tallest(buckets) === 0) {
         return (
             <Section
                 title={LABELS.dashboard.chart.title}
@@ -71,45 +93,26 @@ export function RunsChart({
             className={className}
             bodyClassName="flex flex-col gap-3"
         >
-            <div
-                className="flex min-h-32 flex-1 items-end gap-px"
-                role="img"
-                aria-label={chartSummary(buckets)}
-            >
-                {buckets.map((bucket) => (
-                    <div
-                        key={bucket.start}
-                        className="flex h-full flex-1 flex-col justify-end rounded-sm hover:bg-accent/40"
-                        title={bucketNote(bucket)}
-                    >
-                        {BANDS.map((band) =>
-                            bucket[band.id] === 0 ? null : (
-                                <div
-                                    key={band.id}
-                                    className={cn('min-h-0.5 w-full', band.fill)}
-                                    style={{
-                                        height: `${String((bucket[band.id] / Math.max(most, 1)) * 100)}%`,
-                                    }}
-                                />
-                            ),
-                        )}
-                        {stackOf(bucket) === 0 && <div className="h-px w-full bg-border" />}
-                    </div>
-                ))}
-            </div>
-
-            <div className="flex gap-px font-mono text-xs text-faint" aria-hidden>
-                {buckets.map((bucket, index) => (
-                    <span key={bucket.start} className="flex-1 text-center">
-                        {index % LABEL_EVERY === 0 ? `${String(bucket.hour).padStart(2, '0')}` : ''}
-                    </span>
-                ))}
-            </div>
+            <Chart
+                kind="bar"
+                label={chartSummary(buckets)}
+                rows={rows}
+                x="hour"
+                y="runs"
+                series="outcome"
+                stack="stacked"
+                seriesOrder={STACK_ORDER}
+                colors={COLORS}
+                labelEvery={LABEL_EVERY}
+                quiet
+                baseline
+                className="h-40"
+            />
 
             <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
                 {BANDS.map((band) => (
                     <li key={band.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <span className={cn('size-2 shrink-0 rounded-sm', band.fill)} aria-hidden />
+                        <span className={cn('size-2 shrink-0 rounded-sm', band.swatch)} aria-hidden />
                         {band.label}
                     </li>
                 ))}
