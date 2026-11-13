@@ -102,7 +102,7 @@ export function SchedulePanel({
             )}
 
             <DescriptionList
-                termWidth={FACT_TERM}
+                termWidth="auto"
                 items={[
                     ...(schedule.cron === null
                         ? [
@@ -126,6 +126,7 @@ export function SchedulePanel({
                         : [
                               {
                                   term: LABELS.word.pinned_parameters,
+                                  wide: true,
                                   value: (
                                       <JsonBlock
                                           title={LABELS.triggers.pinned_title(schedule.code)}
@@ -210,7 +211,7 @@ export function SourcePanel({
             </Head>
 
             <DescriptionList
-                termWidth={FACT_TERM}
+                termWidth="auto"
                 items={[
                     { term: LABELS.word.kind.label, value: source.kind, code: true },
                     ...(listens === null
@@ -390,9 +391,6 @@ function Head({
         </div>
     )
 }
-
-/** How wide a trigger's fact terms are: the longest, "Pinned parameters", on one line. */
-const FACT_TERM = '8rem'
 
 /** A trigger's own history, one page at a time, newest first. */
 function History<T>({

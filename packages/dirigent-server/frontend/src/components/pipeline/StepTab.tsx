@@ -15,7 +15,7 @@ import type { JsonMap, Problem } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
 import type { ConnectionOut } from '@/lib/connections'
 import { chipWords } from '@/lib/design-system'
-import { PanelGroup } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'
 import type { SchemaOut } from '@/lib/schemas'
 import {
@@ -187,7 +187,7 @@ export function StepTab({
             )}
 
             {runs !== null && (
-                <PanelGroup title={LABELS.word.config}>
+                <Group title={LABELS.word.config}>
                     {blockProblem !== null ? (
                         <p className="text-xs text-critical">{said(blockProblem)}</p>
                     ) : block === null ? (
@@ -205,7 +205,7 @@ export function StepTab({
                             onChange={onConfig}
                         />
                     )}
-                </PanelGroup>
+                </Group>
             )}
 
             {listens === null && (
@@ -214,7 +214,7 @@ export function StepTab({
                         const wrong = groupProblems(group, group.id === 'retry' ? retryProblems : keyProblems)
                         const refused = Object.keys(wrong).length > 0
                         return (
-                            <Group
+                            <EngineGroup
                                 key={group.id}
                                 group={group}
                                 open={opened.has(group.id)}
@@ -267,7 +267,7 @@ export function StepTab({
                                         }}
                                     />
                                 )}
-                            </Group>
+                            </EngineGroup>
                         )
                     })}
                 </div>
@@ -317,7 +317,7 @@ function toggled(open: ReadonlySet<StepGroupId>, id: StepGroupId): ReadonlySet<S
  *
  * A group holding a refusal is held open with no button to shut it until the refusal is gone.
  */
-function Group({
+function EngineGroup({
     group,
     open,
     held,

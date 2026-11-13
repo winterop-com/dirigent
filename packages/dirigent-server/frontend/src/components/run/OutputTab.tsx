@@ -17,7 +17,7 @@ import {
 } from '@/lib/artifacts'
 import { FILE_PREVIEW_WORDS } from '@/lib/design-system'
 import { formatBytes, shortenUri } from '@/lib/format'
-import { PanelGroup } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import type { RunDetailState } from '@/lib/run-detail'
@@ -94,7 +94,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
 
     return (
         <div className="flex flex-col gap-4 p-4">
-            <PanelGroup title={LABELS.word.artifacts} count={artifacts === null ? undefined : rows.length}>
+            <Group title={LABELS.word.artifacts} count={artifacts === null ? undefined : rows.length}>
                 {artifacts === null ? (
                     <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                 ) : rows.length === 0 ? (
@@ -118,7 +118,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
                         }
                     />
                 )}
-            </PanelGroup>
+            </Group>
         </div>
     )
 }

@@ -126,6 +126,7 @@ export function RulePanel({
             : [
                   {
                       term: LABELS.word.body,
+                      wide: true,
                       value: (
                           <span className="line-clamp-3 font-mono text-xs break-words whitespace-pre-wrap">
                               {rule.body}
@@ -177,7 +178,7 @@ export function RulePanel({
 
             {editing ? (
                 <div className="flex flex-col gap-2">
-                    <DescriptionList termWidth={FACT_TERM} items={settings} />
+                    <DescriptionList termWidth="auto" items={settings} />
                     <RuleText
                         key={rule.code}
                         rule={rule}
@@ -189,10 +190,10 @@ export function RulePanel({
                             setEditingCode(null)
                         }}
                     />
-                    <DescriptionList termWidth={FACT_TERM} items={[lastSent]} />
+                    <DescriptionList termWidth="auto" items={[lastSent]} />
                 </div>
             ) : (
-                <DescriptionList termWidth={FACT_TERM} items={[...settings, ...text, lastSent]} />
+                <DescriptionList termWidth="auto" items={[...settings, ...text, lastSent]} />
             )}
 
             <div className="flex flex-wrap gap-2">
@@ -379,7 +380,7 @@ export function NotificationPanel({
             {/* A test is raised by nothing, and the event on its row is a placeholder the queue
                 needed rather than something that happened -- so it is not drawn. */}
             <DescriptionList
-                termWidth={FACT_TERM}
+                termWidth="auto"
                 items={[
                     ...(notification.rule === null
                         ? [
@@ -541,6 +542,3 @@ function Head({ thing, children }: { thing: Addressable; children: ReactNode }) 
         </p>
     )
 }
-
-/** How wide an alert's fact terms are: the longest, "Delivers through", on one line. */
-const FACT_TERM = '8rem'
