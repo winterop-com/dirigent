@@ -3,18 +3,9 @@ import { toast } from 'sonner'
 
 import { CarriedOffer } from '@/components/pipeline/CarriedOffer'
 import { PlanReading } from '@/components/pipeline/PlanReading'
-import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
-import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useMayWrite } from '@/hooks/use-may-write'
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { type JsonMap, type Problem } from '@/lib/api'
 import {
     carriedCodes,
@@ -28,6 +19,7 @@ import {
     type Held,
 } from '@/lib/carried'
 import { readConnection, readConnectionKinds, type SurfaceEntry } from '@/lib/connections'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import { documentDiff, planView, unchangedNote, type DocumentDiff, type PlanView } from '@/lib/pipeline-plan'
@@ -275,94 +267,69 @@ export function ApplyDialog({
         })()
     }
 
+    // What is on screen is a dry run either way. Saying so above the button that writes would be
+    // untrue of what pressing it does, so only Validate says it. The carried line counts what
+    // applying stores, so it waits for the read that settles the count.
+    const description = carried
+        ? reading
+            ? undefined
+            : offerNote(items)
+        : mode === 'validate'
+          ? LABELS.editor.apply.nothing_written
+          : undefined
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            {/* ONE DISMISSAL, ONE CONTROL. `Cancel` beside a confirm and no corner close; where
-                there is nothing to confirm, the corner close and no footer. */}
-            <DialogContent
-                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-lg"
-                showCloseButton={!asks}
-            >
-                <DialogHeader>
-                    <DialogTitle>
-                        {mode === 'apply' ? LABELS.editor.apply.title : LABELS.editor.apply.validate_title}
-                    </DialogTitle>
-                    {/* What is on screen is a dry run either way. Saying so above the button that
-                        writes would be untrue of what pressing it does, so only Validate says it.
-                        The carried line counts what applying stores, so it waits for the read
-                        that settles the count rather than saying a number that then changes. */}
-                    {carried
-                        ? !reading && <DialogDescription>{offerNote(items)}</DialogDescription>
-                        : mode === 'validate' && (
-                              <DialogDescription>{LABELS.editor.apply.nothing_written}</DialogDescription>
-                          )}
-                </DialogHeader>
-
-                {/* THE READING SCROLLS AND THE VERBS DO NOT. A row of the offer opens a form
-                    under itself, and a plan of thirty steps is longer than a short screen either
-                    way, so what grows is the part above the footer rather than the dialog.
-
-                    A CARRIED SECTION IS ANSWERED, NOT RESTATED. Every other refusal is drawn as
-                    the server wrote it; this one has a list and controls under it that say the
-                    same fact in the terms of this screen, so its sentence is not drawn twice. */}
-                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
-                    {problem !== null && !carried && <Refusal problem={problem} />}
-                    {carried && (
-                        <CarriedOffer
-                            items={items}
-                            reading={reading}
-                            kinds={kinds}
-                            onCreated={() => {
-                                // The row said the instance had not got it and now it has. Nothing
-                                // says so twice: the read turns that row `already here`, which is
-                                // what was in the way of the confirm being drawn at all.
-                                readHeld(document)
-                            }}
-                            onUpdated={() => {
-                                // And a stored schema replaced by the one the document carries is
-                                // the same answer to the same question, read the same way.
-                                readHeld(document)
-                            }}
-                        />
-                    )}
-                    {problem === null && view === null && (
-                        <p className="text-sm text-muted-foreground">{LABELS.editor.apply.checking}</p>
-                    )}
-                    {view !== null && <PlanReading view={view} diff={diff} />}
-                </div>
-
-                {asks && (
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => onOpenChange(false)}>
-                            {LABELS.action.cancel}
-                        </Button>
-                        <Confirm
-                            // The offer is checked against what this instance holds, and nothing
-                            // is pressed on the strength of a read that has not landed. A plain
-                            // plan asks the instance nothing extra and waits on nothing.
-                            why={carried ? firstShut(write.why, unread(reading)) : write.why}
-                            busy={applying}
-                            onApply={carried ? goForward : apply}
-                        />
-                    </DialogFooter>
-                )}
-            </DialogContent>
-        </Dialog>
+        <DialogShell
+            words={DIALOG_WORDS}
+            open={open}
+            onOpenChange={onOpenChange}
+            title={mode === 'apply' ? LABELS.editor.apply.title : LABELS.editor.apply.validate_title}
+            description={description}
+            confirm={
+                asks
+                    ? {
+                          label: LABELS.action.apply,
+                          busy: applying,
+                          // The offer is checked against what this instance holds, and nothing
+                          // is pressed on the strength of a read that has not landed. A plain
+                          // plan asks the instance nothing extra and waits on nothing.
+                          why: carried ? firstShut(write.why, unread(reading)) : write.why,
+                          onConfirm: carried ? goForward : apply,
+                      }
+                    : undefined
+            }
+        >
+            {/* A CARRIED SECTION IS ANSWERED, NOT RESTATED. Every other refusal is drawn as the
+                server wrote it; this one has a list and controls under it that say the same fact
+                in the terms of this screen, so its sentence is not drawn twice. */}
+            {problem !== null && !carried && <Refusal problem={problem} />}
+            {carried && (
+                <CarriedOffer
+                    items={items}
+                    reading={reading}
+                    kinds={kinds}
+                    onCreated={() => {
+                        // The row said the instance had not got it and now it has. Nothing
+                        // says so twice: the read turns that row `already here`, which is
+                        // what was in the way of the confirm being drawn at all.
+                        readHeld(document)
+                    }}
+                    onUpdated={() => {
+                        // And a stored schema replaced by the one the document carries is
+                        // the same answer to the same question, read the same way.
+                        readHeld(document)
+                    }}
+                />
+            )}
+            {problem === null && view === null && (
+                <p className="text-sm text-muted-foreground">{LABELS.editor.apply.checking}</p>
+            )}
+            {view !== null && <PlanReading view={view} diff={diff} />}
+        </DialogShell>
     )
 }
 
 /** Why going forward waits, which is what this instance holds, still being read. */
 function unread(reading: boolean): string | undefined {
     return reading ? LABELS.editor.carried.unread : undefined
-}
-
-/** The button that writes, shut with the sentence saying why when it would not. */
-function Confirm({ why, busy, onApply }: { why: string | undefined; busy: boolean; onApply: () => void }) {
-    return (
-        <Refusable why={why}>
-            <Button disabled={busy || why !== undefined} title={why} onClick={onApply}>
-                {LABELS.action.apply}
-            </Button>
-        </Refusable>
-    )
 }

@@ -3,18 +3,11 @@ import { useState } from 'react'
 import { Refusal } from '@/components/Refusal'
 import { RoleSelect } from '@/components/admin/RoleSelect'
 import { Field } from '@winterop-com/sokkel-ui/Field'
-import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { type Problem } from '@/lib/api'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import type { UserRole } from '@/lib/auth'
@@ -76,84 +69,87 @@ export function CreateUser({
             })
     }
 
+    const shut =
+        form.username.trim() === ''
+            ? LABELS.users.account_needs_username
+            : form.password === ''
+              ? LABELS.users.account_needs_password
+              : undefined
+
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md" showCloseButton={false}>
-                <DialogHeader>
-                    <DialogTitle>{LABELS.users.new_account}</DialogTitle>
-                </DialogHeader>
+        <DialogShell
+            words={DIALOG_WORDS}
+            open={open}
+            onOpenChange={onOpenChange}
+            title={LABELS.users.new_account}
+            confirm={{
+                label: LABELS.action.create.verb,
+                busy,
+                busyLabel: LABELS.action.create.busy,
+                why: shut,
+                onConfirm: send,
+            }}
+        >
+            <div className="space-y-2">
+                <Label htmlFor="new-username">{LABELS.word.username}</Label>
+                <Input
+                    id="new-username"
+                    value={form.username}
+                    autoComplete="off"
+                    onChange={(event) => {
+                        setForm((current) => ({ ...current, username: event.target.value }))
+                    }}
+                />
+            </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="new-username">{LABELS.word.username}</Label>
-                    <Input
-                        id="new-username"
-                        value={form.username}
-                        autoComplete="off"
-                        onChange={(event) => {
-                            setForm((current) => ({ ...current, username: event.target.value }))
-                        }}
-                    />
-                </div>
+            <div className="space-y-2">
+                <Label htmlFor="new-name">{LABELS.word.name.label}</Label>
+                <Input
+                    id="new-name"
+                    value={form.name}
+                    autoComplete="off"
+                    onChange={(event) => {
+                        setForm((current) => ({ ...current, name: event.target.value }))
+                    }}
+                />
+            </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="new-name">{LABELS.word.name.label}</Label>
-                    <Input
-                        id="new-name"
-                        value={form.name}
-                        autoComplete="off"
-                        onChange={(event) => {
-                            setForm((current) => ({ ...current, name: event.target.value }))
-                        }}
-                    />
-                </div>
+            <div className="space-y-2">
+                <Label htmlFor="new-email">{LABELS.word.email}</Label>
+                <Input
+                    id="new-email"
+                    value={form.email}
+                    autoComplete="off"
+                    onChange={(event) => {
+                        setForm((current) => ({ ...current, email: event.target.value }))
+                    }}
+                />
+            </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="new-email">{LABELS.word.email}</Label>
-                    <Input
-                        id="new-email"
-                        value={form.email}
-                        autoComplete="off"
-                        onChange={(event) => {
-                            setForm((current) => ({ ...current, email: event.target.value }))
-                        }}
-                    />
-                </div>
+            <div className="space-y-2">
+                <Label htmlFor="new-password">{LABELS.word.password}</Label>
+                <Input
+                    id="new-password"
+                    type="password"
+                    value={form.password}
+                    autoComplete="new-password"
+                    onChange={(event) => {
+                        setForm((current) => ({ ...current, password: event.target.value }))
+                    }}
+                />
+            </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="new-password">{LABELS.word.password}</Label>
-                    <Input
-                        id="new-password"
-                        type="password"
-                        value={form.password}
-                        autoComplete="new-password"
-                        onChange={(event) => {
-                            setForm((current) => ({ ...current, password: event.target.value }))
-                        }}
-                    />
-                </div>
+            <Field id="new-role" label={LABELS.word.role}>
+                <RoleSelect
+                    id="new-role"
+                    value={form.role}
+                    onChange={(role) => {
+                        setForm((current) => ({ ...current, role }))
+                    }}
+                />
+            </Field>
 
-                <Field id="new-role" label={LABELS.word.role}>
-                    <RoleSelect
-                        id="new-role"
-                        value={form.role}
-                        onChange={(role) => {
-                            setForm((current) => ({ ...current, role }))
-                        }}
-                    />
-                </Field>
-
-                {problem !== null && <Refusal problem={problem} />}
-
-                <DialogFooter>
-                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
-                    <Button
-                        disabled={busy || form.username.trim() === '' || form.password === ''}
-                        onClick={send}
-                    >
-                        {LABELS.action.create.verb}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            {problem !== null && <Refusal problem={problem} />}
+        </DialogShell>
     )
 }

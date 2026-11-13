@@ -32,8 +32,11 @@ import { describe, expect, test } from 'vitest'
 
 const SOURCE = fileURLToPath(new URL('..', import.meta.url))
 
-/** How a surface is told it may take a share of the viewport: its own tag, and nothing below. */
-const SURFACE = '<DialogContent'
+/**
+ * How a surface is told it may take a share of the viewport: its own tag, and nothing below. The
+ * primitive's surface, and the library's `DialogShell`, which caps itself and scrolls its body.
+ */
+const SURFACES = ['DialogContent', 'DialogShell'] as const
 
 /** What the surface's cap is spelled as, either as a ceiling or as a height it simply takes. */
 const CAP = /\b(?:max-h-|h-)\[/
@@ -43,6 +46,9 @@ const VIEWPORT_SHARE = /\d*\.?\d*d?vh\b/
 
 /** A body that scrolls under the surface's cap rather than the page. */
 const SCROLLS = /\boverflow-y-(?:auto|scroll)\b/
+
+/** A page whose specimens of the shell stand beside a layout of its own, which is not a dialog's. */
+const SPECIMENS = new Set(['pages/DesignSystem.tsx'])
 
 /** Every `.tsx` under `src`, which is every file that could draw a dialog. */
 function everyComponent(): string[] {
@@ -82,9 +88,9 @@ interface Drawn {
  * `=>` and a merged class list is `{cn(...)}` -- and a scan stopping at the first `>` would read
  * half a prop as the body.
  */
-function tagEnds(source: string, at: number): number {
+function tagEnds(source: string, at: number, opening: string): number {
     let depth = 0
-    let cursor = at + SURFACE.length
+    let cursor = at + opening.length
     while (cursor < source.length) {
         const here = source[cursor]
         if (here === '{') depth += 1
@@ -98,22 +104,24 @@ function tagEnds(source: string, at: number): number {
 /** Every dialog surface in a file, each with its tag and what it holds kept apart. */
 function read(file: string): Drawn | null {
     const source = readFileSync(file, 'utf8')
-    if (!source.includes(SURFACE)) return null
     const named = path.relative(SOURCE, file)
+    if (SPECIMENS.has(named)) return null
     const surfaces: Surface[] = []
-    let at = source.indexOf(SURFACE)
-    while (at !== -1) {
-        const cursor = tagEnds(source, at)
-        const shut = source.indexOf('</DialogContent>', cursor)
-        if (shut === -1) throw new Error(`${named} opens a dialog surface it never closes`)
-        surfaces.push({
-            where: `${named}:${String(source.slice(0, at).split('\n').length)}`,
-            tag: source.slice(at, cursor),
-            body: source.slice(cursor, shut),
-        })
-        at = source.indexOf(SURFACE, shut)
+    for (const surface of SURFACES) {
+        const opening = `<${surface}`
+        for (const found of source.matchAll(new RegExp(`${opening}(?![A-Za-z])`, 'g'))) {
+            const at = found.index
+            const cursor = tagEnds(source, at, opening)
+            const shut = source.indexOf(`</${surface}>`, cursor)
+            if (shut === -1) throw new Error(`${named} opens a dialog surface it never closes`)
+            surfaces.push({
+                where: `${named}:${String(source.slice(0, at).split('\n').length)}`,
+                tag: source.slice(at, cursor),
+                body: source.slice(cursor, shut),
+            })
+        }
     }
-    return { named, source, surfaces }
+    return surfaces.length === 0 ? null : { named, source, surfaces }
 }
 
 /** Every line of a file naming a share of the viewport outside a surface's own opening tag. */

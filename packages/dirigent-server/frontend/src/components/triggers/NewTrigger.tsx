@@ -10,18 +10,9 @@ import {
     type SchemaFormState,
 } from '@winterop-com/sokkel-ui/schema/SchemaForm'
 import type { JsonSchema } from '@winterop-com/sokkel-ui/schema/read'
-import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
-import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import {
@@ -34,6 +25,7 @@ import {
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { formatMoment } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { headingOf } from '@/lib/identity'
@@ -163,126 +155,107 @@ export function NewSchedule({
     )
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-xl"
-                showCloseButton={false}
-            >
-                <DialogHeader>
-                    <DialogTitle>{LABELS.triggers.schedule.new}</DialogTitle>
-                </DialogHeader>
+        <DialogShell
+            words={DIALOG_WORDS}
+            open={open}
+            onOpenChange={onOpenChange}
+            width="lg"
+            title={LABELS.triggers.schedule.new}
+            count={<SchemaIssueCount form={params.form} />}
+            confirm={{
+                label: LABELS.action.create.verb,
+                busy,
+                busyLabel: LABELS.action.create.busy,
+                why: shut,
+                onConfirm: send,
+            }}
+        >
+            <div className="space-y-2">
+                <Label htmlFor="schedule-pipeline">{LABELS.word.pipeline.label}</Label>
+                <Picker
+                    id="schedule-pipeline"
+                    label={LABELS.word.pipeline.label}
+                    value={pipeline}
+                    options={pipelines}
+                    placeholder={LABELS.triggers.dialog.pipeline_hint}
+                    onChange={(picked) => {
+                        setPipeline(picked)
+                        params.reset()
+                    }}
+                />
+            </div>
 
-                {/* The body scrolls and the footer does not: a form this long outgrows a short
-                    screen, and Create is what somebody reaches for. */}
-                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
-                    <div className="space-y-2">
-                        <Label htmlFor="schedule-pipeline">{LABELS.word.pipeline.label}</Label>
-                        <Picker
-                            id="schedule-pipeline"
-                            label={LABELS.word.pipeline.label}
-                            value={pipeline}
-                            options={pipelines}
-                            placeholder={LABELS.triggers.dialog.pipeline_hint}
-                            onChange={(picked) => {
-                                setPipeline(picked)
-                                params.reset()
-                            }}
-                        />
-                    </div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <Field
+                    id="schedule-code"
+                    label={LABELS.word.code}
+                    value={code}
+                    onChange={setCode}
+                    placeholder={LABELS.triggers.schedule.dialog.code_hint}
+                    mono
+                />
+                <Field id="schedule-name" label={LABELS.word.name.label} value={named} onChange={setNamed} />
+            </div>
 
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <Field
-                            id="schedule-code"
-                            label={LABELS.word.code}
-                            value={code}
-                            onChange={setCode}
-                            placeholder={LABELS.triggers.schedule.dialog.code_hint}
-                            mono
-                        />
-                        <Field
-                            id="schedule-name"
-                            label={LABELS.word.name.label}
-                            value={named}
-                            onChange={setNamed}
-                        />
-                    </div>
+            <Field
+                id="schedule-description"
+                label={LABELS.word.description}
+                value={description}
+                onChange={setDescription}
+                placeholder={LABELS.triggers.schedule.dialog.description_hint}
+            />
 
-                    <Field
-                        id="schedule-description"
-                        label={LABELS.word.description}
-                        value={description}
-                        onChange={setDescription}
-                        placeholder={LABELS.triggers.schedule.dialog.description_hint}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                    <Label htmlFor="schedule-timezone">{LABELS.word.timezone}</Label>
+                    <Picker
+                        id="schedule-timezone"
+                        label={LABELS.word.timezone}
+                        value={timezone}
+                        options={zones}
+                        placeholder={LABELS.triggers.schedule.dialog.timezone_hint}
+                        onChange={setTimezone}
                     />
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label htmlFor="schedule-timezone">{LABELS.word.timezone}</Label>
-                            <Picker
-                                id="schedule-timezone"
-                                label={LABELS.word.timezone}
-                                value={timezone}
-                                options={zones}
-                                placeholder={LABELS.triggers.schedule.dialog.timezone_hint}
-                                onChange={setTimezone}
-                            />
-                        </div>
-                        <PriorityField
-                            id="schedule-priority"
-                            value={priority}
-                            pipeline={chosen.priority}
-                            onChange={setPriority}
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>{LABELS.word.clock}</Label>
-                        <Segmented
-                            label={LABELS.word.clock}
-                            size="md"
-                            value={clock}
-                            options={CLOCKS.map((one) => ({ value: one.value, label: one.label }))}
-                            onValueChange={setClock}
-                        />
-                    </div>
-
-                    {clock === 'cron' ? (
-                        <CronBox
-                            expression={expression}
-                            onChange={setExpression}
-                            zone={timezone}
-                            reading={reading}
-                        />
-                    ) : (
-                        <div className="space-y-2">
-                            <Field
-                                id="schedule-expression"
-                                label={written.label}
-                                value={expression}
-                                onChange={setExpression}
-                                placeholder={written.hint}
-                                mono
-                            />
-                            <ClockReading reading={reading} zone={timezone} />
-                        </div>
-                    )}
-
-                    <ParamsBox chosen={pipeline !== ''} schema={chosen.schema} params={params} />
-
-                    {problem !== null && <Refusal problem={problem} />}
                 </div>
+                <PriorityField
+                    id="schedule-priority"
+                    value={priority}
+                    pipeline={chosen.priority}
+                    onChange={setPriority}
+                />
+            </div>
 
-                <DialogFooter>
-                    <SchemaIssueCount form={params.form} />
-                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
-                    <Refusable why={shut}>
-                        <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? LABELS.action.create.busy : LABELS.action.create.verb}
-                        </Button>
-                    </Refusable>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            <div className="space-y-2">
+                <Label>{LABELS.word.clock}</Label>
+                <Segmented
+                    label={LABELS.word.clock}
+                    size="md"
+                    value={clock}
+                    options={CLOCKS.map((one) => ({ value: one.value, label: one.label }))}
+                    onValueChange={setClock}
+                />
+            </div>
+
+            {clock === 'cron' ? (
+                <CronBox expression={expression} onChange={setExpression} zone={timezone} reading={reading} />
+            ) : (
+                <div className="space-y-2">
+                    <Field
+                        id="schedule-expression"
+                        label={written.label}
+                        value={expression}
+                        onChange={setExpression}
+                        placeholder={written.hint}
+                        mono
+                    />
+                    <ClockReading reading={reading} zone={timezone} />
+                </div>
+            )}
+
+            <ParamsBox chosen={pipeline !== ''} schema={chosen.schema} params={params} />
+
+            {problem !== null && <Refusal problem={problem} />}
+        </DialogShell>
     )
 }
 

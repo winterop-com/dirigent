@@ -4,18 +4,9 @@ import { Field, TargetPicker } from '@/components/alerting/fields'
 import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Picker } from '@/components/Picker'
-import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
-import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { useMayWrite } from '@/hooks/use-may-write'
 import {
@@ -35,6 +26,7 @@ import {
 import { ALERT_EVENTS, createRule, type AlertEvent, type AlertScope } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
@@ -125,158 +117,147 @@ export function NewRule({
     }
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-3xl"
-                showCloseButton={false}
-            >
-                <DialogHeader>
-                    <DialogTitle>{LABELS.alerting.new_rule.button}</DialogTitle>
-                </DialogHeader>
+        <DialogShell
+            words={DIALOG_WORDS}
+            open={open}
+            onOpenChange={onOpenChange}
+            width="xl"
+            title={LABELS.alerting.new_rule.button}
+            footer={LABELS.alerting.declare_only}
+            confirm={{
+                label: LABELS.action.create.verb,
+                busy,
+                busyLabel: LABELS.action.create.busy,
+                why: shut,
+                onConfirm: send,
+            }}
+        >
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <Field
+                    id="rule-code"
+                    label={LABELS.word.code}
+                    value={code}
+                    onChange={setCode}
+                    placeholder={LABELS.alerting.code_placeholder}
+                    mono
+                />
+                <Field
+                    id="rule-name"
+                    label={LABELS.word.name.label}
+                    value={named}
+                    onChange={setNamed}
+                    placeholder={LABELS.alerting.name_placeholder}
+                />
+            </div>
 
-                {/* The form scrolls and the footer does not: a dialog with a pane in it is
-                    taller than a short screen, and Create is what somebody reaches for. */}
-                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <Field
-                            id="rule-code"
-                            label={LABELS.word.code}
-                            value={code}
-                            onChange={setCode}
-                            placeholder={LABELS.alerting.code_placeholder}
-                            mono
-                        />
-                        <Field
-                            id="rule-name"
-                            label={LABELS.word.name.label}
-                            value={named}
-                            onChange={setNamed}
-                            placeholder={LABELS.alerting.name_placeholder}
-                        />
-                    </div>
+            <Field
+                id="rule-description"
+                label={LABELS.word.description}
+                value={description}
+                onChange={setDescription}
+                placeholder={LABELS.alerting.description_placeholder}
+            />
 
-                    <Field
-                        id="rule-description"
-                        label={LABELS.word.description}
-                        value={description}
-                        onChange={setDescription}
-                        placeholder={LABELS.alerting.description_placeholder}
+            <div className="space-y-2">
+                <Label>{LABELS.word.event}</Label>
+                <Segmented
+                    label={LABELS.word.event}
+                    size="md"
+                    value={event}
+                    options={ALERT_EVENTS.map((one) => ({
+                        value: one,
+                        label: LABELS.alerting.event[one],
+                    }))}
+                    onValueChange={setEvent}
+                />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                    <Label>{LABELS.word.scope}</Label>
+                    <Segmented
+                        label={LABELS.word.scope}
+                        size="md"
+                        value={scope}
+                        options={SCOPES}
+                        onValueChange={setScope}
                     />
-
-                    <div className="space-y-2">
-                        <Label>{LABELS.word.event}</Label>
-                        <Segmented
-                            label={LABELS.word.event}
-                            size="md"
-                            value={event}
-                            options={ALERT_EVENTS.map((one) => ({
-                                value: one,
-                                label: LABELS.alerting.event[one],
-                            }))}
-                            onValueChange={setEvent}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label>{LABELS.word.scope}</Label>
-                            <Segmented
-                                label={LABELS.word.scope}
-                                size="md"
-                                value={scope}
-                                options={SCOPES}
-                                onValueChange={setScope}
-                            />
-                        </div>
-                        {scope === 'pipeline' && (
-                            <div className="space-y-2">
-                                <Label htmlFor="rule-pipeline">{LABELS.word.pipeline.label}</Label>
-                                <Picker
-                                    id="rule-pipeline"
-                                    label={LABELS.word.pipeline.label}
-                                    value={pipeline}
-                                    options={pipelines}
-                                    placeholder={LABELS.alerting.pipeline_search}
-                                    onChange={setPipeline}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label>{LABELS.word.importance}</Label>
-                        <p className="text-xs text-faint">{LABELS.alerting.importance_hint}</p>
-                        <Segmented
-                            label={LABELS.word.importance}
-                            size="md"
-                            value={floor}
-                            options={IMPORTANCE_FLOORS}
-                            onValueChange={setFloor}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <TargetPicker
-                            id="rule-connection"
-                            options={targetOptions(notifiers, connections)}
-                            value={connection}
-                            onChange={setConnection}
-                        />
-                    </div>
-
-                    <Field
-                        id="rule-subject"
-                        label={LABELS.word.subject}
-                        value={template}
-                        onChange={setTemplate}
-                        placeholder={LABELS.alerting.subject_placeholder}
-                        mono
-                        hint={SUBJECT_HINT}
-                    />
-
-                    <div className="space-y-2">
-                        <Label>{LABELS.word.body}</Label>
-                        <p className="text-xs text-faint">{BODY_HINT}</p>
-                        <WindowedSource
-                            name={BODY_LABEL}
-                            label={BODY_LABEL}
-                            windowLabel={LABELS.alerting.body_pane_windowed(BODY_LABEL)}
-                            value={body}
-                            mediaType={TEMPLATE_MEDIA_TYPE}
-                            placeholder={LABELS.alerting.body_placeholder}
-                            className="h-40 min-h-32"
-                            aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
-                            onChange={setBody}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <Field
-                            id="rule-throttle"
-                            label={LABELS.word.throttle}
-                            value={throttle}
-                            onChange={setThrottle}
-                            placeholder={LABELS.alerting.throttle_placeholder}
-                            mono
-                        />
-                    </div>
                 </div>
+                {scope === 'pipeline' && (
+                    <div className="space-y-2">
+                        <Label htmlFor="rule-pipeline">{LABELS.word.pipeline.label}</Label>
+                        <Picker
+                            id="rule-pipeline"
+                            label={LABELS.word.pipeline.label}
+                            value={pipeline}
+                            options={pipelines}
+                            placeholder={LABELS.alerting.pipeline_search}
+                            onChange={setPipeline}
+                        />
+                    </div>
+                )}
+            </div>
 
-                {problem !== null && <Refusal problem={problem} />}
+            <div className="space-y-2">
+                <Label>{LABELS.word.importance}</Label>
+                <p className="text-xs text-faint">{LABELS.alerting.importance_hint}</p>
+                <Segmented
+                    label={LABELS.word.importance}
+                    size="md"
+                    value={floor}
+                    options={IMPORTANCE_FLOORS}
+                    onValueChange={setFloor}
+                />
+            </div>
 
-                <DialogFooter>
-                    <p className="mr-auto self-center text-xs text-muted-foreground">
-                        {LABELS.alerting.declare_only}
-                    </p>
-                    <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
-                    <Refusable why={shut}>
-                        <Button disabled={busy || shut !== undefined} title={shut} onClick={send}>
-                            {busy ? LABELS.action.create.busy : LABELS.action.create.verb}
-                        </Button>
-                    </Refusable>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <TargetPicker
+                    id="rule-connection"
+                    options={targetOptions(notifiers, connections)}
+                    value={connection}
+                    onChange={setConnection}
+                />
+            </div>
+
+            <Field
+                id="rule-subject"
+                label={LABELS.word.subject}
+                value={template}
+                onChange={setTemplate}
+                placeholder={LABELS.alerting.subject_placeholder}
+                mono
+                hint={SUBJECT_HINT}
+            />
+
+            <div className="space-y-2">
+                <Label>{LABELS.word.body}</Label>
+                <p className="text-xs text-faint">{BODY_HINT}</p>
+                <WindowedSource
+                    name={BODY_LABEL}
+                    label={BODY_LABEL}
+                    windowLabel={LABELS.alerting.body_pane_windowed(BODY_LABEL)}
+                    value={body}
+                    mediaType={TEMPLATE_MEDIA_TYPE}
+                    placeholder={LABELS.alerting.body_placeholder}
+                    className="h-40 min-h-32"
+                    aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
+                    onChange={setBody}
+                />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <Field
+                    id="rule-throttle"
+                    label={LABELS.word.throttle}
+                    value={throttle}
+                    onChange={setThrottle}
+                    placeholder={LABELS.alerting.throttle_placeholder}
+                    mono
+                />
+            </div>
+
+            {problem !== null && <Refusal problem={problem} />}
+        </DialogShell>
     )
 }
 
