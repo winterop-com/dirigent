@@ -11,6 +11,7 @@ import { windowWords } from '@/lib/design-system'
  * and closing the window loses nothing.
  */
 export function WindowedSource({
+    id,
     name,
     label,
     windowLabel,
@@ -23,6 +24,8 @@ export function WindowedSource({
     onBlur,
     onChange,
 }: {
+    /** The id of the box's editable text, for a field's label to point at. */
+    id?: string
     /** The window's title, and what its button names. */
     name: string
     label: string
@@ -50,6 +53,7 @@ export function WindowedSource({
                 {(where) =>
                     where === 'pane' ? (
                         <CodePane
+                            id={id}
                             doc={buffer}
                             mediaType={mediaType}
                             label={label}

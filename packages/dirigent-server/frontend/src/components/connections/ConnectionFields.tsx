@@ -1,8 +1,11 @@
+import { useState } from 'react'
+
+import { Field } from '@winterop-com/sokkel-ui/Field'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Mark } from '@/components/Mark'
 import { Refusal } from '@/components/Refusal'
 import { GeneratedForm } from '@/components/schema/GeneratedForm'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import {
     Select,
     SelectContent,
@@ -10,10 +13,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@winterop-com/sokkel-ui/primitives/select'
-import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { useStore } from '@/hooks/use-store'
 import { type ConnectionDraftForm } from '@/hooks/use-connection-draft'
 import { type SurfaceEntry } from '@/lib/connections'
+import { FIELD_WORDS } from '@/lib/design-system'
 import { kindGlyph } from '@/lib/glyphs'
 import { LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'
@@ -59,23 +62,38 @@ export function ConnectionFields({
 }) {
     const { draft, chosen } = form
     const asksKind = decided === undefined || decided.kind === null
+    // Whether the code box has been left once, so it says it is empty only after somebody was there.
+    const [left, setLeft] = useState(false)
+    const codeIssue = left && draft.code.trim() === '' ? LABELS.connections.needs_code : null
 
     return (
         <>
             {decided === undefined ? (
                 <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                        <Label htmlFor={`${ids}-code`}>{LABELS.word.code}</Label>
+                    <Field
+                        id={`${ids}-code`}
+                        label={LABELS.word.code}
+                        required
+                        requiredMark="word"
+                        words={FIELD_WORDS}
+                        error={codeIssue}
+                    >
                         <Input
                             id={`${ids}-code`}
                             className="font-mono"
+                            spellCheck={false}
+                            aria-required
+                            aria-invalid={codeIssue !== null || undefined}
                             value={draft.code}
                             onChange={(event) => {
                                 form.setCode(event.target.value)
                             }}
+                            onBlur={() => {
+                                setLeft(true)
+                            }}
                             placeholder={LABELS.connections.code_placeholder}
                         />
-                    </div>
+                    </Field>
                     <KindBox form={form} kinds={kinds} ids={ids} />
                 </div>
             ) : (
@@ -84,29 +102,21 @@ export function ConnectionFields({
 
             {decided === undefined && (
                 <>
-                    <div className="space-y-2">
-                        <Label htmlFor={`${ids}-name`}>{LABELS.word.name.label}</Label>
-                        <Input
-                            id={`${ids}-name`}
-                            value={draft.name}
-                            onChange={(event) => {
-                                form.setName(event.target.value)
-                            }}
-                        />
-                    </div>
+                    <TextField
+                        id={`${ids}-name`}
+                        label={LABELS.word.name.label}
+                        value={draft.name}
+                        onChange={form.setName}
+                    />
 
-                    <div className="space-y-2">
-                        <Label htmlFor={`${ids}-description`}>{LABELS.word.description}</Label>
-                        <Textarea
-                            id={`${ids}-description`}
-                            className="h-24"
-                            value={draft.description}
-                            onChange={(event) => {
-                                form.setDescription(event.target.value)
-                            }}
-                            placeholder={LABELS.connections.description_placeholder}
-                        />
-                    </div>
+                    <TextField
+                        id={`${ids}-description`}
+                        label={LABELS.word.description}
+                        multiline
+                        value={draft.description}
+                        onChange={form.setDescription}
+                        placeholder={LABELS.connections.description_placeholder}
+                    />
                 </>
             )}
 
@@ -136,15 +146,20 @@ function KindBox({
 }) {
     const chosen = form.chosen
     return (
-        <div className="space-y-2">
-            <Label htmlFor={`${ids}-kind`}>{LABELS.word.kind.label}</Label>
+        <Field
+            id={`${ids}-kind`}
+            label={LABELS.word.kind.label}
+            required
+            requiredMark="word"
+            words={FIELD_WORDS}
+        >
             <Select
                 value={form.draft.kind}
                 onValueChange={(picked) => {
                     form.chooseKind(String(picked))
                 }}
             >
-                <SelectTrigger id={`${ids}-kind`} className="w-full font-mono">
+                <SelectTrigger id={`${ids}-kind`} className="w-full font-mono" aria-required>
                     {/* The chosen row keeps its mark in the closed box, so the row somebody
                         picked is the row they are looking at. Nothing chosen draws the
                         placeholder, which names no kind and so wears no mark. */}
@@ -160,7 +175,7 @@ function KindBox({
                     ))}
                 </SelectContent>
             </Select>
-        </div>
+        </Field>
     )
 }
 

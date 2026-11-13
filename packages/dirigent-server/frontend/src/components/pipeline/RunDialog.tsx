@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react'
 import { GeneratedForm } from '@/components/schema/GeneratedForm'
 import { SchemaIssueCount, useSchemaForm } from '@winterop-com/sokkel-ui/schema/SchemaForm'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import {
     Select,
@@ -16,7 +15,7 @@ import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useStore } from '@/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf, said } from '@/lib/refusal'
 import { headingOf, type Addressable } from '@/lib/identity'
@@ -26,6 +25,8 @@ import { handEntryOf } from '@/lib/sources'
 import { formSchema, hasFields } from '@/lib/form-schema'
 import { offsetMinutes, timesMode, zoneLabel } from '@/lib/times'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
+import { Field } from '@winterop-com/sokkel-ui/Field'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 
 const ENTRY = LABELS.editor.run.entry
 
@@ -154,18 +155,40 @@ export function RunDialog({
                         <span className="font-mono text-xs text-faint">{zoneLabel(mode)}</span>
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <WindowField
-                            id="run-window-start"
-                            label={LABELS.word.start}
-                            value={windowStart}
-                            onChange={setWindowStart}
-                        />
-                        <WindowField
-                            id="run-window-end"
-                            label={LABELS.word.end}
-                            value={windowEnd}
-                            onChange={setWindowEnd}
-                        />
+                        {[
+                            {
+                                id: 'run-window-start',
+                                label: LABELS.word.start,
+                                value: windowStart,
+                                set: setWindowStart,
+                            },
+                            {
+                                id: 'run-window-end',
+                                label: LABELS.word.end,
+                                value: windowEnd,
+                                set: setWindowEnd,
+                            },
+                        ].map((end) => (
+                            <Field
+                                key={end.id}
+                                id={end.id}
+                                label={end.label}
+                                required={needsWindow}
+                                requiredMark="word"
+                                words={FIELD_WORDS}
+                            >
+                                <Input
+                                    id={end.id}
+                                    type="datetime-local"
+                                    className="font-mono"
+                                    aria-required={needsWindow || undefined}
+                                    value={end.value}
+                                    onChange={(event) => {
+                                        end.set(event.target.value)
+                                    }}
+                                />
+                            </Field>
+                        ))}
                     </div>
                 </div>
             ) : (
@@ -225,33 +248,5 @@ export function RunDialog({
                 {LABELS.editor.run.runs_as(username ?? LABELS.editor.run.this_session)}
             </p>
         </DialogShell>
-    )
-}
-
-/** One end of the window: a wall clock to the minute, on the house field. */
-function WindowField({
-    id,
-    label,
-    value,
-    onChange,
-}: {
-    id: string
-    label: string
-    value: string
-    onChange: (value: string) => void
-}) {
-    return (
-        <div className="space-y-2">
-            <Label htmlFor={id}>{label}</Label>
-            <Input
-                id={id}
-                type="datetime-local"
-                className="font-mono"
-                value={value}
-                onChange={(event) => {
-                    onChange(event.target.value)
-                }}
-            />
-        </div>
     )
 }

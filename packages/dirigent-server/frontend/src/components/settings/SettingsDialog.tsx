@@ -2,12 +2,13 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
+import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { SchemeChoice } from '@winterop-com/sokkel-ui/SchemeChoice'
 import { SettingsDialog as LibrarySettingsDialog } from '@winterop-com/sokkel-ui/SettingsDialog'
 import { ThemeCards } from '@winterop-com/sokkel-ui/ThemeCards'
 import { Refusal } from '@/components/Refusal'
-import { LINK_WORDS, SCHEME_WORDS, SETTINGS_WORDS, THEME_CARDS_WORDS } from '@/lib/design-system'
+import { FIELD_WORDS, LINK_WORDS, SCHEME_WORDS, SETTINGS_WORDS, THEME_CARDS_WORDS } from '@/lib/design-system'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import { STATUS_CSS } from '@winterop-com/sokkel-ui/lib/status'
@@ -16,11 +17,11 @@ import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Kbd, KbdGroup } from '@winterop-com/sokkel-ui/primitives/kbd'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { useRead, type Reading } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
 import { type Problem } from '@/lib/api'
 import { authStore, signOut } from '@/lib/auth'
+import { MIN_PASSWORD_LENGTH } from '@/lib/users'
 import { API_DOCS_URL, DOCS_URL } from '@/lib/docs'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
@@ -190,7 +191,10 @@ function PaletteCards() {
             onValueChange={(theme) => {
                 setSettings({ ...settings, theme })
             }}
-            themes={PALETTES.map((palette) => ({ value: palette.name, label: palette.label }))}
+            themes={PALETTES.map((palette) => ({
+                value: palette.name,
+                label: palette.label,
+            }))}
             words={THEME_CARDS_WORDS}
         />
     )
@@ -285,6 +289,13 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     const [form, setForm] = useState<PasswordForm>(NO_PASSWORD)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
+    // Which boxes have been left once, so a required one says so only after somebody was there.
+    const [left, setLeft] = useState({ current: false, next: false })
+    const currentIssue = left.current && form.current === '' ? LABELS.refusal.password.current_missing : null
+    const nextIssue =
+        left.next && form.next.length < MIN_PASSWORD_LENGTH
+            ? LABELS.refusal.password.too_short(String(MIN_PASSWORD_LENGTH))
+            : null
 
     const send = () => {
         const local = formProblem(form)
@@ -313,12 +324,21 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     return (
         <Surface tone="well" pad className="w-full space-y-3">
             <div className="flex flex-col gap-3 md:flex-row">
-                <div className="min-w-0 flex-1 space-y-1">
-                    <Label htmlFor="password-current">{LABELS.settings.current_password}</Label>
+                <Field
+                    id="password-current"
+                    label={LABELS.settings.current_password}
+                    required
+                    requiredMark="word"
+                    words={FIELD_WORDS}
+                    error={currentIssue}
+                    className="flex-1"
+                >
                     <Input
                         id="password-current"
                         type="password"
                         autoComplete="current-password"
+                        aria-required
+                        aria-invalid={currentIssue !== null || undefined}
                         value={form.current}
                         onChange={(event) => {
                             setForm((current) => ({
@@ -326,20 +346,35 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
                                 current: event.target.value,
                             }))
                         }}
+                        onBlur={() => {
+                            setLeft((was) => ({ ...was, current: true }))
+                        }}
                     />
-                </div>
-                <div className="min-w-0 flex-1 space-y-1">
-                    <Label htmlFor="password-new">{LABELS.settings.new_password}</Label>
+                </Field>
+                <Field
+                    id="password-new"
+                    label={LABELS.settings.new_password}
+                    required
+                    requiredMark="word"
+                    words={FIELD_WORDS}
+                    error={nextIssue}
+                    className="flex-1"
+                >
                     <Input
                         id="password-new"
                         type="password"
                         autoComplete="new-password"
+                        aria-required
+                        aria-invalid={nextIssue !== null || undefined}
                         value={form.next}
                         onChange={(event) => {
                             setForm((current) => ({ ...current, next: event.target.value }))
                         }}
+                        onBlur={() => {
+                            setLeft((was) => ({ ...was, next: true }))
+                        }}
                     />
-                </div>
+                </Field>
             </div>
 
             {problem !== null && <Refusal problem={problem} />}

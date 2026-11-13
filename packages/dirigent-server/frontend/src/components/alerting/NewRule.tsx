@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 
-import { Field, TargetPicker } from '@/components/alerting/fields'
+import { TargetPicker } from '@/components/alerting/fields'
 import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import { Picker } from '@/components/Picker'
 import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
+import { Field } from '@winterop-com/sokkel-ui/Field'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
+import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { useMayWrite } from '@/hooks/use-may-write'
 import {
     ANY_IMPORTANCE,
@@ -16,17 +18,19 @@ import {
     given,
     IMPORTANCE_FLOORS,
     LOG_TARGET,
+    ruleCodeIssue,
     SCOPES,
     SUBJECT_HINT,
     targetChosen,
     targetOptions,
     TEMPLATE_MEDIA_TYPE,
+    throttleIssue,
     unreadyRule,
 } from '@/lib/alert-form'
 import { ALERT_EVENTS, createRule, type AlertEvent, type AlertScope } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
@@ -36,6 +40,9 @@ import { firstShut } from '@/lib/roles'
 
 /** What a rule is declared with when nobody says otherwise: no window at all. */
 const NO_THROTTLE = '0s'
+
+/** No box left yet: what a dialog opens on. */
+const NONE_LEFT = { code: false, throttle: false }
 
 /** What a screen reader and a test call the body pane. */
 const BODY_LABEL = LABELS.alerting.body_pane
@@ -76,10 +83,13 @@ export function NewRule({
     const [throttle, setThrottle] = useState(NO_THROTTLE)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
+    // Which boxes have been left once, so a required one says so only after somebody was there.
+    const [left, setLeft] = useState(NONE_LEFT)
 
     const pipelines = usePipelines(open)
     const write = useMayWrite()
     const shut = firstShut(write.why, unreadyRule({ code, scope, pipeline, throttle }))
+    const codeIssue = left.code ? (ruleCodeIssue(code) ?? null) : null
 
     const send = () => {
         setBusy(true)
@@ -105,6 +115,7 @@ export function NewRule({
                     setDescription('')
                     setTemplate('')
                     setBody('')
+                    setLeft(NONE_LEFT)
                     onOpenChange(false)
                 },
                 (error: unknown) => {
@@ -120,7 +131,10 @@ export function NewRule({
         <DialogShell
             words={DIALOG_WORDS}
             open={open}
-            onOpenChange={onOpenChange}
+            onOpenChange={(next) => {
+                if (!next) setLeft(NONE_LEFT)
+                onOpenChange(next)
+            }}
             width="xl"
             title={LABELS.alerting.new_rule.button}
             footer={LABELS.alerting.declare_only}
@@ -137,31 +151,50 @@ export function NewRule({
                 <Field
                     id="rule-code"
                     label={LABELS.word.code}
-                    value={code}
-                    onChange={setCode}
-                    placeholder={LABELS.alerting.code_placeholder}
-                    mono
-                />
-                <Field
+                    required
+                    requiredMark="word"
+                    words={FIELD_WORDS}
+                    error={codeIssue}
+                >
+                    <Input
+                        id="rule-code"
+                        className="font-mono"
+                        spellCheck={false}
+                        autoComplete="off"
+                        aria-required
+                        aria-invalid={codeIssue !== null || undefined}
+                        value={code}
+                        placeholder={LABELS.alerting.code_placeholder}
+                        onChange={(next) => {
+                            setCode(next.target.value)
+                        }}
+                        onBlur={() => {
+                            setLeft((was) => ({ ...was, code: true }))
+                        }}
+                    />
+                </Field>
+                <TextField
                     id="rule-name"
                     label={LABELS.word.name.label}
                     value={named}
                     onChange={setNamed}
                     placeholder={LABELS.alerting.name_placeholder}
+                    autoComplete="off"
                 />
             </div>
 
-            <Field
+            <TextField
                 id="rule-description"
                 label={LABELS.word.description}
                 value={description}
                 onChange={setDescription}
                 placeholder={LABELS.alerting.description_placeholder}
+                autoComplete="off"
             />
 
-            <div className="space-y-2">
-                <Label>{LABELS.word.event}</Label>
+            <Field id="rule-event" label={LABELS.word.event}>
                 <Segmented
+                    id="rule-event"
                     label={LABELS.word.event}
                     size="md"
                     value={event}
@@ -171,22 +204,27 @@ export function NewRule({
                     }))}
                     onValueChange={setEvent}
                 />
-            </div>
+            </Field>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                    <Label>{LABELS.word.scope}</Label>
+                <Field id="rule-scope" label={LABELS.word.scope}>
                     <Segmented
+                        id="rule-scope"
                         label={LABELS.word.scope}
                         size="md"
                         value={scope}
                         options={SCOPES}
                         onValueChange={setScope}
                     />
-                </div>
+                </Field>
                 {scope === 'pipeline' && (
-                    <div className="space-y-2">
-                        <Label htmlFor="rule-pipeline">{LABELS.word.pipeline.label}</Label>
+                    <Field
+                        id="rule-pipeline"
+                        label={LABELS.word.pipeline.label}
+                        required
+                        requiredMark="word"
+                        words={FIELD_WORDS}
+                    >
                         <Picker
                             id="rule-pipeline"
                             label={LABELS.word.pipeline.label}
@@ -195,21 +233,24 @@ export function NewRule({
                             placeholder={LABELS.alerting.pipeline_search}
                             onChange={setPipeline}
                         />
-                    </div>
+                    </Field>
                 )}
             </div>
 
-            <div className="space-y-2">
-                <Label>{LABELS.word.importance}</Label>
-                <p className="text-xs text-faint">{LABELS.alerting.importance_hint}</p>
+            <Field
+                id="rule-importance"
+                label={LABELS.word.importance}
+                description={LABELS.alerting.importance_hint}
+            >
                 <Segmented
+                    id="rule-importance"
                     label={LABELS.word.importance}
                     size="md"
                     value={floor}
                     options={IMPORTANCE_FLOORS}
                     onValueChange={setFloor}
                 />
-            </div>
+            </Field>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <TargetPicker
@@ -220,20 +261,20 @@ export function NewRule({
                 />
             </div>
 
-            <Field
+            <TextField
                 id="rule-subject"
                 label={LABELS.word.subject}
                 value={template}
                 onChange={setTemplate}
                 placeholder={LABELS.alerting.subject_placeholder}
+                autoComplete="off"
                 mono
-                hint={SUBJECT_HINT}
+                help={SUBJECT_HINT}
             />
 
-            <div className="space-y-2">
-                <Label>{LABELS.word.body}</Label>
-                <p className="text-xs text-faint">{BODY_HINT}</p>
+            <Field id="rule-body" label={LABELS.word.body} description={BODY_HINT}>
                 <WindowedSource
+                    id="rule-body"
                     name={BODY_LABEL}
                     label={BODY_LABEL}
                     windowLabel={LABELS.alerting.body_pane_windowed(BODY_LABEL)}
@@ -244,15 +285,20 @@ export function NewRule({
                     aside={<ProgramReference mediaType={TEMPLATE_MEDIA_TYPE} />}
                     onChange={setBody}
                 />
-            </div>
+            </Field>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <Field
+                <TextField
                     id="rule-throttle"
                     label={LABELS.word.throttle}
                     value={throttle}
                     onChange={setThrottle}
+                    onBlur={() => {
+                        setLeft((was) => ({ ...was, throttle: true }))
+                    }}
+                    error={left.throttle ? (throttleIssue(throttle) ?? null) : null}
                     placeholder={LABELS.alerting.throttle_placeholder}
+                    autoComplete="off"
                     mono
                 />
             </div>
@@ -273,7 +319,11 @@ function usePipelines(open: boolean): PickerOption[] {
                 setOptions(
                     rows.toSorted(byTitle).map((row) => {
                         const heading = headingOf(row)
-                        return { value: row.code, label: heading.title, aside: heading.code ?? '' }
+                        return {
+                            value: row.code,
+                            label: heading.title,
+                            aside: heading.code ?? '',
+                        }
                     }),
                 )
             },
