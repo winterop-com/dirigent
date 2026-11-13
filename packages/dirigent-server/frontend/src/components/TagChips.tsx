@@ -1,10 +1,4 @@
 import { TagChip } from '@/components/TagChip'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import { foldTags } from '@/lib/tag-fold'
 import { counted, LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
@@ -32,7 +26,7 @@ export function TagChips({
     if (tags.length === 0) return null
     const inTable = width > 0
     const bound = stacked ? 0 : columnWidth
-    const fold = foldTags(tags, bound, 1)
+    const fold = foldTags(tags, bound, 1, onSelect !== undefined)
     return (
         <span
             className={cn(
@@ -66,47 +60,23 @@ export function TagChips({
 function FoldedTags({ tags, onSelect }: { tags: readonly string[]; onSelect?: (tag: string) => void }) {
     const label = counted(tags.length, LABELS.shell.folded_tags)(String(tags.length), tags.join(', '))
     const chip = `+${String(tags.length)}`
-    const face =
-        'inline-flex h-5 items-center rounded-chip bg-faint/15 px-1.5 font-mono text-badge text-muted-foreground'
-    if (onSelect === undefined)
-        return (
-            <Chip mono title={label}>
-                {chip}
-            </Chip>
-        )
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger
-                render={
-                    <button
-                        type="button"
-                        className={cn(
-                            face,
-                            'cursor-pointer hover:text-foreground hover:underline hover:underline-offset-2',
-                        )}
-                        aria-label={label}
-                        title={label}
-                        onClick={(event) => {
-                            event.stopPropagation()
-                        }}
-                    >
-                        {chip}
-                    </button>
-                }
-            />
-            <DropdownMenuContent align="start" className="min-w-40">
-                {tags.map((tag) => (
-                    <DropdownMenuItem
-                        key={tag}
-                        onClick={(event) => {
-                            event.stopPropagation()
-                            onSelect(tag)
-                        }}
-                    >
-                        <TagChip tag={tag} />
-                    </DropdownMenuItem>
-                ))}
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <Chip
+            mono
+            title={onSelect === undefined ? label : undefined}
+            selectLabel={onSelect === undefined ? undefined : label}
+            menu={
+                onSelect === undefined
+                    ? undefined
+                    : tags.map((tag) => ({
+                          label: <TagChip tag={tag} />,
+                          onSelect: () => {
+                              onSelect(tag)
+                          },
+                      }))
+            }
+        >
+            {chip}
+        </Chip>
     )
 }
