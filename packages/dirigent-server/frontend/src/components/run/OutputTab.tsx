@@ -15,7 +15,7 @@ import {
     type ArtifactOut,
     type PreviewKind,
 } from '@/lib/artifacts'
-import { FILE_PREVIEW_WORDS } from '@/lib/design-system'
+import { FILE_PREVIEW_WORDS } from '@/lib/library-words'
 import { formatBytes, shortenUri } from '@/lib/format'
 import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'

@@ -18,7 +18,7 @@ import {
     type Holdings,
     type Requirement,
 } from '@/lib/examples'
-import { windowWords } from '@/lib/design-system'
+import { windowWords } from '@/lib/library-words'
 import { headingOf } from '@/lib/identity'
 import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'

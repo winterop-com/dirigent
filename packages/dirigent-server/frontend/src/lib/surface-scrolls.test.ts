@@ -47,9 +47,6 @@ const VIEWPORT_SHARE = /\d*\.?\d*d?vh\b/
 /** A body that scrolls under the surface's cap rather than the page. */
 const SCROLLS = /\boverflow-y-(?:auto|scroll)\b/
 
-/** A page whose specimens of the shell stand beside a layout of its own, which is not a dialog's. */
-const SPECIMENS = new Set(['pages/DesignSystem.tsx'])
-
 /** Every `.tsx` under `src`, which is every file that could draw a dialog. */
 function everyComponent(): string[] {
     const found: string[] = []
@@ -105,7 +102,6 @@ function tagEnds(source: string, at: number, opening: string): number {
 function read(file: string): Drawn | null {
     const source = readFileSync(file, 'utf8')
     const named = path.relative(SOURCE, file)
-    if (SPECIMENS.has(named)) return null
     const surfaces: Surface[] = []
     for (const surface of SURFACES) {
         const opening = `<${surface}`

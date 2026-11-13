@@ -154,7 +154,7 @@ describe('the rail', () => {
                 .map((entry) => entry.href)
         expect(active('/runs/abc')).toEqual(['/runs'])
         expect(active('/')).toEqual([DASHBOARD_PATH])
-        expect(active('/design')).toEqual([])
+        expect(active('/nowhere')).toEqual([])
     })
 
     test('heads every section but the first, and offers the admin section to an admin alone', () => {

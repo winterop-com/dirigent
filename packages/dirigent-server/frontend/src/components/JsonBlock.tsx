@@ -1,7 +1,7 @@
 import { Code } from '@winterop-com/sokkel-ui/Code'
 import { WindowedPane, WindowedPaneButton } from '@winterop-com/sokkel-ui/WindowedPane'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { copyWords, windowWords } from '@/lib/design-system'
+import { copyWords, windowWords } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 

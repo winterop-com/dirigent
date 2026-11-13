@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { TOOLBAR_WORDS } from '@/lib/design-system'
+import { TOOLBAR_WORDS } from '@/lib/library-words'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
 import { ShellHead } from '@winterop-com/sokkel-ui/Shell'
 import type { ToolbarItem } from '@winterop-com/sokkel-ui/Toolbar'
@@ -26,7 +26,6 @@ export function PageHeader({
     trail,
     code,
     meta,
-    inPlace = false,
 }: {
     title: string
     count?: ReactNode
@@ -36,25 +35,24 @@ export function PageHeader({
     trail?: readonly Crumb[]
     code?: string | null
     meta?: ReactNode
-    /** Drawn where it is rendered rather than in the shell's head, as the gallery does. */
-    inPlace?: boolean
 }) {
-    const header = (
-        <div className="*:min-h-9">
-            <LibraryPageHeader
-                title={title}
-                count={count}
-                code={code ?? undefined}
-                meta={meta}
-                lead={lead}
-                items={items}
-                primary={primary}
-                trail={trail}
-                trailInTop
-                wordsOnly
-                words={TOOLBAR_WORDS}
-            />
-        </div>
+    return (
+        <ShellHead>
+            <div className="*:min-h-9">
+                <LibraryPageHeader
+                    title={title}
+                    count={count}
+                    code={code ?? undefined}
+                    meta={meta}
+                    lead={lead}
+                    items={items}
+                    primary={primary}
+                    trail={trail}
+                    trailInTop
+                    wordsOnly
+                    words={TOOLBAR_WORDS}
+                />
+            </div>
+        </ShellHead>
     )
-    return inPlace ? header : <ShellHead>{header}</ShellHead>
 }

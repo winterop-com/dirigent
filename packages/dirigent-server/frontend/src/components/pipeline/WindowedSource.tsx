@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
 import { useControlledDocument } from '@winterop-com/sokkel-ui/CodeEditor'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { windowWords } from '@/lib/design-system'
+import { windowWords } from '@/lib/library-words'
 
 /**
  * A program in a field-sized box that opens in a window. The box stays in place while the window

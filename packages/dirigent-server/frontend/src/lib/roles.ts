@@ -39,3 +39,12 @@ export function whyShut(role: UserRole | null, gate: Gate): string | undefined {
 export function firstShut(...reasons: (string | undefined)[]): string | undefined {
     return reasons.find((reason) => reason !== undefined)
 }
+
+/**
+ * How a verb is shut: with its sentence where there is one, which keeps it reachable and says why,
+ * and quietly where there is none, as while its own request is in flight.
+ */
+export function shutWith(shut: boolean, why?: string | null): { disabled?: boolean; reason?: string } {
+    if (!shut) return {}
+    return why === undefined || why === null ? { disabled: true } : { reason: why }
+}

@@ -5,8 +5,8 @@
  * and no two entries hold the same glyph: fitting a canvas to its view and opening a pane in a
  * window are two marks. `icons.test.ts` holds the second half.
  *
- * COMPONENTS AND PAGES IMPORT FROM HERE, NEVER FROM `lucide-react`. `scripts/check_ui_system.py`
- * refuses the direct import anywhere under `src/components` and `src/pages`. A concept with no
+ * EVERYTHING ELSE IMPORTS FROM HERE, NEVER FROM `lucide-react`. `scripts/check_ui_library.py`
+ * refuses the direct import anywhere under `src` but here and `lib/glyphs`. A concept with no
  * entry gets one here, in front of everybody, before a screen draws it.
  *
  * A KIND'S MARK IS NOT HERE. What a connection kind or a notifier looks like is `lib/glyphs`,
@@ -59,7 +59,6 @@ import {
     Monitor,
     Network,
     Moon,
-    Palette,
     PanelLeft,
     PanelRight,
     Pencil,
@@ -174,7 +173,6 @@ export const ICONS = {
     light: Sun,
     dark: Moon,
     system: Monitor,
-    design: Palette,
 
     // Nouns: what a thing is.
     dashboard: House,
@@ -208,102 +206,3 @@ export const ICONS = {
     unreachable: ServerCrash,
     loading: LoaderCircle,
 } as const satisfies Record<string, Icon>
-
-/** Every concept the vocabulary names. */
-export type IconName = keyof typeof ICONS
-
-/** The vocabulary in the four kinds a reader looks through it by, each concept in exactly one. */
-export const ICON_GROUPS = {
-    verbs: [
-        'create',
-        'create_connection',
-        'create_schedule',
-        'create_user',
-        'create_rule',
-        'edit',
-        'delete',
-        'run',
-        'rerun',
-        'pause',
-        'resume',
-        'cancel',
-        'revoke',
-        'rotate',
-        'validate',
-        'apply',
-        'send_test',
-        'refresh',
-        'recheck',
-        'clear',
-        'clear_filter',
-        'filter',
-        'search',
-        'open_id',
-        'copy',
-        'done',
-        'download',
-        'upload',
-        'template',
-        'reveal',
-        'conceal',
-        'activate',
-        'deactivate',
-        'sign_out',
-    ],
-    chrome: [
-        'external',
-        'follow',
-        'show_newer',
-        'settings',
-        'fit_view',
-        'open_in_window',
-        'zoom_in',
-        'zoom_out',
-        'graph_layout',
-        'relayout',
-        'more',
-        'split',
-        'expand',
-        'selector',
-        'drag',
-        'menu',
-        'brand',
-        'terminal',
-        'close_panel',
-        'sidebar',
-        'panel',
-        'shortcuts',
-        'help',
-        'light',
-        'dark',
-        'system',
-        'design',
-    ],
-    nouns: [
-        'dashboard',
-        'pipeline',
-        'run_history',
-        'step',
-        'fan_out',
-        'block',
-        'connection',
-        'schema',
-        'trigger',
-        'schedule',
-        'recent',
-        'source',
-        'example',
-        'starter',
-        'alerting',
-        'user',
-        'users',
-        'token',
-        'secret',
-        'worker',
-        'tag',
-    ],
-    states: ['critical', 'failed', 'warning', 'info', 'unreachable', 'loading'],
-} as const satisfies Record<string, readonly IconName[]>
-
-/** One kind of concept the vocabulary groups by. */
-export type IconGroup = keyof typeof ICON_GROUPS

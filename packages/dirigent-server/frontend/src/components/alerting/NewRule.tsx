@@ -29,7 +29,7 @@ import {
 import { ALERT_EVENTS, createRule, type AlertEvent, type AlertScope } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
-import { DIALOG_WORDS, FIELD_WORDS, pickerWords } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS, pickerWords } from '@/lib/library-words'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { matchesOption, type PickerOption } from '@/lib/picker'

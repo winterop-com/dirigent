@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
-import { PageHeader } from '@/components/ds/PageHeader'
+import { PageHeader } from '@/components/PageHeader'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { MiniGraph } from '@winterop-com/sokkel-ui-graph/MiniGraph'
@@ -19,7 +19,7 @@ import { useRefresh } from '@winterop-com/sokkel-ui/hooks/use-refresh'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { readConnections } from '@/lib/connections'
-import { dotOf } from '@/lib/design-system'
+import { dotOf } from '@/lib/status'
 import { elapsedBetween, formatDuration } from '@/lib/format'
 import {
     healthNote,

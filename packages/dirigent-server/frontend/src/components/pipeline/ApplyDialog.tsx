@@ -19,7 +19,7 @@ import {
     type Held,
 } from '@/lib/carried'
 import { readConnection, readConnectionKinds, type SurfaceEntry } from '@/lib/connections'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { local, refusalOf } from '@/lib/refusal'
 import { documentDiff, planView, unchangedNote, type DocumentDiff, type PlanView } from '@/lib/pipeline-plan'

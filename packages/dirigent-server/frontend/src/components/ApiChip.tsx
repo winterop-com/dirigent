@@ -1,6 +1,6 @@
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 
-import { LINK_WORDS } from '@/lib/design-system'
+import { LINK_WORDS } from '@/lib/library-words'
 import { API_LABEL, docsHref, type DocsTag } from '@/lib/docs'
 import { LABELS } from '@/lib/labels'
 

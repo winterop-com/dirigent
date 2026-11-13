@@ -15,10 +15,10 @@
  * a row here as well, because a shortcut nobody has been told about is a shortcut nobody has.
  */
 
-import type { LucideIcon } from 'lucide-react'
 import type { PaletteGroup } from '@winterop-com/sokkel-ui/CommandPalette'
 
 import { NEUTRAL_GLYPH } from '@/lib/glyphs'
+import type { Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
@@ -35,7 +35,7 @@ export interface PaletteAction {
     /** More words the search matches -- what the thing is in other vocabularies. Never drawn. */
     hint?: string
     /** The mark in the row's tile. A row without one gets the neutral glyph, never a gap. */
-    icon?: LucideIcon
+    icon?: Icon
     /**
      * Whether this row belongs to the screen in front of somebody rather than to the app.
      *

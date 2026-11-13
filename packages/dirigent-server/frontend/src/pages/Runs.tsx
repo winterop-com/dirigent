@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
-import { PageHeader } from '@/components/ds/PageHeader'
+import { PageHeader } from '@/components/PageHeader'
 import { PipelineRef } from '@/components/PipelineRef'
 import { refusedTable } from '@/components/Refusal'
 import { RunsByPipeline } from '@/components/run/RunsByPipeline'
@@ -28,7 +28,7 @@ import {
     oneChosen,
     SEARCH_PLACEHOLDER,
     SEARCH_WORDS,
-} from '@/lib/design-system'
+} from '@/lib/library-words'
 import { counted, LABELS } from '@/lib/labels'
 import { LIST_GROUP, registerActions } from '@/lib/palette'
 import { readPipelineNames, readTagsOffered } from '@/lib/pipelines'

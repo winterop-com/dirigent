@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 
-import { PageHeader } from '@/components/ds/PageHeader'
+import { PageHeader } from '@/components/PageHeader'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { READ_WORDS } from '@/components/Refusal'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'

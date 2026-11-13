@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { firstShut, passes, whyShut } from '@/lib/roles'
+import { firstShut, passes, shutWith, whyShut } from '@/lib/roles'
 
 describe('what a role may do', () => {
     test('an admin passes both gates', () => {
@@ -47,5 +47,14 @@ describe('one sentence out of several reasons', () => {
 
     test('no reason at all is a control that is not shut', () => {
         expect(firstShut(undefined, undefined)).toBeUndefined()
+    })
+})
+
+describe('a shut verb', () => {
+    test('is shut with its sentence where there is one, and quietly where there is none', () => {
+        expect(shutWith(false, 'Viewers cannot')).toEqual({})
+        expect(shutWith(true, 'Viewers cannot')).toEqual({ reason: 'Viewers cannot' })
+        expect(shutWith(true, null)).toEqual({ disabled: true })
+        expect(shutWith(true)).toEqual({ disabled: true })
     })
 })

@@ -9,6 +9,7 @@ import { formSchema } from '@/lib/form-schema'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { firstShut } from '@/lib/roles'
+import { SCHEMA_FORM_WORDS } from '@/lib/library-words'
 
 /**
  * One connection being minted, wherever the form asking for it is drawn.
@@ -67,7 +68,7 @@ export function useConnectionDraft(
         () => formSchema(chosen?.config_schema, { secrets: chosen?.secret_fields ?? [] }),
         [chosen],
     )
-    const form = useSchemaForm(schema, { initial: {} })
+    const form = useSchemaForm(schema, { initial: {}, words: SCHEMA_FORM_WORDS })
 
     return {
         draft,

@@ -3,7 +3,7 @@ import { useCallback, useEffect } from 'react'
 import { ApiChip } from '@/components/ApiChip'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { WorkersTable } from '@/components/admin/WorkersTable'
-import { PageHeader } from '@/components/ds/PageHeader'
+import { PageHeader } from '@/components/PageHeader'
 import { usePaged } from '@/hooks/use-paged'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
@@ -63,7 +63,7 @@ function Workers() {
     return (
         <>
             <PageHeader title={LABELS.screen.workers.name} lead={<ApiChip tag="workers" />} />
-            <WorkersTable state={workers.state} more={workers.more} empty={LABELS.workers.empty} />
+            <WorkersTable state={workers.state} more={workers.more} reload={reload} />
         </>
     )
 }

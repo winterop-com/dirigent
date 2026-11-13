@@ -11,6 +11,7 @@
  * backwards. It is stated once here and read everywhere else.
  */
 
+import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { StatusColor, StatusMap } from '@winterop-com/sokkel-ui/StatusChip'
 
 import { LABELS } from '@/lib/labels'
@@ -171,3 +172,70 @@ export function statusLabel(status: string): string {
 export const STATUSES: StatusMap = Object.fromEntries(
     Object.entries(LOOKS).map(([status, look]) => [status, { label: statusLabel(status), ...look }]),
 )
+
+/** What a dot or a notice says about something that is not a run: how it is, in one hue. */
+export type Tone = 'good' | 'critical' | 'warning' | 'info' | 'quiet' | 'unknown'
+
+/** The one map from a tone to the token it is filled with. `unknown` is drawn hollow. */
+export const TONE_FILL: Readonly<Record<Tone, string>> = {
+    good: 'var(--good)',
+    critical: 'var(--critical)',
+    warning: 'var(--warning)',
+    info: 'var(--info)',
+    quiet: 'var(--faint)',
+    unknown: 'var(--faint)',
+}
+
+/** The tones that are news: a dot in one of these says its word beside it, not only on hover. */
+const NEWS_TONES: ReadonlySet<Tone> = new Set(['critical', 'unknown'])
+
+/** The run and attempt states that are news, read the same way. */
+const NEWS_STATUSES: ReadonlySet<string> = new Set(['failed', 'completed_with_errors'])
+
+/** When a dot spells its word: only when it is news, always, or never. */
+export type Say = 'news' | 'always' | 'never'
+
+/**
+ * Whether a dot draws its word beside it.
+ *
+ * A green dot alone says connected; a word appears where the state is news. The word is the
+ * dot's accessible name and its tooltip either way.
+ */
+export function saysWord(news: boolean, say: Say = 'news'): boolean {
+    if (say === 'always') return true
+    if (say === 'never') return false
+    return news
+}
+
+/** Whether a tone or a status is news. */
+export function isNews(dot: { tone: Tone } | { status: string }): boolean {
+    return 'tone' in dot ? NEWS_TONES.has(dot.tone) : NEWS_STATUSES.has(dot.status)
+}
+
+/**
+ * How a dot is drawn for a tone or a run or attempt status: 8px, filled from the one map, an
+ * `unknown` tone hollow, named by its word, and saying that word beside it only when it is news. A
+ * dot that does not say its word says it as its tooltip. A word it says is small, and in body ink
+ * only for a failure: a state nothing has proved is said quietly.
+ */
+export function dotOf(
+    dot: { tone: Tone; label: string } | { status: string; label?: string },
+    say?: Say,
+): DotProps {
+    const label = dot.label ?? ('status' in dot ? statusLabel(dot.status) : '')
+    const said = saysWord(isNews(dot), say)
+    const loud = isNews(dot) && !('tone' in dot && dot.tone === 'unknown')
+    return {
+        color: 'tone' in dot ? TONE_FILL[dot.tone] : statusTokens(dot.status)['--chip'],
+        outline: 'tone' in dot && dot.tone === 'unknown',
+        size: 'md',
+        label,
+        say: said,
+        tip: said ? undefined : label,
+        className: said
+            ? loud
+                ? 'text-xs font-medium text-foreground'
+                : 'text-xs text-muted-foreground'
+            : undefined,
+    }
+}

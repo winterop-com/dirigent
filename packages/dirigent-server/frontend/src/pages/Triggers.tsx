@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 
 import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
-import { PageHeader } from '@/components/ds/PageHeader'
-import { SECTION_LISTING, shutWith } from '@/lib/design-system'
+import { PageHeader } from '@/components/PageHeader'
+import { SECTION_LISTING } from '@/lib/library-words'
+import { shutWith } from '@/lib/roles'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { Section } from '@winterop-com/sokkel-ui/Section'

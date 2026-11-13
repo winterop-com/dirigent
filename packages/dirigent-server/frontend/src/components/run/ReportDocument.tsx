@@ -3,7 +3,7 @@ import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
 import { Description } from '@/components/Description'
 import { useApiPrefix } from '@/hooks/use-api-prefix'
 import { artifactUrl, type ReportDocument } from '@/lib/artifacts'
-import { windowWords } from '@/lib/design-system'
+import { windowWords } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 

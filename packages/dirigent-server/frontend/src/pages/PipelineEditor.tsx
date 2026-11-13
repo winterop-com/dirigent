@@ -29,13 +29,13 @@ import { authStore } from '@/lib/auth'
 import { catalogUnread, readBlock, readCatalog, type BlockEntry } from '@/lib/blocks'
 import { placeStep, type Placement } from '@/lib/canvas-layout'
 import { headingOf, titleOf } from '@/lib/identity'
-import { shutWith, TOOLBAR_WORDS } from '@/lib/design-system'
+import { TOOLBAR_WORDS } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { cycleRefusal, stepNeeds, withEdge, withoutEdge, withoutStep } from '@/lib/graph-edits'
 import { fillPanel, openPanelTab, type PanelTab } from '@/lib/panels'
 import { askAddStep, askRelayout } from '@/lib/canvas-actions'
 import { RUN_GROUP, registerActions } from '@/lib/palette'
-import { firstShut } from '@/lib/roles'
+import { firstShut, shutWith } from '@/lib/roles'
 import {
     applyVariant,
     blockOf,

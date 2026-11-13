@@ -14,7 +14,7 @@ import { LOG_TARGET, targetChosen, targetOptions } from '@/lib/alert-form'
 import { deliverySettled, readNotification, sendTest, type NotificationOut } from '@/lib/alerting'
 import type { Problem } from '@/lib/api'
 import type { ConnectionOut } from '@/lib/connections'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS } from '@/lib/library-words'
 import { counted, LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 

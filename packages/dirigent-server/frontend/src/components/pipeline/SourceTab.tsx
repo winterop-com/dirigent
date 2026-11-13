@@ -4,7 +4,7 @@ import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
 import { useControlledDocument } from '@winterop-com/sokkel-ui/CodeEditor'
 import { CodePane } from '@/components/pipeline/CodePane'
 import type { JsonMap } from '@/lib/api'
-import { windowWords } from '@/lib/design-system'
+import { windowWords } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { toYaml } from '@/lib/pipeline-document'
 

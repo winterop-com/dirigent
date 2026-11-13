@@ -34,7 +34,7 @@ import {
 import { separatelyUpdated } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { ICONS } from '@/lib/icons'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS } from '@/lib/library-words'
 import { itemOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
 import { kindMarks } from '@/lib/marks'

@@ -1,5 +1,5 @@
 import { TagChip } from '@/components/TagChip'
-import { filterWords } from '@/lib/design-system'
+import { filterWords } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { FilterChip, saidOptions } from '@winterop-com/sokkel-ui/FilterChip'
 

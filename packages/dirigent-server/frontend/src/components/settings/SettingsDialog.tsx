@@ -9,11 +9,11 @@ import { ThemeCards } from '@winterop-com/sokkel-ui/ThemeCards'
 import { Refusal } from '@/components/Refusal'
 import {
     LINK_WORDS,
-    SECRET_FIELD_WORDS,
     SCHEME_WORDS,
+    SECRET_FIELD_WORDS,
     SETTINGS_WORDS,
     THEME_CARDS_WORDS,
-} from '@/lib/design-system'
+} from '@/lib/library-words'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import { STATUS_CSS } from '@winterop-com/sokkel-ui/lib/status'

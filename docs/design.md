@@ -1576,7 +1576,7 @@ configure each step in a form rendered from its published schema, declare fan-ou
 policy, with live validation against the same schemas the engine enforces. Around it: run
 list and run detail with the item grid and an SSE log tail, kind-specific connection forms
 with a test button, schedules with their next firing, alerting rules, and a dashboard.
-`docs/ui-conventions.md` is the design system the whole of it is built to.
+`docs/ui-conventions.md` holds the conventions the whole of it is built to, on the sokkel-ui component library.
 
 The CLI is Typer plus rich, installed as `dirigent` with `dg` as the short alias. It is both
 the operator's remote (a server via `--profile` / `DG_URL` / `DG_TOKEN`) and the process

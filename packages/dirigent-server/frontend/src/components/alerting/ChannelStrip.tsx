@@ -7,7 +7,7 @@ import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
 import { Instant } from '@/components/Instant'
 import { Mark } from '@/components/Mark'
 import { Dot as LibraryDot } from '@winterop-com/sokkel-ui/Dot'
-import { TONE_FILL } from '@/lib/design-system'
+import { TONE_FILL } from '@/lib/status'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
 import { useIsMobile } from '@winterop-com/sokkel-ui/hooks/use-mobile'
 import {

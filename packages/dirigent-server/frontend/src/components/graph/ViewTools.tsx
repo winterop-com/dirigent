@@ -6,7 +6,7 @@ import {
 } from '@winterop-com/sokkel-ui-graph/GraphViewButtons'
 import { GraphLayoutMenu, type GraphLayoutChoice } from '@winterop-com/sokkel-ui-graph/GraphLayoutMenu'
 import type { GraphRouting } from '@winterop-com/sokkel-ui-graph/layout'
-import { GRAPH_LAYOUT_WORDS, GRAPH_WORDS } from '@/lib/design-system'
+import { GRAPH_LAYOUT_WORDS, GRAPH_WORDS } from '@/lib/library-words'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { applePlatform, modifierLabel } from '@/lib/shortcuts'

@@ -2,7 +2,7 @@ import { ConnectionFields } from '@/components/connections/ConnectionFields'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { useConnectionDraft } from '@/hooks/use-connection-draft'
 import { type ConnectionOut, type SurfaceEntry } from '@/lib/connections'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 
 /**

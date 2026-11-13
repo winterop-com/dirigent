@@ -1,6 +1,6 @@
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 
-import { dotOf } from '@/lib/design-system'
+import { dotOf } from '@/lib/status'
 import { cn } from '@/lib/utils'
 import type { HealthView } from '@/lib/connections'
 

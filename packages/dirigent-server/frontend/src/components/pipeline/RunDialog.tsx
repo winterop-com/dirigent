@@ -14,7 +14,7 @@ import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
-import { DIALOG_WORDS, FIELD_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS, SCHEMA_FORM_WORDS } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { refusalOf, said } from '@/lib/refusal'
 import { headingOf, type Addressable } from '@/lib/identity'
@@ -79,7 +79,7 @@ export function RunDialog({
 }) {
     const schema = useMemo(() => formSchema(paramsOf(document)), [document])
     const takes = hasFields(schema)
-    const form = useSchemaForm(schema, { initial: {} })
+    const form = useSchemaForm(schema, { initial: {}, words: SCHEMA_FORM_WORDS })
     const needsWindow = useMemo(() => referencesWindow(document), [document])
     const entry = useMemo(() => handEntryOf(document), [document])
     const [windowStart, setWindowStart] = useState('')

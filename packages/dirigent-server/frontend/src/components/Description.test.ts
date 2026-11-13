@@ -7,7 +7,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test } from 'vitest'
 
-import { DESCRIPTION_MARKDOWN } from '@/lib/design-system'
+import { DESCRIPTION_MARKDOWN } from '@/lib/library-words'
 
 /** The app's own source, which one test below reads to assert what is not in it. */
 const SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

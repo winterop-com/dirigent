@@ -1,6 +1,6 @@
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { REPORTS_DOCS_URL } from '@/lib/docs'
-import { LINK_WORDS } from '@/lib/design-system'
+import { LINK_WORDS } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 
 /**

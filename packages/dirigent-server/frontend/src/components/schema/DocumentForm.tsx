@@ -5,6 +5,7 @@ import { GeneratedForm, type FormReferences } from '@/components/schema/Generate
 import type { JsonMap } from '@/lib/api'
 import { deferReference, hasFields } from '@/lib/form-schema'
 import { LABELS } from '@/lib/labels'
+import { SCHEMA_FORM_WORDS } from '@/lib/library-words'
 
 /**
  * A form over one map of a document, held by the document: it draws `value` and hands each change
@@ -28,6 +29,7 @@ export function DocumentForm({
     fold?: boolean
 }) {
     const form = useSchemaForm(schema, {
+        words: SCHEMA_FORM_WORDS,
         value,
         onChange: (next) => {
             onChange(isMap(next) ? next : {})

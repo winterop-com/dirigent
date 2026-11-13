@@ -1,6 +1,6 @@
 import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
 
-import { copyWords } from '@/lib/design-system'
+import { copyWords } from '@/lib/library-words'
 
 /** A machine's string beside the button that copies it. */
 export function Copyable({ value, label }: { value: string; label: string }) {

@@ -5,7 +5,7 @@ import { AppShell } from '@/components/AppShell'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { READ_WORDS } from '@/components/Refusal'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
-import { DESIGN_PATH, LOGIN_PATH } from '@/lib/nav'
+import { LOGIN_PATH } from '@/lib/nav'
 import { timesMode } from '@/lib/times'
 import { Login } from '@/pages/Login'
 import { Pipelines } from '@/pages/Pipelines'
@@ -91,11 +91,6 @@ const AdminAudit = lazy(() =>
     import('@/pages/admin/Audit').then((module) => ({ default: module.AdminAudit })),
 )
 
-/** The design system's gallery, which no reader on the way to a run needs. */
-const DesignSystem = lazy(() =>
-    import('@/pages/DesignSystem').then((module) => ({ default: module.DesignSystem })),
-)
-
 /** What stands in the content column while a screen's chunk is being fetched. */
 function Loading() {
     return (
@@ -176,14 +171,6 @@ export default function App() {
                     }
                 />
                 <Route path="runs" element={<Runs />} />
-                <Route
-                    path={DESIGN_PATH}
-                    element={
-                        <Suspense fallback={<Loading />}>
-                            <DesignSystem />
-                        </Suspense>
-                    }
-                />
                 <Route
                     path="runs/:id/:step?"
                     element={
