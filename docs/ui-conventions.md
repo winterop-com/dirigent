@@ -225,8 +225,8 @@ A control in a bar is compact, `xs` or `sm`, and fits the bar rather than growin
 rule along the top adds no height to the bar. The run terminal is sokkel-ui's `Dock`, whose head
 bar is the library's own and carries the title and the tools; its three filters and their count
 stand in the dock's `bar`, a row of its own under the head at every width. In a dock narrower
-than 48rem the count takes a line of its own under the filters, a container query because the
-panel beside it narrows the dock as much as the window does.
+than 48rem the count is not drawn, a container query because the panel beside it narrows the
+dock as much as the window does.
 
 **A listing is a headed panel too.** sokkel-ui's `DataTable` with `variant="list"` draws
 `Section`'s edge and ground: its row of column headings is the panel's bar, and its rows stand on

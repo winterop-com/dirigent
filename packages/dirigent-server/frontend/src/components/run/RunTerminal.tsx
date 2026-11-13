@@ -214,8 +214,8 @@ export function RunTerminal({
             }
             bar={
                 <>
-                    {/* In a narrow dock the count takes a row of its own under the filters. */}
-                    <div className="flex min-w-0 flex-1 gap-2 @max-3xl:basis-full">
+                    {/* A dock narrower than 48rem has no room for the count. */}
+                    <div className="flex min-w-0 flex-1 gap-2">
                         <Select
                             value={filters.level}
                             onValueChange={(chosen) => {
@@ -282,7 +282,7 @@ export function RunTerminal({
                         />
                     </div>
                     {countNote !== null && (
-                        <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
+                        <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground @max-3xl:hidden">
                             {countNote}
                         </span>
                     )}
