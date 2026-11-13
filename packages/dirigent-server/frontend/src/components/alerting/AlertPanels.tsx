@@ -38,6 +38,7 @@ import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 
 /**
  * One rule beside the listing: what it says, what it has said lately, and what may be done to it.
@@ -495,10 +496,7 @@ export function Run({ notification }: { notification: NotificationOut }) {
         return <span className="text-muted-foreground">{LABELS.alerting.no_run}</span>
     const named = notification.run_pipeline ?? LABELS.alerting.a_run
     return (
-        <Link
-            className="text-foreground underline-offset-2 hover:underline"
-            to={`/runs/${notification.run_id}`}
-        >
+        <TextLink variant="data" href={`/runs/${notification.run_id}`}>
             <span className="text-sm">{named}</span>
             {notification.run_started_at !== null && (
                 <Instant
@@ -507,7 +505,7 @@ export function Run({ notification }: { notification: NotificationOut }) {
                     at={notification.run_started_at}
                 />
             )}
-        </Link>
+        </TextLink>
     )
 }
 

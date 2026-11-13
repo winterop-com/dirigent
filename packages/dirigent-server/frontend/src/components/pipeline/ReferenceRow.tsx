@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
 
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
 import { JsonBlock } from '@/components/JsonBlock'
 import { Mark } from '@/components/Mark'
@@ -171,8 +171,8 @@ function Body({ title, value }: { title: string; value: JsonMap }) {
 /** The way out to the thing's own screen. */
 function Opens({ to, children }: { to: string; children: ReactNode }) {
     return (
-        <Link className="text-xs text-foreground underline-offset-2 hover:underline" to={to}>
+        <TextLink variant="inline" href={to} className="w-fit text-xs">
             {children}
-        </Link>
+        </TextLink>
     )
 }
