@@ -3,7 +3,7 @@ import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { refusedRead } from '@/components/Refusal'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
-import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { LISTING } from '@/lib/design-system'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
@@ -111,9 +111,9 @@ const COLUMNS: DataColumn<WorkerOut>[] = [
                     </span>
                 )}
                 {!worker.code_matches_server && (
-                    <Badge variant="destructive" title={worker.catalog_digest ?? LABELS.workers.no_digest}>
+                    <Chip tone="critical" title={worker.catalog_digest ?? LABELS.workers.no_digest}>
                         {LABELS.workers.mismatch_badge}
-                    </Badge>
+                    </Chip>
                 )}
             </span>
         ),
@@ -133,9 +133,9 @@ const COLUMNS: DataColumn<WorkerOut>[] = [
             worker.tags.length === 0 ? null : (
                 <span className="flex flex-wrap gap-1">
                     {worker.tags.map((tag) => (
-                        <Badge key={tag} variant="outline">
+                        <Chip key={tag} tone="outline" mono>
                             {tag}
-                        </Badge>
+                        </Chip>
                     ))}
                 </span>
             ),
