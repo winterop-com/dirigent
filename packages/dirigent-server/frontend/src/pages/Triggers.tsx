@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
@@ -8,6 +7,7 @@ import { SECTION_LISTING, shutWith } from '@/lib/design-system'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { Section } from '@winterop-com/sokkel-ui/Section'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { refusedRead } from '@/components/Refusal'
 import { PipelineRef } from '@/components/PipelineRef'
@@ -458,15 +458,16 @@ function LastFiring({ row }: { row: ScheduleRow }) {
             <Instant className="text-muted-foreground" at={row.schedule.last_fired_at} />
             {view !== null && <span>{view.label}</span>}
             {view !== null && view.runId !== null && (
-                <Link
-                    className="font-mono text-foreground underline-offset-2 hover:underline"
-                    to={`/runs/${view.runId}`}
+                <TextLink
+                    variant="data"
+                    code
+                    href={`/runs/${view.runId}`}
                     onClick={(event) => {
                         event.stopPropagation()
                     }}
                 >
                     {LABELS.word.run.term}
-                </Link>
+                </TextLink>
             )}
             {view !== null && view.detail !== null && (
                 <span className="max-w-48 truncate text-muted-foreground" title={view.detail}>

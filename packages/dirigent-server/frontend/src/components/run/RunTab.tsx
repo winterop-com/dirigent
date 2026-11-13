@@ -1,5 +1,3 @@
-import { Link } from 'react-router'
-
 import { instantFact } from '@/components/Instant'
 import { Copyable, PanelGroup } from '@/components/run/Panel'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
@@ -8,6 +6,7 @@ import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { asJson, elapsedBetween, formatDuration, formatWindow } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { startedAs, startedBy, type AttemptOut, type RunOut } from '@/lib/runs'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 
 export const COPY_TRACE_LABEL = LABELS.runs.copy_trace
 export const COPY_RUN_LABEL = LABELS.runs.copy_run_id
@@ -54,13 +53,13 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                     {started.from === null ? (
                         startedBy(run, attempts)
                     ) : (
-                        <Link
-                            className="text-foreground underline-offset-2 hover:underline"
-                            to={`/runs/${started.from}`}
+                        <TextLink
+                            variant="inline"
+                            href={`/runs/${started.from}`}
                             title={started.recorded ?? undefined}
                         >
                             {started.said}
-                        </Link>
+                        </TextLink>
                     )}
                 </p>
             </PanelGroup>
@@ -109,12 +108,9 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                         {
                             term: LABELS.word.pipeline.term,
                             value: (
-                                <Link
-                                    className="font-mono text-foreground underline-offset-2 hover:underline"
-                                    to={`/pipelines/${run.pipeline}`}
-                                >
+                                <TextLink variant="data" code href={`/pipelines/${run.pipeline}`}>
                                     {run.pipeline}
-                                </Link>
+                                </TextLink>
                             ),
                         },
                         { term: LABELS.word.version.term, value: run.pipeline_version, numeric: true },
