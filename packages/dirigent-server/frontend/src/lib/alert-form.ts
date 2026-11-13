@@ -48,9 +48,15 @@ export const SCOPES: readonly { value: AlertScope; label: string }[] = [
 export const ANY_IMPORTANCE = ''
 
 /** The floors a rule may fire at, in the order the control offers them. */
-export const IMPORTANCE_FLOORS: readonly { value: Importance | typeof ANY_IMPORTANCE; label: string }[] = [
+export const IMPORTANCE_FLOORS: readonly {
+    value: Importance | typeof ANY_IMPORTANCE
+    label: string
+}[] = [
     { value: ANY_IMPORTANCE, label: LABELS.alerting.importance_any },
-    ...IMPORTANCES.map((one) => ({ value: one, label: one[0].toUpperCase() + one.slice(1) })),
+    ...IMPORTANCES.map((one) => ({
+        value: one,
+        label: one[0].toUpperCase() + one.slice(1),
+    })),
 ]
 
 /** What a control's answer is on the wire, where "any" is the absence of a floor. */
@@ -96,7 +102,12 @@ export function targetOptions(
                 one.heading.title.localeCompare(two.heading.title),
         )
     return [
-        { value: LOG_TARGET, label: LOG_TARGET_LABEL, aside: '', mark: kindGlyph(LOG_NOTIFIER) },
+        {
+            value: LOG_TARGET,
+            label: LOG_TARGET_LABEL,
+            aside: '',
+            mark: kindGlyph(LOG_NOTIFIER),
+        },
         ...channels.map(({ row, heading }) => ({
             value: row.code,
             label: `${heading.title} · ${row.kind}`,
@@ -126,9 +137,23 @@ export interface RuleDraft {
  * rather than naming the last box first.
  */
 export function unreadyRule(draft: RuleDraft): string | undefined {
-    if (draft.code.trim() === '') return LABELS.alerting.unready.code_missing
-    if (!CODE.test(draft.code.trim())) return LABELS.alerting.unready.code_shape
-    if (draft.scope === 'pipeline' && draft.pipeline === '') return LABELS.alerting.unready.pipeline_missing
-    if (!DURATION.test(draft.throttle.trim())) return LABELS.alerting.unready.throttle_shape
+    return (
+        ruleCodeIssue(draft.code) ??
+        (draft.scope === 'pipeline' && draft.pipeline === ''
+            ? LABELS.alerting.unready.pipeline_missing
+            : undefined) ??
+        throttleIssue(draft.throttle)
+    )
+}
+
+/** What is wrong with a rule's code as typed, or nothing when it is one. */
+export function ruleCodeIssue(code: string): string | undefined {
+    if (code.trim() === '') return LABELS.alerting.unready.code_missing
+    if (!CODE.test(code.trim())) return LABELS.alerting.unready.code_shape
     return undefined
+}
+
+/** What is wrong with a throttle as typed, or nothing when it is a duration. */
+export function throttleIssue(throttle: string): string | undefined {
+    return DURATION.test(throttle.trim()) ? undefined : LABELS.alerting.unready.throttle_shape
 }

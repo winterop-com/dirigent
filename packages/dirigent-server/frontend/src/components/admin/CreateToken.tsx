@@ -3,11 +3,11 @@ import { useState } from 'react'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Refusal } from '@/components/Refusal'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
+import { describedBy, Field } from '@winterop-com/sokkel-ui/Field'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
 import { type Problem } from '@/lib/api'
-import { DIALOG_WORDS, secretWords } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS, secretWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { createToken, createTokenFor, type IssuedTokenOut } from '@/lib/users'
@@ -41,12 +41,15 @@ export function CreateToken({
     const [issued, setIssued] = useState<IssuedTokenOut | null>(null)
     const [problem, setProblem] = useState<Problem | null>(null)
     const [busy, setBusy] = useState(false)
+    // Whether the name box has been left once, so it says it is empty only after somebody was there.
+    const [left, setLeft] = useState(false)
 
     const close = (next: boolean) => {
         if (!next) {
             setName('')
             setIssued(null)
             setProblem(null)
+            setLeft(false)
         }
         onOpenChange(next)
     }
@@ -70,6 +73,8 @@ export function CreateToken({
                 setBusy(false)
             })
     }
+
+    const nameIssue = left && name.trim() === '' ? LABELS.users.token_needs_name : null
 
     return (
         <DialogShell
@@ -95,19 +100,33 @@ export function CreateToken({
             }
         >
             {issued === null ? (
-                <div className="space-y-2">
-                    <Label htmlFor="new-token-name">{LABELS.word.name.label}</Label>
+                <Field
+                    id="new-token-name"
+                    label={LABELS.word.name.label}
+                    required
+                    requiredMark="word"
+                    words={FIELD_WORDS}
+                    help={LABELS.users.token_name_hint}
+                    error={nameIssue}
+                >
                     <Input
                         id="new-token-name"
+                        aria-required
+                        aria-invalid={nameIssue !== null || undefined}
+                        aria-describedby={describedBy('new-token-name', {
+                            help: LABELS.users.token_name_hint,
+                        })}
                         value={name}
                         autoComplete="off"
                         placeholder={LABELS.users.token_name_placeholder}
                         onChange={(event) => {
                             setName(event.target.value)
                         }}
+                        onBlur={() => {
+                            setLeft(true)
+                        }}
                     />
-                    <p className="text-xs text-muted-foreground">{LABELS.users.token_name_hint}</p>
-                </div>
+                </Field>
             ) : (
                 <div className="space-y-2">
                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1">

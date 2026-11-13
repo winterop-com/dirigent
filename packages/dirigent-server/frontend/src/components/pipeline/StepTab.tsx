@@ -2,9 +2,8 @@ import { Fragment, useMemo, useState, type ReactNode } from 'react'
 
 import { KindChip } from '@/components/KindChip'
 import { DocumentForm } from '@/components/schema/DocumentForm'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import {
     Select,
     SelectContent,
@@ -146,8 +145,17 @@ export function StepTab({
     const retry = retryValues(document, step)
     const keyProblems = validateFields(stepFields, keys)
     const retryProblems = validateFields(retryFields, retry)
-    const refusals = Object.entries({ ...keyProblems, ...retryProblems, ...problems })
-    const groups = stepGroups({ keys, retry, prerequisites, sensor: block?.kind === 'sensor' })
+    const refusals = Object.entries({
+        ...keyProblems,
+        ...retryProblems,
+        ...problems,
+    })
+    const groups = stepGroups({
+        keys,
+        retry,
+        prerequisites,
+        sensor: block?.kind === 'sensor',
+    })
     // Which groups somebody opened. The panel is keyed by step upstream, so this belongs to the
     // step in front of them and choosing another one starts over.
     const [opened, setOpened] = useState<ReadonlySet<StepGroupId>>(() => new Set())
@@ -265,18 +273,16 @@ export function StepTab({
                 </div>
             )}
 
-            <div className="space-y-1.5">
-                <Label htmlFor="step-display-name">{LABELS.word.name.label}</Label>
-                <Input
-                    id="step-display-name"
-                    value={named}
-                    disabled={disabled !== undefined}
-                    onChange={(event) => {
-                        setNamed(event.target.value)
-                        onName(event.target.value)
-                    }}
-                />
-            </div>
+            <TextField
+                id="step-display-name"
+                label={LABELS.word.name.label}
+                value={named}
+                disabled={disabled !== undefined}
+                onChange={(next) => {
+                    setNamed(next)
+                    onName(next)
+                }}
+            />
 
             {refusals.length > 0 && (
                 <Callout tone="critical" title={LABELS.editor.step.refused_at_apply}>
