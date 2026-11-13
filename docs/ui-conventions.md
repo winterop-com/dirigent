@@ -459,7 +459,7 @@ renderer reaches. A description is GitHub-flavored markdown: paragraphs, heading
 inline code, code blocks highlighted with a copy button, lists and task lists, quotes and
 callouts, tables and links. Raw HTML is never allowed. Nothing in a description reaches out: an
 image is drawn as its alt text and address and is never fetched, and a link is live only to an
-`https` address or a `mailto:` mailbox and opens in a new tab; any other link, a relative one
+`https` or `http` address or a `mailto:` mailbox and opens in a new tab; any other link, a relative one
 included, is drawn as its words. A description's headings sit under the heading it is set
 beneath, so a `#` on a pipeline's page is an `h2` and in a panel or a dialog an `h3`. A table is
 set the way its columns declared and scrolls inside its own box, because a description is drawn

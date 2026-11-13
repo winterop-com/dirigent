@@ -106,9 +106,8 @@ describe('a description cannot put markup on the screen', () => {
         }
     })
 
-    test('a link that is not to https or a mailbox is its words and goes nowhere', () => {
+    test('a link that is not to the web or a mailbox is its words and goes nowhere', () => {
         for (const text of [
-            '[plain](http://example.test/)',
             '[here](/pipelines/other)',
             '[up](../secrets)',
             '[chat](irc://irc.example.test/room)',
@@ -137,6 +136,7 @@ describe('a description cannot put markup on the screen', () => {
         expect(web).toContain('href="https://example.test/docs"')
         expect(web).toContain('target="_blank"')
         expect(web).toContain('noopener')
+        expect(drawn('[plain](http://example.test/)')).toContain('href="http://example.test/"')
         expect(drawn('[write](mailto:someone@example.test)')).toContain('href="mailto:someone@example.test"')
     })
 

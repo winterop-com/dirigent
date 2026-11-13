@@ -130,13 +130,13 @@ export const MARKDOWN_WORDS: NonNullable<PlainMarkdownProps['words']> = {
 }
 
 /**
- * How every description is read: its words, no image fetched, and a link live only to an https
+ * How every description is read: its words, no image fetched, and a link live only to a web
  * address or a mailbox. Raw HTML stays off.
  */
 export const DESCRIPTION_MARKDOWN = {
     words: MARKDOWN_WORDS,
     images: false,
-    linkSchemes: ['https', 'mailto'],
+    linkSchemes: ['https', 'http', 'mailto'],
 } as const satisfies Partial<PlainMarkdownProps>
 
 /** What a secret shown once says: its name, its copy button named for it, and that it is shown once. */
