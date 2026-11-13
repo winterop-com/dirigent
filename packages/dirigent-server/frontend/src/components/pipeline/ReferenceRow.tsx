@@ -164,7 +164,7 @@ function connectionRow(resolution: ReturnType<typeof resolveConnection>, marks: 
     }
 }
 
-/** A definition, in the same coloured box and the same window every piece of JSON here gets. */
+/** A definition, in the same box and the same window every piece of JSON here gets. */
 function Body({ title, value }: { title: string; value: JsonMap }) {
     return <JsonBlock title={title} text={JSON.stringify(value, null, 2)} />
 }

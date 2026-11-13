@@ -834,6 +834,8 @@ const shell = {
     open_in_window: (name: string) => `Open ${name} in a window`,
     /** What the pane inside that window is called. */
     in_window: (name: string) => `${name}, in a window`,
+    /** The button that puts what a pane holds on the clipboard. */
+    copy_pane: (name: string) => `Copy ${name}`,
     /** The button that closes that window. */
     close_window: 'Close the window',
     /** What a diff says in place of its counts when the two texts are the same. */
