@@ -115,7 +115,7 @@ export const FIELD_WORDS: FieldWords = { required: LABELS.form.required }
 
 /** What a chip's remove button is called, as a function of the chip's words: "Stop filtering by finance". */
 export function chipWords(remove: (text: string) => string): ChipWords {
-    return { remove }
+    return { remove, newTab: LABELS.shell.new_tab }
 }
 
 /** What a copy button is called before a press, `copy`, and for a moment after it. */
