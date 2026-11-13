@@ -80,8 +80,13 @@ const action = {
     run: 'Run',
     /** Start another run of what this one ran. */
     rerun: 'Rerun',
-    /** Stop what is running. */
-    cancel_run: 'Cancel',
+    /** Stop what is running, for good: a canceled run cannot be resumed. */
+    cancel_run: {
+        verb: 'Cancel',
+        /** The confirm's own verb, which says what it cancels beside the dialog's way out. */
+        confirm: 'Cancel run',
+        busy: 'Canceling',
+    },
     /** Open the thing for editing. */
     edit: 'Edit',
     /** Take the thing away for good. */
@@ -2398,6 +2403,10 @@ const runs = {
     // The run screen: its toolbar, its palette shelf and the graph.
 
     cancel_action: 'Cancel this run',
+    /** The question before a run is canceled, around its pipeline's code: "Cancel run 3f9a01c2 of import-orders?" */
+    cancel_ask: { before: (run: string) => `Cancel run ${run} of `, after: '?' },
+    /** The way out of that question, which leaves the run as it is. */
+    cancel_keep: 'Keep the run',
     rerun_action: 'Run this pipeline again',
     toggle_terminal: "Show or hide this run's terminal",
     /** What the palette says the terminal holds. */
