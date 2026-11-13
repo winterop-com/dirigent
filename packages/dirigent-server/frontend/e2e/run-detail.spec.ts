@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test'
 import { LABELS } from '../src/lib/labels.ts'
 import {
     anyStatusChip,
+    apiPrefix,
     pageHead,
     applyDocument,
     applyExample,
@@ -594,4 +595,86 @@ test('a fan-out over a step output waits for it, then draws its items as they ar
     const expanded = await each.boundingBox()
     if (expanded === null) throw new Error('the fan-out box has no box on the screen')
     expect(expanded.height, 'the box keeps its height when the grid expands into it').toBe(waiting.height)
+})
+
+/** One wait long enough that the run is still going whenever this file asks about it. */
+function longWait(code: string): Record<string, unknown> {
+    return {
+        format: 'dirigent/v1',
+        kind: 'pipeline',
+        code,
+        steps: { wait: { block: 'time.sleep', config: { for: '120s' } } },
+    }
+}
+
+/** What the server says a run is doing right now. */
+async function runStatus(page: Parameters<typeof signIn>[0], runId: string): Promise<string> {
+    const prefix = await apiPrefix(page.request)
+    const detail = (await (await page.request.get(`${prefix}/runs/${runId}`)).json()) as {
+        run: { status: string }
+    }
+    return detail.run.status
+}
+
+/** The confirm that asks before a run of `pipeline` is canceled, naming the run by its last eight digits. */
+function cancelQuestion(page: Parameters<typeof signIn>[0], runId: string, pipeline: string) {
+    return page.getByRole('dialog', {
+        name: `${LABELS.runs.cancel_ask.before(runId.slice(-8))}${pipeline}${LABELS.runs.cancel_ask.after}`,
+    })
+}
+
+test('canceling a run asks first, the way out keeps it going, and confirming cancels it', async ({
+    page,
+}) => {
+    await signIn(page)
+    await applyDocument(page.request, longWait('cancel-asks'))
+    const runId = await startRun(page.request, 'cancel-asks')
+
+    await page.goto(`/runs/${runId}`)
+    const cancel = pageHead(page).getByRole('button', { name: LABELS.action.cancel_run.verb, exact: true })
+    await cancel.click()
+    const asking = cancelQuestion(page, runId, 'cancel-asks')
+    await expect(asking).toBeVisible()
+
+    // The question is the title, and it holds nothing else.
+    await expect(asking.locator('p')).toHaveCount(0)
+
+    // The way out says what it keeps, and the run goes on.
+    await asking.getByRole('button', { name: LABELS.runs.cancel_keep, exact: true }).click()
+    await expect(asking).toHaveCount(0)
+    expect(await runStatus(page, runId)).not.toBe('cancelled')
+
+    // Confirming cancels it, and the header says so without a reload.
+    await cancel.click()
+    await asking.getByRole('button', { name: LABELS.action.cancel_run.confirm, exact: true }).click()
+    await expect(asking).toHaveCount(0)
+    await expect(anyStatusChip(pageHead(page)).first()).toHaveAttribute('data-status', 'cancelled')
+    expect(await runStatus(page, runId)).toBe('cancelled')
+})
+
+test("the palette's cancel asks the same question", async ({ page }) => {
+    await signIn(page)
+    await applyDocument(page.request, longWait('cancel-palette'))
+    const runId = await startRun(page.request, 'cancel-palette')
+
+    await page.goto(`/runs/${runId}`)
+    await expect(pageHead(page)).toBeVisible()
+    const fromPalette = async () => {
+        await page.keyboard.press('ControlOrMeta+k')
+        await page.getByPlaceholder(LABELS.palette.placeholder).fill(LABELS.runs.cancel_action)
+        await page.getByRole('option', { name: LABELS.runs.cancel_action }).click()
+    }
+    const asking = cancelQuestion(page, runId, 'cancel-palette')
+
+    await fromPalette()
+    await expect(asking).toBeVisible()
+    await asking.getByRole('button', { name: LABELS.runs.cancel_keep, exact: true }).click()
+    await expect(asking).toHaveCount(0)
+    expect(await runStatus(page, runId)).not.toBe('cancelled')
+
+    await fromPalette()
+    await asking.getByRole('button', { name: LABELS.action.cancel_run.confirm, exact: true }).click()
+    await expect(asking).toHaveCount(0)
+    await expect(anyStatusChip(pageHead(page)).first()).toHaveAttribute('data-status', 'cancelled')
+    expect(await runStatus(page, runId)).toBe('cancelled')
 })

@@ -9,6 +9,8 @@ import { RunTerminal } from '@/components/run/RunTerminal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { StepTab } from '@/components/run/StepTab'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
+import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
 import { PageHeader as LibraryPageHeader } from '@winterop-com/sokkel-ui/PageHeader'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
@@ -17,17 +19,18 @@ import { ShellHead, useShellTrail } from '@winterop-com/sokkel-ui/Shell'
 import { useIsMobile } from '@winterop-com/sokkel-ui/hooks/use-mobile'
 import { connectionOf, RunFailure } from '@/components/run/RunFailure'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { Question } from '@/components/Question'
 import { READ_WORDS, refusedRead, sayRefusal } from '@/components/Refusal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { readConnections } from '@/lib/connections'
-import { shutWith, TOOLBAR_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, shutWith, TOOLBAR_WORDS } from '@/lib/design-system'
 import { ICONS } from '@/lib/icons'
 import { ApiError, type JsonMap, type Problem } from '@/lib/api'
-import { elapsedBetween, formatBytes, formatDuration, formatInstant } from '@/lib/format'
+import { elapsedBetween, formatBytes, formatDuration, formatInstant, shortId } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import { problemsIn } from '@/lib/refusal'
+import { problemsIn, refusalLine, refusalOf } from '@/lib/refusal'
 import { fillPanel, openPanel, openPanelTab, panelOpen, panelSheet, type PanelTab } from '@/lib/panels'
 import { RUN_GROUP, registerActions } from '@/lib/palette'
 import { readPipeline, startRun, stepsOf } from '@/lib/pipelines'
@@ -70,6 +73,12 @@ const RunGraph = lazy(() =>
 export const CANCEL_LABEL = LABELS.runs.cancel_action
 export const RERUN_LABEL = LABELS.runs.rerun_action
 export const TERMINAL_LABEL = LABELS.runs.toggle_terminal
+
+/** The cancel confirm's way out says what it keeps, so it never reads as the verb it declines. */
+const CANCEL_WORDS = { ...DIALOG_WORDS, cancel: LABELS.runs.cancel_keep }
+
+/** The cancel confirm's question, around the pipeline's code and naming the run by its short id. */
+const CANCEL_ASK = LABELS.runs.cancel_ask
 
 /** How often the screen re-reads the clock while the run is live, for the retry countdowns. */
 const TICK_MS = 1000
@@ -313,14 +322,36 @@ export function RunDetail() {
     const connectionsRead = useRead(useCallback(() => readConnections(null), []))
     const connections = connectionsRead.value?.items ?? []
 
+    // A canceled run cannot be resumed, so the toolbar's Cancel and the palette's both ask first,
+    // in the one confirm below.
+    const [asking, setAsking] = useState(false)
+    const [canceling, setCanceling] = useState(false)
+    const [refused, setRefused] = useState<Problem | null>(null)
+    const cancellable = state !== null && !runSettled(state.run.status)
     const cancel = useMemo(() => {
-        if (state === null || runSettled(state.run.status)) return null
+        if (!cancellable) return null
         return () => {
-            void cancelRun(id).then((run) => {
-                dispatch({ kind: 'frame', frame: { kind: 'run', run } })
-            }, sayRefusal)
+            setRefused(null)
+            setAsking(true)
         }
-    }, [id, state])
+    }, [cancellable, setAsking, setRefused])
+    const confirmCancel = () => {
+        setCanceling(true)
+        setRefused(null)
+        void cancelRun(id)
+            .then(
+                (run) => {
+                    dispatch({ kind: 'frame', frame: { kind: 'run', run } })
+                    setAsking(false)
+                },
+                (error: unknown) => {
+                    setRefused(refusalOf(error))
+                },
+            )
+            .finally(() => {
+                setCanceling(false)
+            })
+    }
 
     // The shelf names the run it is scoped to, because the palette lays a screen's own rows
     // out first and a heading saying only "Run" would not say which one. A run is named by
@@ -564,11 +595,16 @@ export function RunDetail() {
                                           },
                                           {
                                               id: 'cancel',
-                                              label: LABELS.action.cancel_run,
+                                              label: canceling
+                                                  ? LABELS.action.cancel_run.busy
+                                                  : LABELS.action.cancel_run.verb,
                                               icon: <ICONS.cancel aria-hidden />,
                                               destructive: verbs.cancel.open,
                                               ...shutWith(
-                                                  !write.may || !verbs.cancel.open || cancel === null,
+                                                  !write.may ||
+                                                      !verbs.cancel.open ||
+                                                      cancel === null ||
+                                                      canceling,
                                                   write.why ?? verbs.cancel.why,
                                               ),
                                               onSelect: () => {
@@ -685,6 +721,29 @@ export function RunDetail() {
                     <RunTerminal state={state} runId={id} step={selected} onSelectStep={readStep} />
                 </div>
             )}
+            <ConfirmDialog
+                open={asking}
+                onOpenChange={setAsking}
+                question={
+                    <Question
+                        ask={{
+                            before: CANCEL_ASK.before(shortId(run.id)),
+                            after: CANCEL_ASK.after,
+                        }}
+                        code={run.pipeline}
+                    />
+                }
+                confirm={{
+                    label: LABELS.action.cancel_run.confirm,
+                    onConfirm: confirmCancel,
+                    destructive: true,
+                    why: write.why ?? verbs.cancel.why ?? undefined,
+                    busy: canceling,
+                    busyLabel: LABELS.action.cancel_run.busy,
+                }}
+                words={CANCEL_WORDS}
+                status={refused === null ? undefined : <ProblemLine>{refusalLine(refused)}</ProblemLine>}
+            />
         </div>
     )
 }
