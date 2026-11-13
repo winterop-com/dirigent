@@ -1,10 +1,12 @@
 import { useRef } from 'react'
 
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
 import type { JsonMap } from '@/lib/api'
 import { REPORTS_DOCS_URL } from '@/lib/docs'
+import { LINK_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { reportIn } from '@/lib/pipeline-document'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
@@ -83,14 +85,9 @@ export function ReportPane({
                             {choice === 'builtin'
                                 ? LABELS.editor.report.builtin_says
                                 : LABELS.editor.report.own_says}{' '}
-                            <a
-                                className="text-foreground underline-offset-2 hover:underline"
-                                href={REPORTS_DOCS_URL}
-                                target="_blank"
-                                rel="noreferrer"
-                            >
+                            <TextLink variant="inline" external words={LINK_WORDS} href={REPORTS_DOCS_URL}>
                                 {LABELS.editor.report.reference}
-                            </a>
+                            </TextLink>
                         </>
                     )}
                 </p>

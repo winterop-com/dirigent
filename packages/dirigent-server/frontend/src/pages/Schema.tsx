@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Description } from '@/components/Description'
 import { PanelGroup } from '@/components/run/Panel'
 import { Field } from '@winterop-com/sokkel-ui/Field'
@@ -521,9 +522,14 @@ function CheckedBy({ codes }: { codes: readonly string[] }) {
             >
                 {codes.map((code) => (
                     <li key={code}>
-                        <Link to={`/pipelines/${encodeURIComponent(code)}`} className="hover:underline">
-                            <InlineCode value={code} tone="neutral" bare size="xs" />
-                        </Link>
+                        <TextLink
+                            variant="data"
+                            code
+                            href={`/pipelines/${encodeURIComponent(code)}`}
+                            className="text-xs"
+                        >
+                            {code}
+                        </TextLink>
                     </li>
                 ))}
             </ul>

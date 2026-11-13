@@ -22,6 +22,7 @@ import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import type { RunDetailState } from '@/lib/run-detail'
 import { runSettled } from '@/lib/status'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 
 const artifactId = (row: ArtifactOut) => row.id
 
@@ -147,14 +148,14 @@ function artifactColumns(
                                 {row.step_name ?? LABELS.runs.artifact_of_run}
                             </span>
                         ) : (
-                            <a
-                                className="truncate text-sm text-foreground underline-offset-2 hover:underline"
+                            <TextLink
+                                variant="data"
+                                className="truncate text-sm"
                                 href={artifactUrl(prefix, row.id)}
                                 download
-                                rel="noopener"
                             >
                                 {row.step_name ?? LABELS.runs.artifact_of_run}
-                            </a>
+                            </TextLink>
                         )}
                         {row.uri !== null && items.get(row.uri) !== undefined && (
                             <span className="font-mono text-xs text-faint">{items.get(row.uri)}</span>

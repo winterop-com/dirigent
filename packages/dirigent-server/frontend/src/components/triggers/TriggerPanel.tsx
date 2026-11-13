@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router'
 
 import { CronField } from '@winterop-com/sokkel-ui/CronField'
 
@@ -33,6 +32,7 @@ import {
     type SourceOut,
 } from '@/lib/sources'
 import { CRON_SAVED_WORDS, FIRINGS_READ, firingOf, readCron } from '@/lib/trigger-form'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import {
     firingView,
     nextFireView,
@@ -455,12 +455,9 @@ function Firing({ firing }: { firing: FiringOut }) {
                     {LABELS.triggers.schedule.due(formatRelative(firing.scheduled_for))}
                 </span>
                 {view.runId !== null && (
-                    <Link
-                        className="font-mono text-foreground underline-offset-2 hover:underline"
-                        to={`/runs/${view.runId}`}
-                    >
+                    <TextLink variant="data" code href={`/runs/${view.runId}`}>
                         {shortId(view.runId)}
-                    </Link>
+                    </TextLink>
                 )}
             </span>
             {view.detail !== null && (
@@ -484,12 +481,9 @@ function Received({ input }: { input: SourceInputOut }) {
                 )}
                 <Instant className="text-faint" at={input.created_at} />
                 {view.runId !== null && (
-                    <Link
-                        className="font-mono text-foreground underline-offset-2 hover:underline"
-                        to={`/runs/${view.runId}`}
-                    >
+                    <TextLink variant="data" code href={`/runs/${view.runId}`}>
                         {shortId(view.runId)}
-                    </Link>
+                    </TextLink>
                 )}
             </span>
             {line !== null && (
