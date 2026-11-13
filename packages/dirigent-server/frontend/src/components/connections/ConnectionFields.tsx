@@ -1,18 +1,11 @@
 import { useState } from 'react'
 
-import { Field } from '@winterop-com/sokkel-ui/Field'
+import { GroupLabel } from '@winterop-com/sokkel-ui/GroupLabel'
+import { SelectField } from '@winterop-com/sokkel-ui/SelectField'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Mark } from '@/components/Mark'
 import { Refusal } from '@/components/Refusal'
 import { GeneratedForm } from '@/components/schema/GeneratedForm'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@winterop-com/sokkel-ui/primitives/select'
 import { useStore } from '@/hooks/use-store'
 import { type ConnectionDraftForm } from '@/hooks/use-connection-draft'
 import { type SurfaceEntry } from '@/lib/connections'
@@ -70,30 +63,21 @@ export function ConnectionFields({
         <>
             {decided === undefined ? (
                 <div className="grid grid-cols-2 gap-3">
-                    <Field
+                    <TextField
                         id={`${ids}-code`}
                         label={LABELS.word.code}
                         required
                         requiredMark="word"
                         words={FIELD_WORDS}
                         error={codeIssue}
-                    >
-                        <Input
-                            id={`${ids}-code`}
-                            className="font-mono"
-                            spellCheck={false}
-                            aria-required
-                            aria-invalid={codeIssue !== null || undefined}
-                            value={draft.code}
-                            onChange={(event) => {
-                                form.setCode(event.target.value)
-                            }}
-                            onBlur={() => {
-                                setLeft(true)
-                            }}
-                            placeholder={LABELS.connections.code_placeholder}
-                        />
-                    </Field>
+                        mono
+                        value={draft.code}
+                        onChange={form.setCode}
+                        onBlur={() => {
+                            setLeft(true)
+                        }}
+                        placeholder={LABELS.connections.code_placeholder}
+                    />
                     <KindBox form={form} kinds={kinds} ids={ids} />
                 </div>
             ) : (
@@ -122,9 +106,7 @@ export function ConnectionFields({
 
             {chosen !== null && (
                 <div className="space-y-3">
-                    <p className="text-xs font-semibold tracking-wide text-faint uppercase">
-                        {LABELS.connections.settings_heading}
-                    </p>
+                    <GroupLabel as="h3">{LABELS.connections.settings_heading}</GroupLabel>
                     <GeneratedForm key={chosen.id} form={form.form} fold={decided !== undefined} />
                 </div>
             )}
@@ -134,7 +116,13 @@ export function ConnectionFields({
     )
 }
 
-/** The kind this credential is of, chosen from what the instance has installed. */
+/**
+ * The kind this credential is of, chosen from what the instance has installed.
+ *
+ * Each row carries the kind's mark beside its code, and the chosen row keeps it in the closed
+ * box. The kind is written as well as marked, because a mark cannot be typed and the code is what
+ * a document names the kind by.
+ */
 function KindBox({
     form,
     kinds,
@@ -144,53 +132,23 @@ function KindBox({
     kinds: readonly SurfaceEntry[]
     ids: string
 }) {
-    const chosen = form.chosen
+    const marks = useStore(kindMarks)
     return (
-        <Field
+        <SelectField
             id={`${ids}-kind`}
             label={LABELS.word.kind.label}
             required
             requiredMark="word"
             words={FIELD_WORDS}
-        >
-            <Select
-                value={form.draft.kind}
-                onValueChange={(picked) => {
-                    form.chooseKind(String(picked))
-                }}
-            >
-                <SelectTrigger id={`${ids}-kind`} className="w-full font-mono" aria-required>
-                    {/* The chosen row keeps its mark in the closed box, so the row somebody
-                        picked is the row they are looking at. Nothing chosen draws the
-                        placeholder, which names no kind and so wears no mark. */}
-                    <SelectValue placeholder={LABELS.connections.choose_kind}>
-                        {chosen === null ? undefined : () => <KindRow kind={chosen.id} />}
-                    </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                    {kinds.map((one) => (
-                        <SelectItem key={one.id} value={one.id} className="font-mono">
-                            <KindRow kind={one.id} />
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </Field>
-    )
-}
-
-/**
- * One kind as the form offers it: the mark, and the code it is chosen by.
- *
- * The kind is written as well as marked, because a mark cannot be typed and the code is what a
- * document names the kind by.
- */
-function KindRow({ kind }: { kind: string }) {
-    const marks = useStore(kindMarks)
-    return (
-        <span className="flex items-center gap-2">
-            <Mark glyph={kindGlyph(kind, marks)} />
-            {kind}
-        </span>
+            mono
+            value={form.draft.kind}
+            placeholder={LABELS.connections.choose_kind}
+            options={kinds.map((one) => ({
+                value: one.id,
+                label: one.id,
+                icon: <Mark glyph={kindGlyph(one.id, marks)} />,
+            }))}
+            onChange={form.chooseKind}
+        />
     )
 }
