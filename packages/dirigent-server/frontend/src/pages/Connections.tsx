@@ -1,4 +1,3 @@
-import { PlugZap, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
@@ -32,6 +31,7 @@ import {
     type ConnectionOut,
     type SurfaceEntry,
 } from '@/lib/connections'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { kindGlyph } from '@/lib/glyphs'
 import { kindMarks } from '@/lib/marks'
@@ -162,7 +162,7 @@ export function Connections() {
                           title: LABELS.connections.new,
                           group: LIST_GROUP,
                           screen: true,
-                          icon: PlugZap,
+                          icon: ICONS.create_connection,
                           keywords: ['credential', 'create', 'add'],
                           run: () => {
                               setCreating(true)
@@ -175,7 +175,7 @@ export function Connections() {
                 title: LABELS.connections.reload,
                 group: LIST_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.refresh,
                 keywords: ['refresh', 'reload'],
                 run: reload,
             },

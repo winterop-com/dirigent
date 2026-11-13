@@ -45,8 +45,8 @@ import { listeningLine, readPipelineSources, type SourceOut } from '@/lib/source
  * of the second line behind the stacked glyph, and pointing at it says what `for_each` does. A
  * step whose block this instance does not publish wears the critical `not installed`, which gives
  * its box the critical edge and says on pointing which block is missing; one that differs from the
- * version the instance holds wears `edited`. Every box keeps room for either badge and for an
- * issue mark, so an edit or the catalog landing moves nothing.
+ * version the instance holds wears `edited`. Every box keeps room for either badge, so an edit or
+ * the catalog landing moves nothing.
  *
  * Given `editing`, the canvas reports every gesture and the document changes only through the
  * callbacks: an edge drawn or deleted is a `depends_on` entry, a box deleted is a step, a box let
@@ -197,7 +197,6 @@ export function PipelineGraph({
                       ? { label: LABELS.editor.canvas.edited }
                       : undefined,
                 reserveBadges: BADGES,
-                reserveIssue: true,
             }
         })
     }, [document, edits, sources, unmet])

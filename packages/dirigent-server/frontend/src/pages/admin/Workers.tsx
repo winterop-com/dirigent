@@ -1,12 +1,11 @@
 import { useCallback, useEffect } from 'react'
 
-import { RefreshCw } from 'lucide-react'
-
 import { ApiChip } from '@/components/ApiChip'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { WorkersTable } from '@/components/admin/WorkersTable'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { usePaged } from '@/hooks/use-paged'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { ADMIN_GROUP, registerActions } from '@/lib/palette'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -54,7 +53,7 @@ function Workers() {
                 title: LABELS.workers.reload_action,
                 group: ADMIN_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.refresh,
                 keywords: ['refresh', 'reload'],
                 run: reload,
             },

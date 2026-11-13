@@ -1,4 +1,3 @@
-import { RefreshCw } from 'lucide-react'
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
@@ -24,6 +23,7 @@ import { type Problem } from '@/lib/api'
 import { authStore, signOut } from '@/lib/auth'
 import { API_DOCS_URL, DOCS_URL } from '@/lib/docs'
 import { formatInstant, formatRelative } from '@/lib/format'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { LOGIN_PATH } from '@/lib/nav'
 import { changePassword, formProblem, NO_PASSWORD, refusalOf, type PasswordForm } from '@/lib/password'
@@ -389,7 +389,7 @@ function HealthControl() {
                 </span>
             )}
             <Button variant="outline" size="sm" className="ml-2" disabled={rechecking} onClick={recheck}>
-                <RefreshCw aria-hidden />
+                <ICONS.recheck aria-hidden />
                 {LABELS.action.recheck}
             </Button>
         </span>

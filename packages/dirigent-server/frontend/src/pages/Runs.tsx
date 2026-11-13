@@ -1,4 +1,3 @@
-import { ArrowUp, CircleX, Clock, FilterX, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
@@ -17,6 +16,7 @@ import { Segmented, type Segment } from '@winterop-com/sokkel-ui/Segmented'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useHeartbeat } from '@/hooks/use-heartbeat'
 import { useStore } from '@/hooks/use-store'
+import { ICONS } from '@/lib/icons'
 import { refreshSeconds } from '@/lib/refresh'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
@@ -135,7 +135,7 @@ export function Runs() {
                 title: LABELS.runs.filter_failed,
                 group: LIST_GROUP,
                 screen: true,
-                icon: CircleX,
+                icon: ICONS.failed,
                 keywords: ['filter', 'broken'],
                 run: () => {
                     setFilters((current) => ({ ...current, status: 'failed' }))
@@ -146,7 +146,7 @@ export function Runs() {
                 title: LABELS.runs.filter_day,
                 group: LIST_GROUP,
                 screen: true,
-                icon: Clock,
+                icon: ICONS.recent,
                 keywords: ['filter', 'window', 'recent'],
                 run: () => {
                     setFilters((current) => ({ ...current, since: '24h' }))
@@ -157,7 +157,7 @@ export function Runs() {
                 title: LABELS.runs.filter_clear,
                 group: LIST_GROUP,
                 screen: true,
-                icon: FilterX,
+                icon: ICONS.clear_filter,
                 keywords: ['reset', 'all'],
                 run: () => {
                     setTyped('')
@@ -285,7 +285,7 @@ function FlatRuns({ filters, search, toolbar }: Bar & { filters: RunFilters }) {
                         <ApiChip tag="runs" />
                         {state.fresh > 0 && (
                             <Button variant="outline" size="sm" onClick={note}>
-                                <ArrowUp aria-hidden />
+                                <ICONS.show_newer aria-hidden />
                                 {counted(state.fresh, LABELS.runs.fresh)(String(state.fresh))}
                             </Button>
                         )}
@@ -360,7 +360,7 @@ function reloadAction(run: () => void) {
         title: LABELS.runs.reload,
         group: LIST_GROUP,
         screen: true,
-        icon: RefreshCw,
+        icon: ICONS.refresh,
         keywords: ['refresh', 'reload'],
         run,
     }
