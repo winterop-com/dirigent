@@ -216,8 +216,7 @@ graph canvas's dot grid, because a graph is drawn on a ground and not on a card.
 one panel that says so**: `tone="critical"` draws a rule in the critical tone along its top and the
 warning mark beside its title, which is the only colour a panel ever carries. Nothing draws a left
 border in a status colour, and nothing on a screen styles a surface of its own: a treatment is
-changed in sokkel-ui, and the generated card follows it in the `[data-slot='card']` rules in
-`index.css`.
+changed in sokkel-ui.
 
 **Every panel's title bar is one fixed height, so bars side by side line up.** The bar is the
 library's `--density-panel-head` -- 36px, 32px in the compact density -- the height a listing's
@@ -293,18 +292,17 @@ Four semantic aliases sit over the top for anything that is not a run: `--good` 
 `-ink` twin as well, for text on its own 14% fill.
 
 **A kind is not a status, and has its own family of hues.** What a thing *is* -- a block kind, a
-connection kind, the clock a schedule fires on -- takes `--kind-<family>` and the `.kind-chip`
-fill rule, which is the status chip's written once more against tokens that cannot be confused
-with a state. `lib/kinds` maps a kind to a family and hashes the ones this bundle was built
-before, so the mapping is total and stable; no component writes a tint inline. Every family is
+connection kind, the clock a schedule fires on -- is `KindChip`, sokkel-ui's `Chip` worn in a kind
+family's `hue`: the wash, the ink and a faint edge in the family's color, tokens that cannot be
+confused with a state. `lib/kinds` maps a kind to a family and hashes the ones this bundle was
+built before, so the mapping is total and stable; no component writes a tint inline. Every family is
 far from hue 80, because that hue is the identity colour and means action.
 
 **Both modes, every time.** This app was designed dark first and the light one is its
 inversion, not a second design: the same hues, the lightness ladder turned over. A token changed
 on one side is checked on every surface that consumes it on the other -- an amber that reads as
 the brand on near-black can read as mustard on near-white, and a raised fill that is a clear step
-on the dark page is white on near-white in the light one, which is why a secondary button there
-also carries a hairline ring. The light mode's shadows are a fraction of the dark mode's, because
+on the dark page is white on near-white in the light one. The light mode's shadows are a fraction of the dark mode's, because
 a shadow on a pale ground reads as dirt long before it reads as depth. A palette is checked the
 same way, on both of the modes it has.
 
@@ -801,12 +799,11 @@ number nobody reads on a bad one.
 whose height depends on how many words it wears makes a listing of twenty rows a listing of
 twenty heights, so what does not fit the Tags column folds into one trailing `+N` chip -- which
 says how many it is holding, spells them on hover, and opens them as the same filter every
-other chip on the row is a door to -- and never more than eight chips are drawn whatever the
-room. **The fold is computed, not guessed**: a chip is mono at 12px, so how wide one is is
-arithmetic over its characters, and `lib/tag-fold` fits the words -- the `+N` counted as the chip
-it is -- into the width the Tags column is drawn at, which `TagChips` reads from `useTableCell`, so
-the column is a share with a floor rather than a fixed width. On a stacked card the chips wrap
-across the card, still no more than eight; outside a table they wrap.
+other chip on the row is a door to -- as many as fit are drawn. **The fold is measured, not guessed**: sokkel-ui's `TagChips` measures its chips and fits
+them -- the `+N` counted as the chip it is -- into the width the Tags column is drawn at, which it
+reads from `useTableCell`, so the column is a share with a floor rather than a fixed width; the
+`+N` is named for the tags it holds (`TAG_CHIPS_WORDS`). On a stacked card the chips wrap across
+the card and every tag is drawn; outside a table they fit the room left in the line.
 
 **A choice closes on its choice; a set stays open.** A single `FilterChip` is one value out of a
 menu headed by the row that unsets it (`filterWords(any)` in `lib/design-system`), and picking
@@ -1614,17 +1611,14 @@ show.
 **Every control a finger lands on is at least 44px tall, whatever element it is made of.**
 The height is one token, `--spacing-finger`, and below the breakpoint every control takes its
 minimum from it. sokkel-ui sizes its own: buttons but the extra-small sizes, toggles, inputs,
-input groups, both selects, the combobox, `SearchField` and `FilterChip`, and icon buttons as
-wide -- so a listing's bar is a finger tall throughout. `index.css`
-grows the rest against the generated primitives' slots: a tab, a menu's or a tooltip's trigger
-not drawn through a `Button`, a command input, menu, command and combobox rows, and
-`control-link`, which is what a link drawn as a control wears: a drawer entry, a chip on a
-header strip, a row that navigates. The canvas's zoom cluster and every
-`GraphViewButtons`, in a graph panel's bar and in the window's corner, are sized there as well, being the graph library's buttons rather than ours. A menu opened at a point rather than under a
-control -- the canvas's right-click menus -- anchors a zero-sized trigger at the cursor, and
-`data-menu-anchor` keeps the rule off that one, because nothing draws it and no finger lands on
-it. A bare status dot is its own tooltip's trigger and is not grown: it keeps its own `dot` slot
-over the trigger's, so it stays one line tall, which a graph node's 15px row needs. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
+input groups, both selects, the combobox, tabs, menu, command and combobox rows, `SearchField`,
+`FilterChip` and a `Chip` of `size="control"` -- the API chip on a heading's strip -- icon buttons as
+wide, and a finger-square hit area on a menu's or a tooltip's trigger the library draws itself --
+so a listing's bar is a finger tall throughout. `index.css` grows the rest: a command input, and
+`control-link`, which is what a link drawn as a control wears: a drawer entry, a row that
+navigates. The canvas's zoom cluster and every
+`GraphViewButtons`, in a graph panel's bar and in the window's corner, are sized there as well, being the graph library's buttons rather than ours. A bare status dot is its own tooltip's
+trigger and is not grown, so it stays one line tall, which a graph node's 15px row needs. Where a component draws a control of its own it is `h-finger` or `min-h-finger`. A control
 drawn as a square takes the width too, because a 44px tall target 28px wide is a target on one
 axis only. No screen sizes a control for a phone itself.
 
@@ -1704,8 +1698,9 @@ Slack mark for `slack`, a webhook for `webhook`, a globe for `http`, a branch fo
 database for `sql`, a container for `docker`, a drive for `s3` -- a mark says
 what the credential opens and an s3 one opens storage, where a cloud would say where a thing is
 hosted, which half this list could claim -- and an ordered list for `kafka` and `rabbitmq`. A
-glyph is `size-4` in muted ink wherever it is drawn; what it sits in belongs to the thing drawing
-it -- the palette row gives it a `size-7` tile on `--muted`, a channel chip draws it bare.
+glyph is `size-4` in muted ink wherever it is drawn, and a chip's icon size where it is a `Chip`'s
+`icon`; what it sits in belongs to the thing drawing it -- the palette row gives it a `size-7` tile
+on `--muted`, a channel chip draws it bare.
 
 **lucide draws every glyph that is not a brand, and a brand mark comes from the brand.** lucide
 ships no brand icons at all. A brand mark is Simple Icons' where it carries one and the brand's own
@@ -1720,9 +1715,9 @@ rules: one path on the 24 grid, filled in `currentColor`.
 ## The channel strip
 
 **The strip is one wrapping line of chips, and a chip holds three things, and a fourth when
-something is wrong.** The kind's glyph at
-16px in muted ink, the code in mono, and an 8px dot: 36px tall, on the control's rung, on the card's ground
-with the app's own border. A credential that failed or has proved nothing says so after the dot,
+something is wrong.** It is sokkel-ui's `Chip` at `size="control"`, `outline`, and `mono`: the kind's
+glyph as its `icon`, at the chip's icon size in muted ink, the code, and an 8px dot, as tall as a
+control. A credential that failed or has proved nothing says so after the dot,
 in `healthOf`'s word; a healthy one, the log and a kind nothing is set up for say nothing. Nothing
 else is on it -- no time, no sentence -- because a paragraph per channel is a screenful of channels
 on a screen whose subject is rules.
@@ -1754,8 +1749,8 @@ with its dialog already on that kind; the log chip goes nowhere, because there i
 it to open.
 
 **Every chip answers a pointer and the keyboard the same way, the log chip included.** It takes
-the row wash, the focus ring every control here takes, and its tooltip on hover, on focus and on
-a click alike -- the log chip is a button rather than a link, and nothing else about it differs.
+the chip's hover, the focus ring every control here takes, and its tooltip on hover and on focus
+alike -- the log chip is a button rather than a link, and nothing else about it differs.
 A chip drawn inert beside its neighbours would be saying it is a different kind of thing.
 
 **The strip is ordered by the dots**: green, then red, then grey, and inside one colour the
@@ -1962,8 +1957,8 @@ are the second exception** while the run is unsettled: what it allows changes un
 it moves, so Pause, Resume, Cancel and Rerun keep their places and are shut there with the reason.
 A settled run has stopped moving, and draws Rerun alone, as the run screen says below.
 
-**A shut control looks shut.** It drops its fill for a hairline ring on no ground, its word goes to
-the muted ink at weight 400, and the pointer over it is `not-allowed` -- so a shut verb beside an
+**A shut control looks shut.** It is sokkel-ui's shut button, dimmed to half with the pointer over
+it `not-allowed`, and given a `reason` it says why on hover and on focus -- so a shut verb beside an
 open one is never read as the quieter of two open ones.
 
 **A form that is not filled in yet is not this rule.** A confirm shut because a required box is
@@ -2027,7 +2022,7 @@ the surface ladder, weaker than anything meaning chosen, spanning the row's full
 menu item's does. The cursor is left alone on a row that opens nothing: a pointer finger is a
 promise. A panel nobody has filled has no tabs, so its strip carries a plain label rather than
 one lone tab shaped like a control. A button that takes something away -- revoke, deactivate,
-cancel -- wears `.destructive-action`, which tints critical on hover and says what the click
+cancel -- is a `Button` with `destructiveHover`, which tints critical on hover and says what the click
 costs.
 
 **Where a stock behaviour exists, it is the behaviour.** A menu that marks a choice puts the
@@ -2640,7 +2635,7 @@ the one palette.
 | Component | When |
 | --- | --- |
 | `ItemHeading` (sokkel-ui) | Any addressable thing headed by its name and code, given as `{...itemOf(thing)}` so the name is the one `headingOf` finds. `stacked` puts the code under the name, for a listing's lead cell; `inline` beside it, where a row has one line; `size="dialog"` inside a dialog's title, where it is a `span`, with `lead={LABELS.action.edit}` while the dialog edits the thing; `as="span"` wherever the heading is not in the page's outline. A long name gives way before the inline code, which stays on screen. The name, else the code; the code always on screen in mono and never twice; a glyph before it, chips after it, an optional one-line description |
-| `Chip` (sokkel-ui) | A word on a chip: `neutral`, `mono` for a key, `absent` dashed for an absence, `good`, `critical`, `warning`, `info`; `icon` before the word. `onSelect` makes it a button named by `selectLabel`, saying what pressing does ("Filter by finance"); `onRemove` adds an X with its own focus ring, named by `words={chipWords(...)}` from a function of the chip's words ("Stop filtering by finance"). Neither press reaches the row or card around the chip, so a pressable row needs no guard of its own. It replaces the hand-typed chip and the pill `Badge` for a word. `KindChip` stays, on the same 20px and the same radius |
+| `Chip` (sokkel-ui) | A word on a chip: `neutral`, `mono` for a key, `absent` dashed for an absence, `good`, `critical`, `warning`, `info`; `icon` before the word. `onSelect` makes it a button named by `selectLabel`, saying what pressing does ("Filter by finance"); `onRemove` adds an X with its own focus ring, named by `words={chipWords(...)}` from a function of the chip's words ("Stop filtering by finance"). Neither press reaches the row or card around the chip, so a pressable row needs no guard of its own. `outline` is a hairline edge with no wash, for a mark beside a title such as the starter mark or a role; `hue` is a kind family's color, which is what `KindChip` draws; `href` makes it a link and `external` opens it in a new tab with its mark (the API chip); `size="control"` stands it alone as a control, a finger tall on a phone; `selected` edges a toggle chip in its ink over a stronger wash; `menu` makes it a menu's trigger at `menuAlign`. It replaces the hand-typed chip and the pill `Badge` for a word |
 | `StatusChip` (sokkel-ui) | A state as a chip, with the dot the `StatusProvider` gives every chip: the state's color on a wash of it, the word from `STATUSES`. A live state's dot pulses -- queued, running, waiting, sending -- and a paused or settled one is still; the pulse stops for somebody who asked for less motion. `label` where a screen names the state in its own terms, such as a count in flight |
 | `Dot` (sokkel-ui) | Every state drawn as a dot, given as `{...dotOf(...)}` from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status, 8px. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `tip` adds a sentence to the tooltip, and `focusable` puts the dot in the tab order where nothing around it is a control. `StatusChip` takes a `label` where a screen names the state in its own terms |
 | `IconButton` (sokkel-ui) | Any button that is an icon and nothing else, the glyph its child, which is why every icon button has a tooltip. Its type requires `label`; the tooltip is the label or a longer `tooltip`, with `reason` under it when it is shut. Sizes `icon-xs`, `icon-sm` and `icon`. Shut with `reason`, never with `disabled`, so it stays reachable; `destructive` tints critical under the pointer |
