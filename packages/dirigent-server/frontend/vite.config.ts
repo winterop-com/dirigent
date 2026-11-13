@@ -128,5 +128,17 @@ export default defineConfig({
     build: {
         outDir: 'dist',
         emptyOutDir: true,
+        rolldownOptions: {
+            output: {
+                codeSplitting: {
+                    groups: [
+                        {
+                            name: 'react',
+                            test: /[\\/]node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/,
+                        },
+                    ],
+                },
+            },
+        },
     },
 })
