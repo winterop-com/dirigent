@@ -32,6 +32,7 @@
 @import '@winterop-com/sokkel-ui/sources/Link.css';
 @import '@winterop-com/sokkel-ui/sources/ListingBar.css';
 @import '@winterop-com/sokkel-ui/sources/ListRow.css';
+@import '@winterop-com/sokkel-ui/sources/Loaders.css';
 @import '@winterop-com/sokkel-ui/sources/LogView.css';
 @import '@winterop-com/sokkel-ui/sources/PageHeader.css';
 @import '@winterop-com/sokkel-ui/sources/PageState.css';
@@ -58,6 +59,7 @@
 @import '@winterop-com/sokkel-ui/sources/StatusLine.css';
 @import '@winterop-com/sokkel-ui/sources/StatusProvider.css';
 @import '@winterop-com/sokkel-ui/sources/SwitchField.css';
+@import '@winterop-com/sokkel-ui/sources/TagChips.css';
 @import '@winterop-com/sokkel-ui/sources/TextField.css';
 @import '@winterop-com/sokkel-ui/sources/TextLink.css';
 @import '@winterop-com/sokkel-ui/sources/ThemeCards.css';
@@ -66,9 +68,7 @@
 @import '@winterop-com/sokkel-ui/sources/Unfoldable.css';
 @import '@winterop-com/sokkel-ui/sources/WindowedPane.css';
 @import '@winterop-com/sokkel-ui/sources/schema/SchemaForm.css';
-@import '@winterop-com/sokkel-ui/sources/primitives/badge.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/button.css';
-@import '@winterop-com/sokkel-ui/sources/primitives/card.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/combobox.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/command.css';
 @import '@winterop-com/sokkel-ui/sources/primitives/dropdown-menu.css';
@@ -97,27 +97,6 @@
 @import '@xyflow/react/dist/style.css';
 
 /* ---------------------------------------------------------------------------
-   A KIND CHIP.
-
-   What a thing is, rather than how it is going: a block kind, a connection kind, the clock a
-   schedule fires on. Same fill rule as a status -- the family's hue at 14% alpha, its ink on
-   top, a hairline of the same hue -- and a separate class because the two must never index
-   each other's tokens. `--chip` and `--chip-ink` are set on the element by `lib/kinds`.
-   --------------------------------------------------------------------------- */
-.kind-chip {
-    display: inline-flex;
-    align-items: center;
-    border-radius: var(--radius-sm);
-    border: 1px solid color-mix(in oklab, var(--chip) 30%, transparent);
-    background-color: color-mix(in oklab, var(--chip) 14%, transparent);
-    color: var(--chip-ink);
-    padding: 0.0625rem 0.375rem;
-    font-size: var(--text-xs);
-    line-height: var(--text-xs--line-height);
-    white-space: nowrap;
-}
-
-/* ---------------------------------------------------------------------------
    A ROW THE POINTER IS OVER.
 
    A list of rows is read by running down it, and a row that lights as the pointer crosses it
@@ -141,94 +120,6 @@
     .row-hover {
         transition: none;
     }
-}
-
-/* ---------------------------------------------------------------------------
-   A MENU IS AS WIDE AS ITS LONGEST ROW.
-
-   The generated popups take the width of the control they hang from, and below the breakpoint
-   that is a field narrow enough to cut a label to a few characters. Said here against their
-   slots, because those files are pristine and every picker in the app is one of them.
-
-   The ceiling is what the positioner leaves beside the anchor, and no more than the screen
-   less a 16px gutter on each side. Hanging from the start edge and swapping to the end edge
-   where that would go off screen is the positioner's own.
-
-   `w-(--anchor-width)` IS THE POPUP THAT IS STILL PINNED. A screen that gives its menu a width
-   of its own -- the health panel, the add-step shelves -- has that class merged away by `cn`,
-   and keeps the width it asked for.
-   --------------------------------------------------------------------------- */
-[data-slot='combobox-content'],
-[data-slot='dropdown-menu-content'] {
-    max-width: min(var(--available-width), calc(100vw - 2rem));
-    border-radius: var(--radius-surface);
-}
-
-/* ---------------------------------------------------------------------------
-   THE GENERATED CARD, DRAWN AS sokkel-ui's `Section` IS.
-
-   The strong hairline all round, the card ground and no shadow, so a card and a section beside
-   it read as one kind of box.
-   --------------------------------------------------------------------------- */
-[data-slot='card'] {
-    flex-shrink: 0;
-    position: relative;
-    overflow: clip;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-surface);
-    background-color: var(--card);
-    box-shadow: none;
-}
-
-[data-slot='combobox-content'][class~='w-(--anchor-width)'],
-[data-slot='dropdown-menu-content'][class~='w-(--anchor-width)'] {
-    width: max-content;
-}
-/* A picker's floor is the box it hangs off and nothing more: the generated popup adds a
-   column's worth on top, which on a phone is wider than the screen leaves, and a floor beats
-   a ceiling. A menu's floor is its own, and well inside the ceiling. */
-[data-slot='combobox-content'] {
-    min-width: var(--anchor-width);
-}
-
-/* ---------------------------------------------------------------------------
-   A MENU THAT MARKS A CHOICE.
-
-   The mark sits in a reserved gutter on the left, in the same column on every row, so the
-   labels line up whether or not one of them is chosen and the eye runs down one edge. That is
-   the anatomy every menu of this kind has, and the one people already know.
-   --------------------------------------------------------------------------- */
-[data-slot='dropdown-menu-radio-item'],
-[data-slot='dropdown-menu-checkbox-item'] {
-    padding-left: 1.75rem;
-    padding-right: 0.5rem;
-    padding-block: 0.3125rem;
-}
-[data-slot='dropdown-menu-radio-item-indicator'],
-[data-slot='dropdown-menu-checkbox-item-indicator'] {
-    right: auto;
-    left: 0.5rem;
-}
-
-/* ---------------------------------------------------------------------------
-   AN ACTION THAT TAKES SOMETHING AWAY.
-
-   Revoking a token, deactivating an account, cancelling a run: the button sits quiet like any
-   other until the pointer is on it, and then it says what the click costs. The neutral hover
-   wash would make it merely reachable; this one makes it legible as the thing it is.
-
-   It rides on top of whichever variant the button already has rather than being a variant of
-   its own, because the generated primitives are never hand-edited and a second set of them
-   would be two answers to one question.
-   --------------------------------------------------------------------------- */
-.destructive-action:hover:not(:disabled) {
-    background-color: color-mix(in oklab, var(--critical) 14%, transparent);
-    border-color: color-mix(in oklab, var(--critical) 35%, transparent);
-    color: var(--critical-ink);
-}
-.destructive-action:focus-visible {
-    border-color: color-mix(in oklab, var(--critical) 55%, transparent);
-    --tw-ring-color: color-mix(in oklab, var(--critical) 25%, transparent);
 }
 
 /* ---------------------------------------------------------------------------
@@ -336,26 +227,7 @@
     padding-left: 0.625rem;
 }
 
-/* How far a live wait has come, in the `--chip` of the element it sits in: a line in the flow
-   beneath the text it belongs to. */
-.progress-line {
-    height: 3px;
-    background-color: color-mix(in oklab, var(--chip) 18%, transparent);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    margin: 0.25rem 0 0.125rem;
-}
-.progress-line-fill {
-    height: 100%;
-    border-radius: var(--radius-sm);
-    background-color: var(--chip);
-    transition: width 400ms ease-out;
-}
-
 @media (prefers-reduced-motion: reduce) {
-    .progress-line-fill {
-        transition: none;
-    }
     [data-slot='graph-edge'] {
         animation: none !important;
     }
@@ -365,42 +237,17 @@
    WHAT A FINGER LANDS ON IS A FINGER TALL.
 
    Below the breakpoint sokkel-ui grows its own controls to `--spacing-finger`: buttons but the
-   extra-small sizes, toggles, inputs, input groups, selects, the combobox, `SearchField` and
-   `FilterChip`, and icon buttons as wide. What follows grows the rest, against the generated
-   primitives' slots, so no screen sizes a control for a phone itself.
+   extra-small sizes, toggles, inputs, selects, the combobox, tabs, menu, command and combobox
+   rows, `SearchField` and `FilterChip`, a `Chip` of the control size, and a hit area on the menu
+   and tooltip triggers it draws. What follows grows the rest, so no screen sizes a control for a
+   phone itself.
    --------------------------------------------------------------------------- */
 @media (max-width: 767px) {
-    /* A TRIGGER CARRIES THE TRIGGER'S SLOT, and one not drawn through a `Button` has no size of
-       its own.
-
-       `control-link` IS A LINK DRAWN AS A CONTROL -- a drawer entry, a chip on a header strip,
-       a row that navigates. An anchor carries no slot, and a finger does not know an anchor
-       from a button.
-
-       `data-menu-anchor` IS NOT A CONTROL AT ALL. A menu opened at a point -- the canvas's
-       right-click menus -- anchors a zero-sized trigger under the cursor, and a finger never
-       lands on it because nothing draws it.
-
-       A BARE DOT IS ITS OWN TOOLTIP'S TRIGGER AND IS NOT GROWN. It keeps its own `dot` slot
-       over the trigger's, so `tooltip-trigger` does not reach it, and it stays a line tall in a
-       graph node's 15px row. */
-    [data-slot='tabs-trigger'],
-    [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
-    [data-slot='tooltip-trigger'],
+    /* `control-link` IS A LINK DRAWN AS A CONTROL -- a drawer entry, a row that navigates. An
+       anchor carries no slot, and a finger does not know an anchor from a button. */
     [data-slot='command-input'],
-    [data-slot='dropdown-menu-item'],
-    [data-slot='dropdown-menu-radio-item'],
-    [data-slot='dropdown-menu-checkbox-item'],
-    [data-slot='command-item'],
-    [data-slot='combobox-item'],
     .control-link {
         min-height: var(--spacing-finger);
-    }
-    /* A square trigger stays square: a target a finger tall and 28px wide is a target on one
-       axis only. */
-    [data-slot='dropdown-menu-trigger']:not([data-menu-anchor]),
-    [data-slot='tooltip-trigger'] {
-        min-inline-size: var(--spacing-finger);
     }
     /* The canvas's cluster is the graph library's button rather than one of ours, and a zoom
        step is pressed with a thumb like everything else. */
@@ -410,59 +257,3 @@
     }
 }
 
-/* A SECONDARY BUTTON IS RAISED, NOT EDGED. The generated outline variant is drawn on the raised
-   rung with no line in the dark mode, and with a hairline ring in the light one, where the raised
-   rung is white on a near-white surface. A split button's chevron is its menu's trigger, and is
-   drawn as the half beside it. */
-[data-slot='button'][class~='border-border'][class~='bg-background'],
-[data-slot='split-button']
-    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background'] {
-    border-color: transparent;
-    background-color: var(--secondary);
-}
-[data-slot='button'][class~='border-border'][class~='bg-background']:hover,
-[data-slot='split-button']
-    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background']:hover,
-[data-slot='split-button']
-    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background'][aria-expanded='true'] {
-    background-color: color-mix(in oklab, var(--secondary), var(--foreground) 7%);
-}
-html:not(.dark) [data-slot='button'][class~='border-border'][class~='bg-background'],
-html:not(.dark)
-    [data-slot='split-button']
-    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background'] {
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-}
-
-/* A SHUT CONTROL LOOKS SHUT: no fill, a hairline ring, the muted ink at weight 400. The raised
-   variant is named again so the rule outranks its fill and its hover. */
-[data-slot='button']:disabled,
-[data-slot='button'][aria-disabled='true'],
-[data-slot='button'][class~='border-border'][class~='bg-background']:disabled,
-[data-slot='button'][class~='border-border'][class~='bg-background'][aria-disabled='true'],
-[data-slot='split-button']
-    > [data-slot='dropdown-menu-trigger'][class~='border-border'][class~='bg-background']:disabled {
-    opacity: 1;
-    background-color: transparent;
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    color: var(--muted-foreground);
-    font-weight: 400;
-    cursor: not-allowed;
-}
-
-/* A switch stands on the ladder. The generated track and thumb both say `rounded-full`. */
-[data-slot='switch'],
-[data-slot='switch-thumb'] {
-    border-radius: var(--radius-sm);
-}
-
-/* ---------------------------------------------------------------------------
-   THE KIND CHIP.
-
-   Every chip is 20px tall on the chip radius: sokkel-ui's `Chip` and `StatusChip` state it in
-   their classes, and the kind chip states it here.
-   --------------------------------------------------------------------------- */
-.kind-chip {
-    box-sizing: border-box;
-    height: 1.25rem;
-}

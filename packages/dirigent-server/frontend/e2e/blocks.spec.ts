@@ -46,8 +46,12 @@ test('the catalog lists every installed block in its family, with its kind and p
 
     // A KIND IS NOT A STATUS: the chip is drawn from the kind family, and the two blocks
     // asserted here sit in different ones.
-    await expect(rowOf(page, SHELL).locator('.kind-chip[data-kind="operator"]')).toBeVisible()
-    await expect(rowOf(page, SLEEP).locator('.kind-chip[data-kind="sensor"]')).toBeVisible()
+    const operator = rowOf(page, SHELL).locator('[data-slot="chip"]', { hasText: 'operator' })
+    const sensor = rowOf(page, SLEEP).locator('[data-slot="chip"]', { hasText: 'sensor' })
+    await expect(operator).toBeVisible()
+    await expect(sensor).toBeVisible()
+    const ink = (chip: typeof operator) => chip.evaluate((node) => getComputedStyle(node).color)
+    expect(await ink(operator)).not.toBe(await ink(sensor))
 
     // GROUPS SHELVE THE CATALOG, and a block declares its own: `shell.run` is under `execute`
     // with the other two blocks that run something, and there is no `shell` shelf at all.

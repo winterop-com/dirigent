@@ -157,7 +157,7 @@ export function ConnectionDialog({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="destructive-action"
+                                destructiveHover
                                 disabled={!write.may}
                                 title={write.why}
                                 onClick={() => {

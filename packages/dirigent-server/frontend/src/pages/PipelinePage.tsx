@@ -14,14 +14,14 @@ import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { LatestReport, RecentRuns, RECENT_ROWS, REPORT_RUNS } from '@/components/pipeline/PipelineRuns'
 import { RunDialog } from '@/components/pipeline/RunDialog'
 import { ShapeGraph } from '@/components/pipeline/ShapeGraph'
-import { TagChips } from '@/components/TagChips'
+import { TagChips } from '@winterop-com/sokkel-ui/TagChips'
 import { EndpointAddress, NewToken } from '@/components/triggers/Endpoint'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { authStore } from '@/lib/auth'
 import { healthOf, readConnections, type ConnectionOut } from '@/lib/connections'
-import { shutWith } from '@/lib/design-system'
+import { shutWith, TAG_CHIPS_WORDS } from '@/lib/design-system'
 import { titleOf } from '@/lib/identity'
 import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
@@ -169,7 +169,7 @@ export function PipelinePage() {
                     <Description text={pipeline.description} ink="body" under={1} />
                     {pipeline.tags.length > 0 && (
                         <div className="mt-2.5">
-                            <TagChips tags={pipeline.tags} />
+                            <TagChips tags={pipeline.tags} words={TAG_CHIPS_WORDS} />
                         </div>
                     )}
                 </div>

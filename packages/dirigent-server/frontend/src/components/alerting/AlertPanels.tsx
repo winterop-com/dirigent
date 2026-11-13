@@ -239,7 +239,8 @@ export function RulePanel({
                     <Button
                         variant="outline"
                         size="sm"
-                        className="destructive-action ml-auto"
+                        className="ml-auto"
+                        destructiveHover
                         disabled={busy || !rewrite.may}
                         title={rewrite.why}
                         onClick={() => {

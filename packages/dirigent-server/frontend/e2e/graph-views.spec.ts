@@ -221,8 +221,13 @@ test('a plain wheel over the run canvas zooms it one step about the pointer, and
 
     // One notch is one zoom button's step, and the point under the pointer stays under it.
     expect(after.zoom / before.zoom).toBeCloseTo(RUN_ZOOM_STEP, 3)
-    expect((at.x - after.x) / after.zoom).toBeCloseTo((at.x - before.x) / before.zoom, 1)
-    expect((at.y - after.y) / after.zoom).toBeCloseTo((at.y - before.y) / before.zoom, 1)
+    // Within half a screen pixel: the canvas rounds its transform.
+    expect(
+        Math.abs((at.x - after.x) / after.zoom - (at.x - before.x) / before.zoom) * after.zoom,
+    ).toBeLessThan(0.5)
+    expect(
+        Math.abs((at.y - after.y) / after.zoom - (at.y - before.y) / before.zoom) * after.zoom,
+    ).toBeLessThan(0.5)
     expect(await pageScroll(page)).toBe(0)
 
     // A notch the other way steps back out, and the page still stands where it was. Wheel events

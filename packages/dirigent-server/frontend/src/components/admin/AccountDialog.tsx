@@ -176,7 +176,7 @@ export function AccountDialog({
                         <Button
                             variant="outline"
                             size="sm"
-                            className={user.active ? 'destructive-action' : undefined}
+                            destructiveHover={user.active}
                             disabled={busy}
                             onClick={() => {
                                 setProblem(null)

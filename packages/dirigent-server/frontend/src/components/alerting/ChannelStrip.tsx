@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
 import { Instant } from '@/components/Instant'
@@ -21,10 +22,6 @@ import { formatInstant, formatRelative } from '@/lib/format'
 import { kindGlyph } from '@/lib/glyphs'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
-
-/** The chip: a glyph, a code and a dot, at the height a pointer and a finger both want. */
-const CHIP =
-    'flex min-h-9 items-center gap-2 rounded-md border border-border bg-card py-1 pr-3 pl-2.5 transition-colors'
 
 /** What a control this app draws wears when a pointer or the keyboard reaches it. */
 const REACHED =
@@ -79,37 +76,36 @@ function channelNote(count: number, read: boolean): { text: string; tone: string
  * word follows it only when something is wrong, and reaching a chip answers the next.
  *
  * EVERY CHIP ANSWERS A POINTER THE SAME WAY, the log channel's included. It is a button rather
- * than a link, because there is nothing behind it to open, and it wears the wash and the ring
- * its neighbours wear -- a chip drawn inert beside them would be saying it is a different kind
- * of thing.
+ * than a link, because there is nothing behind it to open, and it answers the pointer and takes
+ * the ring its neighbors do -- a chip drawn inert beside them would be saying it is a different
+ * kind of thing.
  */
 function ChannelChip({ channel }: { channel: Channel }) {
     const view = channelView(channel)
     const word = channelWord(channel)
     const to = channelLink(channel)
     const body = (
-        <>
-            <Mark glyph={kindGlyph(channel.notifier)} />
-            <span className="truncate font-mono text-xs font-semibold">{channelCode(channel)}</span>
+        <span className="inline-flex items-center gap-2">
+            <span className="truncate font-semibold">{channelCode(channel)}</span>
             <Dot tone={view.tone} />
-            {word !== null && <span className="text-xs whitespace-nowrap">{word}</span>}
-        </>
+            {word !== null && <span className="font-sans">{word}</span>}
+        </span>
     )
-    // The chip is the control itself rather than a control wrapped around one, so the ring lands
-    // on what has the focus.
-    const chip =
-        to === null ? (
-            <button type="button" className={cn(CHIP, REACHED)}>
-                {body}
-            </button>
-        ) : (
-            <Link to={to} className={cn(CHIP, REACHED)}>
-                {body}
-            </Link>
-        )
+    // The trigger is a box around the chip, so a pointer over it and the focus inside it both
+    // open the tooltip.
     return (
         <Tooltip>
-            <TooltipTrigger render={chip} />
+            <TooltipTrigger render={<span className="inline-flex" />}>
+                <Chip
+                    tone="outline"
+                    size="control"
+                    mono
+                    icon={<Mark glyph={kindGlyph(channel.notifier)} />}
+                    {...(to === null ? { onSelect: () => {} } : { href: to })}
+                >
+                    {body}
+                </Chip>
+            </TooltipTrigger>
             <TooltipContent className="flex-col items-start gap-1" side="bottom">
                 <ChannelFacts channel={channel} view={view} />
             </TooltipContent>
