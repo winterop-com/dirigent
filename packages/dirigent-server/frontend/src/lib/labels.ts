@@ -2230,6 +2230,30 @@ const reference = {
             cwd: 'relative to the run’s work directory, never absolute',
         },
     },
+    /** What the fhir pack's transform, map and filter steps evaluate. */
+    fhirpath: {
+        title: 'FHIRPath',
+        manual: 'The FHIRPath specification',
+        runtime: {
+            title: 'In this runtime',
+            resource: 'the value the expression is evaluated over, when it is an object',
+            variable: 'a value from variables; a reference goes there, never in the expression',
+            max_output: 'the cap on one answer, as JSON',
+        },
+    },
+    /** What a fhir.cql or fhir.measure step's library is written in. */
+    cql: {
+        title: 'CQL',
+        manual: 'The CQL specification',
+        runtime: {
+            title: 'In this runtime',
+            model: 'the data model the library reads its resources in',
+            parameter: 'a value from parameters, under the name the library declares',
+            data: 'the resources it reads: a Bundle, or a list of resources',
+            definitions: 'which definitions fhir.cql answers; every one when unset',
+            max_output: 'the cap on the answer, as JSON',
+        },
+    },
     /** What a report is templated in. */
     jinja: {
         title: 'Jinja',

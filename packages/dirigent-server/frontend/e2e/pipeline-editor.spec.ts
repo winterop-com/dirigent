@@ -154,6 +154,16 @@ async function topOf(locator: Locator): Promise<number> {
     return box?.y ?? Number.NaN
 }
 
+/** The line an unfoldable row reads while shut, found by the name of its row's button. */
+function summaryOf(scope: Locator, name: string | RegExp): Locator {
+    return scope
+        .locator('[data-slot="unfoldable"]')
+        .filter({
+            has: scope.page().locator(':scope > [data-slot="unfoldable-row"]').getByRole('button', { name }),
+        })
+        .locator(':scope > [data-slot="unfoldable-summary"]')
+}
+
 /** One step's port, which is what an edge is dragged from and to. */
 function port(page: Page, step: string, end: 'source' | 'target') {
     return page.locator(`.react-flow__handle.${end}[data-nodeid="${step}"]`)
@@ -379,15 +389,15 @@ test('the engine half of a step is groups that say their state, and one opens in
 
     // EVERY GROUP SAYS WHERE IT STANDS WITH NOTHING OPENED: what the step sets, and what it
     // would fall back to.
-    await expect(waits).toContainText(LABELS.state.armed.active)
+    await expect(summaryOf(panel, /Waits for/)).toContainText(LABELS.state.armed.active)
     const fanOut = panel.getByRole('button', { name: /Fan-out/ })
-    await expect(fanOut).toContainText('${params.regions}')
-    await expect(fanOut).toContainText('fail_fast')
-    await expect(panel.getByRole('button', { name: /Timing/ })).toContainText('on_timeout fail')
-    await expect(panel.getByRole('button', { name: /Rule/ })).toContainText('all_success')
+    await expect(summaryOf(panel, /Fan-out/)).toContainText('${params.regions}')
+    await expect(summaryOf(panel, /Fan-out/)).toContainText('fail_fast')
+    await expect(summaryOf(panel, /Timing/)).toContainText('on_timeout fail')
+    await expect(summaryOf(panel, /Rule/)).toContainText('all_success')
 
     const retry = panel.getByRole('button', { name: /Retry/ })
-    await expect(retry).toContainText('off')
+    await expect(summaryOf(panel, /Retry/)).toContainText('off')
     await expect(panel.getByLabel('max_attempts', { exact: true })).toBeHidden()
 
     // A ROW OPENS UNDER ITSELF, and what is edited there is the document.
@@ -399,11 +409,11 @@ test('the engine half of a step is groups that say their state, and one opens in
 
     // An open row says nothing its fields do not: the line comes back when it shuts, and THEN
     // SAYS THE POLICY THAT WOULD RUN NOW, defaults and all.
-    await expect(retry).not.toContainText('attempts')
+    await expect(summaryOf(panel, /Retry/)).toBeHidden()
     await retry.click()
     await expect(attempts).toBeHidden()
-    await expect(retry).toContainText('3 attempts')
-    await expect(retry).toContainText('30s backoff')
+    await expect(summaryOf(panel, /Retry/)).toContainText('3 attempts')
+    await expect(summaryOf(panel, /Retry/)).toContainText('30s backoff')
 
     // The group beside it was never opened by any of this.
     await expect(panel.getByLabel('for_each', { exact: true })).toBeHidden()
@@ -972,7 +982,7 @@ test('an edge dragged between two ports is the dependency, and Delete takes it a
     await page.locator('.react-flow__node').getByText('report', { exact: true }).click()
     // The panel says it in the shut Waits for row, and opening the row is where it is taken back.
     const waits = page.locator('aside').getByRole('button', { name: /Waits for/ })
-    await expect(waits).toContainText('fetch')
+    await expect(summaryOf(page.locator('aside'), /Waits for/)).toContainText('fetch')
     await waits.click()
     await expect(page.locator('aside').getByRole('button', { name: 'Stop waiting for fetch' })).toBeVisible()
 
@@ -1597,9 +1607,8 @@ test('a field naming a schema the instance holds opens it, and links to its scre
     // The box holds the code and the row under it says what answered it, headed by the schema's
     // own title so the code is not on screen twice.
     await expect(panel.getByLabel('schema', { exact: true })).toHaveValue(REFERENCE_SCHEMA)
-    const row = panel.getByRole('button', { name: /instance/ })
-    await expect(row).toContainText(REFERENCE_SCHEMA_TITLE)
-    await expect(row).toContainText('instance')
+    const row = panel.getByRole('button', { name: REFERENCE_SCHEMA_TITLE })
+    await expect(summaryOf(panel, REFERENCE_SCHEMA_TITLE)).toContainText('instance')
 
     // IT OPENS UNDER ITSELF, on the schema itself.
     await row.click()

@@ -1,6 +1,5 @@
-import { ExternalLink } from 'lucide-react'
-
 import { API_LABEL, docsHref, type DocsTag } from '@/lib/docs'
+import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 
 /**
@@ -23,7 +22,7 @@ export function ApiChip({ tag }: { tag: DocsTag }) {
             title={LABELS.shell.api_docs(tag)}
         >
             {API_LABEL}
-            <ExternalLink className="size-3" aria-hidden />
+            <ICONS.external className="size-3" aria-hidden />
         </a>
     )
 }

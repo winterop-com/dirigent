@@ -24,7 +24,7 @@ import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
-import { Disclosure } from '@/components/pipeline/Disclosure'
+import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
 import {
     chipWords,
     copyWords,
@@ -55,17 +55,9 @@ const TONES: readonly Tone[] = ['good', 'critical', 'warning', 'info', 'quiet', 
 
 /** One kind of icon, shut until it is asked for: the vocabulary is too long to read whole. */
 function IconShelf({ group }: { group: IconGroup }) {
-    const [open, setOpen] = useState(false)
     const concepts: readonly IconName[] = ICON_GROUPS[group]
     return (
-        <Disclosure
-            title={COPY.icon_group[group]}
-            summary={<span className="text-xs text-faint">{concepts.length}</span>}
-            open={open}
-            onToggle={() => {
-                setOpen(!open)
-            }}
-        >
+        <Unfoldable heading={COPY.icon_group[group]} aside={concepts.length}>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 lg:grid-cols-5">
                 {concepts.map((concept) => {
                     const Glyph = ICONS[concept]
@@ -77,7 +69,7 @@ function IconShelf({ group }: { group: IconGroup }) {
                     )
                 })}
             </div>
-        </Disclosure>
+        </Unfoldable>
     )
 }
 

@@ -1,4 +1,3 @@
-import { ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
 import { Instant } from '@/components/Instant'
@@ -8,6 +7,8 @@ import { LogPane } from '@/components/run/LogPane'
 import { ProgressLine } from '@/components/run/ProgressLine'
 import { Copyable, Fact, Section } from '@/components/run/Panel'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
+import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
+import { Toggle } from '@winterop-com/sokkel-ui/primitives/toggle'
 import { asJson, countedHeading, elapsedBetween, formatBytes, formatDuration, shortenUri } from '@/lib/format'
 import {
     attemptOrder,
@@ -301,33 +302,29 @@ function ItemOutputRow({
     const produced = item.produced
     const reading = produced === null ? null : outputReading(produced)
     return (
-        <li ref={row} data-item={item.id} data-chosen={chosen || undefined}>
-            <button
-                type="button"
-                aria-expanded={open}
-                onClick={() => {
-                    setOpen(!open)
-                    onChoose(!open)
+        <li
+            ref={row}
+            data-item={item.id}
+            data-chosen={chosen || undefined}
+            className={cn('rounded-sm', chosen && 'bg-secondary')}
+        >
+            <Unfoldable
+                heading={<span className="font-mono text-xs font-normal">{item.key}</span>}
+                aside={
+                    reading === null ? (
+                        absenceNote(item.status)
+                    ) : reading.bytes !== null ? (
+                        <span className="text-faint">{formatBytes(reading.bytes)}</span>
+                    ) : undefined
+                }
+                open={open}
+                onOpenChange={(next) => {
+                    setOpen(next)
+                    onChoose(next)
                 }}
-                className={cn(
-                    'row-hover flex w-full items-center gap-2 rounded-sm py-1 text-left',
-                    chosen && 'bg-secondary',
-                )}
+                className="gap-1.5"
             >
-                <ChevronRight className={cn('size-3 shrink-0', open && 'rotate-90')} aria-hidden />
-                <span className="truncate font-mono text-xs">{item.key}</span>
-                {reading === null ? (
-                    <span className="text-xs text-muted-foreground">{absenceNote(item.status)}</span>
-                ) : (
-                    reading.bytes !== null && (
-                        <span className="ml-auto shrink-0 text-xs text-faint">
-                            {formatBytes(reading.bytes)}
-                        </span>
-                    )
-                )}
-            </button>
-            {open && (
-                <div className="space-y-1.5 pb-1.5 pl-5">
+                <div className="space-y-1.5 pb-1.5">
                     <p className="text-xs">
                         <Copyable value={item.id} label={LABELS.runs.copy_item_id} />
                     </p>
@@ -341,7 +338,7 @@ function ItemOutputRow({
                             />
                         ))}
                 </div>
-            )}
+            </Unfoldable>
         </li>
     )
 }
@@ -380,18 +377,16 @@ function AttemptRow({
         >
             <div className="flex items-center gap-2">
                 <StatusChip status={attempt.status} />
-                <button
-                    type="button"
-                    aria-pressed={chosen}
+                <Toggle
+                    size="sm"
+                    pressed={chosen}
                     title={LABELS.runs.link_attempt}
-                    onClick={() => {
-                        onChoose(!chosen)
-                    }}
-                    className="rounded-sm text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                    onPressedChange={onChoose}
+                    className="font-normal text-muted-foreground"
                 >
                     {LABELS.runs.attempt_number(String(attempt.attempt))}
                     {attempt.kind === 'manual' && LABELS.runs.attempt_asked_for}
-                </button>
+                </Toggle>
                 {took !== null && <span className="ml-auto text-xs text-faint">{formatDuration(took)}</span>}
             </div>
             <div className="text-xs">
