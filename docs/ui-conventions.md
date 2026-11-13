@@ -1182,16 +1182,16 @@ block's own config, so the panel opens on that form. The
 engine's half sits under it as five groups in one order -- Waits for, Fan-out, Timing, Retry, Rule
 -- because `for_each`, the timings and a retry policy are the setting a step runs in rather than
 the question it answers, and a flat list of twelve controls buried the two keys the step was about.
-A shut group is one row: its title, and a mono line of what would run, with the values the document
-sets in body ink and the defaults it leaves alone in muted -- `timeout 30s · no deadline ·
-on_timeout fail`, `off` for a fan-out over nothing, `all_success` for a step that says nothing about
-its rule, the prerequisite keys as chips. Clicking the row opens that group's own fields under
-itself, against one rule in the identity colour marking what is being edited; the line goes while
-the row stands open, because the fields under it say the same thing, and a group holding a
-refusal stands open with no button to shut it, because a refusal folded away is one nobody can
-answer. `poll` belongs to a sensor, so the timing group neither says nor draws one for an operator
-unless the step carries it anyway. Which key belongs to which group, and how each line reads, is
-`lib/step-groups` over the schema in `lib/step-keys`, so a member added to the definition is filed
+Each group is sokkel-ui's `Unfoldable`: shut, its title and, under it, a mono `summary` of what
+would run, with the values the document sets in body ink and the defaults it leaves alone in muted
+-- `timeout 30s · no deadline · on_timeout fail`, `off` for a fan-out over nothing, `all_success`
+for a step that says nothing about its rule, the prerequisite keys as chips. Clicking the row opens
+that group's own fields under itself; the line goes while the row stands open, because the fields
+under it say the same thing, and a long line wraps rather than being cut. A group holding a
+refusal stands open (`forced`) with no button to shut it, because a refusal folded away is one
+nobody can answer. `poll` belongs to a sensor, so the timing group neither says nor draws one for
+an operator unless the step carries it anyway. Which key belongs to which group, and how each line
+reads, is `lib/step-groups` over the schema in `lib/step-keys`, so a member added to the definition is filed
 rather than appended to a list. The display name is last and it is one small field: nothing
 references it, and asking for it first was asking the least of the step first.
 
@@ -1880,7 +1880,7 @@ why its confirm is shut live in one place that both surfaces read -- `lib/connec
 that row -- because a second copy of a form is a second set of rules about what a blank box
 means, and one of the two will be the one with the credential in it.
 
-The step panel's engine groups are the same gesture at rest: the row is the group's own summary,
+The step panel's engine groups are the same gesture at rest: the row heads the group's own summary,
 and its fields open under it rather than in a pane of their own.
 
 **An account's tokens are listed under its row.** A token authenticates as one account, so it is
@@ -2627,6 +2627,7 @@ the one palette.
 | `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` drawn into the shell's head slot by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds, a `SplitButton` when it carries `more`, its chevron named by the item's `moreLabel`. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
+| `Unfoldable` (sokkel-ui) | Every row that opens what is under it in place: a step's engine groups, the reference row under a field, a fan-out element's output on a run's Step tab, the channel strip's fold on a phone, the gallery's icon shelves. The whole heading row is the button with `aria-expanded` and the chevron; `open` with `onOpenChange` where the app holds the state, `summary` for the line it reads while shut, `wrapSummary` where that line may run long, `aside` for a count or fact at the row's right end, `forced` to hold it open with no button. On a phone an unfolding row is a finger tall. A row with nothing to open is the same component without children: no chevron and no button, lined up with the rest |
 | `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A titled listing is a `flush` `Section` with its count as `meta`, around a `DataTable` with `framed={false}` |
 | `DataTable` (sokkel-ui) | Every listing, spread with `LISTING` (`variant="list"`, `resizable={false}`, `stackBelow` and `minWidth`): grid tracks per column with the title `width: 'content'`, a cell's control pressed on its own without opening the row, `onOpen` and `opened` for what a row opens, `rowTone="muted"` for a row no longer live, `rowHeight="auto"` where a cell is two lines, `detail`, `hasDetail` and `expandLabel` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead` or, where the listing has a bar, through `words={countWords(...)}`, `search` and `toolbar` for the box and the filters that narrow it, and `empty` for the one line a listing with no rows says |
 | `FilterChip`, `ListingBar` (sokkel-ui) | A filter in a listing's bar: `facet`, `options` (a `row` where the value has a drawing of its own), `multiple` for a set, the chosen held through `selected` and `onSelectedChange` -- `oneChosen` for a single value -- and `words={filterWords(any)}`. `ListingBar` is the bar `DataTable` draws, for a search over several tables or over a list that is not one |
