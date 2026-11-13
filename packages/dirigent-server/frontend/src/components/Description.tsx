@@ -46,11 +46,14 @@ export function Description({
     ink = 'hint',
     size = 'body',
     under = 2,
+    measure = false,
 }: {
     text: string | null
     ink?: DescriptionInk
     size?: DescriptionSize
     under?: DescriptionUnder
+    /** Holds the prose to the reading measure in a wide pane; tables and code keep the width. */
+    measure?: boolean
 }) {
     if (text === null || text.trim() === '') return null
     const colour = ink === 'hint' ? 'text-muted-foreground' : 'text-foreground'
@@ -67,7 +70,13 @@ export function Description({
     const set = `${colour} text-sm`
     return (
         <Suspense fallback={<p className={set}>{oneLine(text)}</p>}>
-            <PlainMarkdown content={text} className={set} {...DESCRIPTION_MARKDOWN} headingOffset={under} />
+            <PlainMarkdown
+                content={text}
+                className={set}
+                {...DESCRIPTION_MARKDOWN}
+                headingOffset={under}
+                measure={measure}
+            />
         </Suspense>
     )
 }

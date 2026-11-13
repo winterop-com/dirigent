@@ -78,17 +78,17 @@ async function seedConnection(request: APIRequestContext, baseURL: string): Prom
 }
 
 /**
- * Pick one row of a combobox by typing at it, the way somebody finds a pipeline.
+ * Pick one row of a picker by searching it, the way somebody finds a pipeline: the press opens
+ * the list with its search box focused, and what is typed narrows it.
  *
  * The list is portalled out of the dialog, so the option is reached on the page rather than
  * inside it.
  */
 async function pick(page: Page, field: string, query: string, option: string): Promise<void> {
-    const box = page.getByRole('dialog').getByLabel(field, { exact: true })
-    // Emptied first: a box already holding what is about to be typed into it is a box nothing
-    // changed, and the list opens on the change.
-    await box.fill('')
-    await box.fill(query)
+    await page.getByRole('dialog').getByLabel(field, { exact: true }).click()
+    const search = page.locator('input[role="combobox"]:focus')
+    await expect(search).toBeVisible()
+    await search.fill(query)
     await page.getByRole('option', { name: option }).click()
 }
 

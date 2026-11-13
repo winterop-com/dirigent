@@ -104,6 +104,7 @@ export const CRON_FIELD_WORDS: Partial<CronFieldWords> = {
     next: () => LABELS.triggers.schedule.dialog.next_firings,
     never: LABELS.triggers.schedule.dialog.never_fires,
     checking: LABELS.triggers.schedule.dialog.checking,
+    missing: LABELS.triggers.schedule.dialog.no_clock,
 }
 
 /**

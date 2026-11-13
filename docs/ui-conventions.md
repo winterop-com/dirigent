@@ -2375,7 +2375,7 @@ own, and never will -- `run-stream.test.ts` drives the whole of the drawer's dat
 `follow` and asserts the concurrent-connection counter still says one.
 
 **Every step interleaved, in arrival order.** What happened to a run is a sequence, so the
-console is one, and the step select is there for whoever is asking the other question. The lines
+console is one, and the step filter is there for whoever is asking the other question. The lines
 are sokkel-ui's `LogView`: each is time, level, the step as a clickable source, then the fan-out
 element as the line's `item`, the message, and whatever fields the line carried as its muted
 `fields`. The source opens that step in the panel through `openPanelTab`, because somebody
@@ -2399,8 +2399,10 @@ re-inked.
 
 **Three filters compose, and the count says how far.** A level threshold, one step, and a match
 over the line are three predicates over one list, and the bar they stand in says "{shown} of
-{total} lines". A filter that leaves too few lines to scroll leaves nothing to jump back to, so
-the jump to the newest line goes with it.
+{total} lines". The threshold and the step are filter chips, as a listing's filters are, and the
+match is the search box without its `/` key, because the drawer is not what the screen searches.
+A filter that leaves too few lines to scroll leaves nothing to jump back to, so the jump to the
+newest line goes with it.
 Client-side narrowing here is not the listing rule being broken: a listing's filter must be the
 server's because a listing is a window onto rows nobody has read, and this is the opposite case.
 

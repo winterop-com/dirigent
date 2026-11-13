@@ -4,7 +4,11 @@ import { Link } from 'react-router'
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Description } from '@/components/Description'
 import { Instant, instantFact } from '@/components/Instant'
-import { DescriptionList, type Description as FactItem } from '@winterop-com/sokkel-ui/DescriptionList'
+import {
+    DescriptionList,
+    DescriptionListGroup,
+    type Description as FactItem,
+} from '@winterop-com/sokkel-ui/DescriptionList'
 import { Mark } from '@/components/Mark'
 import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
@@ -193,8 +197,8 @@ export function RulePanel({
             <Description text={rule.description} />
 
             {editing ? (
-                <div className="flex flex-col gap-2">
-                    <DescriptionList termWidth="auto" items={settings} />
+                <DescriptionListGroup termWidth="auto" className="gap-y-2">
+                    <DescriptionList items={settings} />
                     <RuleText
                         key={rule.code}
                         rule={rule}
@@ -206,8 +210,8 @@ export function RulePanel({
                             setEditingCode(null)
                         }}
                     />
-                    <DescriptionList termWidth="auto" items={[lastSent]} />
-                </div>
+                    <DescriptionList items={[lastSent]} />
+                </DescriptionListGroup>
             ) : (
                 <DescriptionList termWidth="auto" items={[...settings, ...text, lastSent]} />
             )}

@@ -18,6 +18,7 @@ import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
 import type { FilePreviewWords } from '@winterop-com/sokkel-ui/FilePreview'
 import type { FilterChipWords } from '@winterop-com/sokkel-ui/FilterChip'
+import type { AsyncSelectWords } from '@winterop-com/sokkel-ui/AsyncSelect'
 import type { BlockPickerWords } from '@winterop-com/sokkel-ui-graph/BlockPicker'
 import type { GraphLayoutMenuWords } from '@winterop-com/sokkel-ui-graph/GraphLayoutMenu'
 import type { RunGraphProps } from '@winterop-com/sokkel-ui-graph/RunGraph'
@@ -25,6 +26,7 @@ import type { PlainMarkdownProps } from '@winterop-com/sokkel-ui/PlainMarkdown'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
 import type { SchemeChoiceWords } from '@winterop-com/sokkel-ui/SchemeChoice'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
+import type { SecretFieldWords } from '@winterop-com/sokkel-ui/SecretField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
 import type { ServerMenuWords } from '@winterop-com/sokkel-ui/ServerMenu'
 import type { ShellWords } from '@winterop-com/sokkel-ui/Shell'
@@ -111,8 +113,20 @@ export function dotOf(
     }
 }
 
+/** What a picker over a held list says: its search box named for what it narrows by. */
+export function pickerWords(search: string): Partial<AsyncSelectWords> {
+    return { placeholder: LABELS.shell.choose, search, empty: LABELS.shell.no_match }
+}
+
 /** What a field says beside its label when it is required. */
 export const FIELD_WORDS: FieldWords = { required: LABELS.form.required }
+
+/** What a password box says: the required word, and its Show and Hide. */
+export const SECRET_FIELD_WORDS: Partial<SecretFieldWords> = {
+    required: LABELS.form.required,
+    show: LABELS.form.secret.show,
+    hide: LABELS.form.secret.hide,
+}
 
 /** What a chip's remove button is called, as a function of the chip's words: "Stop filtering by finance". */
 export function chipWords(remove: (text: string) => string): ChipWords {
