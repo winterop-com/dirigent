@@ -6,7 +6,7 @@ import { refusedRead } from '@/components/Refusal'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { TagChip } from '@/components/TagChip'
-import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
 import { useRead } from '@/hooks/use-read'
@@ -80,7 +80,7 @@ export function ExamplePanel({
                 )}
                 {(example.starter || carries !== null) && (
                     <p className="flex flex-wrap items-center gap-2 pt-0.5">
-                        {example.starter && <Badge variant="outline">{LABELS.examples.starter_badge}</Badge>}
+                        {example.starter && <Chip tone="outline">{LABELS.examples.starter_badge}</Chip>}
                         {carries !== null && <span className="text-xs text-muted-foreground">{carries}</span>}
                     </p>
                 )}

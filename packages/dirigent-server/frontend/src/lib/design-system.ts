@@ -34,6 +34,7 @@ import type { TopBarWords } from '@winterop-com/sokkel-ui/TopBar'
 import type { ShortcutsDialogWords } from '@winterop-com/sokkel-ui/ShortcutsDialog'
 import type { SignInWords } from '@winterop-com/sokkel-ui/SignIn'
 import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
+import type { TagChipsWords } from '@winterop-com/sokkel-ui/TagChips'
 import type { ThemeCardsWords } from '@winterop-com/sokkel-ui/ThemeCards'
 import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
@@ -115,7 +116,7 @@ export const FIELD_WORDS: FieldWords = { required: LABELS.form.required }
 
 /** What a chip's remove button is called, as a function of the chip's words: "Stop filtering by finance". */
 export function chipWords(remove: (text: string) => string): ChipWords {
-    return { remove }
+    return { remove, newTab: LABELS.shell.new_tab }
 }
 
 /** What a copy button is called before a press, `copy`, and for a moment after it. */
@@ -211,6 +212,12 @@ export const DIALOG_WORDS: Partial<DialogShellWords> = { cancel: LABELS.action.c
 
 /** What a link out of this app says to a screen reader after its text. */
 export const LINK_WORDS: TextLinkWords = { newTab: LABELS.shell.new_tab }
+
+/** What a row of tags says: a tag that narrows the listing to itself, and the `+N` that names the rest. */
+export const TAG_CHIPS_WORDS: Partial<TagChipsWords> = {
+    select: LABELS.shell.filter_by_tag,
+    rest: (tags) => counted(tags.length, LABELS.shell.folded_tags)(String(tags.length), tags.join(', ')),
+}
 
 /** What a split button's chevron is called, "More ways to create a pipeline", and what it says on hover. */
 export function splitWords(more: string, moreHint?: string): SplitButtonWords {

@@ -1,3 +1,6 @@
+import { LoadingBar } from '@winterop-com/sokkel-ui/Loaders'
+
+import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 
 /**
@@ -7,14 +10,11 @@ import { cn } from '@/lib/utils'
 export function ProgressLine({ progress, className }: { progress: number | null; className?: string }) {
     if (progress === null) return null
     return (
-        <div
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(progress * 100)}
-            className={cn('progress-line', className)}
-        >
-            <div className="progress-line-fill" style={{ width: `${String(progress * 100)}%` }} />
-        </div>
+        <LoadingBar
+            value={progress * 100}
+            tone="current"
+            label={LABELS.runs.wait_progress}
+            className={cn('mt-1 mb-0.5 text-(--chip)', className)}
+        />
     )
 }

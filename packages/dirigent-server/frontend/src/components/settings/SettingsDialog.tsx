@@ -12,7 +12,7 @@ import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import { STATUS_CSS } from '@winterop-com/sokkel-ui/lib/status'
 import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
-import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Kbd, KbdGroup } from '@winterop-com/sokkel-ui/primitives/kbd'
 import { useRead, type Reading } from '@/hooks/use-read'
@@ -257,7 +257,7 @@ function IdentityControl() {
     return (
         <span className="flex items-center gap-1">
             <span className="font-mono text-sm">{auth.identity?.username ?? LABELS.settings.nobody}</span>
-            {auth.identity !== null && <Badge variant="outline">{auth.identity.role}</Badge>}
+            {auth.identity !== null && <Chip tone="outline">{auth.identity.role}</Chip>}
         </span>
     )
 }

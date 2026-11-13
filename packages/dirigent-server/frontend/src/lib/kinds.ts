@@ -1,11 +1,13 @@
+import type { KindColor } from '@winterop-com/sokkel-ui/lib/kind'
+
 /**
  * What a thing is, as a colour.
  *
  * A KIND IS NOT A STATUS. A status says how something is going and is drawn from the state
  * machine's own token; a kind says what something is -- an operator or a sensor, a cron or an
  * interval, an http credential or a database one -- and a listing of them reads far faster when
- * each family holds one hue. `--kind-<family>` in index.css is that hue and `.kind-chip` is
- * the fill rule, so nothing here writes a colour: it names one.
+ * each family holds one hue. The family is one of sokkel-ui's kind colors, which a `Chip`'s
+ * `hue` draws, so nothing here writes a color: it names one.
  *
  * TOTAL BY CONSTRUCTION. Kinds arrive off the wire from whichever plugins an instance has
  * installed, so this bundle cannot hold a table of them. What it holds is a family for every
@@ -14,8 +16,15 @@
  * rather than falling into an uncoloured default beside the ones that have a family.
  */
 
-/** The families, which are the hues declared in index.css. */
-export const KIND_FAMILIES = ['green', 'jade', 'teal', 'blue', 'violet', 'pink'] as const
+/** The families, which are sokkel-ui's kind colors. */
+export const KIND_FAMILIES = [
+    'green',
+    'jade',
+    'teal',
+    'blue',
+    'violet',
+    'pink',
+] as const satisfies readonly KindColor[]
 
 export type KindFamily = (typeof KIND_FAMILIES)[number]
 
@@ -49,12 +58,6 @@ export function kindFamily(kind: string): KindFamily {
     const named = NAMED[kind]
     if (named !== undefined) return named
     return KIND_FAMILIES[hash(kind) % KIND_FAMILIES.length]
-}
-
-/** The custom properties `.kind-chip` reads: the family's hue, and the ink legible on it. */
-export function kindTokens(kind: string): { '--chip': string; '--chip-ink': string } {
-    const family = kindFamily(kind)
-    return { '--chip': `var(--kind-${family})`, '--chip-ink': `var(--kind-${family}-ink)` }
 }
 
 /**
