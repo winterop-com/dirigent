@@ -6,7 +6,7 @@ import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
-import { READ_WORDS, refusedRead } from '@/components/Refusal'
+import { READ_WORDS, refusedTable } from '@/components/Refusal'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
@@ -334,7 +334,7 @@ export function Examples() {
                     </>
                 }
                 loading={corpus.reading}
-                words={{
+                {...refusedTable(corpus.problem, corpus.again, {
                     ...countWords(LABELS.word.example.count),
                     rows: (count) =>
                         count === 0 || count === rows.length
@@ -343,19 +343,13 @@ export function Examples() {
                                   LABELS.examples.counted_of(String(count), String(rows.length)),
                                   counted(rows.length, LABELS.word.example.count),
                               ),
-                }}
+                })}
                 empty={
-                    corpus.problem !== null ? (
-                        <PageState frame={false} loading={false} {...refusedRead(corpus.problem)}>
-                            {null}
-                        </PageState>
-                    ) : rows.length === 0 ? (
-                        LABELS.examples.none_installed
-                    ) : anythingFiltered(filters) ? (
-                        LABELS.examples.none_match
-                    ) : (
-                        LABELS.examples.empty
-                    )
+                    rows.length === 0
+                        ? LABELS.examples.none_installed
+                        : anythingFiltered(filters)
+                          ? LABELS.examples.none_match
+                          : LABELS.examples.empty
                 }
                 onOpen={press}
                 opened={(row) => row.code === chosen?.code}

@@ -800,6 +800,8 @@ const shell = {
      * because every read here is from the server.
      */
     reading: 'Reading',
+    /** The button under a failed read that asks the same question again. */
+    read_again: 'Try again',
 
     /** The box that narrows what is on the screen. It names nothing: the heading above it does. */
     search: 'Search',
@@ -2074,6 +2076,9 @@ const form = {
     no_configuration: 'This takes no configuration.',
     /** Beside the label of a field the schema requires. */
     required: 'required',
+    /** What a screen reader hears before a field's error, and before its warning. */
+    issue_critical: 'Error: ',
+    issue_warning: 'Warning: ',
     /** The button at the end of a password box that unmasks it, and masks it again. */
     secret: {
         show: 'Show',
