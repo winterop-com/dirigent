@@ -10,6 +10,7 @@ import { type JsonMap, type Problem } from '@/lib/api'
 import { patchBody, updateConnection, type ConnectionOut } from '@/lib/connections'
 import { formSchema } from '@/lib/form-schema'
 import { refusalOf } from '@/lib/refusal'
+import { SCHEMA_FORM_WORDS } from '@/lib/library-words'
 
 /** What the edit state of a connection's dialog holds, and what its Save does. */
 export interface ConnectionEdit {
@@ -55,7 +56,7 @@ export function useConnectionEdit(connection: ConnectionOut, schema: JsonMap | n
         [connection, schema],
     )
     const sealed = useMemo(() => sealedOf(connection), [connection])
-    const form = useSchemaForm(drawn, { initial: settingsOf(connection), sealed })
+    const form = useSchemaForm(drawn, { initial: settingsOf(connection), sealed, words: SCHEMA_FORM_WORDS })
     const write = useMayWrite('admin')
     const shut = write.why
 

@@ -20,7 +20,7 @@ import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
-import { DIALOG_WORDS, FIELD_WORDS, pickerWords } from '@/lib/design-system'
+import { DIALOG_WORDS, FIELD_WORDS, pickerWords, SCHEMA_FORM_WORDS } from '@/lib/library-words'
 import { formatMoment } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { headingOf } from '@/lib/identity'
@@ -474,7 +474,7 @@ interface Params {
  * over a value the form refuses opens the form on it.
  */
 function usePinned(schema: JsonSchema): Params {
-    const form = useSchemaForm(schema, { initial: {} })
+    const form = useSchemaForm(schema, { initial: {}, words: SCHEMA_FORM_WORDS })
     const [mode, setMode] = useState<'form' | 'json'>('form')
     const [text, setText] = useState('{}')
     const [unreadable, setUnreadable] = useState<string | null>(null)

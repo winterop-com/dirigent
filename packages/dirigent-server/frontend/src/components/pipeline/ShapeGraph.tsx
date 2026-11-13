@@ -5,7 +5,7 @@ import type { GraphLayoutChoice } from '@winterop-com/sokkel-ui-graph/GraphLayou
 import { PipelineGraph } from '@winterop-com/sokkel-ui-graph/PipelineGraph'
 import { GraphPanel } from '@/components/graph/GraphPanel'
 import { ViewTools } from '@/components/graph/ViewTools'
-import { GRAPH_WORDS } from '@/lib/design-system'
+import { GRAPH_WORDS } from '@/lib/library-words'
 import { FIT_MIN_ZOOM, GRAPH_LAYOUT, TALL_FIT, WRAP_WIDTH } from '@/lib/graph-view'
 import { shapeSteps, type StepShape } from '@/lib/pipelines'
 

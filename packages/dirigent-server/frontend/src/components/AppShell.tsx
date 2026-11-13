@@ -29,13 +29,13 @@ import {
     SHORTCUTS_WORDS,
     SIDE_PANEL_WORDS,
     TOP_BAR_WORDS,
-} from '@/lib/design-system'
+} from '@/lib/library-words'
 import { RELATIVE } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { addressOfId, idResults } from '@/lib/id-jump'
 import { LABELS } from '@/lib/labels'
 import { loadKindMarks } from '@/lib/marks'
-import { DASHBOARD_PATH, DESIGN_PATH, entriesFor, LOGIN_PATH, railGroups, screenPath } from '@/lib/nav'
+import { DASHBOARD_PATH, entriesFor, LOGIN_PATH, railGroups, screenPath } from '@/lib/nav'
 import {
     APPEARANCE_GROUP,
     GO_GROUP,
@@ -250,16 +250,6 @@ export function AppShell() {
                 keywords: ['keys', 'chords', 'help'],
                 run: () => {
                     setShortcutsOpen(true)
-                },
-            },
-            {
-                id: 'view:design',
-                title: LABELS.screen.design.name,
-                group: VIEW_GROUP,
-                icon: ICONS.design,
-                keywords: ['components', 'gallery', 'tokens', DESIGN_PATH],
-                run: () => {
-                    void navigate(DESIGN_PATH)
                 },
             },
             ...MODES.map((mode) => ({

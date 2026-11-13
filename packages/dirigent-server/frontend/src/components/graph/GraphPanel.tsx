@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { WindowedPane, WindowedPaneButton } from '@winterop-com/sokkel-ui/WindowedPane'
-import { windowWords } from '@/lib/design-system'
+import { windowWords } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { cn } from '@/lib/utils'
 

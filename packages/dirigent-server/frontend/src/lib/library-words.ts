@@ -1,9 +1,9 @@
 /**
- * The decisions the design-system components make, as pure functions, and the words sokkel-ui's
- * components say here.
+ * What sokkel-ui's components say in this app, and the props every screen hands one of them.
  *
- * A component draws; what it says and when a word appears beside a dot are decided here, where a
- * Node test can hold them.
+ * The library draws and speaks English by default; each bundle here is its words read from the
+ * catalogue, or a layout every listing of one shape shares, so a screen spreads one name rather
+ * than spelling the props again.
  */
 
 import type { AccountMenuWords } from '@winterop-com/sokkel-ui/AccountMenu'
@@ -14,7 +14,6 @@ import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
 import type { DataTableWords } from '@winterop-com/sokkel-ui/DataTable'
 import type { DialogShellWords } from '@winterop-com/sokkel-ui/DialogShell'
 import type { DiffViewWords } from '@winterop-com/sokkel-ui/DiffView'
-import type { DotProps } from '@winterop-com/sokkel-ui/Dot'
 import type { FieldWords } from '@winterop-com/sokkel-ui/Field'
 import type { FilePreviewWords } from '@winterop-com/sokkel-ui/FilePreview'
 import type { FilterChipWords } from '@winterop-com/sokkel-ui/FilterChip'
@@ -25,6 +24,8 @@ import type { RunGraphProps } from '@winterop-com/sokkel-ui-graph/RunGraph'
 import type { PlainMarkdownProps } from '@winterop-com/sokkel-ui/PlainMarkdown'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
 import type { SchemeChoiceWords } from '@winterop-com/sokkel-ui/SchemeChoice'
+import type { SchemaFormWords } from '@winterop-com/sokkel-ui/schema/SchemaForm'
+import { literal } from '@winterop-com/sokkel-ui/schema/read'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
 import type { SecretFieldWords } from '@winterop-com/sokkel-ui/SecretField'
 import type { SecretRevealWords } from '@winterop-com/sokkel-ui/SecretReveal'
@@ -44,74 +45,6 @@ import type { WindowedPaneWords } from '@winterop-com/sokkel-ui/WindowedPane'
 
 import { counted, type Counted, LABELS } from '@/lib/labels'
 import { PAGE, rowsRead } from '@/lib/paging'
-import { statusLabel, statusTokens } from '@/lib/status'
-
-/** What a dot or a notice says about something that is not a run: how it is, in one hue. */
-export type Tone = 'good' | 'critical' | 'warning' | 'info' | 'quiet' | 'unknown'
-
-/** The one map from a tone to the token it is filled with. `unknown` is drawn hollow. */
-export const TONE_FILL: Readonly<Record<Tone, string>> = {
-    good: 'var(--good)',
-    critical: 'var(--critical)',
-    warning: 'var(--warning)',
-    info: 'var(--info)',
-    quiet: 'var(--faint)',
-    unknown: 'var(--faint)',
-}
-
-/** The tones that are news: a dot in one of these says its word beside it, not only on hover. */
-export const NEWS_TONES: ReadonlySet<Tone> = new Set(['critical', 'unknown'])
-
-/** The run and attempt states that are news, read the same way. */
-export const NEWS_STATUSES: ReadonlySet<string> = new Set(['failed', 'completed_with_errors'])
-
-/** When a dot spells its word: only when it is news, always, or never. */
-export type Say = 'news' | 'always' | 'never'
-
-/**
- * Whether a dot draws its word beside it.
- *
- * A green dot alone says connected; a word appears where the state is news. The word is the
- * dot's accessible name and its tooltip either way.
- */
-export function saysWord(news: boolean, say: Say = 'news'): boolean {
-    if (say === 'always') return true
-    if (say === 'never') return false
-    return news
-}
-
-/** Whether a tone or a status is news. */
-export function isNews(dot: { tone: Tone } | { status: string }): boolean {
-    return 'tone' in dot ? NEWS_TONES.has(dot.tone) : NEWS_STATUSES.has(dot.status)
-}
-
-/**
- * How a dot is drawn for a tone or a run or attempt status: 8px, filled from the one map, an
- * `unknown` tone hollow, named by its word, and saying that word beside it only when it is news. A
- * dot that does not say its word says it as its tooltip. A word it says is small, and in body ink
- * only for a failure: a state nothing has proved is said quietly.
- */
-export function dotOf(
-    dot: { tone: Tone; label: string } | { status: string; label?: string },
-    say?: Say,
-): DotProps {
-    const label = dot.label ?? ('status' in dot ? statusLabel(dot.status) : '')
-    const said = saysWord(isNews(dot), say)
-    const loud = isNews(dot) && !('tone' in dot && dot.tone === 'unknown')
-    return {
-        color: 'tone' in dot ? TONE_FILL[dot.tone] : statusTokens(dot.status)['--chip'],
-        outline: 'tone' in dot && dot.tone === 'unknown',
-        size: 'md',
-        label,
-        say: said,
-        tip: said ? undefined : label,
-        className: said
-            ? loud
-                ? 'text-xs font-medium text-foreground'
-                : 'text-xs text-muted-foreground'
-            : undefined,
-    }
-}
 
 /** What a picker over a held list says: its search box named for what it narrows by. */
 export function pickerWords(search: string): Partial<AsyncSelectWords> {
@@ -119,7 +52,7 @@ export function pickerWords(search: string): Partial<AsyncSelectWords> {
 }
 
 /** What a screen reader hears before an error and before a warning, wherever an issue is marked. */
-export const ISSUE_WORDS: Pick<FieldWords, 'issueCritical' | 'issueWarning'> = {
+const ISSUE_WORDS: Pick<FieldWords, 'issueCritical' | 'issueWarning'> = {
     issueCritical: LABELS.form.issue_critical,
     issueWarning: LABELS.form.issue_warning,
 }
@@ -134,6 +67,16 @@ export const SECRET_FIELD_WORDS: Partial<SecretFieldWords> = {
     hide: LABELS.form.secret.hide,
 }
 
+/**
+ * What a form drawn from a JSON Schema says beside a required field, before its issues, under a
+ * field an empty box leaves to its default, and in its password boxes.
+ */
+export const SCHEMA_FORM_WORDS: Partial<SchemaFormWords> = {
+    ...FIELD_WORDS,
+    fallback: (value) => LABELS.form.default_is(typeof value === 'string' ? value : literal(value)),
+    secret: SECRET_FIELD_WORDS,
+}
+
 /** What a chip's remove button is called, as a function of the chip's words: "Stop filtering by finance". */
 export function chipWords(remove: (text: string) => string): ChipWords {
     return { remove, newTab: LABELS.shell.new_tab }
@@ -145,7 +88,7 @@ export function copyWords(copy: string): CopyButtonWords {
 }
 
 /** What a description's code blocks and callouts say. */
-export const MARKDOWN_WORDS: NonNullable<PlainMarkdownProps['words']> = {
+const MARKDOWN_WORDS: NonNullable<PlainMarkdownProps['words']> = {
     ...LABELS.shell.callout,
     code: copyWords(LABELS.shell.copy_code),
 }
@@ -345,47 +288,6 @@ export const SIGN_IN_WORDS: Partial<SignInWords> = {
 
 /** What an editor's schema check says that is not an issue: the word beside a deprecated key. */
 export const SCHEMA_CHECK_WORDS: Partial<CodeSchemaWords> = { deprecated: LABELS.editor.deprecated_key }
-
-/**
- * How a verb is shut: with its sentence where there is one, which keeps it reachable and says why,
- * and quietly where there is none, as while its own request is in flight.
- */
-export function shutWith(shut: boolean, why?: string | null): { disabled?: boolean; reason?: string } {
-    if (!shut) return {}
-    return why === undefined || why === null ? { disabled: true } : { reason: why }
-}
-
-/** One section of the gallery, by the id its heading and its index entry share. */
-export type GallerySection =
-    | 'titles'
-    | 'headings'
-    | 'links'
-    | 'labels'
-    | 'dots'
-    | 'icons'
-    | 'buttons'
-    | 'search'
-    | 'forms'
-    | 'switches'
-    | 'notices'
-    | 'dialogs'
-    | 'facts'
-
-/** The gallery's index: what somebody is looking for, in the order the page draws it. */
-export const GALLERY_INDEX: readonly {
-    group: 'text' | 'marks' | 'controls' | 'containers'
-    sections: readonly GallerySection[]
-}[] = [
-    { group: 'text', sections: ['titles', 'headings', 'links'] },
-    { group: 'marks', sections: ['labels', 'dots', 'icons'] },
-    { group: 'controls', sections: ['buttons', 'search', 'forms', 'switches'] },
-    { group: 'containers', sections: ['notices', 'dialogs', 'facts'] },
-]
-
-/** The anchor of one gallery section, which is what its index entry links to. */
-export function galleryAnchor(section: GallerySection): string {
-    return `ds-${section}`
-}
 
 /** What the frame says: the drawer's button and its close, the panel's toggle, and its own two keys. */
 export const SHELL_WORDS: Partial<ShellWords> = {

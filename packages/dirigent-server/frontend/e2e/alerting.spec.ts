@@ -67,7 +67,7 @@ test('the channel strip is one chip per channel, and the words are on the toolti
     await expect(strip.getByText(LABELS.alerting.channel.not_set_up)).toBeHidden()
 
     // The tooltip primitive describes its trigger rather than carrying a role, so it is found
-    // by the slot the design system gives it.
+    // by the slot the library gives it.
     await strip.getByText(LABELS.editor.run.log, { exact: true }).hover()
     await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('log · ready')
 })

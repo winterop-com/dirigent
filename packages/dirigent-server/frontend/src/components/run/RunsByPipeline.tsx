@@ -8,7 +8,7 @@ import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import type { Problem } from '@/lib/api'
-import { countWords, dotOf, LISTING } from '@/lib/design-system'
+import { countWords, LISTING } from '@/lib/library-words'
 import { formatDuration, formatInstant } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import {
@@ -18,7 +18,7 @@ import {
     type PipelineRuns,
     type RecentRun,
 } from '@/lib/run-summary'
-import { statusLabel } from '@/lib/status'
+import { dotOf, statusLabel } from '@/lib/status'
 
 const pipelineOf = (row: PipelineRuns) => row.pipeline
 

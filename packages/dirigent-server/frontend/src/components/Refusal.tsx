@@ -5,7 +5,7 @@ import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import type { DataTableWords } from '@winterop-com/sokkel-ui/DataTable'
 import type { PageStateWords, ReadOutcome } from '@winterop-com/sokkel-ui/PageState'
 import type { Problem } from '@/lib/api'
-import { TABLE_WORDS } from '@/lib/design-system'
+import { TABLE_WORDS } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { refusalLine, refusalLines, refusalOf } from '@/lib/refusal'
 

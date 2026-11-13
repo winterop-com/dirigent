@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { AsyncSelect } from '@winterop-com/sokkel-ui/AsyncSelect'
 import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Mark } from '@/components/Mark'
-import { pickerWords } from '@/lib/design-system'
+import { pickerWords } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { matchesOption, type PickerOption } from '@/lib/picker'
 

@@ -10,26 +10,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
 `make check` and `make test-postgres` stay green, coverage stays at or above 90,
 `mkdocs build --strict` stays clean, and every example stays executable.
 
-1. **Move the frontend onto sokkel-ui.** [sokkel-ui](https://github.com/winterop-com/sokkel-ui)
-   is the shared UI library for dirigent, stabbur, Maneki and the dhis2w-fhir UI:
-   `@winterop-com/sokkel-ui` and its charts, graph, maps, media and terminal packages. The
-   frontend still draws its own: 20 shadcn primitives in `src/components/ui`, `src/components/ds`
-   with the `/design` gallery, and the screens built on them. One pattern per PR, every PR pinned
-   to the same published library version, and no release cut per PR. Each its own slice:
-   - **Install and theme.** The packages are public on GitHub Packages, which asks for a token
-     even to read: `GITHUB_TOKEN` with `packages: read` in CI, passed as a build secret to the
-     image build `release.yaml` runs, and `gh auth token` on a checkout. The library sets in IBM
-     Plex Sans and Plex Mono where dirigent's code face is JetBrains Mono, and has no `dirigent`
-     theme; the theme settles both, then the conventions say so.
-   - **Primitives, then patterns, then screens.** Swap `components/ui` for the library's, then
-     the shapes `components/ds` holds, then each screen: listings onto its tables, forms onto
-     its schema form, run and pipeline graphs onto `sokkel-ui-graph`. Every screen it touches gets the `ui-review` pass in both palettes.
-   - **Only dirigent's stays here.** `components/ds`, the `/design` gallery and
-     `scripts/check_ui_system.py` go once nothing uses them; `docs/ui-conventions.md` keeps the
-     conventions about dirigent's own data and points at sokkel-ui for the rest.
-   - **A part the library lacks is built in sokkel-ui**, released there, and then used here,
-     never drawn in this frontend first.
-2. **What the security reviews left open.** Each its own slice:
+1. **What the security reviews left open.** Each its own slice:
    - **The units the reviews never reached.** Step deadline arithmetic, gate expansion and the
      lease sweep, retention sweeps, alert queueing, storage blocks across runs, tokens refused by
      header on step paths, and connection fields a reference chooses. In the packs: the
@@ -38,7 +19,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
    - **Leads that need a real service to settle.** Which of a data value set's own `dryRun` and
      `strategy` and the step's query DHIS2 obeys, which decides whether a document's body can turn
      a dry run into a write; and a broker message stalling polled sources on PostgreSQL.
-3. **dirigent-fhir: what the FHIR pack still lacks.** The pack is published with its own
+2. **dirigent-fhir: what the FHIR pack still lacks.** The pack is published with its own
    [docs site](https://winterop-com.github.io/dirigent-fhir/); what it does not do yet, each its
    own slice:
    - **CQL and measures.** Libraries from storage or as ELM, one patient's compartment as the
@@ -63,7 +44,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      population code system; FHIRPath's `1 + 1` answers a Decimal rather than an Integer, and an
      undefined `%name` evaluates to nothing rather than an error; and the R4 models name a subset
      of each resource's elements and are closed, so they cannot validate a resource whole.
-4. **`dirigent-full-demo`: one instance with everything, for the tutorials.** `everything` in
+3. **`dirigent-full-demo`: one instance with everything, for the tutorials.** `everything` in
    `dirigent-examples` is most of it: one instance with the corpus and the tutorial pipelines
    applied, S3, Kafka, RabbitMQ and a PostgreSQL warehouse in its compose stack, an alert sink,
    the play demo connected, and a `verify.sh` that brings it up and asserts green. Left:
@@ -72,11 +53,11 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
    - the telemetry sink, the OTLP collector of `infra/compose.otel.yaml`, in its stack;
    - a gate in its verify that checks the play demo is healthy before the corpus runs.
    It is a demo, not a product install; a real instance still installs only what it uses.
-5. **A DHIS2 app for dirigent, shipped with dirigent-dhis2.** DHIS2 people want to see and run
+4. **A DHIS2 app for dirigent, shipped with dirigent-dhis2.** DHIS2 people want to see and run
    their pipelines from inside DHIS2: an App Platform app, installed through App Management,
    listing the pipelines that touch this DHIS2 instance, their runs and logs, and the sources
    waiting for input, with run, pause and rerun where the user may. It belongs to
-   `dirigent-dhis2`, not here, and it reuses this repository's design system rather than
+   `dirigent-dhis2`, not here, and it is built on sokkel-ui, as this frontend is, rather than
    re-drawing it. Most of the work is identity, and it has to be settled before any screen:
    - *Who the caller is.* A DHIS2 app runs on the DHIS2 origin with the DHIS2 session; dirigent
      has its own users, roles and tokens. The candidates are DHIS2's Route API (2.41+) holding a
@@ -95,13 +76,13 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      for CORS.
    - *Where it ships.* A built app zip as a release asset of `dirigent-dhis2`, versioned with
      the pack, with the App Hub as a later option.
-6. **More packs.** An outside system goes in the one `dirigent-contrib` package, beside Chap and
+5. **More packs.** An outside system goes in the one `dirigent-contrib` package, beside Chap and
    the open climate service, rather than in a package or a repository of its own. Only a system
    big enough to carry its own repository takes one, as `dirigent-dhis2` does, with its own
    examples and tests, self-testing against `dirigent-plugin`'s main and assembled by
    `dirigent-integration`. Either way a pack is wired through a connection kind, with a client
    written fresh or wrapping a stable one.
-7. **AI blocks: local models and hosted APIs, both first-class.** A pipeline step that asks a
+6. **AI blocks: local models and hosted APIs, both first-class.** A pipeline step that asks a
    model, whose answer is data a later step can read rather than prose. Local is the starting
    point, so an AI step runs in `dg run --local` with nothing in the cloud; a hosted API sits
    behind the same blocks, and a document moves between them by changing the connection.
@@ -133,7 +114,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      so an instance that runs no model carries nothing for it: by the naming rule a block family
      is `dirigent-block-ai`, outside the `dirigent-blocks` umbrella. Whether it lives in this
      repository or in `dirigent-contrib` is open too.
-8. **Another UI and design round.** The owner still sees issues across the screens after the
+7. **Another UI and design round.** The owner still sees issues across the screens after the
    0.32 and 0.33 changes. Two independent passes over the live UI, one by Codex and one by Claude
    Design, each against `docs/ui-conventions.md` in both palettes and at phone width, each ending in
    a list of findings with screenshots and a proposed design for what the conventions do not yet

@@ -4,17 +4,16 @@ import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
 import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
 import { Instant } from '@/components/Instant'
 import { Question } from '@/components/Question'
-import { refusedRead } from '@/components/Refusal'
+import { refusedTable } from '@/components/Refusal'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
-import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@winterop-com/sokkel-ui/primitives/tooltip'
 import { usePaged } from '@/hooks/use-paged'
 import { type Problem } from '@/lib/api'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { rowsRead } from '@/lib/paging'
 import { refusalLine, refusalOf } from '@/lib/refusal'
@@ -61,28 +60,28 @@ export function AccountTokens({
         [now, shared],
     )
 
+    const rows = state.problem === null ? state.rows : []
     return (
         <div className="flex max-h-96 flex-col" data-account-tokens>
-            <PageState frame={false} loading={!state.read} {...refusedRead(state.problem)}>
-                <DataTable
-                    variant="list"
-                    columns={columns}
-                    rows={state.rows}
-                    rowKey={tokenId}
-                    hasMore={state.next !== null}
-                    loading={state.reading}
-                    onLoadMore={more}
-                    foot={
-                        state.rows.length === 0
-                            ? undefined
-                            : rowsRead(state.rows.length, LABELS.word.token.count, state.next !== null)
-                    }
-                    empty={LABELS.users.tokens_empty}
-                    columnHeads={state.rows.length > 0}
-                    rowTone={(token) => (isLive(token, now) ? undefined : 'muted')}
-                    resizable={false}
-                />
-            </PageState>
+            <DataTable
+                variant="list"
+                columns={columns}
+                rows={rows}
+                rowKey={tokenId}
+                hasMore={state.problem === null && state.next !== null}
+                loading={state.reading}
+                onLoadMore={more}
+                {...refusedTable(state.problem, reload)}
+                foot={
+                    rows.length === 0
+                        ? undefined
+                        : rowsRead(rows.length, LABELS.word.token.count, state.next !== null)
+                }
+                empty={LABELS.users.tokens_empty}
+                columnHeads={rows.length > 0}
+                rowTone={(token) => (isLive(token, now) ? undefined : 'muted')}
+                resizable={false}
+            />
             <ConfirmDialog
                 open={revoking !== null}
                 onOpenChange={(next) => {

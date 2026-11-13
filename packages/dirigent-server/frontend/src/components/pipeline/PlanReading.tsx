@@ -1,5 +1,5 @@
 import { counted, LABELS } from '@/lib/labels'
-import { DIFF_WORDS, windowWords } from '@/lib/design-system'
+import { DIFF_WORDS, windowWords } from '@/lib/library-words'
 import type { DocumentDiff, PlanItem, PlanView } from '@/lib/pipeline-plan'
 import type { ValidationIssue } from '@/lib/pipelines'
 import { sentenceFor } from '@/lib/wording'

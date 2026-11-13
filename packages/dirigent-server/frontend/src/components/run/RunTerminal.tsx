@@ -8,7 +8,7 @@ import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { ApiError } from '@/lib/api'
-import { filterWords, oneChosen, SEARCH_WORDS } from '@/lib/design-system'
+import { filterWords, oneChosen, SEARCH_WORDS } from '@/lib/library-words'
 import { formatClock } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
@@ -69,7 +69,7 @@ const DOWNLOAD_PAGE_LIMIT = 50
  * DARK IN BOTH PALETTES, AND THAT IS DELIBERATE. A console is not a card: it is the one surface
  * in this app the light palette does not invert, the same way a code block on a light page is
  * not inverted. The header strip above it is ordinary app chrome and stays on the surface
- * ladder, so every control in it is a design-system control with nothing re-inked.
+ * ladder, so every control in it is a library control with nothing re-inked.
  *
  * IT FOLLOWS THE TAIL UNTIL SOMEBODY SCROLLS UP, which is `lib/preferences`' own setting and
  * the same rule the step's log pane is written to: a console that jumped to the bottom while

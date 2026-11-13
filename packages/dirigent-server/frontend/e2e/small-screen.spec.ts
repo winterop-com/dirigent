@@ -179,22 +179,6 @@ test('the drawer entries are at least 44px tall', async ({ page }) => {
     }
 })
 
-test('a bare status dot stays a dot, and is not grown to a finger', async ({ page }) => {
-    // REVERT-PROOF: a bare dot is its own tooltip's trigger, and a finger rule for triggers drew
-    // it 44px tall, which a graph node's 15px row cannot hold. Neither its box nor its disc grows.
-    await page.goto('/design')
-    const dots = page.locator('[data-gallery="dots"] [data-slot="dot"][role="img"]')
-    await expect(dots.first()).toBeVisible()
-    // The mark is a box one line tall with the disc in its middle: the disc stays a dot, and the
-    // box stays a line rather than a finger.
-    for (const dot of await dots.all()) {
-        expect((await dot.boundingBox())?.height ?? 0).toBeLessThanOrEqual(24)
-        const disc = await dot.locator('> [aria-hidden]').boundingBox()
-        expect(disc?.height ?? 0).toBeLessThanOrEqual(10)
-        expect(disc?.width ?? 0).toBeLessThanOrEqual(10)
-    }
-})
-
 test('the palette button is a glyph, and the chord it would have drawn is not', async ({ page }) => {
     const palette = page.getByRole('button', { name: LABELS.shell.palette_button })
     await expect(palette.locator('svg')).toBeVisible()

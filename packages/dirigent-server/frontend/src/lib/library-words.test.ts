@@ -1,27 +1,24 @@
 import { describe, expect, test } from 'vitest'
 
 import type { IconButtonProps } from '@winterop-com/sokkel-ui/IconButton'
+import { LABELS } from '@/lib/labels'
 import {
     copyWords,
     countWords,
     DIALOG_WORDS,
     DIFF_WORDS,
-    dotOf,
-    galleryAnchor,
-    GALLERY_INDEX,
-    isNews,
+    FIELD_WORDS,
     LINK_WORDS,
     SCHEMA_CHECK_WORDS,
-    saysWord,
+    SCHEMA_FORM_WORDS,
     SEARCH_PLACEHOLDER,
     SEARCH_WORDS,
+    SECRET_FIELD_WORDS,
     secretWords,
-    shutWith,
     splitWords,
     TOOLBAR_WORDS,
     windowWords,
-} from '@/lib/design-system'
-import { LABELS } from '@/lib/labels'
+} from '@/lib/library-words'
 
 describe('an icon button', () => {
     test('cannot be drawn without a name', () => {
@@ -52,13 +49,6 @@ describe("what sokkel-ui's parts say", () => {
 describe('a verb on a strip', () => {
     test('folds into More actions, and a split names its chevron More ways', () => {
         expect(TOOLBAR_WORDS).toEqual({ more: LABELS.shell.more_actions, moreWays: LABELS.shell.more_ways })
-    })
-
-    test('is shut with its sentence where there is one, and quietly where there is none', () => {
-        expect(shutWith(false, 'Viewers cannot')).toEqual({})
-        expect(shutWith(true, 'Viewers cannot')).toEqual({ reason: 'Viewers cannot' })
-        expect(shutWith(true, null)).toEqual({ disabled: true })
-        expect(shutWith(true)).toEqual({ disabled: true })
     })
 })
 
@@ -98,80 +88,23 @@ describe('a copy button', () => {
     })
 })
 
-describe('a dot', () => {
-    test('says its word only when the state is news', () => {
-        expect(saysWord(isNews({ tone: 'good' }))).toBe(false)
-        expect(saysWord(isNews({ tone: 'critical' }))).toBe(true)
-        expect(saysWord(isNews({ tone: 'unknown' }))).toBe(true)
-        expect(saysWord(isNews({ status: 'succeeded' }))).toBe(false)
-        expect(saysWord(isNews({ status: 'paused' }))).toBe(false)
-        expect(saysWord(isNews({ status: 'failed' }))).toBe(true)
-    })
-
-    test('says it always or never where it is asked to', () => {
-        expect(saysWord(false, 'always')).toBe(true)
-        expect(saysWord(true, 'never')).toBe(false)
-    })
-
-    test('is 8px, hollow only when unknown, and says its word as a tooltip where it does not draw it', () => {
-        expect(dotOf({ tone: 'good', label: 'healthy' })).toEqual({
-            color: 'var(--good)',
-            outline: false,
-            size: 'md',
-            label: 'healthy',
-            say: false,
-            tip: 'healthy',
-            className: undefined,
-        })
-        expect(dotOf({ tone: 'unknown', label: 'never checked' })).toMatchObject({
-            outline: true,
-            say: true,
-            tip: undefined,
-        })
-        expect(dotOf({ status: 'failed' })).toMatchObject({
-            color: 'var(--status-failed)',
-            label: LABELS.state.run.failed.chip,
-            say: true,
-        })
-    })
-})
-
-describe('the gallery index', () => {
-    const sections = GALLERY_INDEX.flatMap((group) => group.sections)
-
-    test('names no section twice, so one anchor is one place', () => {
-        expect(new Set(sections).size).toBe(sections.length)
-        expect(new Set(sections.map(galleryAnchor)).size).toBe(sections.length)
-    })
-
-    test('says every section in a plain word the catalogue holds', () => {
-        for (const section of sections) expect(LABELS.design.section[section].length).toBeGreaterThan(0)
-    })
-
-    test('says plain names, in the order the page draws them', () => {
-        expect(sections.map((section) => LABELS.design.section[section])).toEqual([
-            'Titles',
-            'Headings',
-            'Links',
-            'Labels',
-            'Status dots',
-            'Icons',
-            'Buttons',
-            'Search',
-            'Form fields',
-            'Switches',
-            'Notices',
-            'Dialogs',
-            'Lists of facts',
-        ])
-    })
-})
-
 describe("a listing bar's count", () => {
     test("says the rows in rowsRead's words", () => {
         const words = countWords(LABELS.word.run.count)
         expect(words.rows(1)).toBe('1 run')
         expect(words.rows(50)).toBe('50 runs')
         expect(words.loaded(50)).toBe('50 runs, more to load')
+    })
+})
+
+describe('a form drawn from a JSON Schema', () => {
+    test("marks a required field and names its issues in the catalogue's words, as every field does", () => {
+        expect(SCHEMA_FORM_WORDS).toMatchObject(FIELD_WORDS)
+        expect(SCHEMA_FORM_WORDS.secret).toBe(SECRET_FIELD_WORDS)
+    })
+
+    test('says the default an empty box leaves a field to, a text as it is and any other value as JSON', () => {
+        expect(SCHEMA_FORM_WORDS.fallback?.('30s')).toBe(LABELS.form.default_is('30s'))
+        expect(SCHEMA_FORM_WORDS.fallback?.(8)).toBe(LABELS.form.default_is('8'))
     })
 })

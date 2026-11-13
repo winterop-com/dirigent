@@ -1,10 +1,9 @@
 import { Instant } from '@/components/Instant'
-import { PageState } from '@winterop-com/sokkel-ui/PageState'
-import { refusedRead } from '@/components/Refusal'
+import { refusedTable } from '@/components/Refusal'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
-import { LISTING } from '@/lib/design-system'
+import { LISTING } from '@/lib/library-words'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { rowsRead, type Paged } from '@/lib/paging'
@@ -14,7 +13,8 @@ import { anyTagged, type WorkerOut } from '@/lib/workers'
 const workerId = (worker: WorkerOut) => worker.id
 
 /**
- * The nodes claiming work, drawn once and shown in two places.
+ * The nodes claiming work, read a page at a time; a refused read stands in place of the rows,
+ * with Try again.
  *
  * A WORKER STATE IS NOT A RUN STATE, and it is drawn in the same chip anyway: `running` indexes
  * a status color and `starting`, `draining` and `stopped` fall back to the neutral one, which
@@ -29,33 +29,32 @@ const workerId = (worker: WorkerOut) => worker.id
 export function WorkersTable({
     state,
     more,
-    empty,
+    reload,
 }: {
     state: Paged<WorkerOut>
     more: () => void
-    /** The line the empty card states, which differs between the dashboard and the screen. */
-    empty: string
+    reload: () => void
 }) {
+    const rows = state.problem === null ? state.rows : []
     return (
-        <PageState
-            loading={!state.read}
-            {...refusedRead(state.problem)}
-            empty={state.rows.length === 0}
-            emptyMessage={empty}
-        >
-            <DataTable
-                {...LISTING}
-                rowHeight="auto"
-                columns={columnsFor(state.rows)}
-                rows={state.rows}
-                rowKey={workerId}
-                rowTone={(worker) => (worker.status === 'stopped' ? 'muted' : undefined)}
-                hasMore={state.next !== null}
-                loading={state.reading}
-                onLoadMore={more}
-                foot={rowsRead(state.rows.length, LABELS.word.worker.count, state.next !== null)}
-            />
-        </PageState>
+        <DataTable
+            {...LISTING}
+            rowHeight="auto"
+            columns={columnsFor(rows)}
+            rows={rows}
+            rowKey={workerId}
+            rowTone={(worker) => (worker.status === 'stopped' ? 'muted' : undefined)}
+            hasMore={state.problem === null && state.next !== null}
+            loading={state.reading}
+            onLoadMore={more}
+            {...refusedTable(state.problem, reload)}
+            foot={
+                rows.length === 0
+                    ? undefined
+                    : rowsRead(rows.length, LABELS.word.worker.count, state.next !== null)
+            }
+            empty={LABELS.workers.empty}
+        />
     )
 }
 

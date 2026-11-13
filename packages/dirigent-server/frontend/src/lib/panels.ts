@@ -11,11 +11,11 @@
  * the shell renders at its settled size on the first paint rather than snapping into place.
  */
 
-import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
+import type { Icon } from '@/lib/icons'
 import '@/lib/stored-prefix'
 
 /** The rail's width when nobody has dragged it: its longest word, and room either side of it. */
@@ -164,7 +164,7 @@ export interface PanelTab {
     id: string
     label: string
     /** Drawn over the label in the tab strip along the foot below the breakpoint. */
-    icon?: LucideIcon
+    icon?: Icon
     render: () => ReactNode
 }
 

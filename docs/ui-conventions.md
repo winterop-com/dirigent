@@ -34,7 +34,7 @@ wrong is changed on this page first and in the code second.
 | Toasts | sonner | |
 | Mode and palette | sokkel-ui's appearance: `useAppearance`, `useScheme`, and its `appearance.js` before the first paint | |
 | Fonts | IBM Plex Sans and IBM Plex Mono, self-hosted through `@fontsource`, which sokkel-ui brings | No CDN: a UI served from a private network has to work on one |
-| Lint | oxlint, plus `scripts/check_ui_classes.py` and `scripts/check_ui_system.py` | A JS linter cannot see inside a `className`, so the type scale and the design system get checks of their own |
+| Lint | oxlint, plus `scripts/check_ui_classes.py` and `scripts/check_ui_library.py` | A JS linter cannot see inside a `className`, so the type scale and the library rules get checks of their own |
 | Format | oxfmt, pinned exactly, configured in `.oxfmtrc.json` | Prettier's output from the linter's own project, and it sorts Tailwind classes against `src/index.css` rather than guessing at the theme |
 | Tests | vitest in `environment: node`, playwright for the browser | |
 | Packages | **bun**, always. Never npm, yarn, or pnpm | |
@@ -102,7 +102,7 @@ unformatted file fails the gate before anything else is read.
 
 `make ui` builds the bundle, `make ui-dev` serves it with hot reload against a running `dg dev`,
 `make ui-lint` and `make ui-test` are the gate, `make ui-e2e` drives a real server in a browser
-and `make ui-shots` photographs every screen for the gallery. `make docs-shots` is the other camera:
+and `make ui-shots` photographs every screen into `shots/`. `make docs-shots` is the other camera:
 nine screens, the `amber` palette in dark mode at 1440x900, shot against the showcase shelf
 and committed under `docs/images/screens/` because [Screens](screens.md) renders them. `make ui-static` puts the built
 bundle where the server wheel packages it, and it comes before every e2e run and every live
@@ -589,7 +589,7 @@ a one-time clock keep a plain box with the firings in one muted line under it.
 ## A listing is a cursor walk
 
 Every screen that draws a listing draws it with sokkel-ui's `DataTable`, spread with `LISTING`
-from `lib/design-system`: the list look, columns that do not drag, and the narrow form below. The
+from `lib/library-words`: the list look, columns that do not drag, and the narrow form below. The
 table is the panel, the heading row, the hairline between rows, the next page and the count; a
 screen decides its columns, what each cell says and what a row does, and nothing else. **The
 column header is sticky**: rows scroll beneath it inside the listing's own scroll container, and
@@ -617,6 +617,13 @@ connection's dialog over it -- the screen passes `onOpen` and `opened`, and the 
 on the row the arrows reached as well as a click, because a row only a pointer can open is a row
 some people cannot. A row that is no longer live -- a paused or switched-off alert rule, a stopped
 worker, a deactivated account, a revoked or expired token -- is drawn `rowTone` `muted`.
+
+**A listing draws its own loading and its own refusal**, and is never wrapped in `PageState`. While
+a read is out it passes `loading`, and the table draws placeholder rows under heads that stay
+where they are; a refused read is spread from `refusedTable` in `components/Refusal` -- the
+refusal's sentence, its failures, how the read came back, and Try again where it can simply be
+asked again -- and the failure stands in place of the rows, under the bar and the heads, with the
+rows left out. An answer with no rows says `empty`.
 
 **A row on most listings fills the panel, and that is a disclosure, so pressing it again takes it
 back.** What a press
@@ -819,7 +826,7 @@ reads from `useTableCell`, so the column is a share with a floor rather than a f
 the card and every tag is drawn; outside a table they fit the room left in the line.
 
 **A choice closes on its choice; a set stays open.** A single `FilterChip` is one value out of a
-menu headed by the row that unsets it (`filterWords(any)` in `lib/design-system`), and picking
+menu headed by the row that unsets it (`filterWords(any)` in `lib/library-words`), and picking
 one shuts the menu, because the question has been answered; `oneChosen` holds that one value as
 the string the filters keep, `''` for none. A set is the other case: several tags mean AND, so
 the tag filter's rows are checkboxes and the menu stays where it is until somebody is done with
@@ -1056,7 +1063,7 @@ an edit, one undo history serves both, and closing the window loses nothing.
 is the viewport less a margin -- and every pane that offers one comes through it: a config field
 carrying a program, a value edited as JSON, a report document, an alert body, an example's source,
 the block of produced JSON on a run's step, a schema's page, the pipeline source pane, and the graph
-on a run's page and a pipeline's. Its words come from `windowWords(name)` in `lib/design-system`:
+on a run's page and a pipeline's. Its words come from `windowWords(name)` in `lib/library-words`:
 the button says "Open <name> in a window", and the window's close says "Close the window". **The
 pane stays in place while its window is open** (`keepPane`): the window draws its own copy, an
 editor's over the same shared document, so nothing on the page moves and the pane shows every edit
@@ -1112,9 +1119,11 @@ shown and never written.** A field left unset shows its schema `default` muted i
 `GET (default)`, and the form's value leaves the key out, so what is sent carries only what was
 chosen and the server applies the rest. An optional choice with a default offers `Default (GET)`
 first, which takes the key out again once something else was chosen. The default is also said under the control (`fallbacks`),
-as what applies when it is left empty; a `default` of `null` says nothing there.
+as what applies when it is left empty; a `default` of `null` says nothing there. Every
+`useSchemaForm` is given `SCHEMA_FORM_WORDS`, so the required word, the issue words, that default
+line and a password box's Show and Hide come from the catalogue like every field's.
 
-**Every field is a design-system control, and an empty one looks like an empty one.** A field
+**Every field is a library control, and an empty one looks like an empty one.** A field
 renders through `ui/input`, `ui/textarea`, `ui/select` or `ui/switch` and never a bare element,
 and the treatment is checked in both palettes: the dark one fills a rung of the ladder and edges
 it with a hairline the ground shows, and the light one has to say the same thing with a fill and
@@ -1375,7 +1384,7 @@ it -- its control, and whether that control trails the title or sits under it --
 `components/settings/SettingsDialog.tsx`'s, keyed by the row's id: a choice from a set and a pair
 of buttons trail, the palette's cards and an open password form sit under. The dialog opens on the
 category the thing that opened it is about, the server dot's on Server, and a phone then opens on
-that section rather than on the list. Its words are `SETTINGS_WORDS` in `lib/design-system`, and its
+that section rather than on the list. Its words are `SETTINGS_WORDS` in `lib/library-words`, and its
 search box says `Search`{ .label } like every other.
 
 **General holds the behaviour preferences**, each one a store the screens read rather than a
@@ -2413,7 +2422,7 @@ dark palette leaves them alone. Every `LogView` stands on that ground, which is 
 rather than a choice made here: a step's log pane in the panel is dark in the light palette too. The ground alone has two depths: graphite on the light palette,
 where black reads as a hole in the page, and a rung below the dark palette's own background,
 where the drawer has to read as deeper than the app. Its head bar is ordinary app chrome on the
-surface ladder, which is what keeps every control in it a design-system control with nothing
+surface ladder, which is what keeps every control in it a library control with nothing
 re-inked.
 
 **Three filters compose, and the count says how far.** A level threshold, one step, and a match
@@ -2475,7 +2484,8 @@ is missing, and its code.
 ## Adding a screen
 
 1. A component under `src/pages/`, built on `PageState` -- loading, refused, empty, content, four
-   states that stay distinct all the way to the screen. Collapsing "refused" into "empty" is how
+   states that stay distinct all the way to the screen. A listing keeps the same four on its
+   `DataTable` instead, through `refusedTable`. Collapsing "refused" into "empty" is how
    an instance whose database is unreachable gets told it has no pipelines.
 2. A `<Route>` in `src/App.tsx`, inside the `AppShell` route.
 3. An entry in `NAV` in `src/lib/nav.ts`. The rail draws that array and the command palette offers
@@ -2641,24 +2651,24 @@ the instance and the version the door answers for. A line saying what the produc
 marketing on the one screen whose only question is who is asking, and the graph over the name
 already says what is through the door.
 
-## Design system
+## The component library
 
-**Every recurring shape on a screen is one component, sokkel-ui's where the library has it and
-otherwise one in `src/components/ds`, and a page does not hand-build what one of them covers.** A
-lead cell, a chip, a dot, an icon-only button, a search box, a heading inside a screen, a list of
-facts, a field, a notice, a dialog, a page heading and a link are each drawn one way, by the
-component below, and a screen that typed the classes out again is a second answer to a question the
-system has already answered. `/design` draws every component in every variant and state -- enabled,
-shut with a reason, hovered, focused, empty, loading, long text truncating -- in both modes; it is
-offered by the palette ("Design system") and not by the rail. A component that needs a new variant
-gets it in `ds/`, or in sokkel-ui for one of the library's, and on that screen first, then on the
-page that asked. **The gallery is named for what somebody is looking for, not for how the code files
-it**: Text (Titles, Headings, Links), Marks (Labels, Status dots, Icons), Controls (Buttons, Search,
-Form fields, Switches), Containers (Notices, Dialogs, Lists of facts), with an index beside them
-that follows the scroll and a plain sentence under a heading only where it adds a fact. A component
-keeps its own name in the code. A specimen stands on the section's card with no frame of its own,
-and a `TopBar` specimen draws no palette button (`palette={false}`): the page's own top bar holds
-the one palette.
+**[sokkel-ui](https://github.com/winterop-com/sokkel-ui) is the component library, and every
+recurring shape on a screen is one of its components; a page does not hand-build what one of them
+covers.** A lead cell, a chip, a dot, an icon-only button, a search box, a heading inside a screen,
+a list of facts, a field, a notice, a dialog, a page heading and a link are each drawn one way, by
+the component below, and a screen that typed the classes out again is a second answer to a
+question the library has already answered. Every component in every variant and state is drawn in
+the library's own Storybook, which is where one is looked up. **A part the library lacks is built in
+sokkel-ui**, released there, and then used here, never drawn in this frontend first; a component
+that needs a new variant gets it there the same way.
+
+What dirigent adds is its own words and its own defaults. The library speaks English unless it is
+told otherwise, so every component is handed its words from the catalogue, and those bundles live
+in `lib/library-words` -- `FIELD_WORDS`, `DIALOG_WORDS`, `TABLE_WORDS`, `chipWords`, and the rest --
+beside the props every listing of one shape shares (`LISTING`, `SECTION_LISTING`). A screen spreads
+one name rather than spelling them again. `components/PageHeader` is the one wrapper kept: the
+library's `PageHeader` set in the shell's `ShellHead`, words only, with this app's toolbar words.
 
 | Component | When |
 | --- | --- |
@@ -2681,7 +2691,7 @@ the one palette.
 | `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` held in the shell's `ShellHead` by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds, a `SplitButton` when it carries `more`, its chevron named by the item's `moreLabel`. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
-| `Unfoldable` (sokkel-ui) | Every row that opens what is under it in place: a step's engine groups, the reference row under a field, a fan-out element's output on a run's Step tab, the channel strip's fold on a phone, the gallery's icon shelves. The whole heading row is the button with `aria-expanded` and the chevron; `open` with `onOpenChange` where the app holds the state, `summary` for the line it reads while shut, `wrapSummary` where that line may run long, `aside` for a count or fact at the row's right end, `forced` to hold it open with no button. On a phone an unfolding row is a finger tall. A row with nothing to open is the same component without children: no chevron and no button, lined up with the rest |
+| `Unfoldable` (sokkel-ui) | Every row that opens what is under it in place: a step's engine groups, the reference row under a field, a fan-out element's output on a run's Step tab, and the channel strip's fold on a phone. The whole heading row is the button with `aria-expanded` and the chevron; `open` with `onOpenChange` where the app holds the state, `summary` for the line it reads while shut, `wrapSummary` where that line may run long, `aside` for a count or fact at the row's right end, `forced` to hold it open with no button. On a phone an unfolding row is a finger tall. A row with nothing to open is the same component without children: no chevron and no button, lined up with the rest |
 | `Section` (sokkel-ui) | Every section of a page: a title bar with the label and a count or fact beside it, `actions` at its right end, a rule, a body on the card, a hairline edge and no shadow. `tone="graph"` puts the canvas's dot grid on the body, `critical` is the failure with its top rule and warning mark. `flush` where the body's rows lay out their own padding, `headingId` where something links to it. A titled listing is a `flush` `Section` with its count as `meta`, around a `DataTable` with `framed={false}` |
 | `DataTable` (sokkel-ui) | Every listing, spread with `LISTING` (`variant="list"`, `resizable={false}`, `stackBelow` and `minWidth`): grid tracks per column with the title `width: 'content'`, a cell's control pressed on its own without opening the row, `onOpen` and `opened` for what a row opens, `rowTone="muted"` for a row no longer live, `rowHeight="auto"` where a cell is two lines, `detail`, `hasDetail` and `expandLabel` for what stands under an opened row, `hasMore` and `onLoadMore` for the cursor, the count as `foot` from `rowsRead` or, where the listing has a bar, through `words={countWords(...)}`, `search` and `toolbar` for the box and the filters that narrow it, and `empty` for the one line a listing with no rows says |
 | `FilterChip`, `ListingBar` (sokkel-ui) | A filter in a listing's bar: `facet`, `options` (a `row` where the value has a drawing of its own), `multiple` for a set, the chosen held through `selected` and `onSelectedChange` -- `oneChosen` for a single value -- and `words={filterWords(any)}`. `ListingBar` is the bar `DataTable` draws, for a search over several tables or over a list that is not one |
@@ -2700,15 +2710,10 @@ with no concept adds the concept there. A kind's mark is still `lib/glyphs`.
 **Nothing is fully round but a status dot and an avatar.** A chip, a control, a card, a dialog
 and a switch take the radius ladder's rungs, and no class names a radius of its own.
 
-**`scripts/check_ui_system.py` holds the system**, in `make static` and `make ui-lint`. Under
-`src/pages` and `src/components`, the generated primitives and `components/ds` excepted, it
-refuses a hand-typed word chip (one class string holding `rounded-sm`, `border`, `px-1.5` and
-`text-xs`), a `Button` sized `icon*` rather than an `IconButton`, an import from `lucide-react`
-(which it refuses in `components/ds` as well), and an arbitrary `rounded-[...]`. What predates
-the check is recorded in `scripts/ui_system_offenders.txt`, one line per rule and file with its
-count. It is a ratchet: a file may hold exactly what is recorded, one more is refused as new and
-one fewer as stale, so the change that moves a screen onto the system shrinks the record with
-`--write` in the same commit.
+**`scripts/check_ui_library.py` holds three rules**, in `make static` and `make ui-lint`, and
+refuses every offence under `src` outright: an import from `lucide-react` anywhere but `lib/icons`
+and `lib/glyphs`, the two tables a mark is chosen in; a `Button` sized `icon*` rather than an
+`IconButton`; and an arbitrary `rounded-[...]`.
 
 ## An ellipsis means the action asks for more before it acts
 

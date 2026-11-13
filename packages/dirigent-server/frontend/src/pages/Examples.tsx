@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router'
 import { ApiChip } from '@/components/ApiChip'
 import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { TagFilter } from '@/components/list/TagFilter'
-import { PageHeader } from '@/components/ds/PageHeader'
+import { PageHeader } from '@/components/PageHeader'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { READ_WORDS, refusedTable } from '@/components/Refusal'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
@@ -44,7 +44,7 @@ import {
     SEARCH_PLACEHOLDER,
     SEARCH_WORDS,
     TAG_CHIPS_WORDS,
-} from '@/lib/design-system'
+} from '@/lib/library-words'
 import { counted, LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
 import { closePanel, fillPanel, openPanelTab } from '@/lib/panels'

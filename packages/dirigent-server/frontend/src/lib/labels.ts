@@ -164,7 +164,6 @@ const word = {
     /** What family a thing belongs to. */
     kind: {
         label: 'Kind',
-        term: 'kind',
     },
     /** Whichever state machine's word applies. */
     status: 'Status',
@@ -683,10 +682,6 @@ const screen = {
     },
     /** An address nothing answers for. */
     nowhere: 'Nothing at this address',
-    /** Every component in the design system, drawn. Offered by the palette and not by the rail. */
-    design: {
-        name: 'Design system',
-    },
 } as const
 
 /**
@@ -817,8 +812,6 @@ const shell = {
     tag_filter: 'Tag',
     /** One tag chip, which narrows the listing to itself. */
     filter_by_tag: (tag: string) => `Filter by ${tag}`,
-    /** The same tag, once it is narrowing. */
-    stop_filtering_by_tag: (tag: string) => `Stop filtering by ${tag}`,
     /** The tags a row had no room for, spelled out behind the `+N`. */
     folded_tags: {
         one: (count: string, tags: string) => `${count} more tag: ${tags}`,
@@ -2084,8 +2077,8 @@ const form = {
         show: 'Show',
         hide: 'Hide',
     },
-    /** Beside the label: what an empty box would submit. */
-    default_is: (value: string) => `default ${value}`,
+    /** Under the control: what an empty box would submit. */
+    default_is: (value: string) => `Default is ${value}`,
     /**
      * The reader's words for the formats the shipped schemas publish, keyed by the schema's
      * own `format` with its hyphen written as an underscore, because a code has no hyphens. A
@@ -3750,174 +3743,6 @@ const settings = {
     sized: (value: string, unit: string) => `${value} ${unit}`,
 } as const
 
-/**
- * The design system's gallery at `/design`: its section headings, the names of the variants
- * and states it draws, and the sample content it draws them with.
- */
-const design = {
-    /** The index beside the sections, and what it is to a screen reader. */
-    index: 'Sections',
-    group: {
-        text: 'Text',
-        marks: 'Marks',
-        controls: 'Controls',
-        containers: 'Containers',
-    },
-    icon_group: {
-        verbs: 'Verbs',
-        chrome: 'Navigation',
-        nouns: 'Nouns',
-        states: 'States',
-    },
-    section: {
-        titles: 'Titles',
-        headings: 'Headings',
-        links: 'Links',
-        labels: 'Labels',
-        dots: 'Status dots',
-        icons: 'Icons',
-        buttons: 'Buttons',
-        search: 'Search',
-        forms: 'Form fields',
-        switches: 'Switches',
-        notices: 'Notices',
-        dialogs: 'Dialogs',
-        facts: 'Lists of facts',
-    },
-    /** Under a section's heading, where the name alone does not say it. */
-    line: {
-        titles: 'How a named thing is drawn: its name, its code, and its description.',
-        labels: 'A short word on a thing. A kind and a run state each have colours of their own.',
-        dots: 'The dot is the answer. Its word appears only when something is wrong.',
-        icons: 'One mark for each concept, and one concept for each mark.',
-        dialogs: 'A dialog that asks ends in Cancel and a confirm. One that tells has a corner close.',
-    },
-    variant: {
-        row_stacked: 'In a list',
-        row_inline: 'On one line',
-        panel: 'At the top of a dialog or panel',
-        tones: 'Words',
-        selectable: 'Pressed to filter or remove',
-        long: 'Long text',
-        kind_status: 'Kinds and run states',
-        tone_dots: 'The word only when something is wrong',
-        always: 'The word always',
-        status_dots: 'Run states',
-        text_buttons: 'With words',
-        sizes: 'Icons only',
-        shut: 'Shut, with a reason',
-        empty: 'Empty',
-        typed: 'With text',
-        disabled: 'Disabled',
-        tiers: 'Over a run of rows',
-        grid: 'As a grid',
-        small: 'Small, in a side panel',
-        row: 'On one line',
-        prose: 'With a plain label',
-        key: 'With a document key',
-        error: 'With an error',
-        notices: 'With and without a mark',
-        well: 'A group that belongs together',
-        inset: 'Reference material',
-        dialogs: 'Open one',
-        asks: 'A dialog that asks',
-        tells: 'A dialog that tells',
-        confirm: 'A destructive confirm',
-        secret: 'A secret shown once',
-        listing: 'At the top of a listing',
-        trail: 'At the top of one thing',
-        inline: 'In a sentence',
-        data: 'In a table',
-        external: 'Leaving the app',
-        loading: 'Reading',
-    },
-    sample: {
-        pipeline: {
-            code: 'nightly-ingest',
-            name: 'Nightly ingest',
-            description: "Pulls the day's facility reports and loads them into the warehouse.",
-        },
-        bare_code: 'hourly-sync',
-        long: {
-            code: 'district-aggregate-with-a-code-far-longer-than-a-cell',
-            name: 'A pipeline whose name is far longer than any lead cell has room for',
-            description:
-                'Aggregates every district report into one table, then publishes the table to every downstream consumer that asked for it.',
-        },
-        tag_finance: 'finance',
-        tag_ops: 'ops',
-        tag_nightly: 'nightly',
-        word_managed: 'managed',
-        word_none: 'none',
-        word_live: 'live',
-        word_failing: 'failing',
-        status_override: 'stopped by a rule',
-        tone: {
-            good: 'healthy',
-            critical: 'failed',
-            warning: 'degraded',
-            info: 'checking',
-            quiet: 'paused',
-            unknown: 'never checked',
-        },
-        pane: 'the output',
-        chord: '⌘K',
-        url: 'https://dirigent.example.org/endpoints/signups',
-        why_admin: 'Only an admin may change this.',
-        why_paused: 'The pipeline is paused.',
-        why_name: 'Give it a name first.',
-        search_label: 'Search pipelines by name or code',
-        search_typed: 'ingest',
-        yesterday: 'Yesterday',
-        fact_owner: 'owner',
-        fact_owner_value: 'ops-team',
-        fact_schedule: 'schedule',
-        fact_schedule_value: '0 2 * * *',
-        fact_address: 'address',
-        fact_address_value: 'https://reports.example.org/api/v2/facilities/daily-aggregate',
-        fact_description: 'description',
-        fact_kind_value: 'pipeline',
-        name_hint: 'shown in listings',
-        name_help: 'A title for people. Nothing is addressed by it.',
-        key_label: 'base_url',
-        key_default: 'https://api.example.org',
-        key_help: 'The address every request is resolved against.',
-        timeout_label: 'timeout',
-        timeout_value: 'soon',
-        timeout_error: 'timeout must be a duration, such as 30s',
-        switch_label: 'Follow logs',
-        switch_help: "Open a run's log pane at its newest line.",
-        switch_shut_label: 'Seal secrets at rest',
-        notice_critical_title: 'The last check failed',
-        notice_critical_body: 'Connection refused by 10.0.0.4:5432.',
-        notice_warning: 'This document is not the version the instance holds.',
-        notice_neutral: 'Runs started before the upgrade keep the version they started on.',
-        well: 'A block that belongs together, such as a form opened under its row, on the panel ground.',
-        inset: '{"facility": "Badjia", "reports": 12}',
-        secret: 'dg_live_4f8a2c9e1b7d6053a8e2f4c1b9d7e6a3',
-        secret_name: 'ci-deploy',
-        dialog_title: 'New token',
-        dialog_description: 'A token acts as the account it was made for.',
-        told_title: 'Token created',
-        told_description: 'Store it where the automation reads its secrets.',
-        confirm_ask: { before: 'Revoke ', after: '?' },
-        pipelines_count: '24',
-        connections_count: '7',
-        new_pipeline: 'New pipeline',
-        more_ways: 'More ways to create a pipeline',
-        from_starter: 'From a template…',
-        from_file: 'From a file…',
-        link_sentence: {
-            before: 'Read the ',
-            link: 'run history',
-            after: ' before changing the schedule.',
-        },
-        run_id: '3f9c2a1e',
-        api_docs: 'API documentation',
-        empty: 'No runs.',
-    },
-} as const
-
 export const LABELS = {
     action,
     word,
@@ -3946,7 +3771,6 @@ export const LABELS = {
     alerting,
     audit,
     settings,
-    design,
 } as const satisfies Record<string, Catalogue>
 
 /** A sentence, or the noun inside one, whose grammar moves with the count it is about. */

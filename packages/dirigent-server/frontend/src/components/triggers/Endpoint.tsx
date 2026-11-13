@@ -13,7 +13,7 @@ import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import type { Problem } from '@/lib/api'
-import { copyWords, DIALOG_WORDS, secretWords } from '@/lib/design-system'
+import { copyWords, DIALOG_WORDS, secretWords } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
 import { refusalLine, refusalOf } from '@/lib/refusal'
 import {

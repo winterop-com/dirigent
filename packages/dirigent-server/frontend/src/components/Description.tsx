@@ -1,6 +1,6 @@
 import { Suspense, lazy } from 'react'
 
-import { DESCRIPTION_MARKDOWN } from '@/lib/design-system'
+import { DESCRIPTION_MARKDOWN } from '@/lib/library-words'
 import { oneLine } from '@/lib/identity'
 
 /**
