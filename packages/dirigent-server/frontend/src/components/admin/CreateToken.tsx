@@ -3,9 +3,8 @@ import { useState } from 'react'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Refusal } from '@/components/Refusal'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { describedBy, Field } from '@winterop-com/sokkel-ui/Field'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { type Problem } from '@/lib/api'
 import { DIALOG_WORDS, FIELD_WORDS, secretWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
@@ -100,7 +99,7 @@ export function CreateToken({
             }
         >
             {issued === null ? (
-                <Field
+                <TextField
                     id="new-token-name"
                     label={LABELS.word.name.label}
                     required
@@ -108,25 +107,14 @@ export function CreateToken({
                     words={FIELD_WORDS}
                     help={LABELS.users.token_name_hint}
                     error={nameIssue}
-                >
-                    <Input
-                        id="new-token-name"
-                        aria-required
-                        aria-invalid={nameIssue !== null || undefined}
-                        aria-describedby={describedBy('new-token-name', {
-                            help: LABELS.users.token_name_hint,
-                        })}
-                        value={name}
-                        autoComplete="off"
-                        placeholder={LABELS.users.token_name_placeholder}
-                        onChange={(event) => {
-                            setName(event.target.value)
-                        }}
-                        onBlur={() => {
-                            setLeft(true)
-                        }}
-                    />
-                </Field>
+                    value={name}
+                    autoComplete="off"
+                    placeholder={LABELS.users.token_name_placeholder}
+                    onChange={setName}
+                    onBlur={() => {
+                        setLeft(true)
+                    }}
+                />
             ) : (
                 <div className="space-y-2">
                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1">

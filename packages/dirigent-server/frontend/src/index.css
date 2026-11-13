@@ -14,12 +14,14 @@
 @import '@winterop-com/sokkel-ui/sources/CopyButton.css';
 @import '@winterop-com/sokkel-ui/sources/CronField.css';
 @import '@winterop-com/sokkel-ui/sources/DataTable.css';
+@import '@winterop-com/sokkel-ui/sources/DateTimeField.css';
 @import '@winterop-com/sokkel-ui/sources/DescriptionList.css';
 @import '@winterop-com/sokkel-ui/sources/DialogShell.css';
 @import '@winterop-com/sokkel-ui/sources/DiffView.css';
 @import '@winterop-com/sokkel-ui/sources/Dock.css';
 @import '@winterop-com/sokkel-ui/sources/Dot.css';
 @import '@winterop-com/sokkel-ui/sources/Field.css';
+@import '@winterop-com/sokkel-ui/sources/FieldGroup.css';
 @import '@winterop-com/sokkel-ui/sources/FilePreview.css';
 @import '@winterop-com/sokkel-ui/sources/FilterChip.css';
 @import '@winterop-com/sokkel-ui/sources/Group.css';
@@ -43,6 +45,7 @@
 @import '@winterop-com/sokkel-ui/sources/SecretReveal.css';
 @import '@winterop-com/sokkel-ui/sources/Section.css';
 @import '@winterop-com/sokkel-ui/sources/Segmented.css';
+@import '@winterop-com/sokkel-ui/sources/SelectField.css';
 @import '@winterop-com/sokkel-ui/sources/ServerMenu.css';
 @import '@winterop-com/sokkel-ui/sources/Shell.css';
 @import '@winterop-com/sokkel-ui/sources/SettingsDialog.css';
@@ -355,64 +358,6 @@
     }
     [data-slot='graph-edge'] {
         animation: none !important;
-    }
-}
-
-/* ---------------------------------------------------------------------------
-   A DIALOG IS A SHEET BELOW THE BREAKPOINT.
-
-   A centred card with a margin either side is a card on a phone with no room to be one, so
-   below `md` the dialog takes the whole viewport: the header at the top, the body scrolling,
-   the footer pinned to the foot.
-
-   Said here against the generated dialog's own slots, because those files are pristine.
-   --------------------------------------------------------------------------- */
-@media (max-width: 767px) {
-    [data-slot='dialog-content'] {
-        inset: 0;
-        width: 100%;
-        max-width: none;
-        height: 100dvh;
-        max-height: 100dvh;
-        /* The utilities centre it by writing their own custom properties into `translate`,
-           so this is where the centring is undone. */
-        --tw-translate-x: 0;
-        --tw-translate-y: 0;
-        transform: none;
-        border-radius: 0;
-        display: flex;
-        flex-direction: column;
-        overflow-y: auto;
-        padding-bottom: 0;
-    }
-    /* Pinned by sticking to the foot of the scroll it sits at the end of, so a dialog of any
-       number of children keeps its verbs on screen without the parts above it being counted.
-
-       A pinned footer is a surface rather than a wash: the body scrolls under it, and the
-       generated ground is half transparent, which would leave a field reading through the
-       verbs. And the verbs stand in one row, because a sheet's last two rows are the whole of
-       what a phone has left and each button is already a finger tall. */
-    [data-slot='dialog-content'] > [data-slot='dialog-footer'] {
-        position: sticky;
-        bottom: 0;
-        z-index: 1;
-        margin-top: auto;
-        margin-bottom: 0;
-        border-radius: 0;
-        background-color: var(--popover);
-        flex-direction: row;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        align-items: center;
-    }
-    /* The palette is a sheet like every other dialog here, so its list takes the height the
-       sheet has and its footer sits at the foot. The 26rem cap is what holds the card to a
-       card on a wide window, and on a phone it would leave the key chips halfway up an
-       otherwise empty page. */
-    .dg-palette [data-slot='command-list'] {
-        max-height: none;
-        min-height: 0;
-        flex: 1;
     }
 }
 

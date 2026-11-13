@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { CronField } from '@winterop-com/sokkel-ui/CronField'
 import { Field } from '@winterop-com/sokkel-ui/Field'
+import { FieldGroup } from '@winterop-com/sokkel-ui/FieldGroup'
+import { SelectField } from '@winterop-com/sokkel-ui/SelectField'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Picker } from '@/components/Picker'
@@ -15,15 +17,6 @@ import type { JsonSchema } from '@winterop-com/sokkel-ui/schema/read'
 import { Refusal } from '@/components/Refusal'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@winterop-com/sokkel-ui/primitives/select'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
@@ -206,30 +199,21 @@ export function NewSchedule({
             </Field>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <Field
+                <TextField
                     id="schedule-code"
                     label={LABELS.word.code}
                     required
                     requiredMark="word"
                     words={FIELD_WORDS}
                     error={codeIssue}
-                >
-                    <Input
-                        id="schedule-code"
-                        className="font-mono"
-                        spellCheck={false}
-                        aria-required
-                        aria-invalid={codeIssue !== null || undefined}
-                        value={code}
-                        placeholder={LABELS.triggers.schedule.dialog.code_hint}
-                        onChange={(event) => {
-                            setCode(event.target.value)
-                        }}
-                        onBlur={() => {
-                            setLeft((was) => ({ ...was, code: true }))
-                        }}
-                    />
-                </Field>
+                    mono
+                    value={code}
+                    placeholder={LABELS.triggers.schedule.dialog.code_hint}
+                    onChange={setCode}
+                    onBlur={() => {
+                        setLeft((was) => ({ ...was, code: true }))
+                    }}
+                />
                 <TextField
                     id="schedule-name"
                     label={LABELS.word.name.label}
@@ -283,30 +267,21 @@ export function NewSchedule({
                 <CronBox expression={expression} onChange={setExpression} zone={timezone} reading={reading} />
             ) : (
                 <div className="space-y-2">
-                    <Field
+                    <TextField
                         id="schedule-expression"
                         label={written.label}
                         required
                         requiredMark="word"
                         words={FIELD_WORDS}
                         error={clockIssue}
-                    >
-                        <Input
-                            id="schedule-expression"
-                            className="font-mono"
-                            spellCheck={false}
-                            aria-required
-                            aria-invalid={clockIssue !== null || undefined}
-                            value={expression}
-                            placeholder={written.hint}
-                            onChange={(event) => {
-                                setExpression(event.target.value)
-                            }}
-                            onBlur={() => {
-                                setLeft((was) => ({ ...was, expression: true }))
-                            }}
-                        />
-                    </Field>
+                        mono
+                        value={expression}
+                        placeholder={written.hint}
+                        onChange={setExpression}
+                        onBlur={() => {
+                            setLeft((was) => ({ ...was, expression: true }))
+                        }}
+                    />
                     <ClockReading reading={reading} zone={timezone} />
                 </div>
             )}
@@ -371,7 +346,9 @@ function CronBox({
             invalid={reading.kind === 'refused' ? reading.detail : undefined}
             describe={readCron}
             format={firingOf}
-            words={CRON_FIELD_WORDS}
+            required
+            requiredMark="word"
+            words={{ ...CRON_FIELD_WORDS, ...FIELD_WORDS }}
         />
     )
 }
@@ -540,9 +517,9 @@ function ParamsBox({
     params: Params
 }) {
     return (
-        <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-                <Label>{LABELS.word.pinned_parameters}</Label>
+        <FieldGroup
+            label={LABELS.word.pinned_parameters}
+            actions={
                 <Segmented
                     label={LABELS.triggers.dialog.params_written}
                     value={params.mode}
@@ -558,7 +535,8 @@ function ParamsBox({
                     ]}
                     onValueChange={params.show}
                 />
-            </div>
+            }
+        >
             <Surface tone="well" pad>
                 {!hasFields(schema) ? (
                     <p className="text-sm text-muted-foreground">
@@ -585,7 +563,7 @@ function ParamsBox({
                     </div>
                 )}
             </Surface>
-        </div>
+        </FieldGroup>
     )
 }
 
@@ -603,42 +581,21 @@ function PriorityField({
     onChange: (value: string) => void
 }) {
     return (
-        <Field id={id} label={LABELS.word.priority}>
-            <Select
-                value={value}
-                onValueChange={(chosen: string | null) => {
-                    onChange(chosen ?? INHERITED)
-                }}
-            >
-                <SelectTrigger id={id} className="w-full">
-                    {/* The trigger draws the row that was chosen, rather than the token it is
-                        addressed by, which is what a value with no priority in it would say. */}
-                    <SelectValue>
-                        {(chosen: string) => <Priority chosen={chosen} pipeline={pipeline} />}
-                    </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value={INHERITED}>
-                        <Priority chosen={INHERITED} pipeline={pipeline} />
-                    </SelectItem>
-                    {PRIORITIES.map((one) => (
-                        <SelectItem key={one} value={one}>
-                            {one}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </Field>
-    )
-}
-
-/** One priority row: the word itself, or the pipeline's own beside the row that takes it. */
-function Priority({ chosen, pipeline }: { chosen: string; pipeline: RunPriority | null }) {
-    if (chosen !== INHERITED) return chosen
-    return (
-        <>
-            {LABELS.triggers.dialog.priority_inherited}
-            {pipeline !== null && <span className="font-mono text-muted-foreground"> {pipeline}</span>}
-        </>
+        <SelectField
+            id={id}
+            label={LABELS.word.priority}
+            value={value}
+            options={[
+                {
+                    value: INHERITED,
+                    label: LABELS.triggers.dialog.priority_inherited,
+                    detail: pipeline === null ? undefined : <span className="font-mono">{pipeline}</span>,
+                },
+                ...PRIORITIES.map((one) => ({ value: one, label: one })),
+            ]}
+            onChange={(chosen) => {
+                onChange(chosen === '' ? INHERITED : chosen)
+            }}
+        />
     )
 }

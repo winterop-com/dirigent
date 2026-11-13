@@ -2,7 +2,6 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
-import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { SchemeChoice } from '@winterop-com/sokkel-ui/SchemeChoice'
 import { SettingsDialog as LibrarySettingsDialog } from '@winterop-com/sokkel-ui/SettingsDialog'
@@ -15,7 +14,6 @@ import { STATUS_CSS } from '@winterop-com/sokkel-ui/lib/status'
 import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Kbd, KbdGroup } from '@winterop-com/sokkel-ui/primitives/kbd'
 import { useRead, type Reading } from '@/hooks/use-read'
 import { useStore } from '@/hooks/use-store'
@@ -42,6 +40,7 @@ import { readSystemInfo, type SystemInfo } from '@/lib/system'
 import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER, PALETTES } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 
 export const SETTINGS_TITLE = LABELS.settings.title
@@ -324,7 +323,7 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     return (
         <Surface tone="well" pad className="w-full space-y-3">
             <div className="flex flex-col gap-3 md:flex-row">
-                <Field
+                <TextField
                     id="password-current"
                     label={LABELS.settings.current_password}
                     required
@@ -332,26 +331,17 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
                     words={FIELD_WORDS}
                     error={currentIssue}
                     className="flex-1"
-                >
-                    <Input
-                        id="password-current"
-                        type="password"
-                        autoComplete="current-password"
-                        aria-required
-                        aria-invalid={currentIssue !== null || undefined}
-                        value={form.current}
-                        onChange={(event) => {
-                            setForm((current) => ({
-                                ...current,
-                                current: event.target.value,
-                            }))
-                        }}
-                        onBlur={() => {
-                            setLeft((was) => ({ ...was, current: true }))
-                        }}
-                    />
-                </Field>
-                <Field
+                    type="password"
+                    autoComplete="current-password"
+                    value={form.current}
+                    onChange={(current) => {
+                        setForm((was) => ({ ...was, current }))
+                    }}
+                    onBlur={() => {
+                        setLeft((was) => ({ ...was, current: true }))
+                    }}
+                />
+                <TextField
                     id="password-new"
                     label={LABELS.settings.new_password}
                     required
@@ -359,22 +349,16 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
                     words={FIELD_WORDS}
                     error={nextIssue}
                     className="flex-1"
-                >
-                    <Input
-                        id="password-new"
-                        type="password"
-                        autoComplete="new-password"
-                        aria-required
-                        aria-invalid={nextIssue !== null || undefined}
-                        value={form.next}
-                        onChange={(event) => {
-                            setForm((current) => ({ ...current, next: event.target.value }))
-                        }}
-                        onBlur={() => {
-                            setLeft((was) => ({ ...was, next: true }))
-                        }}
-                    />
-                </Field>
+                    type="password"
+                    autoComplete="new-password"
+                    value={form.next}
+                    onChange={(next) => {
+                        setForm((was) => ({ ...was, next }))
+                    }}
+                    onBlur={() => {
+                        setLeft((was) => ({ ...was, next: true }))
+                    }}
+                />
             </div>
 
             {problem !== null && <Refusal problem={problem} />}

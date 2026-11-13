@@ -1,15 +1,16 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { applyExample, DEV_USERNAME, signIn, startRun } from './support.ts'
+import { apiPrefix, applyExample, DEV_USERNAME, signIn, startRun } from './support.ts'
 
 /**
  * Every screen at the size of a phone.
  *
  * ONE VIEWPORT, THE WHOLE SHELL. What is asserted here is what the small-screen rules say the
  * app becomes below `md`: navigation behind a drawer, a listing as cards, a document read
- * rather than written, and a dialog as a sheet. The desktop suite covers the same screens the
- * other way round, so nothing here is a second copy of what shell.spec.ts already measures.
+ * rather than written, a form dialog as a sheet and a confirm sized to its question. The desktop
+ * suite covers the same screens the other way round, so nothing here is a second copy of what
+ * shell.spec.ts already measures.
  */
 
 const EXAMPLE = 'examples/transform/std-convert-fan-out.yaml'
@@ -212,23 +213,58 @@ test('the palette button is a finger square', async ({ page }) => {
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
 })
 
-test('a dialog fills the screen, with its verbs at the foot', async ({ page }) => {
-    await page.getByRole('button', { name: LABELS.shell.open_nav }).click()
-    await page.getByRole('button', { name: /^Account: / }).click()
-    await page.getByRole('menuitem', { name: LABELS.shell.settings, exact: true }).click()
+/** A box rounded to whole pixels as `[x, y, width, height]`, or null while there is none. */
+async function boxOf(locator: Locator): Promise<number[] | null> {
+    const box = await locator.boundingBox()
+    return box === null ? null : [box.x, box.y, box.width, box.height].map(Math.round)
+}
+
+test('a form dialog fills the screen, with its verbs at the foot', async ({ page }) => {
+    await page.goto('/schemas')
+    await page.getByRole('button', { name: LABELS.schemas.new }).click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     // The dialog scales in, so its box is read once every animation on it has finished.
     const window = page.viewportSize()
+    const width = window?.width ?? 0
+    const height = window?.height ?? 0
+    await expect.poll(() => boxOf(dialog)).toEqual([0, 0, width, height])
+
+    const footer = await boxOf(dialog.locator('[data-slot="dialog-footer"]'))
+    expect((footer?.[1] ?? 0) + (footer?.[3] ?? 0)).toBeGreaterThanOrEqual(height - 1)
+})
+
+test('a confirm is sized to its question, with its verbs under it', async ({ page }) => {
+    const prefix = await apiPrefix(page.request)
+    const name = `phone-confirm-${String(Date.now())}`
+    const minted = await page.request.post(`${prefix}/users/${DEV_USERNAME}/tokens`, { data: { name } })
+    expect(minted.ok(), await minted.text()).toBe(true)
+
+    await page.goto('/admin/users')
+    await page.getByRole('button', { name: LABELS.users.show_tokens(DEV_USERNAME), exact: true }).click()
+    await page.getByRole('button', { name: LABELS.users.revoke_row(name), exact: true }).click()
+
+    const dialog = page.getByRole('dialog', { name: `Revoke ${name}?` })
+    await expect(dialog).toBeVisible()
+    const window = page.viewportSize()
+    const width = window?.width ?? 0
+    const height = window?.height ?? 0
     await expect
         .poll(async () => {
-            const box = await dialog.boundingBox()
-            return box === null
-                ? null
-                : [Math.round(box.width), Math.round(box.height), Math.round(box.x), Math.round(box.y)]
+            const box = await boxOf(dialog)
+            return box !== null && box[0] > 0 && box[2] < width && box[3] < height / 2
         })
-        .toEqual([window?.width, window?.height, 0, 0])
+        .toBe(true)
+
+    // The verbs sit directly under the question, not at the foot of the screen.
+    const box = await boxOf(dialog)
+    const footer = await boxOf(dialog.locator('[data-slot="dialog-footer"]'))
+    expect((footer?.[1] ?? 0) + (footer?.[3] ?? 0)).toBeLessThanOrEqual((box?.[1] ?? 0) + (box?.[3] ?? 0))
+    expect((footer?.[1] ?? height) + (footer?.[3] ?? 0)).toBeLessThan(height - 100)
+
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
 })
 
 test('the channels are folded behind their own heading, and open as a table', async ({ page }) => {
