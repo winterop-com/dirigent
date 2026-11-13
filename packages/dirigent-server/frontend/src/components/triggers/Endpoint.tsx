@@ -73,6 +73,8 @@ export function SourceFacts({
     return (
         <div className="space-y-3">
             <DescriptionList
+                termWidth="auto"
+                size="sm"
                 items={[
                     ...(listens === null
                         ? []

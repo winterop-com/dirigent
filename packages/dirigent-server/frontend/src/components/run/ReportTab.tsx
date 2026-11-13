@@ -7,7 +7,7 @@ import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { ApiError, type Problem } from '@/lib/api'
 import { readReportDocument, renderedText, type RenderedText, type ReportDocument } from '@/lib/artifacts'
 import { formatDuration } from '@/lib/format'
-import { PanelGroup } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'
 import { itemsNote, type AttemptOut, type RunReport } from '@/lib/runs'
 import { said } from '@/lib/refusal'
@@ -126,7 +126,7 @@ function Summary({
             ) : (
                 <StepRendered rendered={rendered} />
             )}
-            <PanelGroup title={LABELS.word.summary}>
+            <Group title={LABELS.word.summary}>
                 {problem !== null ? (
                     <p className="text-xs text-muted-foreground">{said(problem)}</p>
                 ) : report === null ? (
@@ -134,6 +134,8 @@ function Summary({
                 ) : (
                     <>
                         <DescriptionList
+                            termWidth="auto"
+                            size="sm"
                             items={[
                                 {
                                     term: LABELS.runs.fact.took,
@@ -164,7 +166,7 @@ function Summary({
                         </ul>
                     </>
                 )}
-            </PanelGroup>
+            </Group>
         </div>
     )
 }

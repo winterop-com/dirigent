@@ -11,7 +11,7 @@ import { PageHeader } from '@/components/ds/PageHeader'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
-import { PanelGroup } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { useRead } from '@/hooks/use-read'
 import { useRowPress } from '@/hooks/use-row-press'
@@ -381,11 +381,13 @@ function EntryPanel({ entry }: { entry: CatalogEntry }) {
                 <h2 className="font-mono text-sm font-semibold">{entry.id}</h2>
                 {summary !== null && <p className="text-sm text-muted-foreground">{summary}</p>}
                 <DescriptionList
+                    termWidth="auto"
+                    size="sm"
                     items={[{ term: LABELS.blocks.fact.term.plugin, value: entry.plugin, code: true }]}
                 />
             </div>
 
-            <PanelGroup title={LABELS.word.config}>
+            <Group title={LABELS.word.config}>
                 {fields.length === 0 ? (
                     <p className="text-sm text-muted-foreground">{LABELS.form.no_configuration}</p>
                 ) : (
@@ -395,7 +397,7 @@ function EntryPanel({ entry }: { entry: CatalogEntry }) {
                         ))}
                     </div>
                 )}
-            </PanelGroup>
+            </Group>
         </div>
     )
 }
@@ -422,18 +424,19 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
                 <p className="text-sm text-muted-foreground">{entry.summary}</p>
             </div>
 
-            <PanelGroup title={LABELS.blocks.facts_section}>
+            <Group title={LABELS.blocks.facts_section}>
                 <DescriptionList
-                    termWidth="10rem"
+                    termWidth="auto"
+                    size="sm"
                     items={facts.map((fact) => ({
                         term: fact.term,
                         value: fact.detail,
                         code: fact.term === LABELS.blocks.fact.term.plugin,
                     }))}
                 />
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.config}>
+            <Group title={LABELS.word.config}>
                 {fields.length === 0 ? (
                     <p className="text-sm text-muted-foreground">{LABELS.form.no_configuration}</p>
                 ) : (
@@ -443,7 +446,7 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
                         ))}
                     </div>
                 )}
-            </PanelGroup>
+            </Group>
         </div>
     )
 }
