@@ -1,4 +1,3 @@
-import { KeyRound, RefreshCw, UserPlus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { ApiChip } from '@/components/ApiChip'
@@ -99,7 +98,7 @@ function Users() {
                 title: LABELS.users.new_user_action,
                 group: ADMIN_GROUP,
                 screen: true,
-                icon: UserPlus,
+                icon: ICONS.create_user,
                 keywords: ['user', 'add', 'new'],
                 run: () => {
                     setMaking(true)
@@ -110,7 +109,7 @@ function Users() {
                 title: LABELS.users.new_token_action,
                 group: ADMIN_GROUP,
                 screen: true,
-                icon: KeyRound,
+                icon: ICONS.token,
                 keywords: ['api', 'bearer', 'new'],
                 run: () => {
                     setMinting(true)
@@ -121,7 +120,7 @@ function Users() {
                 title: LABELS.users.reload_action,
                 group: ADMIN_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.refresh,
                 keywords: ['refresh', 'reload'],
                 run: () => {
                     reloadUsers()

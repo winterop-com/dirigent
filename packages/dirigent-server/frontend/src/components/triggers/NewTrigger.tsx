@@ -1,4 +1,3 @@
-import { Clock3 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { CronField } from '@winterop-com/sokkel-ui/CronField'
@@ -36,6 +35,7 @@ import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { formatMoment } from '@/lib/format'
+import { ICONS } from '@/lib/icons'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import type { PickerOption } from '@/lib/picker'
@@ -291,7 +291,7 @@ function ClockReading({ reading, zone }: { reading: Reading; zone: string }) {
     if (reading.kind === 'blank' || reading.kind === 'pending') return null
     return (
         <p className="flex items-baseline gap-1.5 text-xs text-muted-foreground" data-testid="clock-reading">
-            <Clock3 className="size-3 shrink-0 self-center" aria-hidden />
+            <ICONS.schedule className="size-3 shrink-0 self-center" aria-hidden />
             {reading.kind === 'refused'
                 ? reading.detail
                 : reading.firings.map((firing) => formatMoment(firing, zone)).join(' · ')}

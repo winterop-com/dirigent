@@ -1,4 +1,3 @@
-import { CalendarPlus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
@@ -17,6 +16,7 @@ import { SchedulePanel, SourcePanel } from '@/components/triggers/TriggerPanel'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRowPress } from '@/hooks/use-row-press'
+import { ICONS } from '@/lib/icons'
 import { headingOf, itemOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { closePanel, fillPanel, openPanel } from '@/lib/panels'
@@ -143,7 +143,7 @@ export function Triggers() {
                           title: LABELS.triggers.schedule.new,
                           group: LIST_GROUP,
                           screen: true,
-                          icon: CalendarPlus,
+                          icon: ICONS.create_schedule,
                           keywords: ['cron', 'interval', 'clock', 'create'],
                           run: () => {
                               setCreating('schedule')
@@ -156,7 +156,7 @@ export function Triggers() {
                 title: LABELS.triggers.reload,
                 group: LIST_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.refresh,
                 keywords: ['refresh', 'reload'],
                 run: () => {
                     reload()
@@ -196,7 +196,7 @@ export function Triggers() {
                 primary={{
                     id: 'schedule',
                     label: LABELS.triggers.schedule.new,
-                    icon: <CalendarPlus aria-hidden />,
+                    icon: <ICONS.create_schedule aria-hidden />,
                     ...shutWith(!write.may, write.why),
                     onSelect: () => {
                         setCreating('schedule')
