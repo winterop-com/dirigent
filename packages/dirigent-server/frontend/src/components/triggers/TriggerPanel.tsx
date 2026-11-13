@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { CronField } from '@winterop-com/sokkel-ui/CronField'
 
 import { Description } from '@/components/Description'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { Instant } from '@/components/Instant'
 import { JsonBlock } from '@/components/JsonBlock'
 import { PipelineRef } from '@/components/PipelineRef'
@@ -100,36 +101,41 @@ export function SchedulePanel({
                 <CronClock cron={schedule.cron} timezone={schedule.timezone} paused={schedule.paused} />
             )}
 
-            <dl className="space-y-1.5">
-                {schedule.cron === null && (
-                    <>
-                        <Fact label={LABELS.word.clock}>
-                            <Clock schedule={schedule} />
-                        </Fact>
-                        <Fact label={LABELS.word.timezone}>{schedule.timezone}</Fact>
-                        {nextFireView(schedule).kind !== 'paused' && (
-                            <Fact label={LABELS.word.next}>
-                                <NextFire schedule={schedule} />
-                            </Fact>
-                        )}
-                    </>
-                )}
-                {schedule.last_fired_at !== null && (
-                    <Fact label={LABELS.word.firing.last}>
-                        <Instant at={schedule.last_fired_at} />
-                    </Fact>
-                )}
-                {Object.keys(schedule.params).length > 0 && (
-                    <Fact label={LABELS.word.pinned_parameters}>
-                        <div className="mt-1">
-                            <JsonBlock
-                                title={LABELS.triggers.pinned_title(schedule.code)}
-                                text={asJson(schedule.params)}
-                            />
-                        </div>
-                    </Fact>
-                )}
-            </dl>
+            <DescriptionList
+                termWidth={FACT_TERM}
+                items={[
+                    ...(schedule.cron === null
+                        ? [
+                              { term: LABELS.word.clock, value: <Clock schedule={schedule} /> },
+                              { term: LABELS.word.timezone, value: schedule.timezone },
+                              ...(nextFireView(schedule).kind === 'paused'
+                                  ? []
+                                  : [{ term: LABELS.word.next, value: <NextFire schedule={schedule} /> }]),
+                          ]
+                        : []),
+                    ...(schedule.last_fired_at === null
+                        ? []
+                        : [
+                              {
+                                  term: LABELS.word.firing.last,
+                                  value: <Instant at={schedule.last_fired_at} />,
+                              },
+                          ]),
+                    ...(Object.keys(schedule.params).length === 0
+                        ? []
+                        : [
+                              {
+                                  term: LABELS.word.pinned_parameters,
+                                  value: (
+                                      <JsonBlock
+                                          title={LABELS.triggers.pinned_title(schedule.code)}
+                                          text={asJson(schedule.params)}
+                                      />
+                                  ),
+                              },
+                          ]),
+                ]}
+            />
 
             <Refusable why={write.why}>
                 <Button
@@ -203,67 +209,86 @@ export function SourcePanel({
                 </span>
             </Head>
 
-            <dl className="space-y-1.5">
-                <Fact label={LABELS.word.kind.label}>
-                    <span className="font-mono">{source.kind}</span>
-                </Fact>
-                {listens !== null && (
-                    <Fact label={LABELS.triggers.source.listens}>
-                        {source.url_path === null ? (
-                            <span className="font-mono break-all">{listens}</span>
-                        ) : (
-                            <EndpointAddress source={source} />
-                        )}
-                    </Fact>
-                )}
-                {source.next_poll_at !== null && !paused && (
-                    <Fact label={LABELS.triggers.source.next_poll}>
-                        <Instant at={source.next_poll_at} />
-                    </Fact>
-                )}
-                {source.last_error !== null && (
-                    <Fact label={LABELS.triggers.source.last_error}>
-                        <span className="break-words text-muted-foreground">{source.last_error}</span>
-                    </Fact>
-                )}
-                {auth !== null && <Fact label={LABELS.triggers.source.auth}>{auth}</Fact>}
-                <Fact label={LABELS.word.in_flight.heading}>
-                    <span>
-                        {source.max_in_flight === null
-                            ? String(source.in_flight)
-                            : LABELS.triggers.source.bounded(
-                                  String(source.in_flight),
-                                  String(source.max_in_flight),
-                              )}
-                    </span>
-                </Fact>
-                {source.accepted + source.failed + source.refused > 0 && (
-                    <Fact label={LABELS.triggers.source.taken}>
-                        <span>
-                            {LABELS.triggers.source.accepted(String(source.accepted))}
-                            {source.failed > 0 && (
-                                <span className="text-muted-foreground">
-                                    {' · '}
-                                    {LABELS.triggers.source.failed(String(source.failed))}
-                                </span>
-                            )}
-                            {source.refused > 0 && (
-                                <span className="text-muted-foreground">
-                                    {' · '}
-                                    {LABELS.triggers.source.refused(String(source.refused))}
-                                </span>
-                            )}
-                        </span>
-                    </Fact>
-                )}
-                <Fact label={LABELS.triggers.source.last_input}>
-                    {source.last_input_at === null ? (
-                        <span className="text-faint">{LABELS.word.never}</span>
-                    ) : (
-                        <Instant at={source.last_input_at} />
-                    )}
-                </Fact>
-            </dl>
+            <DescriptionList
+                termWidth={FACT_TERM}
+                items={[
+                    { term: LABELS.word.kind.label, value: source.kind, code: true },
+                    ...(listens === null
+                        ? []
+                        : [
+                              {
+                                  term: LABELS.triggers.source.listens,
+                                  value:
+                                      source.url_path === null ? (
+                                          <span className="font-mono">{listens}</span>
+                                      ) : (
+                                          <EndpointAddress source={source} />
+                                      ),
+                              },
+                          ]),
+                    ...(source.next_poll_at === null || paused
+                        ? []
+                        : [
+                              {
+                                  term: LABELS.triggers.source.next_poll,
+                                  value: <Instant at={source.next_poll_at} />,
+                              },
+                          ]),
+                    ...(source.last_error === null
+                        ? []
+                        : [
+                              {
+                                  term: LABELS.triggers.source.last_error,
+                                  value: <span className="text-muted-foreground">{source.last_error}</span>,
+                              },
+                          ]),
+                    ...(auth === null ? [] : [{ term: LABELS.triggers.source.auth, value: auth }]),
+                    {
+                        term: LABELS.word.in_flight.heading,
+                        value:
+                            source.max_in_flight === null
+                                ? String(source.in_flight)
+                                : LABELS.triggers.source.bounded(
+                                      String(source.in_flight),
+                                      String(source.max_in_flight),
+                                  ),
+                        numeric: true,
+                    },
+                    ...(source.accepted + source.failed + source.refused > 0
+                        ? [
+                              {
+                                  term: LABELS.triggers.source.taken,
+                                  value: (
+                                      <span>
+                                          {LABELS.triggers.source.accepted(String(source.accepted))}
+                                          {source.failed > 0 && (
+                                              <span className="text-muted-foreground">
+                                                  {' · '}
+                                                  {LABELS.triggers.source.failed(String(source.failed))}
+                                              </span>
+                                          )}
+                                          {source.refused > 0 && (
+                                              <span className="text-muted-foreground">
+                                                  {' · '}
+                                                  {LABELS.triggers.source.refused(String(source.refused))}
+                                              </span>
+                                          )}
+                                      </span>
+                                  ),
+                              },
+                          ]
+                        : []),
+                    {
+                        term: LABELS.triggers.source.last_input,
+                        value:
+                            source.last_input_at === null ? (
+                                <span className="text-faint">{LABELS.word.never}</span>
+                            ) : (
+                                <Instant at={source.last_input_at} />
+                            ),
+                    },
+                ]}
+            />
 
             <div className="flex flex-wrap items-center gap-2">
                 <Refusable why={write.why}>
@@ -366,15 +391,8 @@ function Head({
     )
 }
 
-/** One fact, on the line under its label. */
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-    return (
-        <div className="flex flex-wrap items-baseline gap-2">
-            <dt className="w-32 shrink-0 text-xs text-muted-foreground">{label}</dt>
-            <dd className="min-w-0 text-sm">{children}</dd>
-        </div>
-    )
-}
+/** How wide a trigger's fact terms are: the longest, "Pinned parameters", on one line. */
+const FACT_TERM = '8rem'
 
 /** A trigger's own history, one page at a time, newest first. */
 function History<T>({

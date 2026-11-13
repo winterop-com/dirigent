@@ -79,7 +79,9 @@ test('choosing a step on the graph opens it in the panel', async ({ page }) => {
     await expect(panel.getByRole('tab', { name: LABELS.word.output })).toBeVisible()
     // The step's own facts, which only the selected step has.
     await expect(panel.getByText('convert.std', { exact: true })).toBeVisible()
-    await expect(panel.getByText('Attempts (1)')).toBeVisible()
+    await expect(
+        panel.getByRole('region', { name: LABELS.word.attempt.heading }).locator('> div').first(),
+    ).toHaveText(new RegExp(`^${LABELS.word.attempt.heading}\\s*1$`))
 
     // What the step produced is on its tab, which is where somebody inspecting the data
     // flowing between nodes finds it.

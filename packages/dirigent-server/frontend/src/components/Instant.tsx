@@ -31,3 +31,8 @@ export function Instant({
         />
     )
 }
+
+/** A moment as a fact's value: the `Instant`, or nothing, which a `DescriptionList` draws as its quiet dash. */
+export function instantFact(at: string | null | undefined) {
+    return at ? <Instant at={at} /> : null
+}

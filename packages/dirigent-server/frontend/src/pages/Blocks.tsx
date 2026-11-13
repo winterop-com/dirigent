@@ -9,9 +9,10 @@ import { DataTable, DataTableGroup, TableCellFill, type DataColumn } from '@wint
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ListingBar } from '@winterop-com/sokkel-ui/ListingBar'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
+import { Section } from '@winterop-com/sokkel-ui/Section'
 import { PageState } from '@/components/PageState'
-import { Fact, Section } from '@/components/run/Panel'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
+import { PanelGroup } from '@/components/run/Panel'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
 import { useRead } from '@/hooks/use-read'
 import { useRowPress } from '@/hooks/use-row-press'
@@ -179,7 +180,7 @@ export function Blocks() {
                 <div className="flex flex-col gap-6">
                     <DataTableGroup>
                         {groups.map(([group, members]) => (
-                            <LibrarySection
+                            <Section
                                 key={group}
                                 title={<InlineCode value={group} tone="neutral" bare size="xs" />}
                                 meta={rowsRead(members.length, LABELS.word.block.count, false)}
@@ -197,7 +198,7 @@ export function Blocks() {
                                     }}
                                     opened={(entry) => `block:${entry.id}` === chosen}
                                 />
-                            </LibrarySection>
+                            </Section>
                         ))}
                     </DataTableGroup>
 
@@ -206,7 +207,7 @@ export function Blocks() {
                             const rows = registryRows[registry.key]
                             if (rows.length === 0) return null
                             return (
-                                <LibrarySection
+                                <Section
                                     key={registry.key}
                                     title={registry.title}
                                     meta={rowsRead(rows.length, registry.noun, false)}
@@ -224,7 +225,7 @@ export function Blocks() {
                                         }}
                                         opened={(entry) => entryKeyOf(registry.key)(entry) === chosen}
                                     />
-                                </LibrarySection>
+                                </Section>
                             )
                         })}
                     </DataTableGroup>
@@ -378,12 +379,12 @@ function EntryPanel({ entry }: { entry: CatalogEntry }) {
             <div className="space-y-1">
                 <h2 className="font-mono text-sm font-semibold">{entry.id}</h2>
                 {summary !== null && <p className="text-sm text-muted-foreground">{summary}</p>}
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term={LABELS.blocks.fact.term.plugin} detail={entry.plugin} />
-                </dl>
+                <DescriptionList
+                    items={[{ term: LABELS.blocks.fact.term.plugin, value: entry.plugin, code: true }]}
+                />
             </div>
 
-            <Section title={LABELS.word.config}>
+            <PanelGroup title={LABELS.word.config}>
                 {fields.length === 0 ? (
                     <p className="text-sm text-muted-foreground">{LABELS.form.no_configuration}</p>
                 ) : (
@@ -393,7 +394,7 @@ function EntryPanel({ entry }: { entry: CatalogEntry }) {
                         ))}
                     </div>
                 )}
-            </Section>
+            </PanelGroup>
         </div>
     )
 }
@@ -420,15 +421,18 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
                 <p className="text-sm text-muted-foreground">{entry.summary}</p>
             </div>
 
-            <Section title={LABELS.blocks.facts_section}>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    {facts.map((fact) => (
-                        <Fact key={fact.term} term={fact.term} detail={fact.detail} />
-                    ))}
-                </dl>
-            </Section>
+            <PanelGroup title={LABELS.blocks.facts_section}>
+                <DescriptionList
+                    termWidth="10rem"
+                    items={facts.map((fact) => ({
+                        term: fact.term,
+                        value: fact.detail,
+                        code: fact.term === LABELS.blocks.fact.term.plugin,
+                    }))}
+                />
+            </PanelGroup>
 
-            <Section title={LABELS.word.config}>
+            <PanelGroup title={LABELS.word.config}>
                 {fields.length === 0 ? (
                     <p className="text-sm text-muted-foreground">{LABELS.form.no_configuration}</p>
                 ) : (
@@ -438,7 +442,7 @@ function BlockPanel({ entry }: { entry: BlockEntry }) {
                         ))}
                     </div>
                 )}
-            </Section>
+            </PanelGroup>
         </div>
     )
 }

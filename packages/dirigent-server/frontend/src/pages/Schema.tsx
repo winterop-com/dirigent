@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Description } from '@/components/Description'
-import { Section } from '@/components/run/Panel'
+import { PanelGroup } from '@/components/run/Panel'
 import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
@@ -514,7 +514,7 @@ function Details({
 function CheckedBy({ codes }: { codes: readonly string[] }) {
     if (codes.length === 0) return null
     return (
-        <Section title={LABELS.schemas.checked_by}>
+        <PanelGroup title={LABELS.schemas.checked_by}>
             <ul
                 className="space-y-1"
                 title={`${LABELS.schemas.body_warning} ${LABELS.schemas.body_in_flight}`}
@@ -527,7 +527,7 @@ function CheckedBy({ codes }: { codes: readonly string[] }) {
                     </li>
                 ))}
             </ul>
-        </Section>
+        </PanelGroup>
     )
 }
 

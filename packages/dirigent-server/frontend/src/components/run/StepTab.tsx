@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 
-import { Instant } from '@/components/Instant'
+import { instantFact } from '@/components/Instant'
 import { JsonBlock } from '@/components/JsonBlock'
 import { KindChip } from '@/components/KindChip'
 import { LogPane } from '@/components/run/LogPane'
 import { ProgressLine } from '@/components/run/ProgressLine'
-import { Copyable, Fact, Section } from '@/components/run/Panel'
+import { Copyable, PanelGroup } from '@/components/run/Panel'
+import { DescriptionList, type Description } from '@winterop-com/sokkel-ui/DescriptionList'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
 import { Toggle } from '@winterop-com/sokkel-ui/primitives/toggle'
-import { asJson, countedHeading, elapsedBetween, formatBytes, formatDuration, shortenUri } from '@/lib/format'
+import { asJson, elapsedBetween, formatBytes, formatDuration, shortenUri } from '@/lib/format'
 import {
     attemptOrder,
     itemLabels,
@@ -81,6 +82,34 @@ export function StepTab({
     const queued = spanFact(view.queued_ms, view.duration_ms)
     const waiting = spanFact(view.waiting_ms, view.duration_ms)
     const sent = view.node.kind === 'reply' ? replySent(view.latest) : null
+    // A step that never queued or never parked says so by saying nothing: a fact reading zero is
+    // a row spent on an answer of "no", and one reading the whole of the step is the row above it
+    // said again.
+    const facts: Description[] = [
+        ...(heading.code === null ? [] : [{ term: LABELS.word.step.term, value: heading.code, code: true }]),
+        { term: LABELS.word.block.term, value: view.node.block, code: true },
+        { term: LABELS.runs.fact.rule, value: view.node.rule },
+        ...(view.node.depends_on.length > 0
+            ? [{ term: LABELS.runs.fact.after, value: view.node.depends_on.join(', ') }]
+            : []),
+        { term: LABELS.word.started.term, value: instantFact(started) },
+        ...(queued === null ? [] : [{ term: LABELS.runs.fact.queued, value: queued, numeric: true }]),
+        {
+            term: LABELS.runs.fact.took,
+            value: view.duration_ms === null ? null : formatDuration(view.duration_ms),
+            numeric: true,
+        },
+        ...(waiting === null ? [] : [{ term: LABELS.runs.fact.waiting, value: waiting, numeric: true }]),
+        ...(view.node.fan_out && items !== null ? [{ term: LABELS.runs.fact.items, value: items }] : []),
+        ...(sent === null
+            ? []
+            : [
+                  {
+                      term: LABELS.runs.fact.answer,
+                      value: sent ? LABELS.runs.reply.sent_fact : LABELS.runs.reply.not_sent_fact,
+                  },
+              ]),
+    ]
 
     return (
         <div className="flex min-h-0 flex-col gap-4 p-4">
@@ -91,41 +120,10 @@ export function StepTab({
                         {heading.title}
                     </span>
                 </div>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    {heading.code !== null && (
-                        <Fact
-                            term={LABELS.word.step.term}
-                            detail={<span className="font-mono">{heading.code}</span>}
-                        />
-                    )}
-                    <Fact
-                        term={LABELS.word.block.term}
-                        detail={<span className="font-mono">{view.node.block}</span>}
-                    />
-                    <Fact term={LABELS.runs.fact.rule} detail={view.node.rule} />
-                    {view.node.depends_on.length > 0 && (
-                        <Fact term={LABELS.runs.fact.after} detail={view.node.depends_on.join(', ')} />
-                    )}
-                    <Fact term={LABELS.word.started.term} detail={<Instant at={started} />} />
-                    {/* A step that never queued or never parked says so by saying nothing: a
-                        fact reading zero is a row spent on an answer of "no", and one reading
-                        the whole of the step is the row above it said again. */}
-                    {queued !== null && <Fact term={LABELS.runs.fact.queued} detail={queued} />}
-                    <Fact term={LABELS.runs.fact.took} detail={formatDuration(view.duration_ms)} />
-                    {waiting !== null && <Fact term={LABELS.runs.fact.waiting} detail={waiting} />}
-                    {view.node.fan_out && items !== null && (
-                        <Fact term={LABELS.runs.fact.items} detail={items} />
-                    )}
-                    {sent !== null && (
-                        <Fact
-                            term={LABELS.runs.fact.answer}
-                            detail={sent ? LABELS.runs.reply.sent_fact : LABELS.runs.reply.not_sent_fact}
-                        />
-                    )}
-                </dl>
+                <DescriptionList items={facts} />
             </div>
 
-            <Section title={countedHeading(LABELS.word.attempt.heading, view.attempts.length)}>
+            <PanelGroup title={LABELS.word.attempt.heading} count={view.attempts.length}>
                 {view.attempts.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.runs.no_attempts}</p>
                 ) : (
@@ -142,9 +140,9 @@ export function StepTab({
                         ))}
                     </ul>
                 )}
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.word.output}>
+            <PanelGroup title={LABELS.word.output}>
                 {view.node.fan_out ? (
                     <FanOutOutput
                         step={view.node.code}
@@ -157,9 +155,9 @@ export function StepTab({
                 ) : (
                     <StepOutput step={view.node.code} attempts={view.attempts} />
                 )}
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.word.config}>
+            <PanelGroup title={LABELS.word.config}>
                 {stale && (
                     <p className="text-xs text-muted-foreground">
                         {LABELS.runs.config_stale(String(configVersion.pinned), String(configVersion.shown))}
@@ -170,11 +168,11 @@ export function StepTab({
                 ) : (
                     <JsonBlock title={LABELS.runs.config_title(view.node.code)} text={asJson(config)} />
                 )}
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.word.log}>
+            <PanelGroup title={LABELS.word.log}>
                 <LogPane entries={entries} items={labels} settled={done} className="max-h-72 min-h-24" />
-            </Section>
+            </PanelGroup>
         </div>
     )
 }

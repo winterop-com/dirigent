@@ -2,7 +2,6 @@ import { Fragment, useMemo, useState, type ReactNode } from 'react'
 
 import { KindChip } from '@/components/KindChip'
 import { DocumentForm } from '@/components/schema/DocumentForm'
-import { Section } from '@/components/run/Panel'
 import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
@@ -17,6 +16,7 @@ import type { JsonMap, Problem } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
 import type { ConnectionOut } from '@/lib/connections'
 import { chipWords } from '@/lib/design-system'
+import { PanelGroup } from '@/components/run/Panel'
 import { LABELS } from '@/lib/labels'
 import type { SchemaOut } from '@/lib/schemas'
 import {
@@ -179,7 +179,7 @@ export function StepTab({
             )}
 
             {runs !== null && (
-                <Section title={LABELS.word.config}>
+                <PanelGroup title={LABELS.word.config}>
                     {blockProblem !== null ? (
                         <p className="text-xs text-critical">{said(blockProblem)}</p>
                     ) : block === null ? (
@@ -197,7 +197,7 @@ export function StepTab({
                             onChange={onConfig}
                         />
                     )}
-                </Section>
+                </PanelGroup>
             )}
 
             {listens === null && (

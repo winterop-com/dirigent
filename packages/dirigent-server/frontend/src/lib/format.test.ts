@@ -3,7 +3,6 @@ import { afterEach, describe, expect, test } from 'vitest'
 import {
     SHORT_ID_LENGTH,
     asJson,
-    countedHeading,
     elapsedBetween,
     formatBytes,
     formatDuration,
@@ -269,16 +268,6 @@ describe('a version digest on screen', () => {
 
     test('a digest written without an algorithm is read from its start', () => {
         expect(shortDigest('abcdef0123456789')).toBe('abcdef012345')
-    })
-})
-
-describe('a heading over rows', () => {
-    test('counts the rows where there are any', () => {
-        expect(countedHeading('Artifacts', 3)).toBe('Artifacts (3)')
-    })
-
-    test('states the noun alone where there are none, because the empty state says the rest', () => {
-        expect(countedHeading('Artifacts', 0)).toBe('Artifacts')
     })
 })
 
