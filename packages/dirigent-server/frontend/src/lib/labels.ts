@@ -3365,6 +3365,11 @@ const users = {
     token_scope_for: (username: string) => `This token can do whatever ${username} can.`,
     token_name_placeholder: 'ci-deploy',
     token_name_hint: 'Lower case, digits and single hyphens.',
+    /** What shuts Create on the new-token dialog while the name box is empty. */
+    token_needs_name: 'Give the token a name first.',
+    /** What shuts Create on the new-account dialog while a box it cannot do without is empty. */
+    account_needs_username: 'Type a username first.',
+    account_needs_password: 'Type a password first.',
     /** What the copy button beside a minted token names. */
     token_noun: 'the token',
 

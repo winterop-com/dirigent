@@ -2,21 +2,12 @@ import { useState } from 'react'
 
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Refusal } from '@/components/Refusal'
-import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
 import { type Problem } from '@/lib/api'
-import { secretWords } from '@/lib/design-system'
+import { DIALOG_WORDS, secretWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import { createToken, createTokenFor, type IssuedTokenOut } from '@/lib/users'
@@ -81,56 +72,57 @@ export function CreateToken({
     }
 
     return (
-        <Dialog open={open} onOpenChange={close}>
-            <DialogContent className="sm:max-w-lg" showCloseButton={issued !== null}>
-                <DialogHeader>
-                    <DialogTitle>{LABELS.users.new_token}</DialogTitle>
-                    <DialogDescription>
-                        {username === undefined
-                            ? LABELS.users.token_scope_self
-                            : LABELS.users.token_scope_for(username)}
-                    </DialogDescription>
-                </DialogHeader>
+        <DialogShell
+            words={DIALOG_WORDS}
+            open={open}
+            onOpenChange={close}
+            title={LABELS.users.new_token}
+            description={
+                username === undefined
+                    ? LABELS.users.token_scope_self
+                    : LABELS.users.token_scope_for(username)
+            }
+            confirm={
+                issued === null
+                    ? {
+                          label: LABELS.action.create.verb,
+                          busy,
+                          busyLabel: LABELS.action.create.busy,
+                          why: name.trim() === '' ? LABELS.users.token_needs_name : undefined,
+                          onConfirm: send,
+                      }
+                    : undefined
+            }
+        >
+            {issued === null ? (
+                <div className="space-y-2">
+                    <Label htmlFor="new-token-name">{LABELS.word.name.label}</Label>
+                    <Input
+                        id="new-token-name"
+                        value={name}
+                        autoComplete="off"
+                        placeholder={LABELS.users.token_name_placeholder}
+                        onChange={(event) => {
+                            setName(event.target.value)
+                        }}
+                    />
+                    <p className="text-xs text-muted-foreground">{LABELS.users.token_name_hint}</p>
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-sm font-medium">{issued.name}</span>
+                        <InlineCode value={issued.username} tone="muted" bare size="xs" />
+                    </p>
+                    <SecretReveal
+                        value={issued.token}
+                        words={secretWords(LABELS.users.token_noun)}
+                        autoFocus
+                    />
+                </div>
+            )}
 
-                {issued === null ? (
-                    <div className="space-y-2">
-                        <Label htmlFor="new-token-name">{LABELS.word.name.label}</Label>
-                        <Input
-                            id="new-token-name"
-                            value={name}
-                            autoComplete="off"
-                            placeholder={LABELS.users.token_name_placeholder}
-                            onChange={(event) => {
-                                setName(event.target.value)
-                            }}
-                        />
-                        <p className="text-xs text-muted-foreground">{LABELS.users.token_name_hint}</p>
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className="text-sm font-medium">{issued.name}</span>
-                            <InlineCode value={issued.username} tone="muted" bare size="xs" />
-                        </p>
-                        <SecretReveal
-                            value={issued.token}
-                            words={secretWords(LABELS.users.token_noun)}
-                            autoFocus
-                        />
-                    </div>
-                )}
-
-                {problem !== null && <Refusal problem={problem} />}
-
-                {issued === null && (
-                    <DialogFooter>
-                        <DialogClose render={<Button variant="ghost" />}>{LABELS.action.cancel}</DialogClose>
-                        <Button disabled={busy || name.trim() === ''} onClick={send}>
-                            {LABELS.action.create.verb}
-                        </Button>
-                    </DialogFooter>
-                )}
-            </DialogContent>
-        </Dialog>
+            {problem !== null && <Refusal problem={problem} />}
+        </DialogShell>
     )
 }

@@ -1,8 +1,7 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { GeneratedForm } from '@/components/schema/GeneratedForm'
 import { SchemaIssueCount, useSchemaForm } from '@winterop-com/sokkel-ui/schema/SchemaForm'
-import { Refusable } from '@/components/Refusable'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Label } from '@winterop-com/sokkel-ui/primitives/label'
@@ -13,17 +12,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@winterop-com/sokkel-ui/primitives/select'
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@winterop-com/sokkel-ui/primitives/dialog'
+import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useStore } from '@/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 import { refusalOf, said } from '@/lib/refusal'
 import { headingOf, type Addressable } from '@/lib/identity'
@@ -101,8 +94,6 @@ export function RunDialog({
     const window = readWindow(windowStart, windowEnd, needsWindow, (written) =>
         offsetMinutes(mode, new Date(`${written}:00`)),
     )
-    // With no parameters to fill in there is one thing to do here, so that is what is in hand.
-    const runNow = useRef<HTMLButtonElement>(null)
 
     const start = () => {
         if (!form.submit()) return
@@ -131,130 +122,109 @@ export function RunDialog({
     const shut = write.why ?? (window.kind === 'unready' ? window.why : undefined)
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            {/* The footer carries the way out, so the corner's own is not drawn as well. */}
-            <DialogContent
-                className="flex max-h-[calc(100vh-4rem)] flex-col sm:max-w-lg"
-                showCloseButton={false}
-                initialFocus={takes ? undefined : runNow}
-            >
-                <DialogHeader>
-                    {/* The title is the verb alone, since the pipeline is named beneath it. */}
-                    <DialogTitle>{LABELS.action.run}</DialogTitle>
-                    {/* The pipeline is the description, drawn as the quartet is drawn everywhere:
-                        the name, then the code in mono, never the two glued into one sentence. */}
-                    <DialogDescription>
-                        <span className="text-foreground">{heading.title}</span>
-                        {heading.code !== null && <span className="font-mono"> {heading.code}</span>}
-                    </DialogDescription>
-                </DialogHeader>
+        <DialogShell
+            words={DIALOG_WORDS}
+            open={open}
+            onOpenChange={onOpenChange}
+            // With no parameters to fill in there is one thing to do here, so that is what is in hand.
+            initialFocus={takes ? undefined : 'confirm'}
+            // The title is the verb alone, since the pipeline is named beneath it, drawn as the
+            // quartet is drawn everywhere: the name, then the code in mono.
+            title={LABELS.action.run}
+            description={
+                <>
+                    <span className="text-foreground">{heading.title}</span>
+                    {heading.code !== null && <span className="font-mono"> {heading.code}</span>}
+                </>
+            }
+            count={<SchemaIssueCount form={form} />}
+            confirm={{
+                label: LABELS.editor.run.confirm,
+                busy: starting,
+                why: shut,
+                onConfirm: start,
+            }}
+        >
+            {takes && <GeneratedForm form={form} />}
 
-                {/* The body scrolls and the footer does not: a long parameter form outgrows a short
-                    screen, and Run is what somebody reaches for. */}
-                <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
-                    {takes && <GeneratedForm form={form} />}
-
-                    {needsWindow || windowAsked ? (
-                        <div className="space-y-2">
-                            <div className="flex flex-wrap items-baseline gap-x-2">
-                                <Label>{LABELS.word.window.label}</Label>
-                                <span className="font-mono text-xs text-faint">{zoneLabel(mode)}</span>
-                            </div>
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <WindowField
-                                    id="run-window-start"
-                                    label={LABELS.word.start}
-                                    value={windowStart}
-                                    onChange={setWindowStart}
-                                />
-                                <WindowField
-                                    id="run-window-end"
-                                    label={LABELS.word.end}
-                                    value={windowEnd}
-                                    onChange={setWindowEnd}
-                                />
-                            </div>
-                        </div>
-                    ) : (
-                        <Button
-                            variant="link"
-                            className="w-fit px-0 text-foreground underline-offset-2"
-                            onClick={() => {
-                                setWindowAsked(true)
-                            }}
-                        >
-                            {LABELS.editor.run.add_window}
-                        </Button>
-                    )}
-
-                    {warnings.length > 0 && (
-                        <Callout tone="warning">
-                            {warnings.map((line) => (
-                                <p key={line}>{line}</p>
-                            ))}
-                        </Callout>
-                    )}
-
-                    {problem !== null && (
-                        <p className="text-xs text-critical" role="alert">
-                            {said(problem)}
-                        </p>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{LABELS.editor.run.log}</span>
-                        <Select
-                            value={level}
-                            onValueChange={(chosen) => {
-                                setLevel(chosen === 'debug' ? 'debug' : 'info')
-                            }}
-                        >
-                            <SelectTrigger
-                                size="sm"
-                                className="w-40"
-                                aria-label={LABELS.editor.run.log_level}
-                            >
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="info">{LABELS.editor.run.info_and_up}</SelectItem>
-                                <SelectItem value="debug">{LABELS.editor.run.debug_too}</SelectItem>
-                            </SelectContent>
-                        </Select>
+            {needsWindow || windowAsked ? (
+                <div className="space-y-2">
+                    <div className="flex flex-wrap items-baseline gap-x-2">
+                        <Label>{LABELS.word.window.label}</Label>
+                        <span className="font-mono text-xs text-faint">{zoneLabel(mode)}</span>
                     </div>
-
-                    {entry !== null && (
-                        <p className="text-xs text-muted-foreground" data-testid="run-entry">
-                            {entry.sampled ? ENTRY.sample : ENTRY.empty}
-                            <code className="font-mono text-[0.88em]">{entry.step}</code>
-                            {entry.replies && ENTRY.no_caller}
-                            {ENTRY.end}
-                        </p>
-                    )}
-
-                    <p className="text-xs text-faint">
-                        {LABELS.editor.run.runs_as(username ?? LABELS.editor.run.this_session)}
-                    </p>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <WindowField
+                            id="run-window-start"
+                            label={LABELS.word.start}
+                            value={windowStart}
+                            onChange={setWindowStart}
+                        />
+                        <WindowField
+                            id="run-window-end"
+                            label={LABELS.word.end}
+                            value={windowEnd}
+                            onChange={setWindowEnd}
+                        />
+                    </div>
                 </div>
+            ) : (
+                <Button
+                    variant="link"
+                    className="w-fit px-0 text-foreground underline-offset-2"
+                    onClick={() => {
+                        setWindowAsked(true)
+                    }}
+                >
+                    {LABELS.editor.run.add_window}
+                </Button>
+            )}
 
-                <DialogFooter>
-                    <SchemaIssueCount form={form} />
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        {LABELS.action.cancel}
-                    </Button>
-                    <Refusable why={shut}>
-                        <Button
-                            ref={runNow}
-                            disabled={starting || !write.may || shut !== undefined}
-                            title={shut}
-                            onClick={start}
-                        >
-                            {LABELS.editor.run.confirm}
-                        </Button>
-                    </Refusable>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+            {warnings.length > 0 && (
+                <Callout tone="warning">
+                    {warnings.map((line) => (
+                        <p key={line}>{line}</p>
+                    ))}
+                </Callout>
+            )}
+
+            {problem !== null && (
+                <p className="text-xs text-critical" role="alert">
+                    {said(problem)}
+                </p>
+            )}
+
+            <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{LABELS.editor.run.log}</span>
+                <Select
+                    value={level}
+                    onValueChange={(chosen) => {
+                        setLevel(chosen === 'debug' ? 'debug' : 'info')
+                    }}
+                >
+                    <SelectTrigger size="sm" className="w-40" aria-label={LABELS.editor.run.log_level}>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="info">{LABELS.editor.run.info_and_up}</SelectItem>
+                        <SelectItem value="debug">{LABELS.editor.run.debug_too}</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {entry !== null && (
+                <p className="text-xs text-muted-foreground" data-testid="run-entry">
+                    {entry.sampled ? ENTRY.sample : ENTRY.empty}
+                    <code className="font-mono text-[0.88em]">{entry.step}</code>
+                    {entry.replies && ENTRY.no_caller}
+                    {ENTRY.end}
+                </p>
+            )}
+
+            <p className="text-xs text-faint">
+                {LABELS.editor.run.runs_as(username ?? LABELS.editor.run.this_session)}
+            </p>
+        </DialogShell>
     )
 }
 
