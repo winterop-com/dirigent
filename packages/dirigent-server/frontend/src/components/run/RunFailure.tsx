@@ -2,6 +2,7 @@ import { Link } from 'react-router'
 
 import { HealthSaid } from '@/components/connections/Health'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import type { Issue, JsonMap } from '@/lib/api'
 import { healthOf, type ConnectionOut } from '@/lib/connections'
@@ -98,16 +99,14 @@ export function RunFailure({
                 </Link>
             )}
             {params.length > 0 && (
-                <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 border-t border-critical/20 pt-3.5 text-xs">
-                    {params.map(([key, value]) => (
-                        <div key={key} className="contents">
-                            <dt className="text-muted-foreground">{key}</dt>
-                            <dd className="min-w-0">
-                                <InlineCode value={said(value)} tone="neutral" bare size="xs" />
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
+                <DescriptionList
+                    className="mt-4 border-t border-critical/20 pt-3.5"
+                    items={params.map(([key, value]) => ({
+                        term: <InlineCode value={key} tone="muted" bare size="xs" />,
+                        value: said(value),
+                        code: true,
+                    }))}
+                />
             )}
         </Section>
     )

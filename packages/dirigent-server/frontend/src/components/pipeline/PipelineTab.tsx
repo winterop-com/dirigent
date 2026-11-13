@@ -2,11 +2,11 @@ import { Link } from 'react-router'
 
 import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
-import { Fact, Section } from '@/components/run/Panel'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { TagChip } from '@/components/TagChip'
 import type { JsonMap } from '@/lib/api'
 import { shortDigest } from '@/lib/format'
+import { PanelGroup } from '@/components/run/Panel'
 import { LABELS } from '@/lib/labels'
 import { headingOf } from '@/lib/identity'
 import { HealthSaid } from '@/components/connections/Health'
@@ -25,6 +25,8 @@ import {
 import type { RunOut } from '@/lib/runs'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 
 /**
  * The pipeline as a whole: what it is, what it takes, what it reaches, and what it has done.
@@ -107,71 +109,64 @@ export function PipelineTab({
                 <Description text={pipeline.description} />
             )}
 
-            <Section title={LABELS.word.parameters}>
+            <PanelGroup title={LABELS.word.parameters}>
                 {parameters.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
                         {LABELS.editor.pipeline_pane.no_parameters}
                     </p>
                 ) : (
-                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                        {parameters.map((field) => (
-                            <Fact
-                                key={field.name}
-                                term={field.name}
-                                detail={
-                                    <span className="text-muted-foreground">
-                                        {[field.kind, rangeOf(field), defaultOf(field)]
-                                            .filter((part) => part !== null)
-                                            .join(' · ')}
-                                    </span>
-                                }
-                            />
-                        ))}
-                    </dl>
+                    <DescriptionList
+                        items={parameters.map((field) => ({
+                            term: <InlineCode value={field.name} tone="muted" bare size="xs" />,
+                            value: (
+                                <span className="text-muted-foreground">
+                                    {[field.kind, rangeOf(field), defaultOf(field)]
+                                        .filter((part) => part !== null)
+                                        .join(' · ')}
+                                </span>
+                            ),
+                        }))}
+                    />
                 )}
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.word.connection.heading}>
+            <PanelGroup title={LABELS.word.connection.heading}>
                 {named.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
                         {LABELS.editor.pipeline_pane.no_connections}
                     </p>
                 ) : (
-                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                        {named.map((name) => {
+                    <DescriptionList
+                        items={named.map((name) => {
                             const held = connections?.find((one) => one.code === name) ?? null
-                            return (
-                                <Fact
-                                    key={name}
-                                    term={name}
-                                    detail={
-                                        held === null ? (
-                                            <span
-                                                className={
-                                                    connectionMissing(unmet, name)
-                                                        ? 'text-critical'
-                                                        : 'text-warning'
-                                                }
-                                            >
-                                                {connectionMissing(unmet, name)
-                                                    ? LABELS.editor.not_configured
-                                                    : LABELS.editor.pipeline_pane.health_unread}
-                                            </span>
-                                        ) : (
-                                            <span className="flex items-center gap-1.5 text-muted-foreground">
-                                                {held.kind}
-                                                <HealthSaid view={healthOf(held)} />
-                                            </span>
-                                        )
-                                    }
-                                />
-                            )
+                            return {
+                                term: <InlineCode value={name} tone="muted" bare size="xs" />,
+                                value:
+                                    held === null ? (
+                                        <span
+                                            className={
+                                                connectionMissing(unmet, name)
+                                                    ? 'text-critical'
+                                                    : 'text-warning'
+                                            }
+                                        >
+                                            {connectionMissing(unmet, name)
+                                                ? LABELS.editor.not_configured
+                                                : LABELS.editor.pipeline_pane.health_unread}
+                                        </span>
+                                    ) : (
+                                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                                            {held.kind}
+                                            <HealthSaid view={healthOf(held)} />
+                                        </span>
+                                    ),
+                            }
                         })}
-                    </dl>
+                    />
                 )}
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.word.requires}>
+            <PanelGroup title={LABELS.word.requires}>
                 <div className="flex flex-wrap gap-1.5">
                     {requiredChips(document, unmet).map((chip) => (
                         <Chip
@@ -193,9 +188,9 @@ export function PipelineTab({
                         </span>
                     )}
                 </div>
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.word.trigger.heading}>
+            <PanelGroup title={LABELS.word.trigger.heading}>
                 {schedules.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_triggers}</p>
                 ) : (
@@ -209,9 +204,9 @@ export function PipelineTab({
                         ))}
                     </ul>
                 )}
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.editor.pipeline_pane.recent_runs}>
+            <PanelGroup title={LABELS.editor.pipeline_pane.recent_runs}>
                 {runs.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_runs}</p>
                 ) : (
@@ -229,9 +224,9 @@ export function PipelineTab({
                         ))}
                     </ul>
                 )}
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.word.version.heading}>
+            <PanelGroup title={LABELS.word.version.heading}>
                 {versions.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_versions}</p>
                 ) : (
@@ -253,7 +248,7 @@ export function PipelineTab({
                         ))}
                     </ul>
                 )}
-            </Section>
+            </PanelGroup>
         </div>
     )
 }

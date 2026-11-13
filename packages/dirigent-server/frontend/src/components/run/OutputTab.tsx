@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { FilePreview } from '@winterop-com/sokkel-ui/FilePreview'
-import { Section } from '@/components/run/Panel'
 import { RefusalLine } from '@/components/Refusal'
 import { useApiPrefix } from '@/hooks/use-api-prefix'
 import type { Problem } from '@/lib/api'
@@ -17,7 +16,8 @@ import {
     type PreviewKind,
 } from '@/lib/artifacts'
 import { FILE_PREVIEW_WORDS } from '@/lib/design-system'
-import { countedHeading, formatBytes, shortenUri } from '@/lib/format'
+import { formatBytes, shortenUri } from '@/lib/format'
+import { PanelGroup } from '@/components/run/Panel'
 import { LABELS } from '@/lib/labels'
 import { refusalOf } from '@/lib/refusal'
 import type { RunDetailState } from '@/lib/run-detail'
@@ -93,13 +93,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
 
     return (
         <div className="flex flex-col gap-4 p-4">
-            <Section
-                title={
-                    artifacts === null
-                        ? LABELS.word.artifacts
-                        : countedHeading(LABELS.word.artifacts, rows.length)
-                }
-            >
+            <PanelGroup title={LABELS.word.artifacts} count={artifacts === null ? undefined : rows.length}>
                 {artifacts === null ? (
                     <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                 ) : rows.length === 0 ? (
@@ -123,7 +117,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
                         }
                     />
                 )}
-            </Section>
+            </PanelGroup>
         </div>
     )
 }

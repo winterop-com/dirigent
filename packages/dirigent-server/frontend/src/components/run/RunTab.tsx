@@ -1,7 +1,9 @@
 import { Link } from 'react-router'
 
-import { Instant } from '@/components/Instant'
-import { Copyable, Fact, Section } from '@/components/run/Panel'
+import { instantFact } from '@/components/Instant'
+import { Copyable, PanelGroup } from '@/components/run/Panel'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
+import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { asJson, elapsedBetween, formatDuration, formatWindow } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
@@ -47,7 +49,7 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                 <p className="text-xs break-words text-critical">{run.error}</p>
             )}
 
-            <Section title={LABELS.word.trigger.label}>
+            <PanelGroup title={LABELS.word.trigger.label}>
                 <p className="text-xs">
                     {started.from === null ? (
                         startedBy(run, attempts)
@@ -61,68 +63,76 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                         </Link>
                     )}
                 </p>
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.runs.timing}>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term={LABELS.word.created.term} detail={<Instant at={run.created_at} />} />
-                    <Fact term={LABELS.word.started.term} detail={<Instant at={run.started_at} />} />
-                    <Fact term={LABELS.runs.fact.finished} detail={<Instant at={run.finished_at} />} />
-                    {run.window_start !== null && run.window_end !== null && (
-                        <Fact
-                            term={LABELS.word.window.term}
-                            detail={
-                                <span title={LABELS.measure.range(run.window_start, run.window_end)}>
-                                    {formatWindow(run.window_start, run.window_end)}
-                                </span>
-                            }
-                        />
-                    )}
-                </dl>
-            </Section>
+            <PanelGroup title={LABELS.runs.timing}>
+                <DescriptionList
+                    items={[
+                        { term: LABELS.word.created.term, value: instantFact(run.created_at) },
+                        { term: LABELS.word.started.term, value: instantFact(run.started_at) },
+                        { term: LABELS.runs.fact.finished, value: instantFact(run.finished_at) },
+                        ...(run.window_start !== null && run.window_end !== null
+                            ? [
+                                  {
+                                      term: LABELS.word.window.term,
+                                      value: (
+                                          <span
+                                              title={LABELS.measure.range(run.window_start, run.window_end)}
+                                          >
+                                              {formatWindow(run.window_start, run.window_end)}
+                                          </span>
+                                      ),
+                                  },
+                              ]
+                            : []),
+                    ]}
+                />
+            </PanelGroup>
 
-            <Section title={LABELS.word.parameters}>
+            <PanelGroup title={LABELS.word.parameters}>
                 {params.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.runs.no_parameters}</p>
                 ) : (
-                    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                        {params.map(([name, value]) => (
-                            <Fact
-                                key={name}
-                                term={name}
-                                detail={<span className="font-mono">{asJson(value)}</span>}
-                            />
-                        ))}
-                    </dl>
+                    <DescriptionList
+                        items={params.map(([name, value]) => ({
+                            term: <InlineCode value={name} tone="muted" bare size="xs" />,
+                            value: asJson(value),
+                            code: true,
+                        }))}
+                    />
                 )}
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.word.definition}>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact
-                        term={LABELS.word.pipeline.term}
-                        detail={
-                            <Link
-                                className="text-foreground underline-offset-2 hover:underline"
-                                to={`/pipelines/${run.pipeline}`}
-                            >
-                                {run.pipeline}
-                            </Link>
-                        }
-                    />
-                    <Fact term={LABELS.word.version.term} detail={run.pipeline_version} />
-                    <Fact
-                        term={LABELS.word.run.term}
-                        detail={<Copyable value={run.id} label={COPY_RUN_LABEL} />}
-                    />
-                    {run.trace_id !== null && (
-                        <Fact
-                            term={LABELS.runs.fact.trace}
-                            detail={<Copyable value={run.trace_id} label={COPY_TRACE_LABEL} />}
-                        />
-                    )}
-                </dl>
-            </Section>
+            <PanelGroup title={LABELS.word.definition}>
+                <DescriptionList
+                    items={[
+                        {
+                            term: LABELS.word.pipeline.term,
+                            value: (
+                                <Link
+                                    className="font-mono text-foreground underline-offset-2 hover:underline"
+                                    to={`/pipelines/${run.pipeline}`}
+                                >
+                                    {run.pipeline}
+                                </Link>
+                            ),
+                        },
+                        { term: LABELS.word.version.term, value: run.pipeline_version, numeric: true },
+                        {
+                            term: LABELS.word.run.term,
+                            value: <Copyable value={run.id} label={COPY_RUN_LABEL} />,
+                        },
+                        ...(run.trace_id === null
+                            ? []
+                            : [
+                                  {
+                                      term: LABELS.runs.fact.trace,
+                                      value: <Copyable value={run.trace_id} label={COPY_TRACE_LABEL} />,
+                                  },
+                              ]),
+                    ]}
+                />
+            </PanelGroup>
         </div>
     )
 }

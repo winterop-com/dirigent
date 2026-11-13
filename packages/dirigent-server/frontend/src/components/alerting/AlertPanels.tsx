@@ -3,7 +3,8 @@ import { Link } from 'react-router'
 
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Description } from '@/components/Description'
-import { Instant } from '@/components/Instant'
+import { Instant, instantFact } from '@/components/Instant'
+import { DescriptionList, type Description as FactItem } from '@winterop-com/sokkel-ui/DescriptionList'
 import { Mark } from '@/components/Mark'
 import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
@@ -73,6 +74,71 @@ export function RulePanel({
     const declared = rule.declared ? LABELS.alerting.declared_why(rule.pipeline ?? '') : undefined
     const rewrite = { may: write.may && declared === undefined, why: write.why ?? declared }
     const floor = importanceNote(rule.importance)
+    const settings: FactItem[] = [
+        { term: LABELS.word.event, value: LABELS.alerting.event[rule.event] },
+        {
+            term: LABELS.word.scope,
+            value: (
+                <span className="flex flex-wrap items-baseline gap-x-1.5">
+                    {scopeNote(rule)}
+                    {floor !== null && <span className="text-xs text-muted-foreground">{floor}</span>}
+                </span>
+            ),
+        },
+        {
+            term: LABELS.word.delivers_through,
+            value: <Target notifier={rule.notifier} connection={rule.connection} />,
+        },
+        { term: LABELS.word.throttle, value: throttleNote(rule.throttle) },
+    ]
+    const text: FactItem[] = [
+        {
+            term: LABELS.word.subject,
+            value: (
+                <span className="flex flex-wrap items-baseline gap-2">
+                    {rule.template === null ? (
+                        <span className="text-muted-foreground">{LABELS.word.none}</span>
+                    ) : (
+                        <span className="font-mono text-xs break-all">{rule.template}</span>
+                    )}
+                    <Refusable why={rewrite.why}>
+                        <Button
+                            variant="ghost"
+                            size="xs"
+                            disabled={!rewrite.may}
+                            title={rewrite.why}
+                            onClick={() => {
+                                setEditingCode(rule.code)
+                            }}
+                        >
+                            {LABELS.action.edit}
+                        </Button>
+                    </Refusable>
+                </span>
+            ),
+        },
+        ...(rule.body === null
+            ? []
+            : [
+                  {
+                      term: LABELS.word.body,
+                      value: (
+                          <span className="line-clamp-3 font-mono text-xs break-words whitespace-pre-wrap">
+                              {rule.body}
+                          </span>
+                      ),
+                  },
+              ]),
+    ]
+    const lastSent: FactItem = {
+        term: LABELS.alerting.last_sent,
+        value:
+            rule.last_sent_at === null ? (
+                <span className="text-muted-foreground">{LABELS.word.never}</span>
+            ) : (
+                <Instant at={rule.last_sent_at} />
+            ),
+    }
 
     const read = useCallback((after: string | null) => readNotifications(NO_FILTERS, after), [])
     const { state } = usePaged(read, notificationId)
@@ -105,19 +171,9 @@ export function RulePanel({
             </Head>
             <Description text={rule.description} />
 
-            <dl className="space-y-1.5">
-                <Fact label={LABELS.word.event}>{LABELS.alerting.event[rule.event]}</Fact>
-                <Fact label={LABELS.word.scope}>
-                    <span className="flex flex-wrap items-baseline gap-x-1.5">
-                        {scopeNote(rule)}
-                        {floor !== null && <span className="text-xs text-muted-foreground">{floor}</span>}
-                    </span>
-                </Fact>
-                <Fact label={LABELS.word.delivers_through}>
-                    <Target notifier={rule.notifier} connection={rule.connection} />
-                </Fact>
-                <Fact label={LABELS.word.throttle}>{throttleNote(rule.throttle)}</Fact>
-                {editing ? (
+            {editing ? (
+                <div className="flex flex-col gap-2">
+                    <DescriptionList termWidth={FACT_TERM} items={settings} />
                     <RuleText
                         key={rule.code}
                         rule={rule}
@@ -129,47 +185,11 @@ export function RulePanel({
                             setEditingCode(null)
                         }}
                     />
-                ) : (
-                    <>
-                        <Fact label={LABELS.word.subject}>
-                            <span className="flex flex-wrap items-baseline gap-2">
-                                {rule.template === null ? (
-                                    <span className="text-muted-foreground">{LABELS.word.none}</span>
-                                ) : (
-                                    <span className="font-mono text-xs break-all">{rule.template}</span>
-                                )}
-                                <Refusable why={rewrite.why}>
-                                    <Button
-                                        variant="ghost"
-                                        size="xs"
-                                        disabled={!rewrite.may}
-                                        title={rewrite.why}
-                                        onClick={() => {
-                                            setEditingCode(rule.code)
-                                        }}
-                                    >
-                                        {LABELS.action.edit}
-                                    </Button>
-                                </Refusable>
-                            </span>
-                        </Fact>
-                        {rule.body !== null && (
-                            <Fact label={LABELS.word.body}>
-                                <span className="line-clamp-3 font-mono text-xs break-words whitespace-pre-wrap">
-                                    {rule.body}
-                                </span>
-                            </Fact>
-                        )}
-                    </>
-                )}
-                <Fact label={LABELS.alerting.last_sent}>
-                    {rule.last_sent_at === null ? (
-                        <span className="text-muted-foreground">{LABELS.word.never}</span>
-                    ) : (
-                        <Instant at={rule.last_sent_at} />
-                    )}
-                </Fact>
-            </dl>
+                    <DescriptionList termWidth={FACT_TERM} items={[lastSent]} />
+                </div>
+            ) : (
+                <DescriptionList termWidth={FACT_TERM} items={[...settings, ...text, lastSent]} />
+            )}
 
             <div className="flex flex-wrap gap-2">
                 <Refusable why={write.why}>
@@ -357,43 +377,47 @@ export function NotificationPanel({
                 </p>
             </div>
 
-            <dl className="space-y-1.5">
-                {/* A test is raised by nothing, and the event on its row is a placeholder the
-                    queue needed rather than something that happened -- so it is not drawn. */}
-                {notification.rule === null ? (
-                    <Fact label={LABELS.alerting.raised_by}>
-                        <span className="text-muted-foreground">{LABELS.alerting.raised_by_test}</span>
-                    </Fact>
-                ) : (
-                    <>
-                        <Fact label={LABELS.word.event}>{LABELS.alerting.event[notification.event]}</Fact>
-                        <Fact label={LABELS.word.rule.label}>
-                            <span className="font-mono text-xs">{notification.rule}</span>
-                        </Fact>
-                    </>
-                )}
-                <Fact label={LABELS.word.delivers_through}>
-                    <Channel notifier={notification.notifier} connection={notification.connection} />
-                </Fact>
-                <Fact label={LABELS.word.run.label}>
-                    <Run notification={notification} />
-                </Fact>
-                <Fact label={LABELS.alerting.queued_at}>
-                    <Instant at={notification.created_at} />
-                </Fact>
-                {notification.status === 'sent' ? (
-                    <Fact label={LABELS.alerting.sent_at}>
-                        <Instant at={notification.sent_at} />
-                    </Fact>
-                ) : (
-                    <Fact label={LABELS.alerting.next_try}>
-                        <Instant at={notification.available_at} />
-                    </Fact>
-                )}
-                <Fact label={LABELS.word.attempt.heading}>
-                    {LABELS.alerting.attempts_of.bare(notification.attempt, notification.max_attempts)}
-                </Fact>
-            </dl>
+            {/* A test is raised by nothing, and the event on its row is a placeholder the queue
+                needed rather than something that happened -- so it is not drawn. */}
+            <DescriptionList
+                termWidth={FACT_TERM}
+                items={[
+                    ...(notification.rule === null
+                        ? [
+                              {
+                                  term: LABELS.alerting.raised_by,
+                                  value: (
+                                      <span className="text-muted-foreground">
+                                          {LABELS.alerting.raised_by_test}
+                                      </span>
+                                  ),
+                              },
+                          ]
+                        : [
+                              { term: LABELS.word.event, value: LABELS.alerting.event[notification.event] },
+                              { term: LABELS.word.rule.label, value: notification.rule, code: true },
+                          ]),
+                    {
+                        term: LABELS.word.delivers_through,
+                        value: (
+                            <Channel notifier={notification.notifier} connection={notification.connection} />
+                        ),
+                    },
+                    { term: LABELS.word.run.label, value: <Run notification={notification} /> },
+                    { term: LABELS.alerting.queued_at, value: instantFact(notification.created_at) },
+                    notification.status === 'sent'
+                        ? { term: LABELS.alerting.sent_at, value: instantFact(notification.sent_at) }
+                        : { term: LABELS.alerting.next_try, value: instantFact(notification.available_at) },
+                    {
+                        term: LABELS.word.attempt.heading,
+                        value: LABELS.alerting.attempts_of.bare(
+                            notification.attempt,
+                            notification.max_attempts,
+                        ),
+                        numeric: true,
+                    },
+                ]}
+            />
 
             {notification.error !== null && (
                 <div className="space-y-1">
@@ -503,12 +527,5 @@ function Head({ thing, children }: { thing: Addressable; children: ReactNode }) 
     )
 }
 
-/** One fact, beside its label. */
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-    return (
-        <div className="flex flex-wrap items-baseline gap-2">
-            <dt className="w-32 shrink-0 text-xs text-muted-foreground">{label}</dt>
-            <dd className="min-w-0 text-sm">{children}</dd>
-        </div>
-    )
-}
+/** How wide an alert's fact terms are: the longest, "Delivers through", on one line. */
+const FACT_TERM = '8rem'

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 
-import { Fact, Section } from '@/components/run/Panel'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { ReportDocumentPane } from '@/components/run/ReportDocument'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { ApiError, type Problem } from '@/lib/api'
 import { readReportDocument, renderedText, type RenderedText, type ReportDocument } from '@/lib/artifacts'
 import { formatDuration } from '@/lib/format'
+import { PanelGroup } from '@/components/run/Panel'
 import { LABELS } from '@/lib/labels'
 import { itemsNote, type AttemptOut, type RunReport } from '@/lib/runs'
 import { said } from '@/lib/refusal'
@@ -125,17 +126,26 @@ function Summary({
             ) : (
                 <StepRendered rendered={rendered} />
             )}
-            <Section title={LABELS.word.summary}>
+            <PanelGroup title={LABELS.word.summary}>
                 {problem !== null ? (
                     <p className="text-xs text-muted-foreground">{said(problem)}</p>
                 ) : report === null ? (
                     <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                 ) : (
                     <>
-                        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                            <Fact term={LABELS.runs.fact.took} detail={formatDuration(report.duration_ms)} />
-                            {items !== null && <Fact term={LABELS.runs.fact.items} detail={items} />}
-                        </dl>
+                        <DescriptionList
+                            items={[
+                                {
+                                    term: LABELS.runs.fact.took,
+                                    value:
+                                        report.duration_ms === null
+                                            ? null
+                                            : formatDuration(report.duration_ms),
+                                    numeric: true,
+                                },
+                                ...(items === null ? [] : [{ term: LABELS.runs.fact.items, value: items }]),
+                            ]}
+                        />
                         <ul className="mt-2 space-y-1">
                             {report.steps.map((step) => (
                                 <li key={step.step} className="flex items-center gap-2">
@@ -154,7 +164,7 @@ function Summary({
                         </ul>
                     </>
                 )}
-            </Section>
+            </PanelGroup>
         </div>
     )
 }

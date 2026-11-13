@@ -77,16 +77,6 @@ export function shortId(id: string): string {
 }
 
 /**
- * A heading over rows, carrying how many there are where there are any.
- *
- * A COUNT OF NOTHING IS NOT A COUNT. The empty state under the heading already says there is
- * nothing there, so "Artifacts (0)" is the same fact twice, one of them as arithmetic.
- */
-export function countedHeading(noun: string, count: number): string {
-    return count === 0 ? noun : `${noun} (${String(count)})`
-}
-
-/**
  * Whether when a row was last written is a fact beside when it was created.
  *
  * A ROW NOBODY HAS EDITED CARRIES TWO INSTANTS a few microseconds apart, which is the write

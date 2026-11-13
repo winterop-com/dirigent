@@ -279,7 +279,9 @@ test('a chosen step is the address, survives a reload, and is put down with the 
     await page.locator('.react-flow__node').getByText('data_elements_by_domain', { exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`/runs/${run}/data_elements_by_domain$`))
     const panel = page.locator('aside')
-    await expect(panel.getByText('Attempts (2)')).toBeVisible()
+    await expect(
+        panel.getByRole('region', { name: LABELS.word.attempt.heading }).locator('> div').first(),
+    ).toHaveText(new RegExp(`^${LABELS.word.attempt.heading}\\s*2$`))
 
     // Each try carries its id, and a fan-out element its own.
     await expect(panel.getByRole('button', { name: LABELS.runs.copy_attempt_id }).first()).toBeVisible()

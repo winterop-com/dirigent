@@ -3,7 +3,7 @@ import { useCallback, useMemo } from 'react'
 import { Description } from '@/components/Description'
 import { PageState } from '@/components/PageState'
 import { CodePane } from '@/components/pipeline/CodePane'
-import { Fact, Section } from '@/components/run/Panel'
+import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { TagChip } from '@/components/TagChip'
 import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
@@ -19,6 +19,7 @@ import {
 } from '@/lib/examples'
 import { windowWords } from '@/lib/design-system'
 import { headingOf } from '@/lib/identity'
+import { PanelGroup } from '@/components/run/Panel'
 import { LABELS } from '@/lib/labels'
 import { STARTER_TAG } from '@/lib/starters'
 import { cn } from '@/lib/utils'
@@ -95,23 +96,29 @@ export function ExamplePanel({
                 </p>
             )}
 
-            <Section title={LABELS.examples.facts}>
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-                    <Fact term={LABELS.examples.fact.plugin} detail={example.plugin} />
-                    <Fact
-                        term={LABELS.examples.fact.shelf}
-                        detail={example.shelf === '' ? LABELS.examples.root_shelf : example.shelf}
-                    />
-                    {detail.value !== null && (
-                        <Fact
-                            term={LABELS.examples.fact.path}
-                            detail={<span className="font-mono break-all">{detail.value.path}</span>}
-                        />
-                    )}
-                </dl>
-            </Section>
+            <PanelGroup title={LABELS.examples.facts}>
+                <DescriptionList
+                    items={[
+                        { term: LABELS.examples.fact.plugin, value: example.plugin, code: true },
+                        {
+                            term: LABELS.examples.fact.shelf,
+                            value: example.shelf === '' ? LABELS.examples.root_shelf : example.shelf,
+                            code: example.shelf !== '',
+                        },
+                        ...(detail.value === null
+                            ? []
+                            : [
+                                  {
+                                      term: LABELS.examples.fact.path,
+                                      value: <span className="break-all">{detail.value.path}</span>,
+                                      code: true,
+                                  },
+                              ]),
+                    ]}
+                />
+            </PanelGroup>
 
-            <Section title={LABELS.word.requires}>
+            <PanelGroup title={LABELS.word.requires}>
                 {items.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.examples.requires_nothing}</p>
                 ) : (
@@ -125,9 +132,9 @@ export function ExamplePanel({
                         ))}
                     </ul>
                 )}
-            </Section>
+            </PanelGroup>
 
-            <Section title={LABELS.word.source}>
+            <PanelGroup title={LABELS.word.source}>
                 {!detail.read || detail.problem !== null ? (
                     <PageState loading={!detail.read} problem={detail.problem} empty={false}>
                         {null}
@@ -158,7 +165,7 @@ export function ExamplePanel({
                         }
                     </WindowedPane>
                 )}
-            </Section>
+            </PanelGroup>
 
             {example.starter && (
                 <Button
