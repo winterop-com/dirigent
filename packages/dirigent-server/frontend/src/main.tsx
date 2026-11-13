@@ -6,10 +6,12 @@ import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
 import { isInternalLink, LinkProvider, type RoutedLinkProps } from '@winterop-com/sokkel-ui/Link'
 import { StatusProvider } from '@winterop-com/sokkel-ui/StatusProvider'
 
+import { registerPlugins } from '@winterop-com/sokkel-ui/lib/plugins'
 import { Toaster } from '@winterop-com/sokkel-ui/primitives/sonner'
 import { TooltipProvider } from '@winterop-com/sokkel-ui/primitives/tooltip'
 
 import { setElkEngine } from '@winterop-com/sokkel-ui-graph/layout'
+import { fhir } from '@winterop-com/sokkel-ui-fhir/plugin'
 
 import App from '@/App'
 import { elkEngine } from '@/components/graph/elk'
@@ -40,6 +42,9 @@ registerDirigentFormats()
 
 // Every library graph lays out with the app's elk: its own chunk, one worker for the tab.
 setElkEngine(() => elkEngine())
+
+// The editor reads FHIRPath and CQL, and their media types, through the fhir plugin.
+registerPlugins([fhir])
 
 /** Wears the stored look on `<html>`, both theme axes, and follows it as it changes. */
 function Appearance() {
