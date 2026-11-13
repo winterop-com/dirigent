@@ -2475,6 +2475,8 @@ const runs = {
     attempt_asked_for: ', asked for',
     /** Which fan-out element a try ran for. */
     item_label: (item: string) => `item ${item}`,
+    /** The line under a try that is waiting, saying how far the wait has come. */
+    wait_progress: 'How far the wait has come',
 
     // The graph's nodes, and the sentences `lib/run-detail` folds for them.
 

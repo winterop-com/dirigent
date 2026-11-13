@@ -183,7 +183,7 @@ function tokenColumns(
                     <Button
                         variant="ghost"
                         size="xs"
-                        className="destructive-action"
+                        destructiveHover
                         aria-label={LABELS.users.revoke_row(tokenSaid(token, shared, now))}
                         onClick={() => {
                             revoke(token)

@@ -12,8 +12,7 @@ import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
-import { TagChips } from '@/components/TagChips'
-import { Badge } from '@winterop-com/sokkel-ui/primitives/badge'
+import { TagChips } from '@winterop-com/sokkel-ui/TagChips'
 import { useRead } from '@/hooks/use-read'
 import { useRowPress } from '@/hooks/use-row-press'
 import {
@@ -44,6 +43,7 @@ import {
     oneChosen,
     SEARCH_PLACEHOLDER,
     SEARCH_WORDS,
+    TAG_CHIPS_WORDS,
 } from '@/lib/design-system'
 import { counted, LABELS } from '@/lib/labels'
 import { NEW_PIPELINE_PATH } from '@/lib/nav'
@@ -79,11 +79,7 @@ function ExampleHeading({ row }: { row: ExampleOut }) {
     const marks =
         row.starter || carries !== null ? (
             <>
-                {row.starter && (
-                    <Badge variant="outline" className="shrink-0">
-                        {LABELS.examples.starter_badge}
-                    </Badge>
-                )}
+                {row.starter && <Chip tone="outline">{LABELS.examples.starter_badge}</Chip>}
                 {carries !== null && (
                     <span
                         className="shrink-0 text-xs text-muted-foreground"
@@ -410,7 +406,9 @@ function exampleColumns(
             width: 'minmax(10rem,1fr)',
             cell: (row) => {
                 const tags = row.tags.filter((tag) => tag !== STARTER_TAG)
-                return tags.length === 0 ? null : <TagChips tags={tags} onSelect={onTag} />
+                return tags.length === 0 ? null : (
+                    <TagChips tags={tags} onSelect={onTag} words={TAG_CHIPS_WORDS} />
+                )
             },
         },
         {

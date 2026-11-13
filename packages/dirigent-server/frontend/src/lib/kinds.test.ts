@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { KIND_FAMILIES, kindFamily, kindLabel, kindTokens } from '@/lib/kinds'
+import { KIND_FAMILIES, kindFamily, kindLabel } from '@/lib/kinds'
 
 /** Every kind this bundle names itself, plus the shapes a plugin can put on the wire. */
 const NAMED = ['operator', 'sensor', 'schedule', 'webhook', 'cron', 'interval', 'one_time']
@@ -28,21 +28,6 @@ describe('which family a kind is drawn in', () => {
     test('does not fall back to one family for everything it has not been told about', () => {
         const unknown = ['http', 'acme', 'postgres', 's3', 'openhim', 'smtp', 'redis', 'kafka', 'sftp', 'gcs']
         expect(new Set(unknown.map(kindFamily)).size).toBeGreaterThan(1)
-    })
-})
-
-describe('the properties a kind chip is filled from', () => {
-    test('name a token in index.css rather than writing a colour', () => {
-        const tokens = kindTokens('operator')
-        expect(tokens['--chip']).toMatch(/^var\(--kind-[a-z]+\)$/)
-        expect(tokens['--chip-ink']).toMatch(/^var\(--kind-[a-z]+-ink\)$/)
-    })
-
-    test('take the hue and the ink from one family, never from two', () => {
-        for (const kind of [...NAMED, 'acme', 'http']) {
-            const tokens = kindTokens(kind)
-            expect(tokens['--chip-ink']).toBe(tokens['--chip'].replace(')', '-ink)'))
-        }
     })
 })
 

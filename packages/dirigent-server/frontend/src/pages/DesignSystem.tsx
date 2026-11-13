@@ -513,7 +513,7 @@ export function DesignSystem() {
                             <Button size="sm" variant="ghost">
                                 {LABELS.action.cancel}
                             </Button>
-                            <Button size="sm" variant="outline" className="destructive-action">
+                            <Button size="sm" variant="outline" destructiveHover>
                                 {LABELS.action.delete.verb}
                             </Button>
                         </Specimen>
@@ -765,7 +765,7 @@ export function DesignSystem() {
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="destructive-action"
+                                destructiveHover
                                 onClick={() => {
                                     setConfirming(true)
                                 }}
