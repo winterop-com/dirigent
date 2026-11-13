@@ -499,7 +499,7 @@ function Details({
                         {description.trim() === '' ? (
                             <p className="text-sm text-muted-foreground">{LABELS.schemas.no_description}</p>
                         ) : (
-                            <Description text={description} />
+                            <Description text={description} under={1} />
                         )}
                     </div>
                     {mayWrite && toggle}

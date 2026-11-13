@@ -834,6 +834,8 @@ const shell = {
     open_in_window: (name: string) => `Open ${name} in a window`,
     /** What the pane inside that window is called. */
     in_window: (name: string) => `${name}, in a window`,
+    /** The button that puts what a pane holds on the clipboard. */
+    copy_pane: (name: string) => `Copy ${name}`,
     /** The button that closes that window. */
     close_window: 'Close the window',
     /** What a diff says in place of its counts when the two texts are the same. */
@@ -896,6 +898,16 @@ const shell = {
     copy_secret: (secret: string) => `Copy ${secret}`,
     /** The line under a secret the server answers with once. */
     shown_once: 'Shown once. Copy it now: it cannot be read again.',
+    /** The copy button on a code block inside a description or a report. */
+    copy_code: 'Copy the code',
+    /** The title of each callout a description writes as `> [!NOTE]` and so on. */
+    callout: {
+        note: 'Note',
+        tip: 'Tip',
+        important: 'Important',
+        warning: 'Warning',
+        caution: 'Caution',
+    },
 } as const
 
 /**

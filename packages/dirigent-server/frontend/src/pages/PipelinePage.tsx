@@ -3,12 +3,12 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { HealthSaid } from '@/components/connections/Health'
+import { Description } from '@/components/Description'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { Instant } from '@/components/Instant'
-import { Markdown } from '@/components/Markdown'
 import { PageState } from '@/components/PageState'
 import { LatestReport, RecentRuns, RECENT_ROWS, REPORT_RUNS } from '@/components/pipeline/PipelineRuns'
 import { RunDialog } from '@/components/pipeline/RunDialog'
@@ -165,7 +165,7 @@ export function PipelinePage() {
 
             {(pipeline.description !== null || pipeline.tags.length > 0) && (
                 <div className="mt-4 max-w-[820px] text-base">
-                    {pipeline.description !== null && <Markdown text={pipeline.description} />}
+                    <Description text={pipeline.description} ink="body" under={1} />
                     {pipeline.tags.length > 0 && (
                         <div className="mt-2.5">
                             <TagChips tags={pipeline.tags} />

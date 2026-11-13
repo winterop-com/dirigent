@@ -357,8 +357,8 @@ function UpdateSchema({
     return (
         <Surface tone="well" pad className="space-y-3">
             <p className="text-xs font-semibold tracking-wide text-faint uppercase">{words.held_heading}</p>
-            {/* Narrower than a preview's own height: nine lines is what this dialog's cap leaves
-                on a 768px screen once the sentences below have had their room. */}
+            {/* Narrower than a preview's own height: five lines under its head row is what this
+                dialog's cap leaves on a 768px screen once the sentences below have had their room. */}
             <JsonBlock
                 title={words.held_body(item.code)}
                 text={JSON.stringify(item.stored, null, 2)}

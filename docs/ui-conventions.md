@@ -26,8 +26,9 @@ wrong is changed on this page first and in the code second.
 | Components | sokkel-ui's primitives, shadcn `base-nova` on **Base UI** (`@base-ui/react`) | Imported from `@winterop-com/sokkel-ui/primitives/*`. A primitive that needs an option dirigent lacks gets it in sokkel-ui |
 | Graphs | sokkel-ui-graph, on `@xyflow/react` for the canvas and `elkjs` for the layout | The library draws and places every graph: React Flow draws what it is given and decides no geometry, and elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
 | Editor | sokkel-ui's `CodeEditor`, on CodeMirror 6 | A pipeline document is YAML checked against a schema as it is typed, and the library's editor checks and completes JSON and YAML against JSON Schema 2020-12 itself, with ajv. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, a schema, and a config field whose schema says it carries a program |
+| Highlighting | `shiki`, the peer sokkel-ui's `Code` and `FilePreview` highlight with | Its core, its regex engine and each grammar are chunks of their own, fetched the first time something highlighted is drawn |
 | YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
-| Markdown | `marked`, for its lexer only | A description is authored markdown and has to render as prose. Nothing here produces an HTML string, so what is drawn is a token tree React escapes -- see `lib/markdown` |
+| Markdown | sokkel-ui's `PlainMarkdown`, on react-markdown and remark-gfm | A description is authored markdown and has to render as prose. The library builds React elements from a syntax tree and leaves raw markup as text, so no HTML string reaches the DOM -- see `components/Description` |
 | Palette | cmdk | |
 | Toasts | sonner | |
 | Mode and palette | sokkel-ui's appearance: `useAppearance`, `useScheme`, and its `appearance.js` before the first paint | |
@@ -215,17 +216,18 @@ graph canvas's dot grid, because a graph is drawn on a ground and not on a card.
 one panel that says so**: `tone="critical"` draws a rule in the critical tone along its top and the
 warning mark beside its title, which is the only colour a panel ever carries. Nothing draws a left
 border in a status colour, and nothing on a screen styles a surface of its own: a treatment is
-changed in sokkel-ui, and the run terminal's frame and the generated card follow it in the
-`.dg-panel` rules in `index.css`.
+changed in sokkel-ui, and the generated card follows it in the `[data-slot='card']` rules in
+`index.css`.
 
 **Every panel's title bar is one fixed height, so bars side by side line up.** The bar is the
 library's `--density-panel-head` -- 36px, 32px in the compact density -- the height a listing's
 head row is drawn to, so two panels standing beside each other put their labels on one baseline.
 A control in a bar is compact, `xs` or `sm`, and fits the bar rather than growing it. A failure's
-rule along the top adds no height to the bar. The run terminal's toolbar is the one bar of its own,
-`.dg-panel-head` at `--spacing-panel-head` -- 40px, and 46px below the breakpoint, where a control
-in it is a finger tall -- and the one bar that may wrap onto a second line, and only below the
-breakpoint, because it stands alone and carries filters rather than a label.
+rule along the top adds no height to the bar. The run terminal is sokkel-ui's `Dock`, whose head
+bar is the library's own and the one bar that may wrap onto a second line, because it stands alone
+and carries filters rather than a label: the three filters stand in it beside the count and the
+tools, and take a row of their own under them in a dock narrower than 48rem, a container query
+because the panel beside it narrows the dock as much as the window does.
 
 **A listing is a headed panel too.** sokkel-ui's `DataTable` with `variant="list"` draws
 `Section`'s edge and ground: its row of column headings is the panel's bar, and its rows stand on
@@ -237,9 +239,11 @@ panels rather than two headings over two cards.
 **Inside a panel or a dialog there are three boxes, and each is drawn once.** sokkel-ui's
 `Surface` with `tone="well"` is a group that belongs together -- a form opened under its row, a
 sample -- on the panel ground, edged in `--border`, and `pad` insets it by the density's panel
-padding. `tone="inset"` is reference material -- a block of JSON, a code block in a description
--- on the page's own ground, edged the same way, so a preview reads as cut into the surface it is
-on. A log that scrolls and follows its tail is the same inset, holding the scroll through its `ref`.
+padding. `tone="inset"` is reference material -- a code block in a description -- on the page's
+own ground, edged the same way, so a preview reads as cut into the surface it is on. A block of
+JSON is sokkel-ui's `Code` instead, which edges and grounds itself as code is drawn everywhere in
+the library. A log is not an inset: it is sokkel-ui's `LogView`, on the terminal ground in both
+palettes.
 A code editor is a field, and the library's editor edges itself the way every field is edged --
 the `--input` hairline at the control's corner -- unless it fills a panel of its own. A box that says how something is going is sokkel-ui's
 `Callout`, and a refusal off the wire is `Refusal`. No screen types a border, a corner and a
@@ -450,16 +454,23 @@ pipelines listing sorts by `titleOf`, without case, with the code breaking a tie
 headed the same way: `RunOut.pipeline` is a code and nothing else, so the runs screen reads the
 pipeline names once and joins, and a code the read did not reach is still headed by its code.
 
-**`description` renders as markdown, sanitised by construction rather than by filtering.**
-`lib/markdown` uses `marked` for its lexer alone and answers a tree of blocks and inline runs;
-`components/Markdown` turns that tree into React elements. No HTML string is ever produced, so
-there is nothing for a sanitiser to clean and nothing `dangerouslySetInnerHTML` could be
-handed -- a `<script>` in a description arrives as a token and leaves as text React escapes.
-Paragraphs, headings, emphasis, inline code, code blocks, lists, quotes, tables and links are
-the subset a description needs; anything else is drawn as the source it was written as, and a
-link is followed only for `http`, `https` and `mailto`. A table is set the way its column
-declared and scrolls inside its own box, because a description is drawn in a panel narrower than
-some tables are. A listing row is the exception, because a
+**`description` renders as markdown, and no HTML string reaches the DOM.**
+`components/Description` draws it through sokkel-ui's `PlainMarkdown`, in a chunk of its own that
+arrives with the first description, and draws the words themselves while it arrives. The library
+builds React elements from a syntax tree and leaves raw markup as text, so a `<script>` in a
+description is drawn as the characters somebody typed; `components/Description.test` holds that,
+and refuses `dangerouslySetInnerHTML` anywhere in this app and in every library module the
+renderer reaches. A description is GitHub-flavored markdown: paragraphs, headings, emphasis,
+inline code, code blocks highlighted with a copy button, lists and task lists, quotes and
+callouts, tables and links. Raw HTML is never allowed. Nothing in a description reaches out: an
+image is drawn as its alt text and address and is never fetched, and a link is live only to an
+`https` or `http` address or a `mailto:` mailbox and opens in a new tab; any other link, a relative one
+included, is drawn as its words. A description's headings sit under the heading it is set
+beneath, so a `#` on a pipeline's page is an `h2` and in a panel or a dialog an `h3`. A table is
+set the way its columns declared and scrolls inside its own box, because a description is drawn
+in a panel narrower than some tables are, and a key/value table's empty heading row is not drawn.
+A field's help in the block catalog is drawn inline, as one line at the help size. A listing row
+is the exception, because a
 cell is a glance: `oneLine` closes up the whitespace and the row truncates the words rather
 than rendering a heading cut in half.
 
@@ -1046,9 +1057,11 @@ with `button="none"`, draws the panel only where it is the pane, and the head ca
 `WindowedPaneButton` at `size="icon-sm"`, the size of a head's other tools. **A pane with no head keeps the button over its own top-right corner**, shown
 while the pointer is over the pane or focus is in it and always on touch; a pane that grows with a
 long document holds it to the top of whatever scrolls it (`button="sticky"`), so the button is on
-screen wherever the reader has scrolled to. A block of produced JSON is the exception: its lines
-run to the edge and scroll sideways, so it sets `WindowedPaneButton` in a column of its own at the
-box's right edge, always shown, and no line runs under it. A panel clips its corners with `overflow: clip` rather
+screen wherever the reader has scrolled to. A block of JSON is the exception: its lines run to
+the edge and scroll sideways, so `JsonBlock` sets `WindowedPaneButton` in `Code`'s `actions`,
+beside the library's copy button in a head row of its own (`header`) over the text, always shown,
+and no line runs under either. The box is sokkel-ui's `Code` in `json`, highlighted in the
+`--code-*` inks, unwrapped, its copy button named for the block (`copy_pane`). A panel clips its corners with `overflow: clip` rather
 than `hidden` for this reason: a hidden overflow is a scroller of its own, and a button held to it
 would never move. Reference material in a pane is set inset (`frame="inset"`).
 
@@ -1434,8 +1447,8 @@ window narrower than the stored width clamps for that session and leaves the sto
 so the intent comes back with the window. The drag handle is a `separator` and answers the arrow
 keys, because a panel that can only be sized by pointer is a panel some people cannot size.
 
-**The rail's and the panel's edges are sokkel-ui's `ResizeHandle`; the run terminal's top edge is
-`hooks/use-drag-size`.** Either way the pointer is followed on the document rather than on the
+**The rail's and the panel's edges are sokkel-ui's `ResizeHandle`, and so is the run terminal's
+top edge, which its `Dock` draws.** The pointer is followed on the document rather than on the
 handle, and the size is written to the element's own style while the drag lasts -- a React render
 per pointer event leaves the edge visibly behind the hand -- with the store hearing the committed
 number.
@@ -1829,11 +1842,11 @@ declares a height and scrolls inside itself, which is what holds the sentences a
 still, and the whole of it stays one press away in the window every pane offers.
 
 **The height is the one that leaves the controls on screen, and it is measured.** It is a pane's
-height rather than a share of the viewport -- `max-h-40` on the block of JSON in that row, nine
-lines, which is what the dialog's own cap leaves on a 768px screen once the sentences have had
-their room. What it is measured against is the scroller the controls sit in, found by walking up
-from the control: compared against the dialog's own box a clipped control reads as visible, which
-is how this got past two rounds of review.
+height rather than a share of the viewport -- `max-h-40` on the block of JSON in that row, five
+lines under its head row, which is what the dialog's own cap leaves on a 768px screen once the
+sentences have had their room. What it is measured against is the scroller the controls sit in,
+found by walking up from the control: compared against the dialog's own box a clipped control
+reads as visible, which is how this got past two rounds of review.
 
 **A preview, and nothing else.** The exception covers read-only reference material -- a block of
 JSON, a stored body, the definition a field's code resolves to -- and it does not reach a form, a
@@ -2360,21 +2373,30 @@ own, and never will -- `run-stream.test.ts` drives the whole of the drawer's dat
 `follow` and asserts the concurrent-connection counter still says one.
 
 **Every step interleaved, in arrival order.** What happened to a run is a sequence, so the
-console is one, and the step select is there for whoever is asking the other question. Each line
-is time, level, the step as a clickable prefix, the message, and whatever fields the line carried
-rendered muted after it. The prefix opens that step in the panel through `openPanelTab`, because
-somebody clicking one is not asking for whichever tab they last had open.
+console is one, and the step select is there for whoever is asking the other question. The lines
+are sokkel-ui's `LogView`: each is time, level, the step as a clickable source, then the fan-out
+element as the line's `item`, the message, and whatever fields the line carried as its muted
+`fields`. The source opens that step in the panel through `openPanelTab`, because somebody
+clicking one is not asking for whichever tab they last had open. A run-level line belongs to no
+step, so its source is a plain `run` (`sourceLink: false`): nothing wears interactive chrome unless
+it does something. A step's log pane in the panel is a `LogView` too, with no source, since the
+step is the pane's own.
 
-**It is dark in both palettes, and it is the only thing in this app that is.** A console is not a
+**It follows the tail until somebody scrolls up.** Following is the preference; scrolled off the
+tail, the log shows the library's own jump button, `Jump to newest`{ .label }, which brings the
+newest line back and resumes following.
+
+**It is dark in both palettes, and logs are the only thing in this app that is.** A console is not a
 card -- it is a code block's cousin -- so the six `--terminal-*` inks are declared once and the
-dark palette leaves them alone. The ground alone has two depths: graphite on the light palette,
+dark palette leaves them alone. Every `LogView` stands on that ground, which is sokkel-ui's rule
+rather than a choice made here: a step's log pane in the panel is dark in the light palette too. The ground alone has two depths: graphite on the light palette,
 where black reads as a hole in the page, and a rung below the dark palette's own background,
-where the drawer has to read as deeper than the app. Its header strip is ordinary app chrome on
-the surface ladder, which is what keeps every control in it a design-system control with
-nothing re-inked.
+where the drawer has to read as deeper than the app. Its head bar is ordinary app chrome on the
+surface ladder, which is what keeps every control in it a design-system control with nothing
+re-inked.
 
 **Three filters compose, and the count says how far.** A level threshold, one step, and a match
-over the line are three predicates over one list; a foot line says "{shown} of {total} lines".
+over the line are three predicates over one list; the head bar says "{shown} of {total} lines".
 Client-side narrowing here is not the listing rule being broken: a listing's filter must be the
 server's because a listing is a window onto rows nobody has read, and this is the opposite case.
 
@@ -2619,11 +2641,12 @@ the one palette.
 | `GroupLabel` (sokkel-ui) | The one faint uppercase label over a run of rows inside a screen, `as="h3"` where it heads them in the outline. A part of a page with a title of its own is a `Section` |
 | `DescriptionList` (sokkel-ui) | Facts about one thing, given as `items`. The default `side` layout is a term column of `termWidth` beside a value column, a panel's and a dialog's; `code` sets a value in mono, and a term that is a document key is an `InlineCode`. `layout="row"` is small facts wrapping on one line, a heading's strip. A missing value is a quiet dash |
 | `Field`, `SwitchField` (sokkel-ui) | Every field: a prose label or a mono key, `required` with `requiredMark="word"` and `words={FIELD_WORDS}`, a hint, help and the `fallback` an empty box submits under the control in one ink, an error on the issue mark at the control's end. `SwitchField` is a boolean setting as a row, the whole row its label, `explain` on a help mark and `reason` under the label while it is shut |
-| `Callout`, `Surface` (sokkel-ui) | `Callout` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Surface` `tone="well"` is a group that belongs together, on the panel ground, `pad` for fields or text; `tone="inset"` is reference material -- JSON, a code block, a log that follows its tail -- on the page's ground. A refusal off the wire is still `Refusal` |
+| `Callout`, `Surface` (sokkel-ui) | `Callout` is a sentence that must not be missed, `critical`, `warning` or `neutral`, with the tone's mark. `Surface` `tone="well"` is a group that belongs together, on the panel ground, `pad` for fields or text; `tone="inset"` is reference material -- a code block -- on the page's ground; a block of JSON is `Code`, and a log is `LogView`, on the terminal ground. A refusal off the wire is still `Refusal` |
 | `DialogShell` (sokkel-ui) | Every dialog, `words={DIALOG_WORDS}`: a width from `sm`, `md`, `lg`, `xl`, a title and description, a body that scrolls under a fixed head and foot, and a footer of `Cancel` and one confirm that stays reachable while shut, or of `actions` on a dialog that reads one thing. `closeOnOutsidePress={false}` for a form somebody is typing in |
 | `ConfirmDialog` (sokkel-ui) | Before every verb that takes something away -- revoke, deactivate, delete, rotate. The title is the question and names the thing, its code in mono and nowhere else: `Delete ops-hook-2?`. There is no body, because the verb says what is lost. It holds one line only when that line changes the answer: what stops the verb, which shuts the confirm with the reason on its `title`, or what the verb takes beyond the thing named. `Question` draws the question around the code, `detail` is the one line, and a refusal off the wire is one short `RefusalLine`, with no box and no second naming of the thing. A verb that cannot go without one value holds that one field: a password reset's new password. No such verb is immediate. Its confirm wears sokkel-ui's destructive tint, the critical ink on its wash, as every verb that takes something away does |
 | `SecretReveal` (sokkel-ui) | A secret the server answers with once: the value whole in mono on its own field, wrapped rather than cut, a copy button that says it copied and resets, and the line in the warning ink saying it is shown once. `secretWords` names the copy button for the secret and says that line |
 | `CopyButton` (sokkel-ui) | The ghost icon button beside a string somebody pastes elsewhere -- a secret, a URL, a command line, a run's or an attempt's id: it puts the string on the clipboard, says it copied, and resets. `copyWords` gives it its name and the copied word |
+| `Code` (sokkel-ui) | A value to read as JSON, always through `JsonBlock`: highlighted in `json`, unwrapped so its lines scroll sideways, a head row over the text holding the window button in `actions` beside the library's copy button, named for the block, and a stated height |
 | `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` drawn into the shell's head slot by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds, a `SplitButton` when it carries `more`, its chevron named by the item's `moreLabel`. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
