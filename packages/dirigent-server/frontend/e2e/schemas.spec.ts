@@ -195,7 +195,7 @@ test('a value is tried against the text in the schema editor, saved or not', asy
 
     await writeInEditor(page, value, '{"id": 7}')
     await expect(result.getByText(LABELS.schemas.tester.invalid, { exact: true })).toBeVisible()
-    await expect(result.getByRole('button', { name: /^\/id type / })).toBeVisible()
+    await expect(result.getByRole('button', { name: /^\/id .+ type$/ })).toBeVisible()
 
     await writeInEditor(page, value, '{"id": "ou-1"}')
     await expect(result.getByText(LABELS.schemas.tester.fits)).toBeVisible()
