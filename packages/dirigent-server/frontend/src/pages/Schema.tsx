@@ -6,7 +6,7 @@ import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ListRow, ListRows } from '@winterop-com/sokkel-ui/ListRow'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Description } from '@/components/Description'
-import { PanelGroup } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { Field } from '@winterop-com/sokkel-ui/Field'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
@@ -516,7 +516,7 @@ function Details({
 function CheckedBy({ codes }: { codes: readonly string[] }) {
     if (codes.length === 0) return null
     return (
-        <PanelGroup title={LABELS.schemas.checked_by}>
+        <Group title={LABELS.schemas.checked_by}>
             <ul
                 className="space-y-1"
                 title={`${LABELS.schemas.body_warning} ${LABELS.schemas.body_in_flight}`}
@@ -534,7 +534,7 @@ function CheckedBy({ codes }: { codes: readonly string[] }) {
                     </li>
                 ))}
             </ul>
-        </PanelGroup>
+        </Group>
     )
 }
 

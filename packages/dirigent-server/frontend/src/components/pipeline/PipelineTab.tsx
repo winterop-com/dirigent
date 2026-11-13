@@ -6,7 +6,7 @@ import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { TagChip } from '@/components/TagChip'
 import type { JsonMap } from '@/lib/api'
 import { shortDigest } from '@/lib/format'
-import { PanelGroup } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'
 import { headingOf } from '@/lib/identity'
 import { HealthSaid } from '@/components/connections/Health'
@@ -109,13 +109,15 @@ export function PipelineTab({
                 <Description text={pipeline.description} />
             )}
 
-            <PanelGroup title={LABELS.word.parameters}>
+            <Group title={LABELS.word.parameters}>
                 {parameters.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
                         {LABELS.editor.pipeline_pane.no_parameters}
                     </p>
                 ) : (
                     <DescriptionList
+                        termWidth="auto"
+                        size="sm"
                         items={parameters.map((field) => ({
                             term: <InlineCode value={field.name} tone="muted" bare size="xs" />,
                             value: (
@@ -128,15 +130,17 @@ export function PipelineTab({
                         }))}
                     />
                 )}
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.connection.heading}>
+            <Group title={LABELS.word.connection.heading}>
                 {named.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
                         {LABELS.editor.pipeline_pane.no_connections}
                     </p>
                 ) : (
                     <DescriptionList
+                        termWidth="auto"
+                        size="sm"
                         items={named.map((name) => {
                             const held = connections?.find((one) => one.code === name) ?? null
                             return {
@@ -164,9 +168,9 @@ export function PipelineTab({
                         })}
                     />
                 )}
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.requires}>
+            <Group title={LABELS.word.requires}>
                 <div className="flex flex-wrap gap-1.5">
                     {requiredChips(document, unmet).map((chip) => (
                         <Chip
@@ -188,9 +192,9 @@ export function PipelineTab({
                         </span>
                     )}
                 </div>
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.trigger.heading}>
+            <Group title={LABELS.word.trigger.heading}>
                 {schedules.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_triggers}</p>
                 ) : (
@@ -204,9 +208,9 @@ export function PipelineTab({
                         ))}
                     </ul>
                 )}
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.editor.pipeline_pane.recent_runs}>
+            <Group title={LABELS.editor.pipeline_pane.recent_runs}>
                 {runs.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_runs}</p>
                 ) : (
@@ -224,9 +228,9 @@ export function PipelineTab({
                         ))}
                     </ul>
                 )}
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.version.heading}>
+            <Group title={LABELS.word.version.heading}>
                 {versions.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.editor.pipeline_pane.no_versions}</p>
                 ) : (
@@ -248,7 +252,7 @@ export function PipelineTab({
                         ))}
                     </ul>
                 )}
-            </PanelGroup>
+            </Group>
         </div>
     )
 }

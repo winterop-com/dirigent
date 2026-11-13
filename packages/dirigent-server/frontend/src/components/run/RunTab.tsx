@@ -1,5 +1,6 @@
 import { instantFact } from '@/components/Instant'
-import { Copyable, PanelGroup } from '@/components/run/Panel'
+import { Copyable } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
@@ -48,7 +49,7 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                 <p className="text-xs break-words text-critical">{run.error}</p>
             )}
 
-            <PanelGroup title={LABELS.word.trigger.label}>
+            <Group title={LABELS.word.trigger.label}>
                 <p className="text-xs">
                     {started.from === null ? (
                         startedBy(run, attempts)
@@ -62,10 +63,12 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                         </TextLink>
                     )}
                 </p>
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.runs.timing}>
+            <Group title={LABELS.runs.timing}>
                 <DescriptionList
+                    termWidth="auto"
+                    size="sm"
                     items={[
                         { term: LABELS.word.created.term, value: instantFact(run.created_at) },
                         { term: LABELS.word.started.term, value: instantFact(run.started_at) },
@@ -86,13 +89,15 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                             : []),
                     ]}
                 />
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.parameters}>
+            <Group title={LABELS.word.parameters}>
                 {params.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.runs.no_parameters}</p>
                 ) : (
                     <DescriptionList
+                        termWidth="auto"
+                        size="sm"
                         items={params.map(([name, value]) => ({
                             term: <InlineCode value={name} tone="muted" bare size="xs" />,
                             value: asJson(value),
@@ -100,10 +105,12 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                         }))}
                     />
                 )}
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.definition}>
+            <Group title={LABELS.word.definition}>
                 <DescriptionList
+                    termWidth="auto"
+                    size="sm"
                     items={[
                         {
                             term: LABELS.word.pipeline.term,
@@ -128,7 +135,7 @@ export function RunTab({ run, attempts }: { run: RunOut; attempts: readonly Atte
                               ]),
                     ]}
                 />
-            </PanelGroup>
+            </Group>
         </div>
     )
 }

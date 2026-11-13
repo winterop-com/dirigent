@@ -5,7 +5,8 @@ import { JsonBlock } from '@/components/JsonBlock'
 import { KindChip } from '@/components/KindChip'
 import { LogPane } from '@/components/run/LogPane'
 import { ProgressLine } from '@/components/run/ProgressLine'
-import { Copyable, PanelGroup } from '@/components/run/Panel'
+import { Copyable } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { DescriptionList, type Description } from '@winterop-com/sokkel-ui/DescriptionList'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
@@ -120,10 +121,10 @@ export function StepTab({
                         {heading.title}
                     </span>
                 </div>
-                <DescriptionList items={facts} />
+                <DescriptionList termWidth="auto" size="sm" items={facts} />
             </div>
 
-            <PanelGroup title={LABELS.word.attempt.heading} count={view.attempts.length}>
+            <Group title={LABELS.word.attempt.heading} count={view.attempts.length}>
                 {view.attempts.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.runs.no_attempts}</p>
                 ) : (
@@ -140,9 +141,9 @@ export function StepTab({
                         ))}
                     </ul>
                 )}
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.output}>
+            <Group title={LABELS.word.output}>
                 {view.node.fan_out ? (
                     <FanOutOutput
                         step={view.node.code}
@@ -155,9 +156,9 @@ export function StepTab({
                 ) : (
                     <StepOutput step={view.node.code} attempts={view.attempts} />
                 )}
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.config}>
+            <Group title={LABELS.word.config} bodyClassName="space-y-2">
                 {stale && (
                     <p className="text-xs text-muted-foreground">
                         {LABELS.runs.config_stale(String(configVersion.pinned), String(configVersion.shown))}
@@ -168,11 +169,11 @@ export function StepTab({
                 ) : (
                     <JsonBlock title={LABELS.runs.config_title(view.node.code)} text={asJson(config)} />
                 )}
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.log}>
+            <Group title={LABELS.word.log}>
                 <LogPane entries={entries} items={labels} settled={done} className="max-h-72 min-h-24" />
-            </PanelGroup>
+            </Group>
         </div>
     )
 }

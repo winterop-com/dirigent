@@ -3786,6 +3786,7 @@ const design = {
         disabled: 'Disabled',
         tiers: 'Over a run of rows',
         grid: 'As a grid',
+        small: 'Small, in a side panel',
         row: 'On one line',
         prose: 'With a plain label',
         key: 'With a document key',
