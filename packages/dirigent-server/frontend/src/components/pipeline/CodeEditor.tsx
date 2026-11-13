@@ -59,6 +59,7 @@ export function CodeEditor({
     reveal,
     wrap = false,
     deferred,
+    id,
     onChange,
 }: {
     /** The text, for a buffer drawn once; left out when `doc` is given. */
@@ -88,6 +89,8 @@ export function CodeEditor({
     wrap?: boolean
     /** A value the schema leaves unchecked, because the run fills it in. */
     deferred?: (value: unknown) => boolean
+    /** The id of the editable text, for a field's label to point at. */
+    id?: string
     onChange?: (text: string) => void
 }) {
     const language = languageOf(mediaType)
@@ -117,6 +120,7 @@ export function CodeEditor({
             words={SCHEMA_CHECK_WORDS}
             deferred={deferred}
             label={label}
+            id={id}
             placeholder={placeholder}
             readOnly={readOnly}
             marks={codeMarks}

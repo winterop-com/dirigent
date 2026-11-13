@@ -784,6 +784,7 @@ export function DesignSystem() {
                         <Specimen title={VARIANT.grid}>
                             <div className="w-80 min-w-0">
                                 <DescriptionList
+                                    termWidth="auto"
                                     items={[
                                         { term: LABELS.word.kind.term, value: <KindChip kind="http" /> },
                                         {
@@ -802,6 +803,27 @@ export function DesignSystem() {
                                             code: true,
                                         },
                                         { term: SAMPLE.fact_description, value: SAMPLE.long.description },
+                                    ]}
+                                />
+                            </div>
+                        </Specimen>
+                        <Specimen title={VARIANT.small}>
+                            <div className="w-72 min-w-0">
+                                <DescriptionList
+                                    termWidth="auto"
+                                    size="sm"
+                                    items={[
+                                        { term: LABELS.word.kind.term, value: <KindChip kind="http" /> },
+                                        {
+                                            term: SAMPLE.fact_owner,
+                                            value: SAMPLE.fact_owner_value,
+                                            code: true,
+                                        },
+                                        {
+                                            term: SAMPLE.fact_description,
+                                            value: SAMPLE.long.description,
+                                            wide: true,
+                                        },
                                     ]}
                                 />
                             </div>

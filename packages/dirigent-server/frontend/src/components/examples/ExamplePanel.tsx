@@ -20,7 +20,7 @@ import {
 } from '@/lib/examples'
 import { windowWords } from '@/lib/design-system'
 import { headingOf } from '@/lib/identity'
-import { PanelGroup } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'
 import { STARTER_TAG } from '@/lib/starters'
 import { cn } from '@/lib/utils'
@@ -97,8 +97,10 @@ export function ExamplePanel({
                 </p>
             )}
 
-            <PanelGroup title={LABELS.examples.facts}>
+            <Group title={LABELS.examples.facts}>
                 <DescriptionList
+                    termWidth="auto"
+                    size="sm"
                     items={[
                         { term: LABELS.examples.fact.plugin, value: example.plugin, code: true },
                         {
@@ -117,9 +119,9 @@ export function ExamplePanel({
                               ]),
                     ]}
                 />
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.requires}>
+            <Group title={LABELS.word.requires}>
                 {items.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.examples.requires_nothing}</p>
                 ) : (
@@ -133,9 +135,9 @@ export function ExamplePanel({
                         ))}
                     </ul>
                 )}
-            </PanelGroup>
+            </Group>
 
-            <PanelGroup title={LABELS.word.source}>
+            <Group title={LABELS.word.source}>
                 {!detail.read || detail.problem !== null ? (
                     <PageState frame={false} loading={!detail.read} {...refusedRead(detail.problem)}>
                         {null}
@@ -166,7 +168,7 @@ export function ExamplePanel({
                         }
                     </WindowedPane>
                 )}
-            </PanelGroup>
+            </Group>
 
             {example.starter && (
                 <Button

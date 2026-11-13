@@ -259,7 +259,7 @@ function ConnectionFacts({
             )}
             <Description text={connection.description} />
             <DescriptionList
-                termWidth="9rem"
+                termWidth="auto"
                 items={[
                     {
                         term: LABELS.word.health,

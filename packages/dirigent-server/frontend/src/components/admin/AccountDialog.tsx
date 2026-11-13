@@ -258,6 +258,7 @@ export function AccountDialog({
 function AccountFacts({ user }: { user: UserOut }) {
     return (
         <DescriptionList
+            termWidth="auto"
             items={[
                 { term: LABELS.word.role, value: <span title={ROLE_HINTS[user.role]}>{user.role}</span> },
                 ...(user.email === null ? [] : [{ term: LABELS.word.email, value: user.email }]),

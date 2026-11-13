@@ -2,9 +2,8 @@ import { Fragment, useMemo, useState, type ReactNode } from 'react'
 
 import { KindChip } from '@/components/KindChip'
 import { DocumentForm } from '@/components/schema/DocumentForm'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Label } from '@winterop-com/sokkel-ui/primitives/label'
 import {
     Select,
     SelectContent,
@@ -16,7 +15,7 @@ import type { JsonMap, Problem } from '@/lib/api'
 import type { BlockEntry } from '@/lib/blocks'
 import type { ConnectionOut } from '@/lib/connections'
 import { chipWords } from '@/lib/design-system'
-import { PanelGroup } from '@/components/run/Panel'
+import { Group } from '@winterop-com/sokkel-ui/Group'
 import { LABELS } from '@/lib/labels'
 import type { SchemaOut } from '@/lib/schemas'
 import {
@@ -146,8 +145,17 @@ export function StepTab({
     const retry = retryValues(document, step)
     const keyProblems = validateFields(stepFields, keys)
     const retryProblems = validateFields(retryFields, retry)
-    const refusals = Object.entries({ ...keyProblems, ...retryProblems, ...problems })
-    const groups = stepGroups({ keys, retry, prerequisites, sensor: block?.kind === 'sensor' })
+    const refusals = Object.entries({
+        ...keyProblems,
+        ...retryProblems,
+        ...problems,
+    })
+    const groups = stepGroups({
+        keys,
+        retry,
+        prerequisites,
+        sensor: block?.kind === 'sensor',
+    })
     // Which groups somebody opened. The panel is keyed by step upstream, so this belongs to the
     // step in front of them and choosing another one starts over.
     const [opened, setOpened] = useState<ReadonlySet<StepGroupId>>(() => new Set())
@@ -179,7 +187,7 @@ export function StepTab({
             )}
 
             {runs !== null && (
-                <PanelGroup title={LABELS.word.config}>
+                <Group title={LABELS.word.config}>
                     {blockProblem !== null ? (
                         <p className="text-xs text-critical">{said(blockProblem)}</p>
                     ) : block === null ? (
@@ -197,7 +205,7 @@ export function StepTab({
                             onChange={onConfig}
                         />
                     )}
-                </PanelGroup>
+                </Group>
             )}
 
             {listens === null && (
@@ -206,7 +214,7 @@ export function StepTab({
                         const wrong = groupProblems(group, group.id === 'retry' ? retryProblems : keyProblems)
                         const refused = Object.keys(wrong).length > 0
                         return (
-                            <Group
+                            <EngineGroup
                                 key={group.id}
                                 group={group}
                                 open={opened.has(group.id)}
@@ -259,24 +267,22 @@ export function StepTab({
                                         }}
                                     />
                                 )}
-                            </Group>
+                            </EngineGroup>
                         )
                     })}
                 </div>
             )}
 
-            <div className="space-y-1.5">
-                <Label htmlFor="step-display-name">{LABELS.word.name.label}</Label>
-                <Input
-                    id="step-display-name"
-                    value={named}
-                    disabled={disabled !== undefined}
-                    onChange={(event) => {
-                        setNamed(event.target.value)
-                        onName(event.target.value)
-                    }}
-                />
-            </div>
+            <TextField
+                id="step-display-name"
+                label={LABELS.word.name.label}
+                value={named}
+                disabled={disabled !== undefined}
+                onChange={(next) => {
+                    setNamed(next)
+                    onName(next)
+                }}
+            />
 
             {refusals.length > 0 && (
                 <Callout tone="critical" title={LABELS.editor.step.refused_at_apply}>
@@ -311,7 +317,7 @@ function toggled(open: ReadonlySet<StepGroupId>, id: StepGroupId): ReadonlySet<S
  *
  * A group holding a refusal is held open with no button to shut it until the refusal is gone.
  */
-function Group({
+function EngineGroup({
     group,
     open,
     held,
