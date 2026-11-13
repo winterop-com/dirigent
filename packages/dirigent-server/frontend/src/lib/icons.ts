@@ -91,6 +91,18 @@ import {
     Waypoints,
     SquareTerminal,
     PanelBottomClose,
+    PlugZap,
+    CalendarPlus,
+    UserPlus,
+    BellPlus,
+    Send,
+    ShieldCheck,
+    CircleCheck,
+    LayoutGrid,
+    ArrowUp,
+    FilePlus2,
+    CircleX,
+    History,
 } from 'lucide-react'
 
 /** A mark from the vocabulary, as a component taking a `className`. */
@@ -99,6 +111,10 @@ export type Icon = LucideIcon
 export const ICONS = {
     // Verbs: what a control does.
     create: Plus,
+    create_connection: PlugZap,
+    create_schedule: CalendarPlus,
+    create_user: UserPlus,
+    create_rule: BellPlus,
     edit: Pencil,
     delete: Trash2,
     run: Play,
@@ -108,6 +124,9 @@ export const ICONS = {
     cancel: CircleStop,
     revoke: Ban,
     rotate: RotateCw,
+    validate: ShieldCheck,
+    apply: CircleCheck,
+    send_test: Send,
     refresh: RefreshCw,
     recheck: HeartPulse,
     clear: X,
@@ -129,12 +148,15 @@ export const ICONS = {
     // Navigation and chrome: where a control goes, or what it opens.
     external: ExternalLink,
     follow: ArrowUpRight,
+    /** Up to the rows that arrived since the list was read. */
+    show_newer: ArrowUp,
     settings: Settings,
     fit_view: Scan,
     open_in_window: Maximize2,
     zoom_in: ZoomIn,
     zoom_out: ZoomOut,
     graph_layout: Network,
+    relayout: LayoutGrid,
     more: Ellipsis,
     split: ChevronDown,
     expand: ChevronRight,
@@ -165,8 +187,11 @@ export const ICONS = {
     schema: FileBraces,
     trigger: CalendarClock,
     schedule: Clock,
+    /** The last day, as a window a list is narrowed to. */
+    recent: History,
     source: Radio,
     example: BookOpen,
+    starter: FilePlus2,
     alerting: Bell,
     user: User,
     users: Users,
@@ -177,6 +202,7 @@ export const ICONS = {
 
     // States: what a notice is about.
     critical: CircleAlert,
+    failed: CircleX,
     warning: TriangleAlert,
     info: Info,
     unreachable: ServerCrash,
@@ -190,6 +216,10 @@ export type IconName = keyof typeof ICONS
 export const ICON_GROUPS = {
     verbs: [
         'create',
+        'create_connection',
+        'create_schedule',
+        'create_user',
+        'create_rule',
         'edit',
         'delete',
         'run',
@@ -199,6 +229,9 @@ export const ICON_GROUPS = {
         'cancel',
         'revoke',
         'rotate',
+        'validate',
+        'apply',
+        'send_test',
         'refresh',
         'recheck',
         'clear',
@@ -220,12 +253,14 @@ export const ICON_GROUPS = {
     chrome: [
         'external',
         'follow',
+        'show_newer',
         'settings',
         'fit_view',
         'open_in_window',
         'zoom_in',
         'zoom_out',
         'graph_layout',
+        'relayout',
         'more',
         'split',
         'expand',
@@ -255,8 +290,10 @@ export const ICON_GROUPS = {
         'schema',
         'trigger',
         'schedule',
+        'recent',
         'source',
         'example',
+        'starter',
         'alerting',
         'user',
         'users',
@@ -265,7 +302,7 @@ export const ICON_GROUPS = {
         'worker',
         'tag',
     ],
-    states: ['critical', 'warning', 'info', 'unreachable', 'loading'],
+    states: ['critical', 'failed', 'warning', 'info', 'unreachable', 'loading'],
 } as const satisfies Record<string, readonly IconName[]>
 
 /** One kind of concept the vocabulary groups by. */

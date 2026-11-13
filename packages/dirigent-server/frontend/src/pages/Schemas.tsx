@@ -1,4 +1,3 @@
-import { FileJson, RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
@@ -11,6 +10,7 @@ import { PageState } from '@/components/PageState'
 import { NewSchema } from '@/components/schemas/NewSchema'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
+import { ICONS } from '@/lib/icons'
 import { headingOf, itemOf, oneLine } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { rowsRead } from '@/lib/paging'
@@ -56,7 +56,7 @@ export function Schemas() {
                           title: LABELS.schemas.new,
                           group: LIST_GROUP,
                           screen: true,
-                          icon: FileJson,
+                          icon: ICONS.schema,
                           keywords: ['json schema', 'create', 'add', 'shape'],
                           run: () => {
                               setCreating(true)
@@ -69,7 +69,7 @@ export function Schemas() {
                 title: LABELS.schemas.reload,
                 group: LIST_GROUP,
                 screen: true,
-                icon: RefreshCw,
+                icon: ICONS.refresh,
                 keywords: ['refresh', 'reload'],
                 run: reload,
             },
