@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
@@ -35,6 +34,7 @@ import { closePanel, fillPanel, openPanel } from '@/lib/panels'
 import { rowsRead } from '@/lib/paging'
 import { fieldsOf, type FieldDescriptor } from '@/lib/schema-form'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 
 const blockId = (entry: BlockEntry) => entry.id
 
@@ -308,16 +308,17 @@ function ExampleCount({ id, many }: { id: string; many: number }) {
     if (many === 0) return <span className="text-xs text-faint">{LABELS.word.none}</span>
     const said = pick(many, LABELS.blocks.example_count)(String(many))
     return (
-        <Link
-            className="text-xs text-foreground underline-offset-2 hover:underline"
-            to={`/examples?block=${encodeURIComponent(id)}`}
+        <TextLink
+            variant="data"
+            className="text-xs"
+            href={`/examples?block=${encodeURIComponent(id)}`}
             title={LABELS.blocks.example_link(id)}
             onClick={(event) => {
                 event.stopPropagation()
             }}
         >
             {said}
-        </Link>
+        </TextLink>
     )
 }
 

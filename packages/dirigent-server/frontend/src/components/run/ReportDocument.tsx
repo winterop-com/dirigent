@@ -1,3 +1,4 @@
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { WindowedPane } from '@winterop-com/sokkel-ui/WindowedPane'
 import { Description } from '@/components/Description'
 import { useApiPrefix } from '@/hooks/use-api-prefix'
@@ -47,14 +48,14 @@ export function ReportDocumentPane({
                     <div className={cn('flex flex-col gap-3', capped && 'max-h-[28rem] overflow-y-auto p-4')}>
                         <Description text={document.markdown} ink="body" />
                         {prefix !== null && document.id !== null && (
-                            <a
-                                className="w-fit text-xs text-foreground underline-offset-2 hover:underline"
+                            <TextLink
+                                variant="inline"
                                 href={artifactUrl(prefix, document.id)}
                                 download={DOCUMENT_NAME}
-                                rel="noopener"
+                                className="w-fit text-xs"
                             >
                                 {LABELS.runs.report_download}
-                            </a>
+                            </TextLink>
                         )}
                     </div>
                 ) : (

@@ -1,4 +1,6 @@
+import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { REPORTS_DOCS_URL } from '@/lib/docs'
+import { LINK_WORDS } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
 
 /**
@@ -228,14 +230,15 @@ export function ProgramReference({ mediaType }: { mediaType: string | null | und
                 </section>
             ))}
             {reference.manual !== null && (
-                <a
+                <TextLink
+                    variant="inline"
+                    external
+                    words={LINK_WORDS}
                     href={reference.manual.href}
-                    target="_blank"
-                    rel="noopener"
-                    className="text-xs text-foreground underline-offset-2 hover:underline"
+                    className="w-fit text-xs"
                 >
                     {reference.manual.label}
-                </a>
+                </TextLink>
             )}
         </div>
     )
