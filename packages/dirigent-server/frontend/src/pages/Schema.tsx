@@ -7,7 +7,7 @@ import { ListRow, ListRows } from '@winterop-com/sokkel-ui/ListRow'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 import { Description } from '@/components/Description'
 import { Group } from '@winterop-com/sokkel-ui/Group'
-import { Field } from '@winterop-com/sokkel-ui/Field'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { DIALOG_WORDS, shutWith, windowWords } from '@/lib/design-system'
@@ -19,8 +19,6 @@ import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { ConfirmDialog, DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
 import { Question } from '@/components/Question'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { WindowedPane, WindowedPaneButton } from '@winterop-com/sokkel-ui/WindowedPane'
 import { useControlledDocument } from '@winterop-com/sokkel-ui/CodeEditor'
 import { useMayWrite } from '@/hooks/use-may-write'
@@ -494,26 +492,22 @@ function Details({
         <div className="flex flex-col gap-4 p-4">
             {editing ? (
                 <>
-                    <Field id="schema-name" label={LABELS.word.name.label}>
-                        <Input
-                            id="schema-name"
-                            value={named}
-                            onChange={(event) => {
-                                onNamed(event.target.value)
-                            }}
-                        />
-                    </Field>
-                    <Field id="schema-description" label={LABELS.word.description}>
-                        <Textarea
-                            id="schema-description"
-                            className="max-h-80 min-h-28"
-                            value={description}
-                            placeholder={LABELS.schemas.description_placeholder}
-                            onChange={(event) => {
-                                onDescription(event.target.value)
-                            }}
-                        />
-                    </Field>
+                    <TextField
+                        id="schema-name"
+                        label={LABELS.word.name.label}
+                        value={named}
+                        onChange={onNamed}
+                    />
+                    <TextField
+                        id="schema-description"
+                        label={LABELS.word.description}
+                        multiline
+                        rows={5}
+                        maxRows={15}
+                        value={description}
+                        placeholder={LABELS.schemas.description_placeholder}
+                        onChange={onDescription}
+                    />
                     {problem !== null && <Refusal problem={problem} />}
                     {verbs}
                 </>
@@ -607,11 +601,12 @@ function Failures({
     onShow: (error: SchemaViolation) => void
 }) {
     return (
-        <ListRows className="divide-y divide-border" label={LABELS.schemas.tester.failures_label}>
+        <ListRows flush label={LABELS.schemas.tester.failures_label}>
             {errors.map((error) => (
                 <ListRow
                     key={`${error.at} ${error.schema_at} ${error.message}`}
-                    className="rounded-none px-4"
+                    wrap
+                    tooltip={LABELS.schemas.tester.show_failure(pointerLabel(error.at))}
                     title={
                         error.at === '' ? (
                             <span className="text-xs text-muted-foreground">{pointerLabel(error.at)}</span>
@@ -619,11 +614,7 @@ function Failures({
                             <InlineCode value={error.at} tone="neutral" bare size="xs" />
                         )
                     }
-                    detail={
-                        <span className="text-sm break-words whitespace-normal text-foreground">
-                            {error.message}
-                        </span>
-                    }
+                    detail={error.message}
                     aside={<Chip mono>{error.keyword}</Chip>}
                     onPress={() => {
                         onShow(error)

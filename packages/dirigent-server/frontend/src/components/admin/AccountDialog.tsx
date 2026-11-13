@@ -11,13 +11,13 @@ import { Question } from '@/components/Question'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
-import { Field } from '@winterop-com/sokkel-ui/Field'
+import { SecretField } from '@winterop-com/sokkel-ui/SecretField'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { type Problem } from '@/lib/api'
 import { type UserRole } from '@/lib/auth'
 import { ICONS } from '@/lib/icons'
-import { DIALOG_WORDS } from '@/lib/design-system'
+import { DIALOG_WORDS, SECRET_FIELD_WORDS } from '@/lib/design-system'
 import { itemOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { local, refusalLine, refusalOf } from '@/lib/refusal'
@@ -131,36 +131,32 @@ export function AccountDialog({
                     }}
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <Field id="account-name" label={LABELS.word.name.label}>
-                            <Input
-                                id="account-name"
-                                value={draft.name}
-                                autoComplete="off"
-                                onChange={(event) => {
-                                    setDraft({ ...draft, name: event.target.value })
-                                }}
-                            />
-                        </Field>
-                        <Field id="account-email" label={LABELS.word.email}>
-                            <Input
-                                id="account-email"
-                                value={draft.email}
-                                autoComplete="off"
-                                onChange={(event) => {
-                                    setDraft({ ...draft, email: event.target.value })
-                                }}
-                            />
-                        </Field>
-                    </div>
-                    <Field id="account-role" label={LABELS.word.role}>
-                        <RoleSelect
-                            id="account-role"
-                            value={draft.role}
-                            onChange={(role) => {
-                                setDraft({ ...draft, role })
+                        <TextField
+                            id="account-name"
+                            label={LABELS.word.name.label}
+                            value={draft.name}
+                            autoComplete="off"
+                            onChange={(name) => {
+                                setDraft({ ...draft, name })
                             }}
                         />
-                    </Field>
+                        <TextField
+                            id="account-email"
+                            label={LABELS.word.email}
+                            value={draft.email}
+                            autoComplete="off"
+                            onChange={(email) => {
+                                setDraft({ ...draft, email })
+                            }}
+                        />
+                    </div>
+                    <RoleSelect
+                        id="account-role"
+                        value={draft.role}
+                        onChange={(role) => {
+                            setDraft({ ...draft, role })
+                        }}
+                    />
                     {problem !== null && <Refusal problem={problem} />}
                 </DialogShell>
             ) : (
@@ -324,17 +320,18 @@ function ResetPassword({ username, onDone }: { username: string; onDone: () => v
             words={DIALOG_WORDS}
             status={problem === null ? undefined : <ProblemLine>{refusalLine(problem)}</ProblemLine>}
         >
-            <Field id="reset-password" label={LABELS.users.new_password}>
-                <Input
-                    id="reset-password"
-                    type="password"
-                    value={password}
-                    autoComplete="new-password"
-                    onChange={(event) => {
-                        setPassword(event.target.value)
-                    }}
-                />
-            </Field>
+            <SecretField
+                id="reset-password"
+                label={LABELS.users.new_password}
+                required
+                requiredMark="word"
+                words={SECRET_FIELD_WORDS}
+                mono={false}
+                value={password === '' ? undefined : password}
+                onChange={(typed) => {
+                    setPassword(typed ?? '')
+                }}
+            />
         </ConfirmDialog>
     )
 }

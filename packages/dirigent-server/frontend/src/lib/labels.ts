@@ -804,6 +804,8 @@ const shell = {
     more_chosen: (count: number) => `+${String(count)}`,
     /** What a picker says when nothing in its list answers to what was typed. */
     no_match: 'No match.',
+    /** What a picker's closed box says while nothing is chosen. */
+    choose: 'Choose',
     /** What the tag filter filters on. */
     tag_filter: 'Tag',
     /** One tag chip, which narrows the listing to itself. */
@@ -1731,6 +1733,8 @@ const editor = {
         /** Above the list of what one field's own schema refuses. */
         refused_at_apply: 'Applying will be refused because of this step.',
         add_prerequisite: 'Add a prerequisite',
+        /** The search box over the steps a step may wait for. */
+        prerequisite_search: 'Search the steps',
         stop_waiting: (step: string) => `Stop waiting for ${step}`,
     },
 
@@ -2065,6 +2069,11 @@ const form = {
     no_configuration: 'This takes no configuration.',
     /** Beside the label of a field the schema requires. */
     required: 'required',
+    /** The button at the end of a password box that unmasks it, and masks it again. */
+    secret: {
+        show: 'Show',
+        hide: 'Hide',
+    },
     /** Beside the label: what an empty box would submit. */
     default_is: (value: string) => `default ${value}`,
     /**
@@ -2557,8 +2566,8 @@ const terminal = {
 
     // The three controls that narrow what is drawn.
 
-    /** The accessible name of the level select. */
-    level_filter: 'Minimum log level',
+    /** The level filter's chip, named for what it narrows by. */
+    level_facet: 'Level',
     /** Each threshold, said as what it lets through. `LogLevel` is the key. */
     level: {
         debug: 'All levels',
@@ -2566,9 +2575,9 @@ const terminal = {
         warning: 'Warnings and up',
         error: 'Errors only',
     },
-    /** The accessible name of the step select. */
-    step_filter: 'Filter by step',
-    /** What the step select is worth when no step is chosen. */
+    /** The step filter's chip, named for what it narrows by. */
+    step_facet: 'Step',
+    /** What the step filter's menu offers to unset it, which is every step. */
     every_step: 'Every step',
     /** The accessible name of the search box. */
     match_filter: 'Filter lines by text',
@@ -2869,7 +2878,7 @@ const triggers = {
     dialog: {
         pipeline_hint: 'Search by name or code',
         /** The priority row that declares none, so the pipeline's own is what a run takes. */
-        priority_inherited: 'Same as the pipeline',
+        priority_inherited: "The pipeline's",
         /** Which reading of the pinned parameters is in front of somebody. */
         params_written: 'How the parameters are written',
         params_form: 'Form',
@@ -3280,6 +3289,8 @@ const schemas = {
         root: 'the value',
         /** What the list of failures is called, for whoever is not reading the screen. */
         failures_label: 'Where the value fails',
+        /** Said on hover over a failure: what pressing it does. */
+        show_failure: (pointer: string) => `Show ${pointer} in the value`,
         /** A schema that is JSON but not an object, which no check takes. */
         not_an_object: 'The schema is not an object.',
         /** A value the browser could not read as JSON, said instead of asking the server. */

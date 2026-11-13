@@ -26,6 +26,7 @@ import { offsetMinutes, timesMode, zoneLabel } from '@/lib/times'
 import { Callout } from '@winterop-com/sokkel-ui/Callout'
 import { DateTimeField } from '@winterop-com/sokkel-ui/DateTimeField'
 import { FieldGroup } from '@winterop-com/sokkel-ui/FieldGroup'
+import { InlineField } from '@winterop-com/sokkel-ui/InlineField'
 
 const ENTRY = LABELS.editor.run.entry
 
@@ -171,6 +172,7 @@ export function RunDialog({
                                 required={needsWindow}
                                 requiredMark="word"
                                 words={FIELD_WORDS}
+                                mono
                                 value={end.value === '' ? null : end.value}
                                 onValueChange={(next) => {
                                     end.set(next ?? '')
@@ -205,15 +207,19 @@ export function RunDialog({
                 </p>
             )}
 
-            <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{LABELS.editor.run.log}</span>
+            <InlineField id="run-log-level" label={LABELS.editor.run.log} size="sm" className="w-fit">
                 <Select
                     value={level}
                     onValueChange={(chosen) => {
                         setLevel(chosen === 'debug' ? 'debug' : 'info')
                     }}
                 >
-                    <SelectTrigger size="sm" className="w-40" aria-label={LABELS.editor.run.log_level}>
+                    <SelectTrigger
+                        id="run-log-level"
+                        size="sm"
+                        className="w-40"
+                        aria-label={LABELS.editor.run.log_level}
+                    >
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -221,7 +227,7 @@ export function RunDialog({
                         <SelectItem value="debug">{LABELS.editor.run.debug_too}</SelectItem>
                     </SelectContent>
                 </Select>
-            </div>
+            </InlineField>
 
             {entry !== null && (
                 <p className="text-xs text-muted-foreground" data-testid="run-entry">

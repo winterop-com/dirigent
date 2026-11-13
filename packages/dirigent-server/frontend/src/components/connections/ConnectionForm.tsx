@@ -1,9 +1,7 @@
 import { GroupLabel } from '@winterop-com/sokkel-ui/GroupLabel'
-import { Field } from '@winterop-com/sokkel-ui/Field'
+import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { GeneratedForm } from '@/components/schema/GeneratedForm'
 import { Refusal } from '@/components/Refusal'
-import { Input } from '@winterop-com/sokkel-ui/primitives/input'
-import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { type ConnectionEdit } from '@/hooks/use-connection-edit'
 import { LABELS } from '@/lib/labels'
 
@@ -17,27 +15,23 @@ import { LABELS } from '@/lib/labels'
 export function ConnectionForm({ form }: { form: ConnectionEdit }) {
     return (
         <>
-            <Field id="connection-name" label={LABELS.word.name.label}>
-                <Input
-                    id="connection-name"
-                    value={form.named}
-                    onChange={(event) => {
-                        form.setNamed(event.target.value)
-                    }}
-                />
-            </Field>
+            <TextField
+                id="connection-name"
+                label={LABELS.word.name.label}
+                value={form.named}
+                onChange={form.setNamed}
+            />
 
-            <Field id="connection-description" label={LABELS.word.description}>
-                <Textarea
-                    id="connection-description"
-                    className="h-20"
-                    value={form.description}
-                    onChange={(event) => {
-                        form.setDescription(event.target.value)
-                    }}
-                    placeholder={LABELS.connections.description_placeholder}
-                />
-            </Field>
+            <TextField
+                id="connection-description"
+                label={LABELS.word.description}
+                multiline
+                rows={3}
+                maxRows={8}
+                value={form.description}
+                onChange={form.setDescription}
+                placeholder={LABELS.connections.description_placeholder}
+            />
 
             <div className="space-y-3">
                 <GroupLabel as="h3">{LABELS.connections.settings_heading}</GroupLabel>

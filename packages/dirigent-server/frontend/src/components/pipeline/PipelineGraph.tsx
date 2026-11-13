@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 
 import { BlockPicker } from '@winterop-com/sokkel-ui-graph/BlockPicker'
-import type { GraphControls, GraphEditing } from '@winterop-com/sokkel-ui-graph/GraphCanvas'
+import type { GraphControls, GraphEditing, GraphMenuItems } from '@winterop-com/sokkel-ui-graph/GraphCanvas'
 import { GraphOverlay, type GraphAnchor } from '@winterop-com/sokkel-ui-graph/GraphOverlay'
 import { GraphControlButton } from '@winterop-com/sokkel-ui-graph/GraphViewButtons'
 import { PipelineGraph as StepCanvas, type PipelineStep } from '@winterop-com/sokkel-ui-graph/PipelineGraph'
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@winterop-com/sokkel-ui/primitives/dropdown-menu'
 import { useRead } from '@/hooks/use-read'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import type { JsonMap } from '@/lib/api'
@@ -124,7 +118,6 @@ export function PipelineGraph({
     const layout = useStore(heldLayout)
     const controls = useRef<GraphControls | null>(null)
     const [picking, setPicking] = useState<Picking | null>(null)
-    const [onNode, setOnNode] = useState<{ step: string; over: { x: number; y: number } } | null>(null)
 
     useEffect(() => {
         loadPlacements(pipeline)
@@ -215,16 +208,10 @@ export function PipelineGraph({
             },
             onRemove: onRemoveStep,
             onMove: placeStep,
-            onNodeMenu: (step, at) => {
-                setPicking(null)
-                setOnNode({ step, over: { x: at.clientX, y: at.clientY } })
-            },
             onPaneMenu: (at) => {
-                setOnNode(null)
                 setPicking({ at: { x: at.x, y: at.y }, after: null, place: null })
             },
             onDrop: (from, at) => {
-                setOnNode(null)
                 setPicking({ at: { x: at.x, y: at.y }, after: from, place: { x: at.x, y: at.y } })
             },
             canConnect: (from, to) => cycleRefusal(steps, from, to),
@@ -238,7 +225,6 @@ export function PipelineGraph({
     // The picker opens beside the button it was asked from, and that button closes it again.
     const pickFrom = (event: MouseEvent<HTMLButtonElement>) => {
         const button = event.currentTarget
-        setOnNode(null)
         setPicking((open) =>
             open !== null && typeof open.at === 'object' && 'element' in open.at && open.at.element === button
                 ? null
@@ -248,6 +234,34 @@ export function PipelineGraph({
 
     const close = () => {
         setPicking(null)
+    }
+
+    // A box's own menu: one more step after this one, and this one taken out.
+    const stepMenu = (step: string): GraphMenuItems => {
+        setPicking(null)
+        return {
+            head: step,
+            items: [
+                {
+                    id: 'add-after',
+                    label: LABELS.editor.canvas.add_after,
+                    onSelect: () => {
+                        const box = controls.current?.nodeBox(step) ?? null
+                        if (box === null) return
+                        const place = { x: box.x + box.width + ADD_AFTER_GAP, y: box.y }
+                        setPicking({ at: place, after: step, place })
+                    },
+                },
+                {
+                    id: 'remove',
+                    label: LABELS.editor.canvas.delete_step,
+                    destructive: true,
+                    onSelect: () => {
+                        onRemoveStep(step)
+                    },
+                },
+            ],
+        }
     }
 
     return (
@@ -263,6 +277,7 @@ export function PipelineGraph({
                 wrapWidth={WRAP_WIDTH}
                 positions={positions}
                 editing={readOnly ? undefined : editing}
+                nodeMenu={readOnly ? undefined : stepMenu}
                 onControls={(handed) => {
                     controls.current = handed
                 }}
@@ -299,69 +314,6 @@ export function PipelineGraph({
                     </GraphOverlay>
                 )}
             </StepCanvas>
-
-            {onNode !== null && (
-                <StepMenuAt
-                    step={onNode.step}
-                    at={onNode.over}
-                    onAddAfter={() => {
-                        const box = controls.current?.nodeBox(onNode.step) ?? null
-                        setOnNode(null)
-                        if (box === null) return
-                        const place = { x: box.x + box.width + ADD_AFTER_GAP, y: box.y }
-                        setPicking({ at: place, after: onNode.step, place })
-                    }}
-                    onRemove={() => {
-                        setOnNode(null)
-                        onRemoveStep(onNode.step)
-                    }}
-                    onClose={() => {
-                        setOnNode(null)
-                    }}
-                />
-            )}
         </div>
-    )
-}
-
-/**
- * A box's own menu: one more step after this one, and this one taken out. Its anchor is an
- * element of no size at the pointer, so the popup stays inside the viewport.
- */
-function StepMenuAt({
-    step,
-    at,
-    onAddAfter,
-    onRemove,
-    onClose,
-}: {
-    step: string
-    at: { x: number; y: number }
-    onAddAfter: () => void
-    onRemove: () => void
-    onClose: () => void
-}) {
-    return (
-        <DropdownMenu
-            open
-            onOpenChange={(next) => {
-                if (!next) onClose()
-            }}
-        >
-            <DropdownMenuTrigger
-                aria-label={step}
-                tabIndex={-1}
-                data-menu-anchor
-                className="pointer-events-none fixed size-0"
-                style={{ left: at.x, top: at.y }}
-            />
-            <DropdownMenuContent align="start" className="w-56">
-                <p className="truncate px-2 py-1.5 font-mono text-xs text-faint">{step}</p>
-                <DropdownMenuItem onClick={onAddAfter}>{LABELS.editor.canvas.add_after}</DropdownMenuItem>
-                <DropdownMenuItem className="destructive-action" onClick={onRemove}>
-                    {LABELS.editor.canvas.delete_step}
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
     )
 }

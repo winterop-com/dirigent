@@ -7,7 +7,13 @@ import { SchemeChoice } from '@winterop-com/sokkel-ui/SchemeChoice'
 import { SettingsDialog as LibrarySettingsDialog } from '@winterop-com/sokkel-ui/SettingsDialog'
 import { ThemeCards } from '@winterop-com/sokkel-ui/ThemeCards'
 import { Refusal } from '@/components/Refusal'
-import { FIELD_WORDS, LINK_WORDS, SCHEME_WORDS, SETTINGS_WORDS, THEME_CARDS_WORDS } from '@/lib/design-system'
+import {
+    LINK_WORDS,
+    SECRET_FIELD_WORDS,
+    SCHEME_WORDS,
+    SETTINGS_WORDS,
+    THEME_CARDS_WORDS,
+} from '@/lib/design-system'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import { STATUS_CSS } from '@winterop-com/sokkel-ui/lib/status'
@@ -40,7 +46,7 @@ import { readSystemInfo, type SystemInfo } from '@/lib/system'
 import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER, PALETTES } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
-import { TextField } from '@winterop-com/sokkel-ui/TextField'
+import { SecretField } from '@winterop-com/sokkel-ui/SecretField'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
 
 export const SETTINGS_TITLE = LABELS.settings.title
@@ -323,37 +329,36 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
     return (
         <Surface tone="well" pad className="w-full space-y-3">
             <div className="flex flex-col gap-3 md:flex-row">
-                <TextField
+                <SecretField
                     id="password-current"
+                    autoComplete="current-password"
                     label={LABELS.settings.current_password}
                     required
                     requiredMark="word"
-                    words={FIELD_WORDS}
+                    words={SECRET_FIELD_WORDS}
                     error={currentIssue}
                     className="flex-1"
-                    type="password"
-                    autoComplete="current-password"
-                    value={form.current}
+                    mono={false}
+                    value={form.current === '' ? undefined : form.current}
                     onChange={(current) => {
-                        setForm((was) => ({ ...was, current }))
+                        setForm((was) => ({ ...was, current: current ?? '' }))
                     }}
                     onBlur={() => {
                         setLeft((was) => ({ ...was, current: true }))
                     }}
                 />
-                <TextField
+                <SecretField
                     id="password-new"
                     label={LABELS.settings.new_password}
                     required
                     requiredMark="word"
-                    words={FIELD_WORDS}
+                    words={SECRET_FIELD_WORDS}
                     error={nextIssue}
                     className="flex-1"
-                    type="password"
-                    autoComplete="new-password"
-                    value={form.next}
+                    mono={false}
+                    value={form.next === '' ? undefined : form.next}
                     onChange={(next) => {
-                        setForm((was) => ({ ...was, next }))
+                        setForm((was) => ({ ...was, next: next ?? '' }))
                     }}
                     onBlur={() => {
                         setLeft((was) => ({ ...was, next: true }))

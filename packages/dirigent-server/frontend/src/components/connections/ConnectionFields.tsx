@@ -97,6 +97,8 @@ export function ConnectionFields({
                         id={`${ids}-description`}
                         label={LABELS.word.description}
                         multiline
+                        rows={3}
+                        maxRows={8}
                         value={draft.description}
                         onChange={form.setDescription}
                         placeholder={LABELS.connections.description_placeholder}

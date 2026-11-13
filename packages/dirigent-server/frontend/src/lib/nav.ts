@@ -11,25 +11,10 @@
  * page and is told by the server what it thinks of them.
  */
 
-import {
-    Bell,
-    Blocks,
-    BookOpen,
-    CalendarClock,
-    Cpu,
-    FileJson,
-    History,
-    House,
-    Play,
-    Plug,
-    Users,
-    Workflow,
-    type LucideIcon,
-} from 'lucide-react'
-
 import type { RailGroup } from '@winterop-com/sokkel-ui/Rail'
 
 import type { UserRole } from '@/lib/auth'
+import { ICONS, type Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 
 /** One entry in the rail: where it goes, what it is called, and the mark beside it. */
@@ -46,7 +31,7 @@ export interface NavEntry {
      * made of needs no gloss under it.
      */
     hint: string
-    icon: LucideIcon
+    icon: Icon
 }
 
 /** A run of entries under one heading. */
@@ -86,7 +71,7 @@ export const NAV: NavSection[] = [
                 path: DASHBOARD_PATH,
                 label: LABELS.screen.dashboard.name,
                 hint: LABELS.screen.dashboard.hint,
-                icon: House,
+                icon: ICONS.dashboard,
             },
         ],
     },
@@ -99,13 +84,13 @@ export const NAV: NavSection[] = [
                 path: '/runs',
                 label: LABELS.screen.runs.name,
                 hint: LABELS.screen.runs.hint,
-                icon: Play,
+                icon: ICONS.run,
             },
             {
                 path: '/triggers',
                 label: LABELS.screen.triggers.name,
                 hint: LABELS.screen.triggers.hint,
-                icon: CalendarClock,
+                icon: ICONS.trigger,
             },
         ],
     },
@@ -118,19 +103,19 @@ export const NAV: NavSection[] = [
                 path: '/pipelines',
                 label: LABELS.screen.pipelines.name,
                 hint: LABELS.screen.pipelines.hint,
-                icon: Workflow,
+                icon: ICONS.pipeline,
             },
             {
                 path: '/connections',
                 label: LABELS.screen.connections.name,
                 hint: LABELS.screen.connections.hint,
-                icon: Plug,
+                icon: ICONS.connection,
             },
             {
                 path: '/schemas',
                 label: LABELS.screen.schemas.name,
                 hint: LABELS.screen.schemas.hint,
-                icon: FileJson,
+                icon: ICONS.schema,
             },
         ],
     },
@@ -143,13 +128,13 @@ export const NAV: NavSection[] = [
                 path: '/blocks',
                 label: LABELS.screen.blocks.name,
                 hint: LABELS.screen.blocks.hint,
-                icon: Blocks,
+                icon: ICONS.block,
             },
             {
                 path: '/examples',
                 label: LABELS.screen.examples.name,
                 hint: LABELS.screen.examples.hint,
-                icon: BookOpen,
+                icon: ICONS.example,
             },
         ],
     },
@@ -162,25 +147,25 @@ export const NAV: NavSection[] = [
                 path: '/admin/users',
                 label: LABELS.screen.users.name,
                 hint: LABELS.screen.users.hint,
-                icon: Users,
+                icon: ICONS.users,
             },
             {
                 path: '/admin/workers',
                 label: LABELS.screen.workers.name,
                 hint: LABELS.screen.workers.hint,
-                icon: Cpu,
+                icon: ICONS.worker,
             },
             {
                 path: '/admin/alerting',
                 label: LABELS.screen.alerting.name,
                 hint: LABELS.screen.alerting.hint,
-                icon: Bell,
+                icon: ICONS.alerting,
             },
             {
                 path: '/admin/audit',
                 label: LABELS.screen.audit.name,
                 hint: LABELS.screen.audit.hint,
-                icon: History,
+                icon: ICONS.recent,
             },
         ],
     },

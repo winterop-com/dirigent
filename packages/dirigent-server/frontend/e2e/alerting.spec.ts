@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, filterChip, signIn, statusChip, writeInEditor } from './support.ts'
+import { apiPrefix, applyDocument, filterChip, signIn, statusChip, writeInEditor } from './support.ts'
 
 /**
  * The alerting screen: the channels, the rules, and the queue.
@@ -19,6 +19,15 @@ const RULE = { code: 'e2e-page-ops', name: 'Page the on-call' }
 
 /** A channel whose picker row is wider than the box the picker hangs from, on a phone. */
 const CHANNEL = { code: 'e2e-ops-alert', name: 'On-call mobile' }
+
+/** A pipeline whose picker row is wider than the half-width field a 1024 dialog gives it. */
+const WIDE_PIPELINE = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: 'e2e-picker-wide',
+    name: 'A pipeline whose title runs well past the field it is chosen in',
+    steps: { wait: { block: 'time.sleep', config: { for: '1s' } } },
+}
 
 /** A rule whose name is long enough to be cut in the column a 1024 window leaves the table. */
 const WIDE = {
@@ -91,7 +100,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
 
     // A rule names one target and the sender follows from it: one picker, opened on the log.
-    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toContainText('The process log')
     await expect(dialog.getByLabel(LABELS.alerting.notifier)).toHaveCount(0)
 
     // A target is a channel, so every row of the picker wears its kind's mark.
@@ -99,7 +108,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     const logRow = page.getByRole('option', { name: LABELS.alerting.log_target })
     await expect(logRow.locator('[data-slot="mark"]')).toHaveCount(1)
     await logRow.click()
-    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toContainText('The process log')
 
     await dialog.getByLabel(LABELS.word.throttle).fill('15m')
     await expect(create).toBeEnabled()
@@ -120,19 +129,22 @@ test('a rule is declared from the screen, and appears in the listing it was decl
     ).toHaveCount(1)
 })
 
-test('escape on the target picker leaves the text saying what is chosen', async ({ page }) => {
+test('escape on the target picker leaves the box saying what is chosen', async ({ page }) => {
     await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
     const dialog = page.getByRole('dialog')
     const field = dialog.getByLabel(LABELS.word.delivers_through)
-    await expect(field).toHaveValue('The process log')
+    await expect(field).toContainText('The process log')
 
-    // A filter typed and abandoned: the popup closes and the box reads the chosen row again.
+    // A filter typed and abandoned: the popup closes, the dialog stays, and the box reads the
+    // chosen row again.
     await field.click()
-    await field.fill('zzz')
-    await field.press('Escape')
-    // At once, not once the popup has finished closing: read without a retry.
-    expect(await field.inputValue()).toBe('The process log')
+    const search = page.getByRole('combobox', { name: LABELS.alerting.target_search })
+    await expect(search).toBeFocused()
+    await search.fill('zzz')
+    await search.press('Escape')
     await expect(page.getByRole('listbox')).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: LABELS.alerting.new_rule.button })).toBeVisible()
+    await expect(field).toContainText('The process log')
 
     // What the box reads is what is created.
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
@@ -144,9 +156,7 @@ test('escape on the target picker leaves the text saying what is chosen', async 
 
     // A press on the closed box clears nothing, and the choice is still the one created with.
     await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
-    await expect(field).toHaveValue('The process log')
-    await field.press('Escape')
-    await expect(field).toHaveValue('The process log')
+    await expect(field).toContainText('The process log')
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(WIDE.code)
     await dialog.getByRole('button', { name: 'Failed' }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
@@ -184,9 +194,7 @@ test.describe('on a phone', () => {
         expect(sideways).toBeLessThanOrEqual(0)
     })
 
-    test('a target row wider than the picker is read whole, and the popup stays on screen', async ({
-        page,
-    }) => {
+    test('a target row is read whole on a phone, and the popup stays on screen', async ({ page }) => {
         await declareChannel(page)
         await page.reload()
 
@@ -198,22 +206,19 @@ test.describe('on a phone', () => {
         const row = page.getByRole('option', { name: CHANNEL.name })
         await expect(row).toBeVisible()
 
-        // The popup scales in, so its box is read once every animation on it has finished. It
-        // outgrew the box it hangs from, and it did it without leaving the screen.
-        const popup = page.locator('[data-slot="combobox-content"]')
+        // The popup scales in, so its box is read once every animation on it has finished. On a
+        // phone the field already spans the screen less its gutters, so the popup has no room to
+        // grow past it, and it stays on the screen.
+        const popup = page.getByRole('listbox')
         await expect
             .poll(async () => {
                 const box = await popup.boundingBox()
-                const anchor = await field.boundingBox()
-                if (box === null || anchor === null) return null
-                return {
-                    wider: box.width > anchor.width,
-                    inside: box.x >= 0 && box.x + box.width <= 390,
-                }
+                if (box === null) return null
+                return box.x >= 0 && box.x + box.width <= 390
             })
-            .toEqual({ wider: true, inside: true })
+            .toBe(true)
 
-        // Nothing in the row is cut: the popup grew to the label rather than the label to it.
+        // Nothing in the row is cut.
         const cut = await row.evaluate((node) =>
             Math.max(
                 ...[node, ...node.querySelectorAll('*')].map((one) => one.scrollWidth - one.clientWidth),
@@ -230,6 +235,46 @@ test.describe('on a phone', () => {
 
 test.describe('in the 792px column a 1024 window leaves', () => {
     test.use({ viewport: { width: 1024, height: 768 } })
+
+    test('a picker popup grows to its longest row, past the half-width field it hangs from', async ({
+        page,
+    }) => {
+        await applyDocument(page.request, WIDE_PIPELINE)
+        await page.reload()
+
+        await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
+        const dialog = page.getByRole('dialog')
+        await dialog.getByRole('button', { name: LABELS.alerting.scope.pipeline }).click()
+        const field = dialog.getByLabel(LABELS.word.pipeline.label, { exact: true })
+        await field.click()
+        await page.locator('input[role="combobox"]:focus').fill(WIDE_PIPELINE.code)
+
+        const row = page.getByRole('option', { name: WIDE_PIPELINE.name })
+        await expect(row).toBeVisible()
+        const popup = page.getByRole('listbox')
+        await expect
+            .poll(async () => {
+                const box = await popup.boundingBox()
+                const anchor = await field.boundingBox()
+                if (box === null || anchor === null) return null
+                return {
+                    wider: box.width > anchor.width,
+                    inside: box.x >= 0 && box.x + box.width <= 1024,
+                }
+            })
+            .toEqual({ wider: true, inside: true })
+
+        // Nothing in the row is cut: the popup grew to the label rather than the label to it.
+        const cut = await row.evaluate((node) =>
+            Math.max(
+                ...[node, ...node.querySelectorAll('*')].map((one) => one.scrollWidth - one.clientWidth),
+            ),
+        )
+        expect(cut).toBeLessThanOrEqual(0)
+
+        const prefix = await apiPrefix(page.request)
+        await page.request.delete(`${prefix}/pipelines/${WIDE_PIPELINE.code}`)
+    })
 
     test('the rules table holds its column, and a long name is cut rather than widening it', async ({
         page,
@@ -377,7 +422,7 @@ test('a test stays open until the row settles, and reaches sent through the log 
 
     // A test names one target the way a rule does: one picker, opened on the log, and nothing
     // to fill in before it can be sent.
-    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toContainText('The process log')
     await expect(dialog.getByLabel(LABELS.alerting.notifier)).toHaveCount(0)
     await expect(dialog.getByLabel(LABELS.word.connection.label)).toHaveCount(0)
     await expect(send).toBeEnabled()
@@ -468,7 +513,7 @@ async function declareChannel(page: Page): Promise<void> {
 async function sendTest(page: Page, subject: string): Promise<void> {
     await page.getByRole('button', { name: LABELS.action.send_test }).click()
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toHaveValue('The process log')
+    await expect(dialog.getByLabel(LABELS.word.delivers_through)).toContainText('The process log')
     await dialog.getByLabel(LABELS.word.subject).fill(subject)
     await dialog.getByRole('button', { name: LABELS.alerting.send, exact: true }).click()
     // Closed only once the row has settled, so the listing behind has been read again with it.

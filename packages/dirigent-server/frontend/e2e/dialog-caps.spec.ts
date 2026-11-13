@@ -220,12 +220,18 @@ async function open(page: Page, mode: string, at: string): Promise<void> {
     await page.goto(at)
 }
 
-/** Choose one option in a picker, which is how a pipeline is named to a trigger dialog. */
+/**
+ * Pick one row of a picker by searching it, the way somebody finds a pipeline: the press opens
+ * the list with its search box focused, and what is typed narrows it.
+ *
+ * The list is portalled out of the dialog, so the option is reached on the page rather than
+ * inside it.
+ */
 async function pick(page: Page, field: string, query: string, option: string): Promise<void> {
-    const box = page.getByRole('dialog').getByLabel(field, { exact: true })
-    await box.fill('')
-    await box.fill(query)
-    // The list is portalled out of the dialog, so the option is reached on the page.
+    await page.getByRole('dialog').getByLabel(field, { exact: true }).click()
+    const search = page.locator('input[role="combobox"]:focus')
+    await expect(search).toBeVisible()
+    await search.fill(query)
     await page.getByRole('option', { name: option }).click()
 }
 
