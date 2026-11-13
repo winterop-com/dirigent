@@ -2,9 +2,9 @@ import { useState } from 'react'
 
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Question } from '@/components/Question'
-import { RefusalLine } from '@/components/Refusal'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { Refusable } from '@/components/Refusable'
@@ -15,7 +15,7 @@ import { useMayWrite } from '@/hooks/use-may-write'
 import type { Problem } from '@/lib/api'
 import { copyWords, DIALOG_WORDS, secretWords } from '@/lib/design-system'
 import { LABELS } from '@/lib/labels'
-import { refusalOf } from '@/lib/refusal'
+import { refusalLine, refusalOf } from '@/lib/refusal'
 import {
     authLine,
     curlLine,
@@ -168,9 +168,8 @@ export function NewToken({
                     busyLabel: words.busy,
                 }}
                 words={DIALOG_WORDS}
-            >
-                {problem === null ? undefined : <RefusalLine problem={problem} />}
-            </ConfirmDialog>
+                status={problem === null ? undefined : <ProblemLine>{refusalLine(problem)}</ProblemLine>}
+            />
             {minted !== null && (
                 <MintedToken
                     token={minted}

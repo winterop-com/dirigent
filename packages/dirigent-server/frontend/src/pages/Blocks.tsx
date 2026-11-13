@@ -9,7 +9,8 @@ import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ListingBar } from '@winterop-com/sokkel-ui/ListingBar'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { Section } from '@winterop-com/sokkel-ui/Section'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { Group } from '@winterop-com/sokkel-ui/Group'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
@@ -168,7 +169,7 @@ export function Blocks() {
 
             <PageState
                 loading={!read}
-                problem={problem}
+                {...refusedRead(problem)}
                 empty={
                     shown.length === 0 &&
                     schemes.length === 0 &&

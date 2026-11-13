@@ -2,7 +2,8 @@ import { useEffect, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 
 import { PageHeader } from '@/components/ds/PageHeader'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { READ_WORDS } from '@/components/Refusal'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
 
 /**
@@ -24,7 +25,7 @@ export function Stub({ title, waiting, aside }: { title: string; waiting: string
     return (
         <>
             <PageHeader title={title} lead={aside} />
-            <PageState loading={false} problem={null} empty emptyMessage={waiting}>
+            <PageState loading={false} words={READ_WORDS} empty emptyMessage={waiting}>
                 {null}
             </PageState>
         </>

@@ -12,7 +12,8 @@ import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
 import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
 
 import { headSlot } from '@/components/PageHead'
-import { PageState } from '@/components/PageState'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead } from '@/components/Refusal'
 import { warmLayout } from '@/components/graph/elk'
 import { useAppShortcuts } from '@/hooks/use-app-shortcuts'
 import { useSmallScreen } from '@/hooks/use-small-screen'
@@ -360,7 +361,7 @@ export function AppShell() {
                 <div ref={setHead} data-page-head className="shrink-0 px-4 pt-3 md:px-8" />
                 <div data-page-scroller className="dg-scroller flex min-h-0 flex-1 flex-col pt-px">
                     {auth.status === 'unknown' ? (
-                        <PageState loading={problem === null} problem={problem} empty={false}>
+                        <PageState loading={problem === null} {...refusedRead(problem)} empty={false}>
                             {null}
                         </PageState>
                     ) : (

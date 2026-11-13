@@ -5,10 +5,11 @@ import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/ds/PageHeader'
-import { Refusal } from '@/components/PageState'
 import { PipelineRef } from '@/components/PipelineRef'
+import { refusedRead } from '@/components/Refusal'
 import { RunsByPipeline } from '@/components/run/RunsByPipeline'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { SearchField } from '@winterop-com/sokkel-ui/SearchField'
@@ -306,7 +307,15 @@ function FlatRuns({ filters, search, toolbar }: Bar & { filters: RunFilters }) {
                 loading={state.reading}
                 onLoadMore={more}
                 words={countWords(LABELS.word.run.count)}
-                empty={state.problem === null ? emptyNote(filters) : <Refusal problem={state.problem} />}
+                empty={
+                    state.problem === null ? (
+                        emptyNote(filters)
+                    ) : (
+                        <PageState frame={false} loading={false} {...refusedRead(state.problem)}>
+                            {null}
+                        </PageState>
+                    )
+                }
             />
         </>
     )
@@ -341,7 +350,9 @@ function GroupedRuns({
                 loading={summary.reading}
                 empty={
                     summary.problem !== null ? (
-                        <Refusal problem={summary.problem} />
+                        <PageState frame={false} loading={false} {...refusedRead(summary.problem)}>
+                            {null}
+                        </PageState>
                     ) : asked ? (
                         LABELS.runs.empty_filtered
                     ) : (

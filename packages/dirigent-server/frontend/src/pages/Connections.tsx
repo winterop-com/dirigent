@@ -12,8 +12,8 @@ import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Mark } from '@/components/Mark'
 import { PageHeader } from '@/components/ds/PageHeader'
 import { LISTING, shutWith } from '@/lib/design-system'
-import { PageState } from '@/components/PageState'
-import { sayRefusal } from '@/components/Refusal'
+import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { refusedRead, sayRefusal } from '@/components/Refusal'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { useRead } from '@/hooks/use-read'
@@ -204,7 +204,7 @@ export function Connections() {
 
             <PageState
                 loading={!state.read}
-                problem={state.problem}
+                {...refusedRead(state.problem)}
                 empty={rows.length === 0}
                 emptyMessage={LABELS.connections.empty}
             >
