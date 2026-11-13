@@ -23,7 +23,7 @@ import { said } from '@/lib/refusal'
  * run settles, so the read is keyed on that transition -- the run's state moves live over the
  * event stream, so a run that settles while this tab is open reads its document then.
  *
- * MARKDOWN GOES THROUGH `Description`. The lexer is its own chunk and this is the only pane on
+ * MARKDOWN GOES THROUGH `Description`. The renderer is its own chunk and this is the only pane on
  * the run screen that draws prose, so a reader who never opens this tab never fetches it.
  *
  * A STEP'S TEXT IS NOT THE RUN'S REPORT. A `report.render` step hands its text on as output,

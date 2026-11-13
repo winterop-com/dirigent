@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 
 import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
-import { MarkdownLine } from '@/components/Markdown'
+import { Description } from '@/components/Description'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { DataTable, DataTableGroup, TableCellFill, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
@@ -474,11 +474,7 @@ function FieldReference({ field }: { field: FieldDescriptor }) {
                     {field.options.map((option) => option.label).join(' · ')}
                 </p>
             )}
-            {field.help !== null && (
-                <p className="text-xs text-muted-foreground">
-                    <MarkdownLine text={field.help} />
-                </p>
-            )}
+            <Description text={field.help} size="help" />
         </div>
     )
 }
