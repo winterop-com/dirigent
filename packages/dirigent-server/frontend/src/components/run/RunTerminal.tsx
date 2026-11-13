@@ -1,9 +1,9 @@
-import { ArrowDown } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
+import { Dock } from '@winterop-com/sokkel-ui/Dock'
 import { IconButton } from '@winterop-com/sokkel-ui/IconButton'
-import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { LogView, type LogLevel as LineLevel, type LogLine } from '@winterop-com/sokkel-ui/LogView'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import {
     Select,
@@ -12,7 +12,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@winterop-com/sokkel-ui/primitives/select'
-import { useDragSize } from '@/hooks/use-drag-size'
 import { useStore } from '@/hooks/use-store'
 import { ApiError } from '@/lib/api'
 import { formatClock } from '@/lib/format'
@@ -23,7 +22,6 @@ import { itemLabels, itemOfEntry, type RunDetailState } from '@/lib/run-detail'
 import { readLogs, type LogEntryOut } from '@/lib/runs'
 import {
     asNdjson,
-    clampTerminalHeight,
     copyText,
     countLines,
     downloadName,
@@ -37,6 +35,7 @@ import {
     stepChoices,
     stepOf,
     terminalHeight,
+    TERMINAL_DEFAULT_HEIGHT,
     TERMINAL_MAX_HEIGHT,
     TERMINAL_MIN_HEIGHT,
     toggleTerminal,
@@ -45,7 +44,6 @@ import {
 } from '@/lib/terminal'
 import { runSettled } from '@/lib/status'
 import type { LogLevel } from '@/lib/status'
-import { cn } from '@/lib/utils'
 import { said } from '@/lib/refusal'
 
 export const HIDE_TERMINAL_LABEL = LABELS.terminal.hide
@@ -57,25 +55,11 @@ export const STEP_LABEL = LABELS.terminal.step_filter
 export const MATCH_LABEL = LABELS.terminal.match_filter
 export const NEWEST_LABEL = LABELS.terminal.newest
 
-/** How far one arrow press moves the top edge. A keyboard has to do what the pointer does. */
-const KEYBOARD_STEP = 16
-
-/** How far off the bottom counts as having scrolled away, in pixels of slack. */
-const TAIL_SLACK = 24
-
 /** What the step select's "no step at all" row is worth, which is every step. */
 const EVERY_STEP = ''
 
 /** How many pages of `$logs` a download walks before it stops asking. Fifty of them is 25,000 lines. */
 const DOWNLOAD_PAGE_LIMIT = 50
-
-/** How each level is inked on the terminal's own ground, which is dark in both palettes. */
-const LEVEL_INK: Record<string, string> = {
-    debug: 'text-terminal-faint',
-    info: 'text-terminal-muted',
-    warning: 'text-terminal-warning',
-    error: 'text-terminal-critical',
-}
 
 /**
  * Everything one run said, as a console across the foot of the screen.
@@ -97,6 +81,12 @@ const LEVEL_INK: Record<string, string> = {
  * IT FOLLOWS THE TAIL UNTIL SOMEBODY SCROLLS UP, which is `lib/preferences`' own setting and
  * the same rule the step's log pane is written to: a console that jumped to the bottom while
  * somebody was reading what failed would be unreadable during exactly the run that matters.
+ *
+ * A STEP'S NAME OPENS THAT STEP IN THE PANEL. A run-level line belongs to no step, so its `run`
+ * is a plain label rather than a control.
+ *
+ * It is sokkel-ui's `Dock` holding sokkel-ui's `LogView`: the dock's top edge is the drag, at
+ * the height `lib/terminal` holds, and the filters stand in its head beside the tools.
  */
 export function RunTerminal({
     state,
@@ -112,17 +102,7 @@ export function RunTerminal({
     onSelectStep: (step: string) => void
 }) {
     const height = useStore(terminalHeight)
-    const wanted = useStore(followTails)
-    const drawer = useRef<HTMLElement | null>(null)
-    const lines = useRef<HTMLDivElement>(null)
-    const { dragging, beginResize } = useDragSize(
-        'y',
-        height,
-        -1,
-        setTerminalHeight,
-        clampTerminalHeight,
-        drawer,
-    )
+    const following = useStore(followTails)
 
     const [filters, setFilters] = useState<LineFilters>(EVERY_LINE)
     useEffect(() => {
@@ -130,10 +110,7 @@ export function RunTerminal({
         // oxlint-disable-next-line react/set-state-in-effect
         setFilters((current) => ({ ...current, step: chosenStep ?? '' }))
     }, [chosenStep])
-    // What the reader did to this console, and what they set for every log pane: both follow.
-    const [scrolledAway, setScrolledAway] = useState(false)
     const [saving, setSaving] = useState(false)
-    const following = wanted && !scrolledAway
 
     // The lines carry the attempt that wrote them and no label; the attempts on the same stream
     // carry theirs, so which element a line belongs to is a join over what is already held. The
@@ -145,18 +122,31 @@ export function RunTerminal({
     const countNote = lineCount(drawn, held)
     const steps = stepChoices(state)
 
-    const toBottom = useCallback(() => {
-        const element = lines.current
-        if (element === null) return
-        element.scrollTop = element.scrollHeight
-        setScrolledAway(false)
-    }, [])
+    // Each drawn line, and the entry it was drawn from, which is what its source opens.
+    const { lines, entryOf } = useMemo(() => {
+        const entries = new Map<LogLine, LogEntryOut>()
+        const drawnLines = shown.map((entry) => {
+            const step = stepOf(entry)
+            const line: LogLine = {
+                at: formatClock(entry.created_at),
+                level: entry.level as LineLevel,
+                source: step ?? LABELS.word.run.term,
+                sourceLink: step !== null,
+                item: itemOfEntry(labels, entry.step_attempt_id) ?? undefined,
+                text: entry.message,
+                fields: fieldsText(entry.fields) ?? undefined,
+            }
+            entries.set(line, entry)
+            return line
+        })
+        return { lines: drawnLines, entryOf: entries }
+    }, [shown, labels])
 
-    useEffect(() => {
-        const element = lines.current
-        if (element === null || !following || shown.length === 0) return
-        element.scrollTop = element.scrollHeight
-    }, [shown.length, following])
+    const openSource = (_source: string, line: LogLine) => {
+        const entry = entryOf.get(line)
+        const step = entry === undefined ? null : stepOf(entry)
+        if (step !== null) onSelectStep(step)
+    }
 
     const copy = () => {
         void navigator.clipboard?.writeText(copyText(shown)).then(
@@ -212,96 +202,89 @@ export function RunTerminal({
     }
 
     return (
-        <>
-            <div
-                role="separator"
-                aria-orientation="horizontal"
-                aria-label={RESIZE_TERMINAL_LABEL}
-                aria-valuenow={height}
-                aria-valuemin={TERMINAL_MIN_HEIGHT}
-                aria-valuemax={TERMINAL_MAX_HEIGHT}
-                tabIndex={0}
-                data-dragging={dragging}
-                onPointerDown={beginResize}
-                onKeyDown={(event) => {
-                    if (event.key === 'ArrowUp') setTerminalHeight(height + KEYBOARD_STEP)
-                    else if (event.key === 'ArrowDown') setTerminalHeight(height - KEYBOARD_STEP)
-                    else return
-                    event.preventDefault()
-                }}
-                className="resize-handle h-1.5 shrink-0 cursor-row-resize touch-none"
-            />
-            <section
-                ref={drawer}
-                aria-label={LABELS.terminal.name}
-                data-run-terminal="true"
-                className="dg-panel flex shrink-0 flex-col"
-                style={{ height }}
-            >
-                <div data-wraps className="dg-panel-head justify-start max-md:flex-wrap md:flex-nowrap">
-                    <h2 className="mr-1 flex items-center gap-2">
-                        <ICONS.terminal className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                        {LABELS.terminal.heading}
-                    </h2>
+        <Dock
+            aria-label={LABELS.terminal.name}
+            className="@container"
+            title={
+                <span className="flex items-center gap-2">
+                    <ICONS.terminal className="size-4 shrink-0" aria-hidden />
+                    {LABELS.terminal.heading}
+                </span>
+            }
+            tools={
+                <>
+                    {/* In a narrow dock the filters stand in a row of their own under the title and the tools, and on a phone the count in one more. */}
+                    <div className="flex min-w-0 basis-full gap-2 @max-3xl:order-last @3xl:grow-3 @3xl:basis-0 @3xl:justify-end">
+                        <Select
+                            value={filters.level}
+                            onValueChange={(chosen) => {
+                                setFilters((current) => ({
+                                    ...current,
+                                    level: String(chosen) as LogLevel,
+                                }))
+                            }}
+                        >
+                            <SelectTrigger
+                                size="sm"
+                                className="min-w-0 flex-1 @3xl:max-w-40"
+                                aria-label={LEVEL_LABEL}
+                            >
+                                <SelectValue>
+                                    {(value) => LABELS.terminal.level[String(value) as LogLevel]}
+                                </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {LEVELS.map((level) => (
+                                    <SelectItem key={level} value={level}>
+                                        {LABELS.terminal.level[level]}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
 
-                    <Select
-                        value={filters.level}
-                        onValueChange={(chosen) => {
-                            setFilters((current) => ({ ...current, level: String(chosen) as LogLevel }))
-                        }}
-                    >
-                        <SelectTrigger size="sm" className="w-40" aria-label={LEVEL_LABEL}>
-                            <SelectValue>
-                                {(value) => LABELS.terminal.level[String(value) as LogLevel]}
-                            </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                            {LEVELS.map((level) => (
-                                <SelectItem key={level} value={level}>
-                                    {LABELS.terminal.level[level]}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                        <Select
+                            value={filters.step}
+                            onValueChange={(chosen) => {
+                                setFilters((current) => ({ ...current, step: String(chosen) }))
+                            }}
+                        >
+                            <SelectTrigger
+                                size="sm"
+                                className="min-w-0 flex-1 @3xl:max-w-44"
+                                aria-label={STEP_LABEL}
+                            >
+                                <SelectValue>
+                                    {(value) =>
+                                        value === EVERY_STEP ? LABELS.terminal.every_step : String(value)
+                                    }
+                                </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={EVERY_STEP}>{LABELS.terminal.every_step}</SelectItem>
+                                {steps.map((step) => (
+                                    <SelectItem key={step} value={step}>
+                                        {step}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
 
-                    <Select
-                        value={filters.step}
-                        onValueChange={(chosen) => {
-                            setFilters((current) => ({ ...current, step: String(chosen) }))
-                        }}
-                    >
-                        <SelectTrigger size="sm" className="w-44" aria-label={STEP_LABEL}>
-                            <SelectValue>
-                                {(value) =>
-                                    value === EVERY_STEP ? LABELS.terminal.every_step : String(value)
-                                }
-                            </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={EVERY_STEP}>{LABELS.terminal.every_step}</SelectItem>
-                            {steps.map((step) => (
-                                <SelectItem key={step} value={step}>
-                                    {step}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-
-                    <Input
-                        className="h-7 w-48"
-                        value={filters.match}
-                        onChange={(event) => {
-                            const match = event.target.value
-                            setFilters((current) => ({ ...current, match }))
-                        }}
-                        placeholder={LABELS.terminal.match_placeholder}
-                        aria-label={MATCH_LABEL}
-                    />
-
-                    {countNote !== null && <span className="text-xs text-muted-foreground">{countNote}</span>}
-
-                    <div className="flex-1" />
-
+                        <Input
+                            className="h-7 min-w-0 flex-1 @3xl:max-w-48"
+                            value={filters.match}
+                            onChange={(event) => {
+                                const match = event.target.value
+                                setFilters((current) => ({ ...current, match }))
+                            }}
+                            placeholder={LABELS.terminal.match_placeholder}
+                            aria-label={MATCH_LABEL}
+                        />
+                    </div>
+                    {countNote !== null && (
+                        <span className="text-xs whitespace-nowrap text-muted-foreground max-md:order-last">
+                            {countNote}
+                        </span>
+                    )}
                     <IconButton
                         label={COPY_LINES_LABEL}
                         size="icon-sm"
@@ -321,101 +304,39 @@ export function RunTerminal({
                     <IconButton label={HIDE_TERMINAL_LABEL} size="icon-sm" onClick={toggleTerminal}>
                         <ICONS.close_panel aria-hidden />
                     </IconButton>
-                </div>
-
-                <div className="relative min-h-0 flex-1">
-                    <div
-                        ref={lines}
-                        onScroll={(event) => {
-                            const element = event.currentTarget
-                            const room = element.scrollHeight - element.scrollTop - element.clientHeight
-                            setScrolledAway(room > TAIL_SLACK)
-                        }}
-                        className="h-full overflow-y-auto bg-terminal px-3 py-2 font-mono text-terminal-foreground"
-                    >
-                        {shown.length === 0 ? (
-                            <p className="text-xs text-terminal-muted">
-                                {emptyNote(filters, state.logs.length, runSettled(state.run?.status ?? null))}
-                            </p>
-                        ) : (
-                            shown.map((entry) => (
-                                <Line
-                                    key={entry.id}
-                                    entry={entry}
-                                    item={itemOfEntry(labels, entry.step_attempt_id)}
-                                    onSelectStep={onSelectStep}
-                                />
-                            ))
-                        )}
-                        {/* The one place "is anything still coming" is answered: the status bar
-                            says nothing once a run has settled, and the answer belongs where the
-                            lines it is about are. */}
-                        {state.stream === 'ended' && (
-                            <p className="pt-2 text-xs text-terminal-faint">
-                                {endNote(state.run?.status ?? null)}
-                            </p>
-                        )}
-                    </div>
-                    {!following && shown.length > 0 && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="absolute inset-x-0 bottom-3 mx-auto w-fit shadow-md"
-                            onClick={toBottom}
-                        >
-                            <ArrowDown aria-hidden />
-                            {NEWEST_LABEL}
-                        </Button>
-                    )}
-                </div>
-            </section>
-        </>
-    )
-}
-
-/**
- * One line: when, how loud, which step, what it said, and whatever it said it with.
- *
- * THE STEP PREFIX IS A CONTROL WHERE THERE IS A STEP TO OPEN, and a label where there is not.
- * A run-level line -- the engine's own -- belongs to no step, and a prefix that lit under the
- * pointer and then did nothing would be a promise the line cannot keep.
- *
- * A FAN-OUT ELEMENT'S LABEL SITS BESIDE THE STEP, because five elements of one step write the
- * same sentence and the step alone does not say which of them wrote this one. It is not a
- * control: what opens is the step, and every element of it is on that one panel.
- */
-function Line({
-    entry,
-    item,
-    onSelectStep,
-}: {
-    entry: LogEntryOut
-    /** The fan-out element this line was written for, or nothing where the step fans out to none. */
-    item: string | null
-    onSelectStep: (step: string) => void
-}) {
-    const step = stepOf(entry)
-    const fields = fieldsText(entry.fields)
-    return (
-        <p className="text-xs break-words whitespace-pre-wrap" data-log-line={entry.level}>
-            <span className="text-terminal-faint">{formatClock(entry.created_at)} </span>
-            <span className={cn(LEVEL_INK[entry.level] ?? 'text-terminal-muted')}>{entry.level} </span>
-            {step === null ? (
-                <span className="text-terminal-faint">{LABELS.word.run.term}</span>
-            ) : (
-                <button
-                    type="button"
-                    className="font-medium text-terminal-foreground underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
-                    onClick={() => {
-                        onSelectStep(step)
-                    }}
-                >
-                    {step}
-                </button>
-            )}
-            {item !== null && <span className="text-terminal-faint"> [{item}]</span>}
-            <span> {entry.message}</span>
-            {fields !== null && <span className="text-terminal-muted"> {fields}</span>}
-        </p>
+                </>
+            }
+            size={height}
+            onSizeChange={setTerminalHeight}
+            minSize={TERMINAL_MIN_HEIGHT}
+            maxSize={TERMINAL_MAX_HEIGHT}
+            defaultSize={TERMINAL_DEFAULT_HEIGHT}
+            words={{ resize: RESIZE_TERMINAL_LABEL }}
+        >
+            <div className="flex h-full flex-col">
+                {/* A new filter is a new log: it opens on its newest line, following again. */}
+                <LogView
+                    key={`${filters.level}\n${filters.step}\n${filters.match}`}
+                    lines={lines}
+                    follow={following}
+                    wrap
+                    numbered={false}
+                    framed={false}
+                    query={filters.match.trim()}
+                    onSource={openSource}
+                    words={{ jump: NEWEST_LABEL }}
+                    empty={emptyNote(filters, state.logs.length, runSettled(state.run?.status ?? null))}
+                    className="flex-1"
+                />
+                {/* The one place "is anything still coming" is answered: the status bar
+                        says nothing once a run has settled, and the answer belongs where the
+                        lines it is about are. */}
+                {state.stream === 'ended' && (
+                    <p className="shrink-0 bg-terminal px-3 pb-2 font-mono text-xs text-terminal-faint">
+                        {endNote(state.run?.status ?? null)}
+                    </p>
+                )}
+            </div>
+        </Dock>
     )
 }
