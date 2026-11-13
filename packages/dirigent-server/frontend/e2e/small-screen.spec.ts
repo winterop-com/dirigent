@@ -259,7 +259,8 @@ test('a confirm is sized to its question, with its verbs under it', async ({ pag
     // The verbs sit directly under the question, not at the foot of the screen.
     const box = await boxOf(dialog)
     const footer = await boxOf(dialog.locator('[data-slot="dialog-footer"]'))
-    expect((footer?.[1] ?? 0) + (footer?.[3] ?? 0)).toBeLessThanOrEqual((box?.[1] ?? 0) + (box?.[3] ?? 0))
+    // Boxes are rounded to whole pixels, so the footer may end a pixel past the dialog's edge.
+    expect((footer?.[1] ?? 0) + (footer?.[3] ?? 0)).toBeLessThanOrEqual((box?.[1] ?? 0) + (box?.[3] ?? 0) + 1)
     expect((footer?.[1] ?? height) + (footer?.[3] ?? 0)).toBeLessThan(height - 100)
 
     await page.keyboard.press('Escape')
