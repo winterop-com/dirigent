@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { chipWidth, foldTags, TAGS_SHOWN } from '@/lib/tag-fold'
+import { CHIP_MENU_MARK, chipWidth, foldTags, TAGS_SHOWN } from '@/lib/tag-fold'
 
 /** The fifteen words the fixture document files itself under. */
 const FIFTEEN = [
@@ -40,6 +40,15 @@ describe('what a row draws and what it folds', () => {
         expect(fold.shown.length + fold.folded.length).toBe(FIFTEEN.length)
         // A narrow column folds hard: the words go behind one chip.
         expect(fold.folded.length).toBeGreaterThanOrEqual(10)
+    })
+
+    test('a fold that opens a menu counts its chevron in the room', () => {
+        for (let room = 120; room <= 600; room += 7) {
+            const fold = foldTags(FIFTEEN, room, 1, true)
+            if (fold.folded.length === 0 || fold.shown.length === 1) continue
+            const drawn = lineWidth([...fold.shown, `+${String(fold.folded.length)}`]) + CHIP_MENU_MARK
+            expect(drawn).toBeLessThanOrEqual(room)
+        }
     })
 
     test('a wider column draws more of them', () => {

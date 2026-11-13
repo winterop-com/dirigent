@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
+import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { HealthSaid } from '@/components/connections/Health'
 import { Description } from '@/components/Description'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
@@ -320,21 +321,17 @@ function Blocks({
                     />
                     <span className="flex min-w-0 flex-[1_1_160px] flex-wrap gap-1">
                         {codes.map((code) => (
-                            <button
+                            <Chip
                                 key={code}
-                                type="button"
-                                className={cn(
-                                    'h-6 max-w-full truncate rounded-sm bg-secondary px-1.5 font-mono text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring',
-                                    code === selected && 'ring-2 ring-foreground',
-                                )}
-                                title={LABELS.pipelines.page.choose_step(code)}
-                                aria-pressed={code === selected}
-                                onClick={() => {
+                                mono
+                                selected={code === selected}
+                                selectLabel={LABELS.pipelines.page.choose_step(code)}
+                                onSelect={() => {
                                     onSelect(code)
                                 }}
                             >
                                 {code}
-                            </button>
+                            </Chip>
                         ))}
                     </span>
                 </div>

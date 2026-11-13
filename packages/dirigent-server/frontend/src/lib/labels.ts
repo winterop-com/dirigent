@@ -3282,8 +3282,6 @@ const schemas = {
         root: 'the value',
         /** What the list of failures is called, for whoever is not reading the screen. */
         failures_label: 'Where the value fails',
-        /** Under a failure: what pressing it does. */
-        show_failure: (pointer: string) => `Show ${pointer} in the value`,
         /** A schema that is JSON but not an object, which no check takes. */
         not_an_object: 'The schema is not an object.',
         /** A value the browser could not read as JSON, said instead of asking the server. */
