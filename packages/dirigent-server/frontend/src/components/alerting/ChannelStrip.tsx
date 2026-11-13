@@ -1,8 +1,8 @@
-import { ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { Section } from '@winterop-com/sokkel-ui/Section'
+import { Unfoldable } from '@winterop-com/sokkel-ui/Unfoldable'
 import { Instant } from '@/components/Instant'
 import { Mark } from '@/components/Mark'
 import { Dot as LibraryDot } from '@winterop-com/sokkel-ui/Dot'
@@ -151,42 +151,31 @@ function ChannelFold({
 }) {
     const [open, setOpen] = useState(false)
     return (
-        <>
-            <button
-                type="button"
-                aria-expanded={open}
-                onClick={() => {
-                    setOpen(!open)
-                }}
-                className={cn(
-                    'flex min-h-finger w-full items-center gap-2.5 border-b border-border px-1 text-left',
-                    REACHED,
-                )}
-            >
-                <ChevronRight
-                    className={cn('size-4 shrink-0 text-muted-foreground', open && 'rotate-90')}
-                    aria-hidden
-                />
-                <span className="text-sm font-semibold">{LABELS.alerting.channels_heading}</span>
-                <span className="ml-auto flex items-center gap-1.5" aria-hidden>
+        <Unfoldable
+            heading={<span className="font-semibold">{LABELS.alerting.channels_heading}</span>}
+            aside={
+                <span className="flex items-center gap-1.5" aria-hidden>
                     {channels.map((channel) => (
                         <Dot key={channel.id} tone={channelView(channel).tone} />
                     ))}
                 </span>
-            </button>
-            {open &&
-                (note === null ? (
-                    <table className="w-full text-sm">
-                        <tbody>
-                            {channels.map((channel) => (
-                                <ChannelRow key={channel.id} channel={channel} />
-                            ))}
-                        </tbody>
-                    </table>
-                ) : (
-                    <p className={note.tone}>{note.text}</p>
-                ))}
-        </>
+            }
+            open={open}
+            onOpenChange={setOpen}
+            className="border-b border-border"
+        >
+            {note === null ? (
+                <table className="w-full text-sm">
+                    <tbody>
+                        {channels.map((channel) => (
+                            <ChannelRow key={channel.id} channel={channel} />
+                        ))}
+                    </tbody>
+                </table>
+            ) : (
+                <p className={note.tone}>{note.text}</p>
+            )}
+        </Unfoldable>
     )
 }
 
