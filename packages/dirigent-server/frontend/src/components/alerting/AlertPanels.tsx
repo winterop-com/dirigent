@@ -14,6 +14,10 @@ import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Field } from '@winterop-com/sokkel-ui/Field'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
+import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
+import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
+import { Question } from '@/components/Question'
+import { DIALOG_WORDS } from '@/lib/design-system'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { usePaged } from '@/hooks/use-paged'
 import { BODY_HINT, given, SUBJECT_HINT, TEMPLATE_MEDIA_TYPE } from '@/lib/alert-form'
@@ -35,7 +39,7 @@ import type { Problem } from '@/lib/api'
 import { kindGlyph } from '@/lib/glyphs'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
-import { refusalOf } from '@/lib/refusal'
+import { refusalLine, refusalOf } from '@/lib/refusal'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { TextLink } from '@winterop-com/sokkel-ui/TextLink'
@@ -66,6 +70,9 @@ export function RulePanel({
     onTest: () => void
 }) {
     const [busy, setBusy] = useState(false)
+    const [deleting, setDeleting] = useState(false)
+    const [removing, setRemoving] = useState(false)
+    const [refused, setRefused] = useState<Problem | null>(null)
     // Which rule the form is open on rather than whether it is: this panel is one component
     // the listing re-renders with whichever rule is chosen, so a form left open would other-
     // wise open on the next rule with the last one's text in it.
@@ -159,11 +166,20 @@ export function RulePanel({
     }
 
     const remove = () => {
-        setBusy(true)
+        setRemoving(true)
+        setRefused(null)
         void deleteRule(rule.code)
-            .then(onDeleted, sayRefusal)
+            .then(
+                () => {
+                    setDeleting(false)
+                    onDeleted()
+                },
+                (error: unknown) => {
+                    setRefused(refusalOf(error))
+                },
+            )
             .finally(() => {
-                setBusy(false)
+                setRemoving(false)
             })
     }
 
@@ -226,12 +242,31 @@ export function RulePanel({
                         className="destructive-action ml-auto"
                         disabled={busy || !rewrite.may}
                         title={rewrite.why}
-                        onClick={remove}
+                        onClick={() => {
+                            setRefused(null)
+                            setDeleting(true)
+                        }}
                     >
                         {LABELS.action.delete.verb}
                     </Button>
                 </Refusable>
             </div>
+
+            <ConfirmDialog
+                open={deleting}
+                onOpenChange={setDeleting}
+                question={<Question ask={LABELS.alerting.delete_ask} code={rule.code} />}
+                confirm={{
+                    label: LABELS.action.delete.verb,
+                    onConfirm: remove,
+                    destructive: true,
+                    why: rewrite.why,
+                    busy: removing,
+                    busyLabel: LABELS.action.delete.busy,
+                }}
+                words={DIALOG_WORDS}
+                status={refused === null ? undefined : <ProblemLine>{refusalLine(refused)}</ProblemLine>}
+            />
 
             <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">{LABELS.alerting.recent_deliveries}</p>

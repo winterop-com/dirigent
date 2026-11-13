@@ -3234,6 +3234,8 @@ const schemas = {
         many: (names: string) => `${names} name this shape, so it cannot be removed.`,
     },
 
+    /** The question before a delete, around the code. */
+    delete_ask: { before: 'Delete ', after: '?' },
     /** Over the name, the description and the pipelines that check against the schema. */
     details_heading: 'Details',
     /** Where a schema carries no description. */
@@ -3538,6 +3540,8 @@ const alerting = {
     /** A rule its pipeline's document declares: the chip, and why it is not edited or deleted here. */
     declared: 'declared',
     declared_why: (pipeline: string) => `Declared in the document of ${pipeline}. Edit it there.`,
+    /** The question before a rule is deleted, around its code. */
+    delete_ask: { before: 'Delete ', after: '?' },
     /** The panel's list of what this rule has sent lately. */
     recent_deliveries: 'Recent deliveries',
     deliveries_empty: 'Nothing sent.',
