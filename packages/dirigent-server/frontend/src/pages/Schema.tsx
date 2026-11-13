@@ -16,7 +16,9 @@ import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { CodePane } from '@/components/pipeline/CodePane'
 import { Refusal, refusedRead } from '@/components/Refusal'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
-import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
+import { ConfirmDialog, DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
+import { ProblemLine } from '@winterop-com/sokkel-ui/Problem'
+import { Question } from '@/components/Question'
 import { Input } from '@winterop-com/sokkel-ui/primitives/input'
 import { Textarea } from '@winterop-com/sokkel-ui/primitives/textarea'
 import { WindowedPane, WindowedPaneButton } from '@winterop-com/sokkel-ui/WindowedPane'
@@ -27,7 +29,7 @@ import { useSchemaSave } from '@/hooks/use-schema-save'
 import type { Problem } from '@/lib/api'
 import { headingOf } from '@/lib/identity'
 import { counted, LABELS } from '@/lib/labels'
-import { refusalOf } from '@/lib/refusal'
+import { refusalLine, refusalOf } from '@/lib/refusal'
 import {
     checkInput,
     checkSchema,
@@ -127,8 +129,10 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
     const [answer, setAnswer] = useState<CheckAnswer | null>(null)
     const [reveal, setReveal] = useState<{ start: number; end: number } | null>(null)
     const [trying, setTrying] = useState(false)
+    const [deleting, setDeleting] = useState(false)
     const [removing, setRemoving] = useState(false)
-    const { save, busy, problem, setProblem } = useSchemaSave(schema, onSaved)
+    const [refused, setRefused] = useState<Problem | null>(null)
+    const { save, busy, problem } = useSchemaSave(schema, onSaved)
     const write = useMayWrite('admin')
     const heading = headingOf(schema)
 
@@ -190,14 +194,14 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
 
     const remove = () => {
         setRemoving(true)
-        setProblem(null)
+        setRefused(null)
         void deleteSchema(schema.code)
             .then(
                 () => {
                     void navigate('/schemas', { replace: true })
                 },
                 (error: unknown) => {
-                    setProblem(refusalOf(error))
+                    setRefused(refusalOf(error))
                 },
             )
             .finally(() => {
@@ -310,7 +314,10 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                         label: removing ? LABELS.action.delete.busy : LABELS.action.delete.verb,
                         destructive: true,
                         ...shutWith(busy || removing || deleteWhy !== undefined, deleteWhy),
-                        onSelect: remove,
+                        onSelect: () => {
+                            setRefused(null)
+                            setDeleting(true)
+                        },
                     },
                 ]}
                 primary={{
@@ -403,6 +410,21 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                     <Result shown={shown} onShow={show} />
                 </div>
             </DialogShell>
+            <ConfirmDialog
+                open={deleting}
+                onOpenChange={setDeleting}
+                question={<Question ask={LABELS.schemas.delete_ask} code={schema.code} />}
+                confirm={{
+                    label: LABELS.action.delete.verb,
+                    onConfirm: remove,
+                    destructive: true,
+                    why: deleteWhy,
+                    busy: removing,
+                    busyLabel: LABELS.action.delete.busy,
+                }}
+                words={DIALOG_WORDS}
+                status={refused === null ? undefined : <ProblemLine>{refusalLine(refused)}</ProblemLine>}
+            />
         </>
     )
 }

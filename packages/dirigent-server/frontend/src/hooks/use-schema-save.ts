@@ -54,5 +54,5 @@ export function useSchemaSave(schema: SchemaOut, onSaved: (row: SchemaOut) => vo
         [onSaved, schema],
     )
 
-    return { save, busy, saved, setSaved, problem, setProblem }
+    return { save, busy, saved, setSaved, problem }
 }

@@ -343,6 +343,30 @@ test('a rule is paused from its panel, and the row says so', async ({ page }) =>
     await expect(ruleRow(page)).toContainText(LABELS.state.armed.active)
 })
 
+test('deleting a rule asks first, Cancel keeps it, and confirming removes it', async ({ page }) => {
+    await declareRule(page)
+    await page.reload()
+
+    await ruleRow(page).getByText(RULE.name, { exact: true }).click()
+    const panel = page.getByRole('tabpanel')
+    const remove = panel.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
+    await remove.click()
+    const asking = page.getByRole('dialog', { name: `Delete ${RULE.code}?` })
+    await expect(asking.locator('p')).toHaveCount(0)
+
+    // Cancel leaves the rule where it was.
+    await asking.getByRole('button', { name: LABELS.action.cancel, exact: true }).click()
+    await expect(asking).toHaveCount(0)
+    await expect(ruleRow(page)).toHaveCount(1)
+
+    await remove.click()
+    await asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
+    await expect(asking).toHaveCount(0)
+    await expect(ruleRow(page)).toHaveCount(0)
+    const prefix = await apiPrefix(page.request)
+    expect((await page.request.get(`${prefix}/alert-rules/${RULE.code}`)).status()).toBe(404)
+})
+
 test('a test stays open until the row settles, and reaches sent through the log channel', async ({
     page,
 }) => {

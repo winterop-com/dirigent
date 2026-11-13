@@ -268,6 +268,38 @@ test('a shape a pipeline names cannot be deleted, and the shut control says whic
     expect((await page.request.get(`${prefix}/schemas/e2e-org-unit`)).status()).toBe(200)
 })
 
+/** A shape of its own, so deleting it reaches no other test's row. */
+const DOOMED = { $id: 'e2e-doomed-shape', title: 'Doomed shape', type: 'object' }
+
+test('deleting a schema asks first, Cancel keeps it, and confirming removes it', async ({ page }) => {
+    await signIn(page)
+    const prefix = await apiPrefix(page.request)
+    await removeSchema(page.request, DOOMED.$id)
+    const created = await page.request.post(`${prefix}/schemas`, { data: { body: DOOMED } })
+    expect(created.ok(), await created.text()).toBe(true)
+
+    await page.goto(`/schemas/${DOOMED.$id}`)
+    const remove = page.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
+    await remove.click()
+    const asking = page.getByRole('dialog', { name: `Delete ${DOOMED.$id}?` })
+
+    // The question is the title, and it holds nothing else: the verb says what is lost.
+    await expect(asking.locator('p')).toHaveCount(0)
+
+    // Cancel leaves it where it was, and nothing was sent.
+    await asking.getByRole('button', { name: LABELS.action.cancel, exact: true }).click()
+    await expect(asking).toHaveCount(0)
+    await expect(page).toHaveURL(new RegExp(`/schemas/${DOOMED.$id}$`))
+    expect((await page.request.get(`${prefix}/schemas/${DOOMED.$id}`)).status()).toBe(200)
+
+    // Confirming deletes it and returns to the listing, which no longer holds it.
+    await remove.click()
+    await asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true }).click()
+    await expect(page).toHaveURL(/\/schemas$/)
+    await expect(page.getByRole('row').filter({ hasText: DOOMED.$id })).toHaveCount(0)
+    expect((await page.request.get(`${prefix}/schemas/${DOOMED.$id}`)).status()).toBe(404)
+})
+
 test('the same shape is still corrected in place while that pipeline names it', async ({ page }) => {
     await signIn(page)
     await seedSchema(page.request)
