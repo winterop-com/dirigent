@@ -4,7 +4,6 @@ import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { ConnectionFields } from '@/components/connections/ConnectionFields'
 import { JsonBlock } from '@/components/JsonBlock'
 import { KindChip } from '@/components/KindChip'
-import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { useConnectionDraft } from '@/hooks/use-connection-draft'
@@ -285,18 +284,16 @@ function MintConnection({
                 <Button variant="ghost" size="sm" onClick={onCancel}>
                     {LABELS.action.cancel}
                 </Button>
-                <Refusable why={form.shut}>
-                    <Button
-                        size="sm"
-                        disabled={form.busy || form.shut !== undefined}
-                        title={form.shut}
-                        onClick={() => {
-                            form.create(onCreated)
-                        }}
-                    >
-                        {form.busy ? LABELS.action.create.busy : LABELS.action.create.verb}
-                    </Button>
-                </Refusable>
+                <Button
+                    size="sm"
+                    disabled={form.busy}
+                    reason={form.shut}
+                    onClick={() => {
+                        form.create(onCreated)
+                    }}
+                >
+                    {form.busy ? LABELS.action.create.busy : LABELS.action.create.verb}
+                </Button>
             </div>
         </Surface>
     )
@@ -382,11 +379,9 @@ function UpdateSchema({
                 <Button variant="ghost" size="sm" onClick={onCancel}>
                     {LABELS.action.cancel}
                 </Button>
-                <Refusable why={write.why}>
-                    <Button size="sm" disabled={busy || !write.may} title={write.why} onClick={update}>
-                        {busy ? LABELS.action.update.busy : words.update_confirm}
-                    </Button>
-                </Refusable>
+                <Button size="sm" disabled={busy} reason={write.why} onClick={update}>
+                    {busy ? LABELS.action.update.busy : words.update_confirm}
+                </Button>
             </div>
         </Surface>
     )

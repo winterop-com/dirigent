@@ -4,7 +4,6 @@ import { Description } from '@/components/Description'
 import { Instant } from '@/components/Instant'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { Mark } from '@/components/Mark'
-import { Refusable } from '@/components/Refusable'
 import { ConnectionForm } from '@/components/connections/ConnectionForm'
 import { HealthSaid } from '@/components/connections/Health'
 import { ConfirmDialog } from '@winterop-com/sokkel-ui/DialogShell'
@@ -153,55 +152,47 @@ export function ConnectionDialog({
                     initialFocus={write.may ? editButton : undefined}
                     title={heading}
                     footer={
-                        <Refusable why={write.why}>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                destructiveHover
-                                disabled={!write.may}
-                                title={write.why}
-                                onClick={() => {
-                                    setRefused(null)
-                                    askAgain()
-                                    setDeleting(true)
-                                }}
-                            >
-                                <ICONS.delete aria-hidden />
-                                {LABELS.action.delete.verb}
-                            </Button>
-                        </Refusable>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            destructiveHover
+                            reason={write.why}
+                            onClick={() => {
+                                setRefused(null)
+                                askAgain()
+                                setDeleting(true)
+                            }}
+                        >
+                            <ICONS.delete aria-hidden />
+                            {LABELS.action.delete.verb}
+                        </Button>
                     }
                     actions={
                         <>
-                            <Refusable why={checkShut}>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={checking || checkShut !== undefined}
-                                    title={checkShut}
-                                    onClick={() => {
-                                        onCheck(connection)
-                                    }}
-                                >
-                                    <ICONS.recheck className={cn(checking && 'animate-pulse')} aria-hidden />
-                                    {LABELS.action.check}
-                                </Button>
-                            </Refusable>
-                            <Refusable why={write.why}>
-                                <Button
-                                    ref={editButton}
-                                    size="sm"
-                                    disabled={!write.may}
-                                    title={write.why}
-                                    onClick={() => {
-                                        form.reset()
-                                        setEditing(true)
-                                    }}
-                                >
-                                    <ICONS.edit aria-hidden />
-                                    {LABELS.action.edit}
-                                </Button>
-                            </Refusable>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={checking}
+                                reason={checkShut}
+                                onClick={() => {
+                                    onCheck(connection)
+                                }}
+                            >
+                                <ICONS.recheck className={cn(checking && 'animate-pulse')} aria-hidden />
+                                {LABELS.action.check}
+                            </Button>
+                            <Button
+                                ref={editButton}
+                                size="sm"
+                                reason={write.why}
+                                onClick={() => {
+                                    form.reset()
+                                    setEditing(true)
+                                }}
+                            >
+                                <ICONS.edit aria-hidden />
+                                {LABELS.action.edit}
+                            </Button>
                         </>
                     }
                 >

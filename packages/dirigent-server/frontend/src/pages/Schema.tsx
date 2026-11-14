@@ -365,15 +365,14 @@ function SchemaPage({ schema, onSaved }: { schema: SchemaOut; onSaved: (row: Sch
                     <>
                         <Button
                             variant="outline"
-                            disabled={sample === undefined}
-                            title={sample === undefined ? LABELS.schemas.tester.no_example : undefined}
+                            reason={sample === undefined ? LABELS.schemas.tester.no_example : undefined}
                             onClick={() => {
                                 setValue(JSON.stringify(sample, null, 2))
                             }}
                         >
                             {LABELS.schemas.tester.example}
                         </Button>
-                        <Button disabled={busy || saveWhy !== undefined} title={saveWhy} onClick={send}>
+                        <Button disabled={busy} reason={saveWhy} onClick={send}>
                             {busy ? LABELS.action.save.busy : LABELS.action.save.verb}
                         </Button>
                     </>

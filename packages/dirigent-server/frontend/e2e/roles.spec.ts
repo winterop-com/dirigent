@@ -74,8 +74,7 @@ test('a viewer is offered no write control, and each shut one says why', async (
     await rowOf(page, CONNECTION).click()
     const opened = page.getByRole('dialog')
     const check = opened.getByRole('button', { name: LABELS.action.check })
-    await expect(check).toBeDisabled()
-    await expect(check).toHaveAttribute('title', SHUT)
+    await saysShut(page, check, SHUT)
     await expect(opened.getByRole('button', { name: LABELS.action.edit, exact: true })).toBeDisabled()
     await expect(opened.getByRole('button', { name: LABELS.action.delete.verb, exact: true })).toBeDisabled()
 
@@ -86,8 +85,7 @@ test('a viewer is offered no write control, and each shut one says why', async (
 
     await rowOf(page, CRON.title).getByText(CRON.title, { exact: true }).click()
     const pause = page.getByRole('tabpanel').getByRole('button', { name: /Pause|Resume/ })
-    await expect(pause).toBeDisabled()
-    await expect(pause).toHaveAttribute('title', SHUT)
+    await saysShut(page, pause, SHUT)
 
     // Writing a pipeline is an operator's, and so are the two verbs the editor sends.
     await page.goto('/pipelines')

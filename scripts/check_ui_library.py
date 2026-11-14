@@ -13,6 +13,9 @@ Refused anywhere under ``src``, tests excepted:
   icon-only button is sokkel-ui's ``IconButton``, which cannot be drawn without a name and a
   tooltip.
 * ``arbitrary-radius``: ``rounded-[...]``. A corner is a rung of the radius ladder.
+* ``shut-title``: a ``<Button>`` carrying both ``disabled`` and ``title``. A disabled button takes
+  no pointer and no focus, so its ``title`` is never read; a button that cannot act says why with
+  ``reason``.
 
 Run it with ``uv run python scripts/check_ui_library.py``; ``make static`` and ``make ui-lint``
 both call it.
@@ -41,10 +44,15 @@ LUCIDE: Final = re.compile(r"""from\s+['"]lucide-react['"]""")
 
 RADIUS: Final = re.compile(r"\brounded(?:-[a-z]+)?-\[")
 
+DISABLED: Final = re.compile(r"\sdisabled(?:=|\s|/?>)")
+
+TITLE: Final = re.compile(r"\stitle=")
+
 FIX: Final = {
     "lucide-import": "a mark is `ICONS.<concept>` from lib/icons; add the concept there if it has none.",
     "icon-button": "an icon-only button is sokkel-ui's `IconButton`, with a label and a tooltip.",
     "arbitrary-radius": "a corner is a rung of the radius ladder: rounded-sm, rounded-md or rounded-lg.",
+    "shut-title": "a disabled button's `title` is never read; say why with the Button's `reason`.",
 }
 
 
@@ -117,8 +125,11 @@ def offences(path: Path) -> list[tuple[int, str]]:
     if path not in GLYPH_TABLES:
         found += [(line_of(text, match.start()), "lucide-import") for match in LUCIDE.finditer(text)]
     for match in re.finditer(r"<Button\b", text):
-        if ICON_SIZE.search(tag_at(text, match.start())):
+        tag = tag_at(text, match.start())
+        if ICON_SIZE.search(tag):
             found.append((line_of(text, match.start()), "icon-button"))
+        if DISABLED.search(tag) and TITLE.search(tag):
+            found.append((line_of(text, match.start()), "shut-title"))
     found += [(line_of(text, match.start()), "arbitrary-radius") for match in RADIUS.finditer(text)]
     return sorted(found)
 

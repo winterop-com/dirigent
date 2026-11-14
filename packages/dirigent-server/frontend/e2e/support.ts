@@ -44,12 +44,13 @@ export function documentOf(reference: string): Record<string, unknown> {
  */
 /**
  * That a verb is shut and says why. sokkel-ui says a shut control's reason in its tooltip, which a
- * pointer and a keyboard both reach, rather than on `title`.
+ * pointer and a keyboard both reach, rather than on `title`. The open tooltip is the one read: the
+ * one the pointer just left can still be fading out beside it.
  */
 export async function saysShut(page: Page, control: Locator, why: string | RegExp): Promise<void> {
     await expect(control).toBeDisabled()
     await control.hover()
-    await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText(why)
+    await expect(page.locator('[data-slot="tooltip-content"][data-open]')).toHaveText(why)
 }
 
 export async function signIn(page: Page): Promise<void> {

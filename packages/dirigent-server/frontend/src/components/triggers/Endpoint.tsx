@@ -7,7 +7,6 @@ import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { Question } from '@/components/Question'
 import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
-import { Refusable } from '@/components/Refusable'
 import { CopyButton } from '@winterop-com/sokkel-ui/CopyButton'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { SecretReveal } from '@winterop-com/sokkel-ui/SecretReveal'
@@ -141,20 +140,17 @@ export function NewToken({
 
     return (
         <>
-            <Refusable why={write.why}>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!write.may}
-                    title={write.why}
-                    onClick={() => {
-                        setProblem(null)
-                        setAsking(true)
-                    }}
-                >
-                    {signed ? words.secret : words.token}
-                </Button>
-            </Refusable>
+            <Button
+                variant="outline"
+                size="sm"
+                reason={write.why}
+                onClick={() => {
+                    setProblem(null)
+                    setAsking(true)
+                }}
+            >
+                {signed ? words.secret : words.token}
+            </Button>
             <ConfirmDialog
                 open={asking}
                 onOpenChange={setAsking}
