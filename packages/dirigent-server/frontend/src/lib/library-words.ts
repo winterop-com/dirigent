@@ -188,10 +188,11 @@ export const SECTION_LISTING = {
     },
 } as const
 
-/** What a dialog's two ways out say: the footer's Cancel and the corner's close. */
+/** What a dialog's ways out say: the footer's Cancel, the corner's close, and Stop waiting on a busy confirm. */
 export const DIALOG_WORDS: Partial<DialogShellWords> = {
     cancel: LABELS.action.cancel,
     close: LABELS.action.close,
+    stopWaiting: LABELS.action.stop_waiting,
 }
 
 /** What a link out of this app says to a screen reader after its text. */
@@ -340,6 +341,7 @@ export const PALETTE_WORDS: CommandPaletteWords = {
     sequence: LABELS.shell.shortcuts_sequence,
     running: LABELS.palette.running,
     refused: LABELS.palette.refused,
+    stopWaiting: LABELS.action.stop_waiting,
 }
 
 /**

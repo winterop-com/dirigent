@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { CarriedOffer } from '@/components/pipeline/CarriedOffer'
 import { PlanReading } from '@/components/pipeline/PlanReading'
 import { Refusal } from '@/components/Refusal'
+import { useLetGo } from '@/hooks/use-let-go'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
 import { type JsonMap, type Problem } from '@/lib/api'
@@ -72,6 +73,7 @@ export function ApplyDialog({
     const [held, setHeld] = useState<Held>(NOTHING_READ)
     const [kinds, setKinds] = useState<readonly SurfaceEntry[] | null>(null)
     const write = useMayWrite()
+    const letGo = useLetGo()
     const store = useMayWrite('admin')
 
     const carried = carriedRefusal(problem)
@@ -196,6 +198,7 @@ export function ApplyDialog({
 
     const apply = () => {
         setApplying(true)
+        letGo.begin()
         void applyPipeline(document, false).then(
             (result: ApplyResult) => {
                 setApplying(false)
@@ -204,7 +207,7 @@ export function ApplyDialog({
             },
             (error: unknown) => {
                 setApplying(false)
-                setProblem(refusalOf(error))
+                setProblem(letGo.refused(error))
             },
         )
     }
@@ -224,6 +227,7 @@ export function ApplyDialog({
     const goForward = () => {
         setApplying(true)
         setProblem(null)
+        letGo.begin()
         void (async () => {
             try {
                 const made = creations(items)
@@ -259,7 +263,7 @@ export function ApplyDialog({
                 onApplied(result)
                 onOpenChange(false)
             } catch (error: unknown) {
-                setProblem(refusalOf(error))
+                setProblem(letGo.refused(error))
                 readHeld(document)
             } finally {
                 setApplying(false)
@@ -295,6 +299,7 @@ export function ApplyDialog({
                           // plan asks the instance nothing extra and waits on nothing.
                           why: carried ? firstShut(write.why, unread(reading)) : write.why,
                           onConfirm: carried ? goForward : apply,
+                          onStopWaiting: letGo.onStopWaiting,
                       }
                     : undefined
             }

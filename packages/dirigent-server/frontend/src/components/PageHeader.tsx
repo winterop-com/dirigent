@@ -48,7 +48,6 @@ export function PageHeader({
                     items={items}
                     primary={primary}
                     trail={trail}
-                    trailInTop
                     wordsOnly
                     words={TOOLBAR_WORDS}
                 />

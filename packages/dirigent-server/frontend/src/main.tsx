@@ -65,9 +65,7 @@ function routedHere(props: RoutedLinkProps) {
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <Appearance />
-        {/* Slow enough that a tooltip is an answer somebody waited for rather than noise
-            chasing the pointer. */}
-        <TooltipProvider delay={600}>
+        <TooltipProvider>
             <BrowserRouter>
                 <LinkProvider render={routedLink} internal={routedHere}>
                     <StatusProvider statuses={STATUSES} dot fallback={FALLBACK}>

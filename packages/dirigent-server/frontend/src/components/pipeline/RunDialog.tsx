@@ -11,12 +11,13 @@ import {
     SelectValue,
 } from '@winterop-com/sokkel-ui/primitives/select'
 import { DialogShell } from '@winterop-com/sokkel-ui/DialogShell'
+import { useLetGo } from '@/hooks/use-let-go'
 import { useMayWrite } from '@/hooks/use-may-write'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { type JsonMap, type Problem } from '@/lib/api'
 import { DIALOG_WORDS, FIELD_WORDS, SCHEMA_FORM_WORDS } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
-import { refusalOf, said } from '@/lib/refusal'
+import { said } from '@/lib/refusal'
 import { headingOf, type Addressable } from '@/lib/identity'
 import { paramsOf, startRun, type RunAccepted } from '@/lib/pipelines'
 import { readWindow, referencesWindow } from '@/lib/run-window'
@@ -96,6 +97,7 @@ export function RunDialog({
     const [starting, setStarting] = useState(false)
     const [level, setLevel] = useState<'info' | 'debug'>('info')
     const write = useMayWrite()
+    const letGo = useLetGo()
     // Each end is read at its own wall clock, so a window that runs across the night the local
     // offset moves on still covers the interval it says it does.
     const window = readWindow(windowStart, windowEnd, needsWindow, (written) =>
@@ -105,6 +107,7 @@ export function RunDialog({
     const start = () => {
         if (!form.submit()) return
         setStarting(true)
+        letGo.begin()
         void startRun(
             pipeline.code,
             form.value as JsonMap,
@@ -118,7 +121,7 @@ export function RunDialog({
             },
             (error: unknown) => {
                 setStarting(false)
-                setProblem(refusalOf(error))
+                setProblem(letGo.refused(error))
             },
         )
     }
@@ -150,6 +153,7 @@ export function RunDialog({
                 busy: starting,
                 why: shut,
                 onConfirm: start,
+                onStopWaiting: letGo.onStopWaiting,
             }}
         >
             {takes && <GeneratedForm form={form} />}
