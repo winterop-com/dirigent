@@ -77,19 +77,31 @@ test('a pasted run id is one row, and Enter opens the run', async ({ page }) => 
     await expect(page).toHaveURL(new RegExp(`/runs/${id}`))
 })
 
-test("a query the search has not answered yet says Reading, in this app's words", async ({ page }) => {
-    // The first query of an opened palette is looked up at once and every later one after a
-    // timer, so a held clock keeps the second query in flight.
-    await page.clock.install()
-    await page.clock.pauseAt(Date.now() + 1_000)
+test('an id typed key by key is answered at once, and never says Reading on the way', async ({ page }) => {
+    const id = '01a1a11a-0000-7000-8000-00000000abcd'
     await page.keyboard.press('ControlOrMeta+k')
     const box = page.getByPlaceholder(LABELS.palette.placeholder)
-    await box.fill('stroop')
-    await expect(page.getByText(LABELS.palette.empty)).toBeVisible()
-    await box.fill('stroopwafel')
-    await expect(
-        page.getByRole('dialog').getByRole('status').filter({ hasText: LABELS.shell.reading }),
-    ).toBeVisible()
+    await expect(box).toBeVisible()
+    // Every frame is read while the keys go in, so a searching line drawn for one frame counts.
+    await page.evaluate((reading) => {
+        const seen = { frames: 0, running: true }
+        Object.assign(window, { readingFrames: seen })
+        const look = () => {
+            const lines = document.querySelectorAll('[role="dialog"] [role="status"]')
+            if (Array.from(lines).some((line) => line.textContent?.includes(reading))) seen.frames += 1
+            if (seen.running) requestAnimationFrame(look)
+        }
+        requestAnimationFrame(look)
+    }, LABELS.shell.reading)
+    await box.pressSequentially(id, { delay: 120 })
+    await expect(page.getByRole('option', { name: LABELS.palette.open_id(id) })).toBeVisible()
+    const frames = await page.evaluate(() => {
+        const seen = (window as unknown as { readingFrames: { frames: number; running: boolean } })
+            .readingFrames
+        seen.running = false
+        return seen.frames
+    })
+    expect(frames).toBe(0)
 })
 
 test.describe('on a Mac', () => {
