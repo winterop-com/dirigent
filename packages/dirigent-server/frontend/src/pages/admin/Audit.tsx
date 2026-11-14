@@ -129,6 +129,7 @@ function Audit() {
                 columns={COLUMNS}
                 rows={state.problem === null ? state.rows : []}
                 rowKey={entryId}
+                scrollKey={`audit?${new URLSearchParams({ ...filters }).toString()}`}
                 search={
                     <SearchField
                         placeholder={SEARCH_PLACEHOLDER}

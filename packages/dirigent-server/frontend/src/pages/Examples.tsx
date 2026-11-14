@@ -270,6 +270,7 @@ export function Examples() {
                 columns={columns}
                 rows={corpus.problem === null ? shown : []}
                 rowKey={exampleCode}
+                scrollKey={`examples?${queryOf(filters).toString()}`}
                 search={
                     <SearchField
                         placeholder={SEARCH_PLACEHOLDER}
