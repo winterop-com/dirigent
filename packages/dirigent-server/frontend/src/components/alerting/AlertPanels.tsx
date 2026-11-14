@@ -12,7 +12,6 @@ import {
 import { Mark } from '@/components/Mark'
 import { WindowedSource } from '@/components/pipeline/WindowedSource'
 import { ProgramReference } from '@/components/pipeline/ProgramReference'
-import { Refusable } from '@/components/Refusable'
 import { Refusal, sayRefusal } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { Field } from '@winterop-com/sokkel-ui/Field'
@@ -116,19 +115,16 @@ export function RulePanel({
                     ) : (
                         <span className="font-mono text-xs break-all">{rule.template}</span>
                     )}
-                    <Refusable why={rewrite.why}>
-                        <Button
-                            variant="ghost"
-                            size="xs"
-                            disabled={!rewrite.may}
-                            title={rewrite.why}
-                            onClick={() => {
-                                setEditingCode(rule.code)
-                            }}
-                        >
-                            {LABELS.action.edit}
-                        </Button>
-                    </Refusable>
+                    <Button
+                        variant="ghost"
+                        size="xs"
+                        reason={rewrite.why}
+                        onClick={() => {
+                            setEditingCode(rule.code)
+                        }}
+                    >
+                        {LABELS.action.edit}
+                    </Button>
                 </span>
             ),
         },
@@ -217,44 +213,26 @@ export function RulePanel({
             )}
 
             <div className="flex flex-wrap gap-2">
-                <Refusable why={write.why}>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy || !write.may}
-                        title={write.why}
-                        onClick={toggle}
-                    >
-                        {rule.paused ? LABELS.action.resume : LABELS.action.pause}
-                    </Button>
-                </Refusable>
-                <Refusable why={write.why}>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!write.may}
-                        title={write.why}
-                        onClick={onTest}
-                    >
-                        {LABELS.action.asks(LABELS.action.send_test)}
-                    </Button>
-                </Refusable>
-                <Refusable why={rewrite.why}>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="ml-auto"
-                        destructiveHover
-                        disabled={busy || !rewrite.may}
-                        title={rewrite.why}
-                        onClick={() => {
-                            setRefused(null)
-                            setDeleting(true)
-                        }}
-                    >
-                        {LABELS.action.delete.verb}
-                    </Button>
-                </Refusable>
+                <Button variant="outline" size="sm" disabled={busy} reason={write.why} onClick={toggle}>
+                    {rule.paused ? LABELS.action.resume : LABELS.action.pause}
+                </Button>
+                <Button variant="outline" size="sm" reason={write.why} onClick={onTest}>
+                    {LABELS.action.asks(LABELS.action.send_test)}
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto"
+                    destructiveHover
+                    disabled={busy}
+                    reason={rewrite.why}
+                    onClick={() => {
+                        setRefused(null)
+                        setDeleting(true)
+                    }}
+                >
+                    {LABELS.action.delete.verb}
+                </Button>
             </div>
 
             <ConfirmDialog
@@ -487,17 +465,9 @@ export function NotificationPanel({
             )}
 
             <div className="flex flex-wrap gap-2">
-                <Refusable why={write.why}>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy || !write.may}
-                        title={write.why}
-                        onClick={again}
-                    >
-                        {LABELS.action.retry_now}
-                    </Button>
-                </Refusable>
+                <Button variant="outline" size="sm" disabled={busy} reason={write.why} onClick={again}>
+                    {LABELS.action.retry_now}
+                </Button>
                 {notification.run_id !== null && (
                     <Button variant="outline" size="sm" render={<Link to={`/runs/${notification.run_id}`} />}>
                         {LABELS.alerting.open_run}

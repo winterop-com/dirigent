@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { TargetPicker } from '@/components/alerting/fields'
 import { Instant } from '@/components/Instant'
-import { Refusable } from '@/components/Refusable'
 import { Refusal } from '@/components/Refusal'
 import { StatusChip } from '@winterop-com/sokkel-ui/StatusChip'
 import { TextField } from '@winterop-com/sokkel-ui/TextField'
@@ -137,16 +136,9 @@ export function SendTest({
                         >
                             {LABELS.alerting.open_in_queue}
                         </Button>
-                        <Refusable why={shut}>
-                            <Button
-                                autoFocus
-                                disabled={busy || shut !== undefined}
-                                title={shut}
-                                onClick={send}
-                            >
-                                {LABELS.alerting.send_again}
-                            </Button>
-                        </Refusable>
+                        <Button autoFocus disabled={busy} reason={shut} onClick={send}>
+                            {LABELS.alerting.send_again}
+                        </Button>
                     </>
                 )
             }

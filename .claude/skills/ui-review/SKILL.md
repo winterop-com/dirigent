@@ -57,8 +57,9 @@ Both traps below report a clean pass on a surface that is actually clipped.
 - **A new string goes in the catalogue**: `src/lib/labels.ts`, under a code that says what the
   string is for. `uv run python scripts/check_ui_labels.py` refuses one left in a component.
 - **Controls**: nothing wears interactive chrome unless it does something; a visible primary
-  action is not narrated elsewhere; buttons disable with a title saying why; `New` alone
-  where the screen names the noun (full name on aria-label and palette).
+  action is not narrated elsewhere; a button that cannot act says why with `reason`, on hover
+  and on focus; `New` alone where the screen names the noun (full name on aria-label and
+  palette).
 - **Fields**: inputs sit on the `--field` ground with a visible border in BOTH palettes;
   program-carrying fields are code editors; required errors appear after interaction, not on
   open.

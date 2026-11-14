@@ -7,7 +7,6 @@ import { DescriptionList } from '@winterop-com/sokkel-ui/DescriptionList'
 import { Instant } from '@/components/Instant'
 import { JsonBlock } from '@/components/JsonBlock'
 import { PipelineRef } from '@/components/PipelineRef'
-import { Refusable } from '@/components/Refusable'
 import { sayRefusal } from '@/components/Refusal'
 import { EndpointAddress, NewToken } from '@/components/triggers/Endpoint'
 import { Chip, Clock, Dot, NextFire, OwnerChip } from '@/components/triggers/marks'
@@ -138,17 +137,9 @@ export function SchedulePanel({
                 ]}
             />
 
-            <Refusable why={write.why}>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy || !write.may}
-                    title={write.why}
-                    onClick={toggle}
-                >
-                    {schedule.paused ? LABELS.action.resume : LABELS.action.pause}
-                </Button>
-            </Refusable>
+            <Button variant="outline" size="sm" disabled={busy} reason={write.why} onClick={toggle}>
+                {schedule.paused ? LABELS.action.resume : LABELS.action.pause}
+            </Button>
 
             <History
                 title={LABELS.word.firing.heading}
@@ -292,19 +283,17 @@ export function SourcePanel({
             />
 
             <div className="flex flex-wrap items-center gap-2">
-                <Refusable why={write.why}>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy || !write.may}
-                        title={write.why}
-                        onClick={() => {
-                            act(setSourcePaused(source.pipeline, source.code, !paused), onChanged)
-                        }}
-                    >
-                        {paused ? LABELS.action.resume : LABELS.action.pause}
-                    </Button>
-                </Refusable>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    reason={write.why}
+                    onClick={() => {
+                        act(setSourcePaused(source.pipeline, source.code, !paused), onChanged)
+                    }}
+                >
+                    {paused ? LABELS.action.resume : LABELS.action.pause}
+                </Button>
                 <NewToken source={source} body={undefined} onReplaced={onChanged} />
             </div>
 
