@@ -812,8 +812,10 @@ test('a cron clock the instance refuses carries its sentence as the issue, and s
     await expect(mark).toBeVisible()
     await expect(box).toHaveAttribute('aria-invalid', 'true')
     await mark.click()
-    await expect(page.getByText(said, { exact: true })).toBeVisible()
-    await expect(dialog.getByRole('button', { name: LABELS.action.create.verb })).toBeDisabled()
+    await expect(page.getByRole('heading', { name: said, exact: true })).toBeVisible()
+    const create = dialog.getByRole('button', { name: LABELS.action.create.verb })
+    await expect(create).toBeDisabled()
+    await expect(create).toHaveAccessibleDescription(said)
 })
 
 test("the last day of the month is read back in words and taken at the instance's word", async ({ page }) => {

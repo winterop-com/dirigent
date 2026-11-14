@@ -66,7 +66,7 @@ export function RunFailure({
                       ? LABELS.runs.failure.items_heading(step)
                       : LABELS.runs.failure.heading(step)
             }
-            meta={code ?? undefined}
+            meta={code === null ? undefined : <InlineCode value={code} tone="muted" bare size="xs" />}
         >
             {block !== null && <InlineCode value={block} tone="muted" bare size="xs" />}
             {problems.length > 0 ? (

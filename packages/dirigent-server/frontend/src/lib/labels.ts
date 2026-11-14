@@ -89,6 +89,8 @@ const action = {
         confirm: 'Cancel run',
         busy: 'Canceling',
     },
+    /** Close an overlay whose work is still running, leaving the work to finish on its own. */
+    stop_waiting: 'Stop waiting',
     /** Open the thing for editing. */
     edit: 'Edit',
     /** Take the thing away for good. */
