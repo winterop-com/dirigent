@@ -188,8 +188,11 @@ export const SECTION_LISTING = {
     },
 } as const
 
-/** The one dismissal word a dialog's footer says. */
-export const DIALOG_WORDS: Partial<DialogShellWords> = { cancel: LABELS.action.cancel }
+/** What a dialog's two ways out say: the footer's Cancel and the corner's close. */
+export const DIALOG_WORDS: Partial<DialogShellWords> = {
+    cancel: LABELS.action.cancel,
+    close: LABELS.action.close,
+}
 
 /** What a link out of this app says to a screen reader after its text. */
 export const LINK_WORDS: TextLinkWords = { newTab: LABELS.shell.new_tab }
@@ -331,7 +334,7 @@ export const PALETTE_WORDS: CommandPaletteWords = {
     title: LABELS.palette.title,
     placeholder: LABELS.palette.placeholder,
     empty: LABELS.palette.empty,
-    close: LABELS.palette.close,
+    close: LABELS.action.close,
     open: LABELS.palette.verb,
     palette: LABELS.palette.title,
     sequence: LABELS.shell.shortcuts_sequence,

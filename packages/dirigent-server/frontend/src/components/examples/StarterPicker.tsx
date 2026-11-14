@@ -111,7 +111,7 @@ export function StarterPicker({
                 title: FROM_A_STARTER,
                 placeholder: PICKER_PLACEHOLDER,
                 empty: !corpus.read ? PICKER_READING : starters.length === 0 ? PICKER_NONE : PICKER_EMPTY,
-                close: LABELS.palette.close,
+                close: LABELS.action.close,
                 running: LABELS.pipelines.starters.reading,
                 refused: LABELS.pipelines.starters.refused,
             }}

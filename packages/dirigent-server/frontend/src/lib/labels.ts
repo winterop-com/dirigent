@@ -55,6 +55,8 @@ export type Catalogue = { readonly [name: string]: Label | Catalogue }
 const action = {
     /** Leave a dialog that would have written something, writing nothing. */
     cancel: 'Cancel',
+    /** Shut a dialog or the palette that has nothing to write: a dialog's corner, the palette's foot. */
+    close: 'Close',
     /** A word on a control that asks for more before it acts. */
     asks: (verb: string) => `${verb}…`,
     /** Write the new thing the dialog was opened to make. */
@@ -928,8 +930,6 @@ const palette = {
 
     /** The foot's word beside Enter, for what choosing the row does. */
     verb: 'Open',
-    /** The button at the foot that closes the palette on a touch screen. */
-    close: 'Close',
     /** Names the spinner on a row whose command is still running. */
     running: 'Running',
     /** A command refused without words of its own. */

@@ -814,8 +814,12 @@ test('a document that reads a window is not run until it is given one', async ({
     await expect(dialog.getByRole('button', { name: LABELS.editor.run.add_window })).toHaveCount(0)
 
     const runNow = dialog.getByRole('button', { name: LABELS.editor.run.confirm })
+    // A keyboard reaches the reason as well as a pointer.
     await expect(runNow).toBeDisabled()
-    await expect(runNow).toHaveAttribute('title', WINDOW_NEEDED)
+    await dialog.getByRole('button', { name: LABELS.action.cancel }).focus()
+    await page.keyboard.press('Tab')
+    await expect(runNow).toBeFocused()
+    await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText(WINDOW_NEEDED)
 
     // One end is not a window, and neither is one that runs backwards.
     await start.fill('2026-09-03T00:00')
