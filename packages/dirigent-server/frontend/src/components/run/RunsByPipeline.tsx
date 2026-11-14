@@ -31,6 +31,7 @@ const pipelineOf = (row: PipelineRuns) => row.pipeline
 export function RunsByPipeline({
     rows,
     window,
+    scrollKey,
     search,
     toolbar,
     loading,
@@ -40,6 +41,8 @@ export function RunsByPipeline({
 }: {
     rows: readonly PipelineRuns[]
     window: GroupWindow
+    /** Where the rows' place is kept, one per question the rows answer. */
+    scrollKey: string
     search: ReactNode
     toolbar: ReactNode
     loading: boolean
@@ -62,6 +65,7 @@ export function RunsByPipeline({
             search={search}
             toolbar={toolbar}
             loading={loading}
+            scrollKey={scrollKey}
             {...refusedTable(problem, onRetry, countWords(LABELS.word.pipeline.count))}
             empty={empty}
         />

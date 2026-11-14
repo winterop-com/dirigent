@@ -88,9 +88,10 @@ export function usePaged<T>(
     )
 
     // The cursor "load more" continues from is the one held when it is pressed, not the one
-    // captured by whichever render registered the handler.
+    // captured by whichever render registered the handler. It moves before any effect runs, so
+    // a table's own effect asking for more after a page lands continues from that page.
     const carried = useRef<Paged<T>>(state)
-    useEffect(() => {
+    useLayoutEffect(() => {
         carried.current = state
     }, [state])
 

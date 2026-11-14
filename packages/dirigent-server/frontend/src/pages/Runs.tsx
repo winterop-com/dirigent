@@ -305,6 +305,7 @@ function FlatRuns({ filters, search, toolbar }: Bar & { filters: RunFilters }) {
                 hasMore={state.problem === null && state.next !== null}
                 loading={state.reading}
                 onLoadMore={more}
+                scrollKey={runsLink(filters)}
                 {...refusedTable(state.problem, reload, countWords(LABELS.word.run.count))}
                 empty={emptyNote(filters)}
             />
@@ -336,6 +337,7 @@ function GroupedRuns({
             <RunsByPipeline
                 rows={summary.problem === null ? rows : []}
                 window={window}
+                scrollKey={groupedLink(filters, window)}
                 search={search}
                 toolbar={toolbar}
                 loading={summary.reading}

@@ -10,6 +10,7 @@ import {
     readAllExamples,
     readExample,
     readHoldings,
+    missingCount,
     requirementsOf,
     requirementsSummary,
     shelveStarters,
@@ -47,7 +48,7 @@ export const PICKER_NONE = LABELS.pipelines.starters.none
  * WHAT IT NEEDS IS ON THE ROW. Choosing a starter that wants a connection nobody has created is
  * a legitimate thing to do -- the editor's panel then says what to create -- but it is not a
  * thing to discover afterwards, so how much of what it needs is here stands at the row's end, and
- * under the title on a phone.
+ * under the title on a phone, in the critical ink where some of it is missing.
  *
  * CHOOSING ONE READS IT IN PLACE. The palette stays open on the chosen row while the starter is
  * read, and a read that is refused is said in the palette, where the choice was made.
@@ -133,6 +134,7 @@ function starterCommand(
         mono: !heading.named,
         code: heading.code ?? undefined,
         meta: summary ?? undefined,
+        metaTone: missingCount(items) === 0 ? undefined : 'critical',
         onSelect,
     }
 }

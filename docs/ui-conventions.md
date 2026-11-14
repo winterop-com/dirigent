@@ -595,10 +595,12 @@ screen decides its columns, what each cell says and what a row does, and nothing
 column header is sticky**: rows scroll beneath it inside the listing's own scroll container, and
 the header keeps its ground so no row ever shows through it. **A listing that fills the page asks for
 its next page as the rows near the end of its box**, and End on the keyboard reaches it the same
-way. **A listing set in a `Section` among others** -- Triggers, Alerting -- grows with its rows
-rather than scrolling in a box of its own, so it would reach its end at once and read every page;
-it draws a button after its last row instead, saying how many the next page brings
-(`SECTION_LISTING`). The count is the `foot` from `rowsRead`, or the `meta` of the section a titled
+way. **It keeps its place**: it passes `scrollKey`, one key per question its rows answer -- the
+listing, and its filters where they change the rows -- so back to it is back at the row left,
+the pages down to that row read again. **A listing set in a `Section` among others** --
+Triggers, Alerting -- grows with its rows rather than scrolling in a box of its own, so it would
+reach its end at once and read every page; it draws a button after its last row instead, saying
+how many the next page brings (`SECTION_LISTING`). The count is the `foot` from `rowsRead`, or the `meta` of the section a titled
 listing stands in. **A listing narrowed by a search or filters draws them in the table's own bar**:
 the box is `DataTable`'s `search` and every other control its `toolbar`, so the search and the
 count share the first line and the filters take a line of their own under it, wrapping from the

@@ -47,6 +47,7 @@ export function WorkersTable({
             hasMore={state.problem === null && state.next !== null}
             loading={state.reading}
             onLoadMore={more}
+            scrollKey="workers"
             {...refusedTable(state.problem, reload)}
             foot={
                 rows.length === 0

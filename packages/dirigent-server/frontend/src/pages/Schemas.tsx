@@ -109,6 +109,7 @@ export function Schemas() {
                     hasMore={state.next !== null}
                     loading={state.reading}
                     onLoadMore={more}
+                    scrollKey="schemas"
                     foot={rowsRead(rows.length, LABELS.word.schema.count, state.next !== null)}
                     onOpen={(row) => {
                         void navigate(`/schemas/${encodeURIComponent(row.code)}`)

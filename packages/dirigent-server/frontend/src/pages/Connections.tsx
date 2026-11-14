@@ -218,6 +218,7 @@ export function Connections() {
                     hasMore={state.next !== null}
                     loading={state.reading}
                     onLoadMore={more}
+                    scrollKey="connections"
                     foot={rowsRead(rows.length, LABELS.word.connection.count, state.next !== null)}
                     onOpen={(row) => {
                         // The row is not another page of history: it is which one is being read.

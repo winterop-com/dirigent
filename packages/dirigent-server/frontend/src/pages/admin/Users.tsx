@@ -180,6 +180,7 @@ function Users() {
                     hasMore={users.state.next !== null}
                     loading={users.state.reading}
                     onLoadMore={users.more}
+                    scrollKey="users"
                     foot={rowsRead(
                         users.state.rows.length,
                         LABELS.word.account.count,
