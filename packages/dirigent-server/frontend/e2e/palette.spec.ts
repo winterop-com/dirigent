@@ -77,6 +77,21 @@ test('a pasted run id is one row, and Enter opens the run', async ({ page }) => 
     await expect(page).toHaveURL(new RegExp(`/runs/${id}`))
 })
 
+test("a query the search has not answered yet says Reading, in this app's words", async ({ page }) => {
+    // The first query of an opened palette is looked up at once and every later one after a
+    // timer, so a held clock keeps the second query in flight.
+    await page.clock.install()
+    await page.clock.pauseAt(Date.now() + 1_000)
+    await page.keyboard.press('ControlOrMeta+k')
+    const box = page.getByPlaceholder(LABELS.palette.placeholder)
+    await box.fill('stroop')
+    await expect(page.getByText(LABELS.palette.empty)).toBeVisible()
+    await box.fill('stroopwafel')
+    await expect(
+        page.getByRole('dialog').getByRole('status').filter({ hasText: LABELS.shell.reading }),
+    ).toBeVisible()
+})
+
 test.describe('on a Mac', () => {
     test.use({
         userAgent:

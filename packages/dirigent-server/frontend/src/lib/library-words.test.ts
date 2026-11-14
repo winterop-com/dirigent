@@ -9,6 +9,7 @@ import {
     DIFF_WORDS,
     FIELD_WORDS,
     LINK_WORDS,
+    PALETTE_SEARCH_WORDS,
     SCHEMA_CHECK_WORDS,
     SCHEMA_FORM_WORDS,
     SEARCH_PLACEHOLDER,
@@ -106,5 +107,21 @@ describe('a form drawn from a JSON Schema', () => {
     test('says the default an empty box leaves a field to, a text as it is and any other value as JSON', () => {
         expect(SCHEMA_FORM_WORDS.fallback?.('30s')).toBe(LABELS.form.default_is('30s'))
         expect(SCHEMA_FORM_WORDS.fallback?.(8)).toBe(LABELS.form.default_is('8'))
+    })
+})
+
+describe("the palette's search", () => {
+    test('says Reading while it reads, and asks again with Try again', () => {
+        expect(PALETTE_SEARCH_WORDS.searching).toBe(LABELS.shell.reading)
+        expect(PALETTE_SEARCH_WORDS.retry).toBe(LABELS.shell.read_again)
+    })
+
+    test('says why it failed when the failure has words, and that it failed when not', () => {
+        expect(PALETTE_SEARCH_WORDS.failed('No run 01a1.')).toBe('No run 01a1.')
+        expect(PALETTE_SEARCH_WORDS.failed(' ')).toBe(LABELS.palette.search.failed)
+    })
+
+    test('names the query on the row to every result', () => {
+        expect(PALETTE_SEARCH_WORDS.seeAll('etl')).toBe(LABELS.palette.search.all_results('etl'))
     })
 })
