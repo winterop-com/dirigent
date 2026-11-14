@@ -930,6 +930,10 @@ const palette = {
     verb: 'Open',
     /** The button at the foot that closes the palette on a touch screen. */
     close: 'Close',
+    /** Names the spinner on a row whose command is still running. */
+    running: 'Running',
+    /** A command refused without words of its own. */
+    refused: 'That did not run.',
 
     /** The headings the rows are shelved under, in the order the palette lays them out. */
     shelf: {
@@ -1620,6 +1624,10 @@ const pipelines = {
         empty: 'No template matches that.',
         /** Nothing installed here ships one. */
         none: 'No templates installed. Plugins contribute them.',
+        /** Names the spinner on the chosen row while its document is read. */
+        reading: 'Reading the template',
+        /** A refusal that came without words of its own. */
+        refused: 'The template could not be read.',
     },
 } as const
 

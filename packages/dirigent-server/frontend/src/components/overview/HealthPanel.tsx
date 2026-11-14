@@ -1,7 +1,6 @@
-import { Link } from 'react-router'
-
 import { Instant } from '@/components/Instant'
 import { Mark } from '@/components/Mark'
+import { ListRow, ListRows } from '@winterop-com/sokkel-ui/ListRow'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { authStore } from '@/lib/auth'
@@ -26,11 +25,10 @@ const DOTS: Record<TileTone, string> = {
  * answer are the same news to somebody opening this screen -- something this instance needs is
  * not there -- so they are one list rather than two panels asking a reader to check both.
  *
- * THE NAME READS WHOLE AND THE DETAIL TAKES WHAT IS LEFT. The name identifies the row -- a code
- * cut in half names nothing -- so it is drawn at the width it needs, up to half the row and never
- * below six characters; the detail is prose written to be cut and truncates in the rest, with the
- * whole of it on its title; the instant is a value out of a fixed vocabulary and holds its own
- * width. Nothing on the row is unbounded, so the card has no width at which it scrolls sideways.
+ * THE NAME READS WHOLE AND THE DETAIL TAKES WHAT IS LEFT. Each row is a dense mono `ListRow`:
+ * the name identifies the row -- a code cut in half names nothing -- so it is drawn at the width it
+ * needs; the detail is prose written to be cut and truncates in the rest, with the whole of it on
+ * the row's title; the instant is a value out of a fixed vocabulary and holds its own width.
  *
  * THE FOOT SAYS ONLY WHAT IS NOT PERFECT. The rows carry the detail; the line under them is
  * what a reader who is not reading the rows has to know, and where everything is well that is
@@ -49,67 +47,52 @@ export function HealthPanel({ rows, note, reading }: { rows: HealthRow[]; note: 
             flush
             bodyClassName="flex flex-col"
         >
-            <ul className="max-h-64 grow overflow-y-auto">
+            <ListRows flush label={LABELS.word.health} className="max-h-64 grow overflow-y-auto">
                 {rows.map((row) => {
                     const to =
                         row.kind === 'connection'
                             ? '/connections'
                             : role === 'admin'
                               ? '/admin/workers'
-                              : null
-                    const body = (
-                        <>
-                            {/* How it is, then what it is. A worker is not a kind, so it
-                                    draws nothing in the mark's place and holds the width, or
-                                    the codes under it would not line up. */}
-                            <span className="flex shrink-0 items-center gap-1.5">
-                                <span
-                                    className={cn('size-2 shrink-0 rounded-full', DOTS[row.tone])}
-                                    title={row.tip ?? undefined}
-                                    aria-hidden
-                                />
-                                {row.mark === null ? (
-                                    <span className="size-4 shrink-0" aria-hidden />
-                                ) : (
-                                    <Mark glyph={row.mark} />
-                                )}
-                            </span>
-                            <span
-                                className="max-w-[55%] min-w-[6ch] truncate font-mono text-xs"
-                                title={row.label}
-                            >
-                                {row.label}
-                            </span>
-                            <span className="flex min-w-0 flex-1 items-baseline justify-end gap-2">
-                                <span className="truncate text-xs text-muted-foreground" title={row.detail}>
-                                    {row.detail}
-                                </span>
-                                {row.at !== null && (
+                              : undefined
+                    return (
+                        <ListRow
+                            key={`${row.kind}:${row.id}`}
+                            dense
+                            mono
+                            href={to}
+                            icon={
+                                <>
+                                    {/* How it is, then what it is. A worker is not a kind, so it draws
+                                        nothing in the mark's place and holds the width, or the codes
+                                        under it would not line up. */}
+                                    <span
+                                        className={cn('size-2 shrink-0 rounded-full', DOTS[row.tone])}
+                                        title={row.tip ?? undefined}
+                                    />
+                                    {row.mark === null ? (
+                                        <span className="size-4 shrink-0" />
+                                    ) : (
+                                        <Mark glyph={row.mark} />
+                                    )}
+                                </>
+                            }
+                            title={row.label}
+                            detail={row.detail}
+                            tooltip={`${row.label}: ${row.detail}`}
+                            aside={
+                                row.at === null ? undefined : (
                                     <Instant
-                                        focusable={to === null}
-                                        className="shrink-0 text-xs text-faint"
+                                        focusable={to === undefined}
+                                        className="text-faint"
                                         at={row.at}
                                     />
-                                )}
-                            </span>
-                        </>
-                    )
-                    return (
-                        <li key={`${row.kind}:${row.id}`} className="border-t border-border first:border-t-0">
-                            {to === null ? (
-                                <span className="flex min-w-0 items-center gap-2 px-4 py-1.5">{body}</span>
-                            ) : (
-                                <Link
-                                    to={to}
-                                    className="control-link flex min-w-0 items-center gap-2 px-4 py-1.5 hover:bg-accent/60"
-                                >
-                                    {body}
-                                </Link>
-                            )}
-                        </li>
+                                )
+                            }
+                        />
                     )
                 })}
-            </ul>
+            </ListRows>
 
             <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">{note}</p>
         </Section>

@@ -26,8 +26,11 @@ const BANDS: readonly { id: Band; label: string; color: string }[] = [
 
 const COLORS = Object.fromEntries(BANDS.map((band) => [band.label, band.color]))
 
+/** The outcomes worst first, as the legend lists them. */
+const WORST_FIRST = BANDS.map((band) => band.label)
+
 /** The stack from the bottom up: succeeded first, failed on top. */
-const STACK_ORDER = BANDS.map((band) => band.label).toReversed()
+const STACK_ORDER = WORST_FIRST.toReversed()
 
 /** The hour a bar stands for, as the clock's two digits: what the rows key it by. */
 const hourOf = (bucket: HourBucket) => String(bucket.hour).padStart(2, '0')
@@ -83,8 +86,8 @@ export function RunsChart({
         }),
         [buckets],
     )
-    // Worst first, as the bars are read from the top.
-    const legend = useMemo(() => chartLegend('bar', spec).toReversed(), [spec])
+    // Worst first, as the bars are read from the top; each band keeps its color by name.
+    const legend = useMemo(() => chartLegend('bar', { ...spec, seriesOrder: WORST_FIRST }), [spec])
     const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set())
     const [hovered, setHovered] = useState<string | null>(null)
     if (!reading && tallest(buckets) === 0) {
