@@ -22,6 +22,7 @@ import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
 import { authStore, refreshIdentity, signOut } from '@/lib/auth'
 import {
     accountWords,
+    PALETTE_SEARCH_WORDS,
     PALETTE_WORDS,
     RAIL_WORDS,
     SERVER_MENU_WORDS,
@@ -287,6 +288,7 @@ export function AppShell() {
                 void addressOfId(result.id).then((path) => navigate(path))
             },
             debounce: 0,
+            words: PALETTE_SEARCH_WORDS,
         }),
         [navigate],
     )

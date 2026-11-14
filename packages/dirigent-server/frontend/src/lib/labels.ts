@@ -934,6 +934,13 @@ const palette = {
     running: 'Running',
     /** A command refused without words of its own. */
     refused: 'That did not run.',
+    /** What the palette's search says of itself. */
+    search: {
+        /** A search that failed with no words of its own. */
+        failed: 'The search failed.',
+        /** The row that opens every result for what was typed. */
+        all_results: (query: string) => `All results for ${query}`,
+    },
 
     /** The headings the rows are shelved under, in the order the palette lays them out. */
     shelf: {
