@@ -35,8 +35,8 @@ describe("what sokkel-ui's parts say", () => {
         expect(SEARCH_PLACEHOLDER).toBe(LABELS.shell.search)
     })
 
-    test("a dialog's one dismissal word is Cancel", () => {
-        expect(DIALOG_WORDS).toEqual({ cancel: LABELS.action.cancel })
+    test("a dialog's footer dismisses with Cancel, and its corner with Close", () => {
+        expect(DIALOG_WORDS).toEqual({ cancel: LABELS.action.cancel, close: LABELS.action.close })
     })
 
     test('a link out of this app says it opens a new tab, and a split names its chevron', () => {

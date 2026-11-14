@@ -1,7 +1,15 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 import { counted, LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyDocument, applyExample, pageHead, removeConnection, signIn } from './support.ts'
+import {
+    apiPrefix,
+    applyDocument,
+    applyExample,
+    pageHead,
+    removeConnection,
+    saysShut,
+    signIn,
+} from './support.ts'
 
 /**
  * The two screens that show what an instance is wired to, against a real one.
@@ -433,8 +441,7 @@ test('a connection a rule delivers through says so, and its delete is shut', asy
     const asking = page.getByRole('dialog', { name: `Delete ${code}?` })
     await expect(asking).toContainText(LABELS.connections.used_by(`alert rule ${rule}`))
     const verb = asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
-    await expect(verb).toHaveAttribute('aria-disabled', 'true')
-    await expect(verb).toHaveAttribute('title', LABELS.connections.in_use)
+    await saysShut(page, verb, LABELS.connections.in_use)
 
     await page.request.delete(`${prefix}/alert-rules/${rule}`)
     await page.request.delete(`${prefix}/connections/${code}`)
@@ -474,8 +481,7 @@ test('a connection a pipeline names says so in its reading, and its delete is sh
     const asking = page.getByRole('dialog', { name: `Delete ${code}?` })
     await expect(asking).toContainText(LABELS.connections.used_by(`pipeline ${pipeline}`))
     const verb = asking.getByRole('button', { name: LABELS.action.delete.verb, exact: true })
-    await expect(verb).toHaveAttribute('aria-disabled', 'true')
-    await expect(verb).toHaveAttribute('title', LABELS.connections.in_use)
+    await saysShut(page, verb, LABELS.connections.in_use)
 
     // THE SERVER REFUSES THE SAME, whatever the read in front of it said.
     const refused = await page.request.delete(`${prefix}/connections/${code}`)

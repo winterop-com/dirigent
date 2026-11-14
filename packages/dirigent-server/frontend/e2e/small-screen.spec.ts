@@ -67,6 +67,23 @@ test('a pipeline row wraps on a phone, and the page does not scroll sideways', a
     expect(sideways).toBeLessThanOrEqual(0)
 })
 
+test('the examples listing does not scroll sideways inside its own box on a phone', async ({ page }) => {
+    await page.goto('/examples')
+    const row = page.getByRole('row').first()
+    await expect(row).toBeVisible()
+
+    // The box measured is the scroller the cards sit in, found by walking up from a card: a row
+    // of tags wider than the card would widen it without the page itself scrolling sideways.
+    const overflow = await row.evaluate((card) => {
+        let box = card.parentElement
+        while (box !== null && !['auto', 'scroll'].includes(getComputedStyle(box).overflowX))
+            box = box.parentElement
+        return box === null ? null : { scroll: box.scrollWidth, client: box.clientWidth }
+    })
+    expect(overflow).not.toBeNull()
+    expect(overflow?.scroll ?? Infinity).toBeLessThanOrEqual(overflow?.client ?? 0)
+})
+
 test.describe('a tablet', () => {
     // The shell is itself here -- the rail is drawn, there is no drawer -- and the content
     // column beside that rail is still too narrow for a table.

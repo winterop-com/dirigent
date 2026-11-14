@@ -1,7 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
 
 import { LABELS } from '../src/lib/labels.ts'
-import { apiPrefix, applyDocument, filterChip, signIn, statusChip, writeInEditor } from './support.ts'
+import {
+    apiPrefix,
+    applyDocument,
+    filterChip,
+    saysShut,
+    signIn,
+    statusChip,
+    writeInEditor,
+} from './support.ts'
 
 /**
  * The alerting screen: the channels, the rules, and the queue.
@@ -91,8 +99,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
 
     // Create is shut until the rule says enough to be one, and says why.
     const create = dialog.getByRole('button', { name: LABELS.action.create.verb })
-    await expect(create).toBeDisabled()
-    await expect(create).toHaveAttribute('title', LABELS.alerting.unready.code_missing)
+    await saysShut(page, create, LABELS.alerting.unready.code_missing)
 
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
     await dialog.getByLabel(LABELS.word.name.label).fill(RULE.name)

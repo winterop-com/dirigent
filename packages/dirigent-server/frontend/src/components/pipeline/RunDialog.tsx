@@ -30,6 +30,12 @@ import { InlineField } from '@winterop-com/sokkel-ui/InlineField'
 
 const ENTRY = LABELS.editor.run.entry
 
+/** The log levels a run may keep, each as the select says it in its list and once chosen. */
+const LOG_LEVELS = [
+    { value: 'info', label: LABELS.editor.run.info_and_up },
+    { value: 'debug', label: LABELS.editor.run.debug_too },
+] as const
+
 /**
  * Starting one ad hoc run of the version this instance holds.
  *
@@ -210,6 +216,7 @@ export function RunDialog({
             <InlineField id="run-log-level" label={LABELS.editor.run.log} size="sm" className="w-fit">
                 <Select
                     value={level}
+                    items={LOG_LEVELS}
                     onValueChange={(chosen) => {
                         setLevel(chosen === 'debug' ? 'debug' : 'info')
                     }}
@@ -223,8 +230,11 @@ export function RunDialog({
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="info">{LABELS.editor.run.info_and_up}</SelectItem>
-                        <SelectItem value="debug">{LABELS.editor.run.debug_too}</SelectItem>
+                        {LOG_LEVELS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                            </SelectItem>
+                        ))}
                     </SelectContent>
                 </Select>
             </InlineField>
