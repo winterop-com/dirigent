@@ -8,7 +8,7 @@
 
 import type { AccountMenuWords } from '@winterop-com/sokkel-ui/AccountMenu'
 import type { ChipWords } from '@winterop-com/sokkel-ui/Chip'
-import type { CommandPaletteWords } from '@winterop-com/sokkel-ui/CommandPalette'
+import type { CommandPaletteWords, PaletteSearchWords } from '@winterop-com/sokkel-ui/CommandPalette'
 import type { CodeSchemaWords } from '@winterop-com/sokkel-ui/CodeEditor'
 import type { CopyButtonWords } from '@winterop-com/sokkel-ui/CopyButton'
 import type { DataTableWords } from '@winterop-com/sokkel-ui/DataTable'
@@ -340,6 +340,17 @@ export const PALETTE_WORDS: CommandPaletteWords = {
     sequence: LABELS.shell.shortcuts_sequence,
     running: LABELS.palette.running,
     refused: LABELS.palette.refused,
+}
+
+/**
+ * What the palette's search says: a read in flight, a failure in its own words when it has some,
+ * the row that asks again, and the row to every result.
+ */
+export const PALETTE_SEARCH_WORDS: PaletteSearchWords = {
+    searching: LABELS.shell.reading,
+    failed: (reason) => (reason.trim() === '' ? LABELS.palette.search.failed : reason),
+    retry: LABELS.shell.read_again,
+    seeAll: LABELS.palette.search.all_results,
 }
 
 /** What the shortcuts dialog says. */
