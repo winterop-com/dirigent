@@ -335,6 +335,8 @@ export const PALETTE_WORDS: CommandPaletteWords = {
     open: LABELS.palette.verb,
     palette: LABELS.palette.title,
     sequence: LABELS.shell.shortcuts_sequence,
+    running: LABELS.palette.running,
+    refused: LABELS.palette.refused,
 }
 
 /** What the shortcuts dialog says. */

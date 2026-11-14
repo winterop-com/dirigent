@@ -25,7 +25,7 @@ wrong is changed on this page first and in the code second.
 | Styling | Tailwind v4, CSS-first, entered through sokkel-ui's `styles-base.css` | There is no `tailwind.config.js` and there must not be one. The tokens, themes, fonts and base styles are [sokkel-ui](https://github.com/winterop-com/sokkel-ui)'s; `src/index.css` imports them, one `sources/<module>.css` line per library module the app imports, and then this app's own CSS |
 | Components | sokkel-ui's primitives, shadcn `base-nova` on **Base UI** (`@base-ui/react`) | Imported from `@winterop-com/sokkel-ui/primitives/*`. A primitive that needs an option dirigent lacks gets it in sokkel-ui |
 | Graphs | sokkel-ui-graph, on `@xyflow/react` for the canvas and `elkjs` for the layout | The library draws and places every graph: React Flow draws what it is given and decides no geometry, and elk's layered algorithm is what places a DAG. React Flow rides in the graph screens' chunk and elk is a chunk of its own, in a worker -- see below |
-| Charts | sokkel-ui-charts' `Chart` and `ChartLegend`, on ECharts | The dashboard's runs chart and its legend, whose toggles hide a band. The library loads the engine and the one kind's parts on first draw, so they are chunks of their own and none rides in a screen's chunk; the legend loads no builder |
+| Charts | sokkel-ui-charts' `Chart` and `ChartLegend`, on ECharts | The dashboard's runs chart and its legend, whose toggles hide a band. The library loads the engine and the one kind's parts on first draw, so they are chunks of their own and none rides in a screen's chunk; the legend is named with `chartLegend(kind, spec)`, which imports nothing, and `ChartLegend` loads that kind's legend on first use and `DataTable` only in table mode. The chart keys its rows by the hour's two digits and writes them on the hour through `formatCategory` |
 | Editor | sokkel-ui's `CodeEditor`, on CodeMirror 6 | A pipeline document is YAML checked against a schema as it is typed, and the library's editor checks and completes JSON and YAML against JSON Schema 2020-12 itself, with ajv. Its own lazy chunk, behind `CodePane`, which is what every screen that writes source mounts -- a document, a schema, and a config field whose schema says it carries a program |
 | Highlighting | `shiki`, the peer sokkel-ui's `Code` and `FilePreview` highlight with | Its core, its regex engine and each grammar are chunks of their own, fetched the first time something highlighted is drawn |
 | YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
@@ -790,7 +790,10 @@ either stacks its rows (see Small screens), so no listing scrolls sideways.
 
 **A card's rows follow the same rule as a listing's columns.** The dashboard's health card
 lines a mark, a code, what the thing last said and when up on one line in a card a third of the
-screen wide, which is a table's problem in something that is not a table. A healthy connection says
+screen wide, which is a table's problem in something that is not a table. Its rows are sokkel-ui's
+`ListRows flush` of `ListRow dense mono`: the dot and the mark in the icon slot, the code as the
+title, what it said as the detail and the instant as the aside, and the screen that owns the row
+as its `href`, so a row that opens something is a finger tall below `md`. A healthy connection says
 nothing there, its dot's tooltip carrying the word and the check's sentence: the mark is a value
 and holds its width, the code is the identity and keeps a floor of six characters, what it said
 is prose and truncates in what is left with the whole of it on its title, and the instant is a
@@ -2478,8 +2481,10 @@ neutral glyph rather than a gap.
 
 The template picker is the same `CommandPalette` standing as a chooser: `width="lg"`, a
 `description` over the search, and rows that `wrap` rather than cut a title short. A row is the
-starter's title, what it needs of this instance as its hint, in the critical ink where some of it
-is missing, and its code.
+starter's title, its code, and what it needs of this instance as its `meta` at the row's end,
+folded under the title on a phone. Choosing one answers the promise of reading the starter, so
+the palette stays open with the row busy while it is read, and a refusal is said in the palette's
+own line, in this app's words (`refused`, `running`), where the choice was made.
 
 ## Adding a screen
 

@@ -7,7 +7,6 @@ import {
 } from '@winterop-com/sokkel-ui/CommandPalette'
 import { useRead } from '@/hooks/use-read'
 import {
-    missingCount,
     readAllExamples,
     readExample,
     readHoldings,
@@ -20,7 +19,7 @@ import {
 } from '@/lib/examples'
 import { headingOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
-import { sayRefusal } from '@/components/Refusal'
+import { refusalLine, refusalOf } from '@/lib/refusal'
 import { copyStarter } from '@/lib/starters'
 
 export const FROM_A_STARTER = LABELS.pipelines.starters.title
@@ -47,7 +46,11 @@ export const PICKER_NONE = LABELS.pipelines.starters.none
  *
  * WHAT IT NEEDS IS ON THE ROW. Choosing a starter that wants a connection nobody has created is
  * a legitimate thing to do -- the editor's panel then says what to create -- but it is not a
- * thing to discover afterwards, so how much of what it needs is here stands beside the title.
+ * thing to discover afterwards, so how much of what it needs is here stands at the row's end, and
+ * under the title on a phone.
+ *
+ * CHOOSING ONE READS IT IN PLACE. The palette stays open on the chosen row while the starter is
+ * read, and a read that is refused is said in the palette, where the choice was made.
  *
  * THE COPY IS MADE HERE, AND IT IS `lib/starters`. What this answers with is a copy under its
  * own code with the `starter` tag off, which is what the Examples screen's own door hands over
@@ -75,23 +78,19 @@ export function StarterPicker({
     const starters = useMemo(() => (corpus.value ?? []).filter((row) => row.starter), [corpus.value])
     const byCode = useMemo(() => new Map(starters.map((row) => [row.code, row])), [starters])
     const groups = useMemo<PaletteGroup[]>(() => {
-        function choose(starter: ExampleOut): void {
-            void readExample(starter.code).then(
+        function choose(starter: ExampleOut): Promise<void> {
+            return readExample(starter.code).then(
                 (detail) => {
                     onChoose(copyStarter(detail.source, detail.code), detail.code)
                 },
                 (error: unknown) => {
-                    sayRefusal(error)
+                    throw new Error(refusalLine(refusalOf(error)), { cause: error })
                 },
             )
         }
         return shelveStarters(starters).map((shelf) => ({
             title: shelf.label,
-            commands: shelf.rows.map((row) =>
-                starterCommand(row, holdings, () => {
-                    choose(row)
-                }),
-            ),
+            commands: shelf.rows.map((row) => starterCommand(row, holdings, () => choose(row))),
         }))
     }, [starters, holdings, onChoose])
 
@@ -112,13 +111,19 @@ export function StarterPicker({
                 placeholder: PICKER_PLACEHOLDER,
                 empty: !corpus.read ? PICKER_READING : starters.length === 0 ? PICKER_NONE : PICKER_EMPTY,
                 close: LABELS.palette.close,
+                running: LABELS.pipelines.starters.reading,
+                refused: LABELS.pipelines.starters.refused,
             }}
         />
     )
 }
 
 /** One starter: what it is called, the code a copy keeps, and what it needs of this instance. */
-function starterCommand(starter: ExampleOut, holdings: Holdings, onSelect: () => void): PaletteCommand {
+function starterCommand(
+    starter: ExampleOut,
+    holdings: Holdings,
+    onSelect: () => Promise<void>,
+): PaletteCommand {
     const heading = headingOf(starter)
     const items = requirementsOf(starter.requires, holdings)
     const summary = requirementsSummary(items)
@@ -127,8 +132,7 @@ function starterCommand(starter: ExampleOut, holdings: Holdings, onSelect: () =>
         label: heading.title,
         mono: !heading.named,
         code: heading.code ?? undefined,
-        hint: summary ?? undefined,
-        tone: missingCount(items) === 0 ? undefined : 'critical',
+        meta: summary ?? undefined,
         onSelect,
     }
 }
