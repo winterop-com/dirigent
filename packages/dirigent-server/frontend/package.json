@@ -15,7 +15,6 @@
         "e2e": "playwright test"
     },
     "dependencies": {
-        "@base-ui/react": "^1.9.0",
         "@codemirror/autocomplete": "^6.20.4",
         "@codemirror/commands": "^6.11.1",
         "@codemirror/lang-json": "^6.0.2",
@@ -35,9 +34,7 @@
         "@xyflow/react": "^12.12.1",
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
-        "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "cmdk": "^1.1.1",
         "elkjs": "^0.12.1",
         "lucide-react": "^1.70.0",
         "react": "^19.3.1",
