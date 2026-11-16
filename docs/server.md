@@ -80,8 +80,9 @@ export DG_URL=http://localhost:3333
 dg auth login --username admin
 ```
 
-`dg auth login` asks for the password from step 1, mints a token, and stores it. That token
-is what every command below authenticates with.
+`dg auth login` asks for the password from step 1, mints a token and prints it once, as a
+`token.issued` record. It stores nothing: put the token in `DG_TOKEN` or in a profile in
+`profiles.yaml`, and that is what every command below authenticates with.
 
 ## 4. Apply a pipeline and run it
 

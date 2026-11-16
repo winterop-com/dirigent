@@ -42,7 +42,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
         climate = softwareSystem "Open climate service" "openEO-style climate data service. Aggregates climate data to org units and runs batch jobs." {
             tags "External"
         }
-        objectStore = softwareSystem "S3-compatible storage" "Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, MinIO." {
+        objectStore = softwareSystem "S3-compatible storage" "Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, or any S3-compatible service." {
             tags "External"
         }
         brokers = softwareSystem "Kafka / RabbitMQ" "Message brokers. Topics and queues the queues pack consumes from and publishes to." {
@@ -87,7 +87,7 @@ workspace "Dirigent" "Architecture model for Dirigent, a generic pipeline orches
                 alerting = component "Alert dispatcher" "Claims queued notifications and delivers each through its channel, retried like an attempt."
                 pluginHost = component "Plugin host" "Discovers packs through pluginkit entry points at startup, then dispatches by block id."
                 contract = component "Block contract" "dirigent-plugin: Operator, Sensor, source kinds, notifiers, storage backends, connection kinds and formats."
-                builtins = component "Built-in blocks" "dirigent-blocks: http, storage, execute, sql, jq, queues and parquet families, and the alert channels."
+                builtins = component "Built-in blocks" "dirigent-blocks: base, http, storage, execute, sql, jq and queues families, and the alert channels."
                 artifacts = component "Storage facade" "Dispatches URIs by scheme. Keeps a small output inline and a large one as a URI."
             }
 

@@ -20,7 +20,7 @@ graph LR
     10["Chap<br/>[Software System]<br/>Climate-and-health modelling platform (chap-core). Datasets, backtests and predictions over HTTP."]
     11["FHIR servers<br/>[Software System]<br/>Any FHIR R4 server: HAPI FHIR, a cloud FHIR service, a facade. Resources read, searched and written over REST."]
     12["Open climate service<br/>[Software System]<br/>openEO-style climate data service. Aggregates climate data to org units and runs batch jobs."]
-    13["S3-compatible storage<br/>[Software System]<br/>Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, MinIO."]
+    13["S3-compatible storage<br/>[Software System]<br/>Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, or any S3-compatible service."]
     14["Kafka / RabbitMQ<br/>[Software System]<br/>Message brokers. Topics and queues the queues pack consumes from and publishes to."]
     15["Alert channels<br/>[Software System]<br/>SMTP, Slack and webhook receivers an alert rule delivers through."]
     16["HTTP APIs<br/>[Software System]<br/>Any HTTP service an http.request step reaches, or that calls an endpoint source."]
@@ -162,7 +162,7 @@ graph TB
 
   subgraph diagram ["Component View: Dirigent - Worker [1..*]"]
 
-    13["S3-compatible storage<br/>[Software System]<br/>Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, MinIO."]
+    13["S3-compatible storage<br/>[Software System]<br/>Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, or any S3-compatible service."]
     14["Kafka / RabbitMQ<br/>[Software System]<br/>Message brokers. Topics and queues the queues pack consumes from and publishes to."]
     15["Alert channels<br/>[Software System]<br/>SMTP, Slack and webhook receivers an alert rule delivers through."]
     16["HTTP APIs<br/>[Software System]<br/>Any HTTP service an http.request step reaches, or that calls an endpoint source."]
@@ -185,7 +185,7 @@ graph TB
         37["Alert dispatcher<br/>[Component]<br/>Claims queued notifications and delivers each through its channel, retried like an attempt."]
         38["Plugin host<br/>[Component]<br/>Discovers packs through pluginkit entry points at startup, then dispatches by block id."]
         39["Block contract<br/>[Component]<br/>dirigent-plugin: Operator, Sensor, source kinds, notifiers, storage backends, connection kinds and formats."]
-        40["Built-in blocks<br/>[Component]<br/>dirigent-blocks: http, storage, execute, sql, jq, queues and parquet families, and the alert channels."]
+        40["Built-in blocks<br/>[Component]<br/>dirigent-blocks: base, http, storage, execute, sql, jq and queues families, and the alert channels."]
         41["Storage facade<br/>[Component]<br/>Dispatches URIs by scheme. Keeps a small output inline and a large one as a URI."]
       end
 
@@ -301,7 +301,7 @@ graph LR
       44[("Database<br/>[Container: PostgreSQL 17; SQLite under dg dev]<br/>Pipeline versions as JSONB documents; runs, items, attempts, leases and due times as indexed rows; logs; the audit trail of administrative changes; the worker registry.")]
     end
 
-    13["S3-compatible storage<br/>[Software System]<br/>Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, MinIO."]
+    13["S3-compatible storage<br/>[Software System]<br/>Buckets the storage blocks and storage sources read and write. AWS S3, RustFS, or any S3-compatible service."]
 
     28-. "1. Lease the due source and commit before any I/O<br/>[pg_notify]" .->44
     28-. "2. List the prefix; objects not in the cursor are new<br/>[S3 API]" .->13

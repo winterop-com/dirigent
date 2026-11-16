@@ -823,9 +823,9 @@ NDJSON writes the same record as one JSON object per line, with structures left 
 
 A listing writes NDJSON too: `dg runs list` is one record per run, `dg pipeline list` one
 per pipeline, each naming its kind and carrying the row whole under `fields`. A command that
-answers with a single thing -- `dg runs show`, `dg system info`, a minted token -- prints that
-one response as one JSON object on one line, which is the server's own document rather than a
-record.
+answers with a single thing -- `dg runs show`, `dg system info`, a minted token -- writes one
+record too (`run.detail`, `system.info`, `token.issued`) that names its `kind`, like every
+other answer.
 
 `dg dev`, `dg server`, `dg worker` and `dg scheduler` follow the same rule: under compose,
 systemd or `docker logs` there is no terminal, so they write NDJSON and nothing else, no

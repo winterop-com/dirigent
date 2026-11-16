@@ -124,9 +124,10 @@ caller shares one address, and a stranger can again lock a named account out.
 **First run.** Nothing can authenticate before an account exists, so account creation has a
 local path that does not go through the API: `dg admin user create` runs against the
 configured database the way `dg db upgrade` does, and `DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD`
-creates the first admin unattended in a container. Both are one-way -- they do nothing once
-any account exists -- so leaving the variable set on every deploy cannot reset a live
-instance's password. `dg dev` mints a development admin and prints its token once, because
+creates the first admin unattended in a container. The variable is one-way -- it does
+nothing once any account exists -- so leaving it set on every deploy cannot reset a live
+instance's password. `dg admin user create` is not: it creates the account it names whenever
+it runs, so anyone who can run it against the database can add an admin to a live instance. `dg dev` mints a development admin and prints its token once, because
 that is a SQLite file on a laptop. Its password is the fixed `admin` on every bind. On an address
 other machines can reach, whether from `--host` or `DIRIGENT_HOST`, `dg dev` still makes it and
 logs a warning (`cli.dev_fixture_exposed`) that anyone who reaches that address can sign in as
@@ -1287,10 +1288,12 @@ Stated plainly, because a security page that lists only what exists is not much 
   that a browser sending neither `Sec-Fetch-Site` nor `Origin` on a cross-site write would not
   be caught, so an instance exposed to browsers older than the fetch-metadata rollout is
   relying on `SameSite=Lax` alone.
-- **Retention is off until configured.** Each family has its own age and nothing is pruned
-  until one is set, so an instance nobody has configured grows without bound. Log
-  entries in particular are readable by every principal, so a secret
-  that a block prints into a log is there permanently. See [known
+- **Retention is mostly off until configured.** Each family has its own age. The audit
+  trail is kept for a year by default, and a pruned run's artifacts go with it; runs, logs,
+  inputs, firings and notifications are pruned only once their age is set, so an instance
+  nobody has configured grows without bound. Log entries in particular are readable by every
+  principal, so a secret that a block prints into a log stays until `retention_logs` or
+  `retention_runs` is set. See [known
   debt](operations.md#known-debt).
 
 ## Reporting a security issue
