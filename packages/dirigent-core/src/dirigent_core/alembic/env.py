@@ -5,7 +5,7 @@ import asyncio
 from alembic import context
 from sqlalchemy import Connection
 
-from dirigent_core.config import get_settings
+from dirigent_core.config import Settings, get_settings
 from dirigent_core.database import create_engine
 from dirigent_core.models import Base
 
@@ -13,15 +13,16 @@ config = context.config
 target_metadata = Base.metadata
 
 
-def database_url() -> str:
-    """Resolve the URL to migrate: the Alembic config wins, then the instance settings."""
-    return config.get_main_option("sqlalchemy.url") or get_settings().database_url
+def settings() -> Settings:
+    """Resolve the instance to migrate: the settings the config carries, else the process's own."""
+    carried = config.attributes.get("settings")
+    return carried if isinstance(carried, Settings) else get_settings()
 
 
 def run_migrations_offline() -> None:
     """Emit SQL for the configured URL without connecting to a database."""
     context.configure(
-        url=database_url(),
+        url=settings().database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -50,7 +51,7 @@ async def run_async_migrations() -> None:
     The engine is the instance's own, so this path opens SQLite with the pragmas every other
     connection in the process is configured with.
     """
-    engine = create_engine(get_settings().model_copy(update={"database_url": database_url()}))
+    engine = create_engine(settings())
     try:
         async with engine.connect() as connection:
             await connection.run_sync(do_run_migrations)

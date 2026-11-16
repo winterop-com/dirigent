@@ -2,7 +2,8 @@
 
 import os
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -27,6 +28,7 @@ from dirigent_cli.messages import (
     FORMATTERS_ARE,
     GIVE_AN_AGE,
     INVALID_AGE,
+    MIGRATION_FAILED,
     NEVER_MIGRATED,
     NO_ADMIN_TO_SEED,
     NO_DOCKER_DAEMON,
@@ -62,6 +64,7 @@ from dirigent_core import __version__, migrations
 from dirigent_core.config import (
     UNREADABLE_SETTINGS,
     Settings,
+    database_url_secrets,
     drop_secret_key_variable,
     get_settings,
     ignored_project_settings,
@@ -410,28 +413,42 @@ def config_show() -> None:
     )
 
 
+@contextmanager
+def migrating(settings: Settings) -> Generator[None]:
+    """Turn a failure of a migration command into a refusal that names the database without its credentials."""
+    from dirigent_cli.health import where_database
+
+    try:
+        yield
+    except (typer.Exit, StateRefused):
+        raise
+    except Exception as error:
+        commands.fail(
+            MIGRATION_FAILED,
+            where=where_database(settings),
+            detail=raised_detail(error, redact=database_url_secrets(settings)),
+        )
+
+
 @db_app.command("upgrade")
 def db_upgrade(
     revision: Annotated[str, typer.Argument(help="The revision to reach; the newest when omitted.")] = "head",
 ) -> None:
     """Bring the database schema up to a revision, creating it when empty."""
     settings = get_settings()
-    migrations.upgrade(revision, settings)
-    emit_fact(
-        "db.upgraded",
-        message="upgraded",
-        database=redacted_url(settings),
-        target=revision,
-        revision=migrations.current_revision(settings),
-    )
+    with migrating(settings):
+        migrations.upgrade(revision, settings)
+        reached = migrations.current_revision(settings)
+    emit_fact("db.upgraded", message="upgraded", database=redacted_url(settings), target=revision, revision=reached)
 
 
 @db_app.command("current")
 def db_current() -> None:
     """Show the revision the database is stamped with."""
     settings = get_settings()
-    current = migrations.current_revision(settings)
-    head = migrations.head_revision(settings)
+    with migrating(settings):
+        current = migrations.current_revision(settings)
+        head = migrations.head_revision(settings)
     if current is None:
         refuse(NEVER_MIGRATED, title="Not migrated", problems=[Issue.of(RUN_DB_UPGRADE)])
         raise typer.Exit(code=1)
@@ -447,7 +464,10 @@ def db_current() -> None:
 @db_app.command("history")
 def db_history() -> None:
     """Show the migration history."""
-    emit_fact("db.history", message="migration history", history=migrations.history(get_settings()).rstrip())
+    settings = get_settings()
+    with migrating(settings):
+        shown = migrations.history(settings).rstrip()
+    emit_fact("db.history", message="migration history", history=shown)
 
 
 @storage_app.command("ensure")
@@ -1260,10 +1280,11 @@ def state_cleared(directory: Path) -> Record:
 
 def _migrate_quietly(settings: Settings) -> str | None:
     """Bring the schema up to date, and name the revision only when something moved."""
-    head = migrations.head_revision(settings)
-    if migrations.current_revision(settings) == head:
-        return None
-    migrations.upgrade("head", settings)
+    with migrating(settings):
+        head = migrations.head_revision(settings)
+        if migrations.current_revision(settings) == head:
+            return None
+        migrations.upgrade("head", settings)
     return head
 
 

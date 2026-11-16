@@ -170,6 +170,31 @@ def test_a_bare_alembic_upgrade_opens_sqlite_the_way_the_engine_does(sqlite_sett
     assert migrations.current_revision(sqlite_settings) == migrations.head_revision(sqlite_settings)
 
 
+@pytest.fixture
+def percent_settings(tmp_path: Path) -> Settings:
+    """An instance whose database URL carries a ``%``, the way a percent-encoded password does."""
+    return Settings(database_url=f"sqlite+aiosqlite:///{tmp_path}/a%25b.db")
+
+
+def test_the_migration_config_takes_a_url_with_a_percent(percent_settings: Settings) -> None:
+    config = migrations.alembic_config(percent_settings)
+    assert config.attributes["settings"] is percent_settings
+    assert migrations.head_revision(percent_settings) == "0001_baseline"
+    assert "0001_baseline (head)" in migrations.history(percent_settings)
+
+
+async def test_a_url_with_a_percent_migrates_up_and_down(percent_settings: Settings) -> None:
+    await migrations.upgrade_async(settings=percent_settings)
+    assert await migrations.current_revision_async(percent_settings) == "0001_baseline"
+    await migrations.downgrade_async("base", settings=percent_settings)
+    assert await migrations.current_revision_async(percent_settings) is None
+
+
+def test_a_bare_alembic_upgrade_takes_a_url_with_a_percent(percent_settings: Settings) -> None:
+    command.upgrade(migrations.alembic_config(percent_settings), "head")
+    assert migrations.current_revision(percent_settings) == "0001_baseline"
+
+
 def test_the_migration_history_names_every_revision() -> None:
     settings = Settings()
     assert migrations.head_revision(settings) == "0001_baseline"

@@ -199,6 +199,42 @@ def test_db_history_lists_the_baseline() -> None:
     assert "0001_baseline" in only(result.stdout, "db.history")["history"]
 
 
+def test_every_db_command_takes_a_url_with_a_percent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DIRIGENT_DATABASE_URL", f"sqlite+aiosqlite:///{tmp_path}/a%25b.db")
+    reset_settings_cache()
+
+    upgraded = runner.invoke(app, ["db", "upgrade"])
+    current = runner.invoke(app, ["db", "current"])
+    history = runner.invoke(app, ["db", "history"])
+
+    assert [upgraded.exit_code, current.exit_code, history.exit_code] == [0, 0, 0]
+    assert only(current.stdout, "db.revision")["at_head"] is True
+    assert "0001_baseline" in only(history.stdout, "db.history")["history"]
+
+
+@pytest.mark.parametrize("command", ["upgrade", "current"])
+def test_a_db_command_that_fails_is_a_refusal_without_the_password(
+    command: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    password = "p%40ss%2Fword"
+    monkeypatch.setenv(
+        "DIRIGENT_DATABASE_URL", f"postgresql+asyncpg://dirigent:{password}@127.0.0.1:1/dirigent?password=hunter2"
+    )
+    monkeypatch.setattr(sys, "argv", ["dg", "db", command])
+    reset_settings_cache()
+
+    with pytest.raises(SystemExit) as leaving:
+        main.run()
+
+    out, err = capsys.readouterr()
+    assert leaving.value.code == 1
+    problem = closing(out)
+    assert problem["code"] == "cli.migration_failed"
+    assert problem["params"]["where"] == "postgresql+asyncpg://dirigent:***@127.0.0.1:1/dirigent?password=***"
+    for secret in (password, "p@ss/word", "hunter2"):
+        assert secret not in out + err
+
+
 @pytest.fixture
 def keyed_instance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Settings]:
     """A migrated instance with a secret key, which is what sealing a credential needs."""

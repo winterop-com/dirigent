@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import os
+import re
 import stat
 import sys
 from collections.abc import Mapping
@@ -12,6 +13,7 @@ from datetime import timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Any, Final, Literal
+from urllib.parse import unquote, unquote_plus
 
 import yaml
 from dotenv import dotenv_values
@@ -731,12 +733,47 @@ def keep_same_user_out() -> None:
         )
 
 
+#: The ``user:password@`` of a database URL, split the way SQLAlchemy's URL parser splits it.
+_USERINFO: Final = re.compile(r"^(?P<head>[\w+]+://[^:/]*):(?P<password>[^@]*)@")
+
+#: A query parameter whose value is a credential: ``password`` and ``sslpassword`` for
+#: asyncpg and libpq, and the names a driver or a proxy may take a secret by.
+_SECRET_PARAMETER: Final = re.compile(r"pass|pwd|secret|token|key", re.IGNORECASE)
+
+
+def _query_pairs(url: str) -> tuple[str, list[tuple[str, str, str]]]:
+    """Split a URL whose password is already out of it into what precedes the query and its raw pairs."""
+    head, _, query = url.partition("?")
+    return head, [pair.partition("=") for pair in query.split("&")] if query else []
+
+
 def redacted_url(settings: Settings) -> str:
-    """Render the database URL without its password, for anything a person reads."""
-    url = settings.database_url
-    if "@" not in url or "://" not in url:
+    """Render the database URL without any credential, for anything a person reads.
+
+    The password goes from ``user:password@`` and from every query parameter that names a
+    secret, so ``?password=`` is masked too.
+    """
+    url = _USERINFO.sub(r"\g<head>:***@", settings.database_url, count=1)
+    head, pairs = _query_pairs(url)
+    if not pairs:
         return url
-    scheme, rest = url.split("://", 1)
-    credentials, host = rest.split("@", 1)
-    user = credentials.split(":", 1)[0]
-    return f"{scheme}://{user}:***@{host}"
+    shown = [
+        f"{name}=***" if equals and _SECRET_PARAMETER.search(unquote_plus(name)) else f"{name}{equals}{value}"
+        for name, equals, value in pairs
+    ]
+    return f"{head}?{'&'.join(shown)}"
+
+
+def database_url_secrets(settings: Settings) -> list[str]:
+    """List every credential the database URL carries, as written and as decoded, for scrubbing a message."""
+    url = settings.database_url
+    found: list[str] = []
+    userinfo = _USERINFO.match(url)
+    if userinfo is not None and userinfo["password"]:
+        found += [userinfo["password"], unquote(userinfo["password"])]
+        url = url[userinfo.end() :]
+    _, pairs = _query_pairs(url)
+    for name, equals, value in pairs:
+        if equals and value and _SECRET_PARAMETER.search(unquote_plus(name)):
+            found += [value, unquote_plus(value)]
+    return found

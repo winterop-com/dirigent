@@ -523,3 +523,29 @@ def test_a_setting_naming_a_path_or_an_address_is_host_only(name: str) -> None:
     annotation = str(Settings.model_fields[name].annotation)
     places = "Path" in annotation or name.endswith(("_url", "_root", "_dir", "_file", "_connections"))
     assert not places or name in HOST_ONLY_SETTINGS
+
+
+@pytest.mark.parametrize(
+    ("url", "shown"),
+    [
+        ("postgresql+asyncpg://u:p%40ss%2Fword@h:5432/db", "postgresql+asyncpg://u:***@h:5432/db"),
+        ("postgresql+asyncpg://u@h/db?password=hunter2", "postgresql+asyncpg://u@h/db?password=***"),
+        (
+            "postgresql+asyncpg:///db?host=/run/pg&user=u&password=hunter2",
+            "postgresql+asyncpg:///db?host=/run/pg&user=u&password=***",
+        ),
+        (
+            "postgresql+asyncpg://u:pw@h/db?ssl=require&sslpassword=hunter2&PWD=x&api_token=t",
+            "postgresql+asyncpg://u:***@h/db?ssl=require&sslpassword=***&PWD=***&api_token=***",
+        ),
+        ("postgresql+asyncpg://u@h/db", "postgresql+asyncpg://u@h/db"),
+        ("sqlite+aiosqlite:///./a%25b.db?mode=ro", "sqlite+aiosqlite:///./a%25b.db?mode=ro"),
+    ],
+)
+def test_the_redacted_url_shows_no_credential(url: str, shown: str) -> None:
+    assert config.redacted_url(Settings(database_url=url)) == shown
+
+
+def test_the_url_secrets_are_listed_as_written_and_decoded() -> None:
+    settings = Settings(database_url="postgresql+asyncpg://u:p%40ss@h/db?ssl=require&password=a%2Bb")
+    assert set(config.database_url_secrets(settings)) == {"p%40ss", "p@ss", "a%2Bb", "a+b"}

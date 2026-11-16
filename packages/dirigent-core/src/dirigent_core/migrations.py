@@ -26,12 +26,16 @@ ALEMBIC_DIRECTORY = Path(__file__).resolve().parent / "alembic"
 
 
 def alembic_config(settings: Settings | None = None) -> Config:
-    """Build an Alembic config pointing at the packaged migrations and the configured database."""
-    resolved = settings or get_settings()
+    """Build an Alembic config pointing at the packaged migrations and the configured database.
+
+    The settings travel in ``config.attributes``, never as an ini option: Alembic's options
+    go through ``configparser`` interpolation, which refuses the ``%`` a percent-encoded
+    password is written with.
+    """
     config = Config()
-    config.set_main_option("script_location", str(ALEMBIC_DIRECTORY))
-    config.set_main_option("sqlalchemy.url", resolved.database_url)
+    config.set_main_option("script_location", str(ALEMBIC_DIRECTORY).replace("%", "%%"))
     config.set_main_option("timezone", "UTC")
+    config.attributes["settings"] = settings or get_settings()
     return config
 
 
