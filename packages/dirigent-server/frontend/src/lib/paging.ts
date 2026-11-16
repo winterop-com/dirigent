@@ -63,22 +63,30 @@ export function appended<T>(state: Paged<T>, page: Page<T>, idOf: (row: T) => st
 /**
  * Page one was read again: what is new goes at the head, and what was already held is refreshed.
  *
- * The cursor is left alone. It names where the tail of what has been read continues from, and
- * re-reading the head says nothing about the tail.
+ * A held row the answer should have carried and did not has left the question -- a run that
+ * finished, under a filter for running ones -- and is let go. That is every held row above the
+ * last one the answer still holds, or every held row at all when the answer is the whole
+ * listing. An answer that holds none of the held rows either is the whole listing or leaves a
+ * gap below it that nothing here can fill, so it replaces what was held, with its own cursor,
+ * rather than sitting above it.
+ *
+ * Otherwise the cursor is left alone. It names where the tail of what has been read continues
+ * from, and re-reading the head says nothing about the tail.
  */
 export function prepended<T>(state: Paged<T>, page: Page<T>, idOf: (row: T) => string): Paged<T> {
     const arrived = new Map(page.items.map((row) => [idOf(row), row]))
     const held = new Set(state.rows.map(idOf))
     const added = page.items.filter((row) => !held.has(idOf(row)))
-    const refreshed = state.rows.map((row) => arrived.get(idOf(row)) ?? row)
-    return {
-        ...state,
-        rows: [...added, ...refreshed],
-        reading: false,
-        read: true,
-        problem: null,
-        fresh: added.length,
-    }
+    const settled = { reading: false, read: true, problem: null, fresh: added.length }
+    const lastShared = state.rows.findLastIndex((row) => arrived.has(idOf(row)))
+    if (lastShared === -1) return { ...state, ...settled, rows: [...page.items], next: page.next }
+    const span = page.next === null ? state.rows.length : lastShared + 1
+    const refreshed = state.rows.flatMap((row, index) => {
+        const fresh = arrived.get(idOf(row))
+        if (fresh !== undefined) return [fresh]
+        return index < span ? [] : [row]
+    })
+    return { ...state, ...settled, rows: [...added, ...refreshed] }
 }
 
 /** The server refused. The rows already read stay; the refusal is what the screen shows. */

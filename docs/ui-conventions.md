@@ -724,7 +724,10 @@ nobody can see asking anyway is heat, and it fires at once when the tab comes ba
 due meanwhile, so what a reader returns to is the present. A beat is quiet: what is on screen stays until the answer
 lands, a beat that fails changes nothing and the next one asks again, and a listing's beat folds
 page one in at the head matched by id -- so a row already on screen is refreshed in place rather
-than moved, and the count of what arrived is the pill the runs screen offers.
+than moved, and the count of what arrived is the pill the runs screen offers. A held row the answer
+should have carried and did not has left the question (a run that finished, under a filter for
+running ones) and is let go, and an answer that shares no row with what is held -- the tab came
+back after a busy hour -- replaces the rows rather than sitting above a gap nobody would see.
 
 **A filter is the server's or it is not offered.** `GET /runs` narrows by pipeline, by status,
 by how far back to look and by the tags the run's pipeline wears, and those four are what the
@@ -898,7 +901,8 @@ that run, because no single status asks for it. The two rows take the same flex 
 between Recent runs and Report lines up with the one under it. Then three panels side by side -- Blocks, which block each step runs with the steps as
 chips that choose them on the graph, drawn only where a step runs one; Triggers, the schedules and sources that fire it; and
 Connections, what it reaches and how each one is. `Edit` opens the editor at
-`/pipelines/<code>/edit`, which is the screen the rest of this page's editing rules are about;
+`/pipelines/<code>/$edit` -- a `$` segment, like `$new`, so it can never be a step's key --
+which is the screen the rest of this page's editing rules are about;
 `Validate` dry-runs the stored version against the instance as it is now and says the answer in
 one line.
 

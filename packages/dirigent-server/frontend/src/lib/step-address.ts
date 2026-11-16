@@ -17,6 +17,19 @@ export function runStepPath(run: string, step: string | null): string {
     return step === null ? base : `${base}/${encodeURIComponent(step)}`
 }
 
+/**
+ * The segment a pipeline's editor is addressed under, beside its steps.
+ *
+ * A step key is `[a-z][a-z0-9_]*`, so a segment starting with `$` is never one: a step keyed
+ * `edit` is a step, and `/pipelines/<code>/$edit` is the editor, the way `$new` is a new one.
+ */
+export const EDIT_SEGMENT = '$edit'
+
+/** The address of a pipeline's editor. */
+export function pipelineEditPath(pipeline: string): string {
+    return `/pipelines/${encodeURIComponent(pipeline)}/${EDIT_SEGMENT}`
+}
+
 /** The address of a pipeline's page, with a step chosen or none. */
 export function pipelineStepPath(pipeline: string, step: string | null): string {
     const base = `/pipelines/${encodeURIComponent(pipeline)}`

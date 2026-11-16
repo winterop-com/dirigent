@@ -110,3 +110,25 @@ test("a long report's window button is on screen at the top of the document", as
     await expect(panel.getByRole('heading', { name: 'Long digest' })).toBeVisible()
     expect(await belowTheFold(panel, button)).toBeLessThanOrEqual(0)
 })
+
+test('a step keyed edit opens as a step on the page, and the editor keeps its own address', async ({
+    page,
+}) => {
+    await signIn(page)
+    await applyDocument(page.request, {
+        format: 'dirigent/v1',
+        kind: 'pipeline',
+        code: 'e2e-a-step-called-edit',
+        requires: { blocks: ['transform.jq'] },
+        steps: { edit: { block: 'transform.jq', config: { input: [1], program: 'add' } } },
+    })
+
+    await page.goto('/pipelines/e2e-a-step-called-edit')
+    await page.locator('.react-flow__node').getByText('edit', { exact: true }).click()
+    await expect(page).toHaveURL(/\/pipelines\/e2e-a-step-called-edit\/edit$/)
+    await expect(page.getByRole('heading', { name: 'e2e-a-step-called-edit', level: 1 })).toBeVisible()
+    await expect(page.getByRole('button', { name: LABELS.action.apply, exact: true })).toHaveCount(0)
+
+    await page.goto('/pipelines/e2e-a-step-called-edit/$edit')
+    await expect(page.getByRole('button', { name: LABELS.action.apply, exact: true })).toBeVisible()
+})

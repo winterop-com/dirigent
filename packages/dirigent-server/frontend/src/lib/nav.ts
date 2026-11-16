@@ -16,6 +16,7 @@ import type { RailGroup } from '@winterop-com/sokkel-ui/Rail'
 import type { UserRole } from '@/lib/auth'
 import { ICONS, type Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
+import { EDIT_SEGMENT } from '@/lib/step-address'
 
 /** One entry in the rail: where it goes, what it is called, and the mark beside it. */
 export interface NavEntry {
@@ -243,7 +244,8 @@ export function entryAt(path: string): NavEntry | null {
 export function screenPath(pathname: string): string {
     const parts = pathname.split('/').filter((part) => part !== '')
     if (parts[0] === 'runs' && parts.length > 2) return `/runs/${parts[1]}`
-    if (parts[0] === 'pipelines' && parts.length > 2 && parts[2] !== 'edit') return `/pipelines/${parts[1]}`
+    if (parts[0] === 'pipelines' && parts.length > 2 && parts[2] !== EDIT_SEGMENT)
+        return `/pipelines/${parts[1]}`
     if (parts[0] === 'connections' && parts.length > 1) return '/connections'
     return pathname
 }
