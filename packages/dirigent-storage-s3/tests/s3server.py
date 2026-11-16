@@ -12,6 +12,7 @@ import pytest
 from pydantic import SecretStr
 
 from dirigent_storage_s3 import MULTIPART_THRESHOLD, S3StorageBackend, S3StorageConfig, open_client
+from dirigent_testing import lane_unavailable
 
 S3_IMAGE: Final = "rustfs/rustfs:1.0.0-rc.4"
 
@@ -78,7 +79,10 @@ async def pending_uploads(config: S3StorageConfig, key: str) -> list[Any]:
 @pytest.fixture(scope="session")
 def s3_server(request: pytest.FixtureRequest) -> Iterator[str]:
     """Start one S3-compatible server for the whole session, and yield its endpoint URL."""
-    module = pytest.importorskip("testcontainers.core.container")
+    try:
+        import testcontainers.core.container as module
+    except ImportError as error:
+        lane_unavailable(request.config, "s3", f"testcontainers is not installed: {error}")
     container: Any = (
         module.DockerContainer(S3_IMAGE)
         .with_env("RUSTFS_ACCESS_KEY", ACCESS_KEY)
@@ -88,7 +92,11 @@ def s3_server(request: pytest.FixtureRequest) -> Iterator[str]:
     try:
         container.start()
     except Exception as error:
-        pytest.skip(f"the S3 server could not start, Docker is likely unreachable: {type(error).__name__}: {error}")
+        lane_unavailable(
+            request.config,
+            "s3",
+            f"the S3 server could not start, Docker is likely unreachable: {type(error).__name__}: {error}",
+        )
     request.addfinalizer(container.stop)
     endpoint = f"http://{container.get_container_host_ip()}:{container.get_exposed_port(S3_PORT)}"
     wait_until_answering(f"{endpoint}/")

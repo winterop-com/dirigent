@@ -90,10 +90,18 @@ def test_no_journal_row_carries_a_last_modified_stamp() -> None:
 
 
 def test_every_timestamp_column_is_timezone_aware() -> None:
+    checked = 0
     for table in Base.metadata.tables.values():
         for column in table.columns:
-            if isinstance(column.type, sa.DateTime):
-                assert column.type.timezone is True, f"{table.name}.{column.name} is not timestamptz"
+            stored = column.type.impl if isinstance(column.type, sa.TypeDecorator) else column.type
+            if isinstance(stored, sa.DateTime):
+                checked += 1
+                where = f"{table.name}.{column.name}"
+                assert isinstance(column.type, UtcDateTime), (
+                    f"{where} is not a UtcDateTime, so SQLite hands it back naive"
+                )
+                assert stored.timezone is True, f"{where} is not timestamptz"
+    assert checked > 0, "no timestamp column was found to check"
 
 
 def test_the_claim_query_indexes_exist() -> None:

@@ -4,6 +4,7 @@ from dirigent_testing.conformance import assert_contribution_conforms, check_pac
 from dirigent_testing.doubles import FakeCapture, FakeContext, FakeRuns, FakeSink, FakeStorage, RecordingLogger
 from dirigent_testing.environment import CONFIGURING_PREFIXES, TEST_WIDTH, pin_terminal, scrub_configuration
 from dirigent_testing.fixtures import no_connection_outlives_its_loop
+from dirigent_testing.lanes import lane_selected, lane_unavailable
 from dirigent_testing.running import FakeReceiveContext, call_block, carry_cursor, receive_request
 from dirigent_testing.wording import check_pack_messages
 
@@ -22,6 +23,8 @@ __all__ = [
     "carry_cursor",
     "check_pack_examples",
     "check_pack_messages",
+    "lane_selected",
+    "lane_unavailable",
     "no_connection_outlives_its_loop",
     "pin_terminal",
     "receive_request",

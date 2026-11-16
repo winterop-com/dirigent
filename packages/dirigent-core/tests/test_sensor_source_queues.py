@@ -26,6 +26,7 @@ from dirigent_core.models import Connection, Run, Source, StepAttempt
 from dirigent_core.pipelines import apply_document
 from dirigent_core.plugins import PluginHost
 from dirigent_core.sources import polling
+from dirigent_testing import lane_unavailable
 from engineblocks import EngineTestPlugin
 
 pytestmark = pytest.mark.queues
@@ -50,7 +51,7 @@ def services(settings: Settings, host: PluginHost) -> EngineServices:
 
 
 @pytest.fixture
-async def topic() -> AsyncIterator[str]:
+async def topic(pytestconfig: pytest.Config) -> AsyncIterator[str]:
     """Create a one-partition topic holding six messages, and take it away again."""
     from aiokafka import AIOKafkaProducer
     from aiokafka.admin import AIOKafkaAdminClient, NewTopic
@@ -59,7 +60,9 @@ async def topic() -> AsyncIterator[str]:
     deadline = asyncio.get_running_loop().time() + READY_TIMEOUT
     while not (await KafkaConnectionKind().check(connection)).healthy:
         if asyncio.get_running_loop().time() > deadline:
-            pytest.skip("the Kafka broker is not reachable, so this lane has nothing to run against")
+            lane_unavailable(
+                pytestconfig, "queues", "the Kafka broker is not reachable, so this lane has nothing to run against"
+            )
         await asyncio.sleep(1.0)
     name = f"dirigent-sensor-{uuid.uuid4().hex[:12]}"
     admin: Any = AIOKafkaAdminClient(bootstrap_servers=BOOTSTRAP)

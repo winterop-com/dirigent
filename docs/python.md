@@ -354,6 +354,12 @@ some unrelated test; one line in your conftest holds a whole suite to it:
 def _no_connection_outlives_its_loop(no_connection_outlives_its_loop): ...
 ```
 
+A fixture that starts or reaches a real service for a marked lane calls
+`lane_unavailable(config, "<lane>", reason)` when the service is not there: it fails the test
+when the run's `-m` expression selected that lane, and skips it otherwise, so a lane run with no
+server is red rather than all skips. `lane_selected(config, "<lane>")` answers the first half
+alone.
+
 A block's contract has one more method worth testing directly. `check_config(config)` returns
 the extra refusals the block makes at apply, beyond what its schema already says -- a program
 that does not compile, a format pair it cannot convert between -- as a list of `Issue`. It

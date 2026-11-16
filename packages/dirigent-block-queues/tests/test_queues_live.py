@@ -39,7 +39,7 @@ from dirigent_block_queues.rabbitmq import (
 from dirigent_block_queues.sources import KafkaSource, KafkaSourceConfig, RabbitSource, RabbitSourceConfig
 from dirigent_block_storage.storage import StorageReadConfig, StorageReadOperator, StorageReadOutput
 from dirigent_plugin import BlockFailure, ConnectionKind, ErrorClass, NotYet, Taken
-from dirigent_testing import FakeContext, FakeStorage, RecordingLogger
+from dirigent_testing import FakeContext, FakeStorage, RecordingLogger, lane_unavailable
 
 pytestmark = pytest.mark.queues
 
@@ -67,8 +67,8 @@ def rabbit_connection() -> RabbitConnectionConfig:
     )
 
 
-async def until_healthy(kind: ConnectionKind, settings: BaseModel, what: str) -> None:
-    """Wait for a broker to answer its own health check, skipping the lane when it never does."""
+async def until_healthy(config: pytest.Config, kind: ConnectionKind, settings: BaseModel, what: str) -> None:
+    """Wait for a broker to answer its own health check; the lane fails when it never does."""
     deadline = asyncio.get_running_loop().time() + READY_TIMEOUT
     detail = "never answered"
     while asyncio.get_running_loop().time() < deadline:
@@ -77,15 +77,15 @@ async def until_healthy(kind: ConnectionKind, settings: BaseModel, what: str) ->
             return
         detail = report.detail or detail
         await asyncio.sleep(1.0)
-    pytest.skip(f"{what} is not reachable, so this lane has no broker to run against: {detail}")
+    lane_unavailable(config, "queues", f"{what} is not reachable, so this lane has no broker to run against: {detail}")
 
 
 @pytest.fixture
-async def topic() -> AsyncIterator[str]:
+async def topic(pytestconfig: pytest.Config) -> AsyncIterator[str]:
     """Create a one-partition topic for one test, and take it away again."""
     from aiokafka.admin import AIOKafkaAdminClient, NewTopic
 
-    await until_healthy(KafkaConnectionKind(), kafka_connection(), "the Kafka broker")
+    await until_healthy(pytestconfig, KafkaConnectionKind(), kafka_connection(), "the Kafka broker")
     name = f"dirigent-{uuid.uuid4().hex[:12]}"
     admin: Any = AIOKafkaAdminClient(bootstrap_servers=BOOTSTRAP)
     await admin.start()
@@ -111,11 +111,11 @@ async def publish(topic: str, values: list[bytes], *, key: bytes | None = None) 
 
 
 @pytest.fixture
-async def queue() -> AsyncIterator[str]:
+async def queue(pytestconfig: pytest.Config) -> AsyncIterator[str]:
     """Declare a queue for one test, and delete it again."""
     import aio_pika
 
-    await until_healthy(RabbitConnectionKind(), rabbit_connection(), "the RabbitMQ broker")
+    await until_healthy(pytestconfig, RabbitConnectionKind(), rabbit_connection(), "the RabbitMQ broker")
     name = f"dirigent-{uuid.uuid4().hex[:12]}"
     connection: Any = await aio_pika.connect(rabbit_connection().dsn())
     try:
@@ -370,8 +370,8 @@ async def test_a_topic_the_cluster_does_not_have_is_rejected_rather_than_waited_
     assert raised.value.error_class is ErrorClass.REJECTED
 
 
-async def test_a_kafka_health_check_reaches_the_cluster() -> None:
-    await until_healthy(KafkaConnectionKind(), kafka_connection(), "the Kafka broker")
+async def test_a_kafka_health_check_reaches_the_cluster(pytestconfig: pytest.Config) -> None:
+    await until_healthy(pytestconfig, KafkaConnectionKind(), kafka_connection(), "the Kafka broker")
 
     report = await KafkaConnectionKind().check(kafka_connection())
 
@@ -456,8 +456,8 @@ async def test_a_queue_that_does_not_exist_is_rejected(ctx: FakeContext, queue: 
         await RabbitConsumeSensor().poke(config, rabbit_ctx(ctx).as_context())
 
 
-async def test_a_rabbitmq_health_check_opens_a_channel() -> None:
-    await until_healthy(RabbitConnectionKind(), rabbit_connection(), "the RabbitMQ broker")
+async def test_a_rabbitmq_health_check_opens_a_channel(pytestconfig: pytest.Config) -> None:
+    await until_healthy(pytestconfig, RabbitConnectionKind(), rabbit_connection(), "the RabbitMQ broker")
 
     report = await RabbitConnectionKind().check(rabbit_connection())
 
