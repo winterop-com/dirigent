@@ -126,6 +126,14 @@ parameter:
 DIRIGENT_DATABASE_URL=postgresql+asyncpg://user:password@db.example.com:5432/dirigent?ssl=require
 ```
 
+A password holding `@`, `:`, `/`, `#`, `?` or `%` is percent-encoded in the URL, so `p@ss/word`
+is written `p%40ss%2Fword`; every command, migrations included, takes it so. A password may
+also be passed as a query parameter, `?password=...`. Wherever dirigent shows the URL, in
+`dg config show`, the `db.upgraded` and starting records, a health check or a refusal, the
+password is masked as `***`, in the userinfo and in any query parameter that names a secret
+(`password`, `sslpassword`, and any name containing `pass`, `pwd`, `secret`, `token` or
+`key`).
+
 The local `postgres` service is still declared and still starts; drop it with
 `docker compose --project-directory . -f infra/compose.yaml up --scale postgres=0`.
 
@@ -768,6 +776,9 @@ deliberate -- scaling the server out should not mean N processes racing to migra
 **When to run them.** Before starting the new version's processes, on every upgrade that ships
 a new revision. `dg db current` against a database that has never been migrated says so and
 tells you to run `dg db upgrade`.
+A migration command that fails, on a database that does not answer or refuses the credential,
+is a `cli.migration_failed` refusal naming the database and what the driver said, with the
+password scrubbed from both.
 
 **PostgreSQL versus SQLite.** The schema is one set of migrations with dialect variants where
 the two genuinely differ: JSON columns are `JSONB` on PostgreSQL and `JSON` elsewhere, enums

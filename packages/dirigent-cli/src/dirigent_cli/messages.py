@@ -25,6 +25,8 @@ FORMATTERS_ARE = CLI.define("formatters_are", "the formatters are {formatters}")
 
 NEVER_MIGRATED = CLI.define("never_migrated", "the database has never been migrated")
 
+MIGRATION_FAILED = CLI.define("migration_failed", "the migration command on {where} failed: {detail}")
+
 RUN_DB_UPGRADE = CLI.define("run_db_upgrade", "run dg db upgrade")
 
 UNKNOWN_CONNECTION_KIND = CLI.define("unknown_connection_kind", "no connection kind {kind} is installed ({known})")
