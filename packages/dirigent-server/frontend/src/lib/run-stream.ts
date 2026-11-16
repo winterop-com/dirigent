@@ -16,11 +16,13 @@
  * `end` IS THE RUN, `expired` IS THE CONNECTION. The server sends `end` when the run settles and
  * `expired` when it closes a stream at its own wall-clock limit with the run still going. An
  * `expired` frame is about the connection, so it never reaches the screen: it reopens the stream
- * from the cursor. The caller still confirms `end` against the run it has, since only a settled
- * run is the end of the story.
+ * from the cursor. `end` is confirmed against the settled `run` frame the stream itself delivered
+ * just before it, or else against the run the caller holds, since only a settled run is the end
+ * of the story.
  */
 
 import { eventsPath } from '@/lib/runs'
+import { runSettled, type RunStatus } from '@/lib/status'
 import type { StreamState } from '@/lib/run-detail'
 import { streamSse, type SseFrame } from '@/lib/sse'
 
@@ -63,6 +65,16 @@ export interface FollowOptions {
     wait?: (ms: number) => Promise<void>
 }
 
+/** Whether a `run` frame says the run has settled; a frame that does not parse says it has not. */
+function settledFrame(frame: SseFrame): boolean {
+    try {
+        const run = JSON.parse(frame.data) as { status?: RunStatus }
+        return run.status !== undefined && runSettled(run.status)
+    } catch {
+        return false
+    }
+}
+
 function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => {
         setTimeout(resolve, ms)
@@ -86,6 +98,7 @@ export async function follow(runId: string, options: FollowOptions): Promise<voi
         options.onState(failures === 0 ? 'connecting' : 'reconnecting')
         let ended = false
         let expired = false
+        let sawSettled = false
         try {
             // One connection at a time: this loop is what the "one stream" rule is made of.
             // oxlint-disable-next-line no-await-in-loop
@@ -97,6 +110,7 @@ export async function follow(runId: string, options: FollowOptions): Promise<voi
                     break
                 }
                 options.onFrame(frame)
+                if (frame.event === 'run') sawSettled = settledFrame(frame)
                 if (frame.event === 'end') {
                     ended = true
                     break
@@ -107,7 +121,7 @@ export async function follow(runId: string, options: FollowOptions): Promise<voi
             failures += 1
         }
         if (options.signal.aborted) return
-        if (ended && options.settled()) {
+        if (ended && (sawSettled || options.settled())) {
             options.onState('ended')
             return
         }

@@ -404,6 +404,12 @@ in flight -- and its test double counts concurrent opens, which is what makes th
 rather than a review. What a frame means is a pure reducer beside it, so a replay being idempotent
 and a stale frame not moving a settled state backwards are decisions a Node test makes.
 
+**The graph's nodes are not on the stream.** A run watched to its end is read once more as it
+settles, so a node's outcome and its fan-out counts are the settled ones, not the ones the first
+read found. `end` is confirmed against the settled `run` frame the stream delivered just before
+it, not only against the state the screen has rendered, so a run watched to its end is not
+reconnected once more.
+
 ## Stores, not a query library
 
 A page holds its own reads in `useState`, and a fact that genuinely spans screens -- who is
@@ -2423,6 +2429,10 @@ one right edge.
 every line the run wrote; the drawer filters what the reducer holds, opens no connection of its
 own, and never will -- `run-stream.test.ts` drives the whole of the drawer's data path through
 `follow` and asserts the concurrent-connection counter still says one.
+
+**It holds the newest 5000 lines and says so once it has let older ones go.** The count then
+reads "of the newest", and a step whose lines are all older says that rather than "wrote
+nothing"; the download is where every line is.
 
 **Every step interleaved, in arrival order.** What happened to a run is a sequence, so the
 console is one, and the step filter is there for whoever is asking the other question. The lines

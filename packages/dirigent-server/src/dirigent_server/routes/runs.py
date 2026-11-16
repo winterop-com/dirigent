@@ -893,7 +893,7 @@ async def _story_read(
     sessions: async_sessionmaker[AsyncSession],
     run_id: UUID,
     cursor: int,
-    want_labels: bool | None,
+    known: Mapping[UUID, tuple[str, int]] | None,
     principal: Principal,
     reported: Mapping[UUID, Fingerprint],
 ) -> (
@@ -913,15 +913,19 @@ async def _story_read(
     The run is rendered on every poll, not only once it has settled: a watcher learns that a
     run started the same way it learns that one ended. The attempts are only those that moved
     since ``reported``.
+
+    The item labels are read on the first poll, and again whenever an attempt names an item
+    the labels in hand do not have: a fan-out over an upstream step's output writes its items
+    only once that step has finished, which is usually after a watcher connected.
     """
     async with session_scope(sessions) as session:
+        attempts = await _moved_attempts(session, run_id, reported)
         read_labels = None
-        if want_labels:
+        if known is None or any(row.run_item_id is not None and row.run_item_id not in known for row in attempts):
             read_labels = {
                 item.id: (item.item_key.strip() or str(item.item_index), item.item_index)
                 for item in await items_in_order(session, run_id)
             }
-        attempts = await _moved_attempts(session, run_id, reported)
         spilled = await _spilled(session, run_id, [row.id for row in attempts]) if attempts else {}
         page = await _log_page(session, run_id, cursor, DEFAULT_LOG_PAGE, None)
         found = (
@@ -994,8 +998,7 @@ async def _story(
         cursor = after
         reported: dict[UUID, Fingerprint] = {}
         reported_run: RunFingerprint | None = None
-        labels: dict[UUID, tuple[str, int]] = {}
-        loaded = False
+        labels: dict[UUID, tuple[str, int]] | None = None
         drained = False
         waited = 0.0
         interval = FOLLOW_INTERVAL_SECONDS
@@ -1004,9 +1007,7 @@ async def _story(
             changed = wakeups.settled_mark(run_id)
             # Shielded for the same reason _tail_read is: a disconnect lands between polls,
             # never inside a driver await holding the pooled connection.
-            read = await asyncio.shield(
-                _story_read(sessions, run_id, cursor, None if loaded else True, principal, dict(reported))
-            )
+            read = await asyncio.shield(_story_read(sessions, run_id, cursor, labels, principal, dict(reported)))
             if read is None:
                 break
             attempts, spilled, page, rendered, read_labels = read
@@ -1015,7 +1016,6 @@ async def _story(
                 return
             if read_labels is not None:
                 labels = read_labels
-                loaded = True
             settled = rendered.status in TERMINAL_RUN_STATUSES
             if not settled and _run_fingerprint(rendered) != reported_run:
                 reported_run = _run_fingerprint(rendered)
@@ -1026,7 +1026,7 @@ async def _story(
             transitions = [
                 (
                     _moment(row.finished_at or row.started_at or row.created_at),
-                    f"event: attempt\ndata: {_render_event(row, spilled, labels).model_dump_json()}\n\n",
+                    f"event: attempt\ndata: {_render_event(row, spilled, labels or {}).model_dump_json()}\n\n",
                 )
                 for row in moved
             ]

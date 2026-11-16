@@ -2925,6 +2925,33 @@ def test_a_fan_out_event_names_the_item(client: TestClient) -> None:
     assert [(row["item"], row["item_index"]) for row in greets] == [(None, None)]
 
 
+def test_a_fan_out_that_expands_after_the_watcher_connected_names_its_items(
+    client: TestClient, fast_follow: None
+) -> None:
+    """Items written after the stream read its labels are read again when an attempt names one."""
+    run_id = started_run(client)
+    farewell = attempt_id(client, run_id, "farewell")
+    element = uuid.uuid4()
+
+    read: list[Frame] = []
+    with client.stream("GET", f"{PREFIX}/runs/{run_id}/$events") as response:
+        frames = sse_stream(response.iter_lines())
+        read_until(frames, read, lambda name, data: name == "run" and data["status"] == "queued")
+        rows_written(
+            client,
+            sa.insert(RunItem).values(id=element, run_id=run_id, step_name="farewell", item_index=2, item_key="oslo"),
+            sa.update(StepAttempt)
+            .where(StepAttempt.id == farewell)
+            .values(run_item_id=element, status=AttemptStatus.RUNNING),
+        )
+        read_until(frames, read, lambda name, data: name == "attempt" and data["status"] == "running")
+        client.post(f"{PREFIX}/runs/{run_id}/$cancel")
+        read.extend(frames)
+
+    expanded = [data for name, _, data in read if name == "attempt" and data["id"] == str(farewell)]
+    assert [(row["item"], row["item_index"]) for row in expanded if row["status"] != "pending"][0] == ("oslo", 2)
+
+
 def test_log_entries_reach_the_event_stream_in_id_order(client: TestClient) -> None:
     """A client resumes past the highest id it was sent, so a lower one after it is lost.
 

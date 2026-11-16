@@ -130,6 +130,16 @@ describe('following one run', () => {
         expect(states.at(-1)).toBe('ended')
     })
 
+    test('ends on the settled run frame it delivered, before the screen has caught up with it', async () => {
+        const settledRun = JSON.stringify({ id: 'r-1', status: 'succeeded' })
+        const { source, states } = await drive([[frame('run', settledRun), frame('end')]], {
+            settledAfter: Number.POSITIVE_INFINITY,
+            stopAfter: 1,
+        })
+        expect(source.count()).toBe(1)
+        expect(states.at(-1)).toBe('ended')
+    })
+
     test('never holds two connections open, however many times it reconnects', async () => {
         const { source } = await drive([new Error('dropped'), new Error('dropped again'), [frame('end')]])
         expect(source.concurrent()).toBe(1)
