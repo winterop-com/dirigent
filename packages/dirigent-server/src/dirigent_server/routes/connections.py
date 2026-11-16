@@ -25,6 +25,7 @@ from dirigent_client.schemas import ConnectionDetail, ConnectionIn, ConnectionOu
 from dirigent_common import HealthReport, JsonMap, Message, scrub, secrets_of, validation_issues
 from dirigent_core import audit
 from dirigent_core.connections import ConnectionInUse, connection_users, remove_connection, said
+from dirigent_core.database import insert_unless_taken
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Connection, utcnow
 from dirigent_core.secrets import (
@@ -35,6 +36,7 @@ from dirigent_core.secrets import (
     secret_fields,
     unset_secrets,
 )
+from dirigent_plugin import ConnectionKind
 from dirigent_server.dependencies import ServicesDep, SessionDep
 from dirigent_server.errors import Refusal
 from dirigent_server.logging import get_logger
@@ -245,7 +247,16 @@ def hold_settings(services: EngineServices, kind_id: str, config: JsonMap) -> tu
         refuse_what_no_secret_cures(model, config, secrets)
         return {**config, **dict.fromkeys(secrets)}, True
     public, _, _ = services.secrets.encrypt_config(model, validated)
-    return public, contributed.credential_required and bool(contributed.credential_forms)
+    return public, lacks_credential(contributed, config)
+
+
+def lacks_credential(contributed: ConnectionKind, config: JsonMap) -> bool:
+    """Report whether a kind that requires one of its credential forms has none of them complete."""
+    if not (contributed.credential_required and contributed.credential_forms):
+        return False
+    return not any(
+        all(config.get(field) not in (None, "") for field in form.fields) for form in contributed.credential_forms
+    )
 
 
 @router.get(
@@ -293,9 +304,6 @@ async def create_connection(
     model = kind_model(services, payload.kind)
     if not principal.is_admin:
         refuse_secrets(given_secrets(model, payload.config), SECRETS_NEED_ADMIN, status.HTTP_403_FORBIDDEN)
-    existing = await session.execute(sa.select(Connection).where(Connection.code == payload.code))
-    if existing.scalar_one_or_none() is not None:
-        raise Refusal(CONNECTION_EXISTS, status=status.HTTP_409_CONFLICT, code=repr(payload.code))
     awaiting = False
     if (payload.awaiting_secrets or not principal.is_admin) and secret_fields(model):
         (public, awaiting), envelope, key_id = hold_settings(services, payload.kind, payload.config), None, None
@@ -311,8 +319,13 @@ async def create_connection(
         secret_key_id=key_id,
         awaiting_secrets=awaiting,
     )
-    session.add(row)
-    await session.flush()
+
+    async def taken() -> bool:
+        found = await session.execute(sa.select(Connection.id).where(Connection.code == payload.code))
+        return found.first() is not None
+
+    if not await insert_unless_taken(session, row, taken):
+        raise Refusal(CONNECTION_EXISTS, status=status.HTTP_409_CONFLICT, code=repr(payload.code))
     await audit.record(session, AuditAction.CREATED, AuditSubject.CONNECTION, code=row.code, subject_id=row.id)
     return render(row, services)
 
@@ -347,12 +360,14 @@ async def update_connection(
 ) -> ConnectionOut:
     """Replace a connection's settings; the config is sent whole, not merged field by field.
 
-    A secret field carrying the redaction marker keeps the secret already stored for it, and a
-    config the model accepts completes a connection awaiting its secrets.
+    A secret field carrying the redaction marker keeps the secret already stored for it. A
+    config the model accepts completes a connection awaiting its secrets, unless its kind
+    requires one of its credential forms and the config completes none of them.
     """
     row = await find(session, code)
     awaited = row.awaiting_secrets
     fields: list[str] = []
+    sealed: list[str] = []
     if payload.changing("name") and payload.name != row.name:
         row.name = payload.name
         fields.append("name")
@@ -363,14 +378,16 @@ async def update_connection(
         config = restore_marked_secrets(row, payload.config, services)
         public, envelope, key_id = seal(services, row.kind, config)
         fields += audit.changed(dict(row.config), public)
-        fields += sealed_changes(services, row, envelope, key_id)
+        sealed = sealed_changes(services, row, envelope, key_id)
+        fields += sealed
         row.config = public
         row.secret_envelope = envelope
         row.secret_key_id = key_id
-        row.awaiting_secrets = False
+        row.awaiting_secrets = lacks_credential(services.host.connection_kinds[row.kind], config)
     await session.flush()
     if fields:
-        action = AuditAction.SECRETS_SUPPLIED if awaited and not row.awaiting_secrets else AuditAction.UPDATED
+        supplied = awaited and not row.awaiting_secrets and bool(sealed)
+        action = AuditAction.SECRETS_SUPPLIED if supplied else AuditAction.UPDATED
         await audit.record(session, action, AuditSubject.CONNECTION, code=row.code, subject_id=row.id, fields=fields)
     return render(row, services)
 

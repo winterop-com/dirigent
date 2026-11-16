@@ -340,3 +340,25 @@ async def test_an_admin_still_creates_a_whole_connection_with_its_secret(admin: 
     made = await _create(admin, "vault", "vault", {"endpoint": "https://vault.invalid", "api_token": TOKEN})
     assert made.status_code == 201, made.text
     assert (made.json()["awaiting_secrets"], made.json()["config"]["api_token"]) == (False, "***")
+
+
+async def test_settings_alone_leave_a_kind_requiring_a_credential_awaiting_it(
+    operator: httpx2.AsyncClient, admin: httpx2.AsyncClient
+) -> None:
+    """Slack's model accepts a channel with no credential, which its kind still requires."""
+    assert (await _create(operator, "ops", "slack", {})).json()["awaiting_secrets"] is True
+    settings = {"channel": "#b", "webhook_url": None, "bot_token": None}
+    still = await admin.patch(f"{PREFIX}/connections/ops", json={"config": settings})
+    assert still.status_code == 200, still.text
+    assert still.json()["awaiting_secrets"] is True
+    refused = await admin.post(f"{PREFIX}/connections/ops/$check")
+    assert refused.json()["code"] == "secret.connection_awaiting_secrets"
+
+    supplied = await admin.patch(
+        f"{PREFIX}/connections/ops", json={"config": {"channel": "#b", "bot_token": "xoxb-DUMMY-0001"}}
+    )
+    assert supplied.status_code == 200, supplied.text
+    assert supplied.json()["awaiting_secrets"] is False
+    trail = (await admin.get(f"{PREFIX}/audit")).json()["items"]
+    actions = [(row["action"], row["fields"]) for row in trail if row["subject_code"] == "ops"]
+    assert actions[:2] == [("secrets_supplied", ["bot_token"]), ("updated", ["channel"])]
