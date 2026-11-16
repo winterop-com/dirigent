@@ -203,6 +203,12 @@ def test_a_dotted_path_walks_objects_and_lists(scope: ReferenceScope) -> None:
     assert resolve("${steps.list.output.1.n}", scope) == 2
 
 
+@pytest.mark.parametrize("index", ["²", "١"])
+def test_a_list_index_is_ascii_digits_only(scope: ReferenceScope, index: str) -> None:
+    with pytest.raises(UnknownReference):
+        resolve(f"${{steps.list.output.{index}.n}}", scope)
+
+
 def test_the_run_namespace_exposes_scratch_and_id(scope: ReferenceScope) -> None:
     assert resolve("${run.scratch}/out.json", scope) == "file://artifacts/runs/1/out.json"
     assert resolve("${run.id}", scope) == str(RUN_ID)

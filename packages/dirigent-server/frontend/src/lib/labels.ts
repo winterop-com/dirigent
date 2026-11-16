@@ -1258,6 +1258,8 @@ const refused = {
         step_failed: 'Step {step} failed: {detail}',
         storage_quota:
             'Run {run} and the runs its steps started hold {stored_bytes} bytes of storage, and writing {size_bytes} more would pass the {quota} this instance allows a run (run_storage_quota).',
+        version_unreadable:
+            'The pipeline version this run started on can no longer be read by this release ({detail}), so the run failed. Rerun it on the current version.',
         unknown_schema:
             'This run holds no shape coded {code}. It checks against the shapes its document named when it started ({available}), and takes no others while it runs.',
     },

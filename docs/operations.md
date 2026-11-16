@@ -1536,6 +1536,13 @@ no server. In the compose stack that means `docker compose exec worker dg prune 
    registry filling with the new version, the expected plugin list, and `code_matches_server`
    true on every row; `dg runs list --status failed --since 1h` should be quiet.
 
+A run pins the pipeline version it started on. If the new version can no longer read that
+stored document, because a field it held was renamed or dropped, the next worker that touches
+the run fails it with `run.version_unreadable`, naming the first field it could not read, along
+with every attempt still open; remote work it held a handle on is cancelled by the sweep, and
+the claims and sweeps behind it carry on. Such a run can still be cancelled. Rerun it on the
+pipeline's current version with `dg runs rerun RUN_ID --current`.
+
 Keep every process on the same version. The worker registry records each worker's version,
 installed plugins, and catalog digest precisely so that a straggler is visible rather than
 mysterious. Old rows do not linger: the sweeper deletes any whose heartbeat is older than

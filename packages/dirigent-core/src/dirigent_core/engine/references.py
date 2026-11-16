@@ -676,7 +676,7 @@ def _walk(reference: str, value: JsonValue, path: list[str], namespace: str) -> 
     for part in path:
         if isinstance(current, dict) and part in current:
             current = current[part]
-        elif isinstance(current, list) and part.isdigit() and int(part) < len(current):
+        elif isinstance(current, list) and part.isascii() and part.isdigit() and int(part) < len(current):
             current = current[int(part)]
         else:
             available = ", ".join(sorted(current)) if isinstance(current, dict) else "it is not an object"

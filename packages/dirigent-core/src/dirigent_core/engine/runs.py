@@ -7,7 +7,7 @@ from typing import Any, Final, Literal, cast
 from uuid import UUID
 
 import sqlalchemy as sa
-from pydantic import BaseModel, ConfigDict, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError, model_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -90,11 +90,20 @@ from dirigent_core.messages import (
     SOURCE_NOT_RETRYABLE,
     STEP_FAILED,
     STEP_REFUSED,
+    VERSION_UNREADABLE,
 )
 from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, RunItem, StepAttempt, utcnow
 from dirigent_core.schemas import held_bodies, reference_closure
 from dirigent_core.storage import scratch_prefix
-from dirigent_plugin import RemoteHandle, RunRefused, RunSnapshot, RunState, StartedRun, published_config_schema
+from dirigent_plugin import (
+    ErrorClass,
+    RemoteHandle,
+    RunRefused,
+    RunSnapshot,
+    RunState,
+    StartedRun,
+    published_config_schema,
+)
 
 IDEMPOTENCY_KEY = "_idempotency_key"
 
@@ -628,18 +637,26 @@ async def cancel_run(
 
     # A cancelled run is one of the runs whose report matters most, and no step of it can
     # render one.
-    definition = await _definition_of(session, run)
-    await render_run_report(session, services, run, definition, now=moment)
+    try:
+        definition: PipelineDefinition | None = await _definition_of(session, run)
+    except ValidationError:
+        definition = None
+    if definition is not None:
+        await render_run_report(session, services, run, definition, now=moment)
+        code = definition.code
+    else:
+        pipeline = await session.get(Pipeline, run.pipeline_id)
+        code = pipeline.code if pipeline is not None else str(run.pipeline_id)
     # A cancelled run frees the concurrency slot as a finished one does; without promoting
     # here, cancelling the active run of a `queue` pipeline wedges the queue forever.
     await promote_queued_run(session, services, run.pipeline_id)
     _logger.info(
         "run cancelled",
-        **fields_of(run_id=run.id, pipeline=definition.code),
+        **fields_of(run_id=run.id, pipeline=code),
         reason=reason.code,
         attempts=len(attempts),
     )
-    log_settled(run, definition.code)
+    log_settled(run, code)
     return run
 
 
@@ -867,7 +884,12 @@ async def promote_queued_run(session: AsyncSession, services: EngineServices, pi
         version = await session.get(PipelineVersion, run.pipeline_version_id)
         if version is None:
             continue
-        definition = load_definition(version.document)
+        try:
+            definition = load_definition(version.document)
+        except ValidationError as error:
+            await lock_run(session, run.id)
+            await fail_unreadable_run(session, run, _unreadable_detail(error))
+            continue
         await advance(session, run, definition, services=services)
         _logger.info("held run released", **fields_of(run_id=run.id, pipeline=definition.code))
         return run
@@ -1060,6 +1082,80 @@ async def _rerun_entry(session: AsyncSession, original: Run) -> Entry | None:
     return Entry(
         step=original.source_step, output=dict(received), via=EntryVia.HAND, note=f"replayed from run {original.id}"
     )
+
+
+def _unreadable_detail(error: ValidationError) -> str:
+    """Say what the first problem with a stored document is, the way a person would look for it."""
+    first = error.errors()[0]
+    where = ".".join(str(part) for part in first["loc"])
+    return f"{where}: {first['msg']}" if where else first["msg"]
+
+
+async def readable_definition(
+    session: AsyncSession, services: EngineServices, run: Run, document: JsonMap, *, now: datetime | None = None
+) -> PipelineDefinition | None:
+    """Read the definition a run pins, or fail the run when this code can no longer read it.
+
+    The run holds the lock its caller took. None means the run was failed here, every attempt
+    of it still open with it, and the caller steps over it.
+    """
+    try:
+        return load_definition(document)
+    except ValidationError as error:
+        await fail_unreadable_run(session, run, _unreadable_detail(error), now=now)
+        await promote_queued_run(session, services, run.pipeline_id)
+        return None
+
+
+async def fail_unreadable_run(session: AsyncSession, run: Run, detail: str, *, now: datetime | None = None) -> None:
+    """Fail a run whose pinned version cannot be read, with every attempt it still has open.
+
+    Nothing of the run can be walked without its definition, so no report is rendered. Remote
+    work an attempt holds a handle on is marked for the workers' sweep to cancel.
+    """
+    moment = now or utcnow()
+    await session.refresh(run)
+    if run.status not in ACTIVE_RUN_STATUSES:
+        return
+    params: JsonMap = {"detail": detail}
+    rows = await session.execute(
+        sa.select(StepAttempt).where(
+            StepAttempt.run_id == run.id,
+            StepAttempt.status.in_(
+                (AttemptStatus.PENDING, AttemptStatus.QUEUED, AttemptStatus.RUNNING, AttemptStatus.WAITING)
+            ),
+        )
+    )
+    attempts = list(rows.scalars())
+    for attempt in attempts:
+        if attempt.remote_handle and attempt.remote_cancel_since is None:
+            attempt.remote_cancel_since = moment
+        attempt.status = AttemptStatus.FAILED
+        attempt.error = VERSION_UNREADABLE.render(**params)
+        attempt.error_code = VERSION_UNREADABLE.code
+        attempt.error_params = params
+        attempt.error_class = ErrorClass.REJECTED.value
+        attempt.finished_at = moment
+        attempt.lease_owner = None
+        attempt.lease_token = None
+        attempt.lease_expires_at = None
+    await _cancel_items(session, run, moment)
+    run.status = RunStatus.FAILED
+    run.error = VERSION_UNREADABLE.render(**params)
+    run.error_code = VERSION_UNREADABLE.code
+    run.error_params = params
+    run.finished_at = moment
+    run.paused_at = None
+    await session.flush()
+    pipeline = await session.get(Pipeline, run.pipeline_id)
+    code = pipeline.code if pipeline is not None else str(run.pipeline_id)
+    _logger.error(
+        "run failed: its pinned version can no longer be read",
+        **fields_of(run_id=run.id, pipeline=code),
+        detail=detail,
+        attempts=len(attempts),
+    )
+    log_settled(run, code)
 
 
 async def _definition_of(session: AsyncSession, run: Run) -> PipelineDefinition:

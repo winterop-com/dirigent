@@ -63,7 +63,6 @@ from dirigent_core.engine.definition import (
     PipelineDefinition,
     StepDefinition,
     TimeoutAction,
-    load_definition,
 )
 from dirigent_core.engine.expansion import collect_errors, collect_outputs, is_gate, item_value_of
 from dirigent_core.engine.failure import Failure, backoff_delay, should_retry
@@ -81,6 +80,7 @@ from dirigent_core.engine.runs import (
     REMOTE_CANCEL_TIMEOUT,
     EngineRuns,
     promote_queued_run,
+    readable_definition,
     tell_remote,
 )
 from dirigent_core.engine.services import EngineServices
@@ -293,7 +293,9 @@ class Engine:
         version = await session.get(PipelineVersion, run.pipeline_version_id)
         if version is None:  # pragma: no cover - the foreign key makes this unreachable
             return None
-        definition = load_definition(version.document)
+        definition = await readable_definition(session, self.services, run, version.document, now=now)
+        if definition is None:
+            return None
         step = definition.steps.get(attempt.step_name)
         if step is None:
             await self._settle_and_advance(
@@ -906,8 +908,10 @@ class Engine:
                 _release(attempt)
                 return False
             version = await session.get(PipelineVersion, run.pipeline_version_id)
-            definition = load_definition(version.document) if version else None
-            if definition is None:  # pragma: no cover - foreign keys prevent this
+            if version is None:  # pragma: no cover - foreign keys prevent this
+                return False
+            definition = await readable_definition(session, self.services, run, version.document, now=now)
+            if definition is None:
                 return False
 
             output_bytes: int | None = None
@@ -1077,7 +1081,10 @@ class Engine:
             version = await session.get(PipelineVersion, run.pipeline_version_id)
             if version is None:  # pragma: no cover - the foreign key makes this unreachable
                 continue
-            definition = load_definition(version.document)
+            definition = await readable_definition(session, self.services, run, version.document, now=moment)
+            if definition is None:
+                settled.append(attempt.id)
+                continue
             step = definition.steps.get(attempt.step_name)
             if step is None:
                 continue
