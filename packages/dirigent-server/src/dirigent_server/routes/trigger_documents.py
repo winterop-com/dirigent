@@ -4,6 +4,8 @@ A document is applied through ``POST /pipelines/$apply`` like any other; what is
 reading the ones the instance holds, and removing one with the rows it owns.
 """
 
+from uuid import UUID
+
 import sqlalchemy as sa
 from fastapi import APIRouter, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,7 +59,10 @@ async def list_all(
 ) -> Page[TriggerDocumentOut]:
     """List every triggers document, in code order, with the pipeline each one fires."""
     rows = await list_trigger_documents(session, after=after, limit=limit + 1)
-    found = [render(row, await _pipeline_code(session, row)) for row in rows]
+    wanted = list({row.pipeline_id for row in rows})
+    named = await session.execute(sa.select(Pipeline.id, Pipeline.code).where(Pipeline.id.in_(wanted)))
+    codes: dict[UUID, str] = {found: code for found, code in named.all()}
+    found = [render(row, codes[row.pipeline_id]) for row in rows]
     items, following = clip(found, limit, lambda row: row.code)
     return Page(items=items, next=following)
 

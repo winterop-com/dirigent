@@ -39,6 +39,7 @@ from dirigent_core.models import Base, LogEntry, Run
 from dirigent_core.plugins import PluginHost
 from dirigent_core.worker import Worker
 from dirigent_server.routes.runs import (
+    _fingerprint,  # pyright: ignore[reportPrivateUsage] - what a watcher was last told
     _log_page,  # pyright: ignore[reportPrivateUsage] - the read the lane measures
     _story_read,  # pyright: ignore[reportPrivateUsage] - the read the lane measures
 )
@@ -387,8 +388,11 @@ async def test_fifty_chatty_attempts_on_two_workers(
     async with session_scope(load_sessions) as session:
         watcher = await create_user(session, "watcher", "a load test password", role=UserRole.VIEWER)
         principal = Principal(user_id=watcher.id, username=watcher.username, role=watcher.role)
-    cold = await _timed(lambda: _story_read(load_sessions, run.id, 0, True, principal), READS)
-    warm = await _timed(lambda: _story_read(load_sessions, run.id, last, None, principal), READS)
+    cold = await _timed(lambda: _story_read(load_sessions, run.id, 0, True, principal, {}), READS)
+    told = await _story_read(load_sessions, run.id, 0, True, principal, {})
+    assert told is not None
+    reported = {attempt.id: _fingerprint(attempt) for attempt in told[0]}
+    warm = await _timed(lambda: _story_read(load_sessions, run.id, last, None, principal, reported), READS)
     _emit("story_read_seconds_cold_p50", _percentile(cold, 0.5), "seconds", samples=len(cold))
     _emit("story_read_seconds_cold_max", max(cold), "seconds", samples=len(cold))
     _emit("story_read_seconds_warm_p50", _percentile(warm, 0.5), "seconds", samples=len(warm))
