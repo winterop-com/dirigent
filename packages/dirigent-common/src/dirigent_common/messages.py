@@ -156,6 +156,32 @@ TEMPLATE_NO_SUCH_TEMPLATE = COMMON.define(
 
 TEMPLATE_FAILED = COMMON.define("template_failed", "{detail}")
 
+TEMPLATE_TOO_MANY_STEPS = COMMON.define(
+    "template_too_many_steps", "the template took more than {limit} steps: a loop or a macro ran too long"
+)
+
+TEMPLATE_TOO_SLOW = COMMON.define("template_too_slow", "the template did not finish rendering within {within}")
+
+TEMPLATE_STOPPED = COMMON.define("template_stopped", "the render was stopped before it finished")
+
+TEMPLATE_VALUE_TOO_LARGE = COMMON.define(
+    "template_value_too_large", "the template built a value of more than {limit} characters or items"
+)
+
+TEMPLATE_TOO_MUCH_WORK = COMMON.define(
+    "template_too_much_work", "the template built more than {limit} characters and items in all"
+)
+
+TEMPLATE_NUMBER_TOO_LARGE = COMMON.define(
+    "template_number_too_large", "the template built a number of more than {limit} bits"
+)
+
+TEMPLATE_WIDTH_FROM_ARGUMENTS = COMMON.define(
+    "template_width_from_arguments", "a template cannot take a width or a precision from its arguments"
+)
+
+TEMPLATE_SUM_OF_NUMBERS = COMMON.define("template_sum_of_numbers", "the sum filter adds numbers only")
+
 NO_JSON_SPELLING = COMMON.define("no_json_spelling", "a value of type {kind} has no JSON spelling")
 
 YAML_ALIASES_EXPAND_TOO_FAR = COMMON.define(

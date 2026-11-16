@@ -1098,6 +1098,18 @@ const refused = {
         yaml_aliases_write_too_much:
             "This YAML's aliases would add more than {limit} bytes of text once written out. Write the repeated parts out, or repeat them less.",
         value_not_shown: 'nested deeper than {limit} levels, not shown',
+        template_too_many_steps:
+            'The template took more than {limit} steps, counting loop passes, calls and filters. Loop over less, or nest fewer loops.',
+        template_too_slow: 'The template did not finish rendering within {within}.',
+        template_stopped: 'The render was stopped before it finished.',
+        template_value_too_large:
+            'The template built a value of more than {limit} characters or items. Build smaller strings and lists.',
+        template_too_much_work:
+            'The template built more than {limit} characters and items in all. Build fewer or smaller values.',
+        template_number_too_large: 'The template computed a number of more than {limit} bits.',
+        template_width_from_arguments:
+            'A template cannot take a width or a precision from its arguments. Write the width into the format.',
+        template_sum_of_numbers: 'The sum filter adds numbers only.',
         yaml_nested_too_deep: 'This YAML nests too deeply to be read.',
     },
     document: {

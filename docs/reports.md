@@ -131,9 +131,25 @@ run that succeeded prints nothing and carries on.
 
 A template renders in an immutable sandbox with no loader, so it cannot reach an object's
 internals, mutate what it was handed, or pull in another template: `include`, `import` and
-`extends` all fail. `range` is capped by the sandbox, the text is cut at
-`DIRIGENT_REPORT_MAX_SIZE` (1mb) as it is generated rather than after it is built, and the
-whole render is bounded by `DIRIGENT_REPORT_RENDER_TIMEOUT` (5s).
+`extends` all fail. The text is cut at `DIRIGENT_REPORT_MAX_SIZE` (1mb) as it is generated
+rather than after it is built, and the render runs off the event loop and stops itself when it
+reaches any of these limits, which every template -- a report, an alert's subject and body,
+`report.render` -- renders under:
+
+| Limit | What reaches it |
+| --- | --- |
+| Time: `DIRIGENT_REPORT_RENDER_TIMEOUT` (5s) for a run's report and an alert, 5s for `report.render` | A render still going when the time is up |
+| 1,000,000 steps | Loop passes, calls and filters together: three nested `range(1000)` loops are a billion, and stop |
+| 100,000 items in one `range` | `range(1000000)` |
+| One value: 1,048,576 characters or items, or the text cap when that is larger | `'x' * 10000000`, a `~` or `+` that keeps doubling, `center(10000000)`, a `replace`, `join` or `indent` that would build past it, a list that would print past it |
+| All values together: 32 times the one-value limit | Building many large values in a loop |
+| One number: 4,096 bits | `3 ** 30000000`, a product of two huge numbers |
+| A width from the arguments | `'%*d' % (n, x)` and `'{:{w}}'.format(...)`: write the width into the format |
+| `sum` adds numbers | `sum(start=[])` to flatten lists |
+
+`lipsum` is not there. Nothing in a template is computed when it is compiled -- an operator or a
+filter runs at render, under these limits -- so applying a document costs no more than reading
+its templates.
 
 Every one of those is a warning, never a failure. A template that overflows, times out, or
 reaches for something refused leaves `the run's report was not rendered` in the run's own
@@ -161,7 +177,9 @@ value put there would be template source. `$${...}` stays the literal text `${..
 | [recipes/report-to-webhook.yaml](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/recipes/report-to-webhook.yaml) | A receiver, as one field of a webhook body |
 
 The block's own bounds are its own: `max_size` (1mb by default) cuts the text as it is
-generated, and a template that overflows or fails to render fails the step as `rejected`
+generated, the render is held to [the same limits](#the-bounds) with 5s of time, a step
+`timeout` stops a render in flight, and a template that overflows, reaches a limit or fails to
+render fails the step as `rejected`
 rather than leaving a warning -- a step that was asked for a page and produced none has
 produced nothing for the step below it.
 
@@ -239,9 +257,14 @@ Run: https://dirigent.example.org/runs/01a1a120-...
 ```
 
 A subject is collapsed to one line and cut at 200 characters, because that is what a subject is. Both templates are compiled when the rule is
-created, so a syntax error is refused there; a render that fails when the alert is raised falls
+created, so a syntax error is refused there. They render when the alert is delivered, on the
+worker that delivers it and under [the same limits](#the-bounds) as a report, never in the
+transaction that settles the run: the notification carries the facts as they were when the run
+settled, and the report document until it renders. A render that fails or reaches a limit falls
 back to the default and leaves a warning in the run's timeline, because an alert is the last
-thing standing between a failure and the person who needs to know. An alert is never paid for
+thing standing between a failure and the person who needs to know. Until it is delivered, a
+queued notification lists the default subject. `dg alerts test` renders the same way, at
+delivery, and sends text that does not render as it was typed. An alert is never paid for
 by the run it reports on: whatever fails while one is being written down is logged and the
 alert is dropped, and the outcome that raised it stays settled.
 

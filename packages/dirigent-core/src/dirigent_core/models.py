@@ -671,7 +671,20 @@ class Notification(Entity):
     notifier: Mapped[str] = mapped_column(sa.String(100), nullable=False)
     connection_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("connections.id", ondelete="RESTRICT"))
     subject: Mapped[str] = mapped_column(SaidText, nullable=False)
+    """The subject sent: the default until a subject template renders at delivery."""
+
     body: Mapped[str] = mapped_column(SaidText, nullable=False, default="", server_default="")
+    """The body sent: the default until a body template renders at delivery."""
+
+    subject_template: Mapped[str | None] = mapped_column(SaidText)
+    """The subject template still to render at delivery; null once rendered, or when there is none."""
+
+    body_template: Mapped[str | None] = mapped_column(SaidText)
+    """The body template still to render at delivery; null once rendered, or when there is none."""
+
+    report: Mapped[str | None] = mapped_column(SaidText)
+    """The run's rendered report, which a template reads as ``report``; kept only until the templates render."""
+
     context: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
     status: Mapped[NotificationStatus] = mapped_column(
         string_enum(NotificationStatus, "notification_status"), nullable=False, default=NotificationStatus.PENDING

@@ -1012,9 +1012,12 @@ misleading. The context is the run's whole facts, the same ones a report documen
 **empty**, which is the same case as a fact that is legitimately null: half a run's facts are
 null depending on how it ended, and printing `{{ run.error }}` back at an operator whose run
 succeeded would be nonsense. A template that does not compile is refused when the rule is
-created, so a typo is answered where it was made rather than in place of a message. A render
-that fails when the alert is raised -- a subject or a body past its size cap, a sandbox
-refusal -- falls back to the default subject or the default body and leaves a warning in the
+created, so a typo is answered where it was made rather than in place of a message. The
+templates render when the alert is delivered, never in the transaction that settles the run:
+that transaction holds the run's lock, and a render there would hold it for as long as the
+template ran. A render that fails at delivery -- a subject or a body past its size cap, a
+sandbox refusal, a template that reaches the render's limits of steps, time, value size or
+number size -- falls back to the default subject or the default body and leaves a warning in the
 run's own timeline, because an alert is the last thing standing between a failure and the
 person who needs to know.
 

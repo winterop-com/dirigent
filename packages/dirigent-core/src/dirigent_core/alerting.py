@@ -41,7 +41,7 @@ from dirigent_common import (
     as_text,
     compile_template,
     format_duration,
-    render,
+    render_off_loop,
     scrub,
     secrets_of,
 )
@@ -90,8 +90,6 @@ EVENT_FOR_STATUS: dict[RunStatus, AlertEvent] = {
     RunStatus.COMPLETED_WITH_ERRORS: AlertEvent.RUN_COMPLETED_WITH_ERRORS,
     RunStatus.SUCCEEDED: AlertEvent.RUN_SUCCEEDED,
 }
-
-DEFAULT_TEMPLATE = "{{ run.pipeline }} run {{ run.status }}"
 
 #: The characters a subject is cut to, which is what a subject line is.
 SUBJECT_CAP: Final = 200
@@ -665,7 +663,6 @@ async def _queue_for_run(
     if facts is None:
         facts = await _facts_of(session, run, base_url=services.settings.alert_base_url, rendered_at=moment)
     context = _context_for(run, pipeline, facts, base_url=services.settings.alert_base_url, report_url=report_url)
-    rendering = {**context, "report": report}
     queued: list[Notification] = []
     for rule in rules:
         if await _already_raised(session, rule.id, run.id, event):
@@ -689,8 +686,9 @@ async def _queue_for_run(
                 )
             )
             continue
-        subject = _subject_of(session, rule, rendering, run_id=run.id, moment=moment)
-        body = _body_of(session, services, rule, rendering, run_id=run.id, moment=moment)
+        # The rule's templates render at delivery, outside this transaction and off the loop;
+        # until then the row carries the defaults.
+        templated = rule.template is not None or rule.body is not None
         notification = Notification(
             alert_rule_id=rule.id,
             rule_code=rule.code,
@@ -698,8 +696,11 @@ async def _queue_for_run(
             event=NotificationEvent(event.value),
             notifier=rule.notifier,
             connection_id=rule.connection_id,
-            subject=subject,
-            body=body,
+            subject=_default_subject(context),
+            body=_body(context),
+            subject_template=rule.template,
+            body_template=rule.body,
+            report=report if templated else None,
             context=context,
             status=NotificationStatus.PENDING,
             available_at=moment,
@@ -845,66 +846,75 @@ async def _facts_of(session: AsyncSession, run: Run, *, base_url: str | None, re
     return await facts_of_run(session, run, definition, base_url=base_url, rendered_at=rendered_at)
 
 
-def _subject_of(
-    session: AsyncSession, rule: AlertRule, context: JsonMap, *, run_id: UUID | None, moment: datetime
-) -> str:
-    """Render a rule's subject: one line, whitespace collapsed, cut at the cap."""
-    try:
-        return _one_line(render(rule.template or DEFAULT_TEMPLATE, context, max_bytes=SUBJECT_RENDER_CAP))
-    except (TemplateError, RenderTooLarge) as error:
-        _render_failed(session, rule, "subject", error, run_id=run_id, moment=moment)
-        return _one_line(render(DEFAULT_TEMPLATE, context, max_bytes=SUBJECT_RENDER_CAP))
+def _default_subject(context: JsonMap) -> str:
+    """Write the subject a rule with no subject template sends: the pipeline and how its run ended."""
+    run = cast("JsonMap", context.get("run", {}))
+    return _one_line(f"{as_text(run.get('pipeline'))} run {as_text(run.get('status'))}")
 
 
-def _body_of(
-    session: AsyncSession,
-    services: EngineServices,
-    rule: AlertRule,
-    context: JsonMap,
-    *,
-    run_id: UUID | None,
-    moment: datetime,
-) -> str:
-    """Render a rule's body, or write the run's own facts when it declares no template."""
-    if rule.body is None:
-        return _body(context)
-    try:
-        return render(rule.body, context, max_bytes=int(services.settings.report_max_size))
-    except (TemplateError, RenderTooLarge) as error:
-        _render_failed(session, rule, "body", error, run_id=run_id, moment=moment)
-        return _body(context)
+class Rendered(NamedTuple):
+    """What a notification's templates rendered to, and why any of them fell back."""
+
+    subject: str
+    body: str
+    fallbacks: list[tuple[str, str]]
+    """Each template that did not render, as its field and the reason."""
 
 
-def _render_failed(
-    session: AsyncSession,
-    rule: AlertRule,
-    field: str,
-    error: Exception,
-    *,
-    run_id: UUID | None,
-    moment: datetime,
-) -> None:
-    """Say in the run's own timeline that a rule's template did not render, and what replaced it."""
-    _logger.warning("alert template not rendered", rule=rule.code, field=field, error=str(error))
-    if run_id is None:
-        return
-    session.add(
-        LogEntry(
-            run_id=run_id,
-            level=LogLevel.WARNING,
-            message=f"the {field} of alert {rule.code!r} was not rendered, so the default was sent",
-            fields={"reason": str(error), "notifier": rule.notifier},
-            created_at=moment,
+async def _rendered(services: EngineServices, notification: Notification) -> Rendered:
+    """Render a notification's subject and body templates on a worker thread, under the render budget.
+
+    A rule's template that fails or passes its budget leaves the default the row already
+    carries; a test message's leaves the text it was typed as, since it may never have been
+    meant as a template.
+    """
+    context: JsonMap = {**(notification.context or {}), "report": notification.report}
+    within = services.settings.report_render_timeout
+    subject, body = notification.subject, notification.body
+    fallbacks: list[tuple[str, str]] = []
+    for field, source, cap in (
+        ("subject", notification.subject_template, SUBJECT_RENDER_CAP),
+        ("body", notification.body_template, int(services.settings.report_max_size)),
+    ):
+        if source is None:
+            continue
+        try:
+            text = await render_off_loop(source, context, max_bytes=cap, within=within)
+        except (TemplateError, RenderTooLarge) as error:
+            if notification.event is not NotificationEvent.TEST:
+                fallbacks.append((field, str(error)))
+                continue
+            text = source
+        if field == "subject":
+            subject = _one_line(text)
+        else:
+            body = text
+    return Rendered(subject=subject, body=body, fallbacks=fallbacks)
+
+
+def _keep_rendered(session: AsyncSession, notification: Notification, rendered: Rendered, moment: datetime) -> None:
+    """Write what the templates rendered onto the row, and say in the run's timeline which fell back.
+
+    A retry then sends the same text without rendering again.
+    """
+    notification.subject = rendered.subject
+    notification.body = rendered.body
+    notification.subject_template = None
+    notification.body_template = None
+    notification.report = None
+    for field, reason in rendered.fallbacks:
+        _logger.warning("alert template not rendered", rule=notification.rule_code, field=field, error=reason)
+        if notification.run_id is None:
+            continue
+        session.add(
+            LogEntry(
+                run_id=notification.run_id,
+                level=LogLevel.WARNING,
+                message=f"the {field} of alert {notification.rule_code!r} was not rendered, so the default was sent",
+                fields={"reason": reason, "notifier": notification.notifier},
+                created_at=moment,
+            )
         )
-    )
-
-
-def _or_literal(source: str, context: JsonMap, *, max_bytes: int) -> str:
-    """Render text that a person typed, keeping it verbatim when it is not a template at all."""
-    try:
-        return render(source, context, max_bytes=max_bytes)
-    except (TemplateError, RenderTooLarge):
-        return source
 
 
 def _one_line(text: str) -> str:
@@ -1025,8 +1035,8 @@ async def queue_test_message(
     """Queue one unattached message, which is what ``dg alerts test`` sends.
 
     The message names one target the way a rule does, and the sender follows from that
-    connection's kind. The subject and the body are rendered as a rule's are, over a stand-in
-    context, so a template can be tried out before it is written onto a rule.
+    connection's kind. The subject and the body are rendered at delivery as a rule's are, over a
+    stand-in context, so a template can be tried out before it is written onto a rule.
     """
     notifier, connection_id = await _target(session, services, connection)
     context: JsonMap = {"run": {"pipeline": "(test)", "status": "succeeded"}, "report": None}
@@ -1036,8 +1046,10 @@ async def queue_test_message(
         event=NotificationEvent.TEST,
         notifier=notifier,
         connection_id=connection_id,
-        subject=_one_line(_or_literal(subject, context, max_bytes=SUBJECT_RENDER_CAP)),
-        body=_or_literal(body, context, max_bytes=int(services.settings.report_max_size)),
+        subject=_one_line(subject),
+        body=body,
+        subject_template=subject,
+        body_template=body,
         context=context,
         status=NotificationStatus.PENDING,
         available_at=utcnow(),
@@ -1125,6 +1137,7 @@ async def send_notification(
     """
     moment = now or utcnow()
     secrets: set[str] = set()
+    rendered: Rendered | None = None
     try:
         notifier = services.host.notifiers.get(notification.notifier)
         if notifier is None:
@@ -1133,13 +1146,17 @@ async def send_notification(
         config = notifier_config(services, notifier, connection)
         secrets = secrets_of(config)
         await session.commit()
-        await notifier.send(_message(notification), config)
+        rendered = await _rendered(services, notification)
+        await notifier.send(_message(notification, rendered.subject, rendered.body), config)
     except Exception as error:
         if not await _holds_lease(session, notification, owner, lease_token):
             return False
+        if rendered is not None:
+            _keep_rendered(session, notification, rendered, moment)
         return await _record_failure(session, services, notification, error, moment, secrets)
     if not await _holds_lease(session, notification, owner, lease_token):
         return False
+    _keep_rendered(session, notification, rendered, moment)
     notification.status = NotificationStatus.SENT
     notification.sent_at = moment
     notification.error = None
@@ -1213,14 +1230,14 @@ async def renew_lease(
     return renewed.scalar_one_or_none() is not None
 
 
-def _message(notification: Notification) -> AlertMessage:
+def _message(notification: Notification, subject: str, body: str) -> AlertMessage:
     """Render a stored notification as the message the notifier surface takes."""
     context = notification.context or {}
     run = cast("JsonMap", context.get("run", {}))
     return AlertMessage(
         event=notification.event.value,
-        subject=notification.subject,
-        body=notification.body,
+        subject=subject,
+        body=body,
         run_id=notification.run_id,
         pipeline=cast("str | None", run.get("pipeline")),
         url=cast("str | None", run.get("url")),

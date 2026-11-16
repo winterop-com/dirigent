@@ -26,10 +26,9 @@ from dirigent_client.enums import (
     TriggerKind,
 )
 from dirigent_client.schemas.alerts import LOG_NOTIFIER
-from dirigent_common import JsonMap, render, spellings
+from dirigent_common import JsonMap, render, spellings, templating
 from dirigent_core import alerting
 from dirigent_core.alerting import (
-    DEFAULT_TEMPLATE,
     EVENT_FOR_STATUS,
     SUBJECT_CAP,
     AlertError,
@@ -330,6 +329,12 @@ async def reclaim(sessions: async_sessionmaker[AsyncSession], notification_id: U
         row.lease_expires_at = NOW + timedelta(seconds=LEASE)
 
 
+async def deliver(sessions: async_sessionmaker[AsyncSession], services: EngineServices) -> list[Notification]:
+    """Deliver everything due, rendering the templates as a worker does, and read every notification back."""
+    await NotificationDispatcher(sessions=sessions, services=services, owner=OWNER).drain()
+    return await notifications_of(sessions)
+
+
 async def notifications_of(sessions: async_sessionmaker[AsyncSession]) -> list[Notification]:
     """Read every queued notification, oldest first."""
     async with sessions() as session:
@@ -349,7 +354,7 @@ async def entries_of(sessions: async_sessionmaker[AsyncSession], run_id: UUID) -
 
 def test_a_template_reads_the_run_facts_it_names() -> None:
     context = build_context(a_run(), a_pipeline())
-    assert render(DEFAULT_TEMPLATE, context, max_bytes=SUBJECT_CAP) == "nightly run failed"
+    assert render("{{ run.pipeline }} run {{ run.status }}", context, max_bytes=SUBJECT_CAP) == "nightly run failed"
 
 
 def test_a_template_reads_a_nested_path() -> None:
@@ -884,9 +889,11 @@ async def test_raising_queues_one_message_per_matching_rule_and_stamps_the_rules
         assert stored is not None
         queued = await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW)
     assert len(queued) == 2
-    assert {notification.subject for notification in queued} == {"nightly run failed", "down again"}
+    assert {notification.subject for notification in queued} == {"nightly run failed"}, "templates render at delivery"
     assert all(notification.status is NotificationStatus.PENDING for notification in queued)
     assert all(notification.available_at == NOW for notification in queued)
+    delivered = await deliver(sessions, services)
+    assert {notification.subject for notification in delivered} == {"nightly run failed", "down again"}
 
     async with sessions() as session:
         rules = await list_rules(session)
@@ -1045,13 +1052,15 @@ async def raise_one(
     *,
     report: str | None = None,
 ) -> Notification:
-    """Raise a run's alerts and hand back the one message they queued."""
+    """Raise a run's alerts, deliver the one message they queued, and hand it back as it was sent."""
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
         queued = await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW, report=report)
     assert len(queued) == 1
-    return queued[0]
+    (delivered,) = await deliver(sessions, services)
+    assert delivered.status is NotificationStatus.SENT
+    return delivered
 
 
 async def test_a_subject_and_a_body_render_over_the_runs_whole_facts(
@@ -1078,7 +1087,7 @@ async def test_a_subject_and_a_body_render_over_the_runs_whole_facts(
 async def test_a_body_reads_the_report_document_the_run_rendered(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:
-    """The document is what the body may carry; it is not stored on the notification."""
+    """The document is what the body may carry; the notification keeps it only until the body renders."""
     run = await stored_run(sessions, services)
     await declare(
         sessions,
@@ -1089,6 +1098,7 @@ async def test_a_body_reads_the_report_document_the_run_rendered(
 
     assert queued.body == "# what happened\n\nnot much"
     assert "report" not in queued.context
+    assert queued.report is None
 
 
 async def test_a_body_reads_one_step_by_name(
@@ -1157,7 +1167,7 @@ async def failed_through_a_step(
     async with sessions() as session:
         settled = await session.get(Run, created.id)
         assert settled is not None and settled.status is RunStatus.FAILED
-    (notification,) = await notifications_of(sessions)
+    (notification,) = await deliver(sessions, services)
     return settled, notification
 
 
@@ -1244,7 +1254,7 @@ def test_an_alert_template_reading_a_name_it_is_never_given_is_warned_about() ->
     ]
     assert "failed_step" in str(warned[0].params["hint"])
     assert "failing_step" in str(warned[1].params["hint"])
-    assert template_warnings(template=DEFAULT_TEMPLATE, body="{{ error }} {{ step.load.outcome }}") == []
+    assert template_warnings(template="{{ run.pipeline }}", body="{{ error }} {{ step.load.outcome }}") == []
 
 
 async def test_the_default_body_writes_the_params_as_json_and_the_link(
@@ -1523,7 +1533,7 @@ async def test_a_stuck_runs_subject_renders_over_the_facts_it_has(
     )
     async with session_scope(sessions) as session:
         assert await raise_for_stuck(session, services, [run.id], now=NOW) == 1
-    queued = await notifications_of(sessions)
+    queued = await deliver(sessions, services)
 
     assert [notification.subject for notification in queued] == ["nightly has not moved"]
 
@@ -1539,8 +1549,10 @@ async def test_a_test_message_renders_the_template_a_person_is_trying_out(
             subject="{{ run.pipeline }} run {{ run.status }}",
             body="a body over {{ run.pipeline }}",
         )
-    assert queued.subject == "(test) run succeeded"
-    assert queued.body == "a body over (test)"
+    (delivered,) = await deliver(sessions, services)
+    assert delivered.id == queued.id
+    assert delivered.subject == "(test) run succeeded"
+    assert delivered.body == "a body over (test)"
 
 
 async def test_a_rules_templates_can_be_rewritten_and_a_bad_one_is_refused(
@@ -2179,3 +2191,116 @@ async def test_a_notification_a_worker_is_holding_is_not_handed_to_a_second_one(
         assert row is not None
         with pytest.raises(AlertError, match="wait for it"):
             await retry_notification(session, row, now=NOW)
+
+
+# -- templates render at delivery, never inside the outcome ----------------------
+
+#: A template that prints nothing for 9,000,000 loop passes, past the render's step budget.
+SPINNING = "{% for a in range(3000) %}{% for b in range(3000) %}{% endfor %}{% endfor %}"
+
+
+def refuse_every_render(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make any template render fail, so a render reached where none may happen is seen."""
+
+    def refused(*args: object, **kwargs: object) -> str:
+        raise AssertionError("a template was rendered")
+
+    monkeypatch.setattr(templating, "render", refused)
+
+
+async def test_settling_a_run_queues_its_alert_templates_without_rendering_them(
+    engine: Engine,
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The outcome transaction holds the run's lock, so no template is rendered while it is open."""
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops", event=AlertEvent.RUN_SUCCEEDED, connection=DESK, template=SPINNING, body=SPINNING
+        ),
+    )
+    definition = PipelineDefinition(code="nightly", steps={"only": StepDefinition(block="test.echo")})
+    async with session_scope(sessions) as session:
+        version = await save_pipeline(session, definition)
+        created = await create_run(session, services, version)
+    assert created is not None
+    refuse_every_render(monkeypatch)
+
+    unit = await engine.claim()
+    assert unit is not None
+    await engine.run_unit(unit)
+
+    async with sessions() as session:
+        settled = await session.get(Run, created.id)
+        assert settled is not None and settled.status is RunStatus.SUCCEEDED
+    (queued,) = await notifications_of(sessions)
+    assert queued.status is NotificationStatus.PENDING
+    assert (queued.subject_template, queued.body_template) == (SPINNING, SPINNING)
+    assert queued.subject == "nightly run succeeded"
+
+
+async def test_a_template_past_its_budget_sends_the_default_and_says_why(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops",
+            event=AlertEvent.RUN_FAILED,
+            connection=DESK,
+            template="{{ 3 ** 30000000 }}",
+            body=SPINNING,
+        ),
+    )
+    delivered = await raise_one(sessions, services, run)
+
+    assert delivered.subject == "nightly run failed"
+    assert delivered.body.startswith("Failed: the loader gave up\n")
+    assert (delivered.subject_template, delivered.body_template, delivered.report) == (None, None, None)
+    (message, _) = RecordingNotifier.sent[0]
+    assert (message.subject, message.body) == (delivered.subject, delivered.body)
+    warned = [entry for entry in await entries_of(sessions, run.id) if entry.level is LogLevel.WARNING]
+    assert [entry.message for entry in warned] == [
+        "the subject of alert 'page-ops' was not rendered, so the default was sent",
+        "the body of alert 'page-ops' was not rendered, so the default was sent",
+    ]
+
+
+async def test_a_retry_sends_what_the_first_delivery_rendered(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services)
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(
+            code="page-ops", event=AlertEvent.RUN_FAILED, connection=FLAKY, template="{{ run.pipeline }}!"
+        ),
+    )
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW)
+    (failed,) = await deliver(sessions, services)
+    assert failed.status is NotificationStatus.PENDING
+    assert (failed.subject, failed.subject_template) == ("nightly!", None)
+
+
+async def test_a_test_message_is_queued_without_rendering_and_renders_at_delivery(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The test route answers on the API's loop, inside its transaction, so it renders nothing."""
+    with monkeypatch.context() as patched:
+        refuse_every_render(patched)
+        async with session_scope(sessions) as session:
+            queued = await queue_test_message(session, services, connection=DESK, subject=SPINNING, body=SPINNING)
+    assert (queued.subject_template, queued.body_template) == (SPINNING, SPINNING)
+
+    (delivered,) = await deliver(sessions, services)
+    assert delivered.status is NotificationStatus.SENT
+    assert (delivered.subject, delivered.body) == (" ".join(SPINNING.split()), SPINNING), "kept as typed"

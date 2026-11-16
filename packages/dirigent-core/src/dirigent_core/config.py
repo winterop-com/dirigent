@@ -583,7 +583,7 @@ class Settings(BaseSettings):
     """A run's report document larger than this is dropped with a warning in the run's log."""
 
     report_render_timeout: Duration = Field(default=timedelta(seconds=5), gt=timedelta(0))
-    """How long a report template may take to render before it is dropped with a warning."""
+    """How long a run's report or an alert's subject or body may render before it falls back with a warning."""
 
     @field_validator("worker_tags", "enabled_unsafe_blocks", mode="before")
     @classmethod
