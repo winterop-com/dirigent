@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Annotated, Any, cast
 
 import typer
-from rich.markup import escape
 
 from dirigent_cli.commands import paged, parse_importance, parse_log_levels, parse_params, parse_priority
 from dirigent_cli.context import Session, client_for, state_of
@@ -15,20 +14,12 @@ from dirigent_cli.messages import (
     ONE_CLOCK,
 )
 from dirigent_cli.output import (
-    alert_event,
-    console,
     emit_fact,
     emit_one,
     emit_records,
-    moment,
     refuse,
-    render_bool,
-    styled,
-    table,
-    throttle_note,
-    watching,
 )
-from dirigent_client import LOG_NOTIFIER, TEST_SUBJECT, AlertEvent, AlertScope
+from dirigent_client import TEST_SUBJECT, AlertEvent, AlertScope
 from dirigent_common import Message
 
 schedule_app = typer.Typer(
@@ -153,24 +144,7 @@ def schedule_list(
     """List a pipeline's schedules, with when each one next fires."""
     with client_for(state_of(ctx)) as dg:
         rows = list(paged(lambda after, size: dg.call(dg.schedules.list(pipeline, after=after, limit=size)), None))
-    if state_of(ctx).json_output:
-        return emit_records("schedule", rows)
-    table(
-        f"schedules of {escape(pipeline)}",
-        ["code", "name", "clock", "timezone", "paused", "next firing", "last fired"],
-        [
-            [
-                escape(row.code),
-                escape(row.name or "-"),
-                escape(str(row.cron or row.interval or row.at)),
-                escape(row.timezone),
-                render_bool(row.paused),
-                moment(row.next_fire_at),
-                moment(row.last_fired_at),
-            ]
-            for row in rows
-        ],
-    )
+    emit_records("schedule", rows)
 
 
 @schedule_app.command("pause")
@@ -214,23 +188,7 @@ def schedule_firings(
         rows = list(
             paged(lambda after, size: dg.call(dg.schedules.firings(pipeline, code, after=after, limit=size)), None)
         )
-    if state_of(ctx).json_output:
-        return emit_records("firing", rows)
-    table(
-        f"firings of {escape(code)}",
-        ["due", "fired", "outcome", "misfired", "run", "detail"],
-        [
-            [
-                moment(row.scheduled_for),
-                moment(row.created_at),
-                styled(row.outcome.value),
-                render_bool(row.misfired),
-                str(row.run_id or "-")[:8],
-                escape(row.detail or "-"),
-            ]
-            for row in rows
-        ],
-    )
+    emit_records("firing", rows)
 
 
 @schedule_app.command("delete")
@@ -252,26 +210,7 @@ def alerts_rules_list(
     """List the alert rules this instance holds."""
     with client_for(state_of(ctx)) as dg:
         rows = list(paged(lambda after, size: dg.call(dg.alerts.rules(after=after, limit=size)), None))
-    if state_of(ctx).json_output:
-        return emit_records("alert_rule", rows)
-    table(
-        "alert rules",
-        ["code", "name", "event", "scope", "target", "throttle", "active", "declared by", "last sent"],
-        [
-            [
-                escape(row.code),
-                escape(row.name or "-"),
-                alert_event(row.event.value),
-                escape(watching(row.pipeline or row.scope.value, row.importance)),
-                escape(row.connection or LOG_NOTIFIER),
-                throttle_note(row.throttle),
-                render_bool(row.active),
-                escape(f"{row.pipeline} document") if row.declared and row.pipeline else "-",
-                moment(row.last_sent_at),
-            ]
-            for row in rows
-        ],
-    )
+    emit_records("alert_rule", rows)
 
 
 @alerts_rules_app.command("create")
@@ -421,23 +360,7 @@ def alerts_queue(
     """Show queued and delivered alerts."""
     with client_for(state_of(ctx)) as dg:
         rows = list(paged(lambda after, size: dg.call(dg.alerts.notifications(after=after, limit=size)), None))
-    if state_of(ctx).json_output:
-        return emit_records("notification", rows)
-    table(
-        "notifications",
-        ["subject", "notifier", "status", "tries", "sent", "error"],
-        [
-            [
-                escape(row.subject),
-                escape(row.notifier),
-                styled(row.status.value),
-                str(row.attempt),
-                moment(row.sent_at),
-                escape((row.error or "-")[:60]),
-            ]
-            for row in rows
-        ],
-    )
+    emit_records("notification", rows)
 
 
 @trigger_document_app.command("list")
@@ -445,23 +368,7 @@ def trigger_document_list(ctx: typer.Context) -> None:
     """List the triggers documents this instance holds, with the pipeline each one fires."""
     with client_for(state_of(ctx)) as dg:
         rows = list(paged(lambda after, size: dg.call(dg.trigger_documents.list(after=after, limit=size)), None))
-    if state_of(ctx).json_output:
-        return emit_records("trigger_document", rows)
-    table(
-        "trigger documents",
-        ["code", "name", "pipeline", "source", "applied by", "applied"],
-        [
-            [
-                escape(row.code),
-                escape(row.name or "-"),
-                escape(row.pipeline),
-                row.provenance_source.value,
-                escape(row.applied_by or "-"),
-                moment(row.updated_at),
-            ]
-            for row in rows
-        ],
-    )
+    emit_records("trigger_document", rows)
 
 
 @trigger_document_app.command("show")
@@ -472,14 +379,7 @@ def trigger_document_show(
     """Show one triggers document and the schedules it owns."""
     with client_for(state_of(ctx)) as dg:
         detail = dg.call(dg.trigger_documents.get(code))
-    if state_of(ctx).json_output:
-        return emit_one("trigger_document", detail)
-    console.print(f"[bold]{escape(detail.name or detail.code)}[/]  [dim]{escape(detail.code)}[/]")
-    console.print(f"  pipeline  [bold]{escape(detail.pipeline)}[/]")
-    console.print(f"  digest    [dim]{escape(detail.digest)}[/]")
-    console.print(f"  schedules {escape(', '.join(detail.schedules)) or '-'}")
-    if detail.description:
-        console.print(f"\n{escape(detail.description)}")
+    emit_one("trigger_document", detail)
 
 
 @trigger_document_app.command("delete")

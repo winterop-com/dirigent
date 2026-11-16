@@ -20,6 +20,7 @@ from rich.markup import escape
 from dirigent_cli import schemas
 from dirigent_cli.graph import GraphStep, render_graph
 from dirigent_cli.output import (
+    ALERT_EVENTS,
     STATUS_STYLES,
     Detail,
     build_fields,
@@ -33,7 +34,10 @@ from dirigent_cli.output import (
     prioritised,
     render_output,
     styled,
+    throttle_note,
+    watching,
 )
+from dirigent_client import LOG_NOTIFIER
 from dirigent_common import format_duration, to_timedelta
 from dirigent_core.protocol import Record
 
@@ -167,6 +171,99 @@ def _checked_line(record: Record) -> Record:
     return {name: record.get(name) for name in ("at", "level", "kind", "message", "code")}
 
 
+def _schedule_line(record: Record) -> Record:
+    """A schedule on one line: its clock, whether it is paused, and when it fires next and last fired."""
+    row = _row(record)
+    return {
+        "at": row.get("created_at") or record.get("at"),
+        "level": "info",
+        "kind": record.get("kind"),
+        "step": row.get("code"),
+        "message": "paused" if row.get("paused") else "active",
+        "name": row.get("name"),
+        "clock": row.get("cron") or row.get("interval") or row.get("at"),
+        "timezone": row.get("timezone"),
+        "next_fire_at": row.get("next_fire_at"),
+        "last_fired_at": row.get("last_fired_at"),
+        "trigger_document": row.get("trigger_document"),
+    }
+
+
+def _firing_line(record: Record) -> Record:
+    """One firing on one line: when it was due, what came of it, and the run it started."""
+    row = _row(record)
+    return {
+        "at": row.get("created_at") or record.get("at"),
+        "level": "warning" if row.get("misfired") else "info",
+        "kind": record.get("kind"),
+        "message": row.get("outcome"),
+        "scheduled_for": row.get("scheduled_for"),
+        "misfired": row.get("misfired") or None,
+        "run_id": row.get("run_id"),
+        "detail": row.get("detail"),
+    }
+
+
+def _alert_rule_line(record: Record) -> Record:
+    """An alert rule on one line: what it watches, where it delivers, and when it last sent."""
+    row = _row(record)
+    pipeline = row.get("pipeline")
+    return {
+        "at": row.get("created_at") or record.get("at"),
+        "level": "info" if row.get("active") else "debug",
+        "kind": record.get("kind"),
+        "step": row.get("code"),
+        "message": ALERT_EVENTS.get(str(row.get("event")), row.get("event")),
+        "name": row.get("name"),
+        "watching": watching(pipeline or row.get("scope"), row.get("importance")),
+        "target": row.get("connection") or LOG_NOTIFIER,
+        "throttle": throttle_note(row.get("throttle")),
+        "paused": row.get("paused") or None,
+        "declared_by": f"{pipeline} document" if row.get("declared") and pipeline else None,
+        "last_sent_at": row.get("last_sent_at"),
+    }
+
+
+def _notification_line(record: Record) -> Record:
+    """One alert on one line: what it said, how far its delivery got, and why it failed."""
+    row = _row(record)
+    status = row.get("status")
+    return {
+        "at": row.get("created_at") or record.get("at"),
+        "level": "error" if status == "failed" else "info",
+        "kind": record.get("kind"),
+        "message": status,
+        "subject": row.get("subject"),
+        "notifier": row.get("notifier"),
+        "attempt": f"{row.get('attempt')}/{row.get('max_attempts')}",
+        "sent_at": row.get("sent_at"),
+        "error": row.get("error"),
+    }
+
+
+def _trigger_document_line(record: Record) -> Record:
+    """A triggers document on one line: the pipeline it fires, where it came from, and its schedules."""
+    row = _row(record)
+    schedules = row.get("schedules")
+    return {
+        "at": row.get("updated_at") or record.get("at"),
+        "level": "info",
+        "kind": record.get("kind"),
+        "step": row.get("code"),
+        "message": row.get("name") or row.get("code"),
+        "pipeline": row.get("pipeline"),
+        "source": row.get("provenance_source"),
+        "applied_by": row.get("applied_by"),
+        "schedules": ", ".join(str(one) for one in cast("list[object]", schedules)) if schedules else None,
+    }
+
+
+def _trigger_document(record: Record) -> RenderableType | None:
+    """Render a triggers document's description beneath its line, where it has one."""
+    description = _row(record).get("description")
+    return f"  {escape(str(description))}" if description else None
+
+
 #: Record kinds that carry a row under ``fields``, and the line each one reads as.
 def _summary_line(record: Record) -> Record:
     """A runs summary on one line: how many pipelines ran, with the rows drawn beneath it."""
@@ -180,6 +277,11 @@ LINES: Final[Mapping[str, Callable[[Record], Record]]] = {
     "runs.summary": _summary_line,
     "audit": _audit_line,
     "schema.checked": _checked_line,
+    "schedule": _schedule_line,
+    "firing": _firing_line,
+    "alert_rule": _alert_rule_line,
+    "notification": _notification_line,
+    "trigger_document": _trigger_document_line,
 }
 
 
@@ -924,4 +1026,5 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "schema.updated": _schema_edited,
     "schema.checked": _schema_checked,
     "profile": _resolved_profile,
+    "trigger_document": _trigger_document,
 }

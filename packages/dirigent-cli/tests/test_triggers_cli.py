@@ -11,7 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from clisupport import asking_for_the_rendering, only, plain, records, refusal, rows
-from dirigent_cli import source_commands
+from dirigent_cli import source_commands, summaries
 from dirigent_cli.main import app, hoist_globals
 from dirigent_cli.output import alert_event, throttle_note, watching
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, reset_settings_cache
@@ -253,14 +253,14 @@ def test_an_interval_and_a_one_time_schedule_are_created_too(tmp_path: Path, ser
 
 def test_a_schedule_takes_exactly_one_clock(tmp_path: Path, server: str) -> None:
     apply_document(tmp_path)
-    none = invoke("schedule", "create", "cli-demo", "never")
+    none = machine("schedule", "create", "cli-demo", "never")
     assert none.exit_code == 1
-    assert "exactly one of --cron, --interval, or --at" in plain(none.output)
-    assert "(none given)" in plain(none.output)
+    assert "exactly one of --cron, --interval, or --at" in refusal(none.stdout)["message"]
+    assert "(none given)" in refusal(none.stdout)["message"]
 
-    both = invoke("schedule", "create", "cli-demo", "both", "--cron", NIGHTLY, "--interval", "1h")
+    both = machine("schedule", "create", "cli-demo", "both", "--cron", NIGHTLY, "--interval", "1h")
     assert both.exit_code == 1
-    assert "--cron, --interval" in plain(both.output), "the refusal names the flags that were given"
+    assert "--cron, --interval" in refusal(both.stdout)["message"], "the refusal names the flags that were given"
     assert rows_of("schedule", "list", "cli-demo") == []
 
 
@@ -287,18 +287,19 @@ def test_a_schedule_carries_the_priority_it_was_given(tmp_path: Path, server: st
 
 def test_a_priority_that_is_not_one_names_the_vocabulary(tmp_path: Path, server: str) -> None:
     apply_document(tmp_path)
-    refused = invoke("schedule", "create", "cli-demo", "nightly", "--cron", NIGHTLY, "--priority", "urgent")
+    refused = machine("schedule", "create", "cli-demo", "nightly", "--cron", NIGHTLY, "--priority", "urgent")
     assert refused.exit_code == 1
-    assert "'urgent' is not a priority" in plain(refused.output)
+    assert "'urgent' is not a priority" in refusal(refused.stdout)["message"]
     assert rows_of("schedule", "list", "cli-demo") == []
 
 
 def test_a_parameter_the_pipeline_never_declared_is_refused(tmp_path: Path, server: str) -> None:
     apply_document(tmp_path)
-    result = invoke("schedule", "create", "cli-demo", "nightly", "--cron", NIGHTLY, "-p", "dya=2026-01-01")
+    result = machine("schedule", "create", "cli-demo", "nightly", "--cron", NIGHTLY, "-p", "dya=2026-01-01")
     assert result.exit_code == 1
-    assert "declares no parameter 'dya'" in plain(result.output)
-    assert "it declares count, greeting" in plain(result.output)
+    said = refusal(result.stdout)["message"]
+    assert "declares no parameter 'dya'" in said
+    assert "it declares count, greeting" in said
     assert rows_of("schedule", "list", "cli-demo") == []
 
 
@@ -330,9 +331,7 @@ def test_a_schedule_is_listed_paused_resumed_and_deleted(tmp_path: Path, server:
     apply_document(tmp_path)
     assert invoke("schedule", "create", "cli-demo", "hourly", "--interval", "1h").exit_code == 0
 
-    listed = invoke("schedule", "list", "cli-demo")
-    assert listed.exit_code == 0
-    assert "hourly" in listed.output
+    assert [row["code"] for row in rows_of("schedule", "list", "cli-demo")] == ["hourly"]
 
     paused = only(machine("schedule", "pause", "cli-demo", "hourly").stdout, "schedule.paused")
     assert (paused["code"], paused["pipeline"]) == ("hourly", "cli-demo")
@@ -427,7 +426,7 @@ def test_a_rule_reading_a_name_an_alert_is_never_given_is_created_with_a_warning
 
 
 def test_an_importance_that_is_not_one_is_refused_by_name(server: str) -> None:
-    refused = invoke(
+    refused = machine(
         "alerts",
         "rules",
         "create",
@@ -438,8 +437,9 @@ def test_an_importance_that_is_not_one_is_refused_by_name(server: str) -> None:
         "urgent",
     )
     assert refused.exit_code == 1
-    assert "is not an importance" in plain(refused.output)
-    assert "routine, normal, critical" in plain(refused.output)
+    said = refusal(refused.stdout)["message"]
+    assert "is not an importance" in said
+    assert "routine, normal, critical" in said
 
 
 def test_the_rules_table_says_the_importance_inside_the_scope_cell(server: str) -> None:
@@ -506,7 +506,7 @@ def test_a_rule_takes_its_body_from_a_file(tmp_path: Path, server: str) -> None:
 def test_a_rule_takes_one_body_and_not_two(tmp_path: Path, server: str) -> None:
     body = tmp_path / "alert-body.md.j2"
     body.write_text("{{ run.error }}")
-    refused = invoke(
+    refused = machine(
         "alerts",
         "rules",
         "create",
@@ -519,11 +519,11 @@ def test_a_rule_takes_one_body_and_not_two(tmp_path: Path, server: str) -> None:
         str(body),
     )
     assert refused.exit_code == 1
-    assert "--body or --body-file" in plain(refused.output)
+    assert "--body or --body-file" in refusal(refused.stdout)["message"]
 
 
 def test_a_rule_whose_template_does_not_compile_is_refused(server: str) -> None:
-    refused = invoke(
+    refused = machine(
         "alerts",
         "rules",
         "create",
@@ -534,7 +534,7 @@ def test_a_rule_whose_template_does_not_compile_is_refused(server: str) -> None:
         "{% endfor %}",
     )
     assert refused.exit_code == 1
-    assert "not a Jinja template" in plain(refused.output)
+    assert "not a Jinja template" in refusal(refused.stdout)["message"]
 
 
 def test_a_rule_is_paused_and_resumed_from_the_command_line(tmp_path: Path, server: str) -> None:
@@ -577,9 +577,9 @@ def test_a_rule_delivers_through_the_notifier_its_connections_kind_names(server:
 
 
 def test_a_rule_naming_a_connection_this_instance_does_not_have_is_refused(server: str) -> None:
-    result = invoke("alerts", "rules", "create", "pager", "--event", "run_failed", "--connection", "carrier-pigeon")
+    result = machine("alerts", "rules", "create", "pager", "--event", "run_failed", "--connection", "carrier-pigeon")
     assert result.exit_code == 1
-    assert "no connection coded 'carrier-pigeon'" in plain(result.output)
+    assert "no connection coded 'carrier-pigeon'" in refusal(result.stdout)["message"]
 
 
 def test_a_test_message_naming_no_target_goes_through_the_queue_a_real_alert_takes(server: str) -> None:
@@ -609,9 +609,9 @@ def test_a_test_message_names_one_target_and_the_sender_follows(server: str) -> 
 
 
 def test_a_test_message_naming_a_connection_this_instance_does_not_have_is_refused(server: str) -> None:
-    refused = invoke("alerts", "test", "--connection", "carrier-pigeon")
+    refused = machine("alerts", "test", "--connection", "carrier-pigeon")
     assert refused.exit_code == 1
-    assert "no connection coded 'carrier-pigeon'" in plain(refused.output)
+    assert "no connection coded 'carrier-pigeon'" in refusal(refused.stdout)["message"]
 
 
 #: A clock file over the pipeline the other documents here define.
@@ -633,7 +633,7 @@ def apply_triggers(tmp_path: Path, text: str = TRIGGERS_DOCUMENT) -> Any:
     """Write the triggers document and apply it, returning the invocation."""
     path = tmp_path / "clocks.yaml"
     path.write_text(text)
-    return invoke("apply", str(path))
+    return machine("apply", str(path))
 
 
 def test_apply_says_which_pipeline_a_triggers_document_schedules(tmp_path: Path, server: str) -> None:
@@ -642,7 +642,7 @@ def test_apply_says_which_pipeline_a_triggers_document_schedules(tmp_path: Path,
     result = apply_triggers(tmp_path)
 
     assert result.exit_code == 0, result.output
-    assert "triggers for cli-demo" in plain(result.output)
+    assert only(result.stdout, "apply")["fields"]["plan"]["pipeline"] == "cli-demo"
     owners = {row["code"]: row["trigger_document"] for row in rows_of("schedule", "list", "cli-demo")}
     assert owners == {"ops-nightly": "cli-clocks"}
 
@@ -651,7 +651,8 @@ def test_apply_refuses_a_triggers_document_whose_pipeline_is_absent(tmp_path: Pa
     result = apply_triggers(tmp_path)
 
     assert result.exit_code == 1
-    assert "no pipeline coded 'cli-demo' exists on this instance" in plain(result.output)
+    problems = only(result.stdout, "validation")["problems"]
+    assert any("no pipeline coded 'cli-demo' exists on this instance" in one["message"] for one in problems)
 
 
 def test_trigger_document_list_and_show_name_what_the_document_owns(tmp_path: Path, server: str) -> None:
@@ -682,13 +683,13 @@ def test_validate_checks_a_triggers_document_offline_and_against_a_server(tmp_pa
     path = tmp_path / "clocks.yaml"
     path.write_text(TRIGGERS_DOCUMENT)
 
-    offline = invoke("validate", str(path))
+    offline = machine("validate", str(path))
     assert offline.exit_code == 0, offline.output
-    assert "valid" in plain(offline.output)
+    assert only(offline.stdout, "validation")["message"] == "valid"
 
-    absent = invoke("validate", str(path), "--server")
+    absent = machine("validate", str(path), "--server")
     assert absent.exit_code == 1
-    assert "no pipeline coded 'cli-demo'" in plain(absent.output)
+    assert refusal(absent.stdout)["code"] == "pipeline.unknown"
 
     apply_document(tmp_path)
     present = invoke("validate", str(path), "--server")
@@ -699,11 +700,12 @@ def test_run_local_refuses_a_triggers_document(tmp_path: Path) -> None:
     path = tmp_path / "clocks.yaml"
     path.write_text(TRIGGERS_DOCUMENT)
 
-    result = invoke("run", "--local", str(path))
+    result = machine("run", "--local", str(path))
 
     assert result.exit_code == 1
-    assert "cannot be run" in plain(result.output)
-    assert "run the pipeline it names" in plain(result.output)
+    said = refusal(result.stdout)["message"]
+    assert "cannot be run" in said
+    assert "run the pipeline it names" in said
 
 
 ENDPOINT_DOCUMENT = """
@@ -933,3 +935,36 @@ def test_an_audit_record_reads_as_one_line_naming_who_did_what() -> None:
     assert shown["subject"] == "cli-demo/nightly"
     assert shown["actor"] == "agent (token mcp-trial)"
     assert shown["fields"] == "cron, timezone"
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ("schedule", "list", "cli-demo"),
+        ("trigger-document", "list"),
+        ("trigger-document", "show", "cli-clocks"),
+        ("alerts", "rules", "list"),
+        ("alerts", "queue"),
+    ],
+)
+def test_a_listing_at_a_terminal_is_its_record_stream_formatted(
+    tmp_path: Path, server: str, argv: tuple[str, ...]
+) -> None:
+    """`dg X -o console` and `dg X | dg format` are one rendering, because the command writes only records."""
+    apply_document(tmp_path)
+    apply_triggers(tmp_path)
+    assert machine("alerts", "rules", "create", "log-all", "--event", "run_failed").exit_code == 0
+    assert machine("alerts", "test", "--subject", "a test").exit_code == 0
+
+    kept = machine(*argv)
+    assert kept.exit_code == 0, kept.output
+    assert records(kept.stdout), "the listing wrote records"
+    formatted = runner.invoke(app, asking_for_the_rendering(["format"]), input=kept.stdout)
+    assert invoke(*argv).output == formatted.output
+
+
+def test_a_schedule_record_reads_as_one_line_with_its_clock(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path)
+    assert machine("schedule", "create", "cli-demo", "hourly", "--interval", "1h").exit_code == 0
+    line = summaries.line(only(machine("schedule", "list", "cli-demo").stdout, "schedule"))
+    assert (line["step"], line["message"], line["clock"], line["timezone"]) == ("hourly", "active", "1h", "UTC")
