@@ -678,3 +678,104 @@ test("the palette's cancel asks the same question", async ({ page }) => {
     await expect(anyStatusChip(pageHead(page)).first()).toHaveAttribute('data-status', 'cancelled')
     expect(await runStatus(page, runId)).toBe('cancelled')
 })
+
+/** An endpoint with a sample, so a run entered without an input would process the sample. */
+const RERUN_SOURCED = {
+    format: 'dirigent/v1',
+    kind: 'pipeline',
+    code: 'e2e-rerun-sourced',
+    requires: { blocks: ['transform.jq'] },
+    steps: {
+        ask: {
+            source: { kind: 'endpoint', path: '/e2e-rerun-sourced' },
+            sample: { body: { said: 'from the sample' } },
+        },
+        echo: {
+            depends_on: ['ask'],
+            block: 'transform.jq',
+            config: { input: '${steps.ask.output.body}', program: '.said' },
+        },
+    },
+}
+
+/** The body a run's source step received, read off its received attempt. */
+async function receivedBody(page: Parameters<typeof signIn>[0], runId: string): Promise<unknown> {
+    const prefix = await apiPrefix(page.request)
+    const read = await page.request.get(`${prefix}/runs/${runId}/attempts?step=ask`)
+    expect(read.ok(), await read.text()).toBe(true)
+    const attempts = (await read.json()) as { items: { kind: string; output: { body?: unknown } | null }[] }
+    return attempts.items.find((attempt) => attempt.kind === 'received')?.output?.body
+}
+
+test("Rerun replays a source-entered run with the input it entered with, through the run's $rerun", async ({
+    page,
+}) => {
+    await signIn(page)
+    await applyDocument(page.request, RERUN_SOURCED)
+    const prefix = await apiPrefix(page.request)
+    const started = await page.request.post(`${prefix}/pipelines/${RERUN_SOURCED.code}/$run`, {
+        data: { params: {}, source: 'ask', input: { body: { said: 'the delivery' } } },
+    })
+    expect(started.ok(), await started.text()).toBe(true)
+    const runId = ((await started.json()) as { run_id: string }).run_id
+    await ranToCompletion(page.request, runId)
+
+    const adHoc: string[] = []
+    page.on('request', (request) => {
+        if (new URL(request.url()).pathname.endsWith('/$run')) adHoc.push(request.url())
+    })
+
+    await page.goto(`/runs/${runId}`)
+    const asked = page.waitForRequest(
+        (request) =>
+            request.method() === 'POST' &&
+            new URL(request.url()).pathname === `${prefix}/runs/${runId}/$rerun`,
+    )
+    await pageHead(page).getByRole('button', { name: LABELS.action.rerun, exact: true }).click()
+    await asked
+
+    // The new run is opened, and it is a rerun of this one carrying the delivery, not the sample.
+    await page.waitForURL(
+        (url) => /^\/runs\/[0-9a-f-]{36}$/.test(url.pathname) && !url.pathname.endsWith(runId),
+    )
+    const rerunId = new URL(page.url()).pathname.split('/').pop() as string
+    const detail = (await (await page.request.get(`${prefix}/runs/${rerunId}`)).json()) as {
+        run: { triggered_by_kind: string; triggered_by_id: string | null }
+    }
+    expect(detail.run.triggered_by_kind).toBe('rerun')
+    expect(detail.run.triggered_by_id).toBe(runId)
+    expect(await receivedBody(page, rerunId)).toEqual({ said: 'the delivery' })
+    expect(adHoc).toEqual([])
+})
+
+test("a refused rerun says the server's reason, and the screen stays on the run", async ({ page }) => {
+    await signIn(page)
+    const runId = await runOfTheExample(page.request)
+    await ranToCompletion(page.request, runId)
+    await page.route(
+        (url) => url.pathname.endsWith(`/runs/${runId}/$rerun`),
+        (route) =>
+            route.fulfill({
+                status: 409,
+                contentType: 'application/problem+json',
+                body: JSON.stringify({
+                    status: 409,
+                    title: 'Conflict',
+                    detail: `run ${runId} no longer holds the input that entered it at 'source'`,
+                    code: 'run.rerun_input_gone',
+                    params: { run: runId, step: "'source'" },
+                    problems: [],
+                    instance: null,
+                }),
+            }),
+    )
+
+    await page.goto(`/runs/${runId}`)
+    await pageHead(page).getByRole('button', { name: LABELS.action.rerun, exact: true }).click()
+    await expect(
+        page.getByText(`Run ${runId} no longer holds the input that entered it at 'source'.`, {
+            exact: true,
+        }),
+    ).toBeVisible()
+    expect(new URL(page.url()).pathname).toBe(`/runs/${runId}`)
+})

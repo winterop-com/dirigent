@@ -10,11 +10,11 @@
  * `lib/sse`, and the driver that keeps one open is `lib/run-stream`.
  */
 
-import { apiJson, type JsonMap, type Page } from '@/lib/api'
+import { apiJson, apiSend, type JsonMap, type Page } from '@/lib/api'
 import { shortId } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { PAGE } from '@/lib/paging'
-import { tagsFromQuery } from '@/lib/pipelines'
+import { tagsFromQuery, type RunAccepted } from '@/lib/pipelines'
 import {
     RUN_STATUSES,
     runSettled,
@@ -299,6 +299,14 @@ export function pauseRun(runId: string): Promise<RunOut> {
 /** Let a paused run go on. */
 export function resumeRun(runId: string): Promise<RunOut> {
     return apiJson<RunOut>(`/runs/${encodeURIComponent(runId)}/$resume`, { method: 'POST' })
+}
+
+/**
+ * Run a settled run again, on the version it pinned, with its parameters, window, priority and
+ * log levels. A run that entered at a source enters the new one there with the same input.
+ */
+export function rerunRun(runId: string): Promise<RunAccepted> {
+    return apiSend<RunAccepted>(`/runs/${encodeURIComponent(runId)}/$rerun`, 'POST', {})
 }
 
 /** One of a run's four verbs, and why it is shut where the run's state does not allow it. */

@@ -355,12 +355,7 @@ export function readDocumentSchema(): Promise<JsonMap> {
 }
 
 /**
- * Start an ad hoc run of a pipeline with these parameters.
- *
- * This API has no verb that repeats a particular run: `$run` is what an ad hoc start is, and a
- * re-run is that call carrying the parameters the finished run was given. It runs the
- * pipeline's current version, which is not necessarily the version the run being repeated
- * pinned, so the screen says which version it is about to run.
+ * Start an ad hoc run of a pipeline's current version with these parameters.
  *
  * A window is a fact about a run rather than about a pipeline, so a run given one carries both
  * ends and a run given none carries neither field.
