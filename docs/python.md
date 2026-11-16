@@ -341,6 +341,8 @@ async def test_it_greets(block_ctx):
 engine does, and then makes the block's first call: an operator's `execute` or a sensor's
 `poke`. `block_ctx` is a `FakeContext` -- a recording logger, real storage over a temporary
 directory, an HTTP client built on a handler the test installs, and an in-memory runs facade.
+The recording logger keeps each field in the shape the engine stores it in, so a block that logs
+a `datetime` sees its ISO 8601 text in `block_ctx.log.entries`, as the run's log would hold it.
 `defaults_only_environment` is the fixture that takes `DIRIGENT_*`, `DG_*` and `OTEL_*` out of
 one test's environment; request it from your own conftest to run a suite against defaults.
 `no_connection_outlives_its_loop` fails a test that ends with a database connection it opened

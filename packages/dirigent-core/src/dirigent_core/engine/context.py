@@ -28,6 +28,7 @@ from dirigent_common import (
     CredentialParameterOnOrigin,
     JsonMap,
     credential_header_value,
+    loggable,
     scrub,
     scrub_json,
     secrets_of,
@@ -201,12 +202,17 @@ class BufferedLogger(BaseModel):
         """Record an error-level entry."""
         self._record(LogLevel.ERROR, message, fields)
 
-    def _record(self, level: LogLevel, message: str, fields: JsonMap) -> None:
-        """Buffer one product-telemetry entry and mirror it to the process log."""
+    def _record(self, level: LogLevel, message: str, given: Mapping[str, object]) -> None:
+        """Buffer one product-telemetry entry and mirror it to the process log.
+
+        Each field takes its :func:`~dirigent_common.loggable` shape here, so whatever a block
+        passes, the entry can be stored.
+        """
         if LEVEL_RANK[level] < LEVEL_RANK[self.keep]:
             return
         if self.recorded > self.limit:
             return
+        fields: JsonMap = {name: loggable(value) for name, value in given.items()}
         if self.secrets:
             message = scrub(message, self.secrets)
             fields = cast("JsonMap", scrub_json(cast("JsonValue", fields), self.secrets))

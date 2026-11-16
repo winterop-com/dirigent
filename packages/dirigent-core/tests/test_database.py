@@ -254,6 +254,13 @@ def test_a_json_column_holds_a_nul_as_the_text_of_its_escape() -> None:
     assert held == {"nul \\u0000": ["a \\u0000 b"], "said": "\\u0000", "slash": "\\\\u0000", "tab": "\t"}
 
 
+def test_a_json_column_holds_a_float_that_is_not_finite_as_null() -> None:
+    """PostgreSQL refuses the bare ``NaN`` token, so no dialect is given one."""
+    written = storable_json({"reading": float("nan"), "list": [float("inf"), 1.5, (float("-inf"),)], "ok": 2})
+    assert written == '{"reading": null, "list": [null, 1.5, [null]], "ok": 2}'
+    assert storable_json({"plain": 1.5}) == '{"plain": 1.5}'
+
+
 def test_said_string_writes_its_escape_and_cuts_it_to_the_column() -> None:
     said = SaidString(12)
     assert said.process_bind_param("key \x00", DefaultDialect()) == "key \\u0000"

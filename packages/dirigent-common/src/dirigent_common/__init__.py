@@ -114,7 +114,7 @@ from dirigent_common.sizes import (
 from dirigent_common.templating import RenderTooLarge, TemplateError, as_text, compile_template, render
 from dirigent_common.types import JsonList, JsonMap
 from dirigent_common.uris import STORAGE_URI_FORMAT, StorageUri
-from dirigent_common.values import spelled
+from dirigent_common.values import loggable, spelled
 from dirigent_common.versions import API_VERSION
 
 __all__ = [
@@ -217,6 +217,7 @@ __all__ = [
     "format_size",
     "is_entity_name",
     "is_step_name",
+    "loggable",
     "parse_duration",
     "parse_size",
     "render",

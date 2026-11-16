@@ -3,6 +3,9 @@
 import json
 import logging
 from collections.abc import Iterator
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -27,6 +30,7 @@ from dirigent_core.logging import (
     own_handlers,
     unbind_context,
 )
+from dirigent_testing import RecordingLogger
 
 
 @pytest.fixture(autouse=True)
@@ -165,6 +169,60 @@ def test_a_block_may_log_a_field_named_level_or_event() -> None:
     row = log.drain()[0]
     assert row["fields"] == {"level": "secret", "event": "landing"}
     assert row["message"] == "classified"
+
+
+class Opaque:
+    """A value nothing knows how to spell."""
+
+    def __repr__(self) -> str:
+        """Name the value."""
+        return "Opaque()"
+
+
+#: Field values a block might log that JSON cannot hold as they are.
+UNSPELLED: dict[str, Any] = {
+    "when": datetime(2026, 9, 6, 13, 45, tzinfo=UTC),
+    "amount": Decimal("1.250"),
+    "seen": {"b", "a"},
+    "pair": (1, 2),
+    "raw": b"\x00\x01\x02",
+    "ratio": float("nan"),
+    "far": float("inf"),
+    "nested": {"at": [datetime(2026, 9, 6, tzinfo=UTC)]},
+    "thing": Opaque(),
+}
+
+#: What each of those is stored as.
+SPELLED = {
+    "when": "2026-09-06T13:45:00+00:00",
+    "amount": "1.250",
+    "seen": ["a", "b"],
+    "pair": [1, 2],
+    "raw": "AAEC",
+    "ratio": "NaN",
+    "far": "Infinity",
+    "nested": {"at": ["2026-09-06T00:00:00+00:00"]},
+    "thing": "Opaque()",
+}
+
+
+def test_a_field_takes_its_stored_shape_when_it_is_logged() -> None:
+    log = BufferedLogger(run_id=uuid4(), step_name="unspelled", limit=LIMIT, batch=BATCH)
+    log.info("done", **UNSPELLED)
+    fields = log.drain()[0]["fields"]
+    assert fields == SPELLED
+    json.dumps(fields, allow_nan=False)
+
+
+def test_the_recording_logger_keeps_what_the_engine_stores() -> None:
+    """A block tested against the double sees the fields the run's log would hold."""
+    engine_log = BufferedLogger(run_id=uuid4(), step_name="unspelled", limit=LIMIT, batch=BATCH)
+    double = RecordingLogger()
+    for log in (engine_log, double):
+        log.warning("done", **UNSPELLED)
+    stored = engine_log.drain()[0]["fields"]
+    assert stored == SPELLED
+    assert double.entries == [("warning", "done", stored)]
 
 
 def test_the_buffer_keeps_info_and_up_unless_asked_for_more() -> None:

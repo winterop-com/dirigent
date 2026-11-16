@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Annotated, Any, ClassVar, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
@@ -88,6 +89,35 @@ class EchoOperator(Operator[EchoConfig, EchoOutput]):
         ctx.log.info("echoing", value=config.value)
         rendered = config.value.upper() if config.upper else config.value
         return EchoOutput(value=rendered, length=len(rendered))
+
+
+class UnspelledOutput(BlockModel):
+    """What the unspelled operator reports."""
+
+    calls: int
+
+
+class UnspelledOperator(Operator[EchoConfig, UnspelledOutput]):
+    """Logs field values that are not JSON, as a block written without a type checker might."""
+
+    spec = OperatorSpec(id="test.unspelled", summary="Log values that are not JSON.")
+    config_model = EchoConfig
+    output_model = UnspelledOutput
+    calls: ClassVar[int] = 0
+
+    async def execute(self, config: EchoConfig, ctx: StepContext) -> UnspelledOutput:
+        """Log one field of each kind a block might reach for, and count the call."""
+        UnspelledOperator.calls += 1
+        fields: dict[str, Any] = {
+            "when": datetime(2026, 9, 6, 13, 45, tzinfo=UTC),
+            "amount": Decimal("1.250"),
+            "seen": {"b", "a"},
+            "raw": b"\x00\x01\x02",
+            "ratio": float("nan"),
+            "thing": object(),
+        }
+        ctx.log.info("side effect done", **fields)
+        return UnspelledOutput(calls=UnspelledOperator.calls)
 
 
 class ListConfig(BaseModel):
@@ -743,6 +773,7 @@ def reset_blocks() -> None:
     StreamSensor.failing.clear()
     ChattyOperator.at_gate = asyncio.Event()
     ChattyOperator.released = asyncio.Event()
+    UnspelledOperator.calls = 0
 
 
 class EngineTestPlugin:
@@ -768,6 +799,7 @@ class EngineTestPlugin:
                 SqlishOperator(),
                 StoringOperator(),
                 UnsafeOperator(),
+                UnspelledOperator(),
             ],
             sensors=[TickSensor(), CursorSensor(), StreamSensor(), ScratchSensor()],
         )

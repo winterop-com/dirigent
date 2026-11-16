@@ -18,7 +18,7 @@ CLAUDE.md first, commit with conventional messages, every change ships with its 
      of life.
    - **Leads that need a real service to settle.** Which of a data value set's own `dryRun` and
      `strategy` and the step's query DHIS2 obeys, which decides whether a document's body can turn
-     a dry run into a write; and a broker message stalling polled sources on PostgreSQL.
+     a dry run into a write.
 2. **dirigent-fhir: what the FHIR pack still lacks.** The pack is published with its own
    [docs site](https://winterop-com.github.io/dirigent-fhir/); what it does not do yet, each its
    own slice:

@@ -12,7 +12,7 @@ import httpx2
 from jsonschema import FormatChecker
 from pydantic import BaseModel, JsonValue
 
-from dirigent_common import Message, format_checker_with
+from dirigent_common import Message, format_checker_with, loggable
 from dirigent_plugin import (
     ByteSink,
     Capture,
@@ -28,7 +28,11 @@ from dirigent_testing.messages import TEST_REFUSAL
 
 
 class RecordingLogger:
-    """Keeps every entry a block wrote, so tests can assert on what it reported."""
+    """Keeps every entry a block wrote, so tests can assert on what it reported.
+
+    Each field is kept in its :func:`~dirigent_common.loggable` shape, the shape the engine
+    stores, so a test sees what the run's log would hold.
+    """
 
     def __init__(self) -> None:
         """Start with an empty log."""
@@ -36,19 +40,23 @@ class RecordingLogger:
 
     def debug(self, message: str, **fields: JsonValue) -> None:
         """Record a debug entry."""
-        self.entries.append(("debug", message, dict(fields)))
+        self._record("debug", message, fields)
 
     def info(self, message: str, **fields: JsonValue) -> None:
         """Record an info entry."""
-        self.entries.append(("info", message, dict(fields)))
+        self._record("info", message, fields)
 
     def warning(self, message: str, **fields: JsonValue) -> None:
         """Record a warning entry."""
-        self.entries.append(("warning", message, dict(fields)))
+        self._record("warning", message, fields)
 
     def error(self, message: str, **fields: JsonValue) -> None:
         """Record an error entry."""
-        self.entries.append(("error", message, dict(fields)))
+        self._record("error", message, fields)
+
+    def _record(self, level: str, message: str, given: Mapping[str, object]) -> None:
+        """Keep one entry, every field in its stored shape."""
+        self.entries.append((level, message, {name: loggable(value) for name, value in given.items()}))
 
     def messages(self) -> list[str]:
         """List just the messages, which is what most assertions want."""
