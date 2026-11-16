@@ -20,6 +20,7 @@ from dirigent_client.enums import AuditAction, AuditSubject, RunPriority, Schedu
 from dirigent_common import EntityName, JsonMap, format_duration
 from dirigent_common.durations import Duration, DurationError, parse_duration, refuse_negative
 from dirigent_core import audit
+from dirigent_core.database import insert_unless_taken
 from dirigent_core.engine.definition import (
     LONGEST_CADENCE,
     ParameterError,
@@ -475,8 +476,12 @@ async def create_schedule(
         next_fire_at=first_fire_at(request, now=now),
         paused=paused,
     )
-    session.add(schedule)
-    await session.flush()
+
+    async def taken() -> bool:
+        return await find_schedule(session, pipeline.id, request.code) is not None
+
+    if not await insert_unless_taken(session, schedule, taken):
+        raise DuplicateSchedule(pipeline.code, request.code)
     await audit.record(
         session,
         AuditAction.CREATED,

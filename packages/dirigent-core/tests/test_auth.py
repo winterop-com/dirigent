@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from argon2.exceptions import VerifyMismatchError
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import TokenKind, TriggerKind, UserRole
@@ -47,7 +48,7 @@ from dirigent_core.auth import (
     verify_password,
 )
 from dirigent_core.database import session_scope
-from dirigent_core.models import utcnow
+from dirigent_core.models import User, utcnow
 
 PASSWORD = "correct horse battery"
 
@@ -159,6 +160,39 @@ async def test_two_accounts_may_not_share_a_name(sessions: async_sessionmaker[As
     async with session_scope(sessions) as session:
         with pytest.raises(DuplicateUser):
             await create_user(session, "morten", PASSWORD, role=UserRole.ADMIN)
+
+
+async def test_a_name_taken_between_the_check_and_the_insert_is_still_a_duplicate(
+    sessions: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two creates racing on PostgreSQL both pass the read; the unique key refuses the second."""
+    async with session_scope(sessions) as session:
+        await create_user(session, "morten", PASSWORD, role=UserRole.ADMIN)
+    real = auth.find_user
+    asked: list[str] = []
+
+    async def missed_once(session: AsyncSession, username: str) -> Any:
+        asked.append(username)
+        return None if len(asked) == 1 else await real(session, username)
+
+    monkeypatch.setattr(auth, "find_user", missed_once)
+    async with session_scope(sessions) as session:
+        with pytest.raises(DuplicateUser):
+            await create_user(session, "morten", PASSWORD, role=UserRole.ADMIN)
+        assert await count_users(session) == 1, "the transaction outlives the refused insert"
+    assert asked == ["morten", "morten"]
+
+
+async def test_a_refused_statement_does_not_carry_its_parameters(sessions: async_sessionmaker[AsyncSession]) -> None:
+    """A logged constraint failure would otherwise carry the row it refused, a password hash included."""
+    async with session_scope(sessions) as session:
+        await create_user(session, "morten", PASSWORD, role=UserRole.ADMIN)
+    with pytest.raises(IntegrityError) as refused:
+        async with session_scope(sessions) as session:
+            session.add(User(username="morten", password_hash=hash_password(PASSWORD), role=UserRole.ADMIN))
+            await session.flush()
+    assert "$argon2" not in str(refused.value)
+    assert "hidden" in str(refused.value)
 
 
 async def test_a_reset_ends_every_session_and_keeps_the_api_tokens(

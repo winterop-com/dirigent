@@ -312,7 +312,9 @@ unmounts it, and `/mcp` then answers 404.
   where a missing secret is the cause. Such a connection is refused by a step, a source, an alert
   and a check (`secret.connection_awaiting_secrets`) until an admin supplies its secrets with
   `dg connection set-secret` or the Connections screen, an update whose config the kind's model
-  accepts whole.
+  accepts whole and, where the kind requires one of its credential forms, completes one. Settings
+  changed without a credential keep it awaiting, and are audited as `updated`, not
+  `secrets_supplied`.
 - **The origin is checked, as the MCP specification requires against DNS rebinding.** A request a
   browser says another site caused (`Sec-Fetch-Site` other than `same-origin` or `none`) or whose
   `Origin` is not this instance's own scheme, host and port is answered 403
@@ -1117,7 +1119,8 @@ health check; and an apply that changed nothing.
 
 **What it never records is a value.** An update names `bearer_token`, never the token; a
 password change says the password changed. A secret has no way into the table or the log
-line, because neither is ever handed one.
+line, because neither is ever handed one. A statement the database refuses is logged without
+its parameters, so a failed write of an account never logs its password hash.
 
 **Who can read it.** Admins only: `GET /audit` (filters `subject_kind`, `subject`, `actor`,
 `action`, `since`, `until`, paged like every listing), `dirigent-client`'s `audit.list`,

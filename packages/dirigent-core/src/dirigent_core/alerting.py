@@ -48,7 +48,7 @@ from dirigent_common import (
 )
 from dirigent_common.depth import shown
 from dirigent_core import audit
-from dirigent_core.database import is_deadlock, session_scope
+from dirigent_core.database import insert_unless_taken, is_deadlock, session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.errors import DomainError
@@ -238,8 +238,12 @@ async def create_rule(session: AsyncSession, services: EngineServices, request: 
         body=request.body,
         throttle_seconds=int(request.throttle.total_seconds()),
     )
-    session.add(rule)
-    await session.flush()
+
+    async def taken() -> bool:
+        return await find_rule(session, request.code) is not None
+
+    if not await insert_unless_taken(session, rule, taken):
+        raise AlertError(DUPLICATE_RULE, code=repr(request.code))
     await audit.record(session, AuditAction.CREATED, AuditSubject.ALERT_RULE, code=rule.code, subject_id=rule.id)
     return rule
 
