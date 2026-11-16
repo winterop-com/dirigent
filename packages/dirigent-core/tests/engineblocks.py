@@ -37,9 +37,11 @@ from dirigent_plugin import (
     SchemaRef,
     Sensor,
     SensorSpec,
+    Settlement,
     ShellString,
     ShellVariables,
     StepContext,
+    Taken,
     Transformer,
     TransformError,
     extension,
@@ -734,6 +736,88 @@ class ScratchSensor(Sensor[ScratchConfig, StreamOutput]):
         return NotYet(message=ctx.scratch)
 
 
+class BrokerConfig(BaseModel):
+    """Which queue the broker sensor drains, and how its success is made to fail after the poke."""
+
+    key: str = "default"
+    batch: int = 2
+    parks: int = 0
+    """How many pokes park, each advancing the cursor, before one takes a batch."""
+
+    deep_times: int = 0
+    """How many successes answer with an output nested deeper than a run stores."""
+
+    fail_times: int = 0
+    """How many pokes past the parks fail as transient before one takes a batch."""
+
+    pad: int = 0
+    """How many bytes of padding each success carries, to reach past the inline size."""
+
+
+class BrokerOutput(BaseModel):
+    """The messages one success took off the queue."""
+
+    messages: list[int]
+    nested: JsonValue = None
+    pad: str = ""
+
+
+class BrokerSettlement(Settlement):
+    """The acks one batch owes the queue it was taken from."""
+
+    def __init__(self, key: str, taken: list[int]) -> None:
+        """Hold the queue and the messages still unacknowledged on it."""
+        self._key = key
+        self._taken = taken
+
+    async def settle(self) -> None:
+        """Ack the batch, which takes it off the queue for good."""
+        BrokerSensor.settled.setdefault(self._key, []).append(("ack", list(self._taken)))
+
+    async def release(self) -> None:
+        """Nack the batch back to the head of the queue."""
+        BrokerSensor.queues[self._key][:0] = self._taken
+        BrokerSensor.settled.setdefault(self._key, []).append(("nack", list(self._taken)))
+
+
+class BrokerSensor(Sensor[BrokerConfig, BrokerOutput]):
+    """Drains an in-process queue, owing it an ack for each batch until the engine settles it."""
+
+    spec = SensorSpec(
+        id="test.broker",
+        summary="Take a batch off a queue, acked once stored.",
+        default_poll=timedelta(seconds=1),
+        source=True,
+    )
+    config_model = BrokerConfig
+    output_model = BrokerOutput
+    queues: ClassVar[dict[str, list[int]]] = {}
+    settled: ClassVar[dict[str, list[tuple[str, list[int]]]]] = {}
+    cursors: ClassVar[dict[str, list[dict[str, JsonValue] | None]]] = {}
+    deep_given: ClassVar[dict[str, int]] = {}
+    failed: ClassVar[dict[str, int]] = {}
+
+    async def poke(self, config: BrokerConfig, ctx: StepContext) -> BrokerOutput | NotYet | Taken[BrokerOutput]:
+        """Park while the cursor says to, then take a batch the queue holds until it is settled."""
+        handed = dict(ctx.cursor) if ctx.cursor is not None else None
+        BrokerSensor.cursors.setdefault(config.key, []).append(handed)
+        parked = int(cast("int", (handed or {}).get("parked", 0)))
+        if parked < config.parks:
+            return NotYet(cursor={"parked": parked + 1}, next_poll_in=timedelta(seconds=1))
+        if BrokerSensor.failed.get(config.key, 0) < config.fail_times:
+            BrokerSensor.failed[config.key] = BrokerSensor.failed.get(config.key, 0) + 1
+            raise BlockFailure(TEST_REFUSAL, error_class=ErrorClass.TRANSIENT, detail="the broker dropped us")
+        queue = BrokerSensor.queues.setdefault(config.key, [])
+        taken, queue[:] = queue[: config.batch], queue[config.batch :]
+        nested: JsonValue = None
+        if BrokerSensor.deep_given.get(config.key, 0) < config.deep_times:
+            BrokerSensor.deep_given[config.key] = BrokerSensor.deep_given.get(config.key, 0) + 1
+            for _ in range(200):
+                nested = [nested]
+        output = BrokerOutput(messages=taken, nested=nested, pad="x" * config.pad)
+        return Taken(output, BrokerSettlement(config.key, taken))
+
+
 CASES = ("upper", "lower")
 
 
@@ -771,6 +855,11 @@ def reset_blocks() -> None:
     CursorSensor.seen.clear()
     StreamSensor.seen.clear()
     StreamSensor.failing.clear()
+    BrokerSensor.queues.clear()
+    BrokerSensor.settled.clear()
+    BrokerSensor.cursors.clear()
+    BrokerSensor.deep_given.clear()
+    BrokerSensor.failed.clear()
     ChattyOperator.at_gate = asyncio.Event()
     ChattyOperator.released = asyncio.Event()
     UnspelledOperator.calls = 0
@@ -801,5 +890,5 @@ class EngineTestPlugin:
                 UnsafeOperator(),
                 UnspelledOperator(),
             ],
-            sensors=[TickSensor(), CursorSensor(), StreamSensor(), ScratchSensor()],
+            sensors=[TickSensor(), CursorSensor(), StreamSensor(), ScratchSensor(), BrokerSensor()],
         )

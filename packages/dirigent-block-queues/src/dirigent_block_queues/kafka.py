@@ -8,10 +8,10 @@ The place a poke has read to is the sensor's cursor. Without a ``group_id`` that
 of the bookkeeping -- the offsets live in the attempt row, and under a ``sensor`` source in the
 source's cursor, so nothing is committed to the broker and two pipelines over one
 topic never take each other's messages.
-With a ``group_id`` the broker keeps the group's offsets too, and the commit happens in the
-poke that succeeds rather than in one that parks, so a batch too small to act on is read
-again rather than lost. Either way the cursor is at-least-once, which is why the output
-carries the offsets the batch actually covers.
+With a ``group_id`` the broker keeps the group's offsets too, committed only once the engine
+has stored the success, never by a poke that parks or by a success that was refused or lost
+before it was stored. Either way the read is at-least-once, which is why the output carries
+the offsets the batch actually covers.
 
 ``kafka.produce`` is the other direction on the same connection kind: a list of records, or an
 NDJSON object streamed out of storage, published to one topic and acknowledged by the broker
@@ -56,7 +56,9 @@ from dirigent_plugin import (
     Reference,
     Sensor,
     SensorSpec,
+    Settlement,
     StepContext,
+    Taken,
 )
 
 #: How the config's word for a security setting is spelled to the client library.
@@ -141,8 +143,12 @@ class Consumer(Protocol):
         """Fetch what has arrived, by partition, waiting no longer than the timeout."""
         ...
 
-    async def commit(self) -> None:
-        """Commit the group's offsets for what has been fetched."""
+    async def commit(self, offsets: dict[Any, int] | None = None) -> None:
+        """Commit the group's offsets: the next one to read on each partition named, or past all fetched."""
+        ...
+
+    async def committed(self, partition: Any) -> int | None:
+        """The group's committed offset on a partition, or None when it has none."""
         ...
 
     def assign(self, partitions: list[Any]) -> None:
@@ -266,15 +272,19 @@ class KafkaConsumeConfig(BlockModel):
 
     Unset, nothing is committed to the broker: the offsets live on the waiting attempt, so two
     pipelines reading one topic each see every message. Set, the group's offsets are committed
-    by the poke that succeeds, never by one that parks, and the cursor still carries the
-    offsets the batch covers so a replay reads the same ground rather than skipping it. A poke
-    that parks leaves its place in the cursor too, so the next one reads on from there rather
-    than from the group's last commit."""
+    once the engine has stored the success, never by a poke that parks and never for a success
+    that was not stored, and the cursor still carries the offsets the batch covers so a replay
+    reads the same ground rather than skipping it. A poke that parks leaves its place in the
+    cursor too, so the next one reads on from there rather than from the group's last commit."""
 
     start: Literal["latest", "earliest"] = "latest"
     """Where a poke with no cursor begins: at whatever arrives next, or at the oldest record
     the broker still holds. It applies to the first poke of an attempt only, and under a
-    ``sensor`` source to its first poke only; after that the cursor says where to read from."""
+    ``sensor`` source to its first poke only; after that the cursor says where to read from.
+
+    ``latest`` is a place nothing remembers, so a poke that starts there with no cursor and no
+    committed group offset writes down where it stands and parks, and reads from that stored
+    place on the next poke. A retry of a batch that was not stored then reads it again."""
 
     min_messages: int = Field(default=1, ge=1)
     """How many messages a batch needs before the sensor succeeds. Below it the poke parks,
@@ -359,18 +369,28 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
     config_model: ClassVar[type[BaseModel]] = KafkaConsumeConfig
     output_model: ClassVar[type[BaseModel]] = KafkaConsumeOutput
 
-    async def poke(self, config: KafkaConsumeConfig, ctx: StepContext) -> KafkaConsumeOutput | NotYet:
-        """Read what has arrived since the cursor, and succeed once the batch is big enough."""
+    async def poke(
+        self, config: KafkaConsumeConfig, ctx: StepContext
+    ) -> KafkaConsumeOutput | NotYet | Taken[KafkaConsumeOutput]:
+        """Read what has arrived since the cursor, and succeed once the batch is big enough.
+
+        With a group, the consumer stays open for the settlement, which commits the batch's
+        offsets once the engine has stored it.
+        """
         settings = ctx.connection(config.connection, KafkaConnectionConfig)
         offsets = read_cursor(ctx.cursor)
+        unplaced = not offsets and config.start == "latest"
         consumer = consumer_for(settings, group_id=config.group_id, start=config.start)
         try:
             await consumer.start()
         except Exception as error:
             await close(consumer)
             raise BlockFailure(KAFKA_CONNECTION_REFUSED, error_class=classify(error), detail=str(error)) from error
+        handed = False
         try:
             await _position(consumer, config, offsets)
+            if unplaced and config.group_id is None:
+                return _placed(offsets, config, "the end of the topic is written down; reading starts there")
             fetched = await consumer.getmany(
                 timeout_ms=int(config.poll_timeout.total_seconds() * 1000),
                 max_records=config.max_messages,
@@ -389,10 +409,14 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
                     next_poll_in=config.poll_every,
                     message=f"{len(messages)} of {config.min_messages} messages",
                 )
-            if config.group_id is not None:
-                await consumer.commit()
+            if unplaced and not await _all_committed(consumer, config):
+                return _placed(_began(offsets, messages), config, "the group's first place is written down")
             ctx.log.info("consumed", topic=config.topic, count=len(messages), group_id=config.group_id)
-            return KafkaConsumeOutput(messages=messages, count=len(messages), cursor=offsets)
+            output = KafkaConsumeOutput(messages=messages, count=len(messages), cursor=offsets)
+            if config.group_id is None:
+                return output
+            handed = True
+            return Taken(output, GroupCommit(consumer, config.topic, offsets))
         except BlockFailure:
             raise
         except Exception as error:
@@ -400,7 +424,8 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
                 KAFKA_READ_FAILED, error_class=classify(error), topic=repr(config.topic), detail=str(error)
             ) from error
         finally:
-            await close(consumer)
+            if not handed:
+                await close(consumer)
 
     def resume_cursor(self, output: KafkaConsumeOutput) -> JsonMap | None:
         """Read on from the offsets the batch ended at."""
@@ -409,6 +434,52 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
     def classify_error(self, error: Exception) -> ErrorClass:
         """A cluster that could not be reached is transient; one that said no is not."""
         return classify(error)
+
+
+class GroupCommit(Settlement):
+    """The group's offsets for a stored batch, committed on the consumer that read it."""
+
+    def __init__(self, consumer: Consumer, topic: str, offsets: dict[str, int]) -> None:
+        """Hold the open consumer and the offsets one past the batch on each partition."""
+        self._consumer = consumer
+        self._topic = topic
+        self._offsets = dict(offsets)
+
+    async def settle(self) -> None:
+        """Commit where the batch ended, then close the consumer."""
+        from aiokafka import TopicPartition
+
+        try:
+            await self._consumer.commit(
+                {TopicPartition(self._topic, int(number)): offset for number, offset in self._offsets.items()}
+            )
+        finally:
+            await close(self._consumer)
+
+    async def release(self) -> None:
+        """Close the consumer with nothing committed, so the group reads the batch again."""
+        await close(self._consumer)
+
+
+def _placed(offsets: dict[str, int], config: KafkaConsumeConfig, message: str) -> NotYet:
+    """Park with a place the next poke reads from, rather than succeed from one nothing stored."""
+    return NotYet(cursor={"offsets": offsets}, next_poll_in=config.poll_every, message=message)
+
+
+def _began(offsets: dict[str, int], messages: list[KafkaMessage]) -> dict[str, int]:
+    """Where a batch began on each partition: its first message, or where the poke stood on one it took nothing from."""
+    began = dict(offsets)
+    for message in messages:
+        began[str(message.partition)] = min(began[str(message.partition)], message.offset)
+    return began
+
+
+async def _all_committed(consumer: Consumer, config: KafkaConsumeConfig) -> bool:
+    """Whether the group has a committed offset on every partition it read, which is a place a retry finds again."""
+    for partition in consumer.assignment():
+        if partition.topic == config.topic and await consumer.committed(partition) is None:
+            return False
+    return True
 
 
 #: How many sends may be in flight before the block waits on them, so a document streaming a

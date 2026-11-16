@@ -40,7 +40,7 @@ frontend changes.
 | Surface | Contract | Built-in examples |
 | --- | --- | --- |
 | Operators | `spec` (id, group, config/output schemas, idempotency flag) plus `async execute(config, ctx) -> Output \| RemoteHandle`; optional `probe` / `fetch` / `cancel` for async systems | `http.request`, `storage.copy`, `pipeline.run`, `webhook.post`, `shell.run`, `docker.run` |
-| Sensors | `spec` plus `async poke(config, ctx) -> Output \| NotYet`; the engine owns interval, deadline, and timeout outcome | `storage.exists`, `http.ready`, `time.window` |
+| Sensors | `spec` plus `async poke(config, ctx) -> Output \| NotYet \| Taken`; the engine owns interval, deadline, and timeout outcome | `storage.exists`, `http.ready`, `time.window` |
 | Storage backends | Scheme registration plus `open_read` / `open_write` / `stat` / `list` / `delete` over URIs, streamed | `file://` in core, `s3://` as the first backend package |
 | Notifiers | `config_model` plus `async send(message, config)` | `log`, `webhook`, `slack`, `email` |
 | Connection kinds | `config_model` (secret fields marked) plus `async check(config) -> HealthReport` | generic HTTP connection |
@@ -113,6 +113,10 @@ left off, which a `sensor` source stores and hands the next wait's first poke. A
 metadata is: the cursor is written by the transaction that parks the attempt, so a worker that
 dies before that commit leaves the older cursor for the next poke, and a poke must tolerate
 reading the same ground twice.
+A sensor that takes messages off a broker answers a success with `Taken`, the output beside a
+settlement the engine calls only after the output is stored -- `settle` to ack or commit, or
+`release` to hand the batch back when nothing stored it -- so a batch is acknowledged
+at-least-once and never before it is durable.
 Sensors carry their own deadline, and the timeout outcome is configuration:
 `on_timeout: fail | skip`. The skip option is load-bearing, because `skipped` is a
 first-class terminal state that downstream trigger rules can see.
@@ -214,7 +218,7 @@ class Sensor[ConfigT: BaseModel, OutputT: BaseModel](ABC):
     spec: ClassVar[SensorSpec]  # id, summary, group, default_poll, default_deadline
 
     @abstractmethod
-    async def poke(self, config: ConfigT, ctx: StepContext) -> OutputT | NotYet: ...
+    async def poke(self, config: ConfigT, ctx: StepContext) -> OutputT | NotYet | Taken[OutputT]: ...
 ```
 
 Every block also has a `check_config(config) -> list[Issue]`, defaulting to no issues. It is

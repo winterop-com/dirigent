@@ -23,6 +23,7 @@ from dirigent_block_queues.kafka import (
     KafkaConnectionConfig,
     KafkaConnectionKind,
     KafkaConsumeConfig,
+    KafkaConsumeOutput,
     KafkaConsumeSensor,
     KafkaProduceConfig,
     KafkaProduceOperator,
@@ -37,7 +38,7 @@ from dirigent_block_queues.rabbitmq import (
 )
 from dirigent_block_queues.sources import KafkaSource, KafkaSourceConfig, RabbitSource, RabbitSourceConfig
 from dirigent_block_storage.storage import StorageReadConfig, StorageReadOperator, StorageReadOutput
-from dirigent_plugin import BlockFailure, ConnectionKind, ErrorClass, NotYet
+from dirigent_plugin import BlockFailure, ConnectionKind, ErrorClass, NotYet, Taken
 from dirigent_testing import FakeContext, FakeStorage, RecordingLogger
 
 pytestmark = pytest.mark.queues
@@ -141,6 +142,15 @@ async def enqueue(queue: str, bodies: list[bytes]) -> None:
         await connection.close()
 
 
+async def stored[OutputT: BaseModel](answer: OutputT | NotYet | Taken[OutputT]) -> OutputT:
+    """The output of a success, settled with its broker as the engine settles it once the output is stored."""
+    assert not isinstance(answer, NotYet)
+    if isinstance(answer, Taken):
+        await answer.settlement.settle()
+        return answer.output
+    return answer
+
+
 def kafka_ctx(ctx: FakeContext) -> FakeContext:
     """Give the fake context the live Kafka connection."""
     ctx.connections["cluster"] = kafka_connection()
@@ -162,7 +172,7 @@ async def test_a_cursorless_poke_reads_the_topic_from_the_beginning(ctx: FakeCon
 
     output = await KafkaConsumeSensor().poke(config, kafka_ctx(ctx).as_context())
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert [message.value for message in output.messages] == [{"id": 1}, {"id": 2}]
     assert output.cursor == {"0": 2}
 
@@ -175,7 +185,7 @@ async def test_the_next_poke_carries_on_from_the_cursor(ctx: FakeContext, topic:
 
     output = await KafkaConsumeSensor().poke(config, ready.as_context())
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert [message.value for message in output.messages] == [{"id": 2}]
 
 
@@ -201,7 +211,7 @@ async def test_a_message_published_between_two_pokes_is_read_by_the_second(ctx: 
 
     output = await KafkaConsumeSensor().poke(config, later.as_context())
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert [message.value for message in output.messages] == [{"id": 1}]
 
 
@@ -218,13 +228,37 @@ async def test_a_group_commits_what_it_succeeded_on(ctx: FakeContext, topic: str
         poll_timeout=timedelta(seconds=5),
     )
 
-    first = await KafkaConsumeSensor().poke(config, kafka_ctx(ctx).as_context())
-    assert not isinstance(first, NotYet)
+    first = await stored(await KafkaConsumeSensor().poke(config, kafka_ctx(ctx).as_context()))
     assert [message.offset for message in first.messages] == [0]
 
-    second = await KafkaConsumeSensor().poke(config, kafka_ctx(ctx).as_context())
-    assert not isinstance(second, NotYet)
+    second = await stored(await KafkaConsumeSensor().poke(config, kafka_ctx(ctx).as_context()))
     assert [message.offset for message in second.messages] == [1], "the commit moved the group on"
+
+
+async def test_a_group_commits_nothing_until_the_success_is_settled(ctx: FakeContext, topic: str) -> None:
+    """A success the engine did not store is released, and the group reads the same batch again."""
+    await publish(topic, [b'{"id": 1}', b'{"id": 2}'])
+    config = KafkaConsumeConfig(
+        connection="cluster",
+        topic=topic,
+        group_id=f"g-{uuid.uuid4().hex[:8]}",
+        start="earliest",
+        max_messages=1,
+        poll_timeout=timedelta(seconds=5),
+    )
+
+    first = await KafkaConsumeSensor().poke(config, kafka_ctx(ctx).as_context())
+    assert isinstance(first, Taken)
+    assert [message.offset for message in first.output.messages] == [0]
+    await first.settlement.release()
+
+    again = await KafkaConsumeSensor().poke(config, kafka_ctx(ctx).as_context())
+    assert isinstance(again, Taken)
+    assert [message.offset for message in again.output.messages] == [0], "a released batch was committed"
+    await again.settlement.settle()
+
+    after = await stored(await KafkaConsumeSensor().poke(config, kafka_ctx(ctx).as_context()))
+    assert [message.offset for message in after.messages] == [1], "a settled batch was not committed"
 
 
 async def test_a_group_poke_that_parked_reads_on_rather_than_rejoining_at_latest(ctx: FakeContext, topic: str) -> None:
@@ -244,9 +278,8 @@ async def test_a_group_poke_that_parked_reads_on_rather_than_rejoining_at_latest
     later = kafka_ctx(ctx)
     later.cursor = parked.cursor
 
-    output = await KafkaConsumeSensor().poke(config, later.as_context())
+    output = await stored(await KafkaConsumeSensor().poke(config, later.as_context()))
 
-    assert not isinstance(output, NotYet)
     assert [message.value for message in output.messages] == [{"id": 1}]
 
 
@@ -291,7 +324,7 @@ async def test_what_the_producer_published_is_what_the_sensor_reads_back(ctx: Fa
         kafka_ctx(ctx).as_context(),
     )
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert [message.value for message in output.messages] == [{"region": "north", "id": 1}, {"id": 2}]
     assert [message.key for message in output.messages] == ["north", "south"]
     assert output.messages[1].headers == {"source": "till"}
@@ -319,7 +352,7 @@ async def test_records_read_out_of_storage_reach_the_topic(ctx: FakeContext, sto
         kafka_ctx(ctx).as_context(),
     )
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert [message.value for message in output.messages] == [{"id": 1}, {"id": 2}, {"id": 3}]
 
 
@@ -352,9 +385,8 @@ async def test_a_poke_takes_what_is_on_the_queue_and_acks_it(ctx: FakeContext, q
     await enqueue(queue, [b'{"id": 1}', b'{"id": 2}'])
     config = RabbitConsumeConfig(connection="broker", queue=queue, min_messages=2, poll_timeout=timedelta(seconds=5))
 
-    output = await RabbitConsumeSensor().poke(config, rabbit_ctx(ctx).as_context())
+    output = await stored(await RabbitConsumeSensor().poke(config, rabbit_ctx(ctx).as_context()))
 
-    assert not isinstance(output, NotYet)
     assert [message.body for message in output.messages] == [{"id": 1}, {"id": 2}]
 
     again = await RabbitConsumeSensor().poke(
@@ -371,12 +403,34 @@ async def test_on_success_puts_a_batch_that_was_too_small_back(ctx: FakeContext,
     parked = await RabbitConsumeSensor().poke(config, rabbit_ctx(ctx).as_context())
     assert isinstance(parked, NotYet)
 
-    taken = await RabbitConsumeSensor().poke(
-        RabbitConsumeConfig(connection="broker", queue=queue, poll_timeout=timedelta(seconds=5)),
-        rabbit_ctx(ctx).as_context(),
+    taken = await stored(
+        await RabbitConsumeSensor().poke(
+            RabbitConsumeConfig(connection="broker", queue=queue, poll_timeout=timedelta(seconds=5)),
+            rabbit_ctx(ctx).as_context(),
+        )
     )
-    assert not isinstance(taken, NotYet)
     assert taken.count == 1, "the nacked message was requeued rather than swallowed"
+
+
+async def test_on_success_acks_nothing_until_the_success_is_settled(ctx: FakeContext, queue: str) -> None:
+    """While the engine stores a batch it is held unacknowledged, and released it goes back on the queue."""
+    await enqueue(queue, [b'{"id": 1}', b'{"id": 2}'])
+    config = RabbitConsumeConfig(connection="broker", queue=queue, min_messages=2, poll_timeout=timedelta(seconds=5))
+    glance = RabbitConsumeConfig(connection="broker", queue=queue, poll_timeout=timedelta(seconds=1))
+
+    held = await RabbitConsumeSensor().poke(config, rabbit_ctx(ctx).as_context())
+    assert isinstance(held, Taken)
+    assert isinstance(await RabbitConsumeSensor().poke(glance, rabbit_ctx(ctx).as_context()), NotYet)
+    await held.settlement.release()
+
+    again = await RabbitConsumeSensor().poke(config, rabbit_ctx(ctx).as_context())
+    assert isinstance(again, Taken)
+    assert [message.body for message in again.output.messages] == [{"id": 1}, {"id": 2}]
+    await again.settlement.settle()
+
+    assert isinstance(await RabbitConsumeSensor().poke(glance, rabbit_ctx(ctx).as_context()), NotYet), (
+        "a settled batch came back"
+    )
 
 
 async def test_always_takes_a_message_off_even_when_the_batch_parks(ctx: FakeContext, queue: str) -> None:
@@ -420,11 +474,12 @@ async def test_what_a_publish_put_on_the_queue_is_what_the_sensor_reads_back(ctx
     )
 
     assert published.published == 1
-    output = await RabbitConsumeSensor().poke(
-        RabbitConsumeConfig(connection="broker", queue=queue, poll_timeout=timedelta(seconds=5)),
-        rabbit_ctx(ctx).as_context(),
+    output = await stored(
+        await RabbitConsumeSensor().poke(
+            RabbitConsumeConfig(connection="broker", queue=queue, poll_timeout=timedelta(seconds=5)),
+            rabbit_ctx(ctx).as_context(),
+        )
     )
-    assert not isinstance(output, NotYet)
     assert [message.body for message in output.messages] == [{"id": 1}]
 
 

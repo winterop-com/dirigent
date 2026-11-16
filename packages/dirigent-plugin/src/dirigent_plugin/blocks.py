@@ -597,6 +597,44 @@ class NotYet(BaseModel):
     """
 
 
+class Settlement(ABC):
+    """What a sensor still owes its broker for a batch it succeeded on.
+
+    The engine calls exactly one of the two, once, on the worker and the event loop that made
+    the poke, after the transaction that would store the success has ended. Each owns whatever
+    the poke left open for it, such as the channel the batch was received on, and closes it.
+    """
+
+    @abstractmethod
+    async def settle(self) -> None:
+        """Acknowledge the batch to the broker, now that the success carrying it is stored.
+
+        A failure here is logged and nothing more: the success stands, and the broker delivers
+        the batch again, so a consumer sees it twice.
+        """
+        ...
+
+    @abstractmethod
+    async def release(self) -> None:
+        """Leave the batch with the broker to be delivered again, because nothing stored it."""
+        ...
+
+
+class Taken[OutputT: BaseModel]:
+    """A sensor's success whose batch stays unacknowledged on the broker until the engine stores it.
+
+    A poke returns this rather than the bare output when the broker must be told only once the
+    output is durable. Whatever refuses or loses the success after the poke returned -- an
+    output too large or too deep to store, a lost lease, a cancelled run, a crash, a failed
+    commit -- leaves the batch to be delivered again, which makes the read at-least-once.
+    """
+
+    def __init__(self, output: OutputT, settlement: Settlement) -> None:
+        """Hold the output the poke succeeded with, and what is owed the broker for it."""
+        self.output = output
+        self.settlement = settlement
+
+
 def _group_from_id(data: Any) -> Any:
     """Fill a spec's group with the id's first half, for a block that declares no group."""
     if not isinstance(data, dict):
@@ -1026,8 +1064,12 @@ class Sensor[ConfigT: BaseModel, OutputT: BaseModel](ABC):
     output_model: ClassVar[type[BaseModel]]
 
     @abstractmethod
-    async def poke(self, config: ConfigT, ctx: StepContext) -> OutputT | NotYet:
-        """Observe the world once, read-only and briefly; NotYet is not a failure."""
+    async def poke(self, config: ConfigT, ctx: StepContext) -> OutputT | NotYet | Taken[OutputT]:
+        """Observe the world once, read-only and briefly; NotYet is not a failure.
+
+        A sensor that takes messages off a broker answers a success with :class:`Taken`, and
+        acknowledges them in its settlement rather than here.
+        """
         ...
 
     def resume_cursor(self, output: OutputT) -> JsonMap | None:

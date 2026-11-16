@@ -18,7 +18,7 @@ from jsonschema import FormatChecker
 from pydantic import BaseModel, ConfigDict, Field
 
 from dirigent_common import Issue, JsonMap, Message
-from dirigent_plugin.blocks import ConnectionRef, ErrorClass, Logger, Storage, classify_default
+from dirigent_plugin.blocks import ConnectionRef, ErrorClass, Logger, Settlement, Storage, classify_default
 from dirigent_plugin.messages import (
     ROUTE_BAD_PARAMETER,
     ROUTE_BAD_SEGMENT,
@@ -311,7 +311,7 @@ class Listener[OutputT: BaseModel](Protocol):
 class Polled[OutputT: BaseModel](BaseModel):
     """What one poll found: the inputs, oldest first, and where the next poll carries on from."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     inputs: list[OutputT] = Field(default_factory=list[OutputT])
     cursor: JsonMap | None = None
@@ -319,6 +319,9 @@ class Polled[OutputT: BaseModel](BaseModel):
 
     next_poll_in: timedelta | None = None
     """How long until the next poll, or None for the source's own cadence."""
+
+    settlement: Settlement | None = Field(default=None, exclude=True)
+    """What is owed a broker for the inputs: settled once their runs and the cursor commit, released otherwise."""
 
 
 class Source[ConfigT: BaseModel, OutputT: BaseModel](ABC):
