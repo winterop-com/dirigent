@@ -457,7 +457,7 @@ async def test_the_reaping_chore_logs_a_record_for_each_project_a_pass_took(
         return True
 
     run_id = UUID(int=7)
-    taken = [Reaped(f"dirigent-{run_id.hex}", run_id, "cancelled", torn_down=True)]
+    taken = [Reaped(project=f"dirigent-{run_id.hex}", run_id=run_id, run_status="cancelled", torn_down=True)]
 
     async def one_pass(_settings: object, _sessions: object, *, dry_run: bool = False) -> list[Reaped]:
         return taken

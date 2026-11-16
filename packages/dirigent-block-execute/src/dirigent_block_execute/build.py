@@ -10,8 +10,8 @@ the block declares ``local_execution`` and the engine refuses it unless the inst
 its id.
 
 ``push`` needs a ``docker`` connection carrying a registry credential, and is refused without
-one. The login goes to a ``DOCKER_CONFIG`` directory of its own under the run's work directory --
-never the worker's own config -- with the password on stdin rather than in an argument, and the
+one. The login goes to a ``DOCKER_CONFIG`` directory of its own in the system's temporary
+directory -- never the worker's own config -- with the password on stdin rather than in an argument, and the
 directory and the session in it go when the step leaves.
 """
 

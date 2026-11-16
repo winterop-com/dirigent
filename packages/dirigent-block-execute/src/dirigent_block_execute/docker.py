@@ -87,6 +87,9 @@ UNFINISHED_STATES = frozenset({"created", "running", "restarting", "paused"})
 #: timestamp the daemon's ``since`` filter takes.
 LOGS_SINCE = "logs_since"
 
+#: The label every container ``docker.run`` creates carries, holding the run it belongs to.
+RUN_LABEL = "dirigent.run"
+
 #: Docker frames its log stream with an eight-byte header when the container has no TTY.
 STREAM_HEADER_BYTES = 8
 
@@ -445,7 +448,9 @@ class DockerRunConfig(ShellVariables):
     not reach the worker's network, or anything the worker can reach, unless the step says so."""
 
     pull: bool = False
-    """Pull the image before creating the container, rather than requiring it to be present."""
+    """Pull the image before creating the container, rather than requiring it to be present. An
+    image pinned by digest (``name@sha256:...``) is pulled by that digest, and a pull the registry
+    breaks off part way fails the step as transient."""
 
     memory: Size | None = Field(default=None, ge=MINIMUM_MEMORY)
     """A hard memory limit, such as ``64mb``; the container is OOM-killed rather than the worker."""
@@ -563,7 +568,11 @@ class DockerRunOperator(Operator[DockerRunConfig, DockerRunOutput]):
                     await daemon.pull(config.image, config.pull_timeout.total_seconds())
                 await _stage_inputs(config, ctx, mounts)
                 container = await daemon.create(_creation(config, ctx, mounts))
-                await daemon.start(container)
+                try:
+                    await daemon.start(container)
+                except BaseException:
+                    await _discard(daemon, container, ctx)
+                    raise
         ctx.log.info("container started", container_id=container[:12], image=config.image, network=config.network)
         meta = {"image": config.image}
         if mounts.outputs is not None:
@@ -586,36 +595,42 @@ class DockerRunOperator(Operator[DockerRunConfig, DockerRunOutput]):
                     return ProbeResult(status=ProbeStatus.RUNNING, message=state.status or "running", meta=advanced)
                 if state.exit_code == 0:
                     return ProbeResult(status=ProbeStatus.SUCCEEDED, message=state.status or "exited")
-                stdout, stderr = await drain_logs(daemon, handle.ref, ctx.inline_capture)
                 # A failed container settles here, and fetch is only ever called after a
-                # successful probe, so this is the last chance to take it off the worker.
-                await _discard(daemon, handle, ctx)
+                # successful probe, so this is the last chance to read it and take it off the worker.
+                try:
+                    stdout, stderr = await _settle_streams(daemon, handle, ctx)
+                finally:
+                    await _discard(daemon, handle.ref, ctx)
         detail = tail(stderr.tail) or tail(stdout.tail) or state.error or "no output"
+        if state.oom_killed:
+            detail = f"killed for running out of memory; {detail}"
         return ProbeResult(status=ProbeStatus.FAILED, message=f"the container exited {state.exit_code}: {detail}")
 
     async def fetch(self, handle: RemoteHandle, config: DockerRunConfig, ctx: StepContext) -> DockerRunOutput:
         """Collect the exit code, the streams, and the declared files, then drop the container."""
         with _material(config, ctx) as environ:
             async with _daemon(config, environ) as daemon:
-                inspected = await daemon.inspect(handle.ref)
-                if inspected is None:
-                    raise BlockFailure(CONTAINER_GONE, error_class=ErrorClass.TRANSIENT, container=handle.ref[:12])
-                async with ctx.capture("stdout") as out_sink, ctx.capture("stderr") as err_sink:
-                    stdout, stderr = await drain_logs(
-                        daemon, handle.ref, ctx.inline_capture, sinks=(out_sink, err_sink)
+                try:
+                    inspected = await daemon.inspect(handle.ref)
+                    if inspected is None:
+                        raise BlockFailure(CONTAINER_GONE, error_class=ErrorClass.TRANSIENT, container=handle.ref[:12])
+                    async with ctx.capture("stdout") as out_sink, ctx.capture("stderr") as err_sink:
+                        stdout, stderr = await drain_logs(
+                            daemon, handle.ref, ctx.inline_capture, sinks=(out_sink, err_sink)
+                        )
+                        stdout_uri, stderr_uri = out_sink.uri, err_sink.uri
+                    # The run log gets only what the probes have not already streamed: the segment
+                    # between the last committed cursor and the exit. The full read above is for
+                    # storage and the output, not for saying every line a second time.
+                    fresh_out, fresh_err = await drain_logs(
+                        daemon, handle.ref, ctx.inline_capture, since=handle.meta.get(LOGS_SINCE, "")
                     )
-                    stdout_uri, stderr_uri = out_sink.uri, err_sink.uri
-                collected = await _collect_outputs(config, handle, ctx)
-                # The run log gets only what the probes have not already streamed: the segment
-                # between the last committed cursor and the exit. The full read above is for
-                # storage and the output, not for saying every line a second time.
-                fresh_out, fresh_err = await drain_logs(
-                    daemon, handle.ref, ctx.inline_capture, since=handle.meta.get(LOGS_SINCE, "")
-                )
-                await _discard(daemon, handle, ctx)
+                    log_stream(ctx, "stdout", fresh_out)
+                    log_stream(ctx, "stderr", fresh_err)
+                    collected = await _collect_outputs(config, handle, ctx)
+                finally:
+                    await _discard(daemon, handle.ref, ctx)
 
-        log_stream(ctx, "stdout", fresh_out)
-        log_stream(ctx, "stderr", fresh_err)
         ctx.log.info(
             "container finished",
             container_id=handle.ref[:12],
@@ -646,7 +661,7 @@ class DockerRunOperator(Operator[DockerRunConfig, DockerRunOutput]):
             with _material(config, ctx) as environ:
                 async with _daemon(config, environ) as daemon:
                     killed = await daemon.kill(handle.ref)
-                    await _discard(daemon, handle, ctx)
+                    await _discard(daemon, handle.ref, ctx)
         except (httpx2.HTTPError, OSError, BlockFailure) as error:
             ctx.log.warning("the daemon could not be told to kill the container", error=str(error))
             return False
@@ -662,18 +677,37 @@ class DockerRunOperator(Operator[DockerRunConfig, DockerRunOutput]):
         return classify_default(error)
 
 
-async def _discard(daemon: "DockerDaemon", handle: RemoteHandle, ctx: StepContext) -> None:
+async def _discard(daemon: "DockerDaemon", container: str, ctx: StepContext) -> None:
     """Take a settled container off the worker.
 
-    Every terminal path removes: a container that failed, one that was cancelled, and one
-    whose result was collected. A removal that does not work is logged and swallowed,
-    because the result is already in hand by the time this runs and must not be lost to a
-    container that would not delete.
+    Every terminal path removes: a container that would not start, one that failed, one that
+    was cancelled, and one whose result was collected or could not be. A removal that does not
+    work is logged and swallowed, so the error or result in hand is the one the step reports.
     """
     try:
-        await daemon.remove(handle.ref)
+        await daemon.remove(container)
     except (httpx2.HTTPError, OSError) as error:
-        ctx.log.warning("the container could not be removed", container_id=handle.ref[:12], error=str(error))
+        ctx.log.warning("the container could not be removed", container_id=container[:12], error=str(error))
+
+
+async def _settle_streams(daemon: "DockerDaemon", handle: RemoteHandle, ctx: StepContext) -> tuple[Drained, Drained]:
+    """Store both streams of a container that failed, and log the part no probe has logged yet."""
+    async with ctx.capture("stdout") as out_sink, ctx.capture("stderr") as err_sink:
+        stdout, stderr = await drain_logs(daemon, handle.ref, ctx.inline_capture, sinks=(out_sink, err_sink))
+    fresh_out, fresh_err = await drain_logs(
+        daemon, handle.ref, ctx.inline_capture, since=handle.meta.get(LOGS_SINCE, "")
+    )
+    log_stream(ctx, "stdout", fresh_out)
+    log_stream(ctx, "stderr", fresh_err)
+    ctx.log.info(
+        "container failed",
+        container_id=handle.ref[:12],
+        stdout_uri=out_sink.uri,
+        stderr_uri=err_sink.uri,
+        stdout_bytes=stdout.total_bytes,
+        stderr_bytes=stderr.total_bytes,
+    )
+    return stdout, stderr
 
 
 # -- the container's creation ----------------------------------------------------
@@ -725,7 +759,7 @@ def _creation(config: DockerRunConfig, ctx: StepContext, mounts: Mounts) -> dict
         "Image": config.image,
         "Env": _environment(config),
         "Tty": False,
-        "Labels": {"dirigent.run": str(ctx.run_id), "dirigent.attempt": str(ctx.attempt)},
+        "Labels": {RUN_LABEL: str(ctx.run_id), "dirigent.attempt": str(ctx.attempt)},
         "HostConfig": host,
     }
     command = _command(config)
@@ -944,29 +978,6 @@ class Frames:
         return [(stderr, body)]
 
 
-def demultiplex(payload: bytes) -> tuple[bytes, bytes]:
-    """Split Docker's framed log stream into the container's stdout and stderr.
-
-    A container created without a TTY has its output multiplexed onto one connection: each
-    frame is an eight-byte header -- a stream type byte, three zero bytes, then a big-endian
-    length -- followed by that many payload bytes. Anything that is not stderr counts as
-    stdout, and a truncated final frame contributes whatever arrived, because a stream cut
-    short still carries the lines that explain why.
-    """
-    stdout: list[bytes] = []
-    stderr: list[bytes] = []
-    offset = 0
-    while offset + STREAM_HEADER_BYTES <= len(payload):
-        header = payload[offset : offset + STREAM_HEADER_BYTES]
-        length = int.from_bytes(header[4:STREAM_HEADER_BYTES], "big")
-        body = payload[offset + STREAM_HEADER_BYTES : offset + STREAM_HEADER_BYTES + length]
-        (stderr if header[0] == STDERR_FRAME else stdout).append(body)
-        if len(body) < length:
-            break
-        offset += STREAM_HEADER_BYTES + length
-    return b"".join(stdout), b"".join(stderr)
-
-
 # -- the daemon ------------------------------------------------------------------
 
 
@@ -1092,12 +1103,14 @@ class DockerDaemon:
     async def pull(self, image: str, timeout: float) -> None:
         """Pull an image, reading the progress stream to completion so the pull actually finishes."""
         repository, tag = split_image(image)
-        response = await self.client.post(
-            "/images/create",
-            params={"fromImage": repository, "tag": tag},
-            timeout=timeout,
-        )
+        params = {"fromImage": repository}
+        if tag:
+            params["tag"] = tag
+        response = await self.client.post("/images/create", params=params, timeout=timeout)
         _require_ok(response, f"pull {image}")
+        failed = _pull_error(response.text)
+        if failed is not None:
+            raise BlockFailure(DAEMON_REFUSED, error_class=ErrorClass.TRANSIENT, action=f"pull {image}", detail=failed)
 
     async def create(self, payload: dict[str, JsonValue]) -> str:
         """Create a container and return its id."""
@@ -1174,13 +1187,14 @@ class DockerDaemon:
         _require_ok(response, "kill the container")
         return True
 
-    async def remove(self, container: str) -> None:
-        """Remove a container and its anonymous volumes, best effort.
+    async def remove(self, container: str) -> bool:
+        """Remove a container and its anonymous volumes, and say whether it is gone.
 
-        The status is deliberately not checked: the result has already been collected by the
-        time this runs, and a result must not be lost to a container that would not delete.
+        A container the daemon no longer knows counts as gone. Nothing is raised for a refusal,
+        so a caller holding a result keeps it.
         """
-        await self.client.delete(f"/containers/{container}", params={"v": "1", "force": "1"})
+        response = await self.client.delete(f"/containers/{container}", params={"v": "1", "force": "1"})
+        return response.status_code < BAD_REQUEST or response.status_code == NOT_FOUND
 
 
 class DaemonEndpoint(NamedTuple):
@@ -1271,11 +1285,28 @@ def connect(config: DockerRunConfig, environ: Mapping[str, str] | None = None) -
 
 
 def split_image(image: str) -> tuple[str, str]:
-    """Split an image reference into its repository and tag, defaulting to ``latest``."""
+    """Split an image reference into its repository and tag, defaulting to ``latest``.
+
+    A reference pinned by digest is handed over whole with no tag, which is how the daemon pulls one.
+    """
+    if "@" in image:
+        return image, ""
     repository, separator, tag = image.rpartition(":")
     if separator and "/" not in tag:
         return repository, tag
     return image, "latest"
+
+
+def _pull_error(progress: str) -> str | None:
+    """The error a pull's progress stream ended with, which the daemon reports inside a 200."""
+    for line in progress.splitlines():
+        with contextlib.suppress(ValueError):
+            event: object = json.loads(line)
+            if isinstance(event, dict):
+                error = cast("dict[str, object]", event).get("error")
+                if error:
+                    return str(error)
+    return None
 
 
 async def _nothing() -> AsyncIterator[bytes]:

@@ -79,20 +79,16 @@ async def pass_once(
 
 
 def record(reaped: reap.Reaped) -> Mapping[str, object]:
-    """The fields one reaped project contributes, whether a record or a log line carries them."""
-    fields: dict[str, object] = {
-        "project": reaped.project,
-        "run_id": str(reaped.run_id),
-        "run_status": reaped.run_status,
-        "torn_down": reaped.torn_down,
-    }
+    """The fields one reaped project or container contributes, whether a record or a log line carries them."""
+    fields: dict[str, object] = {"project": reaped.project} if reaped.project else {"container": reaped.container}
+    fields.update(run_id=str(reaped.run_id), run_status=reaped.run_status, torn_down=reaped.torn_down)
     if reaped.detail:
         fields["detail"] = reaped.detail
     return fields
 
 
 def outcome(reaped: reap.Reaped, *, dry_run: bool = False) -> str:
-    """What happened to one project, in the words a record and a log line both carry."""
+    """What happened to one project or container, in the words a record and a log line both carry."""
     if dry_run:
         return "would reap"
     return "reaped" if reaped.torn_down else "could not reap"

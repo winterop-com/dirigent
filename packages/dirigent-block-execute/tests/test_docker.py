@@ -21,8 +21,8 @@ from dirigent_block_execute.docker import (
     DockerRunConfig,
     DockerRunOperator,
     DockerRunOutput,
+    Frames,
     cli_plugin_dirs,
-    demultiplex,
     open_client,
     resolve_endpoint,
     socket_path,
@@ -42,6 +42,16 @@ def frame(stream: int, payload: bytes) -> bytes:
     return bytes([stream, 0, 0, 0]) + len(payload).to_bytes(4, "big") + payload
 
 
+def demultiplex(payload: bytes) -> tuple[bytes, bytes]:
+    """Split a whole framed payload into stdout and stderr, the way a log read splits it."""
+    frames = Frames()
+    parts = [*frames.take(payload), *frames.rest()]
+    return (
+        b"".join(body for is_stderr, body in parts if not is_stderr),
+        b"".join(body for is_stderr, body in parts if is_stderr),
+    )
+
+
 class FakeDaemon:
     """A Docker daemon good enough to drive the block, remembering everything it was asked."""
 
@@ -59,18 +69,21 @@ class FakeDaemon:
         self.killed: list[str] = []
         self.kill_status = 204
         self.create_response: httpx2.Response | None = None
+        self.start_response: httpx2.Response | None = None
+        self.pull_response: httpx2.Response | None = None
 
     def __call__(self, request: httpx2.Request) -> httpx2.Response:
         """Answer one Docker Engine API call."""
         self.requests.append(request)
         path = request.url.path
         if path == "/images/create":
-            self.pulled.append(f"{request.url.params['fromImage']}:{request.url.params['tag']}")
-            return httpx2.Response(200, content=b'{"status":"Downloaded"}')
+            tag = request.url.params.get("tag")
+            self.pulled.append(request.url.params["fromImage"] + (f":{tag}" if tag else ""))
+            return self.pull_response or httpx2.Response(200, content=b'{"status":"Downloaded"}')
         if path == "/containers/create":
             return self.create_response or httpx2.Response(201, json={"Id": CONTAINER_ID, "Warnings": []})
         if path.endswith("/start"):
-            return httpx2.Response(204)
+            return self.start_response or httpx2.Response(204)
         if path.endswith("/json"):
             if not self.known:
                 return httpx2.Response(404, json={"message": "No such container"})
@@ -360,6 +373,8 @@ def _self_signed(directory: Path) -> Path:
         ("alpine:3", ("alpine", "3")),
         ("ghcr.io/org/thing:v2", ("ghcr.io/org/thing", "v2")),
         ("registry.test:5000/thing", ("registry.test:5000/thing", "latest")),
+        (f"ghcr.io/org/thing@sha256:{'ab' * 32}", (f"ghcr.io/org/thing@sha256:{'ab' * 32}", "")),
+        (f"ghcr.io/org/thing:v2@sha256:{'ab' * 32}", (f"ghcr.io/org/thing:v2@sha256:{'ab' * 32}", "")),
     ],
 )
 def test_an_image_reference_splits_into_a_repository_and_a_tag(image: str, expected: tuple[str, str]) -> None:
@@ -456,6 +471,48 @@ async def test_a_pull_is_requested_only_when_the_step_asks_for_one(daemon: FakeD
     assert daemon.pulled == []
     await DockerRunOperator().execute(DockerRunConfig(image="alpine:3", pull=True), ctx.as_context())
     assert daemon.pulled == ["alpine:3"]
+
+
+async def test_a_digest_pinned_image_is_pulled_by_its_whole_reference(daemon: FakeDaemon, ctx: FakeContext) -> None:
+    pinned = f"ghcr.io/org/thing@sha256:{'ab' * 32}"
+    await DockerRunOperator().execute(DockerRunConfig(image=pinned, pull=True), ctx.as_context())
+    pull = next(request for request in daemon.requests if request.url.path == "/images/create")
+    assert dict(pull.url.params) == {"fromImage": pinned}
+
+
+async def test_a_pull_that_fails_inside_its_progress_stream_fails_the_step(
+    daemon: FakeDaemon, ctx: FakeContext
+) -> None:
+    daemon.pull_response = httpx2.Response(
+        200,
+        content=b'{"status":"Pulling fs layer","id":"a1"}\n'
+        b'{"errorDetail":{"message":"unexpected EOF"},"error":"unexpected EOF"}\n',
+    )
+    with pytest.raises(BlockFailure) as raised:
+        await DockerRunOperator().execute(DockerRunConfig(image="alpine:3", pull=True), ctx.as_context())
+    assert raised.value.error_class is ErrorClass.TRANSIENT
+    assert "unexpected EOF" in str(raised.value)
+    assert not [request for request in daemon.requests if request.url.path == "/containers/create"]
+
+
+async def test_a_container_the_daemon_will_not_start_is_removed(daemon: FakeDaemon, ctx: FakeContext) -> None:
+    daemon.start_response = httpx2.Response(400, json={"message": 'exec: "nosuch": executable file not found'})
+    with pytest.raises(BlockFailure) as raised:
+        await DockerRunOperator().execute(DockerRunConfig(image="alpine", argv=["nosuch"]), ctx.as_context())
+    assert "executable file not found" in str(raised.value)
+    assert daemon.removed == [f"/containers/{CONTAINER_ID}"]
+
+
+async def test_a_start_cancelled_on_the_way_removes_the_container(
+    daemon: FakeDaemon, ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def cancelled(self: object, container: str) -> None:
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr("dirigent_block_execute.docker.DockerDaemon.start", cancelled)
+    with pytest.raises(asyncio.CancelledError):
+        await DockerRunOperator().execute(DockerRunConfig(image="alpine"), ctx.as_context())
+    assert daemon.removed == [f"/containers/{CONTAINER_ID}"]
 
 
 async def test_an_unknown_image_is_a_rejection_rather_than_a_retry(daemon: FakeDaemon, ctx: FakeContext) -> None:
@@ -555,6 +612,27 @@ async def test_a_failed_container_with_only_stdout_still_explains_itself(daemon:
     config = DockerRunConfig(image="alpine")
     probed = await DockerRunOperator().probe(handle_for(config), config, ctx.as_context())
     assert "that did not work" in (probed.message or "")
+
+
+async def test_a_failed_container_stores_and_logs_both_streams(daemon: FakeDaemon, local_ctx: FakeContext) -> None:
+    daemon.exited(2)
+    daemon.logs = frame(STDOUT_FRAME, b"loaded 40 rows\n") + frame(STDERR_FRAME, b"row 41 is broken\n")
+    config = DockerRunConfig(image="alpine")
+    probed = await DockerRunOperator().probe(handle_for(config), config, local_ctx.as_context())
+
+    assert probed.status is ProbeStatus.FAILED
+    assert "loaded 40 rows" in local_ctx.log.messages()
+    assert "row 41 is broken" in local_ctx.log.messages()
+    failed = next(fields for _, message, fields in local_ctx.log.entries if message == "container failed")
+    assert local_ctx.storage.path_for(str(failed["stdout_uri"])).read_bytes() == b"loaded 40 rows\n"
+    assert local_ctx.storage.path_for(str(failed["stderr_uri"])).read_bytes() == b"row 41 is broken\n"
+
+
+async def test_a_container_killed_for_its_memory_says_so(daemon: FakeDaemon, ctx: FakeContext) -> None:
+    daemon.state = {"Status": "exited", "Running": False, "ExitCode": 137, "OOMKilled": True}
+    config = DockerRunConfig(image="alpine")
+    probed = await DockerRunOperator().probe(handle_for(config), config, ctx.as_context())
+    assert probed.message == "the container exited 137: killed for running out of memory; no output"
 
 
 async def test_a_silent_failure_still_reports_its_exit_code(daemon: FakeDaemon, ctx: FakeContext) -> None:
@@ -786,6 +864,7 @@ async def test_a_declared_output_the_container_never_wrote_is_a_rejection(
         await DockerRunOperator().fetch(handle, config, local_ctx.as_context())
     assert raised.value.error_class is ErrorClass.REJECTED
     assert "did not write the declared output" in str(raised.value)
+    assert daemon.removed == [f"/containers/{CONTAINER_ID}"]
 
 
 async def collected_after(

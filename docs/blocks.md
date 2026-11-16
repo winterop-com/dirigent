@@ -245,7 +245,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `inputs_path` | `string` |  | `"/dirigent/inputs"` | Where the staged inputs appear inside the container. |
 | `outputs_path` | `string` |  | `"/dirigent/outputs"` | Where the container is expected to write its declared outputs. |
 | `network` | `string` |  | `"none"` | The daemon's network mode. It defaults to `none`: an image the pipeline named should not reach the worker's network, or anything the worker can reach, unless the step says so. |
-| `pull` | `boolean` |  | `false` | Pull the image before creating the container, rather than requiring it to be present. |
+| `pull` | `boolean` |  | `false` | Pull the image before creating the container, rather than requiring it to be present. An image pinned by digest (`name@sha256:...`) is pulled by that digest, and a pull the registry breaks off part way fails the step as transient. |
 | `memory` | `string or integer or null` |  | `null` | A hard memory limit, such as `64mb`; the container is OOM-killed rather than the worker. At least `6mb`. |
 | `cpus` | `number or null` |  | `null` | A CPU quota expressed the way `docker run --cpus` expresses it. |
 | `nano_cpus` | `integer or null` |  | `null` | The same quota expressed the way the daemon counts it, for a config that prefers exactness. |

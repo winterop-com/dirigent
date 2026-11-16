@@ -31,19 +31,39 @@ def container(project: str, created: datetime, name: str = "web") -> dict[str, o
     }
 
 
-def daemon_listing(containers: list[dict[str, object]]) -> Callable[[httpx2.Request], httpx2.Response]:
-    """A daemon that answers one label-filtered container listing."""
+def run_container(run_id: str, created: datetime, ident: str = "c0ffee") -> dict[str, object]:
+    """One container as ``/containers/json`` lists it, labelled by docker.run with its run."""
+    return {
+        "Id": f"{ident}{'0' * 58}",
+        "Created": int(created.timestamp()),
+        "Labels": {"dirigent.run": run_id, "dirigent.attempt": "1"},
+    }
+
+
+def daemon_listing(
+    containers: list[dict[str, object]], removed: list[str] | None = None, remove_status: int = 204
+) -> Callable[[httpx2.Request], httpx2.Response]:
+    """A daemon that answers a label-filtered container listing, and records every removal."""
 
     def answer(request: httpx2.Request) -> httpx2.Response:
+        if request.method == "DELETE":
+            assert removed is not None
+            removed.append(request.url.path.removeprefix("/containers/"))
+            return httpx2.Response(remove_status, json={"message": "removal refused"})
         assert request.url.path == "/containers/json"
         return httpx2.Response(200, json=containers)
 
     return answer
 
 
-def install(monkeypatch: pytest.MonkeyPatch, containers: list[dict[str, object]]) -> None:
+def install(
+    monkeypatch: pytest.MonkeyPatch,
+    containers: list[dict[str, object]],
+    removed: list[str] | None = None,
+    remove_status: int = 204,
+) -> None:
     """Point the reaper's daemon read at a fake listing."""
-    answer = daemon_listing(containers)
+    answer = daemon_listing(containers, removed, remove_status)
 
     def fake_open(endpoint: object, timeout: float) -> httpx2.AsyncClient:
         return httpx2.AsyncClient(base_url="http://docker", transport=httpx2.MockTransport(answer))
@@ -133,27 +153,27 @@ async def test_a_project_this_instance_did_not_create_is_not_ours(monkeypatch: p
 
 async def test_a_terminal_runs_stack_is_an_orphan() -> None:
     run_id = uuid4()
-    project = reap.Project(project_of(run_id), run_id, NOW - timedelta(hours=1))
+    project = reap.Project(name=project_of(run_id), run_id=run_id, created=NOW - timedelta(hours=1))
     chosen = await reap.orphans([project], lookup({run_id: FINISHED}), grace=GRACE, now=NOW)
     assert [(one.name, status) for one, status in chosen] == [(project.name, "failed")]
 
 
 async def test_an_active_runs_stack_is_left_alone() -> None:
     run_id = uuid4()
-    project = reap.Project(project_of(run_id), run_id, NOW - timedelta(hours=1))
+    project = reap.Project(name=project_of(run_id), run_id=run_id, created=NOW - timedelta(hours=1))
     assert await reap.orphans([project], lookup({run_id: ACTIVE}), grace=GRACE, now=NOW) == []
 
 
 async def test_a_stack_whose_run_the_instance_no_longer_holds_is_an_orphan() -> None:
     run_id = uuid4()
-    project = reap.Project(project_of(run_id), run_id, NOW - timedelta(hours=1))
+    project = reap.Project(name=project_of(run_id), run_id=run_id, created=NOW - timedelta(hours=1))
     chosen = await reap.orphans([project], lookup({}), grace=GRACE, now=NOW)
     assert [status for _project, status in chosen] == ["unknown"]
 
 
 async def test_a_project_younger_than_the_grace_is_left_alone_whatever_its_run_says() -> None:
     run_id = uuid4()
-    project = reap.Project(project_of(run_id), run_id, NOW - timedelta(minutes=1))
+    project = reap.Project(name=project_of(run_id), run_id=run_id, created=NOW - timedelta(minutes=1))
     assert await reap.orphans([project], lookup({}), grace=GRACE, now=NOW) == []
     assert await reap.orphans([project], lookup({run_id: FINISHED}), grace=GRACE, now=NOW) == []
 
@@ -193,6 +213,49 @@ async def test_a_teardown_that_fails_is_reported_rather_than_raised(
     reaped = await reap.reap({}, tmp_path, lookup({run_id: FINISHED}), grace=GRACE, now=NOW)
     assert reaped[0].torn_down is False
     assert "network in use" in reaped[0].detail
+
+
+async def test_a_container_docker_run_left_for_an_ended_run_is_removed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ended, active = uuid4(), uuid4()
+    removed: list[str] = []
+    install(
+        monkeypatch,
+        [
+            run_container(str(ended), NOW - timedelta(hours=1), "dead"),
+            run_container(str(active), NOW - timedelta(hours=1), "live"),
+            run_container(str(uuid4()), NOW - timedelta(minutes=1), "new"),
+            run_container("not-a-run", NOW - timedelta(hours=1), "odd"),
+        ],
+        removed,
+    )
+    calls = scripted(monkeypatch)
+    reaped = await reap.reap({}, tmp_path, lookup({ended: FINISHED, active: ACTIVE}), grace=GRACE, now=NOW)
+    assert [(one.container, one.run_id, one.run_status, one.torn_down) for one in reaped] == [
+        ("dead00000000", ended, "failed", True)
+    ]
+    assert reaped[0].project == ""
+    assert removed == [f"dead{'0' * 58}"]
+    assert calls == []
+
+
+async def test_a_dry_run_removes_no_container(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    removed: list[str] = []
+    install(monkeypatch, [run_container(str(uuid4()), NOW - timedelta(hours=1))], removed)
+    reaped = await reap.reap({}, tmp_path, lookup({}), grace=GRACE, dry_run=True, now=NOW)
+    assert [(one.run_status, one.torn_down) for one in reaped] == [("unknown", False)]
+    assert removed == []
+
+
+async def test_a_container_the_daemon_will_not_remove_is_reported(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    removed: list[str] = []
+    install(monkeypatch, [run_container(str(uuid4()), NOW - timedelta(hours=1))], removed, remove_status=500)
+    reaped = await reap.reap({}, tmp_path, lookup({}), grace=GRACE, now=NOW)
+    assert reaped[0].torn_down is False
+    assert reaped[0].detail
 
 
 async def test_a_pass_with_nothing_to_reap_runs_no_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
