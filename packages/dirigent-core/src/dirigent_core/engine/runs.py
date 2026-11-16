@@ -661,9 +661,14 @@ async def pause_run(session: AsyncSession, run: Run, *, now: datetime | None = N
     return run
 
 
-async def resume_run(session: AsyncSession, run: Run, *, now: datetime | None = None) -> Run:
-    """Let a paused run go on, its open deadlines moved on by as long as it was paused."""
+async def resume_run(session: AsyncSession, services: EngineServices, run: Run, *, now: datetime | None = None) -> Run:
+    """Let a paused run go on, its open deadlines moved on by as long as it was paused.
+
+    A run paused while held behind a ``queue`` slot is held again, and released here when the
+    slot came free while it was paused.
+    """
     moment = now or utcnow()
+    await lock_pipeline(session, run.pipeline_id)
     await lock_run(session, run.id)
     await session.refresh(run)
     if run.status is not RunStatus.PAUSED:
@@ -684,6 +689,8 @@ async def resume_run(session: AsyncSession, run: Run, *, now: datetime | None = 
                 attempt.deadline_at = attempt.deadline_at + held
     run.status = RunStatus.RUNNING if run.started_at is not None else RunStatus.QUEUED
     run.paused_at = None
+    if run.status is RunStatus.QUEUED:
+        await promote_queued_run(session, services, run.pipeline_id)
     await session.flush()
     await wakeups.publish(session, wakeups.WORK)
     _logger.info("run resumed", **await run_fields(session, run.id), held_ms=round(held.total_seconds() * 1000))
@@ -953,9 +960,12 @@ async def retry_step(
     )
     session.add(retried)
     await _reopen_propagated_skips(session, run.id)
-    run.status = RunStatus.RUNNING
+    if run.status is not RunStatus.PAUSED:
+        run.status = RunStatus.RUNNING
     run.finished_at = None
     run.error = None
+    run.error_code = None
+    run.error_params = None
     await session.flush()
     _logger.info("manual retry created", **await attempt_fields(session, retried), attempt=retried.attempt)
     return retried

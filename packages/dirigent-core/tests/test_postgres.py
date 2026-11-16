@@ -1733,6 +1733,43 @@ async def test_a_run_cancelled_before_the_lock_is_not_resurrected(
         assert stored.status is RunStatus.CANCELLED
 
 
+async def test_a_run_paused_between_the_claims_select_and_its_lock_is_not_claimed(
+    pg_sessions: Any, pg_services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The claim locks the attempt row, and a pause writes only the run row, so neither waits."""
+    definition = PipelineDefinition(
+        code="paused-during-a-claim", steps={"only": StepDefinition(block="test.echo", config={"value": "x"})}
+    )
+    run = await start(pg_sessions, pg_services, definition)
+    engine = Engine(pg_sessions, pg_services, owner="the-claiming-worker")
+    paused: list[Any] = []
+
+    async def pause_between_the_select_and_the_lock(
+        session: AsyncSession, now: datetime, tags: Any = ()
+    ) -> StepAttempt | None:
+        attempt = await select_due(session, now, tags)
+        if paused:
+            return attempt
+        paused.append(run.id)
+        # The claim's view of the run predates the pause, as a run read in that window would.
+        assert await session.get(Run, run.id) is not None
+        async with session_scope(pg_sessions) as other:
+            stored = await other.get(Run, run.id)
+            assert stored is not None
+            await engine_runs.pause_run(other, stored)
+        return attempt
+
+    monkeypatch.setattr(executor, "select_due", pause_between_the_select_and_the_lock)
+    assert await engine.claim() is None, "an attempt of a paused run was claimed"
+
+    async with pg_sessions() as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        assert (stored.status, stored.paused_at is not None) == (RunStatus.PAUSED, True)
+        [attempt] = (await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run.id))).scalars()
+        assert (attempt.status, attempt.lease_owner) == (AttemptStatus.QUEUED, None)
+
+
 #: How many times a creation and a settlement are run against each other.
 SLOT_ROUNDS = 8
 

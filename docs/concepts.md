@@ -382,7 +382,10 @@ An operator may pause a queued or running run (`dg runs pause`, `$pause`): nothi
 is claimed, an attempt already running finishes, and its deadlines stand still, so a resume
 (`dg runs resume`) moves every open deadline on by as long as the run was paused. A paused run
 still holds its pipeline's concurrency slot, so a `skip` schedule records a skipped firing
-that names it, and a `queue` one waits behind it, until it resumes or is cancelled.
+that names it, and a `queue` one waits behind it, until it resumes or is cancelled. A run paused
+while it waits behind a `queue` slot keeps its place: the runs behind it wait too, and its resume
+releases it if the slot came free meanwhile. A manual retry of a paused run's step queues the
+new attempt and leaves the run paused.
 
 ## Item
 
