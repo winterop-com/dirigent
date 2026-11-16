@@ -7,6 +7,7 @@ different worker than its predecessor still sees its inputs.
 import asyncio
 import fcntl
 import os
+import re
 import stat
 import sys
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Iterable, Mapping
@@ -14,7 +15,6 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppres
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO, ClassVar, Final, Protocol
-from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel
@@ -26,6 +26,12 @@ from dirigent_plugin import ByteSink, ContainerResult, StatResult, StorageBacken
 CHUNK_SIZE: Final = 256 * 1024
 
 GLOB_CHARACTERS: Final = ("*", "?", "[")
+
+#: What a URI's scheme may be spelled with, before its ``://``.
+SCHEME: Final = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*")
+
+#: The name a write stages under beside its target, until it is renamed onto it.
+STAGED_NAME: Final = re.compile(r"\..+\.[0-9]+\.[0-9a-f]{32}\.partial")
 
 #: How a stored object is opened. Non-blocking so a FIFO planted under the root reads as empty
 #: rather than holding a worker thread until something writes to it.
@@ -87,11 +93,15 @@ type OpenConnection = Callable[[str, str, type[BaseModel]], BaseModel]
 
 
 def parse_uri(uri: str) -> tuple[str, str]:
-    """Split a URI into its scheme and the backend-specific remainder."""
-    split = urlsplit(uri)
-    if not split.scheme:
+    """Split a URI into its lower-cased scheme and the backend-specific remainder.
+
+    The remainder is everything after ``://`` as written: a ``?``, ``#`` or ``[`` is part of
+    the name, never a query, a fragment or a host literal.
+    """
+    scheme, separator, remainder = uri.partition("://")
+    if not separator or not SCHEME.fullmatch(scheme):
         raise StorageError(NOT_A_URI, uri=repr(uri))
-    return split.scheme, f"{split.netloc}{split.path}"
+    return scheme.lower(), remainder
 
 
 def join_uri(prefix: str, *parts: str) -> str:
@@ -259,15 +269,16 @@ class FileStorageBackend(StorageBackend):
             handle = await asyncio.to_thread(_create_staged, staged, directory)
             sink = FileSink(handle, path)
             try:
-                yield sink
+                try:
+                    yield sink
+                finally:
+                    await asyncio.to_thread(handle.close)
+                # Staging beside the target keeps both on one filesystem, where os.replace is atomic.
+                await asyncio.to_thread(os.replace, staged, path.name, src_dir_fd=directory, dst_dir_fd=directory)
             except BaseException:
-                await asyncio.to_thread(handle.close)
                 with suppress(FileNotFoundError):
                     await asyncio.to_thread(os.unlink, staged, dir_fd=directory)
                 raise
-            await asyncio.to_thread(handle.close)
-            # Staging beside the target keeps both on one filesystem, where os.replace is atomic.
-            await asyncio.to_thread(os.replace, staged, path.name, src_dir_fd=directory, dst_dir_fd=directory)
         finally:
             os.close(directory)
 
@@ -288,7 +299,7 @@ class FileStorageBackend(StorageBackend):
         return StatResult(uri=self.uri_for(path), size=info[0], modified_at=info[1])
 
     def matches(self, uri: str) -> list[Path]:
-        """Expand a listing URI into the sorted set of files it names."""
+        """Expand a listing URI into the sorted set of files it names, leaving out writes in progress."""
         base = self.listing_base(uri)
         _, remainder = parse_uri(uri)
         if not any(character in remainder for character in GLOB_CHARACTERS):
@@ -296,9 +307,9 @@ class FileStorageBackend(StorageBackend):
                 return [base]
             if not base.is_dir():
                 return []
-            return sorted(child for child in base.rglob("*") if child.is_file())
+            return sorted(child for child in base.rglob("*") if _is_object(child))
         pattern = str(local_path(remainder))
-        return sorted(path for path in base.rglob("*") if path.is_file() and path.full_match(pattern))
+        return sorted(path for path in base.rglob("*") if _is_object(path) and path.full_match(pattern))
 
     def listing_base(self, uri: str) -> Path:
         """Resolve where listing a URI starts, its deepest fixed directory for a glob, or refuse it."""
@@ -321,6 +332,32 @@ class FileStorageBackend(StorageBackend):
         path = self.path_for(uri)
         await asyncio.to_thread(self._unlink, uri, path)
 
+    def clear_leftovers(self, uri: str) -> int:
+        """Remove the staging files and the empty directories under a prefix, and count the files.
+
+        What a listing never shows: a write a killed process left staging, and the directories
+        its objects lived in. The prefix's own directory goes too, the root never does, and a
+        directory that is not empty, or is a link, stays.
+        """
+        _, remainder = parse_uri(uri)
+        if any(character in remainder for character in GLOB_CHARACTERS):
+            return 0
+        base = self.path_for(uri)
+        if not base.is_dir() or base.is_symlink():
+            return 0
+        root = self.root.resolve()
+        removed = 0
+        for current, _, files in os.walk(base, topdown=False):
+            directory = Path(current)
+            for name in files:
+                if STAGED_NAME.fullmatch(name):
+                    self._unlink(uri, directory / name)
+                    removed += 1
+            if directory.resolve() != root:
+                with suppress(OSError):
+                    directory.rmdir()
+        return removed
+
     def _unlink(self, uri: str, path: Path) -> None:
         """Remove one name from a directory checked to be inside the root."""
         with suppress(FileNotFoundError):
@@ -339,6 +376,11 @@ def _fixed_prefix(pattern: str) -> str:
             break
         parts.append(part)
     return str(Path(*parts)) if parts else "/"
+
+
+def _is_object(path: Path) -> bool:
+    """Whether a path under a listing is a stored object, not a directory or a write still staging."""
+    return not STAGED_NAME.fullmatch(path.name) and path.is_file()
 
 
 def _real_path(descriptor: int) -> Path:
@@ -444,11 +486,15 @@ class Storage:
         Built out of ``list`` and ``delete`` rather than asked of the backend, so a backend
         written before this existed still prunes. A backend with a bulk delete of its own is
         free to answer faster; the contract is what is gone, not how many requests it took.
+        Under a ``file://`` prefix, the staging files and the emptied directories go as well.
         """
         deleted = 0
         for entry in [found async for found in self.list(uri)]:
             await self.delete(entry.uri)
             deleted += 1
+        backend = self.backend_for(uri)
+        if isinstance(backend, FileStorageBackend):
+            deleted += await asyncio.to_thread(backend.clear_leftovers, uri)
         return deleted
 
     async def read_bytes(self, uri: str) -> bytes:

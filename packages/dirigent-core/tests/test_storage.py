@@ -245,6 +245,93 @@ async def test_facade_stat_list_and_delete_dispatch(storage: Storage, tmp_path: 
     assert await storage.stat(uri) is None
 
 
+# -- a name is the name it was written with --------------------------------------
+
+
+def test_parse_uri_keeps_a_query_or_fragment_character_in_the_name() -> None:
+    assert parse_uri("file:///data/Order #12.json") == ("file", "/data/Order #12.json")
+    assert parse_uri("file:///data/what?.csv") == ("file", "/data/what?.csv")
+    assert parse_uri("FILE:///data/x") == ("file", "/data/x")
+
+
+def test_parse_uri_takes_a_bracket_as_part_of_the_name() -> None:
+    assert parse_uri("file://data[1]/x") == ("file", "data[1]/x")
+    with pytest.raises(StorageError, match="names no scheme"):
+        parse_uri("no scheme://x")
+
+
+async def test_names_holding_a_hash_or_a_question_mark_are_distinct_objects(storage: Storage, tmp_path: Path) -> None:
+    await storage.write_bytes(f"file://{tmp_path}/Order #12.json", b"twelve")
+    await storage.write_bytes(f"file://{tmp_path}/Order #13.json", b"thirteen")
+    (tmp_path / "report").write_bytes(b"plain")
+    (tmp_path / "what?.csv").write_bytes(b"question")
+
+    listed = [entry.uri async for entry in storage.list(f"file://{tmp_path}")]
+    read = {uri.rsplit("/", 1)[1]: await storage.read_bytes(uri) for uri in listed}
+
+    assert read == {
+        "Order #12.json": b"twelve",
+        "Order #13.json": b"thirteen",
+        "report": b"plain",
+        "what?.csv": b"question",
+    }
+    assert await storage.delete_prefix(f"file://{tmp_path}") == 4
+    assert list(tmp_path.iterdir()) == []
+
+
+async def test_a_question_mark_matches_one_character_in_a_glob(backend: FileStorageBackend, tmp_path: Path) -> None:
+    for name in ("a1.csv", "a22.csv", "b1.csv"):
+        (tmp_path / name).write_bytes(b"x")
+    found = [entry.uri async for entry in backend.list(f"file://{tmp_path}/a?.csv")]
+    assert found == [f"file://{tmp_path}/a1.csv"]
+
+
+# -- a write in progress is not an object ----------------------------------------
+
+
+async def test_a_listing_leaves_out_a_write_still_staging(backend: FileStorageBackend, tmp_path: Path) -> None:
+    async with backend.open_write(f"file://{tmp_path}/in/big.bin") as sink:
+        await sink.write(b"x" * 10)
+        assert [entry async for entry in backend.list(f"file://{tmp_path}/in")] == []
+        assert [entry async for entry in backend.list(f"file://{tmp_path}/in/*")] == []
+    assert [entry.uri async for entry in backend.list(f"file://{tmp_path}/in")] == [f"file://{tmp_path}/in/big.bin"]
+
+
+async def test_a_publish_that_fails_after_the_body_removes_its_staging_file(
+    backend: FileStorageBackend, tmp_path: Path
+) -> None:
+    """A target that is a directory fails at the rename, after the writer's own body finished."""
+    (tmp_path / "taken").mkdir()
+    with pytest.raises(OSError):
+        async with backend.open_write(f"file://{tmp_path}/taken") as sink:
+            await sink.write(b"x")
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["taken"]
+
+
+async def test_deleting_a_prefix_leaves_no_directories_or_staging_files_behind(
+    storage: Storage, tmp_path: Path
+) -> None:
+    run = tmp_path / "runs" / "one"
+    await storage.write_bytes(f"file://{run}/steps/a/out.json", b"{}")
+    await storage.write_bytes(f"file://{run}/steps/b/deeper/out.json", b"{}")
+    (run / "steps" / "a" / ".big.bin.4242.0123456789abcdef0123456789abcdef.partial").write_bytes(b"killed")
+
+    assert await storage.delete_prefix(f"file://{run}") == 3
+
+    assert not run.exists()
+    assert (tmp_path / "runs").is_dir()
+
+
+async def test_deleting_a_prefix_keeps_a_directory_that_still_holds_something(storage: Storage, tmp_path: Path) -> None:
+    await storage.write_bytes(f"file://{tmp_path}/keep/a.json", b"{}")
+    (tmp_path / "keep" / "linked").symlink_to(tmp_path)
+
+    await storage.delete_prefix(f"file://{tmp_path}/keep")
+
+    assert sorted(path.name for path in (tmp_path / "keep").iterdir()) == ["linked"]
+    assert tmp_path.is_dir()
+
+
 # -- what a write says the object is ---------------------------------------------
 
 
