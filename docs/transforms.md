@@ -453,6 +453,18 @@ number. A csv source carries no types, so csv to parquet writes string columns. 
 gives every value its JSON spelling: timestamps, dates and times come back as ISO strings,
 decimals as strings, and a float that is NaN or infinite as null.
 
+A value parquet would not write as itself is refused naming its row and key, rather than
+failing the step unexplained: an integer outside 64 bits, an integer past 2**53 in a column
+that also holds fractions (a float64 would round it), and text holding half of a surrogate
+pair. A csv line the reader cannot take, such as a cell over 128 KiB, is refused naming the
+line.
+
+**A parquet decodes to at most 10 million cells**, rows times columns, whatever the target
+(`parquet.too_many_cells`). Parquet compresses a repeated value to almost nothing, so a file of
+a few kilobytes can decode to tens of millions of rows; the footer is asked first, so such a
+file is refused before a page is read, and the rows are counted again as they are decoded.
+The text is written a batch at a time, so what the worker holds is the text and one batch.
+
 Parquet is a columnar file rather than a document: the bytes are laid out by column, with a
 schema and a footer, and there is no text spelling of them a step could hold as a value. That
 costs the block nothing, because every conversion is a storage-object operation anyway --

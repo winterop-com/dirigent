@@ -3,6 +3,7 @@
 import csv
 import io
 import json
+from collections.abc import Iterable, Iterator
 from typing import Final
 
 import pyarrow as pa
@@ -14,6 +15,9 @@ from dirigent_block_parquet.messages import (
     CSV_HEADER_REPEATED,
     CSV_HEADER_UNNAMED,
     CSV_ROW_TOO_WIDE,
+    CSV_ROW_UNREADABLE,
+    INTEGER_NOT_A_FLOAT,
+    INTEGER_OUT_OF_RANGE,
     LINE_NOT_JSON,
     MIXED_COLUMN,
     NESTED_COLUMN,
@@ -23,7 +27,10 @@ from dirigent_block_parquet.messages import (
     NOT_JSON,
     NOT_PARQUET,
     NOT_UTF8,
+    NOT_WRITTEN,
     RECORD_NOT_AN_OBJECT,
+    TOO_MANY_CELLS,
+    UNPAIRED_SURROGATE,
 )
 from dirigent_common import spelled
 from dirigent_plugin import Converter, TransformError, csv_header, hold_csv_columns, hold_csv_empty_cells
@@ -36,6 +43,19 @@ UNIT: Final = {"json": "element", "ndjson": "line", "csv": "row", "parquet": "ro
 
 #: How many rows a parquet is decoded at a time, so wide columns of nulls cost one batch to refuse.
 READ_BATCH_ROWS: Final = 1024
+
+#: How many cells a parquet is decoded at a time at most, so a wide file's batch is a few rows.
+READ_BATCH_CELLS: Final = 64 * 1024
+
+#: The most cells a parquet may decode to, rows times columns. Parquet compresses a repeated
+#: value to almost nothing, so its size says nothing about what it decodes to.
+PARQUET_CELL_LIMIT: Final = 10_000_000
+
+#: The integers a parquet ``int64`` column holds.
+INT64_RANGE: Final = range(-(2**63), 2**63)
+
+#: The largest integer a float column holds exactly.
+EXACT_FLOAT_INTEGER: Final = 2**53
 
 
 class ArrowConverter(Converter):
@@ -59,20 +79,17 @@ class ArrowConverter(Converter):
     def convert(self, source: bytes, *, source_format: str, target_format: str) -> bytes:
         """Read the records out of the source format and write them in the target format."""
         if source_format == "parquet":
-            records = _read_parquet(source, target_format)
-        else:
-            records = _read_text(source, source_format, target_format)
-        if target_format == "parquet":
-            return _write_parquet(records)
-        return _write_text(records, target_format).encode()
+            return _write_text(_read_parquet(source, target_format), target_format).encode()
+        return _write_parquet(_read_text(source, source_format, target_format))
 
 
-def _read_parquet(source: bytes, target_format: str) -> list[dict[str, JsonValue]]:
-    """Read a parquet payload as records, refusing what its footer already says the target cannot hold.
+def _read_parquet(source: bytes, target_format: str) -> Iterator[list[dict[str, JsonValue]]]:
+    """Read a parquet payload a batch of records at a time, refusing what its footer says is too much.
 
     The footer costs nothing to read and the pages may decode to far more than the payload's
-    size, so everything it answers is asked before a page is read. A file written without
-    statistics, or lying in them, is held to the same limit by counting as the batches arrive.
+    size, so everything it answers is asked before a page is read: the cells it decodes to
+    for every target, and for a csv its columns and its empty cells. A file written without
+    statistics, or lying in them, is held to the same limits by counting as the batches arrive.
     """
     try:
         opened = pq.ParquetFile(pa.BufferReader(source))
@@ -89,20 +106,23 @@ def _read_parquet(source: bytes, target_format: str) -> list[dict[str, JsonValue
         if pa.types.is_binary(kind) or pa.types.is_large_binary(kind) or pa.types.is_fixed_size_binary(kind):
             raise TransformError(BINARY_COLUMN.render(column=repr(name)))
     shape = _Shape(rows=opened.metadata.num_rows, columns=len(schema.names))
+    shape.hold_cells(shape.rows)
     if target_format == "csv":
         hold_csv_columns(shape.columns)
         shape.hold_empty(_declared_nulls(opened))
-    records: list[dict[str, JsonValue]] = []
+    batch_rows = max(1, min(READ_BATCH_ROWS, READ_BATCH_CELLS // max(shape.columns, 1)))
     empty = 0
+    decoded = 0
     try:
-        for batch in opened.iter_batches(batch_size=READ_BATCH_ROWS):  # pyright: ignore[reportUnknownMemberType]
+        for batch in opened.iter_batches(batch_size=batch_rows):  # pyright: ignore[reportUnknownMemberType]
+            decoded += batch.num_rows
+            shape.hold_cells(decoded)
             if target_format == "csv":
                 empty += sum(batch.column(index).null_count for index in range(batch.num_columns))  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
                 shape.hold_empty(empty)
-            records.extend({key: _spelled(value) for key, value in row.items()} for row in batch.to_pylist())
+            yield [{key: _spelled(value) for key, value in row.items()} for row in batch.to_pylist()]
     except pa.ArrowInvalid as error:
         raise TransformError(NOT_PARQUET.render(detail=str(error))) from error
-    return records
 
 
 class _Shape(BaseModel):
@@ -110,6 +130,19 @@ class _Shape(BaseModel):
 
     rows: int
     columns: int
+
+    def hold_cells(self, rows: int) -> None:
+        """Refuse this shape once this many of its rows are known, past the cells a parquet may decode to."""
+        cells = max(rows, self.rows) * max(self.columns, 1)
+        if cells > PARQUET_CELL_LIMIT:
+            raise TransformError(
+                TOO_MANY_CELLS.render(
+                    rows=f"{max(rows, self.rows):,}",
+                    columns=f"{self.columns:,}",
+                    cells=f"{cells:,}",
+                    limit=f"{PARQUET_CELL_LIMIT:,}",
+                )
+            )
 
     def hold_empty(self, empty: int) -> None:
         """Refuse this shape as a csv once this many of its cells are known to be empty."""
@@ -178,17 +211,20 @@ def _read_json_values(text: str, source_format: str, target_format: str) -> list
 def _read_csv(text: str) -> list[dict[str, JsonValue]]:
     """Read the header row and its rows, as objects whose every value is a string."""
     rows = csv.reader(io.StringIO(text, newline=""))
-    header = next(rows, None)
-    if header is None:
-        return []
-    _check_header(header)
-    records: list[dict[str, JsonValue]] = []
-    for number, row in enumerate(rows, start=1):
-        if not row:
-            continue
-        if len(row) > len(header):
-            raise TransformError(CSV_ROW_TOO_WIDE.render(number=number))
-        records.append({name: row[index] if index < len(row) else "" for index, name in enumerate(header)})
+    try:
+        header = next(rows, None)
+        if header is None:
+            return []
+        _check_header(header)
+        records: list[dict[str, JsonValue]] = []
+        for number, row in enumerate(rows, start=1):
+            if not row:
+                continue
+            if len(row) > len(header):
+                raise TransformError(CSV_ROW_TOO_WIDE.render(number=number))
+            records.append({name: row[index] if index < len(row) else "" for index, name in enumerate(header)})
+    except csv.Error as error:
+        raise TransformError(CSV_ROW_UNREADABLE.render(line=rows.line_num, detail=str(error))) from error
     return records
 
 
@@ -231,7 +267,10 @@ def _write_parquet(records: list[dict[str, JsonValue]]) -> bytes:
     """Infer one type per column from the records, then write them as parquet bytes."""
     schema = pa.schema([(name, KIND_TYPES[kind]) for name, kind in _columns(records).items()])
     sink = io.BytesIO()
-    pq.write_table(pa.Table.from_pylist(records, schema=schema), sink)  # pyright: ignore[reportUnknownMemberType]
+    try:
+        pq.write_table(pa.Table.from_pylist(records, schema=schema), sink)  # pyright: ignore[reportUnknownMemberType]
+    except (pa.ArrowException, OverflowError, UnicodeError) as error:
+        raise TransformError(NOT_WRITTEN.render(detail=str(error))) from error
     return sink.getvalue()
 
 
@@ -240,11 +279,14 @@ def _columns(records: list[dict[str, JsonValue]]) -> dict[str, str]:
 
     Integers and floats unify to a float column, because JSON calls both a number; any
     other mix is two types in one column, which parquet does not write and a codec that
-    coerced would not preserve.
+    coerced would not preserve. For the same reason an integer an ``int64`` column cannot
+    hold, and one past 2**53 in a float column, which would arrive as a different number,
+    are refused naming the row and the key.
     """
     kinds: dict[str, str] = {}
     for number, record in enumerate(records, start=1):
         for key, value in record.items():
+            _hold_unicode(key, number, key)
             kind = _kind(value, number, key)
             if kind is None:
                 continue
@@ -257,7 +299,27 @@ def _columns(records: list[dict[str, JsonValue]]) -> dict[str, str]:
                 raise TransformError(MIXED_COLUMN.render(column=repr(key), settled=settled, kind=kind))
     for key in {name for record in records for name in record}:
         kinds.setdefault(key, "string")
+    for number, record in enumerate(records, start=1):
+        for key, value in record.items():
+            if isinstance(value, int) and not isinstance(value, bool):
+                _hold_integer(value, kinds[key], number, key)
     return kinds
+
+
+def _hold_integer(value: int, kind: str, number: int, key: str) -> None:
+    """Refuse an integer the column it is in would not write as itself."""
+    if value not in INT64_RANGE:
+        raise TransformError(INTEGER_OUT_OF_RANGE.render(number=number, key=repr(key), value=value))
+    if kind == "number" and abs(value) > EXACT_FLOAT_INTEGER:
+        raise TransformError(INTEGER_NOT_A_FLOAT.render(number=number, key=repr(key), value=value))
+
+
+def _hold_unicode(text: str, number: int, key: str) -> None:
+    """Refuse text holding half of a surrogate pair, which has no UTF-8 spelling for parquet to write."""
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError as error:
+        raise TransformError(UNPAIRED_SURROGATE.render(number=number, key=repr(key), position=error.start)) from error
 
 
 def _kind(value: JsonValue, number: int, key: str) -> str | None:
@@ -273,27 +335,47 @@ def _kind(value: JsonValue, number: int, key: str) -> str | None:
         return "integer"
     if isinstance(value, float):
         return "number"
+    _hold_unicode(str(value), number, key)
     return "string"
 
 
-def _write_text(records: list[dict[str, JsonValue]], target_format: str) -> str:
-    """Write the records in a text spelling, the way convert.std writes them."""
-    if target_format == "json":
-        return json.dumps(records, separators=(",", ":"))
-    if target_format == "ndjson":
-        return "".join(f"{json.dumps(record, separators=(',', ':'))}\n" for record in records)
-    return _write_csv(records)
-
-
-def _write_csv(records: list[dict[str, JsonValue]]) -> str:
-    """Write a header of every key any row has, in first-seen order, and one row per record."""
-    header = csv_header(records)
+def _write_text(batches: Iterable[list[dict[str, JsonValue]]], target_format: str) -> str:
+    """Write the records in a text spelling, the way convert.std writes them, a batch at a time."""
     out = io.StringIO(newline="")
-    writer = csv.writer(out, lineterminator="\n")
-    writer.writerow(header)
-    for record in records:
-        writer.writerow([_cell(record.get(key)) for key in header])
+    if target_format == "csv":
+        _write_csv(batches, out)
+        return out.getvalue()
+    if target_format == "json":
+        out.write("[")
+    written = 0
+    for batch in batches:
+        for record in batch:
+            spelled_record = json.dumps(record, separators=(",", ":"))
+            if target_format == "json":
+                out.write(f",{spelled_record}" if written else spelled_record)
+            else:
+                out.write(f"{spelled_record}\n")
+            written += 1
+    if target_format == "json":
+        out.write("]")
     return out.getvalue()
+
+
+def _write_csv(batches: Iterable[list[dict[str, JsonValue]]], out: io.StringIO) -> None:
+    """Write a header of every key the rows have, in first-seen order, and one row per record.
+
+    Every row of a parquet carries every column, so the first batch with a row names them all.
+    """
+    writer = csv.writer(out, lineterminator="\n")
+    header: list[str] | None = None
+    for batch in batches:
+        if header is None and batch:
+            header = csv_header(batch)
+            writer.writerow(header)
+        for record in batch:
+            writer.writerow([_cell(record.get(key)) for key in header or []])
+    if header is None:
+        writer.writerow([])
 
 
 def _cell(value: JsonValue) -> str:

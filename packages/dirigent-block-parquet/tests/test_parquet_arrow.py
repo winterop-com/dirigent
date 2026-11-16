@@ -9,7 +9,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from dirigent_block_parquet import ArrowConverter
+from dirigent_block_parquet import ArrowConverter, arrow
 from dirigent_plugin import BlockFailure, ErrorClass, transforms
 from dirigent_testing import FakeContext, FakeStorage, call_block
 
@@ -396,3 +396,90 @@ async def test_a_parquet_of_real_rows_still_converts_past_the_limit_on_empty_cel
     payload = await to_parquet(ctx, storage, READINGS_JSON, "json")
 
     assert (await from_parquet(ctx, storage, payload, "csv")).count("\n") == 3
+
+
+def constant_table(rows: int, columns: int = 1) -> pa.Table:
+    """A table of one repeated value, which parquet holds in a few hundred bytes whatever its rows."""
+    column = pa.array([7] * rows, type=pa.int64())  # pyright: ignore[reportUnknownMemberType]
+    return pa.table({f"c{index}": column for index in range(columns)})  # pyright: ignore[reportUnknownMemberType]
+
+
+@pytest.mark.parametrize("target_format", ["json", "ndjson", "csv"])
+async def test_a_parquet_decoding_to_more_cells_than_the_limit_is_refused_from_its_footer(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch, target_format: str
+) -> None:
+    payload = parquet_bytes(constant_table(2_000, 3))
+    monkeypatch.setattr(arrow, "PARQUET_CELL_LIMIT", 5_999)
+    no_page_is_read(monkeypatch)
+
+    with pytest.raises(BlockFailure) as raised:
+        await from_parquet(ctx, storage, payload, target_format)
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "2,000 rows by 3 columns, 6,000 cells" in raised.value.message
+
+
+async def test_a_parquet_at_the_cell_limit_converts(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(arrow, "PARQUET_CELL_LIMIT", 6_000)
+
+    text = await from_parquet(ctx, storage, parquet_bytes(constant_table(2_000, 3)), "json")
+
+    assert len(json.loads(text)) == 2_000
+
+
+async def test_a_parquet_whose_footer_undercounts_its_rows_stops_at_the_batch_that_passes_the_limit(
+    ctx: FakeContext, storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = parquet_bytes(constant_table(5_000))
+    monkeypatch.setattr(arrow, "PARQUET_CELL_LIMIT", 2_000)
+
+    class Undercounted(arrow._Shape):  # pyright: ignore[reportPrivateUsage]
+        """A footer that says one row whatever the file holds."""
+
+        def __init__(self, *, rows: int, columns: int) -> None:
+            super().__init__(rows=1, columns=columns)
+
+    monkeypatch.setattr(arrow, "_Shape", Undercounted)
+    read: Any = pq.ParquetFile.iter_batches  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    batches: list[object] = []
+
+    def counted(self: pq.ParquetFile, batch_size: int) -> Iterator[object]:
+        for batch in read(self, batch_size=batch_size):
+            batches.append(batch)
+            yield batch
+
+    monkeypatch.setattr(pq.ParquetFile, "iter_batches", counted)
+
+    with pytest.raises(BlockFailure) as raised:
+        await from_parquet(ctx, storage, payload, "ndjson")
+
+    assert "cells" in raised.value.message
+    assert len(batches) == 2
+
+
+@pytest.mark.parametrize(
+    ("source", "source_format", "said"),
+    [
+        ('[{"a": 1180591620717411303424}]', "json", "row 1 key 'a' is 1180591620717411303424, which is outside"),
+        ('[{"a": 1.5}, {"a": 9007199254740993}]', "json", "row 2 key 'a' is the integer 9007199254740993"),
+        ('[{"a": "\\ud800"}]', "json", "row 1 key 'a' holds half of a surrogate pair at character 0"),
+        ('[{"\\udc00": "x"}]', "json", "row 1 key '\\udc00' holds half of a surrogate pair"),
+        ("a\n" + "x" * 200_000 + "\n", "csv", "line 2 of the csv cannot be read: field larger than field limit"),
+    ],
+)
+async def test_a_value_parquet_cannot_write_as_itself_is_refused_naming_where_it_is(
+    ctx: FakeContext, storage: FakeStorage, source: str, source_format: str, said: str
+) -> None:
+    with pytest.raises(BlockFailure) as raised:
+        await to_parquet(ctx, storage, source, source_format)
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert said in raised.value.message
+
+
+async def test_an_integer_in_range_beside_a_float_still_converts(ctx: FakeContext, storage: FakeStorage) -> None:
+    payload = await to_parquet(ctx, storage, '[{"a": 1.5}, {"a": 9007199254740992}]', "json")
+
+    assert column_types(payload) == {"a": pa.float64()}
