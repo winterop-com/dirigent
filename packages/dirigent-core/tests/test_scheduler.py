@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import dirigent_core.scheduler as scheduler_module
 from dirigent_client.enums import AttemptStatus, FiringOutcome, RunStatus, ScheduleKind, TriggerKind
-from dirigent_core import telemetry
+from dirigent_core import retention, telemetry
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import ConcurrencyPolicy, PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import Attribution, create_run, pause_run, save_pipeline
@@ -1083,6 +1083,70 @@ async def test_a_failing_tick_pauses_the_loop_rather_than_ending_the_process(
 
     # A transient database failure is a pause, not an exit: the loop kept ticking.
     assert len(attempted) >= 2
+
+
+async def test_schedules_keep_firing_while_a_retention_sweep_runs(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pruning = services.model_copy(
+        update={"settings": services.settings.model_copy(update={"retention_logs": timedelta(days=30)})}
+    )
+    release = asyncio.Event()
+    sweeps: list[int] = []
+    ticks: list[int] = []
+
+    async def slow_prune(*_args: object, **_kwargs: object) -> retention.Swept:
+        sweeps.append(len(ticks))
+        await release.wait()
+        return retention.Swept()
+
+    async def counting(*_args: object, **_kwargs: object) -> list[Fired]:
+        ticks.append(1)
+        return []
+
+    monkeypatch.setattr(scheduler_module, "prune", slow_prune)
+    monkeypatch.setattr(scheduler_module, "tick", counting)
+    scheduler = SchedulerProcess(sessions, pruning, tick_seconds=0.01)
+    task = asyncio.create_task(scheduler.run())
+    try:
+        for _ in range(500):
+            if len(ticks) >= 5:
+                break
+            await asyncio.sleep(0.01)
+        assert len(sweeps) == 1, "a sweep in flight is not started twice"
+        assert len(ticks) >= 5, "the ticks stopped behind the sweep"
+    finally:
+        release.set()
+        scheduler.request_stop()
+        await asyncio.wait_for(task, timeout=10)
+
+
+async def test_a_sweep_that_stopped_with_more_left_is_due_again_at_once(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pruning = services.model_copy(
+        update={"settings": services.settings.model_copy(update={"retention_logs": timedelta(days=30)})}
+    )
+    sweeps: list[bool] = []
+
+    async def batch_limited(*_args: object, **_kwargs: object) -> retention.Swept:
+        more = not sweeps
+        sweeps.append(more)
+        return retention.Swept(counts={"logs": 1}, more_left=more)
+
+    monkeypatch.setattr(scheduler_module, "prune", batch_limited)
+    scheduler = SchedulerProcess(sessions, pruning, tick_seconds=0.01)
+    task = asyncio.create_task(scheduler.run())
+    try:
+        for _ in range(500):
+            if len(sweeps) >= 2:
+                break
+            await asyncio.sleep(0.01)
+        await asyncio.sleep(0.1)
+        assert sweeps == [True, False], "the second sweep waits for the interval once nothing is left"
+    finally:
+        scheduler.request_stop()
+        await asyncio.wait_for(task, timeout=10)
 
 
 async def test_the_listing_is_advisory_and_the_row_lock_decides_what_is_fired(

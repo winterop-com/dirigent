@@ -310,23 +310,37 @@ async def prune(
     """Sweep until nothing is left to delete, one committed batch at a time.
 
     A batch is bounded so no single transaction holds locks over a year's backlog, and the
-    number of batches is bounded too: a sweep that would never finish yields to the next one
-    rather than running forever.
+    number of batches is bounded too: a sweep that reaches ``max_batches`` stops with
+    ``more_left`` set. Each batch commits the families before it clears any run's storage.
     """
     chosen = policy if policy is not None else retention.policy_from(services.settings)
+    families = chosen.model_copy(update={"runs": None})
+    runs = retention.Policy(runs=chosen.runs, scratch=chosen.scratch)
     limit = services.settings.retention_batch
     total = retention.Swept()
     for _ in range(max_batches):
+        swept = retention.Swept()
         async with session_scope(sessions) as session:
-            storage = await services.bound_storage(session)
-            swept = await retention.sweep(session, chosen, storage=storage, now=now, limit=limit)
-        for family, count in swept.counts.items():
-            total.record(family, count)
-        total.scratch_deleted += swept.scratch_deleted
-        total.scratch_failed += swept.scratch_failed
+            done = await retention.sweep(session, families, now=now, limit=limit)
+        _add(swept, done)
+        if runs.runs is not None:
+            async with session_scope(sessions) as session:
+                storage = await services.bound_storage(session)
+                done = await retention.sweep(session, runs, storage=storage, now=now, limit=limit)
+            _add(swept, done)
+        _add(total, swept)
         if not swept.total:
-            break
+            return total
+    total.more_left = True
     return total
+
+
+def _add(total: retention.Swept, swept: retention.Swept) -> None:
+    """Add one batch's counts into a running total."""
+    for family, count in swept.counts.items():
+        total.record(family, count)
+    total.scratch_deleted += swept.scratch_deleted
+    total.scratch_failed += swept.scratch_failed
 
 
 class Scheduler:
@@ -355,6 +369,7 @@ class Scheduler:
         self._lock_session: AsyncSession | None = None
         # Never pruned yet, so the first sweep is due as soon as leadership is taken.
         self._pruned_at = -math.inf
+        self._sweeping: asyncio.Task[None] | None = None
         self._lock_sessions = lock_sessions
         self._lock_engine: AsyncEngine | None = None
 
@@ -410,7 +425,12 @@ class Scheduler:
             await self._wait(self.tick_seconds)
 
     async def _release(self) -> None:
-        """Give leadership back and close the session holding it."""
+        """Stop a sweep in flight, give leadership back and close the session holding it."""
+        sweeping, self._sweeping = self._sweeping, None
+        if sweeping is not None:
+            sweeping.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await sweeping
         session, self._lock_session = self._lock_session, None
         if session is None:
             return
@@ -440,11 +460,14 @@ class Scheduler:
             await self._wait(self.tick_seconds)
 
     async def _prune_if_due(self) -> None:
-        """Sweep whatever the retention ages have outlived, on its own much slower clock.
+        """Start a sweep of whatever the retention ages have outlived, on its own much slower clock.
 
+        The sweep runs as a task beside the ticks, so schedules keep firing while it works.
         It runs here rather than on a worker because the leader is the one process there is
         exactly one of: every worker sweeping would have them deleting each other's batches.
         """
+        if self._sweeping is not None and not self._sweeping.done():
+            return
         policy = retention.policy_from(self.services.settings)
         if not retention.configured(policy):
             return
@@ -453,16 +476,24 @@ class Scheduler:
         if moment - self._pruned_at < interval:
             return
         self._pruned_at = moment
+        self._sweeping = asyncio.create_task(self._sweep(policy))
+
+    async def _sweep(self, policy: retention.Policy) -> None:
+        """Sweep once, and leave the next sweep due at once when this one stopped with more left."""
         try:
             swept = await prune(self.sessions, self.services, policy)
         except Exception as error:  # a prune that fails is retried next time it is due
             _logger.error("retention sweep failed", error=str(error))
             return
-        if swept.total or swept.scratch_deleted:
+        if swept.more_left:
+            self._pruned_at = -math.inf
+        if swept.total or swept.scratch_deleted or swept.scratch_failed:
             _logger.info(
                 "retention swept",
                 rows=swept.total,
                 artifacts=swept.scratch_deleted,
+                unreachable=swept.scratch_failed or None,
+                more_left=swept.more_left,
                 **swept.counts,
             )
 

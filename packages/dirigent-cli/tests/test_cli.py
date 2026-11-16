@@ -373,6 +373,15 @@ def test_connection_ensure_refuses_a_kind_no_plugin_contributes(keyed_instance: 
     assert "no connection kind" in refusal(result.output)["message"]
 
 
+@pytest.mark.parametrize("age", ["0s", "0"])
+def test_prune_refuses_an_age_that_keeps_nothing(age: str) -> None:
+    result = runner.invoke(app, ["--json", "prune", "--runs", age])
+    assert result.exit_code == 2
+    problem = refusal(result.output)
+    assert problem["code"] == "cli.invalid_age"
+    assert "longer than 0s" in problem["message"]
+
+
 def test_the_scheduler_refuses_to_start_on_sqlite() -> None:
     result = runner.invoke(app, ["scheduler"])
     assert result.exit_code == GUARD_EXIT
