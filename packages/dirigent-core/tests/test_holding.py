@@ -433,6 +433,72 @@ async def test_a_batch_no_run_can_be_made_of_is_not_acknowledged_and_comes_back(
         await holder.stop()
 
 
+async def test_a_batch_that_fails_after_every_open_doubles_the_backoff(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    await apply(sessions, services, mailroom())
+
+    async def refused(*args: object, **kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(polling, "create_run", refused)
+    holder = Holder(sessions, services, owner=WORKER)
+    backoff = services.settings.source_backoff
+    try:
+        INBOX.put("poison")
+        moment = datetime.now(UTC)
+        for failures in range(1, 4):
+            closed = INBOX.closed
+            await holder.tick(now=moment)
+
+            async def failed_again(closed: int = closed) -> bool:
+                return INBOX.closed == closed + 1 and (await the_source(sessions)).lease_owner is None
+
+            await eventually(failed_again)
+            row = await the_source(sessions)
+            assert row.poll_failures == failures
+            assert row.next_poll_at is not None
+            waited = row.next_poll_at - datetime.now(UTC)
+            assert waited > backoff * 2 ** (failures - 1) - timedelta(seconds=5)
+            moment = datetime.now(UTC) + timedelta(hours=1)
+    finally:
+        await holder.stop()
+
+
+async def test_a_consumer_held_until_its_lease_renews_is_no_longer_failing(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    INBOX.refuse_open = True
+    await apply(sessions, services, mailroom())
+    holder = Holder(sessions, services, owner=WORKER)
+    try:
+        await holder.tick()
+
+        async def failed() -> bool:
+            return (await the_source(sessions)).poll_failures == 1
+
+        await eventually(failed)
+        await holder.stop()
+        INBOX.refuse_open = False
+        short = services.settings.model_copy(update={"source_poll_lease": timedelta(milliseconds=200)})
+        holder = Holder(sessions, services.model_copy(update={"settings": short}), owner=WORKER)
+        await holder.tick(now=datetime.now(UTC) + timedelta(hours=1))
+
+        async def opened() -> bool:
+            return INBOX.opened == 1
+
+        await eventually(opened)
+        assert (await the_source(sessions)).poll_failures == 1, "opening alone clears nothing"
+
+        async def renewed() -> bool:
+            row = await the_source(sessions)
+            return (row.poll_failures, row.last_error) == (0, None)
+
+        await eventually(renewed)
+    finally:
+        await holder.stop()
+
+
 async def test_a_consumer_that_will_not_open_is_failing_and_backs_off(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

@@ -17,8 +17,11 @@ from engineblocks import StreamSensor
 WORKER = "worker-under-test"
 
 
-def tailing(block: str = "test.stream", config: str = "{key: tail, parks: 1, batch: 2}") -> str:
+def tailing(
+    block: str = "test.stream", config: str = "{key: tail, parks: 1, batch: 2}", poll: str | None = "1m"
+) -> str:
     """A pipeline whose source pokes a sensor, and echoes where each batch ended."""
+    every = f"\n      poll: {poll}" if poll is not None else ""
     return f"""
 format: dirigent/v1
 kind: pipeline
@@ -28,8 +31,7 @@ steps:
     source:
       kind: sensor
       block: {block}
-      config: {config}
-      poll: 1m
+      config: {config}{every}
   note:
     block: test.echo
     depends_on: [tail]
@@ -103,6 +105,7 @@ async def test_a_sensor_reading_part_of_a_run_fails_the_poll(
         ("test.stream", "{parks: many}", None, "steps.tail.source.config.parks"),
     ],
 )
+@pytest.mark.parametrize("poll", ["1m", None], ids=["poll", "default-poll"])
 async def test_apply_refuses_what_a_source_cannot_poke(
     sessions: async_sessionmaker[AsyncSession],
     services: EngineServices,
@@ -110,9 +113,11 @@ async def test_apply_refuses_what_a_source_cannot_poke(
     config: str,
     code: str | None,
     location: str,
+    poll: str | None,
 ) -> None:
+    text = tailing(block=block, config=config, poll=poll)
     async with session_scope(sessions) as session:
-        result = await apply_document(session, services, load_text(tailing(block=block, config=config)), dry_run=True)
+        result = await apply_document(session, services, load_text(text), dry_run=True)
     [issue] = result.plan.issues
     assert issue.location == location
     if code is not None:

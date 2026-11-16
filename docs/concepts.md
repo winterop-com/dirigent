@@ -256,8 +256,11 @@ every `poll` (at most ten years, past which apply refuses it), and each object i
 carrying an old date is found and one re-copied with a fresh date is not run twice;
 `rerun_changed: true` runs an object again whenever its modification time changes, for a file
 that is overwritten in place. Every worker polls, and a lease on the source's row
-keeps two from polling one source at once. The source keeps a cursor, so a restarted worker
-carries on where the last stopped; moving the `uri` starts the cursor over. A polled source is
+keeps two from polling one source at once. A worker takes up to `source_poll_max` due sources at
+a time and polls them side by side, and a poll that is still going when the source's lease
+(`source_poll_lease`) runs out fails. The source keeps a cursor, so a restarted worker
+carries on where the last stopped; moving the `uri` starts the cursor over, and a poll that was
+in flight when it moved makes no run. A polled source is
 `starting` until its first poll succeeds, and `failing` while its polls fail, each failure
 doubling the wait before the next. `max_in_flight` bounds how many of its runs are unsettled
 before the next poll waits. A poll is all or nothing: when a run cannot be made of one of the
@@ -273,7 +276,9 @@ keeps a consumer open on its topic or queue under a lease it renews, and each me
 one run. A message is acknowledged -- a Kafka group's offsets committed, a RabbitMQ delivery
 acked -- only after its run is committed, so a message is never lost and may, after a crash
 between the two, arrive twice. A worker that dies lets its lease run out, and another takes the
-source over. Pausing, redeclaring or removing the source, or deactivating its pipeline, closes
+source over. A held source is `failing` from a failure until a message becomes a run or its
+consumer stays open until the lease is renewed, and each failure in that time doubles the wait
+before the consumer is opened again. Pausing, redeclaring or removing the source, or deactivating its pipeline, closes
 its consumer at once and lets the lease go; a message that arrives in between makes no run and
 is not acknowledged, so it is delivered again once the source is resumed or the pipeline
 activated. Each worker holds at most `source_held_max` sources.

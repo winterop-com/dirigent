@@ -106,6 +106,7 @@ directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn a
 | `source_poll_tick` | `DIRIGENT_SOURCE_POLL_TICK` | `"5s"` | The longest a worker goes without looking for polled sources that are due. |
 | `source_poll_lease` | `DIRIGENT_SOURCE_POLL_LEASE` | `"5m"` | How long a worker holds a worker-hosted source without renewing; another may take it once this passes. |
 | `source_poll_batch` | `DIRIGENT_SOURCE_POLL_BATCH` | `100` | The most inputs one poll may hand over, before the source's own `max_in_flight`. |
+| `source_poll_max` | `DIRIGENT_SOURCE_POLL_MAX` | `8` | How many polled sources one worker takes at a time, and polls side by side. |
 | `source_held_max` | `DIRIGENT_SOURCE_HELD_MAX` | `16` | How many held sources, such as queue consumers, one worker keeps open at once. |
 | `source_hold_wait` | `DIRIGENT_SOURCE_HOLD_WAIT` | `"1s"` | How long a held source's consumer waits for a message before the worker checks on it. |
 | `source_backoff` | `DIRIGENT_SOURCE_BACKOFF` | `"30s"` | How long a polled source waits after a failed poll; later failures double it. |

@@ -1,18 +1,21 @@
 """Polled sources: a worker leases each due source, asks its kind what is new, and makes a run of each input.
 
-A tick claims every due source in one transaction, writing a lease so that two workers never
-poll one source at once, and commits before polling: a poll does I/O, and no row lock is held
-across it. Each source's outcome is then settled in a transaction of its own under the
-pipeline's lock, the one run creation takes: the inputs become runs in the order the kind gave
-them, the cursor is stored, and the next poll is due one cadence later. A poll that raises
-leaves the cursor where it was and backs off.
+A tick claims up to ``source_poll_max`` due sources in one transaction, writing a lease so that
+two workers never poll one source at once, and commits before polling: a poll does I/O, and no
+row lock is held across it. The claimed sources are polled side by side, each bounded by the
+lease. Each source's outcome is then settled in a transaction of its own under the pipeline's
+lock, the one run creation takes: the inputs become runs in the order the kind gave them, the
+cursor is stored, and the next poll is due one cadence later. A poll that raises or outlives its
+lease leaves the cursor where it was and backs off, and a poll whose source was redeclared to
+another cursor while it ran is dropped.
 
 A source's config is resolved before each poll with ``${artifacts}`` in scope and nothing else:
 there is no run yet, so a reference to one fails the poll.
 """
 
+import asyncio
 import time
-from collections.abc import Mapping
+from collections.abc import Coroutine, Mapping
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -26,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import EntryVia, InputOutcome, TriggerKind
-from dirigent_common import JsonMap, scrub
+from dirigent_common import JsonMap, format_duration, scrub
 from dirigent_core import telemetry
 from dirigent_core.database import session_scope
 from dirigent_core.engine.context import ConnectionRecord, build_http_client, load_connections, open_record
@@ -40,6 +43,7 @@ from dirigent_core.logging import get_logger
 from dirigent_core.messages import (
     RUN_UNKNOWN_CONNECTION,
     SENSOR_OUTSIDE_RUN,
+    SOURCE_POLL_TIMED_OUT,
     SOURCE_RUN_REFUSED,
     SOURCE_RUN_SKIPPED,
     UNKNOWN_CONNECTION_KIND,
@@ -67,6 +71,8 @@ class Claimed(BaseModel):
     source_id: UUID
     pipeline_id: UUID
     room: int
+    cursor_for: str | None = None
+    """Which config the stored cursor belonged to when the source was claimed."""
 
 
 class PollOutcome(BaseModel):
@@ -102,15 +108,19 @@ async def tick(
     moment = now or utcnow()
     async with session_scope(sessions) as session:
         claimed = await claim_due(session, services, owner=owner, now=moment)
-    outcomes: list[PollOutcome] = []
-    for one in claimed:
-        opened: set[str] = set()
-        try:
-            outcomes.append(await poll_one(sessions, services, one, owner=owner, opened=opened))
-        except Exception as error:
-            said = scrub(str(error), opened) or type(error).__name__
-            outcomes.append(await _failed(sessions, services, one, owner=owner, error=said))
-    return outcomes
+    return list(await asyncio.gather(*(_poll_or_fail(sessions, services, one, owner=owner) for one in claimed)))
+
+
+async def _poll_or_fail(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, claimed: Claimed, *, owner: str
+) -> PollOutcome:
+    """Poll one claimed source, recording whatever it raises on its own row."""
+    opened: set[str] = set()
+    try:
+        return await poll_one(sessions, services, claimed, owner=owner, opened=opened)
+    except Exception as error:
+        said = scrub(str(error), opened) or type(error).__name__
+        return await _failed(sessions, services, claimed, owner=owner, error=said)
 
 
 def _cadence(kinds: Any, row: Source, lease: timedelta) -> timedelta:
@@ -142,6 +152,7 @@ async def claim_due(session: AsyncSession, services: EngineServices, *, owner: s
             sa.or_(Source.lease_expires_at.is_(None), Source.lease_expires_at <= now),
         )
         .order_by(Source.next_poll_at)
+        .limit(services.settings.source_poll_max)
     )
     if session.get_bind().dialect.name == "postgresql":
         statement = statement.with_for_update(of=Source, skip_locked=True)
@@ -159,7 +170,7 @@ async def claim_due(session: AsyncSession, services: EngineServices, *, owner: s
             continue
         row.lease_owner = owner
         row.lease_expires_at = now + lease
-        claimed.append(Claimed(source_id=row.id, pipeline_id=row.pipeline_id, room=room))
+        claimed.append(Claimed(source_id=row.id, pipeline_id=row.pipeline_id, room=room, cursor_for=row.cursor_for))
     return claimed
 
 
@@ -222,7 +233,7 @@ async def poll_one(
         config = kind.config_model.model_validate(
             resolve(cast("JsonValue", row.config), ReferenceScope(artifacts=services.storage.artifact_root))
         )
-        answer = await kind.poll(config, cursor, ctx, claimed.room)
+        answer = await _within_lease(kind.poll(config, cursor, ctx, claimed.room), services.settings.source_poll_lease)
     except Exception as error:  # a kind's failure is the source's, recorded and backed off
         said = scrub(str(error), ctx.opened_secrets) or type(error).__name__
         return await _failed(sessions, services, claimed, owner=owner, error=said)
@@ -249,8 +260,8 @@ async def _settle(
 
     An input no run can be made of fails the whole poll: nothing is committed, the cursor stays
     where it was, and the next poll offers the same inputs again after a backoff. A source paused,
-    or whose pipeline was deactivated, while it polled makes no run and keeps its cursor; only its
-    lease is let go.
+    whose pipeline was deactivated, or redeclared to another cursor while it polled makes no run
+    and keeps the cursor it has; only its lease is let go.
     """
     moment = utcnow()
     runs: list[UUID] = []
@@ -261,7 +272,7 @@ async def _settle(
             pipeline = await session.get(Pipeline, claimed.pipeline_id)
             if row is None or pipeline is None or row.lease_owner != owner:
                 return PollOutcome(source_id=claimed.source_id, runs=[])
-            if row.paused or not pipeline.active:
+            if row.paused or not pipeline.active or row.cursor_for != claimed.cursor_for:
                 row.lease_owner = None
                 row.lease_expires_at = None
                 return PollOutcome(source_id=claimed.source_id, runs=[])
@@ -296,6 +307,19 @@ async def _settle(
 
 class InputRefused(Exception):
     """No run could be made of an input a worker took, which fails the whole batch it came in."""
+
+
+class PollTimedOut(Exception):
+    """A poll outlived the lease it was claimed under."""
+
+
+async def _within_lease[T](polling: Coroutine[Any, Any, T], lease: timedelta) -> T:
+    """Await a poll, failing it once the lease it was claimed under has run out."""
+    try:
+        async with asyncio.timeout(lease.total_seconds()):
+            return await polling
+    except TimeoutError as error:
+        raise PollTimedOut(SOURCE_POLL_TIMED_OUT.render(timeout=format_duration(lease))) from error
 
 
 async def enter_input(

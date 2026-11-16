@@ -1,5 +1,6 @@
 """Polled sources: a worker leases what is due, and each object a storage source finds becomes one run."""
 
+import asyncio
 import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -330,6 +331,82 @@ async def test_moving_the_location_resets_the_cursor(
     row = await the_source(sessions)
     assert row.cursor is None
     assert row.next_poll_at is not None
+
+
+async def test_a_poll_whose_source_moves_while_it_runs_makes_no_run_and_leaves_the_new_cursor(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    old, new = inbox_of(tmp_path, "old"), inbox_of(tmp_path, "new")
+    put(old, "a.csv", datetime(2026, 1, 1, tzinfo=UTC))
+    put(new, "b.csv", datetime(2026, 1, 1, tzinfo=UTC))
+    await apply(sessions, services, landing(old))
+    real = StorageSource.poll
+
+    async def moved_meanwhile(self: Any, config: Any, cursor: Any, ctx: Any, limit: int) -> Any:
+        answer = await real(self, config, cursor, ctx, limit)
+        await apply(sessions, services, landing(new))
+        return answer
+
+    monkeypatch.setattr(StorageSource, "poll", moved_meanwhile)
+    [dropped] = await polling.tick(sessions, services, owner=WORKER)
+    assert (dropped.runs, dropped.error) == ([], None)
+    row = await the_source(sessions)
+    assert (row.cursor, row.lease_owner, row.poll_failures) == (None, None, 0)
+
+    monkeypatch.setattr(StorageSource, "poll", real)
+    [polled] = await polling.tick(sessions, services, owner=WORKER)
+    assert len(polled.runs) == 1
+    assert await entered(sessions) == [f"file://{new}/b.csv"]
+
+
+async def test_a_tick_takes_at_most_source_poll_max_sources_and_polls_them_side_by_side(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await two_sources(sessions, services, tmp_path)
+    real = StorageSource.poll
+    both = asyncio.Barrier(2)
+
+    async def together(self: Any, config: Any, cursor: Any, ctx: Any, limit: int) -> Any:
+        async with asyncio.timeout(5):
+            await both.wait()
+        return await real(self, config, cursor, ctx, limit)
+
+    monkeypatch.setattr(StorageSource, "poll", together)
+    outcomes = await polling.tick(sessions, services, owner=WORKER)
+    assert [outcome.error for outcome in outcomes] == [None, None], "neither poll waited for the other to end"
+
+    one = services.model_copy(update={"settings": services.settings.model_copy(update={"source_poll_max": 1})})
+    later = utcnow() + timedelta(hours=1)
+    async with session_scope(sessions) as session:
+        claimed = await polling.claim_due(session, one, owner=WORKER, now=later)
+    assert len(claimed) == 1
+
+
+async def test_a_poll_that_outlives_its_lease_fails_and_backs_off(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await apply(sessions, services, landing(inbox_of(tmp_path)))
+
+    async def stuck(self: Any, config: Any, cursor: Any, ctx: Any, limit: int) -> Any:
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(StorageSource, "poll", stuck)
+    short = services.model_copy(
+        update={"settings": services.settings.model_copy(update={"source_poll_lease": timedelta(milliseconds=50)})}
+    )
+    [outcome] = await polling.tick(sessions, short, owner=WORKER)
+    assert outcome.error == "the poll did not finish within 50ms, the source's lease"
+    row = await the_source(sessions)
+    assert (row.poll_failures, row.lease_owner) == (1, None)
 
 
 def test_a_hand_run_names_the_object_and_is_dated_now() -> None:

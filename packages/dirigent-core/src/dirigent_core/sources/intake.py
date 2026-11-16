@@ -6,10 +6,10 @@ the capped read (408, 413) and the signature with its timestamp (401), then the 
 bucket (429), the source and its pipeline taking input (503), the content type (415), the
 capped read (408, 413), the parse (400), the runs in flight (503), then the run. A read holds
 no database connection: the transaction ends before it and what is decided on is read again
-after it. Nothing before the source's own bucket writes a journal row or spends from it, so a
-caller without the token or the secret, or in a loop, causes no writes; those are counted in
-telemetry instead. The one write ahead of the bucket is the record of a signature taken, which
-only a caller holding the secret causes.
+after it. A call refused before it was let in -- no token, a bad signature, too fast, too large,
+too slow -- writes a journal row, at most 60 a minute for one source, and past that is counted in
+telemetry alone. The one other write ahead of the source's own bucket is the record of a
+signature taken, which only a caller holding the secret causes.
 """
 
 import asyncio

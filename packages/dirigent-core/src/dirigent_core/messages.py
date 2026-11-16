@@ -1247,6 +1247,10 @@ SOURCE_RUN_SKIPPED = SOURCE.define(
 
 SOURCE_RUN_REFUSED = SOURCE.define("run_refused", "no run could be created: {detail}")
 
+SOURCE_POLL_TIMED_OUT = SOURCE.define("poll_timed_out", "the poll did not finish within {timeout}, the source's lease")
+
+SOURCE_NOT_HELD = SOURCE.define("not_held", "the source is no longer held by this worker")
+
 SENSOR_UNKNOWN = SOURCE.define(
     "sensor_unknown", "no sensor {block} is installed on this instance (the sensors a source pokes: {known})"
 )

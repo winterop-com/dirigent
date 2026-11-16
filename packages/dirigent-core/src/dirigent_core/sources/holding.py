@@ -35,7 +35,7 @@ from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.logging import get_logger
-from dirigent_core.messages import RUN_UNKNOWN_CONNECTION
+from dirigent_core.messages import RUN_UNKNOWN_CONNECTION, SOURCE_NOT_HELD
 from dirigent_core.models import Pipeline, Source, utcnow
 from dirigent_core.sources.polling import InputRefused, backoff_for, enter_input
 from dirigent_core.sources.rows import held, in_flight, max_in_flight
@@ -207,7 +207,7 @@ async def _enter_all(
         row = await session.get(Source, taken.source_id, populate_existing=True)
         pipeline = await session.get(Pipeline, taken.pipeline_id, populate_existing=True)
         if row is None or pipeline is None or row.lease_owner != owner:
-            raise InputRefused("the source is no longer held by this worker")
+            raise InputRefused(SOURCE_NOT_HELD.render())
         if row.paused or not pipeline.active:
             return None
         for output in inputs:
@@ -230,24 +230,25 @@ async def _enter_all(
 
 
 async def _opened(sessions: async_sessionmaker[AsyncSession], source_id: UUID, *, owner: str) -> None:
-    """Mark a source as held: its consumer opened, so it is no longer starting."""
+    """Mark a source as held: its consumer opened, so it is no longer starting.
+
+    Its failures stand until a batch is entered or the consumer holds until its lease is renewed.
+    """
     async with session_scope(sessions) as session:
         await session.execute(
-            sa.update(Source)
-            .where(Source.id == source_id, Source.lease_owner == owner)
-            .values(polled_at=utcnow(), poll_failures=0, last_error=None)
+            sa.update(Source).where(Source.id == source_id, Source.lease_owner == owner).values(polled_at=utcnow())
         )
 
 
 async def _renew(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices, source_id: UUID, *, owner: str
 ) -> bool:
-    """Push this worker's lease out again; False when another worker has taken the source."""
+    """Push this worker's lease out again and clear the failures it held through; False when another worker took it."""
     async with session_scope(sessions) as session:
         renewed = await session.execute(
             sa.update(Source)
             .where(Source.id == source_id, Source.lease_owner == owner)
-            .values(lease_expires_at=utcnow() + services.settings.source_poll_lease)
+            .values(lease_expires_at=utcnow() + services.settings.source_poll_lease, poll_failures=0, last_error=None)
         )
     return bool(cast("Any", renewed).rowcount)
 
