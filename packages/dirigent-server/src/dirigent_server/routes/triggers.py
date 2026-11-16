@@ -60,7 +60,6 @@ def _schedule_request(payload: ScheduleIn) -> ScheduleRequest:
         at=payload.at,
         timezone=payload.timezone,
         params=payload.params,
-        connection_pins=payload.connection_pins,
         log_levels={pattern: level.value for pattern, level in payload.log_levels.items()}
         if payload.log_levels
         else None,

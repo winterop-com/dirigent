@@ -462,11 +462,6 @@ def upgrade() -> None:
         sa.Column("timezone", sa.String(length=64), server_default="UTC", nullable=False),
         sa.Column("params", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False),
         sa.Column(
-            "connection_pins",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
-            nullable=False,
-        ),
-        sa.Column(
             "log_levels", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=True
         ),
         sa.Column(

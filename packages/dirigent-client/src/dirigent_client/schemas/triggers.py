@@ -31,7 +31,6 @@ class ScheduleIn(RequestModel):
     at: datetime | None = None
     timezone: str = "UTC"
     params: JsonMap = Field(default_factory=dict)
-    connection_pins: JsonMap = Field(default_factory=dict)
     log_levels: dict[str, LogLevel] | None = Field(
         default=None,
         description=(

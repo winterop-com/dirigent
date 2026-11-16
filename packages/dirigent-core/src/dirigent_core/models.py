@@ -435,7 +435,6 @@ class Schedule(Entity):
     run_at: Mapped[datetime | None] = mapped_column(Timestamp)
     timezone: Mapped[str] = mapped_column(sa.String(64), nullable=False, default="UTC", server_default="UTC")
     params: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
-    connection_pins: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
     log_levels: Mapped[JsonMap | None] = mapped_column(JsonDocument)
     """The log-level map copied onto every run this schedule fires."""
     priority: Mapped[RunPriority | None] = mapped_column(string_enum(RunPriority, "run_priority"))

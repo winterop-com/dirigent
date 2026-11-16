@@ -91,7 +91,6 @@ class ScheduleRequest(BaseModel):
     at: datetime | None = None
     timezone: str = "UTC"
     params: JsonMap = Field(default_factory=dict)
-    connection_pins: JsonMap = Field(default_factory=dict)
     log_levels: JsonMap | None = None
     """The log-level map every fired run carries, or None for the default: info and up."""
 
@@ -471,7 +470,6 @@ async def create_schedule(
         run_at=request.at,
         timezone=request.timezone,
         params=dict(request.params),
-        connection_pins=dict(request.connection_pins),
         log_levels=dict(request.log_levels) if request.log_levels else None,
         priority=request.priority,
         next_fire_at=first_fire_at(request, now=now),
@@ -500,7 +498,6 @@ DECLARED: Final = (
     "run_at",
     "timezone",
     "params",
-    "connection_pins",
     "log_levels",
     "priority",
 )
@@ -533,7 +530,6 @@ async def update_schedule(
     schedule.run_at = request.at
     schedule.timezone = request.timezone
     schedule.params = dict(request.params)
-    schedule.connection_pins = dict(request.connection_pins)
     schedule.log_levels = dict(request.log_levels) if request.log_levels else None
     schedule.priority = request.priority
     schedule.next_fire_at = first_fire_at(request, now=now)
