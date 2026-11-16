@@ -2422,7 +2422,7 @@ const runs = {
     cancel_ask: { before: (run: string) => `Cancel run ${run} of `, after: '?' },
     /** The way out of that question, which leaves the run as it is. */
     cancel_keep: 'Keep the run',
-    rerun_action: 'Run this pipeline again',
+    rerun_action: 'Rerun this run',
     toggle_terminal: "Show or hide this run's terminal",
     /** What the palette says the terminal holds. */
     terminal_hint: 'Every line this run wrote, in the order it wrote them',

@@ -289,11 +289,10 @@ export function RunDetail() {
         openPanelTab('step')
     }
 
-    // Rerun asks the server to replay this run on the version it pinned, with the input it
-    // entered at its source, and opens the run that answers.
-    const loaded = state !== null
+    // Rerun asks the server to replay this settled run on the version it pinned, with the input
+    // it entered at its source, and opens the run that answers.
     const rerun = useMemo(() => {
-        if (!loaded) return null
+        if (!settled) return null
         return () => {
             void rerunRun(id).then((accepted) => {
                 if (accepted.run_id === null) {
@@ -303,7 +302,7 @@ export function RunDetail() {
                 void navigate(`/runs/${accepted.run_id}`)
             }, sayRefusal)
         }
-    }, [id, loaded, navigate])
+    }, [id, navigate, settled])
 
     // A verb that changes what the run is doing answers with the run, which is folded in like a frame.
     const pause = () => {
@@ -392,7 +391,7 @@ export function RunDetail() {
                           group: shelf,
                           screen: true,
                           icon: ICONS.rerun,
-                          keywords: ['repeat', 'retry'],
+                          keywords: ['again', 'repeat', 'retry'],
                           run: rerun,
                       },
                   ]),
