@@ -1,98 +1,19 @@
-"""Tests for the context the engine hands a block: the client it builds, and where a capture lands."""
+"""Tests for the context the engine hands a block: where a capture lands."""
 
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
-import httpx2
 import pytest
-from pydantic import BaseModel, SecretStr
 
-from dirigent_common import CredentialOnOrigin, CredentialParameterOnOrigin, base_format_checker
-from dirigent_core.engine.context import BufferedLogger, EngineStepContext, build_http_client
+from dirigent_block_http import connections
+from dirigent_common import base_format_checker, build_client
+from dirigent_core.engine import context
+from dirigent_core.engine.context import BufferedLogger, EngineStepContext
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import Storage, build_storage
 from dirigent_plugin import BlockFailure
 from dirigent_testing import FakeRuns
-
-
-class _TokenConfig(BaseModel):
-    """A pack's connection kind that authenticates with a personal access token."""
-
-    base_url: str = "https://play.example/api"
-    api_token: SecretStr | None = None
-
-
-class _SchemedTokenConfig(_TokenConfig):
-    """A token connection that names the scheme its token is sent under."""
-
-    api_token_scheme: str = "Bearer"
-
-
-class _BasicConfig(BaseModel):
-    """A connection kind that authenticates with the basic pair alone."""
-
-    base_url: str = "https://play.example/api"
-    basic_username: str | None = None
-    basic_password: SecretStr | None = None
-
-
-class _BearerAndTokenConfig(_TokenConfig):
-    """A connection kind that names both credential header fields."""
-
-    bearer_token: SecretStr | None = None
-
-
-class _BareConfig(BaseModel):
-    """A connection kind carrying no HTTP fields at all."""
-
-    note: str = "nothing to read"
-
-
-def test_api_token_is_sent_under_the_default_scheme() -> None:
-    """A config carrying only an api_token authorizes with ApiToken."""
-    client = build_http_client(_TokenConfig(api_token=SecretStr("d2pat_x")))
-
-    assert client.headers["authorization"] == "ApiToken d2pat_x"
-    assert client.auth is None
-
-
-def test_api_token_scheme_overrides_the_default() -> None:
-    """A config that names a scheme has its token sent under that scheme."""
-    client = build_http_client(_SchemedTokenConfig(api_token=SecretStr("t")))
-
-    assert client.headers["authorization"] == "Bearer t"
-
-
-def test_bearer_token_wins_over_an_api_token() -> None:
-    """A config carrying both header credentials sends the bearer one."""
-    client = build_http_client(_BearerAndTokenConfig(api_token=SecretStr("t"), bearer_token=SecretStr("b")))
-
-    assert client.headers["authorization"] == "Bearer b"
-
-
-def test_empty_api_token_authorizes_nothing() -> None:
-    """An api_token present but empty leaves the client unauthenticated."""
-    client = build_http_client(_TokenConfig(api_token=SecretStr("")))
-
-    assert "authorization" not in client.headers
-
-
-def test_basic_credentials_stay_basic_auth() -> None:
-    """A config carrying only the basic pair gets httpx basic auth and no header."""
-    client = build_http_client(_BasicConfig(basic_username="admin", basic_password=SecretStr("district")))
-
-    assert isinstance(client.auth, httpx2.BasicAuth)
-    assert "authorization" not in client.headers
-
-
-def test_a_config_naming_no_fields_gets_a_bare_client() -> None:
-    """A connection kind with none of the standard fields still yields a usable client."""
-    client = build_http_client(_BareConfig())
-
-    assert client.auth is None
-    assert "authorization" not in client.headers
-
 
 # -- where a captured stream lands -----------------------------------------------
 
@@ -173,40 +94,5 @@ async def test_a_fan_out_item_captures_under_its_own_path(tmp_path: Path) -> Non
     assert sink.uri == f"{scratch}/load/{item}/attempt-1-err"
 
 
-class _CredentialConfig(BaseModel):
-    """A connection kind that names the credential fields, and a base it may be sent to."""
-
-    base_url: str = "http://service.test"
-    credential: SecretStr | None = None
-    credential_header: str = "Authorization"
-    credential_scheme: str | None = None
-
-
-def test_a_credential_is_sent_in_the_header_the_config_names() -> None:
-    config = _CredentialConfig(credential=SecretStr("dummy"), credential_header="X-Api-Key")
-    assert build_http_client(config).headers["x-api-key"] == "dummy"
-
-
-def test_a_credential_is_sent_under_the_scheme_the_config_names() -> None:
-    config = _CredentialConfig(credential=SecretStr("dummy"), credential_scheme="Token")
-    assert build_http_client(config).headers["authorization"] == "Token dummy"
-
-
-def test_a_credential_carries_the_hook_that_keeps_it_on_its_origin() -> None:
-    bare = build_http_client(_CredentialConfig())
-    held = build_http_client(_CredentialConfig(credential=SecretStr("dummy")))
-    assert "authorization" not in bare.headers
-    assert bare.event_hooks["request"] == []
-    assert [type(hook) for hook in held.event_hooks["request"]] == [CredentialOnOrigin]
-
-
-class _QueryCredentialConfig(_CredentialConfig):
-    """A connection kind that also names the query parameter."""
-
-    credential_query: str | None = None
-
-
-def test_a_credential_sent_as_a_query_parameter_is_no_header() -> None:
-    held = build_http_client(_QueryCredentialConfig(credential=SecretStr("dummy"), credential_query="api_key"))
-    assert "authorization" not in held.headers
-    assert [type(hook) for hook in held.event_hooks["request"]] == [CredentialParameterOnOrigin]
+def test_a_step_and_a_connection_check_build_their_client_with_one_function() -> None:
+    assert context.build_client is connections.build_client is build_client
