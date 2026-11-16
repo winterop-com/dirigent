@@ -164,7 +164,8 @@ shipped stack the server has no route to the daemon, which shares a network with
 an attempt cancelled without its remote agreeing stays marked, and a worker the run's tags allow
 tells the daemon on its next sweep, every `DIRIGENT_SWEEP_INTERVAL` for ten minutes. An attempt
 that fails or passes its deadline while its container runs -- a probe the daemon did not answer,
-say -- is cancelled the same way before its retry starts another container.
+say -- is cancelled the same way, and its retry starts no container until that cancel lands or
+the ten minutes run out.
 
 **Every step of one stack names the same connection.** A stack exists only on the daemon that
 was told to create it, so a `docker.compose.up` on one daemon and a `docker.compose.down` on

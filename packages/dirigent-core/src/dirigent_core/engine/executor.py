@@ -10,7 +10,8 @@ rather than into a duplicate job or a second fetch.
 import asyncio
 import contextlib
 import time
-from collections.abc import Coroutine, Generator, Sequence
+from collections.abc import AsyncGenerator, Coroutine, Generator, Sequence
+from contextvars import ContextVar
 from datetime import datetime, timedelta
 from typing import Any, Final, cast
 from uuid import UUID
@@ -78,8 +79,8 @@ from dirigent_core.engine.references import (
 )
 from dirigent_core.engine.runs import (
     EngineRuns,
-    cancel_held_remote,
     promote_queued_run,
+    tell_remote,
 )
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.settlement import conclude
@@ -134,6 +135,9 @@ DEFAULT_PROBE_INTERVAL = timedelta(seconds=30)
 
 #: Failures that are the remote's own answer that its job ended, so there is nothing to cancel.
 _REMOTE_SETTLED: Final = frozenset({REMOTE_JOB_FAILED.code, REMOTE_JOB_SAID.code, GONE_PROBES.code})
+
+#: The attempts marked as owing their remote a cancel inside the current ``owed_cancels`` block.
+_OWED: ContextVar[set[UUID] | None] = ContextVar("owed_remote_cancels", default=None)
 
 #: The statuses that free a pipeline's concurrency slot and settle what the run owes.
 TERMINAL_RUN_STATUSES = (RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.COMPLETED_WITH_ERRORS)
@@ -242,12 +246,13 @@ class Engine:
 
     async def claim(self, *, now: datetime | None = None) -> ClaimedUnit | None:
         """Claim the next due unit of work, settling anything unclaimable on the way."""
-        async with self.sessions() as probe_session:
-            postgres = is_postgres(probe_session)
-        if postgres:
-            return await with_deadlock_retry(lambda: self._claim_once(now))
-        async with SQLITE_CLAIM_LOCK:
-            return await self._claim_once(now)
+        async with self.owed_cancels():
+            async with self.sessions() as probe_session:
+                postgres = is_postgres(probe_session)
+            if postgres:
+                return await with_deadlock_retry(lambda: self._claim_once(now))
+            async with SQLITE_CLAIM_LOCK:
+                return await self._claim_once(now)
 
     async def _claim_once(self, now: datetime | None) -> ClaimedUnit | None:
         """Run one claim transaction: take a lease, or settle rows that cannot be run."""
@@ -498,10 +503,11 @@ class Engine:
             UnitRaised: Recording it failed, said with every secret the attempt opened taken out.
         """
         secrets = _handed_over(unit.config, unit.output_urls)
-        try:
-            await self._run_unit(unit, secrets, now=now)
-        except Exception as error:
-            raise UnitRaised(scrub(str(error), secrets) or type(error).__name__) from error
+        async with self.owed_cancels():
+            try:
+                await self._run_unit(unit, secrets, now=now)
+            except Exception as error:
+                raise UnitRaised(scrub(str(error), secrets) or type(error).__name__) from error
 
     async def _run_unit(self, unit: ClaimedUnit, secrets: set[str], *, now: datetime | None = None) -> None:
         """Run one unit, gathering what it opens in ``secrets``."""
@@ -731,7 +737,8 @@ class Engine:
 
     async def record_handle(self, unit: ClaimedUnit, handle: RemoteHandle) -> None:
         """Commit the remote handle on its own, the moment execute returned it."""
-        await with_deadlock_retry(lambda: self._record_handle_once(unit, handle))
+        async with self.owed_cancels():
+            await with_deadlock_retry(lambda: self._record_handle_once(unit, handle))
 
     async def _record_handle_once(self, unit: ClaimedUnit, handle: RemoteHandle) -> None:
         """Run that transaction once; the caller runs it again after a deadlock.
@@ -775,23 +782,16 @@ class Engine:
         attempt: StepAttempt,
         handle: RemoteHandle,
     ) -> None:
-        """Cancel remote work that was submitted while the attempt was being cancelled.
+        """Keep remote work that was submitted while the attempt was being cancelled, owing a cancel.
 
         The cancel cleared the lease, so the ordinary path would discard the handle and the
         job would run on with nothing recording that it exists. The handle is kept because it
-        is the only evidence of the job, and the remote is told straight away.
+        is the only evidence of the job, and the remote is told once this transaction commits.
         """
         attempt.remote_handle = handle.model_dump(mode="json")
-        run = await session.get(Run, unit.run_id)
-        if run is None:  # pragma: no cover - the attempt was just read from this run
-            return
-        accepted = await cancel_held_remote(
-            session, self.services, run, attempt, await load_connections(session), utcnow()
-        )
+        _owe_remote_cancel(attempt, utcnow())
         _steps.info(
-            "remote work submitted into a cancelled attempt was cancelled"
-            if accepted
-            else "remote work submitted into a cancelled attempt was not cancelled; the sweep tries again",
+            "remote work submitted into a cancelled attempt owes a cancel",
             attempt_id=str(unit.attempt_id),
             run_id=str(unit.run_id),
             step=unit.step_name,
@@ -1091,7 +1091,7 @@ class Engine:
             attempt.error_code = DEADLINE_SKIPPED.code
             attempt.error_params = {"deadline": str(attempt.deadline_at)}
             _release(attempt)
-            await self._cancel_abandoned_remote(session, run, attempt, now)
+            _owe_remote_cancel(attempt, now)
         else:
             await self._settle_failure(
                 session,
@@ -1124,7 +1124,7 @@ class Engine:
         attempt.error_class = failure.error_class.value
         _release(attempt)
         if failure.code not in _REMOTE_SETTLED:
-            await self._cancel_abandoned_remote(session, run, attempt, now)
+            _owe_remote_cancel(attempt, now)
 
         step = definition.steps.get(attempt.step_name)
         if step is None or not allow_retry or attempt.kind is AttemptKind.MANUAL:
@@ -1163,19 +1163,47 @@ class Engine:
             error_class=failure.error_class.value,
         )
 
-    async def _cancel_abandoned_remote(
-        self, session: AsyncSession, run: Run, attempt: StepAttempt, now: datetime
-    ) -> None:
-        """Cancel the remote work of an attempt settled while its job may still run."""
-        if not attempt.remote_handle:
+    @contextlib.asynccontextmanager
+    async def owed_cancels(self) -> AsyncGenerator[None]:
+        """Tell each remote owed a cancel inside the block, once the block's transactions committed.
+
+        The calls run outside any transaction or lock, each once; what a remote refuses stays
+        marked for ``retry_remote_cancels``. A block that raises tells nothing.
+        """
+        owed: set[UUID] = set()
+        token = _OWED.set(owed)
+        try:
+            yield
+        finally:
+            _OWED.reset(token)
+        for attempt_id in sorted(owed):
+            try:
+                await self._tell_owed(attempt_id)
+            except Exception as error:  # the sweep tries again
+                _logger.warning("an owed remote cancel failed", attempt_id=str(attempt_id), error=str(error))
+
+    async def _tell_owed(self, attempt_id: UUID) -> None:
+        """Cancel one attempt's remote work if it still owes it, and clear the mark if the remote agreed."""
+        async with self.sessions() as session:
+            attempt = await session.get(StepAttempt, attempt_id)
+            if attempt is None or attempt.remote_cancel_since is None or not attempt.remote_handle:
+                return
+            run = await session.get(Run, attempt.run_id)
+            if run is None:  # pragma: no cover - the foreign key makes this unreachable
+                return
+            since = attempt.remote_cancel_since
+            connections = await load_connections(session)
+            fields = await attempt_fields(session, attempt)
+        runs = EngineRuns(self.services, parent_run_id=run.id, sessions=self.sessions)
+        if not await tell_remote(self.services, run, attempt, connections, runs, fields):
             return
-        accepted = await cancel_held_remote(session, self.services, run, attempt, await load_connections(session), now)
-        _steps.info(
-            "remote work of a settled attempt was cancelled"
-            if accepted
-            else "remote work of a settled attempt was not cancelled; the sweep tries again",
-            **await attempt_fields(session, attempt),
-        )
+        async with session_scope(self.sessions) as session:
+            await session.execute(
+                sa.update(StepAttempt)
+                .where(StepAttempt.id == attempt_id, StepAttempt.remote_cancel_since == since)
+                .values(remote_cancel_since=None)
+            )
+            await wakeups.publish(session, wakeups.WORK)
 
     async def _settle_and_advance(
         self,
@@ -1245,6 +1273,16 @@ class Engine:
                 expires_at=expires.isoformat(),
             )
             return held
+
+
+def _owe_remote_cancel(attempt: StepAttempt, now: datetime) -> None:
+    """Mark an attempt's remote work as owing a cancel, for ``owed_cancels`` and the sweep."""
+    if not attempt.remote_handle:
+        return
+    attempt.remote_cancel_since = now
+    owed = _OWED.get()
+    if owed is not None:
+        owed.add(attempt.id)
 
 
 def _release(attempt: StepAttempt) -> None:

@@ -2980,6 +2980,60 @@ async def test_cancelling_a_run_tells_the_remote_of_a_failed_attempt_it_refused_
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
 
 
+async def _retry_behind_a_refused_cancel(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch, code: str
+) -> tuple[Run, datetime]:
+    """Fail a remote attempt whose cancel the remote refuses, and show its retry is held back."""
+
+    async def unreached(*_: object) -> bool:
+        return False
+
+    _probe_raising_once(monkeypatch)
+    run = await start(sessions, services, _retried_remote(code))
+    with monkeypatch.context() as patch:
+        patch.setattr(RemoteOperator, "cancel", unreached)
+        await _run_hops(engine, 2)
+    later = utcnow() + timedelta(minutes=1)
+    assert await engine.claim(now=later) is None, "the retry was claimed while the first job may still run"
+    assert RemoteOperator.submissions == ["job-1"]
+    first, second = await attempts_of(sessions, run.id)
+    assert first.remote_cancel_since is not None
+    assert second.status is AttemptStatus.QUEUED
+    return run, later
+
+
+async def test_a_retry_waits_until_the_earlier_attempts_cancel_lands(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, later = await _retry_behind_a_refused_cancel(engine, sessions, services, monkeypatch, "retry-waits")
+    async with session_scope(sessions) as session:
+        assert await retry_remote_cancels(session, services, []) == 1
+    unit = await engine.claim(now=later)
+    assert unit is not None
+    assert unit.attempt_number == 2
+    await engine.run_unit(unit, now=later)
+    assert RemoteOperator.cancellations == ["job-1"]
+    assert RemoteOperator.submissions == ["job-1", "job-1"]
+
+
+async def test_a_retry_proceeds_once_the_cancel_window_gives_up(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def unreached(*_: object) -> bool:
+        return False
+
+    run, later = await _retry_behind_a_refused_cancel(engine, sessions, services, monkeypatch, "retry-gives-up")
+    with monkeypatch.context() as patch:
+        patch.setattr(RemoteOperator, "cancel", unreached)
+        async with session_scope(sessions) as session:
+            gave_up = utcnow() + REMOTE_CANCEL_WINDOW + timedelta(minutes=1)
+            assert await retry_remote_cancels(session, services, [], now=gave_up) == 0
+    assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
+    unit = await engine.claim(now=later)
+    assert unit is not None
+    assert unit.attempt_number == 2
+
+
 async def test_a_remote_job_that_reports_its_own_failure_is_not_cancelled(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
@@ -3054,7 +3108,7 @@ async def test_a_deadline_that_settles_a_waiting_remote_cancels_its_job(
     assert unit is not None
     await engine.run_unit(unit)
 
-    async with session_scope(sessions) as session:
+    async with engine.owed_cancels(), session_scope(sessions) as session:
         await engine.settle_overdue_deadlines(session, now=utcnow() + timedelta(hours=1))
 
     [attempt] = await attempts_of(sessions, run.id)

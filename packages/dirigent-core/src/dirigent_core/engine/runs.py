@@ -610,7 +610,8 @@ async def cancel_run(
         # A handle is what says remote work exists, and it is committed one transaction
         # before the attempt is parked as waiting. Telling only a waiting attempt's remote
         # leaves a job running whenever the cancel lands inside that window.
-        await cancel_held_remote(session, services, run, attempt, connections, moment)
+        if attempt.remote_handle and not await cancel_remote(session, services, run, attempt, connections):
+            attempt.remote_cancel_since = moment
         attempt.status = AttemptStatus.CANCELLED
         attempt.finished_at = moment
         attempt.lease_owner = None
@@ -724,6 +725,23 @@ async def cancel_remote(
     """
     if not attempt.remote_handle:
         return True
+    runs = EngineRuns(services, parent_run_id=run.id, session=session)
+    return await tell_remote(services, run, attempt, connections, runs, await attempt_fields(session, attempt))
+
+
+async def tell_remote(
+    services: EngineServices,
+    run: Run,
+    attempt: StepAttempt,
+    connections: Mapping[str, ConnectionRecord],
+    runs: "EngineRuns",
+    fields: Mapping[str, Any],
+) -> bool:
+    """Call an operator's ``cancel`` on the handle an attempt holds, and say if the remote agreed.
+
+    It touches no database itself; ``runs`` decides which transaction a cancel that reaches
+    another run lands in, and ``fields`` are what its log lines carry.
+    """
     block = services.host.operators.get(attempt.block_id)
     if block is None:
         return False
@@ -749,7 +767,7 @@ async def cancel_remote(
         connections=dict(connections),
         connection_models=services.connection_models,
         secrets=services.secrets,
-        runs=EngineRuns(services, parent_run_id=run.id, session=session),
+        runs=runs,
         format_checker=services.format_checker,
         storage_connections=services.settings.storage_connections,
     )
@@ -763,33 +781,12 @@ async def cancel_remote(
     except Exception as error:  # best effort by contract: a refusal must not block the cancel
         _logger.warning(
             "remote cancellation failed",
-            **await attempt_fields(session, attempt),
+            **fields,
             error=raised_detail(error, redact=context.opened_secrets),
         )
         return False
-    _logger.info("remote cancellation requested", **await attempt_fields(session, attempt), accepted=accepted)
+    _logger.info("remote cancellation requested", **fields, accepted=accepted)
     return accepted
-
-
-async def cancel_held_remote(
-    session: AsyncSession,
-    services: EngineServices,
-    run: Run,
-    attempt: StepAttempt,
-    connections: Mapping[str, ConnectionRecord],
-    now: datetime,
-) -> bool:
-    """Cancel the remote work an attempt holds a handle on, and mark it for the sweep on a refusal.
-
-    A marked attempt is what ``retry_remote_cancels`` tries again, for ``REMOTE_CANCEL_WINDOW``.
-    """
-    if not attempt.remote_handle:
-        return True
-    if await cancel_remote(session, services, run, attempt, connections):
-        attempt.remote_cancel_since = None
-        return True
-    attempt.remote_cancel_since = now
-    return False
 
 
 async def _cancel_settled_remotes(
@@ -837,15 +834,21 @@ async def retry_remote_cancels(
         return 0
     connections = await load_connections(session)
     told = 0
+    cleared = False
     for attempt in attempts:
         since = cast("datetime", attempt.remote_cancel_since)
         run = await session.get(Run, attempt.run_id)
         if run is None or moment - since > REMOTE_CANCEL_WINDOW:
             attempt.remote_cancel_since = None
+            cleared = True
             continue
         if await cancel_remote(session, services, run, attempt, connections):
             attempt.remote_cancel_since = None
+            cleared = True
             told += 1
+    if cleared:
+        # A retry of the same step waits on the marker, so clearing it can make one due.
+        await wakeups.publish(session, wakeups.WORK)
     return told
 
 

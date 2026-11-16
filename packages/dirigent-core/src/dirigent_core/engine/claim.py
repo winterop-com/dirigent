@@ -13,6 +13,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from sqlalchemy import orm
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -138,6 +139,10 @@ def due_attempt_statement(now: datetime, tags: Sequence[str] = (), *, postgres: 
     than holding every slot until it drains. Numbering only the due rows would not do it:
     claiming one removes it, and the rest would renumber from one after every claim.
 
+    An attempt is not due while an earlier attempt of its step still owes its remote a cancel
+    (``remote_cancel_since``): a remote that names its job after the step would otherwise have
+    the late cancel land on the job this attempt submits.
+
     The subquery computes the ranking and nothing else. Every predicate that decides whether
     an attempt may be claimed is repeated on the locked ``step_attempts`` relation in the
     outer select, because ``SKIP LOCKED`` re-checks a row that changed under it against the
@@ -162,11 +167,19 @@ def due_attempt_statement(now: datetime, tags: Sequence[str] = (), *, postgres: 
         sa.and_(StepAttempt.status == AttemptStatus.QUEUED, StepAttempt.available_at <= now),
         sa.and_(StepAttempt.status == AttemptStatus.WAITING, StepAttempt.next_poll_at <= now),
     )
+    earlier = orm.aliased(StepAttempt)
+    owes_cancel = sa.exists().where(
+        earlier.run_id == StepAttempt.run_id,
+        earlier.step_name == StepAttempt.step_name,
+        earlier.run_item_id.is_not_distinct_from(StepAttempt.run_item_id),
+        earlier.attempt < StepAttempt.attempt,
+        earlier.remote_cancel_since.is_not(None),
+    )
     return (
         sa.select(StepAttempt)
         .join(Run, Run.id == StepAttempt.run_id)
         .join(ranked, ranked.c.attempt_id == StepAttempt.id)
-        .where(due, Run.status.in_(CLAIMABLE_RUN_STATUSES), routable(tags, postgres=postgres))
+        .where(due, ~owes_cancel, Run.status.in_(CLAIMABLE_RUN_STATUSES), routable(tags, postgres=postgres))
         .order_by(ranked.c.priority_rank.desc(), ranked.c.turn, ranked.c.due_at, ranked.c.attempt_id)
         .limit(1)
     )

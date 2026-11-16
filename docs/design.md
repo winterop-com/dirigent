@@ -636,10 +636,13 @@ only**: async work that was submitted and recorded is never submitted twice. A p
 attempt of the same step holds a handle on work that is already settled or cancelled, and
 adopting it would land a retry on the outcome it was meant to replace. An attempt that settles
 as failed or skipped while its remote job may still run -- a probe or fetch raised or timed
-out, a deadline passed, the claim refused it -- has the operator's `cancel` called before any
-retry is queued; only the remote's own answer, a `FAILED` probe or the lost-job policy below,
-settles without one. A cancel the remote refuses is marked on the attempt and told again by
-the workers' sweep for ten minutes, and cancelling the run tells it once more. The guarantee says
+out, a deadline passed, the claim refused it -- is marked as owing its remote a cancel in the
+transaction that settles it; only the remote's own answer, a `FAILED` probe or the lost-job
+policy below, settles without one. Once that commits, the worker calls the operator's `cancel`,
+outside any transaction or lock; a refusal stays marked and the workers' sweep tells it again
+for ten minutes, and cancelling the run tells it once more. A retry of the step is not claimed
+while an earlier attempt still owes a cancel, so a late cancel never lands on the retry's own
+job. The guarantee says
 nothing about a synchronous operator that changed the world and died before its outcome
 commit -- there is no handle for recovery to find, so the attempt re-queues and `execute`
 runs again. Non-idempotent synchronous work is protected by the step's retry policy, which

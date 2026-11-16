@@ -255,7 +255,7 @@ class Worker:
             if self._halting.is_set():
                 return
             try:
-                async with session_scope(self.sessions) as session:
+                async with self.engine.owed_cancels(), session_scope(self.sessions) as session:
                     recovered = await sweep_leases(session)
                     overdue = await self.engine.settle_overdue_deadlines(session)
                     stuck = await detect_stuck_runs(session, after=self.settings.stuck_run)
