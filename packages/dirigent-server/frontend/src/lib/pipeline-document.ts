@@ -18,7 +18,17 @@
  * cannot.
  */
 
-import { parse, stringify } from 'yaml'
+import {
+    parse,
+    stringify,
+    type CollectionTag,
+    type DocumentOptions,
+    type ParseOptions,
+    type SchemaOptions,
+    type ScalarTag,
+    type Tags,
+    type ToStringOptions,
+} from 'yaml'
 
 import type { JsonMap } from '@/lib/api'
 import { headingOf, type Heading } from '@/lib/identity'
@@ -462,14 +472,88 @@ export function toYaml(document: JsonMap): string {
     for (const [key, value] of Object.entries(said)) {
         if (!(key in ordered)) ordered[key] = value
     }
-    return stringify(ordered, { indent: 2, lineWidth: 100 })
+    return stringify(ordered, WRITE_OPTIONS)
+}
+
+/**
+ * The scalars PyYAML's safe loader resolves, written as the `yaml` package's YAML 1.1 tags.
+ *
+ * `dg apply`, a directory seed and the examples corpus all read a document with PyYAML, which
+ * is YAML 1.1 with merge keys and without timestamps, so `NO` is false, `12:30` is 750 and `1e3`
+ * is a string there. The package's own 1.1 schema is looser: it reads `y` and `n` as booleans,
+ * `09` as 9, and a float with no dot or no exponent sign as a number. Each tag here takes
+ * PyYAML's pattern instead, which also decides what `stringify` must quote.
+ */
+const PYYAML = {
+    true: /^(?:[Yy]es|YES|[Tt]rue|TRUE|[Oo]n|ON)$/,
+    false: /^(?:[Nn]o|NO|[Ff]alse|FALSE|[Oo]ff|OFF)$/,
+    int: /^[-+]?(?:0|[1-9][0-9_]*)$/,
+    exp: /^(?:[-+]?[0-9][0-9_]*\.[0-9_]*|\.[0-9][0-9_]*)[eE][-+][0-9]+$/,
+    float: /^(?:[-+]?[0-9][0-9_]*\.[0-9_]*|\.[0-9][0-9_]*)$/,
+}
+
+/** A number as PyYAML reads it back: a float in exponent form carries a dot before its `e`. */
+function pyyamlNumber({ value }: { value: unknown }): string {
+    const number = Number(value)
+    if (Number.isNaN(number)) return '.nan'
+    if (!Number.isFinite(number)) return number > 0 ? '.inf' : '-.inf'
+    const said = Object.is(number, -0) ? '-0' : JSON.stringify(number)
+    const exponent = said.indexOf('e')
+    if (exponent === -1 || said.slice(0, exponent).includes('.')) return said
+    return `${said.slice(0, exponent)}.0${said.slice(exponent)}`
+}
+
+function pyyamlTag(tag: ScalarTag): ScalarTag {
+    switch (tag.tag) {
+        case 'tag:yaml.org,2002:bool':
+            return { ...tag, test: tag.test?.test('true') ? PYYAML.true : PYYAML.false }
+        case 'tag:yaml.org,2002:int':
+            return tag.format === undefined ? { ...tag, test: PYYAML.int, stringify: pyyamlNumber } : tag
+        case 'tag:yaml.org,2002:float':
+            if (tag.format === 'EXP') return { ...tag, test: PYYAML.exp, stringify: pyyamlNumber }
+            if (tag.format !== undefined) return tag
+            return { ...tag, test: tag.test?.test('.inf') ? tag.test : PYYAML.float, stringify: pyyamlNumber }
+        default:
+            return tag
+    }
+}
+
+const MERGE_TAG = 'tag:yaml.org,2002:merge'
+const TIMESTAMP_TAG = 'tag:yaml.org,2002:timestamp'
+
+/** The schema's tags as PyYAML reads them, less the ones whose tag is named in `dropped`. */
+function pyyamlTags(tags: Tags, dropped: string[]): Tags {
+    return tags
+        .filter(
+            (tag): tag is CollectionTag | ScalarTag => typeof tag !== 'string' && !dropped.includes(tag.tag),
+        )
+        .map((tag) => ('test' in tag ? pyyamlTag(tag as ScalarTag) : tag))
+}
+
+/** How a document's text is read: as YAML 1.1, the way PyYAML reads it. */
+const READ_OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
+    version: '1.1',
+    merge: true,
+    customTags: (tags) => pyyamlTags(tags, [TIMESTAMP_TAG]),
+}
+
+/**
+ * How a document is written as text. A plain `<<` or `=` as a value is a merge or value tag to
+ * PyYAML, which it refuses to construct, so a string spelled that way is quoted.
+ */
+const WRITE_OPTIONS: DocumentOptions & SchemaOptions & ToStringOptions = {
+    version: '1.1',
+    customTags: (tags) => pyyamlTags(tags, [TIMESTAMP_TAG, MERGE_TAG]),
+    compat: [{ tag: MERGE_TAG, default: true, test: /^(?:<<|=)$/, resolve: (said: string) => said }],
+    indent: 2,
+    lineWidth: 100,
 }
 
 /** Read the source pane's text as a document, or say why it is not one. */
 export function fromYaml(text: string): { ok: true; document: JsonMap } | { ok: false; message: string } {
     let parsed: unknown
     try {
-        parsed = parse(text) as unknown
+        parsed = parse(text, READ_OPTIONS) as unknown
     } catch (error) {
         return {
             ok: false,
