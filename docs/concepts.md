@@ -273,8 +273,10 @@ keeps a consumer open on its topic or queue under a lease it renews, and each me
 one run. A message is acknowledged -- a Kafka group's offsets committed, a RabbitMQ delivery
 acked -- only after its run is committed, so a message is never lost and may, after a crash
 between the two, arrive twice. A worker that dies lets its lease run out, and another takes the
-source over. Pausing, redeclaring or removing the source closes its consumer at once. Each
-worker holds at most `source_held_max` sources.
+source over. Pausing, redeclaring or removing the source, or deactivating its pipeline, closes
+its consumer at once and lets the lease go; a message that arrives in between makes no run and
+is not acknowledged, so it is delivered again once the source is resumed or the pipeline
+activated. Each worker holds at most `source_held_max` sources.
 
 A `sensor` source is polled too, and what it polls is a sensor block, poked outside any run:
 

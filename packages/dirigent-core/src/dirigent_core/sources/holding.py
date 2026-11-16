@@ -10,8 +10,10 @@ between the two it is delivered again. A batch no run can be made of in full com
 and is not acknowledged, so the broker delivers it again once the consumer is opened anew.
 
 The consumer is closed and the lease let go when the source is paused, redeclared, removed or
-its pipeline deactivated, which a change to its row publishes on ``dirigent_sources``; it is
-then taken up again from its new declaration on a later tick.
+its pipeline deactivated, which a change to its row or its pipeline publishes on
+``dirigent_sources``; it is then taken up again from its new declaration on a later tick. A
+batch received after such a change and before the notification is seen makes no run and is not
+acknowledged.
 """
 
 import asyncio
@@ -180,7 +182,8 @@ async def hold(
                 continue
             inputs = await listener.receive(min(room, settings.source_poll_batch), settings.source_hold_wait)
             if inputs:
-                await _enter_all(sessions, services, taken, kind, inputs, owner=owner)
+                if await _enter_all(sessions, services, taken, kind, inputs, owner=owner) is None:
+                    return
                 await listener.ack()
 
 
@@ -192,15 +195,21 @@ async def _enter_all(
     inputs: list[Any],
     *,
     owner: str,
-) -> list[UUID]:
-    """Make a run of every input in one transaction, or of none; raise when none can be made."""
+) -> list[UUID] | None:
+    """Make a run of every input in one transaction, or of none; raise when none can be made.
+
+    None when the source is paused or its pipeline inactive: no run is made, and the inputs are
+    left unacknowledged for the broker to deliver again once the source is taken up anew.
+    """
     runs: list[UUID] = []
     async with session_scope(sessions) as session:
         await lock_pipeline(session, taken.pipeline_id)
         row = await session.get(Source, taken.source_id, populate_existing=True)
-        pipeline = await session.get(Pipeline, taken.pipeline_id)
+        pipeline = await session.get(Pipeline, taken.pipeline_id, populate_existing=True)
         if row is None or pipeline is None or row.lease_owner != owner:
             raise InputRefused("the source is no longer held by this worker")
+        if row.paused or not pipeline.active:
+            return None
         for output in inputs:
             runs.append(
                 await enter_input(
