@@ -1117,7 +1117,9 @@ A field a block logs is given its JSON shape at the call, so a value JSON cannot
 stops the attempt from settling. A date or timestamp becomes ISO 8601, a decimal its digits as
 text, a UUID its text, a set or tuple a list, a pydantic model its JSON dump, bytes up to 256 of
 them base64 and longer ones `<N bytes>`, and `NaN` or an infinity the text `NaN`, `Infinity` or
-`-Infinity`. Anything else is logged as its `repr`, cut to 200 characters.
+`-Infinity`. Anything else is logged as its `repr`, cut to 200 characters. A source kind's
+log, which has no run to land in and goes to the process log of the worker or server hosting
+the kind, gives its fields the same shape and nests them under `fields`.
 
 When a worker claims an attempt it binds `run_id`, `run_item_id`, `step`, `attempt`, `block`,
 and `worker` into structlog contextvars, so every process-log line emitted underneath that

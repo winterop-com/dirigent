@@ -39,7 +39,7 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.settlement import conclude
 from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.errors import DomainError
-from dirigent_core.logging import get_logger
+from dirigent_core.logging import ProcessLog, get_logger
 from dirigent_core.messages import (
     RUN_UNKNOWN_CONNECTION,
     SENSOR_OUTSIDE_RUN,
@@ -432,7 +432,7 @@ class _PollContext:
     @property
     def log(self) -> Logger:
         """Where the kind says what it found."""
-        return _ProcessLog()
+        return ProcessLog(_logger)
 
     @property
     def storage(self) -> Storage:
@@ -465,7 +465,7 @@ class _OutsideRun:
         self.started_at = started_at
         self.inline_capture = services.settings.inline_capture
         self.params: Mapping[str, JsonValue] = {}
-        self.log: Logger = _ProcessLog()
+        self.log: Logger = ProcessLog(_logger)
         self._storage = storage
         self._services = services
         self._connections = connections
@@ -542,23 +542,3 @@ class _OutsideRun:
     def _refused(self, what: str) -> BlockFailure:
         """The failure a sensor reading part of a run is answered with."""
         return BlockFailure(SENSOR_OUTSIDE_RUN, error_class=ErrorClass.REJECTED, block=repr(self._block), what=what)
-
-
-class _ProcessLog:
-    """A polled kind's log, written to the worker's own: no run exists yet to hold it."""
-
-    def debug(self, message: str, **fields: JsonValue) -> None:
-        """Record a debug-level entry."""
-        _logger.debug(message, **fields)
-
-    def info(self, message: str, **fields: JsonValue) -> None:
-        """Record an info-level entry."""
-        _logger.info(message, **fields)
-
-    def warning(self, message: str, **fields: JsonValue) -> None:
-        """Record a warning-level entry."""
-        _logger.warning(message, **fields)
-
-    def error(self, message: str, **fields: JsonValue) -> None:
-        """Record an error-level entry."""
-        _logger.error(message, **fields)
