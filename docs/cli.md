@@ -1031,7 +1031,10 @@ shell and in a `.env`. Every other command follows the rule, `dg init` included.
 A listing is a record stream like everything else: one line per row, each carrying its kind
 and the row itself under `fields`. A row has fields of its own that a record also has -- a
 schedule's `kind` is `cron` or `interval` -- so the row is kept whole under `fields` rather
-than spread over the record's own keys:
+than spread over the record's own keys. At a terminal the same records are drawn, one line
+each, so `dg schedule list -o console` and `dg schedule list | dg format` read the same; the
+schedule, firing, alert rule, notification and triggers document listings work this way, and
+the rest of the listings still draw a table of their own at a terminal:
 
 ```bash
 dg runs list --status failed --json | jq -r '.fields.id'
