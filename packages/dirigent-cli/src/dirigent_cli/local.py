@@ -711,9 +711,9 @@ async def run_document(
     sources is entered at ``source``, its only one when that is omitted, with ``given`` as the
     input, or the source's sample when that is omitted.
     """
+    definition = load_pipeline_text(text)
     held = prepare_root(root) if root is not None else Path(tempfile.mkdtemp(prefix="dirigent-local-"))
     leave = keep or root is not None
-    definition = load_pipeline_text(text)
     # The instance is a directory rather than a context manager because ``keep`` leaves it
     # behind: a run whose database is deleted cannot be asked what it produced.
     try:

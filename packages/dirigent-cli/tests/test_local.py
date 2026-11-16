@@ -1692,3 +1692,15 @@ def test_a_deadline_that_is_not_a_duration_is_refused(tmp_path: Path) -> None:
     result = invoke("run", "--local", str(write(tmp_path, SLEEPS)), "--deadline", "soon")
     assert result.exit_code == 1
     assert "--deadline" in refusal(result.stdout)["message"]
+
+
+async def test_a_document_that_does_not_parse_leaves_no_instance_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dirigent_core.documents import DocumentError
+
+    monkeypatch.setattr(local.tempfile, "tempdir", str(tmp_path))
+    with pytest.raises(DocumentError):
+        async for _ in local.run_document("not: [a document"):
+            pass
+    assert not list(tmp_path.glob("dirigent-local-*"))
