@@ -35,7 +35,7 @@ directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn a
 | `database_pool_recycle` | `DIRIGENT_DATABASE_POOL_RECYCLE` | `"30m"` | Recycle a pooled connection older than this; unset disables recycling. |
 | `host` | `DIRIGENT_HOST` | `"127.0.0.1"` | The address the API server binds. A container needs `0.0.0.0` to be reachable. **Host only.** |
 | `port` | `DIRIGENT_PORT` | `3333` | The port the API server binds. |
-| `api_prefix` | `DIRIGENT_API_PREFIX` | `"/api/v1"` | Where the versioned REST API is mounted. `/hooks/{token}` is not under it. |
+| `api_prefix` | `DIRIGENT_API_PREFIX` | `"/api/v1"` | Where the versioned REST API is mounted. The endpoint sources' prefix is not under it. |
 | `ui_enabled` | `DIRIGENT_UI_ENABLED` | `true` | Whether the server serves the bundled web UI beside the API. |
 | `playground_enabled` | `DIRIGENT_PLAYGROUND_ENABLED` | `true` | Whether the instance serves the playground beside the API. |
 | `mcp_enabled` | `DIRIGENT_MCP_ENABLED` | `true` | Whether the server answers MCP over Streamable HTTP at `/mcp`. |

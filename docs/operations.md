@@ -59,7 +59,8 @@ Before 1.0 the schema is not migrated between versions, so a state an older diri
 refused at boot by name: every process reflects what it found before it says anything else,
 and `database.schema_stale` names the database, how many differences there are, and the first
 of them -- `step_attempts.fetched_output missing` -- instead of starting and then failing
-every query. Start from an empty state, with `dg dev --wipe-state` or by deleting
+every query. A table or a non-unique index the models do not declare, such as one added for a
+report, is not a difference; an undeclared unique index is, because it refuses writes. Start from an empty state, with `dg dev --wipe-state` or by deleting
 `.dirigent/state/`, or point the process at a database this version created; `dg db upgrade`
 and `dg db current` are not gated, because they are the tools for looking at such a file.
 
@@ -132,7 +133,9 @@ also be passed as a query parameter, `?password=...`. Wherever dirigent shows th
 `dg config show`, the `db.upgraded` and starting records, a health check or a refusal, the
 password is masked as `***`, in the userinfo and in any query parameter that names a secret
 (`password`, `sslpassword`, and any name containing `pass`, `pwd`, `secret`, `token` or
-`key`).
+`key`). A URL SQLAlchemy cannot read at all is refused when the settings are read, as
+`database.url_unparseable`, without the URL in the refusal; no refused setting repeats its
+value. A database error never carries its statement's parameters either.
 
 The local `postgres` service is still declared and still starts; drop it with
 `docker compose --project-directory . -f infra/compose.yaml up --scale postgres=0`.

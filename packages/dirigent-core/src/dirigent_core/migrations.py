@@ -168,12 +168,15 @@ def _named(difference: tuple[Any, ...]) -> SchemaDifference | None:
     """Name the table and column one Alembic difference is about.
 
     A table the models do not declare is not a difference: the database may be shared, and
-    nothing dirigent runs reads it.
+    nothing dirigent runs reads it. Nor is a non-unique index the models do not declare, such as
+    one an operator added for a report: it refuses no write. An undeclared unique index does.
     """
     what = difference[0]
     if what == "add_table":
         return SchemaDifference(kind=DifferenceKind.MISSING_TABLE, table=difference[1].name)
     if what == "remove_table":
+        return None
+    if what == "remove_index" and not difference[1].unique:
         return None
     if what == "add_column":
         return SchemaDifference(kind=DifferenceKind.MISSING_COLUMN, table=difference[2], column=difference[3].name)

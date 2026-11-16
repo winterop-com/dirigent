@@ -29,9 +29,11 @@ from pydantic_settings import (
     YamlConfigSettingsSource,
 )
 from pydantic_settings.sources.utils import parse_env_vars
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
 
 from dirigent_common import Duration, EntityName, Size
-from dirigent_core.messages import POOL_TOO_SMALL, SECRET_KEY_FILE_UNREADABLE, SECRET_KEY_TWICE
+from dirigent_core.messages import POOL_TOO_SMALL, SECRET_KEY_FILE_UNREADABLE, SECRET_KEY_TWICE, URL_UNPARSEABLE
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +202,8 @@ class Settings(BaseSettings):
         # Each field's docstring becomes its description, which is what the generated
         # reference and the scaffolded example file are written from.
         use_attribute_docstrings=True,
+        # A refused value may be a credential, such as a database URL's password.
+        hide_input_in_errors=True,
     )
 
     environment: Literal["local", "staging", "prod"] = "local"
@@ -240,7 +244,7 @@ class Settings(BaseSettings):
     """The port the API server binds."""
 
     api_prefix: str = "/api/v1"
-    """Where the versioned REST API is mounted. ``/hooks/{token}`` is not under it.
+    """Where the versioned REST API is mounted. The endpoint sources' prefix is not under it.
 
     A client has to be told the same thing, through a profile's ``api_prefix`` or the SDK's
     argument of that name: an instance that moves its API and tells nobody is one its own
@@ -507,8 +511,8 @@ class Settings(BaseSettings):
     endpoint_prefix: str = "/endpoints"
     """Where endpoint sources are served, outside the versioned API.
 
-    A proxy in front of an instance publishes this prefix and ``/hooks`` and keeps
-    ``/api/v1`` inside, so a source's route is public without the API being so."""
+    A proxy in front of an instance publishes this prefix and keeps ``/api/v1`` inside, so a
+    source's route is public without the API being so."""
 
     source_max_body: Size = Field(default=1_048_576, ge=1)
     """The largest body any endpoint reads, whatever its own ``max_body`` says; reading stops one byte past it."""
@@ -597,6 +601,16 @@ class Settings(BaseSettings):
         """Accept a comma-separated ``key=value`` string for a mapping setting."""
         return parse_string_mapping(value)
 
+    @field_validator("database_url")
+    @classmethod
+    def _parseable_url(cls, value: str) -> str:
+        """Refuse a URL SQLAlchemy cannot read, without repeating it: it may hold a password."""
+        try:
+            make_url(value)
+        except ArgumentError:
+            raise ValueError(URL_UNPARSEABLE.render()) from None
+        return value
+
     @field_validator("api_prefix", "endpoint_prefix")
     @classmethod
     def _normalise_prefix(cls, value: str) -> str:
@@ -662,11 +676,6 @@ class Settings(BaseSettings):
         if not target or target.startswith(":memory:"):
             return None
         return Path(target)
-
-    @property
-    def sync_database_url(self) -> str:
-        """Render the database URL with a synchronous driver, which Alembic uses offline."""
-        return self.database_url.replace("+aiosqlite", "").replace("+asyncpg", "+psycopg")
 
     @classmethod
     def settings_customise_sources(

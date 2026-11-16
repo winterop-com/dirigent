@@ -19,6 +19,12 @@ POOL_TOO_SMALL = DATABASE.define(
     "lower the concurrency.",
 )
 
+URL_UNPARSEABLE = DATABASE.define(
+    "url_unparseable",
+    "database_url is not a URL SQLAlchemy can read; it is written dialect+driver://user:password@host/database, "
+    "with any @, :, / or % in the password percent-encoded",
+)
+
 SCHEMA_STALE = DATABASE.define(
     "schema_stale",
     "the database at {where} was written by a different dirigent, first {first}; before 1.0 the "
