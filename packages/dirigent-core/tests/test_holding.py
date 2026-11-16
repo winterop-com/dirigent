@@ -19,7 +19,7 @@ from dirigent_core.documents import load_text
 from dirigent_core.engine.runs import create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Pipeline, Run, Source
-from dirigent_core.pipelines import apply_document
+from dirigent_core.pipelines import apply_document, set_active
 from dirigent_core.plugins import PluginHost
 from dirigent_core.sources import polling
 from dirigent_core.sources.holding import Holder
@@ -251,6 +251,70 @@ async def test_pausing_closes_the_consumer_and_resuming_opens_it_again(
             return INBOX.acked == ["after"]
 
         await eventually(delivered)
+    finally:
+        await holder.stop()
+
+
+async def test_deactivating_the_pipeline_closes_the_consumer_and_reactivating_opens_it_again(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, mailroom())
+    holder = Holder(sessions, services, owner=WORKER)
+    try:
+        await holder.tick()
+
+        async def opened_once() -> bool:
+            return INBOX.opened == 1
+
+        await eventually(opened_once)
+        async with session_scope(sessions) as session:
+            await set_active(session, "mailroom", active=False)
+
+        async def let_go() -> bool:
+            return INBOX.closed == 1 and (await the_source(sessions)).lease_owner is None
+
+        await eventually(let_go)
+        INBOX.put("while-inactive")
+        assert await holder.tick() == [], "a source of an inactive pipeline is not taken up"
+        assert (await run_count(sessions), INBOX.acked) == (0, [])
+
+        async with session_scope(sessions) as session:
+            await set_active(session, "mailroom", active=True)
+        assert len(await holder.tick()) == 1
+
+        async def delivered() -> bool:
+            return INBOX.acked == ["while-inactive"]
+
+        await eventually(delivered)
+        assert await run_count(sessions) == 1
+    finally:
+        await holder.stop()
+
+
+async def test_a_batch_received_for_an_inactive_pipeline_makes_no_run_and_is_not_acknowledged(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, mailroom())
+    holder = Holder(sessions, services, owner=WORKER)
+    try:
+        await holder.tick()
+
+        async def opened_once() -> bool:
+            return INBOX.opened == 1
+
+        await eventually(opened_once)
+        async with session_scope(sessions) as session:
+            # Deactivated with no notification, as when the worker misses it.
+            await session.execute(sa.update(Pipeline).values(active=False))
+        INBOX.put("unseen")
+
+        async def let_go() -> bool:
+            return INBOX.closed == 1 and (await the_source(sessions)).lease_owner is None
+
+        await eventually(let_go)
+        assert (await run_count(sessions), INBOX.acked, INBOX.waiting) == (0, [], ["unseen"])
+        row = await the_source(sessions)
+        assert (row.poll_failures, row.last_error) == (0, None), "an inactive pipeline is not a failing source"
     finally:
         await holder.stop()
 

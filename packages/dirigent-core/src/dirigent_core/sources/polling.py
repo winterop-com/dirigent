@@ -239,7 +239,9 @@ async def _settle(
     """Make a run of every input, store the cursor, and due the next poll, all in one transaction.
 
     An input no run can be made of fails the whole poll: nothing is committed, the cursor stays
-    where it was, and the next poll offers the same inputs again after a backoff.
+    where it was, and the next poll offers the same inputs again after a backoff. A source paused,
+    or whose pipeline was deactivated, while it polled makes no run and keeps its cursor; only its
+    lease is let go.
     """
     moment = utcnow()
     runs: list[UUID] = []
@@ -249,6 +251,10 @@ async def _settle(
             row = await session.get(Source, claimed.source_id, populate_existing=True)
             pipeline = await session.get(Pipeline, claimed.pipeline_id)
             if row is None or pipeline is None or row.lease_owner != owner:
+                return PollOutcome(source_id=claimed.source_id, runs=[])
+            if row.paused or not pipeline.active:
+                row.lease_owner = None
+                row.lease_expires_at = None
                 return PollOutcome(source_id=claimed.source_id, runs=[])
             took = round((time.monotonic() - started) * 1000)
             for output in answer.inputs[: claimed.room]:

@@ -541,6 +541,20 @@ async def set_paused(session: AsyncSession, pipeline: Pipeline, row: Source, *, 
     return row
 
 
+async def pipeline_turned(session: AsyncSession, pipeline: Pipeline, *, resumed: bool) -> None:
+    """Tell every worker that each of a pipeline's sources was activated or deactivated with it.
+
+    A worker holding one of them closes its consumer when the pipeline is inactive. ``resumed``
+    dues each worker-hosted source at once, as resuming a paused one does.
+    """
+    rows = (await session.execute(sa.select(Source).where(Source.pipeline_id == pipeline.id))).scalars()
+    for row in rows:
+        if resumed and row.next_poll_at is not None:
+            row.next_poll_at = utcnow()
+        await wakeups.publish(session, wakeups.SOURCES, f"{pipeline.code}/{row.code}")
+    await session.flush()
+
+
 async def rotate_source_token(
     session: AsyncSession,
     settings: Settings,

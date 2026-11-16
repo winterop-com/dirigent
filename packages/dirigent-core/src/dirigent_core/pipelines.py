@@ -69,7 +69,7 @@ from dirigent_core.outputchecks import output_field_warnings
 from dirigent_core.registry import live_worker_tags
 from dirigent_core.reportchecks import report_warnings
 from dirigent_core.schemas import held_bodies
-from dirigent_core.sources.rows import claimed_route_issues, reconcile_sources, retiring_sources
+from dirigent_core.sources.rows import claimed_route_issues, pipeline_turned, reconcile_sources, retiring_sources
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues, retiring_schedules
 
 
@@ -443,6 +443,7 @@ async def set_active(session: AsyncSession, code: str, *, active: bool) -> Pipel
     was = pipeline.active
     pipeline.active = active
     await session.flush()
+    await pipeline_turned(session, pipeline, resumed=active and not was)
     if was is not active:
         action = AuditAction.ACTIVATED if active else AuditAction.DEACTIVATED
         await audit.record(session, action, AuditSubject.PIPELINE, code=code, subject_id=pipeline.id)

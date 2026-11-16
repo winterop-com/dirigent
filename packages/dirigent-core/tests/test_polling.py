@@ -19,7 +19,7 @@ from dirigent_core.engine.definition import LONGEST_CADENCE
 from dirigent_core.engine.runs import create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Pipeline, Run, Source, SourceInput, StepAttempt, utcnow
-from dirigent_core.pipelines import apply_document
+from dirigent_core.pipelines import apply_document, set_active
 from dirigent_core.sources import polling
 from dirigent_core.sources.rows import set_paused, state_of
 from dirigent_core.sources.storage import StorageConfig, StorageSource
@@ -200,6 +200,28 @@ async def test_a_paused_source_or_an_inactive_pipeline_is_not_polled(
         await set_paused(session, pipeline, row, paused=False)
         pipeline.active = False
     assert await polling.tick(sessions, services, owner=WORKER) == []
+
+
+async def test_a_source_whose_pipeline_is_deactivated_while_it_polls_makes_no_run_and_keeps_its_cursor(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    inbox = inbox_of(tmp_path)
+    put(inbox, "a.csv", datetime(2026, 1, 1, tzinfo=UTC))
+    await apply(sessions, services, landing(inbox))
+    async with session_scope(sessions) as session:
+        [claimed] = await polling.claim_due(session, services, owner=WORKER, now=utcnow())
+    async with session_scope(sessions) as session:
+        await set_active(session, "landing", active=False)
+    outcome = await polling.poll_one(sessions, services, claimed, owner=WORKER)
+    assert outcome.runs == []
+    row = await the_source(sessions)
+    assert (row.cursor, row.lease_owner, row.poll_failures, row.accepted) == (None, None, 0, 0)
+    assert await polling.tick(sessions, services, owner=WORKER) == []
+
+    async with session_scope(sessions) as session:
+        await set_active(session, "landing", active=True)
+    [again] = await polling.tick(sessions, services, owner=WORKER)
+    assert len(again.runs) == 1, "reactivating dues the source, and it offers the same input again"
 
 
 async def test_a_paused_apply_inserts_a_polled_source_paused_and_only_a_resume_starts_it(
