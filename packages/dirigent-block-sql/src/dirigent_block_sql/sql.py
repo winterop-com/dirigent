@@ -98,9 +98,9 @@ class SqlConnectionConfig(BlockModel):
     A URL carrying a password inline is refused: the secret belongs in ``password``, where it
     is encrypted at rest and redacted in every API response, and a plain field is neither.
 
-    A sqlite database written as a relative path is relative to the run's work directory,
-    which is where a database a pipeline builds for itself belongs. It is local to the worker
-    that made it, so a later step reading it must be on the same worker."""
+    A sqlite database file is a path relative to the run's work directory, which is where a
+    database a pipeline builds for itself belongs, and an absolute path is refused. It is local
+    to the worker that made it, so a later step reading it must be on the same worker."""
 
     password: SecretStr | None = None
     """The password, sealed, merged into the URL when a connection is opened and nowhere else."""

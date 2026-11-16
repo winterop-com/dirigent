@@ -31,8 +31,17 @@ a step could have written. `HOME` and `XDG_CONFIG_HOME` are an empty directory p
 step, not the run's shared work directory, `GIT_CONFIG_GLOBAL` is `/dev/null`, and
 `GIT_CONFIG_NOSYSTEM` is on. A `.gitconfig` in the work directory is just a file. A checkout
 already standing at the target is read for its commit but never used to reach the remote, so
-the `.git/config` inside it does not choose what happens on the network. Transports stay at
-git's own defaults: `ext::` is refused, and a submodule cannot use `file://`.
+the `.git/config` inside it does not choose what happens on the network. `ext::` stays refused
+at git's own default, and the `file` transport is switched off above every configuration file
+(`protocol.file.allow=never`), so no clone, fetch or submodule reaches a repository on the
+worker's own disk.
+
+**A remote is always on the network.** A connection's `url` is `https://`, `http://`,
+`ssh://`, `git://`, or the scp-like `user@host:path`. A path on the worker (`/srv/repo`,
+`./repo`), a `file://` url and a remote helper (`ext::...`) are refused when the connection is
+created or updated (`execute.git_remote_not_network`, under the API's
+`server.connection_config_invalid`), for an admin and an operator alike, and a connection
+stored before this rule fails the step at the transport instead.
 
 It still needs the worker to have `git` on its `PATH`, and `ssh` too for an ssh remote. The
 worker image (`infra/Dockerfile`) installs both; a worker without them fails the step with a

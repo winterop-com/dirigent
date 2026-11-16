@@ -53,6 +53,12 @@ READ_ONLY_UNSUPPORTED = SQL.define(
     "is not marked as one that is",
 )
 
+DATABASE_PATH_ABSOLUTE = SQL.define(
+    "database_path_absolute",
+    "{database} is an absolute path, and a database file a connection names is a file inside "
+    "the run's work directory; write it as a path relative to that directory",
+)
+
 INLINE_PASSWORD = SQL.define(
     "inline_password",
     "this url carries a password inline, where it would sit unencrypted in a plain "

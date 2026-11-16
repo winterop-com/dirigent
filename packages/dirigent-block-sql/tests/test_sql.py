@@ -221,7 +221,7 @@ async def test_a_write_through_a_read_only_query_is_refused_by_the_database(loca
 
 
 def held_database(path: Path, *, wal: bool = False) -> sqlite3.Connection:
-    """Create a database file at an absolute path, and hand back a connection still holding it."""
+    """Create a database file, and hand back a connection still holding it."""
     path.parent.mkdir(parents=True, exist_ok=True)
     holder = sqlite3.connect(path)
     if wal:
@@ -247,26 +247,22 @@ def held_database(path: Path, *, wal: bool = False) -> sqlite3.Connection:
         "INSERT INTO reading VALUES (2)",
     ],
 )
-async def test_nothing_a_read_only_connection_runs_changes_the_file(
-    local_ctx: FakeContext, tmp_path: Path, statement: str
-) -> None:
-    path = tmp_path / "held" / "warehouse.db"
+async def test_nothing_a_read_only_connection_runs_changes_the_file(local_ctx: FakeContext, statement: str) -> None:
+    path = local_ctx.work / "held" / "warehouse.db"
     held_database(path).close()
     before = path.read_bytes()
-    local_ctx.connections["db"] = SqlConnectionConfig(url=f"sqlite+aiosqlite:///{path}", read_only=True)
+    local_ctx.connections["db"] = SqlConnectionConfig(url="sqlite+aiosqlite:///held/warehouse.db", read_only=True)
     with contextlib.suppress(Exception):
         await query(local_ctx, statement)
     assert path.read_bytes() == before
     assert sorted(entry.name for entry in path.parent.iterdir()) == ["warehouse.db"]
 
 
-async def test_a_read_only_connection_does_not_checkpoint_a_write_ahead_log(
-    local_ctx: FakeContext, tmp_path: Path
-) -> None:
-    path = tmp_path / "held" / "warehouse.db"
+async def test_a_read_only_connection_does_not_checkpoint_a_write_ahead_log(local_ctx: FakeContext) -> None:
+    path = local_ctx.work / "held" / "warehouse.db"
     holder = held_database(path, wal=True)
     before = path.read_bytes()
-    local_ctx.connections["db"] = SqlConnectionConfig(url=f"sqlite+aiosqlite:///{path}", read_only=True)
+    local_ctx.connections["db"] = SqlConnectionConfig(url="sqlite+aiosqlite:///held/warehouse.db", read_only=True)
     try:
         with contextlib.suppress(Exception):
             await query(local_ctx, "PRAGMA wal_checkpoint(TRUNCATE)")
@@ -275,12 +271,9 @@ async def test_a_read_only_connection_does_not_checkpoint_a_write_ahead_log(
         holder.close()
 
 
-async def test_a_read_only_connection_reads_a_held_file_whose_path_a_uri_would_misread(
-    local_ctx: FakeContext, tmp_path: Path
-) -> None:
-    path = tmp_path / "held" / "ware#house 100%?.db"
-    held_database(path).close()
-    url = URL.create("sqlite+aiosqlite", database=str(path))
+async def test_a_read_only_connection_reads_a_held_file_whose_path_a_uri_would_misread(local_ctx: FakeContext) -> None:
+    held_database(local_ctx.work / "held" / "ware#house 100%?.db").close()
+    url = URL.create("sqlite+aiosqlite", database="held/ware#house 100%?.db")
     local_ctx.connections["db"] = SqlConnectionConfig(url=url.render_as_string(hide_password=False), read_only=True)
     assert (await query(local_ctx, "SELECT id FROM reading")).rows == [{"id": 1}]
 
@@ -288,8 +281,9 @@ async def test_a_read_only_connection_reads_a_held_file_whose_path_a_uri_would_m
 def test_a_read_only_connection_does_not_create_the_file_it_names(tmp_path: Path) -> None:
     """Asked of sqlite directly: aiosqlite leaves a failed open's thread to the collector, past the test's loop."""
     path = tmp_path / "absent.db"
-    settings = SqlConnectionConfig(url=f"sqlite+aiosqlite:///{path}", read_only=True)
-    opened = engines._opened_as_marked(settings, make_url(settings.url))  # pyright: ignore[reportPrivateUsage]
+    settings = SqlConnectionConfig(url="sqlite+aiosqlite:///absent.db", read_only=True)
+    resolved = make_url(f"sqlite+aiosqlite:///{path}")
+    opened = engines._opened_as_marked(settings, resolved)  # pyright: ignore[reportPrivateUsage]
     assert opened.query == {"mode": "ro", "uri": "true"}
     with pytest.raises(sqlite3.OperationalError, match="unable to open"):
         sqlite3.connect(f"{opened.database}?mode=ro", uri=True)
@@ -412,8 +406,8 @@ def test_the_connection_kind_seals_the_password_and_nothing_else() -> None:
     assert SqlConnectionKind.id == "sql"
 
 
-async def test_a_check_opens_the_database_and_asks_it_for_a_one(tmp_path: Path) -> None:
-    report = await SqlConnectionKind().check(SqlConnectionConfig(url=f"sqlite+aiosqlite:///{tmp_path}/check.db"))
+async def test_a_check_opens_the_database_and_asks_it_for_a_one() -> None:
+    report = await SqlConnectionKind().check(SqlConnectionConfig(url="sqlite+aiosqlite://"))
     assert report.healthy
     assert "sqlite" in (report.detail or "")
 
@@ -483,6 +477,55 @@ async def test_a_link_in_the_work_directory_does_not_lead_a_run_relative_databas
     assert raised.value.error_class is ErrorClass.REJECTED
     assert other.read_bytes() == before
     assert sorted(path.name for path in other.parent.iterdir()) == ["other.db"]
+
+
+def test_a_connection_naming_a_database_by_an_absolute_path_is_refused(tmp_path: Path) -> None:
+    other = another_database(tmp_path)
+    with pytest.raises(ValidationError, match="is an absolute path"):
+        SqlConnectionConfig(url=f"sqlite+aiosqlite:///{other}")
+    assert sorted(path.name for path in other.parent.iterdir()) == ["other.db"]
+
+
+def stored(url: str) -> SqlConnectionConfig:
+    """A connection as a row stored before its URL was refused would open, past the model's validation."""
+    return SqlConnectionConfig.model_construct(
+        url=url, password=None, read_only=False, connect_timeout=timedelta(seconds=10)
+    )
+
+
+async def test_an_absolute_path_stored_before_it_was_refused_is_refused_when_it_runs(
+    local_ctx: FakeContext, tmp_path: Path
+) -> None:
+    other = another_database(tmp_path)
+    before = other.read_bytes()
+    local_ctx.connections["db"] = stored(f"sqlite+aiosqlite:///{other}")
+    with pytest.raises(BlockFailure) as raised:
+        await execute(local_ctx, "UPDATE marker SET who = 'changed'")
+    assert raised.value.code == "sql.database_outside_the_run"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert other.read_bytes() == before
+
+
+async def test_the_instance_database_is_reached_neither_by_its_path_nor_through_a_link(
+    local_ctx: FakeContext, tmp_path: Path
+) -> None:
+    """A dg dev instance keeps its own state in a sqlite file beside the work root."""
+    instance = tmp_path / "state" / "dirigent.db"
+    instance.parent.mkdir()
+    with sqlite3.connect(instance) as held:
+        held.execute("CREATE TABLE users (name TEXT, role TEXT)")
+        held.execute("INSERT INTO users VALUES ('op', 'operator')")
+    held.close()
+    before = instance.read_bytes()
+    with pytest.raises(ValidationError, match="is an absolute path"):
+        SqlConnectionConfig(url=f"sqlite+aiosqlite:///{instance}")
+    (local_ctx.work / "state.db").symlink_to(instance)
+    for url in (f"sqlite+aiosqlite:///{instance}", "sqlite+aiosqlite:///state.db"):
+        local_ctx.connections["db"] = stored(url)
+        with pytest.raises(BlockFailure) as raised:
+            await execute(local_ctx, "UPDATE users SET role = 'admin'")
+        assert raised.value.code == "sql.database_outside_the_run"
+    assert instance.read_bytes() == before
 
 
 async def test_a_run_relative_database_that_climbs_out_is_refused(local_ctx: FakeContext, tmp_path: Path) -> None:

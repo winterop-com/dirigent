@@ -352,8 +352,18 @@ reading the database must run on the same worker, and a connection like that can
 outside a run because outside a run there is nothing there yet. The path is followed through
 every link before anything opens it, and one that then lands outside the work directory -- a
 link an earlier step or a `git.checkout` left at `data/`, or a `..` -- is refused
-(`sql.database_outside_the_run`) before any directory is made. An absolute path
-(`sqlite+aiosqlite:////var/lib/data.db`) is used as written.
+(`sql.database_outside_the_run`) before any directory is made.
+
+**A database file is always inside the run.** An absolute path
+(`sqlite+aiosqlite:////var/lib/data.db`, `duckdb:////srv/warehouse.duckdb`) is refused when the
+connection is created or updated (`sql.database_path_absolute`, under the API's
+`server.connection_config_invalid`), for an admin and an operator alike: no instance setting
+names a directory of shared data a connection may open, so a file a sql connection opens is one
+inside the work directory of the run using it. A connection stored before this rule is refused
+again when a step resolves it (`sql.database_outside_the_run`), so neither another file on the
+worker nor the instance's own database or state directory is reachable through a connection's
+URL. A database a pipeline reads from elsewhere is brought into the run first, with
+`storage.copy` or `git.checkout`, or served by a database server.
 
 **A SQLite session reaches the one file its URL names.** A statement cannot `ATTACH` or `DETACH`
 another database, and cannot `VACUUM INTO` a new one: sqlite's own authorizer refuses all three

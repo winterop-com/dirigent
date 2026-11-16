@@ -51,6 +51,7 @@ from dirigent_block_sql.engines import (
     SqlEngine,
     SqlSession,
     reason,
+    refuse_absolute,
     under_work,
 )
 from dirigent_block_sql.sql import SqlConnectionConfig
@@ -115,13 +116,15 @@ class DuckdbEngine(SqlEngine):
     backend: ClassVar[str] = "duckdb"
 
     def validate(self, settings: SqlConnectionConfig, url: URL) -> None:
-        """Refuse ``read_only`` on an in-memory database, which duckdb will not open at all."""
+        """Refuse ``read_only`` on an in-memory database, which duckdb will not open at all, and an absolute path."""
         if settings.read_only and _is_memory(url):
             raise ValueError(READ_ONLY_IN_MEMORY.render())
+        if _names_file(url):
+            refuse_absolute(url)
 
     def resolve(self, url: URL, ctx: StepContext) -> URL:
-        """A duckdb database written as a relative path is a file in the run's work directory."""
-        return under_work(url, ctx) if _is_run_relative(url) else url
+        """A duckdb database is a file in the run's work directory, and one anywhere else is refused."""
+        return under_work(url, ctx) if _names_file(url) else url
 
     def bind(self, params: JsonMap, ctx: StepContext) -> dict[str, Any]:
         """The parameters as duckdb receives them, storage URIs among them made local paths.
@@ -136,7 +139,7 @@ class DuckdbEngine(SqlEngine):
 
     async def check(self, settings: SqlConnectionConfig, url: URL) -> HealthReport:
         """Open the duckdb file in a thread and ask it for a one, which is what a step does too."""
-        if _is_run_relative(url):
+        if _names_file(url):
             return HealthReport(healthy=False, detail=OUTSIDE_A_RUN)
         engine = _engine(settings, url)
 
@@ -216,12 +219,9 @@ def _is_memory(url: URL) -> bool:
     return (url.database or ":memory:") == ":memory:"
 
 
-def _is_run_relative(url: URL) -> bool:
-    """Whether this is a duckdb file named by a path relative to the run's work directory."""
-    database = url.database or ""
-    if _is_memory(url):
-        return False
-    return bool(database) and not database.startswith("/")
+def _names_file(url: URL) -> bool:
+    """Whether this is a duckdb database held in a file rather than in memory."""
+    return not _is_memory(url)
 
 
 def _engine(settings: SqlConnectionConfig, url: URL) -> Engine:

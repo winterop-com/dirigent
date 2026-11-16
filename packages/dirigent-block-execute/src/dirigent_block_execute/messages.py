@@ -109,6 +109,12 @@ GIT_TOKEN_NEEDS_HTTPS = EXECUTE.define(
     "a token is HTTP basic auth, so the url must be http or https, not {url}",
 )
 
+GIT_REMOTE_NOT_NETWORK = EXECUTE.define(
+    "git_remote_not_network",
+    "{url} is not a network remote; a git connection names one over https, http, ssh or git, "
+    "or the scp-like user@host:path, and never a path or a file:// url on the worker",
+)
+
 GIT_KEY_NEEDS_SSH = EXECUTE.define("git_key_needs_ssh", "an ssh_key needs an ssh remote, and {url} is not one")
 
 CHECKOUT_STAYS_INSIDE = EXECUTE.define(

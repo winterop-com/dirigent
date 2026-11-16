@@ -1,4 +1,4 @@
-"""Tests for git.checkout, against a bare repository on disk rather than a network remote."""
+"""Tests for git.checkout, against bare repositories served over git's smart HTTP on loopback."""
 
 import asyncio
 import base64
@@ -43,6 +43,7 @@ class Remote(NamedTuple):
     """A bare repository standing in for a hosting service, and the objects in it."""
 
     url: str
+    bare: Path
     first: str
     second: str
     branch: str
@@ -69,11 +70,29 @@ def author(directory: Path) -> None:
 
 
 @pytest.fixture
-def remote(tmp_path: Path) -> Remote:
+def served(tmp_path: Path) -> Generator[tuple[Path, str]]:
+    """A directory served over git's smart HTTP with no credential, and the URL it is served at."""
+    root = tmp_path / "public-served"
+    root.mkdir()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), http_backend(root, credential=None))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield root, f"http://127.0.0.1:{server.server_address[1]}"
+    server.shutdown()
+    server.server_close()
+
+
+def bare_repository(directory: Path) -> Path:
+    """An empty bare repository that http-backend serves."""
+    directory.mkdir()
+    run(directory, "init", "--bare", "--initial-branch", "main", "--quiet")
+    return directory
+
+
+@pytest.fixture
+def remote(tmp_path: Path, served: tuple[Path, str]) -> Remote:
     """A bare repository with two commits on its default branch, a tag, and a second branch."""
-    bare = tmp_path / "origin.git"
-    bare.mkdir()
-    run(bare, "init", "--bare", "--initial-branch", "main", "--quiet")
+    root, base = served
+    bare = bare_repository(root / "origin.git")
     work = tmp_path / "work"
     work.mkdir()
     run(work, "init", "--initial-branch", "main", "--quiet")
@@ -93,7 +112,7 @@ def remote(tmp_path: Path) -> Remote:
     branch = run(work, "rev-parse", "HEAD")
     run(work, "remote", "add", "origin", str(bare))
     run(work, "push", "--quiet", "origin", "main", "feature", "v1")
-    return Remote(url=f"file://{bare}", first=first, second=second, branch=branch)
+    return Remote(url=f"{base}/origin.git", bare=bare, first=first, second=second, branch=branch)
 
 
 @pytest.fixture
@@ -103,14 +122,8 @@ def public(remote: Remote) -> GitConnectionConfig:
 
 
 def tokened(remote: Remote) -> GitConnectionConfig:
-    """The bare repository, with a token bolted on for the tests about where a token goes.
-
-    The model refuses a token on a ``file://`` remote, and rightly: a token is HTTP basic auth.
-    What is under test is where the credential ends up, which is the same wherever it is bound.
-    """
-    return GitConnectionConfig.model_construct(
-        url=remote.url, username="x-access-token", token=SecretStr("ghp_x"), ssh_key=None, known_hosts=None
-    )
+    """The bare repository, with a token bolted on for the tests about where a token goes."""
+    return GitConnectionConfig(url=remote.url, token=SecretStr("ghp_x"))
 
 
 #: A remote helper that says something, waits, and only then serves the repository. The wait is
@@ -131,13 +144,16 @@ def allow_protocol(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, protocol: st
 
 
 def slow_remote(ctx: FakeContext, remote: Remote, word: str, delay: str = "2") -> str:
-    """The same bare repository behind that helper, as an ``ext::`` URL, once ``ext`` is allowed."""
+    """The same bare repository behind that helper, as an ``ext::`` URL, once ``ext`` is allowed.
+
+    The model refuses a remote helper; a test installs it past validation with ``stored``.
+    """
     root = work_root(ctx)
     root.mkdir(parents=True, exist_ok=True)
     helper = root / "slow-upload-pack.sh"
     helper.write_text(SLOW_HELPER)
     helper.chmod(0o755)
-    return f"ext::{helper} {remote.url.removeprefix('file://')} {delay} {word}"
+    return f"ext::{helper} {remote.bare} {delay} {word}"
 
 
 def logged(ctx: FakeContext, stream: str) -> list[str]:
@@ -328,23 +344,19 @@ async def test_a_shallow_checkout_carries_one_commit_and_a_full_one_carries_them
 
 
 async def test_submodules_are_checked_out_when_asked(
-    local_ctx: FakeContext, tmp_path: Path, remote: Remote, monkeypatch: pytest.MonkeyPatch
+    local_ctx: FakeContext, tmp_path: Path, remote: Remote, served: tuple[Path, str]
 ) -> None:
-    # A submodule over a file:// URL is refused by default since git 2.38.
-    allow_protocol(monkeypatch, tmp_path, "file")
     root = work_root(local_ctx)
-    parent = tmp_path / "parent.git"
-    parent.mkdir()
-    run(parent, "init", "--bare", "--initial-branch", "main", "--quiet")
+    parent = bare_repository(served[0] / "parent.git")
     work = tmp_path / "parent-work"
     work.mkdir()
     run(work, "init", "--initial-branch", "main", "--quiet")
     author(work)
-    run(work, "-c", "protocol.file.allow=always", "submodule", "add", "--quiet", remote.url, "vendor")
+    run(work, "submodule", "add", "--quiet", remote.url, "vendor")
     run(work, "commit", "--quiet", "-m", "with a submodule")
     run(work, "remote", "add", "origin", str(parent))
     run(work, "push", "--quiet", "origin", "main")
-    install(local_ctx, GitConnectionConfig(url=f"file://{parent}"))
+    install(local_ctx, GitConnectionConfig(url=f"{served[1]}/parent.git"))
 
     await checkout(local_ctx, submodules=True)
 
@@ -492,8 +504,8 @@ async def test_a_ref_that_does_not_exist_fails_with_gits_own_words(
     assert "no-such-branch" in str(raised.value)
 
 
-async def test_a_remote_that_is_not_there_fails_the_step(local_ctx: FakeContext) -> None:
-    install(local_ctx, GitConnectionConfig(url=f"file://{work_root(local_ctx)}/nothing-here.git"))
+async def test_a_remote_that_is_not_there_fails_the_step(local_ctx: FakeContext, served: tuple[Path, str]) -> None:
+    install(local_ctx, GitConnectionConfig(url=f"{served[1]}/nothing-here.git"))
     with pytest.raises(BlockFailure, match="exited"):
         await checkout(local_ctx)
 
@@ -749,12 +761,12 @@ class QuietHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
 
-def http_backend(root: Path) -> type[BaseHTTPRequestHandler]:
-    """A handler that wants the dummy credential, and then serves ``root`` through git http-backend."""
+def http_backend(root: Path, credential: str | None = BASIC_CREDENTIAL) -> type[BaseHTTPRequestHandler]:
+    """A handler that wants the credential, if any, and then serves ``root`` through git http-backend."""
 
     class Handler(QuietHandler):
         def serve(self) -> None:
-            if self.headers.get("Authorization") != BASIC_CREDENTIAL:
+            if credential is not None and self.headers.get("Authorization") != credential:
                 self.ask_for_a_credential()
                 return
             body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
@@ -878,7 +890,7 @@ async def test_a_line_reaches_the_log_while_the_clone_is_still_running(
 ) -> None:
     """A remote that speaks and then waits has its line logged during the wait, not after it."""
     allow_protocol(monkeypatch, tmp_path, "ext")
-    install(local_ctx, GitConnectionConfig(url=slow_remote(local_ctx, remote, "hello")))
+    install(local_ctx, stored(slow_remote(local_ctx, remote, "hello")))
     call = asyncio.create_task(checkout(local_ctx))
 
     try:
@@ -985,3 +997,70 @@ def test_a_remote_carrying_a_credential_is_refused_without_repeating_it(url: str
 @pytest.mark.parametrize("url", ["https://host/o/r.git", "ssh://git@host/o/r.git", "git@host:o/r.git"])
 def test_a_remote_holding_no_secret_is_kept(url: str) -> None:
     assert GitConnectionConfig(url=url).url == url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "/srv/deploy/config-repo",
+        "./config-repo",
+        "../config-repo",
+        "config-repo",
+        "file:///srv/deploy/config-repo",
+        "FILE:///srv/deploy/config-repo",
+        "ext::sh -c touch% /tmp/planted",
+        "https::example.com/o/r.git",
+        "ftp://host/o/r.git",
+    ],
+)
+def test_a_remote_on_the_worker_is_refused(url: str) -> None:
+    with pytest.raises(ValidationError, match="not a network remote"):
+        GitConnectionConfig(url=url)
+
+
+@pytest.mark.parametrize("url", ["git://host/o/r.git", "http://host/o/r.git", "host:o/r.git"])
+def test_every_network_form_is_kept(url: str) -> None:
+    assert GitConnectionConfig(url=url).url == url
+
+
+def stored(url: str) -> GitConnectionConfig:
+    """A connection as a row stored before its remote was refused would open, past the model's validation."""
+    return GitConnectionConfig.model_construct(
+        url=url, username="x-access-token", token=None, ssh_key=None, known_hosts=None
+    )
+
+
+@pytest.mark.parametrize("form", ["path", "file-url"])
+async def test_a_local_repository_stored_before_it_was_refused_is_refused_when_it_runs(
+    local_ctx: FakeContext, remote: Remote, form: str
+) -> None:
+    url = str(remote.bare) if form == "path" else f"file://{remote.bare}"
+    install(local_ctx, stored(url))
+
+    with pytest.raises(BlockFailure) as raised:
+        await checkout(local_ctx)
+
+    assert "not allowed" in str(raised.value)
+    assert not (work_root(local_ctx) / local_ctx.step / "README.md").exists()
+
+
+async def test_a_submodule_naming_a_local_repository_is_refused_whatever_the_config_allows(
+    local_ctx: FakeContext, tmp_path: Path, remote: Remote, served: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    allow_protocol(monkeypatch, tmp_path, "file")
+    bare_repository(served[0] / "parent.git")
+    work = tmp_path / "parent-work"
+    work.mkdir()
+    run(work, "init", "--initial-branch", "main", "--quiet")
+    author(work)
+    run(work, "-c", "protocol.file.allow=always", "submodule", "add", "--quiet", str(remote.bare), "vendor")
+    run(work, "commit", "--quiet", "-m", "with a submodule on the worker")
+    run(work, "remote", "add", "origin", str(served[0] / "parent.git"))
+    run(work, "push", "--quiet", "origin", "main")
+    install(local_ctx, GitConnectionConfig(url=f"{served[1]}/parent.git"))
+
+    with pytest.raises(BlockFailure) as raised:
+        await checkout(local_ctx, submodules=True)
+
+    assert "not allowed" in str(raised.value)
+    assert not (work_root(local_ctx) / local_ctx.step / "vendor" / "README.md").exists()
