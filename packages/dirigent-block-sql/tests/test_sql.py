@@ -463,6 +463,7 @@ async def test_a_run_relative_database_lands_in_the_work_directory(ctx: FakeCont
     """A database a pipeline builds for itself is a file, so a bucket artifact root is no obstacle."""
     ctx.connections["db"] = SqlConnectionConfig(url=SQLITE)
     ctx.scratch_uri = "s3://bucket/runs/one"
+    ctx.storage.schemes |= {"s3"}
     await query(ctx, "SELECT 1")
     assert list(ctx.work.rglob("*.db")), "the database was made under the run's work directory"
 

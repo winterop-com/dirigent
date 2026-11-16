@@ -1183,6 +1183,8 @@ const refused = {
         unknown: 'No pipeline coded {code}.',
     },
     plugin: {
+        bad_surface_id:
+            'The {label} {value} is not a lowercase word. It starts with a letter and holds only a-z, 0-9, - and _.',
         csv_too_many_columns:
             'The records have more than {limit} distinct keys, and each one becomes a CSV column. Keep the keys you need with a transform first.',
         csv_too_sparse:

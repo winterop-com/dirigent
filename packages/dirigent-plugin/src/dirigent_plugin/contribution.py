@@ -1,11 +1,13 @@
 """What one plugin contributes, across every surface, and how the host merges them."""
 
+import re
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from dirigent_common import API_VERSION, Catalogue
 from dirigent_plugin.blocks import (
+    SURFACE_ID_PATTERN,
     AnyOperator,
     AnySensor,
     ConnectionKind,
@@ -14,7 +16,7 @@ from dirigent_plugin.blocks import (
     StorageBackend,
     mark_refusal,
 )
-from dirigent_plugin.messages import DUPLICATE_ID, SOURCE_NOT_HOSTED, UNSUPPORTED_API_VERSION
+from dirigent_plugin.messages import BAD_SURFACE_ID, DUPLICATE_ID, SOURCE_NOT_HOSTED, UNSUPPORTED_API_VERSION
 from dirigent_plugin.sources import AnySource, HeldSource, PolledSource, ReceivedSource, SourceHosting
 
 
@@ -63,6 +65,20 @@ class Contribution(BaseModel):
         _require_unique("source kind", [source.spec.kind for source in self.sources])
         _require_unique("format", list(self.formats))
         _require_unique("label prefix", [catalogue.prefix for catalogue in self.labels])
+        return self
+
+    @model_validator(mode="after")
+    def _check_surface_ids(self) -> "Contribution":
+        """Reject a storage scheme, notifier id, connection kind id or format name off ``SURFACE_ID_PATTERN``."""
+        named = [
+            *(("storage scheme", backend.scheme) for backend in self.storage_backends),
+            *(("notifier id", notifier.id) for notifier in self.notifiers),
+            *(("connection kind id", connection.id) for connection in self.connection_kinds),
+            *(("format", name) for name in self.formats),
+        ]
+        for label, value in named:
+            if re.fullmatch(SURFACE_ID_PATTERN, value) is None:
+                raise ValueError(BAD_SURFACE_ID.render(label=label, value=repr(value)))
         return self
 
     @model_validator(mode="after")

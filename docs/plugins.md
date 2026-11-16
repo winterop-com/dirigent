@@ -627,11 +627,15 @@ is mechanical:
   of it imports `dirigent-core`. `assert_contribution_conforms(contribution)` checks the
   blocks a contribution provides are well-formed. `check_pack_examples(contribution,
   directory)` checks each of the pack's own documents: that it is a `dirigent/v1` pipeline
-  coded after its file, that every block it names is one the pack contributes, that each
-  config fits that block's published schema, and that a connection a step names is one the
-  document accounts for -- carried in its own `connections:`, so the document runs alone under
-  `dg run --local`, or listed under `requires.connections`. Both answer with a list of
-  human-readable issues, and an empty list means it passed.
+  coded after its file, that every block and every `source:` kind it names is one the pack
+  contributes, that each config fits its published schema, and that a connection named in
+  any field its schema publishes as a connection is one the document accounts for -- carried
+  in its own `connections:`, so the document runs alone under `dg run --local`, or listed under
+  `requires.connections`. A `reply:` node is the engine's own and is not checked. Both answer
+  with a list of human-readable issues, and an empty list means it passed.
+- **How its ids are spelled:** a connection kind id, a notifier id, a storage scheme and a
+  format name match `SURFACE_ID_PATTERN`, a lowercase word of `a-z`, `0-9`, `-` and `_` that
+  starts with a letter. A `Contribution` that spells one otherwise is refused when it is built.
 - **How it stays compatible:** `api_version` on the `Contribution` is the runtime handshake,
   and a pack written against another revision is refused at load rather than half-working.
   Before 1.0 the contract changes directly: a dirigent release is a pack release at the same

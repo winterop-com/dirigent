@@ -543,6 +543,7 @@ async def test_a_mount_is_bound_from_the_work_directory_whatever_scratch_is(
 ) -> None:
     """A bind is a path on the daemon's filesystem, so it comes from the work directory."""
     local_ctx.scratch_uri = "s3://bucket/artifacts/runs/one"
+    local_ctx.storage.schemes |= {"s3"}
     config = DockerRunConfig(image="alpine", outputs={"result.txt": "file://out/result.txt"})
     await DockerRunOperator().execute(config, local_ctx.as_context())
     host = cast("dict[str, JsonValue]", daemon.creation()["HostConfig"])

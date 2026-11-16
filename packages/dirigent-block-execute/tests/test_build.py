@@ -219,6 +219,7 @@ async def test_a_build_context_comes_from_the_work_directory_whatever_scratch_is
 ) -> None:
     """A build context is a directory, so it is the run's work directory and never storage."""
     local_ctx.scratch_uri = "s3://bucket/artifacts/runs/one"
+    local_ctx.storage.schemes |= {"s3"}
     calls = scripted_exec(monkeypatch, build_and_inspect)
     await DockerBuildOperator().execute(DockerBuildConfig(context="."), local_ctx.as_context())
     build = next(argv for argv in calls if "build" in argv)

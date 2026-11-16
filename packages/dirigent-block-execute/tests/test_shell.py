@@ -133,6 +133,7 @@ async def test_a_command_runs_in_the_work_directory_not_the_scratch_prefix(
 ) -> None:
     """A scratch prefix that is no filesystem at all is no obstacle to running a command."""
     block_ctx.scratch_uri = "s3://bucket/artifacts/runs/one"
+    block_ctx.storage.schemes |= {"s3"}
     output = await run(block_ctx, ShellRunConfig(command="pwd"))
     assert Path(output.stdout.strip()).is_relative_to(block_ctx.work)
 

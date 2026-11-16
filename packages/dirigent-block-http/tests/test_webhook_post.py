@@ -42,9 +42,10 @@ class Responder:
 
 
 def wired(ctx: FakeContext, *responses: httpx2.Response) -> Responder:
-    """Point the context's client at a scripted receiver and hand the script back."""
+    """Point the context's client at a scripted receiver, installing ``peer`` unless a test did."""
     responder = Responder(*responses or (httpx2.Response(204),))
     ctx.handler = responder
+    ctx.connections.setdefault("peer", HttpConnectionConfig(base_url="http://service.test"))
     return responder
 
 
