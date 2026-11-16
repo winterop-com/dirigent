@@ -22,6 +22,7 @@ from dirigent_client.enums import (
     ScheduleKind,
     WorkerStatus,
 )
+from dirigent_client.schemas import ApplyResult, PlanAction
 from dirigent_core import migrations, pipelines
 from dirigent_core.alerting import raise_for_stuck, recover_notifications, renew_lease
 from dirigent_core.config import Settings
@@ -71,7 +72,7 @@ from dirigent_core.pipelines import (
     require_pipeline,
 )
 from dirigent_core.plugins import PluginHost
-from dirigent_core.schemas import schema_users, store_schema
+from dirigent_core.schemas import SchemaInUse, find_schema, remove_schema, schema_users, store_schema
 from dirigent_plugin import RemoteHandle
 from engineblocks import EchoOperator, EngineTestPlugin, RemoteOperator, reset_blocks
 
@@ -2101,3 +2102,137 @@ async def test_which_pipelines_name_a_schema_answers_the_same_over_jsonb(
 
     async with session_scope(pg_sessions) as session:
         assert await schema_users(session, pg_host.catalog()) == {"ou-shape": ["gated"]}
+
+
+async def _apply_beside(
+    pg_sessions: async_sessionmaker[AsyncSession],
+    pg_services: EngineServices,
+    first: PipelineDefinition,
+    second: PipelineDefinition,
+) -> ApplyResult:
+    """Apply ``first`` and hold it uncommitted while ``second`` is applied, then commit; return the second's result."""
+    async with pg_sessions() as holding:
+        await apply_document(holding, pg_services, first)
+
+        async def apply() -> ApplyResult:
+            async with session_scope(pg_sessions) as session:
+                return await apply_document(session, pg_services, second)
+
+        applying = asyncio.create_task(apply())
+        done, _ = await asyncio.wait({applying}, timeout=BLOCKED_ON_THE_LOCK)
+        assert not done, "the second apply waits for the first"
+        await holding.commit()
+    return await applying
+
+
+async def _versions(pg_sessions: async_sessionmaker[AsyncSession], code: str) -> list[int]:
+    async with pg_sessions() as session:
+        pipeline = await require_pipeline(session, code)
+        rows = await session.execute(
+            sa.select(PipelineVersion.version)
+            .where(PipelineVersion.pipeline_id == pipeline.id)
+            .order_by(PipelineVersion.version)
+        )
+        return list(rows.scalars())
+
+
+async def test_an_apply_that_waited_plans_against_the_version_committed_before_it(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices
+) -> None:
+    """A stale document applied after a newer one is an update, and its triggers match what stands."""
+    older = PipelineDefinition(code="waited", steps={"a": StepDefinition(block="test.echo")})
+    newer = scheduled("waited", "a", "nightly", "0 3 * * *")
+    async with session_scope(pg_sessions) as session:
+        await apply_document(session, pg_services, older)
+
+    result = await _apply_beside(pg_sessions, pg_services, newer, older)
+
+    assert result.plan.action is PlanAction.UPDATE
+    assert result.plan.current_version == 2
+    async with pg_sessions() as session:
+        pipeline = await require_pipeline(session, "waited")
+        current = await get_version(session, pipeline)
+        rows = await session.execute(sa.select(Schedule.code).where(Schedule.pipeline_id == pipeline.id))
+        held = set(rows.scalars())
+    assert held == {spec.code for spec in load_definition(current.document).triggers.schedules}
+
+
+async def test_an_apply_of_what_just_landed_writes_no_version(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices
+) -> None:
+    older = PipelineDefinition(code="landed", steps={"a": StepDefinition(block="test.echo")})
+    newer = scheduled("landed", "a", "nightly", "0 3 * * *")
+    async with session_scope(pg_sessions) as session:
+        await apply_document(session, pg_services, older)
+
+    result = await _apply_beside(pg_sessions, pg_services, newer, newer)
+
+    assert result.plan.action is PlanAction.UNCHANGED
+    assert await _versions(pg_sessions, "landed") == [1, 2]
+
+
+async def test_two_first_applies_of_one_document_write_one_version(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices
+) -> None:
+    definition = PipelineDefinition(code="first-twice", steps={"a": StepDefinition(block="test.echo")})
+
+    result = await _apply_beside(pg_sessions, pg_services, definition, definition)
+
+    assert result.plan.action is PlanAction.UNCHANGED
+    assert await _versions(pg_sessions, "first-twice") == [1]
+
+
+def _naming_a_schema() -> PipelineDefinition:
+    """A document that requires the schema these two tests race over."""
+    return PipelineDefinition.model_validate(
+        {"code": "gated", "requires": {"schemas": ["ou-shape"]}, "steps": {"a": {"block": "test.echo"}}}
+    )
+
+
+async def test_a_schema_delete_waits_for_an_apply_naming_it_and_then_refuses(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices, pg_host: PluginHost
+) -> None:
+    async with session_scope(pg_sessions) as session:
+        await store_schema(session, {"$id": "ou-shape", "type": "object"})
+
+    async with pg_sessions() as applying:
+        await apply_document(applying, pg_services, _naming_a_schema())
+
+        async def delete() -> None:
+            async with session_scope(pg_sessions) as session:
+                found = await find_schema(session, "ou-shape")
+                assert found is not None
+                await remove_schema(session, pg_host.catalog(), found)
+
+        deleting = asyncio.create_task(delete())
+        done, _ = await asyncio.wait({deleting}, timeout=BLOCKED_ON_THE_LOCK)
+        assert not done, "the delete waits for the apply holding the schema"
+        await applying.commit()
+
+    with pytest.raises(SchemaInUse) as refused:
+        await deleting
+    assert refused.value.pipelines == ["gated"]
+
+
+async def test_an_apply_waits_for_a_delete_of_the_schema_it_names_and_then_refuses(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices, pg_host: PluginHost
+) -> None:
+    async with session_scope(pg_sessions) as session:
+        await store_schema(session, {"$id": "ou-shape", "type": "object"})
+
+    async with pg_sessions() as deleting:
+        found = await find_schema(deleting, "ou-shape")
+        assert found is not None
+        await remove_schema(deleting, pg_host.catalog(), found)
+
+        async def apply() -> ApplyResult:
+            async with session_scope(pg_sessions) as session:
+                return await apply_document(session, pg_services, _naming_a_schema())
+
+        applying = asyncio.create_task(apply())
+        done, _ = await asyncio.wait({applying}, timeout=BLOCKED_ON_THE_LOCK)
+        assert not done, "the apply waits for the delete holding the schema"
+        await deleting.commit()
+
+    result = await applying
+    assert result.plan.issues, "and the plan finds the schema gone"

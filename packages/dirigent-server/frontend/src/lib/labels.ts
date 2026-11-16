@@ -1285,6 +1285,7 @@ const refused = {
         referenced:
             'Schema {code} cannot be removed while {referrers} reference it with $ref. Each must stop referencing it first.',
         invalid: 'This is not a valid JSON Schema{at}: {detail}',
+        name_too_long: "A schema's name is at most {limit} characters, and this one is {length}.",
         reference_unresolved:
             "The schema's $ref {ref} names no schema this instance holds. A $ref reaches the schema itself and the schemas held here by code, and nothing is ever fetched.",
         value_unchecked: 'The value was not checked against the schema within {timeout}.',

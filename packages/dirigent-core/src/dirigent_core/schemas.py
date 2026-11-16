@@ -45,6 +45,7 @@ from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     SCHEMA_IN_USE,
     SCHEMA_INVALID,
+    SCHEMA_NAME_TOO_LONG,
     SCHEMA_NO_CODE,
     SCHEMA_REFERENCE_UNRESOLVED,
     SCHEMA_REFERENCED,
@@ -55,6 +56,9 @@ from dirigent_core.schemaerrors import describe
 
 #: The code a schema is given when it names none: a slug drawn from ``$id`` or a filename.
 _CODE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$")
+
+#: The longest name a schema is stored with, the width of its column.
+NAME_LIMIT: Final = 200
 
 
 class SchemaRefused(DomainError):
@@ -112,7 +116,7 @@ def resolve_identity(
     A code given explicitly wins; then ``$id``; then a fallback such as a filename stem. A
     schema that yields no code any of those ways is refused. ``title`` and ``description``
     fill name and description when the caller leaves them out, and either is refused when no
-    database stores it as written.
+    database stores it as written, as a name longer than its column is.
     """
     chosen = code
     if chosen is None:
@@ -134,6 +138,8 @@ def resolve_identity(
     ]
     if unstorable:
         raise SchemaRefused(TEXT_UNSTORABLE, problems=unstorable)
+    if resolved_name is not None and len(resolved_name) > NAME_LIMIT:
+        raise SchemaRefused(SCHEMA_NAME_TOO_LONG, limit=NAME_LIMIT, length=len(resolved_name))
     return chosen, resolved_name, resolved_description
 
 
@@ -335,22 +341,31 @@ async def all_schemas(session: AsyncSession) -> list[Schema]:
     return list(rows.scalars())
 
 
-async def delete_schema(session: AsyncSession, code: str) -> bool:
-    """Remove a schema; report whether one was there to remove.
+async def hold_schemas(session: AsyncSession, codes: Iterable[str]) -> None:
+    """Keep these schemas from being deleted until this transaction ends."""
+    await session.execute(sa.select(Schema.id).where(Schema.code.in_(sorted(set(codes)))).with_for_update(read=True))
+
+
+async def remove_schema(session: AsyncSession, catalog: Catalog, row: Schema) -> None:
+    """Delete a schema, or refuse with what uses it.
+
+    The row is locked before its users are counted, so an apply naming it either committed
+    first and is counted, or waits and then finds it gone.
 
     Raises:
+        SchemaInUse: A stored pipeline's current version names it.
         SchemaReferenced: Another stored schema references it with ``$ref``.
     """
-    row = await find_schema(session, code)
-    if row is None:
-        return False
-    referrers = await schema_referrers(session, code)
+    await session.execute(sa.select(Schema.id).where(Schema.id == row.id).with_for_update())
+    named = (await schema_users(session, catalog)).get(row.code, [])
+    if named:
+        raise SchemaInUse(row.code, named)
+    referrers = await schema_referrers(session, row.code)
     if referrers:
-        raise SchemaReferenced(code, referrers)
+        raise SchemaReferenced(row.code, referrers)
     await session.delete(row)
     await session.flush()
-    await audit.record(session, AuditAction.DELETED, AuditSubject.SCHEMA, code=code, subject_id=row.id)
-    return True
+    await audit.record(session, AuditAction.DELETED, AuditSubject.SCHEMA, code=row.code, subject_id=row.id)
 
 
 async def schema_by_id(session: AsyncSession, schema_id: UUID) -> Schema | None:

@@ -33,7 +33,8 @@ A schema reads its own identity from its keywords, so there is nothing else to p
 | `description` | the body | the schema has no body |
 
 `code` is the only piece with identity: it is constrained (lowercase, digits, hyphens), unique on
-the instance, and what every reference uses. `title` and `description` are free text. A `$id` that
+the instance, and what every reference uses. `title` and `description` are free text, and a
+`title` longer than 200 characters is refused (`schema.name_too_long`). A `$id` that
 is a full URI is accepted, and its last path segment is taken as the code.
 
 ## Changing one that is already stored
@@ -107,7 +108,9 @@ the new shape is not what the other readers of that code expect, store it under 
 `used_by` is not empty. Applying a document that names a schema the instance does not hold is
 already refused by the `requires` preflight, so a delete that went through would leave behind
 exactly the state no apply is allowed to create -- and the next apply of an untouched pipeline
-would be what discovered it. Only each pipeline's *current* version counts: a version nobody
+would be what discovered it. An apply naming a schema and a delete of it never pass each other:
+whichever comes second waits for the first and then answers against it. Only each pipeline's
+*current* version counts: a version nobody
 applies any more is history, and a pipeline stops naming a code by applying a version that does
 not, after which the code is free to remove.
 
