@@ -3,7 +3,6 @@
 import hashlib
 import json
 from collections.abc import AsyncGenerator
-from contextlib import suppress
 from typing import Final
 from uuid import UUID
 
@@ -13,7 +12,7 @@ from dirigent_common import JsonMap
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import OBJECT_ALTERED, OBJECT_MISSING
 from dirigent_core.models import ArtifactRef, StepAttempt
-from dirigent_core.storage import Storage, StorageError, join_uri, parse_uri
+from dirigent_core.storage import Storage, join_uri, parse_uri
 
 JSON_CONTENT_TYPE = "application/json"
 
@@ -116,11 +115,12 @@ async def persist_document(
     """Record a run-level text document, inline or as a stored object, and return its reference.
 
     ``existing`` is updated in place rather than replaced, so a link to the document survives
-    a run that settles a second time.
+    a run that settles a second time. An object the row stops naming is left under the run's
+    scratch prefix, which goes with the run: deleted here, it would be gone if this
+    transaction rolled back to a row that still names it.
     """
     payload = text.encode()
     reference = existing or ArtifactRef(run_id=run_id)
-    stale = reference.uri
     reference.content_type = content_type
     reference.size_bytes = len(payload)
     reference.digest = digest_of(payload)
@@ -134,10 +134,6 @@ async def persist_document(
         reference.inline_value = None
         reference.uri = uri
         reference.scheme = parse_uri(uri)[0]
-    if stale is not None and stale != reference.uri:
-        # The row no longer names the object, so nothing would ever read or sweep it again.
-        with suppress(StorageError, OSError):
-            await storage.delete(stale)
     if existing is None:
         session.add(reference)
     await session.flush()

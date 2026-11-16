@@ -1462,7 +1462,7 @@ mean an instance running at a real cadence needs a policy.
 | `retention_firings` | When a schedule fired |
 | `retention_notifications` | Alerts already sent |
 | `retention_audit` | Entries of the [audit trail](security.md#the-audit-trail); `365d` unless set, the one age with a default |
-| `retention_scratch` | Whether a pruned run's artifacts are deleted from storage too |
+| `retention_scratch` | Whether a pruned run's artifacts are deleted from storage too, by retention or by deleting its pipeline |
 
 Ages are humane durations -- `30d`, `12h`, `90m`. A starting point for an instance that runs
 often, where logs are the bulk of the growth and the run record is worth keeping longer:

@@ -143,6 +143,42 @@ async def test_an_artifact_whose_object_is_gone_names_what_is_missing(
     assert "restore the artifact root" in str(raised.value)
 
 
+async def test_a_document_shrunk_inline_in_a_transaction_that_rolls_back_still_reads(
+    sessions: async_sessionmaker[AsyncSession], services: Any
+) -> None:
+    attempt = await make_attempt(sessions)
+    async with session_scope(sessions) as session:
+        reference = await persist_document(
+            session,
+            services.storage,
+            attempt.run_id,
+            name="report.md",
+            text="# a report\n" * 20,
+            content_type="text/markdown",
+            inline_max_bytes=8,
+        )
+        artifact_id = reference.id
+
+    async with sessions() as session:
+        existing = await session.get(ArtifactRef, artifact_id)
+        await persist_document(
+            session,
+            services.storage,
+            attempt.run_id,
+            name="report.md",
+            text="#",
+            content_type="text/markdown",
+            inline_max_bytes=8,
+            existing=existing,
+        )
+        await session.rollback()
+
+    async with sessions() as session:
+        document = await session.get(ArtifactRef, artifact_id)
+        assert document is not None
+        assert await load_document(services.storage, document) == "# a report\n" * 20
+
+
 async def test_a_document_whose_object_is_gone_refuses_for_the_run_itself(
     sessions: async_sessionmaker[AsyncSession], services: Any
 ) -> None:

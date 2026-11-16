@@ -258,5 +258,5 @@ async def test_deactivating_keeps_the_rules_and_deleting_the_pipeline_takes_them
         await set_active(session, "nightly", active=False)
     assert sorted(await rules(sessions)) == ["nightly-failed", "nightly-logged"]
     async with session_scope(sessions) as session:
-        await delete_pipeline(session, "nightly")
+        await delete_pipeline(session, services, "nightly")
     assert await rules(sessions) == {}

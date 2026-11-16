@@ -633,7 +633,7 @@ async def test_deleting_a_pipeline_cascades_its_history_and_frees_the_code(
         run.status = RunStatus.SUCCEEDED
 
     async with session_scope(pg_sessions) as session:
-        await delete_pipeline(session, "jsonb-round-trip")
+        await delete_pipeline(session, pg_services, "jsonb-round-trip")
 
     async with session_scope(pg_sessions) as session:
         assert await list_pipelines(session) == []
@@ -1349,7 +1349,7 @@ async def test_a_delete_and_a_run_started_beside_it_cannot_both_win(
 
     async def delete() -> None:
         async with session_scope(pg_sessions) as session:
-            await pipelines.delete_pipeline(session, definition.code)
+            await pipelines.delete_pipeline(session, pg_services, definition.code)
 
     async def create() -> Run | None:
         await counting.wait()
