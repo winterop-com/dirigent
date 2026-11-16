@@ -2,7 +2,7 @@
 
 from typing import Any, Final, cast
 
-from dirigent_client.messages import NO_PROBLEM_DOCUMENT, NOT_DIRIGENT, UNREACHABLE
+from dirigent_client.messages import NO_PROBLEM_DOCUMENT, NOT_DIRIGENT, STREAM_CUT, UNREACHABLE
 from dirigent_client.schemas import Problem
 from dirigent_common import Issue, JsonMap, validation_issues
 
@@ -103,6 +103,15 @@ class RateLimited(DirigentError):
 
 class ServerError(DirigentError):
     """The instance failed to handle the request; its own log has the detail."""
+
+
+class StreamCut(DirigentError):
+    """A run's stream kept closing without its end, past the reconnections it was given; the run may still be going."""
+
+    def __init__(self, url: str, times: int) -> None:
+        """Name the stream and how many cuts in a row it took."""
+        params: JsonMap = {"url": url, "times": times}
+        super().__init__(STREAM_CUT.render(**params), url=url, code=STREAM_CUT.code, params=params)
 
 
 class WaitTimeout(DirigentError):

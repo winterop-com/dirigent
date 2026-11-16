@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import SecretStr
 
 from dirigent_client.enums import UserRole
-from dirigent_client.resources.base import Resource, query, request_body, segment
+from dirigent_client.resources.base import Clear, Resource, edit_body, query, request_body, segment
 from dirigent_client.schemas import (
     Identity,
     IssuedTokenOut,
@@ -14,8 +14,8 @@ from dirigent_client.schemas import (
     Page,
     PasswordChangeRequest,
     PasswordResetRequest,
+    TokenIn,
     TokenOut,
-    TokenRequest,
     UserIn,
     UserOut,
     UserUpdate,
@@ -86,23 +86,16 @@ class Users(Resource):
         self,
         username: str,
         *,
-        name: str | None = None,
+        name: str | Clear | None = None,
         role: UserRole | None = None,
-        email: str | None = None,
+        email: str | Clear | None = None,
     ) -> UserOut:
         """Change an account's display name, email or role, leaving out whatever was not named.
 
-        A field this call was not given is absent from the body, which is how the endpoint
-        tells "leave it alone" from "clear it".
+        An argument left out is a field the request says nothing about, so the account keeps
+        it. `CLEAR` in place of the name or the email sends it as null, which removes it.
         """
-        named: dict[str, object] = {}
-        if name is not None:
-            named["name"] = name
-        if email is not None:
-            named["email"] = email
-        if role is not None:
-            named["role"] = role
-        body = UserUpdate.model_validate(named).model_dump(mode="json", exclude_unset=True)
+        body = edit_body(UserUpdate, name=name, email=email, role=role)
         return await self._one(UserOut, "PATCH", f"/users/{segment(username)}", json=body)
 
     async def deactivate(self, username: str) -> UserOut:
@@ -126,7 +119,7 @@ class Users(Resource):
 
     async def create_token(self, username: str, name: str, *, expires_in: timedelta | None = None) -> IssuedTokenOut:
         """Mint a bearer token for another account; its secret is returned exactly once."""
-        payload = TokenRequest(name=name, expires_in=expires_in)
+        payload = TokenIn(name=name, expires_in=expires_in)
         return await self._one(IssuedTokenOut, "POST", f"/users/{segment(username)}/tokens", json=request_body(payload))
 
 
@@ -139,7 +132,7 @@ class Tokens(Resource):
 
     async def create(self, name: str, *, expires_in: timedelta | None = None) -> IssuedTokenOut:
         """Mint a bearer token for this account; its secret is returned exactly once."""
-        payload = TokenRequest(name=name, expires_in=expires_in)
+        payload = TokenIn(name=name, expires_in=expires_in)
         return await self._one(IssuedTokenOut, "POST", "/tokens", json=request_body(payload))
 
     async def revoke(self, token_id: UUID | str) -> None:

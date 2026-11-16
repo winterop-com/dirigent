@@ -4,7 +4,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from dirigent_client.enums import AlertEvent, AlertScope, Importance, NotificationStatus
-from dirigent_client.resources.base import Resource, query, request_body, segment
+from dirigent_client.resources.base import Clear, Resource, edit_body, query, request_body, segment
 from dirigent_client.schemas import (
     AlertRuleIn,
     AlertRuleOut,
@@ -68,18 +68,21 @@ class Alerts(Resource):
         code: str,
         *,
         paused: bool | None = None,
-        template: str | None = None,
-        body: str | None = None,
-        importance: Importance | None = None,
-        connection: str | None = None,
+        template: str | Clear | None = None,
+        body: str | Clear | None = None,
+        importance: Importance | Clear | None = None,
+        connection: str | Clear | None = None,
     ) -> AlertRuleOut:
         """Change what a rule says, where it delivers, or whether it delivers at all.
 
-        A field this call was not given is absent from the body, which is how the endpoint
-        tells "leave it alone" from "clear it".
+        An argument left out is a field the request says nothing about, so the rule keeps it.
+        `CLEAR` in its place sends it as null, which removes a template, a body or an
+        importance floor, and sends a rule's alerts to the instance's own log in place of a
+        connection.
         """
-        named = query(paused=paused, template=template, body=body, importance=importance, connection=connection)
-        body_json = AlertRuleUpdate.model_validate(named).model_dump(mode="json", exclude_unset=True)
+        body_json = edit_body(
+            AlertRuleUpdate, paused=paused, template=template, body=body, importance=importance, connection=connection
+        )
         return await self._one(AlertRuleOut, "PATCH", f"/alert-rules/{segment(code)}", json=body_json)
 
     async def delete_rule(self, code: str) -> None:
@@ -94,10 +97,7 @@ class Alerts(Resource):
         body: str | None = None,
     ) -> TestQueued:
         """Queue one message through the target a rule would name, on the path a real alert takes."""
-        declared = TestRequest(connection=connection)
-        payload = declared.model_copy(
-            update=query(subject=subject, body=body),
-        )
+        payload = TestRequest.model_validate(query(connection=connection, subject=subject, body=body))
         return await self._one(TestQueued, "POST", "/alert-rules/$test", json=request_body(payload))
 
     async def notification(self, notification_id: UUID | str) -> NotificationOut:

@@ -37,7 +37,7 @@ OPERATOR_ONLY = [
     ("post", "/runs/00000000-0000-0000-0000-000000000000/$resume"),
     ("post", "/attempts/00000000-0000-0000-0000-000000000000/$retry"),
     ("post", "/pipelines/api-demo/triggers/schedules"),
-    ("patch", "/pipelines/api-demo/triggers/schedules/nightly"),
+    ("put", "/pipelines/api-demo/triggers/schedules/nightly"),
     ("post", "/pipelines/api-demo/triggers/schedules/nightly/$pause"),
     ("post", "/pipelines/api-demo/triggers/schedules/nightly/$resume"),
     ("delete", "/pipelines/api-demo/triggers/schedules/nightly"),

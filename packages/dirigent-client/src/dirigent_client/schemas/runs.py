@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from dirigent_client.enums import (
     AttemptKind,
@@ -17,7 +17,7 @@ from dirigent_client.enums import (
     StepKind,
     TriggerKind,
 )
-from dirigent_client.schemas.common import StoredJson, WireModel
+from dirigent_client.schemas.common import RequestModel, StoredJson, WireModel
 from dirigent_common import JsonMap
 
 TERMINAL_RUN_STATUSES: frozenset[RunStatus] = frozenset(
@@ -286,7 +286,7 @@ class RunReport(WireModel):
     """The specifics that refusal rendered, for a re-render in another language."""
 
 
-class RerunRequest(BaseModel):
+class RerunRequest(RequestModel):
     """How a settled run is run again: on the version it pinned, or on its pipeline's current one."""
 
     version: Literal["pinned", "current"] = Field(

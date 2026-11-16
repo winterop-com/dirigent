@@ -192,7 +192,7 @@ def test_a_pinned_parameter_the_schema_refuses_is_refused_at_declaration_time(cl
     created = create_schedule(client, code="nightly", cron=NIGHTLY, params={"greeting": "good morning"})
     assert created["params"] == {"greeting": "good morning"}
 
-    redeclared = client.patch(
+    redeclared = client.put(
         f"{SCHEDULES}/nightly", json={"code": "nightly", "interval": "1h", "params": {"greeting": 5}}
     )
     assert redeclared.status_code == 422
@@ -224,19 +224,19 @@ def test_schedules_are_listed_and_can_be_redeclared(client: TestClient) -> None:
     listed = client.get(SCHEDULES).json()["items"]
     assert [row["code"] for row in listed] == ["hourly", "nightly"]
 
-    updated = client.patch(f"{SCHEDULES}/nightly", json={"code": "nightly", "interval": "2h"})
+    updated = client.put(f"{SCHEDULES}/nightly", json={"code": "nightly", "interval": "2h"})
     assert updated.status_code == 200
     assert updated.json()["kind"] == "interval"
     assert updated.json()["interval"] == "2h"
     assert updated.json()["cron"] is None
     assert updated.json()["params"] == {}, "a redeclaration is the whole schedule, not a patch of it"
-    assert client.patch(f"{SCHEDULES}/nobody", json={"code": "nobody", "interval": "2h"}).status_code == 404
+    assert client.put(f"{SCHEDULES}/nobody", json={"code": "nobody", "interval": "2h"}).status_code == 404
 
 
 def test_a_redeclaration_that_names_no_clock_is_refused(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     create_schedule(client, code="nightly", cron=NIGHTLY)
-    refused = client.patch(f"{SCHEDULES}/nightly", json={"code": "nightly"})
+    refused = client.put(f"{SCHEDULES}/nightly", json={"code": "nightly"})
     assert refused.status_code == 422
     assert "exactly one of cron, interval, or at" in refused.json()["detail"]
 
@@ -261,7 +261,7 @@ def test_a_redeclaration_keeps_a_schedule_paused(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     create_schedule(client, code="nightly", cron=NIGHTLY)
     assert client.post(f"{SCHEDULES}/nightly/$pause").json()["paused"] is True
-    updated = client.patch(f"{SCHEDULES}/nightly", json={"code": "nightly", "cron": "0 4 * * *"})
+    updated = client.put(f"{SCHEDULES}/nightly", json={"code": "nightly", "cron": "0 4 * * *"})
     assert updated.json()["paused"] is True, "pausing is an operator's decision, not part of the declaration"
 
 
@@ -314,7 +314,7 @@ def test_every_trigger_route_refuses_an_anonymous_request(anonymous: TestClient)
     for method, path in [
         ("get", "/triggers/schedules"),
         ("post", "/triggers/schedules"),
-        ("patch", "/triggers/schedules/nightly"),
+        ("put", "/triggers/schedules/nightly"),
         ("post", "/triggers/schedules/nightly/$pause"),
         ("post", "/triggers/schedules/nightly/$resume"),
         ("get", "/triggers/schedules/nightly/firings"),

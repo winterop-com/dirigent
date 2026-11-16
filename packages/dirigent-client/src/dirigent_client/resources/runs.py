@@ -11,7 +11,7 @@ from uuid import UUID
 import httpx2
 
 from dirigent_client.enums import AttemptStatus, RunStatus
-from dirigent_client.errors import TransportError, WaitTimeout
+from dirigent_client.errors import StreamCut, TransportError, WaitTimeout
 from dirigent_client.resources.base import Resource, query, request_body, segment
 from dirigent_client.schemas import (
     ArtifactOut,
@@ -166,13 +166,23 @@ class Runs(Resource):
         return await self._transport.text(f"/artifacts/{segment(artifact_id)}")
 
     async def report_document(self, run_id: UUID | str) -> str | None:
-        """Read the markdown document this run rendered when it settled, if it rendered one."""
-        page = await self.artifacts(run_id)
-        found = next(
-            (row for row in page.items if row.step_name is None and row.content_type == MARKDOWN_CONTENT_TYPE),
-            None,
-        )
-        return None if found is None else await self.artifact_text(found.id)
+        """Read the markdown document this run rendered when it settled, if it rendered one.
+
+        Every step output is an artifact too, and the document is written last, so the listing
+        is walked to its end rather than read one page deep.
+        """
+        cursor: str | None = None
+        while True:
+            page = await self.artifacts(run_id, after=cursor)
+            found = next(
+                (row for row in page.items if row.step_name is None and row.content_type == MARKDOWN_CONTENT_TYPE),
+                None,
+            )
+            if found is not None:
+                return await self.artifact_text(found.id)
+            if page.next is None:
+                return None
+            cursor = page.next
 
     async def cancel(self, run_id: UUID | str) -> RunOut:
         """Stop what has not started, and tell the remote about what has."""
@@ -255,10 +265,13 @@ class Runs(Resource):
         server's wall-clock limit with the run still going; it is reopened from the last
         entry yielded, and costs no reconnect. A stream that closes saying neither was cut,
         and is reopened at the cost of one of ``reconnects`` -- the same budget a transport
-        failure spends, and a log entry delivered restores it in full.
+        failure, or a minute with no byte at all, spends -- and any event delivered restores it
+        in full. Past the budget a cut raises ``StreamCut`` and a transport failure raises
+        ``TransportError``; the iterator ends quietly only after ``end``.
 
         Every attempt is replayed on connect, so a consumer dedupes what it has already read.
         """
+        path = f"/runs/{segment(run_id)}/$events"
         cursor = after
         remaining = reconnects
         while True:
@@ -266,9 +279,7 @@ class Runs(Resource):
             expired = False
             advanced = False
             try:
-                async with self._transport.stream(
-                    f"/runs/{segment(run_id)}/$events", params=query(after=cursor)
-                ) as response:
+                async with self._transport.stream(path, params=query(after=cursor)) as response:
                     async for event in httpx2.EventSource(response):
                         if event.event == "end":
                             ended = True
@@ -279,6 +290,7 @@ class Runs(Resource):
                         if not event.data:
                             continue
                         if event.event == "attempt":
+                            advanced = True
                             yield AttemptEvent.model_validate_json(event.data)
                         elif event.event == "log":
                             entry = LogEntryOut.model_validate_json(event.data)
@@ -286,6 +298,7 @@ class Runs(Resource):
                             advanced = True
                             yield entry
                         elif event.event == "run":
+                            advanced = True
                             yield RunOut.model_validate_json(event.data)
             except (TransportError, httpx2.StreamError):
                 if remaining <= 0:
@@ -299,7 +312,7 @@ class Runs(Resource):
                 remaining = reconnects
             elif not expired:
                 if remaining <= 0:
-                    return
+                    raise StreamCut(self._transport.endpoint(path), reconnects + 1)
                 remaining -= 1
             await asyncio.sleep(RECONNECT_SECONDS)
 
@@ -317,9 +330,12 @@ class Runs(Resource):
         nothing more to read. ``expired`` says the stream reached the server's wall-clock
         limit with the run still going; it is reopened from the last entry yielded, and
         costs no reconnect. A stream that closes saying neither was cut, and is reopened at
-        the cost of one of ``reconnects`` -- the same budget a transport failure spends, and
-        an entry delivered restores it in full.
+        the cost of one of ``reconnects`` -- the same budget a transport failure, or a minute
+        with no byte at all, spends -- and an entry delivered restores it in full. Past the
+        budget a cut raises ``StreamCut`` and a transport failure raises ``TransportError``;
+        the iterator ends quietly only after ``end``.
         """
+        path = f"/runs/{segment(run_id)}/$logs"
         cursor = after
         remaining = reconnects
         while True:
@@ -328,7 +344,7 @@ class Runs(Resource):
             advanced = False
             try:
                 params = query(follow="sse", after=cursor, step=step)
-                async with self._transport.stream(f"/runs/{segment(run_id)}/$logs", params=params) as response:
+                async with self._transport.stream(path, params=params) as response:
                     async for event in httpx2.EventSource(response):
                         if event.event == "end":
                             ended = True
@@ -353,7 +369,7 @@ class Runs(Resource):
                 remaining = reconnects
             elif not expired:
                 if remaining <= 0:
-                    return
+                    raise StreamCut(self._transport.endpoint(path), reconnects + 1)
                 remaining -= 1
             await asyncio.sleep(RECONNECT_SECONDS)
 

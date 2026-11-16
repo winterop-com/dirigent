@@ -8,6 +8,7 @@ from uuid import UUID
 
 import httpx2
 import pytest
+from pydantic import SecretStr, ValidationError
 
 from clientsupport import Recorder, client_of
 from dirigent_client import (
@@ -22,6 +23,9 @@ from dirigent_client import (
     RunStatus,
     UserRole,
 )
+from dirigent_client.enums import Importance
+from dirigent_client.resources.base import CLEAR
+from dirigent_client.schemas import LoginRequest
 
 ID = "0193b0f0-0000-7000-8000-000000000001"
 WHEN = "2026-01-01T00:00:00+00:00"
@@ -216,6 +220,8 @@ PAYLOADS: dict[str, Any] = {
     "/users/second": USER,
     "/users/second/$reset-password": None,
     "/health": {"status": "ok", "version": "0.1.0"},
+    "/labels": {"templates": {}},
+    "/schedules/$preview": {"firings": [WHEN]},
     "/health/ready": {"status": "healthy", "checks": {"database": {"status": "healthy"}}},
 }
 
@@ -291,9 +297,9 @@ ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] =
         "/pipelines/demo/triggers/schedules",
     ),
     (
-        "schedules.update",
-        lambda dg: dg.schedules.update("demo", "nightly", interval="1h"),
-        "PATCH",
+        "schedules.redeclare",
+        lambda dg: dg.schedules.redeclare("demo", "nightly", interval="1h"),
+        "PUT",
         "/pipelines/demo/triggers/schedules/nightly",
     ),
     (
@@ -349,6 +355,8 @@ ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] =
         "/alert-rules/on-failure",
     ),
     ("system.info", lambda dg: dg.system.info(), "GET", "/system/info"),
+    ("system.labels", lambda dg: dg.system.labels(), "GET", "/labels"),
+    ("schedules.preview", lambda dg: dg.schedules.preview(cron="0 5 * * *"), "POST", "/schedules/$preview"),
     ("workers.list", lambda dg: dg.workers.list(), "GET", "/workers"),
     ("auth.login", lambda dg: dg.auth.login("tester", "a password"), "POST", "/auth/login"),
     ("auth.logout", lambda dg: dg.auth.logout(), "POST", "/auth/logout"),
@@ -599,3 +607,30 @@ async def test_the_audit_listing_sends_its_filters_and_reads_entries() -> None:
         ["bearer_token"],
         "agent (token mcp-trial)",
     )
+
+
+async def test_an_alert_rule_edit_can_clear_a_field_and_leaves_the_rest_unsaid() -> None:
+    recorder = Recorder(_answer)
+    async with client_of(recorder) as dg:
+        await dg.alerts.update_rule("on-failure", template=CLEAR, connection=CLEAR, importance=Importance.CRITICAL)
+    assert recorder.last[3] == {"template": None, "connection": None, "importance": "critical"}
+
+
+async def test_an_account_edit_can_clear_a_name_or_an_email() -> None:
+    recorder = Recorder(_answer)
+    async with client_of(recorder) as dg:
+        await dg.admin.users.update("second", name=CLEAR, email=CLEAR)
+    assert recorder.last[3] == {"name": None, "email": None}
+
+
+async def test_a_test_message_is_validated_like_any_request_body() -> None:
+    recorder = Recorder(_answer)
+    async with client_of(recorder) as dg:
+        with pytest.raises(ValidationError):
+            await dg.alerts.test(subject="a\x00b")
+    assert recorder.calls == []
+
+
+def test_a_login_with_unstorable_text_is_refused_before_it_is_sent() -> None:
+    with pytest.raises(ValidationError):
+        LoginRequest(username="a\x00b", password=SecretStr("pw"))

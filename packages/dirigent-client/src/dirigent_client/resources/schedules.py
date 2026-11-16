@@ -4,12 +4,19 @@ from datetime import datetime, timedelta
 
 from dirigent_client.enums import LogLevel, RunPriority
 from dirigent_client.resources.base import Resource, query, request_body, segment
-from dirigent_client.schemas import FiringOut, Page, ScheduleIn, ScheduleOut
+from dirigent_client.schemas import (
+    FiringOut,
+    Page,
+    ScheduleIn,
+    ScheduleOut,
+    SchedulePreview,
+    SchedulePreviewRequest,
+)
 from dirigent_common import JsonMap, to_timedelta
 
 
 class Schedules(Resource):
-    """Declare, redeclare, pause, and read the schedules hanging from a pipeline."""
+    """Declare, redeclare, pause, and read the schedules hanging from a pipeline, and preview a clock."""
 
     async def list(self, pipeline: str, *, after: str | None = None, limit: int | None = None) -> Page[ScheduleOut]:
         """List every schedule on a pipeline, with when each one next fires."""
@@ -50,7 +57,7 @@ class Schedules(Resource):
             ),
         )
 
-    async def update(
+    async def redeclare(
         self,
         pipeline: str,
         code: str,
@@ -66,10 +73,15 @@ class Schedules(Resource):
         log_levels: dict[str, LogLevel] | None = None,
         priority: RunPriority | None = None,
     ) -> ScheduleOut:
-        """Change a schedule's clock or parameters, keeping whether it is paused."""
+        """Replace a schedule's whole declaration, keeping whether it is paused.
+
+        This is a declaration, not an edit: an argument left out takes the value ``create``
+        gives it, so a schedule redeclared with only a new ``cron`` loses its parameters, its
+        pins, its labels and its timezone. Read the schedule first to keep any of them.
+        """
         return await self._one(
             ScheduleOut,
-            "PATCH",
+            "PUT",
             f"/pipelines/{segment(pipeline)}/triggers/schedules/{segment(code)}",
             json=_declaration(
                 code, name, description, cron, interval, at, timezone, params, connection_pins, log_levels, priority
@@ -91,6 +103,18 @@ class Schedules(Resource):
     async def delete(self, pipeline: str, code: str) -> None:
         """Remove a schedule and its firing history."""
         await self._transport.request("DELETE", f"/pipelines/{segment(pipeline)}/triggers/schedules/{segment(code)}")
+
+    async def preview(
+        self,
+        *,
+        cron: str | None = None,
+        interval: str | None = None,
+        at: str | None = None,
+        timezone: str = "UTC",
+    ) -> SchedulePreview:
+        """Read back the next firings of a clock nobody has declared, with the scheduler's own arithmetic."""
+        payload = SchedulePreviewRequest(cron=cron, interval=interval, at=at, timezone=timezone)
+        return await self._one(SchedulePreview, "POST", "/schedules/$preview", json=request_body(payload))
 
     async def firings(
         self, pipeline: str, code: str, *, after: str | None = None, limit: int | None = None

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import Field, SecretStr
 
 from dirigent_client.enums import TokenKind, UserRole
 from dirigent_client.schemas.common import RequestModel, WireModel
@@ -14,7 +14,7 @@ from dirigent_common import Duration, Email, EntityName
 TokenLifetime = Annotated[Duration, Field(gt=timedelta(0), le=timedelta(days=36500))]
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(RequestModel):
     """What a login presents."""
 
     username: str = Field(min_length=1)
@@ -44,7 +44,7 @@ class TokenOut(WireModel):
     revoked_at: datetime | None = None
 
 
-class TokenRequest(RequestModel):
+class TokenIn(RequestModel):
     """What creating an API token asks for."""
 
     name: EntityName
@@ -110,14 +110,14 @@ class UserUpdate(RequestModel):
         return field in self.model_fields_set
 
 
-class PasswordChangeRequest(BaseModel):
+class PasswordChangeRequest(RequestModel):
     """What a person changing their own password presents."""
 
     current_password: SecretStr
     new_password: SecretStr
 
 
-class PasswordResetRequest(BaseModel):
+class PasswordResetRequest(RequestModel):
     """What an admin resetting another account's password presents."""
 
     password: SecretStr

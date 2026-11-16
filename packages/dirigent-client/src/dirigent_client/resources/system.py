@@ -3,7 +3,7 @@
 from typing import Final
 
 from dirigent_client.resources.base import Resource, query
-from dirigent_client.schemas import Health, Page, Readiness, SystemInfo, WorkerOut
+from dirigent_client.schemas import Health, Labels, Page, Readiness, SystemInfo, WorkerOut
 
 HTTP_SERVICE_UNAVAILABLE: Final = 503
 
@@ -14,6 +14,10 @@ class System(Resource):
     async def info(self) -> SystemInfo:
         """Describe the instance, and repeat what each connection said when it was last checked."""
         return await self._one(SystemInfo, "GET", "/system/info")
+
+    async def labels(self) -> Labels:
+        """Read every code an installed pack can refuse under, with the template it renders from."""
+        return await self._one(Labels, "GET", "/labels")
 
     async def health(self) -> Health:
         """Ask whether the process is alive, without touching any dependency."""

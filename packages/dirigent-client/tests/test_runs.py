@@ -7,8 +7,18 @@ import httpx2
 import pytest
 
 from clientsupport import Recorder, client_of
-from dirigent_client import AttemptEvent, LogEntryOut, NotFound, RunOut, RunStatus, TransportError, WaitTimeout
+from dirigent_client import (
+    AttemptEvent,
+    LogEntryOut,
+    NotFound,
+    RunOut,
+    RunStatus,
+    StreamCut,
+    TransportError,
+    WaitTimeout,
+)
 from dirigent_client.resources.runs import POLL_BACKOFF, POLL_MAX_SECONDS
+from dirigent_client.transport import STREAM_READ_TIMEOUT
 
 ID = "0193b0f0-0000-7000-8000-000000000001"
 WHEN = "2026-01-01T00:00:00+00:00"
@@ -137,8 +147,35 @@ async def test_an_event_stream_that_closes_saying_nothing_reconnects_until_it_gi
         return sse()
 
     async with client_of(Recorder(handler)) as dg:
-        assert [event async for event in dg.runs.events(ID, reconnects=2)] == []
+        with pytest.raises(StreamCut):
+            [event async for event in dg.runs.events(ID, reconnects=2)]
     assert len(opened) == 3
+
+
+async def test_an_attempt_event_restores_the_reconnect_budget(no_sleep: list[float]) -> None:
+    """A run that logs nothing still moves; each attempt it streams is progress."""
+    opened: list[int] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        opened.append(1)
+        return sse(attempt_event("running")) if len(opened) <= 4 else sse(END)
+
+    async with client_of(Recorder(handler)) as dg:
+        events = [event async for event in dg.runs.events(ID, reconnects=1)]
+    assert len(events) == 4
+    assert len(opened) == 5
+
+
+async def test_a_stream_is_opened_with_a_read_timeout_so_a_dead_connection_is_noticed() -> None:
+    seen: list[dict[str, float | None]] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request.extensions["timeout"])
+        return sse(END)
+
+    async with client_of(Recorder(handler)) as dg:
+        assert [event async for event in dg.runs.events(ID)] == []
+    assert seen[0]["read"] == STREAM_READ_TIMEOUT
 
 
 async def test_an_event_stream_that_keeps_dropping_gives_up_and_raises(no_sleep: list[float]) -> None:
@@ -259,7 +296,8 @@ async def test_a_stream_that_closes_without_the_end_event_stops_after_its_reconn
         return sse()
 
     async with client_of(Recorder(handler)) as dg:
-        assert [entry async for entry in dg.runs.follow_logs(ID, reconnects=2)] == []
+        with pytest.raises(StreamCut):
+            [entry async for entry in dg.runs.follow_logs(ID, reconnects=2)]
     assert len(opened) == 3
 
 
@@ -293,3 +331,41 @@ async def test_following_only_one_step_narrows_the_stream() -> None:
     async with client_of(Recorder(handler)) as dg:
         assert [entry async for entry in dg.runs.follow_logs(ID, after=12, step="greet")] == []
     assert opened == ["follow=sse&after=12&step=greet"]
+
+
+def artifact(index: int, *, step: str | None = "load", content_type: str = "application/json") -> dict[str, Any]:
+    """One artifact row, a step's output unless it is named as the run's own."""
+    return {
+        "id": f"0193b0f0-0000-7000-8000-{index:012d}",
+        "step_name": step,
+        "content_type": content_type,
+        "created_at": WHEN,
+    }
+
+
+async def test_the_report_document_is_found_past_the_first_page_of_artifacts() -> None:
+    """Every step output is an artifact and the document is written last, so it can sit on a later page."""
+    report = artifact(99, step=None, content_type="text/markdown")
+
+    def answer(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path.startswith("/api/v1/artifacts/"):
+            return httpx2.Response(200, text="# the report", headers=STAMPED)
+        if "after=" not in str(request.url):
+            return httpx2.Response(
+                200, json={"items": [artifact(index) for index in range(50)], "next": "page-2"}, headers=STAMPED
+            )
+        return httpx2.Response(200, json={"items": [report], "next": None}, headers=STAMPED)
+
+    async with client_of(Recorder(answer)) as dg:
+        assert await dg.runs.report_document(ID) == "# the report"
+
+
+async def test_a_run_with_no_report_document_answers_none_after_the_last_page() -> None:
+    pages = [
+        httpx2.Response(200, json={"items": [artifact(1)], "next": "page-2"}, headers=STAMPED),
+        httpx2.Response(200, json={"items": [artifact(2)], "next": None}, headers=STAMPED),
+    ]
+    recorder = Recorder(pages)
+    async with client_of(recorder) as dg:
+        assert await dg.runs.report_document(ID) is None
+    assert len(recorder.calls) == 2

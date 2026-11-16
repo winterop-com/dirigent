@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 
 from dirigent_client.enums import BodyKind, InputOutcome, SourceState
-from dirigent_client.schemas.common import WireModel
+from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_common import JsonMap
 
 
@@ -150,7 +150,7 @@ class SourceTokenOut(WireModel):
     """Where the source is called, so a caller can be configured without assembling the path by hand."""
 
 
-class SetSecretRequest(WireModel):
+class SetSecretRequest(RequestModel):
     """The signing secret a sender issued, to replace the one the instance minted."""
 
     secret: SecretStr
