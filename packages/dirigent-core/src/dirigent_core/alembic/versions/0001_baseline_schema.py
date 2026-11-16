@@ -1019,6 +1019,13 @@ def upgrade() -> None:
         batch_op.create_index(batch_op.f("ix_step_attempts_run_item_id"), ["run_item_id"], unique=False)
         batch_op.create_index("ix_step_attempts_status_available_at", ["status", "available_at"], unique=False)
         batch_op.create_index("ix_step_attempts_status_next_poll_at", ["status", "next_poll_at"], unique=False)
+        batch_op.create_index(
+            "ix_step_attempts_owing_cancel",
+            ["run_id", "step_name"],
+            unique=False,
+            postgresql_where=sa.text("remote_cancel_since IS NOT NULL"),
+            sqlite_where=sa.text("remote_cancel_since IS NOT NULL"),
+        )
 
     op.create_table(
         "artifact_refs",
@@ -1117,6 +1124,7 @@ def downgrade() -> None:
 
     op.drop_table("artifact_refs")
     with op.batch_alter_table("step_attempts", schema=None) as batch_op:
+        batch_op.drop_index("ix_step_attempts_owing_cancel")
         batch_op.drop_index("ix_step_attempts_status_next_poll_at")
         batch_op.drop_index("ix_step_attempts_status_available_at")
         batch_op.drop_index(batch_op.f("ix_step_attempts_run_item_id"))

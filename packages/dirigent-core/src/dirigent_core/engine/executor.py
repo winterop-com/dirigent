@@ -78,6 +78,7 @@ from dirigent_core.engine.references import (
     resolve_config,
 )
 from dirigent_core.engine.runs import (
+    REMOTE_CANCEL_TIMEOUT,
     EngineRuns,
     promote_queued_run,
     tell_remote,
@@ -1167,8 +1168,9 @@ class Engine:
     async def owed_cancels(self) -> AsyncGenerator[None]:
         """Tell each remote owed a cancel inside the block, once the block's transactions committed.
 
-        The calls run outside any transaction or lock, each once; what a remote refuses stays
-        marked for ``retry_remote_cancels``. A block that raises tells nothing.
+        The calls run outside any transaction or lock, each once and bounded by
+        ``REMOTE_CANCEL_TIMEOUT``; what a remote refuses or does not answer stays marked for
+        ``retry_remote_cancels``. A block that raises tells nothing.
         """
         owed: set[UUID] = set()
         token = _OWED.set(owed)
@@ -1195,7 +1197,17 @@ class Engine:
             connections = await load_connections(session)
             fields = await attempt_fields(session, attempt)
         runs = EngineRuns(self.services, parent_run_id=run.id, sessions=self.sessions)
-        if not await tell_remote(self.services, run, attempt, connections, runs, fields):
+        try:
+            async with asyncio.timeout(REMOTE_CANCEL_TIMEOUT.total_seconds()):
+                accepted = await tell_remote(self.services, run, attempt, connections, runs, fields)
+        except TimeoutError:
+            _logger.warning(
+                "remote cancellation timed out; the sweep tries again",
+                **fields,
+                timeout_ms=round(REMOTE_CANCEL_TIMEOUT.total_seconds() * 1000),
+            )
+            return
+        if not accepted:
             return
         async with session_scope(self.sessions) as session:
             await session.execute(

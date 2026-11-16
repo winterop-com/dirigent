@@ -617,7 +617,6 @@ async def cancel_run(
         attempt.lease_owner = None
         attempt.lease_token = None
         attempt.lease_expires_at = None
-    await _cancel_settled_remotes(session, services, run, connections)
     await _cancel_items(session, run, moment)
     run.status = RunStatus.CANCELLED
     run.error = reason.render(**params)
@@ -710,6 +709,10 @@ REMOTE_CANCEL_WINDOW: Final = timedelta(minutes=10)
 #: The most such attempts one worker tries on one sweep.
 REMOTE_CANCEL_BATCH: Final = 100
 
+#: How long a worker waits on a remote's answer to a cancel it owes after a commit; a remote
+#: that has not answered by then stays marked for the sweep.
+REMOTE_CANCEL_TIMEOUT: Final = timedelta(seconds=30)
+
 
 async def cancel_remote(
     session: AsyncSession,
@@ -787,25 +790,6 @@ async def tell_remote(
         return False
     _logger.info("remote cancellation requested", **fields, accepted=accepted)
     return accepted
-
-
-async def _cancel_settled_remotes(
-    session: AsyncSession,
-    services: EngineServices,
-    run: Run,
-    connections: Mapping[str, ConnectionRecord],
-) -> None:
-    """Tell the remote again about each settled attempt of a run whose earlier cancel it refused."""
-    rows = await session.execute(
-        sa.select(StepAttempt).where(
-            StepAttempt.run_id == run.id,
-            StepAttempt.remote_cancel_since.is_not(None),
-            StepAttempt.status.in_((AttemptStatus.FAILED, AttemptStatus.SKIPPED)),
-        )
-    )
-    for attempt in rows.scalars():
-        if await cancel_remote(session, services, run, attempt, connections):
-            attempt.remote_cancel_since = None
 
 
 async def retry_remote_cancels(

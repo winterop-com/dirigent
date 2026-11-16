@@ -2956,7 +2956,7 @@ async def test_a_settling_cancel_the_remote_refuses_is_told_again_from_a_worker(
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
 
 
-async def test_cancelling_a_run_tells_the_remote_of_a_failed_attempt_it_refused_before(
+async def test_a_run_cancelled_while_a_failed_attempt_owes_a_cancel_gets_it_from_the_sweep(
     engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def unreached(*_: object) -> bool:
@@ -2975,9 +2975,38 @@ async def test_cancelling_a_run_tells_the_remote_of_a_failed_attempt_it_refused_
         stored = await session.get(Run, run.id)
         assert stored is not None
         await cancel_run(session, services, stored)
+    assert RemoteOperator.cancellations == []
+    first, second = await attempts_of(sessions, run.id)
+    assert second.status is AttemptStatus.CANCELLED
+    assert first.remote_cancel_since is not None, "the cancel the failed attempt owes was dropped"
+
+    async with session_scope(sessions) as session:
+        assert await retry_remote_cancels(session, services, []) == 1
     assert RemoteOperator.submissions == ["job-1"]
     assert RemoteOperator.cancellations == ["job-1"], "the failed attempt's remote job was left running"
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
+
+
+async def test_a_remote_that_never_answers_an_owed_cancel_does_not_hold_up_the_worker(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def hangs(*_: object) -> bool:
+        await asyncio.Event().wait()
+        return True
+
+    monkeypatch.setattr(executor_module, "REMOTE_CANCEL_TIMEOUT", timedelta(milliseconds=200))
+    _probe_raising_once(monkeypatch)
+    run = await start(sessions, services, _retried_remote("cancel-hangs"))
+    with monkeypatch.context() as patch:
+        patch.setattr(RemoteOperator, "cancel", hangs)
+        began = asyncio.get_running_loop().time()
+        await asyncio.wait_for(_run_hops(engine, 2), timeout=10)
+        assert asyncio.get_running_loop().time() - began < 10
+    first, second = await attempts_of(sessions, run.id)
+    assert first.status is AttemptStatus.FAILED
+    assert first.remote_cancel_since is not None, "an unanswered cancel was taken as told"
+    assert second.status is AttemptStatus.QUEUED
+    assert await engine.claim(now=utcnow() + timedelta(minutes=1)) is None
 
 
 async def _retry_behind_a_refused_cancel(

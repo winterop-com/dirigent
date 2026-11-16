@@ -639,8 +639,9 @@ as failed or skipped while its remote job may still run -- a probe or fetch rais
 out, a deadline passed, the claim refused it -- is marked as owing its remote a cancel in the
 transaction that settles it; only the remote's own answer, a `FAILED` probe or the lost-job
 policy below, settles without one. Once that commits, the worker calls the operator's `cancel`,
-outside any transaction or lock; a refusal stays marked and the workers' sweep tells it again
-for ten minutes, and cancelling the run tells it once more. A retry of the step is not claimed
+outside any transaction or lock and for at most thirty seconds; a refusal or a silence stays
+marked, and the workers' sweep tells it again for ten minutes, whether or not the run is
+cancelled meanwhile. A retry of the step is not claimed
 while an earlier attempt still owes a cancel, so a late cancel never lands on the retry's own
 job. The guarantee says
 nothing about a synchronous operator that changed the world and died before its outcome
