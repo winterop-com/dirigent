@@ -10,7 +10,9 @@ import {
     configOf,
     configSummary,
     dependsOn,
+    documentApplied,
     documentStore,
+    documentUnsaved,
     edgesIn,
     editsIn,
     editsLabel,
@@ -22,7 +24,9 @@ import {
     NEW_CODE,
     NEW_DOCUMENT,
     newDocument,
+    parkDocument,
     reportIn,
+    resumeDocument,
     revertDocument,
     startDocument,
     stepEdited,
@@ -214,6 +218,19 @@ describe('what is unapplied', () => {
         expect(editsLabel({ steps: ['parse'], fields: ['name'], count: 2 })).toBe('2 unapplied edits')
     })
 
+    test('an edge drawn and taken back again is no edit, though the stored step said depends_on: []', () => {
+        const held = document()
+        const stored: JsonMap = {
+            ...held,
+            steps: {
+                ...(held.steps as JsonMap),
+                parse: { ...(held.steps as Record<string, JsonMap>).parse, depends_on: [] },
+            },
+        }
+        const drawn = withDependsOn(withDependsOn(stored, 'parse', ['report']), 'parse', [])
+        expect(editsIn(stored, drawn).count).toBe(0)
+    })
+
     test('a pipeline with no stored version yet has every step of it unapplied', () => {
         expect(editsIn(null, document()).count).toBe(2)
     })
@@ -392,6 +409,88 @@ describe('the store the whole screen reads', () => {
             draft: null,
             parseError: null,
         })
+    })
+})
+
+describe('whether leaving would lose anything', () => {
+    test('a document as the instance holds it loses nothing, and one edit is something', () => {
+        loadDocument('convert-one', document())
+        expect(documentUnsaved(documentStore.get())).toBe(false)
+        changeDocument((current) => withStepConfig(current, 'parse', { from: 'csv' }))
+        expect(documentUnsaved(documentStore.get())).toBe(true)
+    })
+
+    test('text in the source pane that does not parse is something, though the document is unchanged', () => {
+        loadDocument('convert-one', document())
+        writeSource('steps:\n  parse: [')
+        expect(documentUnsaved(documentStore.get())).toBe(true)
+    })
+
+    test('a new document is something once it differs from the skeleton it opened on', () => {
+        startDocument()
+        expect(documentUnsaved(documentStore.get())).toBe(false)
+        changeDocument((current) => ({ ...current, code: 'mine' }))
+        expect(documentUnsaved(documentStore.get())).toBe(true)
+    })
+})
+
+describe('a document set aside while its account signs in again', () => {
+    test('is taken up again for the same account and pipeline, edits and unparsed text with it', () => {
+        loadDocument('convert-one', document())
+        changeDocument((current) => withStepConfig(current, 'parse', { from: 'csv' }))
+        writeSource('steps:\n  parse: [')
+        const before = documentStore.get()
+        parkDocument('admin')
+        forgetDocument()
+
+        expect(resumeDocument('convert-one', 'admin', document())).toBe(true)
+        expect(documentStore.get()).toEqual(before)
+    })
+
+    test('is not taken up by another account, another pipeline, or over a version that moved', () => {
+        for (const [code, username, applied] of [
+            ['convert-one', 'someone-else', document()],
+            ['another', 'admin', document()],
+            ['convert-one', 'admin', { ...document(), name: 'Moved on' }],
+        ] as const) {
+            loadDocument('convert-one', document())
+            changeDocument((current) => withStepConfig(current, 'parse', { from: 'csv' }))
+            parkDocument('admin')
+            forgetDocument()
+            expect(resumeDocument(code, username, applied)).toBe(false)
+            expect(documentStore.get().local).toBeNull()
+        }
+    })
+
+    test('is taken up once only', () => {
+        loadDocument('convert-one', document())
+        parkDocument('admin')
+        expect(resumeDocument('convert-one', 'admin', document())).toBe(true)
+        expect(resumeDocument('convert-one', 'admin', document())).toBe(false)
+    })
+})
+
+describe('the version an apply wrote', () => {
+    test('becomes the document when nothing was edited while it was answering', () => {
+        loadDocument('convert-one', document())
+        changeDocument((current) => withStepConfig(current, 'parse', { from: 'csv' }))
+        const sent = documentStore.get().local as JsonMap
+        const written = { ...sent, name: 'As stored' }
+        documentApplied('convert-one', sent, written)
+        expect(documentStore.get().local).toEqual(written)
+        expect(documentUnsaved(documentStore.get())).toBe(false)
+    })
+
+    test('leaves an edit made while it was answering in place, measured against what was written', () => {
+        loadDocument('convert-one', document())
+        changeDocument((current) => withStepConfig(current, 'parse', { from: 'csv' }))
+        const sent = documentStore.get().local as JsonMap
+        changeDocument((current) => withStepConfig(current, 'parse', { from: 'tsv' }))
+        const typed = documentStore.get().local
+        documentApplied('convert-one', sent, sent)
+        expect(documentStore.get().local).toBe(typed)
+        expect(documentStore.get().applied).toEqual(sent)
+        expect(editsIn(documentStore.get().applied, documentStore.get().local).steps).toEqual(['parse'])
     })
 })
 

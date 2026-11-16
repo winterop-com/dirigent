@@ -105,6 +105,11 @@ export async function signIn(username: string, password: string): Promise<boolea
     }
 }
 
+/** The session is gone: the instance refused a request for want of one. */
+export function sessionLost(): void {
+    authStore.set({ status: 'signed-out', identity: null, problem: null, working: false })
+}
+
 /**
  * Sign out, whatever the server makes of it.
  *

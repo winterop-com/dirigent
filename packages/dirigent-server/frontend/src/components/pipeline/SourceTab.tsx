@@ -35,6 +35,7 @@ const SETTLE_MS = 250
 export function SourceTab({
     document,
     source,
+    draft,
     schema,
     parseError,
     onWrite,
@@ -44,6 +45,8 @@ export function SourceTab({
     document: JsonMap | null
     /** The text the document arrived as, or null once a structural edit re-rendered it. */
     source: string | null
+    /** The text the pane held that does not parse, or null; the pane opens on it while it is held. */
+    draft: string | null
     /** The JSON Schema the editor checks against, or null when it could not be read. */
     schema: JsonMap | null
     /** Why the text in the pane is not a document, or null. */
@@ -52,10 +55,19 @@ export function SourceTab({
     /** Below the breakpoint a document is read rather than written. */
     readOnly?: boolean
 }) {
-    const rendered = useMemo(() => source ?? (document === null ? '' : toYaml(document)), [document, source])
+    const rendered = useMemo(
+        () => draft ?? source ?? (document === null ? '' : toYaml(document)),
+        [document, draft, source],
+    )
     const [text, setText] = useState(rendered)
     const typed = useRef(false)
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    // What was typed and not yet written, and the writer to hand it to when the pane goes.
+    const pending = useRef<string | null>(null)
+    const write = useRef(onWrite)
+    useEffect(() => {
+        write.current = onWrite
+    })
 
     // The document changed somewhere else, so the pane shows it -- unless this pane is what
     // changed it, in which case the text it holds is already ahead of the render.
@@ -64,18 +76,23 @@ export function SourceTab({
         setText(rendered)
     }, [rendered])
 
+    // Leaving the tab unmounts the pane, so what was typed inside the settle window is written
+    // then rather than dropped.
     useEffect(() => {
         return () => {
             if (timer.current !== null) clearTimeout(timer.current)
+            if (pending.current !== null) write.current(pending.current)
         }
     }, [])
 
     const buffer = useControlledDocument(text, (next) => {
         typed.current = true
+        pending.current = next
         setText(next)
         if (timer.current !== null) clearTimeout(timer.current)
         timer.current = setTimeout(() => {
             typed.current = false
+            pending.current = null
             onWrite(next)
         }, SETTLE_MS)
     })

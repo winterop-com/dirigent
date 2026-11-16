@@ -14,7 +14,7 @@ test('a deep link is answered with the shell rather than a 404', async ({ page }
 })
 
 test('signing in lands on the dashboard', async ({ page }) => {
-    await page.goto('/pipelines')
+    await page.goto('/login')
     await expect(page.getByRole('heading', { name: LABELS.action.sign_in.verb })).toBeVisible()
 
     await page.getByLabel(LABELS.word.username).fill(DEV_USERNAME)
@@ -28,6 +28,17 @@ test('signing in lands on the dashboard', async ({ page }) => {
     // The rail is drawn from the identity the shell read back, so its admin section standing
     // there is the whole round trip having worked.
     await expect(page.getByRole('link', { name: LABELS.screen.users.name })).toBeVisible()
+})
+
+test('a link opened without a session is where signing in lands', async ({ page }) => {
+    await page.goto('/runs?status=failed')
+    await expect(page.getByRole('heading', { name: LABELS.action.sign_in.verb })).toBeVisible()
+
+    await page.getByLabel(LABELS.word.username).fill(DEV_USERNAME)
+    await page.getByLabel(LABELS.word.password, { exact: true }).fill(DEV_PASSWORD)
+    await page.getByRole('button', { name: LABELS.action.sign_in.verb }).click()
+
+    await expect(page).toHaveURL(/\/runs\?status=failed$/)
 })
 
 test("a wrong password is refused in this interface's own words", async ({ page }) => {

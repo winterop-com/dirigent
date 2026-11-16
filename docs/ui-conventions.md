@@ -1196,6 +1196,16 @@ source pane are three readings of it, and the count of unapplied edits is the di
 it and the version the instance holds. It is a module store because those three are not inside
 one another.
 
+**Unapplied work is not left without a question.** The strip beside the code counts the unapplied
+edits, and the palette offers to discard them. While there are any, or while the source pane holds
+text that does not parse, closing the tab gets the browser's own warning and a move inside the app
+asks first (the app runs on a data router for exactly this). The one move let through is to the
+login page, which an expired session makes without asking: the document is set aside for that
+account in the tab's memory and taken up again when it signs back in and returns, as long as the
+instance still holds the version the edits were made against. Signing in after a lost session
+returns to the page it left. Text in the source pane that does not parse is kept across the
+panel's tabs, and is what the pane opens on until it parses.
+
 **A pipeline that does not exist yet is edited in the same screen.** `/pipelines/$new` is the
 editor with no pipeline behind it: the local document is a skeleton nothing has applied, so
 everything in it is editable, the code among it. Validate is the same dry run against the draft;

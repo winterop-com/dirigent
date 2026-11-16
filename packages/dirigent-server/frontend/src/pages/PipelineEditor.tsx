@@ -1,5 +1,5 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useBlocker, useLocation, useNavigate, useParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { ApplyDialog } from '@/components/pipeline/ApplyDialog'
@@ -17,6 +17,7 @@ import { useIsMobile } from '@winterop-com/sokkel-ui/hooks/use-mobile'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
 import { READ_WORDS, refusedRead } from '@/components/Refusal'
 import { Toolbar } from '@winterop-com/sokkel-ui/Toolbar'
+import { useUnsavedChanges } from '@winterop-com/sokkel-ui/UnsavedChanges'
 import { Button } from '@winterop-com/sokkel-ui/primitives/button'
 import { readConnections, type ConnectionOut } from '@/lib/connections'
 import { ICONS } from '@/lib/icons'
@@ -40,13 +41,19 @@ import {
     applyVariant,
     blockOf,
     changeDocument,
+    documentApplied,
     documentStore,
+    documentUnsaved,
     type DocumentEdits,
     editsIn,
+    editsLabel,
     forgetDocument,
     liftedDocument,
     loadDocument,
     NEW_DOCUMENT,
+    parkDocument,
+    resumeDocument,
+    revertDocument,
     startDocument,
     stepNames,
     stepTabLabel,
@@ -68,6 +75,7 @@ import {
     type PipelineDetail,
     type PipelineVersionOut,
 } from '@/lib/pipelines'
+import { LOGIN_PATH } from '@/lib/nav'
 import { anythingUnmet, unmetIn, unmetLines } from '@/lib/requirements'
 import { EVERY_RUN, readRuns, type RunOut } from '@/lib/runs'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
@@ -130,6 +138,12 @@ export function PipelineEditor() {
     // A file picked on the listing arrives as the navigation state, and only matters once.
     const preloaded = (useLocation().state as { document?: string } | null)?.document
     const auth = useStore(authStore)
+    const username = auth.identity?.username ?? null
+    // The account the document belongs to, kept through the moment a sign-out clears it.
+    const account = useRef(username)
+    useEffect(() => {
+        if (username !== null) account.current = username
+    }, [username])
     const small = useIsMobile()
     const write = useMayWrite()
     const mayWrite = write.may
@@ -187,7 +201,8 @@ export function PipelineEditor() {
         // the empty steps map before anything has been done, is a tab away. A document that
         // arrived with content, picked from a file, opens on the source that holds it.
         if (creating) {
-            startDocument(preloaded)
+            if (preloaded !== undefined || !resumeDocument(code, account.current, null))
+                startDocument(preloaded)
             openPanelTab(preloaded === undefined ? 'step' : 'source')
             return
         }
@@ -196,7 +211,8 @@ export function PipelineEditor() {
             (detail) => {
                 if (cancelled) return
                 setRead({ of: code, detail, problem: null })
-                loadDocument(code, detail.document)
+                if (!resumeDocument(code, account.current, detail.document))
+                    loadDocument(code, detail.document)
             },
             (error: unknown) => {
                 if (cancelled) return
@@ -213,7 +229,43 @@ export function PipelineEditor() {
     const pipeline = read.of === code ? read.detail : null
     const problem = read.of === code ? read.problem : null
 
-    useEffect(() => forgetDocument, [])
+    // A DOCUMENT WITH EDITS IS NOT LEFT WITHOUT A QUESTION. Closing the tab or reloading gets the
+    // browser's own warning, and a move inside the app asks first. The one move let through is to
+    // the login page, which a session that expired makes without asking anybody: the document is
+    // set aside for this account then, and taken up again when it signs back in and returns here.
+    const unsaved = local !== null && documentUnsaved(state)
+    const leaving = useUnsavedChanges(unsaved && !small, { words: LABELS.editor.topbar.leave })
+    // Set once an apply has written the document, so the move to its new address is not asked about.
+    const appliedAway = useRef(false)
+    const parkOnLeave = useRef(false)
+    const blocker = useBlocker(({ currentLocation, nextLocation }) => {
+        if (!unsaved || small || appliedAway.current) return false
+        if (currentLocation.pathname === nextLocation.pathname) return false
+        if (nextLocation.pathname === LOGIN_PATH) {
+            parkOnLeave.current = true
+            return false
+        }
+        return true
+    })
+    // Asked once per blocked move: the question's own answer re-renders while the move is still held.
+    const { confirmLeave } = leaving
+    const blocked = blocker.state === 'blocked' ? blocker : null
+    useEffect(() => {
+        if (blocked === null) return
+        void confirmLeave().then((leave) => {
+            if (leave) blocked.proceed()
+            else blocked.reset()
+        })
+        // oxlint-disable-next-line react-hooks/exhaustive-deps
+    }, [blocked === null, confirmLeave])
+
+    useEffect(
+        () => () => {
+            if (parkOnLeave.current && account.current !== null) parkDocument(account.current)
+            forgetDocument()
+        },
+        [],
+    )
 
     // Everything the pipeline pane says about the instance rather than about the document. Each
     // is optional: a refusal leaves that section saying it could not be read, not the screen.
@@ -413,7 +465,8 @@ export function PipelineEditor() {
                           icon: ICONS.validate,
                           keywords: ['check', 'dry run', 'plan'],
                           run: () => {
-                              setDialog('validate')
+                              if (sent === undefined) setDialog('validate')
+                              else toast.info(sent)
                           },
                       },
                       {
@@ -441,8 +494,22 @@ export function PipelineEditor() {
                           icon: ICONS.run,
                           keywords: ['start', 'adhoc'],
                           run: () => {
-                              setDialog('run')
+                              if (runRefusal === undefined) setDialog('run')
+                              else toast.info(runRefusal)
                           },
+                      },
+                  ]),
+            ...(creating || small || edits.count === 0
+                ? []
+                : [
+                      {
+                          id: 'pipeline:revert',
+                          title: LABELS.editor.topbar.revert,
+                          group: shelf,
+                          screen: true,
+                          icon: ICONS.revert,
+                          keywords: ['undo', 'reset', 'discard'],
+                          run: revertDocument,
                       },
                   ]),
             ...(small
@@ -468,7 +535,7 @@ export function PipelineEditor() {
                 run: askRelayout,
             },
         ])
-    }, [applyRefusal, creating, mayWrite, shelf, small])
+    }, [applyRefusal, creating, edits.count, mayWrite, runRefusal, sent, shelf, small])
 
     const tabs = useMemo<PanelTab[]>(() => {
         if (local === null && pipeline === null) return []
@@ -550,6 +617,7 @@ export function PipelineEditor() {
                     <SourceTab
                         document={local}
                         source={source}
+                        draft={state.code === code ? state.draft : null}
                         schema={schema}
                         parseError={state.parseError}
                         readOnly={small}
@@ -559,6 +627,7 @@ export function PipelineEditor() {
             },
         ]
     }, [
+        code,
         connections,
         disabled,
         local,
@@ -570,6 +639,8 @@ export function PipelineEditor() {
         small,
         source,
         sources,
+        state.code,
+        state.draft,
         state.parseError,
         stepRead,
         unmet,
@@ -676,6 +747,11 @@ export function PipelineEditor() {
                         ) : (
                             <InlineCode value={heading.code ?? code} tone="neutral" bare size="xs" />
                         )}
+                        {!creating && edits.count > 0 && (
+                            <Chip tone="info" className="hidden shrink-0 md:inline-flex">
+                                {editsLabel(edits)}
+                            </Chip>
+                        )}
                         {/* Hidden below the breakpoint, where the strip has only the room for the
                     document's identity and the line saying it is read. */}
                         {matters !== null && (
@@ -745,6 +821,8 @@ export function PipelineEditor() {
                 )}
             </Section>
 
+            {leaving.dialog}
+
             {picking && (
                 <Suspense fallback={null}>
                     <StarterPicker
@@ -767,7 +845,10 @@ export function PipelineEditor() {
                     onClose={() => {
                         const rest = minted.tokens.slice(1)
                         setMinted({ tokens: rest, after: minted.after })
-                        if (rest.length === 0 && minted.after !== null) void navigate(minted.after)
+                        if (rest.length === 0 && minted.after !== null) {
+                            appliedAway.current = true
+                            void navigate(minted.after)
+                        }
                     }}
                 />
             )}
@@ -784,7 +865,7 @@ export function PipelineEditor() {
                         setIssues(issuesNote(plan.issues))
                     }}
                     onLift={liftedDocument}
-                    onApplied={(result) => {
+                    onApplied={(result, sentDocument) => {
                         setIssues(issuesNote(result.plan.issues))
                         const note = appliedNote(result)
                         toast.success(note.line, { description: note.detail })
@@ -796,13 +877,14 @@ export function PipelineEditor() {
                         if (tokens.length > 0 && address !== null) return
                         // The document has an address of its own now, and it is not this one.
                         if (address !== null) {
+                            appliedAway.current = true
                             void navigate(address)
                             return
                         }
                         void readPipeline(code).then(
                             (detail) => {
                                 setRead({ of: code, detail, problem: null })
-                                loadDocument(code, detail.document)
+                                documentApplied(code, sentDocument, detail.document)
                             },
                             () => {
                                 // The apply landed; the re-read did not. The next reload has it.

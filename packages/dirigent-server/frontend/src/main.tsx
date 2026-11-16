@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Link as RouterLink } from 'react-router'
+import { createBrowserRouter, Link as RouterLink, RouterProvider } from 'react-router'
 
 import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
 import { isInternalLink, LinkProvider, type RoutedLinkProps } from '@winterop-com/sokkel-ui/Link'
@@ -62,17 +62,26 @@ function routedHere(props: RoutedLinkProps) {
     return isInternalLink(props) && !servedByInstance(props.href)
 }
 
+// A data router, so a screen holding unapplied work can block a move away from it. The app's
+// own route table stays in `App`, under one catch-all route.
+const router = createBrowserRouter([
+    {
+        path: '*',
+        element: (
+            <LinkProvider render={routedLink} internal={routedHere}>
+                <StatusProvider statuses={STATUSES} dot fallback={FALLBACK}>
+                    <App />
+                </StatusProvider>
+            </LinkProvider>
+        ),
+    },
+])
+
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <Appearance />
         <TooltipProvider>
-            <BrowserRouter>
-                <LinkProvider render={routedLink} internal={routedHere}>
-                    <StatusProvider statuses={STATUSES} dot fallback={FALLBACK}>
-                        <App />
-                    </StatusProvider>
-                </LinkProvider>
-            </BrowserRouter>
+            <RouterProvider router={router} />
             <Toaster richColors />
         </TooltipProvider>
     </StrictMode>,
