@@ -126,6 +126,12 @@ async def test_execute_is_refused_before_it_reaches_a_read_only_database(
         )
 
 
+async def test_a_write_a_query_returns_rows_for_is_committed(table: FakeContext) -> None:
+    output = await query(table, "DELETE FROM reading RETURNING seen")
+    assert output.rows == [{"seen": "2026-09-06"}]
+    assert (await query(table, "SELECT count(*) AS n FROM reading")).rows == [{"n": 0}]
+
+
 async def test_the_deadline_is_set_as_the_database_s_own_statement_timeout(table: FakeContext) -> None:
     output = await query(table, "SHOW statement_timeout", timeout=timedelta(milliseconds=250))
     assert output.rows == [{"statement_timeout": "250ms"}]

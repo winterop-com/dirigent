@@ -220,6 +220,26 @@ async def test_a_write_through_a_read_only_query_is_refused_by_the_database(loca
         await query(local_ctx, "INSERT INTO site (code) VALUES ('north')")
 
 
+async def test_a_write_a_query_returns_rows_for_is_committed(seeded: FakeContext) -> None:
+    output = await query(seeded, "INSERT INTO reading (id, site, value) VALUES (3, 'east', 1.0) RETURNING id, site")
+    assert output.rows == [{"id": 3, "site": "east"}]
+    assert (await query(seeded, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 3}]
+
+
+async def test_a_write_whose_rows_are_past_max_rows_is_rolled_back(seeded: FakeContext) -> None:
+    with pytest.raises(BlockFailure):
+        await query(
+            seeded,
+            "INSERT INTO reading (id, site, value) VALUES (3, 'east', 1.0), (4, 'west', 2.0) RETURNING id",
+            max_rows=1,
+        )
+    assert (await query(seeded, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 2}]
+
+
+async def test_a_query_is_not_marked_safe_to_run_twice() -> None:
+    assert SqlQueryOperator.spec.idempotent is False
+
+
 def held_database(path: Path, *, wal: bool = False) -> sqlite3.Connection:
     """Create a database file, and hand back a connection still holding it."""
     path.parent.mkdir(parents=True, exist_ok=True)

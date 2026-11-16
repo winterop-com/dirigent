@@ -22,6 +22,7 @@ asked of.
 import asyncio
 import time
 from collections.abc import AsyncIterator, Sequence
+from contextlib import AbstractAsyncContextManager, nullcontext
 from datetime import timedelta
 from typing import Annotated, Any, ClassVar, Final
 
@@ -207,7 +208,6 @@ class SqlQueryOperator(Operator[SqlQueryConfig, SqlQueryOutput]):
     spec = OperatorSpec(
         id="sql.query",
         summary="Run one SQL statement and return its rows.",
-        idempotent=True,
     )
     config_model: ClassVar[type[BaseModel]] = SqlQueryConfig
     output_model: ClassVar[type[BaseModel]] = SqlQueryOutput
@@ -219,7 +219,8 @@ class SqlQueryOperator(Operator[SqlQueryConfig, SqlQueryOutput]):
         engine = engine_for(url)
         params = engine.bind(config.params, ctx)
         started = time.monotonic()
-        async with engine.session(settings, url, ctx, statements=[config.sql], params=params) as session:
+        opened = engine.session(settings, url, ctx, statements=[config.sql], params=params)
+        async with opened as session, _transaction(session, settings):
             await _limit(session, settings, config.timeout)
             # The deadline covers running the statement and reading the rows out of it, because
             # a query that hangs hangs in either.
@@ -360,6 +361,11 @@ def _resolved(settings: SqlConnectionConfig, ctx: StepContext) -> URL:
     """The URL a step connects with: the password merged in, and a file of the run made absolute."""
     url = _with_password(settings)
     return engine_for(url).resolve(url, ctx)
+
+
+def _transaction(session: SqlSession, settings: SqlConnectionConfig) -> AbstractAsyncContextManager[Any]:
+    """The transaction a query's write commits in, or none on a read-only connection, which writes nothing."""
+    return nullcontext() if settings.read_only else session.begin()
 
 
 async def _limit(session: SqlSession, settings: SqlConnectionConfig, timeout: timedelta) -> None:

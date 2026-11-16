@@ -103,6 +103,12 @@ async def ducked(local_ctx: FakeContext) -> FakeContext:
     return local_ctx
 
 
+async def test_a_write_a_duckdb_query_returns_rows_for_is_committed(ducked: FakeContext) -> None:
+    output = await query(ducked, "INSERT INTO reading VALUES (3, 'east', 1.0) RETURNING id")
+    assert output.rows == [{"id": 3}]
+    assert (await query(ducked, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 3}]
+
+
 async def test_duckdb_runs_a_query_with_its_parameters_bound(ducked: FakeContext) -> None:
     output = await query(ducked, "SELECT id, site FROM reading WHERE site = :site", params={"site": "north"})
     assert output.rows == [{"id": 1, "site": "north"}]
@@ -748,6 +754,23 @@ def test_aws_itself_needs_no_endpoint_and_keeps_the_region() -> None:
     secret = s3_secret(S3StorageSettings(region="eu-north-1"))
     assert "ENDPOINT" not in secret
     assert secret["REGION"] == "eu-north-1"
+
+
+def test_aws_itself_is_spoken_to_over_tls() -> None:
+    assert s3_secret(S3StorageSettings())["USE_SSL"] is True
+
+
+@pytest.mark.parametrize("endpoint_url", [None, "https://s3.example.org"])
+def test_turning_verification_off_for_a_tls_endpoint_is_refused(endpoint_url: str | None) -> None:
+    with pytest.raises(BlockFailure) as raised:
+        s3_secret(S3StorageSettings(endpoint_url=endpoint_url, verify_tls=False))
+    assert raised.value.code == "sql.duckdb.s3_unverified_tls"
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
+def test_a_plain_http_endpoint_has_no_certificate_to_verify() -> None:
+    secret = s3_secret(S3StorageSettings(endpoint_url="http://s3:9000", verify_tls=False))
+    assert secret["USE_SSL"] is False
 
 
 def test_the_credential_is_a_parameter_of_the_secret() -> None:

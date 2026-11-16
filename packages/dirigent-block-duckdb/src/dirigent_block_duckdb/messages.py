@@ -28,6 +28,13 @@ NO_HTTPFS = DUCKDB.define(
     "the extension is not installed on this worker",
 )
 
+S3_UNVERIFIED_TLS = DUCKDB.define(
+    "s3_unverified_tls",
+    "the {scheme} storage connection turns verify_tls off for an endpoint spoken to over TLS, and "
+    "duckdb verifies every certificate it is shown; give the endpoint a certificate the worker "
+    "trusts, or reach it over plain http",
+)
+
 STATEMENT_OUTSIDE_THE_RUN = DUCKDB.define(
     "statement_outside_the_run",
     "this statement names a file outside the run's own directories ({named}), which is all a "

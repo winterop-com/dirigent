@@ -592,7 +592,7 @@ Contributed by `block-sql`. Not idempotent.
 
 Run one SQL statement and return its rows.
 
-Contributed by `block-sql`. Idempotent.
+Contributed by `block-sql`. Not idempotent.
 
 **Config**
 
