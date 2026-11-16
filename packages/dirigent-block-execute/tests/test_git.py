@@ -547,6 +547,13 @@ def test_a_public_url_drops_any_credential_written_into_it() -> None:
     assert public_url("git@host:o/r.git") == "git@host:o/r.git"
 
 
+def test_an_ssh_remote_keeps_the_user_ssh_logs_in_as() -> None:
+    assert public_url("ssh://git@github.com/owner/repo.git") == "ssh://git@github.com/owner/repo.git"
+    assert public_url("ssh://git@host:2222/o/r.git") == "ssh://git@host:2222/o/r.git"
+    assert public_url("ssh://git:hunter2@host/o/r.git") == "ssh://git@host/o/r.git"
+    assert public_url("ssh://host/o/r.git") == "ssh://host/o/r.git"
+
+
 def test_scrub_replaces_every_secret_it_is_given() -> None:
     assert scrub("token ghp_secret failed", ["ghp_secret"]) == f"token {REDACTED} failed"
     assert scrub("a then ab", ["a", "ab"]) == f"{REDACTED} then {REDACTED}"

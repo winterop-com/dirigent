@@ -4,6 +4,7 @@ import os
 from collections.abc import AsyncGenerator
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -14,6 +15,7 @@ from dirigent_common import SHELL_MEDIA_TYPE
 from dirigent_core.engine.references import ReferenceScope, resolve_config
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext
+from dirigent_testing.messages import TEST_REFUSAL
 
 
 async def run(ctx: FakeContext, config: ShellRunConfig) -> ShellRunOutput:
@@ -408,3 +410,52 @@ async def test_a_backgrounded_child_does_not_outlive_the_shell_that_started_it(l
             break
         await asyncio.sleep(0.1)
     assert not _alive(child), "the backgrounded child outlived the step"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are a posix notion")
+async def test_a_child_left_holding_the_pipes_does_not_hold_the_step(local_ctx: FakeContext) -> None:
+    """The shell exits at once; its child keeps both pipes open, and the step ends with the shell."""
+    import time
+
+    pidfile = Path(local_ctx.storage.root) / "holder.pid"
+    started = time.monotonic()
+    output = await run(
+        local_ctx,
+        ShellRunConfig(
+            command=f"echo before; sleep 30 & echo $! > {pidfile}; echo after", timeout=timedelta(seconds=20)
+        ),
+    )
+
+    assert time.monotonic() - started < 10
+    assert output.exit_code == 0
+    assert output.stdout == "before\nafter\n"
+    assert not _alive(int(pidfile.read_text().strip()))
+    assert "they were killed" in " ".join(local_ctx.log.messages())
+
+
+async def test_a_drain_that_fails_fails_the_step_and_stops_the_other(
+    local_ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dirigent_block_execute import subprocess as block_subprocess
+
+    real = block_subprocess.drain
+    calls = 0
+
+    async def failing(*args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise BlockFailure(TEST_REFUSAL, error_class=ErrorClass.REJECTED, detail="storage refused")
+        return await real(*args, **kwargs)
+
+    monkeypatch.setattr(block_subprocess, "drain", failing)
+    with pytest.raises(BlockFailure, match="storage refused"):
+        await run(local_ctx, ShellRunConfig(command="sleep 30", timeout=timedelta(seconds=20)))
+
+
+async def test_a_program_not_on_the_path_is_a_rejection_naming_it(local_ctx: FakeContext) -> None:
+    with pytest.raises(BlockFailure) as raised:
+        await run(local_ctx, ShellRunConfig(argv=["dirigent-no-such-program", "up"]))
+    assert raised.value.code == "execute.program_not_found"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "dirigent-no-such-program is not on the worker's PATH" in str(raised.value)

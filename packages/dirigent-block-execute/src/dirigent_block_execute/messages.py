@@ -6,6 +6,11 @@ EXECUTE = Catalogue("execute")
 
 TIMED_OUT = EXECUTE.define("timed_out", "{what} did not finish within {seconds}s")
 
+PROGRAM_NOT_FOUND = EXECUTE.define(
+    "program_not_found",
+    "{program} is not on the worker's PATH, so {what} cannot run; the worker image installs it, a bare host may not",
+)
+
 NO_GIT = EXECUTE.define(
     "no_git",
     "git is not on the worker's PATH, so nothing here can check a repository out; "
