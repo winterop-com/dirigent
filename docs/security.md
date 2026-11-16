@@ -569,7 +569,10 @@ and so does every column holding text a run, a caller or a service produced: wha
 fan-out item's key, what a waiting step last saw, a notification's subject and body, and the path
 and label a source's journal records. So the step settles once, its alert is queued, and its run stays
 readable. A reader then sees `\u0000` where the NUL was, the same six characters a string that held
-them all along reads back as. A column with a length keeps what fits of the escaped text.
+them all along reads back as. A column with a length keeps what fits of the escaped text. A float
+that is not finite, `NaN` or an infinity, which JSON has no spelling for and PostgreSQL refuses,
+is written to every JSON column as null, so an input or an output holding one is stored on either
+database.
 
 **Text a caller writes is refused when no database can hold it.** A document holding a NUL or half
 a surrogate pair anywhere, a key included, is refused 422 with `validation.text_unstorable` at each

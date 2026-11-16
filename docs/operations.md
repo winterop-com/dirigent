@@ -1092,6 +1092,12 @@ when it logs faster than that, so the run screen and `dg run --watch` show the l
 step is still running. One attempt may write `log_entries_per_attempt` of them, a thousand by
 default; past that the rest are dropped and the attempt gets one warning saying so.
 
+A field a block logs is given its JSON shape at the call, so a value JSON cannot hold never
+stops the attempt from settling. A date or timestamp becomes ISO 8601, a decimal its digits as
+text, a UUID its text, a set or tuple a list, a pydantic model its JSON dump, bytes up to 256 of
+them base64 and longer ones `<N bytes>`, and `NaN` or an infinity the text `NaN`, `Infinity` or
+`-Infinity`. Anything else is logged as its `repr`, cut to 200 characters.
+
 When a worker claims an attempt it binds `run_id`, `run_item_id`, `step`, `attempt`, `block`,
 and `worker` into structlog contextvars, so every process-log line emitted underneath that
 block call carries run context and can be correlated with the run. `ctx.log` entries are also

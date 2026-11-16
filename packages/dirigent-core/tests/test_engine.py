@@ -86,6 +86,7 @@ from engineblocks import (
     RemoteOperator,
     TickSensor,
     UnsafeOperator,
+    UnspelledOperator,
 )
 
 
@@ -252,6 +253,35 @@ async def test_block_log_entries_reach_the_run(engine: Engine, sessions: Any, se
     assert [entry.message for entry in entries] == ["echoing"]
     assert entries[0].step_name == "only"
     assert entries[0].fields == {"value": "hello"}
+
+
+async def test_a_block_logging_values_that_are_not_json_settles_once(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    """Each field takes its log shape when the block logs it, so the outcome can always be written."""
+    definition = PipelineDefinition(code="unspelled", steps=steps(only=StepDefinition(block="test.unspelled")))
+    run = await start(sessions, services, definition)
+    await drain(engine)
+
+    assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
+    assert UnspelledOperator.calls == 1
+    [attempt] = await attempts_of(sessions, run.id)
+    assert attempt.status is AttemptStatus.SUCCEEDED
+    assert attempt.lease_recoveries == 0
+    async with sessions() as session:
+        rows = await session.execute(sa.select(LogEntry).where(LogEntry.run_id == run.id))
+        entries = list(rows.scalars())
+    assert [entry.message for entry in entries] == ["side effect done"]
+    fields = entries[0].fields
+    assert fields is not None
+    assert fields.pop("thing").startswith("<object object at ")
+    assert fields == {
+        "when": "2026-09-06T13:45:00+00:00",
+        "amount": "1.250",
+        "seen": ["a", "b"],
+        "raw": "AAEC",
+        "ratio": "NaN",
+    }
 
 
 async def test_a_run_that_asked_for_debug_keeps_it(engine: Engine, sessions: Any, services: EngineServices) -> None:

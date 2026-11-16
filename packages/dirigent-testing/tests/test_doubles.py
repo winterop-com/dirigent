@@ -1,11 +1,15 @@
 """The doubles behave like the thing they stand in for, or a block tested against them lies."""
 
+from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import httpx2
 import pytest
 from pydantic import BaseModel
 
+from dirigent_common import loggable
 from dirigent_plugin import RunState
 from dirigent_testing import FakeContext, FakeRuns, FakeStorage, RecordingLogger
 from dirigent_testing.messages import TEST_REFUSAL
@@ -162,3 +166,24 @@ def test_asking_for_a_client_without_a_handler_says_so(block_ctx: FakeContext) -
 def test_the_local_context_scratch_is_a_directory_a_shell_can_write_to(local_block_ctx: FakeContext) -> None:
     assert local_block_ctx.scratch.startswith("file://")
     assert local_block_ctx.storage.root.is_dir()
+
+
+def test_the_recording_logger_keeps_each_field_in_the_shape_the_engine_stores() -> None:
+    log = RecordingLogger()
+    when = datetime(2026, 9, 6, 13, 45, tzinfo=UTC)
+    fields: dict[str, Any] = {
+        "when": when,
+        "amount": Decimal("1.250"),
+        "seen": {"b", "a"},
+        "ratio": float("nan"),
+        "raw": b"\x01",
+    }
+    log.info("done", **fields)
+    assert log.entries == [
+        (
+            "info",
+            "done",
+            {"when": "2026-09-06T13:45:00+00:00", "amount": "1.250", "seen": ["a", "b"], "ratio": "NaN", "raw": "AQ=="},
+        )
+    ]
+    assert log.entries[0][2]["when"] == loggable(when)

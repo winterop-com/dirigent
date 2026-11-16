@@ -2,11 +2,12 @@
 
 import asyncio
 import json
+import math
 import random
 import re
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
-from typing import Any, Final
+from typing import Any, Final, cast
 
 import aiosqlite
 import sqlalchemy as sa
@@ -122,8 +123,25 @@ def storable_json(value: object) -> str:
     JSONB refuses either, and no response can encode half a pair, so an outside service's answer
     holding one would fail the step's settling on PostgreSQL and every read of the run on SQLite.
     A string that already holds the six characters of an escape reads back as those characters.
+    A float that is not finite is written as null, because JSON has no ``NaN`` and PostgreSQL
+    refuses the bare token.
     """
-    return UNSTORABLE.sub(_stored, json.dumps(value, ensure_ascii=False))
+    try:
+        written = json.dumps(value, ensure_ascii=False, allow_nan=False)
+    except ValueError:
+        written = json.dumps(_finite(value), ensure_ascii=False, allow_nan=False)
+    return UNSTORABLE.sub(_stored, written)
+
+
+def _finite(value: object) -> object:
+    """Copy a JSON value with every float that is not finite replaced by null."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _finite(inner) for key, inner in cast("dict[object, object]", value).items()}
+    if isinstance(value, list | tuple):
+        return [_finite(inner) for inner in cast("list[object] | tuple[object, ...]", value)]
+    return value
 
 
 def create_engine(settings: Settings) -> AsyncEngine:
