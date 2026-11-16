@@ -1,10 +1,11 @@
 """Tests for envelope encryption of connection secrets."""
 
 import hashlib
+from typing import Annotated
 
 import pytest
 from cryptography.fernet import Fernet
-from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from dirigent_core.secrets import (
     REDACTED,
@@ -47,6 +48,14 @@ def config() -> ApiConnection:
 
 def test_secret_fields_are_found_through_the_config_model() -> None:
     assert secret_fields(ApiConnection) == ["token", "password"]
+
+
+def test_a_secret_field_written_annotated_and_optional_is_still_secret() -> None:
+    class Constrained(BaseModel):
+        token: Annotated[SecretStr, Field(min_length=8)] | None = None
+        plain: Annotated[str, Field(min_length=1)] | None = None
+
+    assert secret_fields(Constrained) == ["token"]
 
 
 def test_a_model_without_secrets_has_none() -> None:

@@ -92,7 +92,7 @@ def _enum_values(enum_class: type[StrEnum]) -> list[str]:
 
 
 def string_enum(enum_class: type[StrEnum], name: str, *, length: int = 32) -> sa.Enum:
-    """Store an enum by its value in a checked VARCHAR, so both dialects agree."""
+    """Store an enum by its value in a VARCHAR, so both dialects agree; no CHECK constraint holds it."""
     return sa.Enum(
         enum_class,
         name=name,
