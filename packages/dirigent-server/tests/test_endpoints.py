@@ -301,6 +301,19 @@ def test_every_spelling_of_a_route_and_every_value_of_its_parameters_share_one_c
         assert put.status_code == 401, "another method has its own count"
 
 
+def test_one_ipv6_network_shares_one_count(settings: Settings, admin_token: str) -> None:
+    """A caller holding a /64 cannot start a full count from each address in it."""
+    app = _flood(settings, 2)
+    with TestClient(app, client=("2001:db8::1", 50000), headers={"Authorization": f"Bearer {admin_token}"}) as one:
+        apply_document(one, echo())
+        answered = [one.post("/endpoints/echo/a", json={}, headers=bearer("wrong")).status_code for _ in range(2)]
+    assert answered == [401, 401]
+    with TestClient(app, client=("2001:db8::2", 50000)) as rotated:
+        assert rotated.post("/endpoints/echo/a", json={}, headers=bearer("wrong")).status_code == 429
+    with TestClient(app, client=("2001:db8:0:1::1", 50000)) as elsewhere:
+        assert elsewhere.post("/endpoints/echo/a", json={}, headers=bearer("wrong")).status_code == 401
+
+
 def test_every_path_no_route_answers_shares_one_count(settings: Settings, admin_token: str) -> None:
     with TestClient(_flood(settings, 2), headers={"Authorization": f"Bearer {admin_token}"}) as client:
         answered = [client.post(f"/endpoints/nothing/{index}").status_code for index in range(3)]

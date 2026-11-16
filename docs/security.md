@@ -128,8 +128,8 @@ logs a warning (`cli.dev_fixture_exposed`) that anyone who reaches that address 
 `admin`. Run `dg server` with an admin of your own on any address you do not trust.
 
 On a loopback bind, `dg dev` also answers only to a loopback name: `localhost`, or an address such
-as `127.0.0.1` or `[::1]`. Any other `Host` is refused 421 (`server.host_not_loopback`) before the
-request is read. Without that, a page on a name that resolves to 127.0.0.1 could read this instance
+as `127.0.0.1` or `[::1]`. Any other `Host`, or none, is refused 421 (`server.host_not_loopback`)
+before the request is read. Without that, a page on a name that resolves to 127.0.0.1 could read this instance
 as its own origin and sign in as `admin`. A proxy in front of a loopback `dg dev` has to send one of
 those names as `Host`. A non-loopback bind has no such check, and `dg server` never does, because a
 proxy on the same host commonly fronts a loopback `dg server` under its public name.
@@ -290,8 +290,13 @@ unmounts it, and `/mcp` then answers 404.
 - **An answer is bounded too.** Every tool's answer is held under 48 KB of JSON, cut with a note
   saying how to ask for less, so one call cannot hand a model an output, a document or a listing
   larger than it can read.
-- **No secret passes through it.** What an agent is given lands in its transcript, so no tool
-  takes or shows a credential. `create_connection` sends `awaiting_secrets`, and the API then
+- **No connection secret passes through it.** What an agent is given lands in its transcript,
+  so no tool takes or shows a connection's credential. An endpoint source's credential is the
+  exception: `apply_document` and `edit_pipeline` answer the token or signing secret they mint for
+  a source they create, and `rotate_source_token` the one it mints, each shown once, as the API
+  shows it. An agent that adds or rotates an endpoint source therefore holds its credential in
+  its transcript; rotate it from `dg` afterwards to take it back. `create_connection` sends
+  `awaiting_secrets`, and the API then
   refuses any field the kind declares secret (`SecretStr`) by name and never by value
   (`server.secrets_withheld`), stores the settings alone, and waives the kind's validation only
   where a missing secret is the cause. Such a connection is refused by a step, a source, an alert
@@ -369,6 +374,7 @@ may, and an operator everything a viewer may.
 | `POST /api/v1/schemas` | Publishing a shape every document may reference |
 | `PATCH /api/v1/schemas/{code}` | Changing one under everything that references it |
 | `DELETE /api/v1/schemas/{code}` | Removing one, which is refused while a pipeline names it |
+| `GET /api/v1/audit` | Reading who changed what, every account and token included |
 
 A write a role may not perform is answered with `403` and one sentence of detail:
 `not permitted for your role`. It is the same status and the same sentence whichever boundary
@@ -438,7 +444,7 @@ holds is itself authority.
 is generated server-side and returned exactly once, in the response to the mint. It is never
 recoverable afterwards -- the instance holds only the SHA-256 and the eight-character prefix.
 
-**Presenting.** `Authorization: Bearer <token>`. Resolution hashes what was presented and does
+**Presenting.** `Authorization: Bearer <token>`, the scheme in any case. Resolution hashes what was presented and does
 an indexed equality lookup, then checks in order: the row exists, `revoked_at` is null, the
 user exists and is active, and `expires_at` has not passed. Any of those failing is the same
 answer -- no principal.
@@ -528,7 +534,8 @@ timestamp and the signature, then the source's own `rate`. A refusal at any of t
 signed source's 408 and 413 -- is counted in telemetry (`dirigent.source.inputs`) and logged, writes
 nothing and spends nothing from the source's own bucket, so a stranger without the token or
 the secret, or a caller in a loop, cannot cause writes or starve the source's real callers.
-The first bucket is counted per address, so a stranger elsewhere spends their own count: behind a
+The first bucket is counted per address, an IPv6 address as its /64 as login counts it, so a
+stranger elsewhere spends their own count: behind a
 reverse proxy that is the proxy's address unless uvicorn trusts it, so set `FORWARDED_ALLOW_IPS`
 to the proxy's address, or every caller shares one count and a stranger can again spend it. A call
 with no peer address at all, over a UNIX socket with nothing forwarding, shares one count too.
@@ -935,8 +942,11 @@ characters of the key's own SHA-256), so an instance can tell which key sealed a
 trying to decrypt it -- and so a failure to open one says "sealed by key `abc123…`" rather than
 "decryption failed".
 
-**Decryption happens on the worker path alone**, at the moment a block asks the step context
-for its connection. It does not happen when a connection is listed, shown, or applied.
+**Decryption happens where a credential is used or changed**: on the worker, at the moment a
+block asks the step context for its connection; on the server, when an admin checks a
+connection (`$check`), when an update keeps a stored secret by its redaction marker or compares
+the new envelope with the old to name what changed, and when a signed endpoint source verifies a
+call. It does not happen when a connection is listed, shown, or applied.
 
 ### Where the key comes from
 

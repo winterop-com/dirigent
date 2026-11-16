@@ -46,7 +46,7 @@ def test_a_refused_write_sends_the_defaults(anonymous: TestClient) -> None:
 
 @pytest.mark.parametrize(
     ("path", "policy"),
-    [("/boom", UI_POLICY), ("/api/v1/boom", UI_POLICY), ("/docs/boom", DOCS_POLICY)],
+    [("/boom", UI_POLICY), ("/api/v1/boom", UI_POLICY), ("/docs/boom", DOCS_POLICY), ("/docsboom", UI_POLICY)],
 )
 def test_an_unhandled_exception_sends_the_defaults(
     settings: Settings, admin_token: str, path: str, policy: str

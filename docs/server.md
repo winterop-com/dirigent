@@ -195,7 +195,10 @@ leadership is a PostgreSQL advisory lock, so several app processes with it on ar
 What not to reach for is a prefork model: gunicorn buys nothing here, because capacity comes
 from more `dg worker` processes claiming from PostgreSQL, not from more web processes, and more
 API processes only multiply connection pools against one database. More API capacity is more
-`dg server` containers behind a load balancer.
+`dg server` containers behind a load balancer. An MCP session at `/mcp` lives in the memory of
+the process that opened it, so route `/mcp` sticky on its `Mcp-Session-Id` header, or to one
+replica: a call that lands on another replica is answered 404 and its client starts a new
+session.
 
 ### The first admin, by hand
 
