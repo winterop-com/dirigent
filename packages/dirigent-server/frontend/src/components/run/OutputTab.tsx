@@ -45,7 +45,8 @@ const artifactId = (row: ArtifactOut) => row.id
  * the attempt that wrote the same uri -- which the event stream has already reported.
  */
 export function OutputTab({ state, runId }: { state: RunDetailState; runId: string }) {
-    const [artifacts, setArtifacts] = useState<ArtifactOut[] | null>(null)
+    // A refused read is a refusal on screen, never an empty listing.
+    const [listing, setListing] = useState<{ rows: ArtifactOut[] } | { problem: Problem } | null>(null)
     const prefix = useApiPrefix()
     // A run writes its outputs as it goes and its report document as it settles, so the
     // listing is read again once nothing more can be added to it.
@@ -55,10 +56,10 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
         let cancelled = false
         void readArtifacts(runId).then(
             (rows) => {
-                if (!cancelled) setArtifacts(rows)
+                if (!cancelled) setListing({ rows })
             },
-            () => {
-                if (!cancelled) setArtifacts([])
+            (error: unknown) => {
+                if (!cancelled) setListing({ problem: refusalOf(error) })
             },
         )
         return () => {
@@ -67,6 +68,7 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
         // oxlint-disable-next-line react/exhaustive-effect-dependencies
     }, [runId, settled])
 
+    const artifacts = listing !== null && 'rows' in listing ? listing.rows : null
     const report = artifacts === null ? null : reportArtifact(artifacts)
     const rows = artifacts === null ? [] : artifacts.filter((row) => row.id !== report?.id)
     const items = useMemo(
@@ -95,7 +97,9 @@ export function OutputTab({ state, runId }: { state: RunDetailState; runId: stri
     return (
         <div className="flex flex-col gap-4 p-4">
             <Group title={LABELS.word.artifacts} count={artifacts === null ? undefined : rows.length}>
-                {artifacts === null ? (
+                {listing !== null && 'problem' in listing ? (
+                    <ProblemLine>{refusalLine(listing.problem)}</ProblemLine>
+                ) : artifacts === null ? (
                     <p className="text-xs text-muted-foreground">{LABELS.shell.reading}</p>
                 ) : rows.length === 0 ? (
                     <p className="text-xs text-muted-foreground">{LABELS.runs.artifacts_empty}</p>

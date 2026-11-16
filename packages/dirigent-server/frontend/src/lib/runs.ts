@@ -286,6 +286,32 @@ export function readLogs(
     return apiJson<Page<LogEntryOut>>(logsPath(runId, after, limit))
 }
 
+/**
+ * Every line one run wrote, walked page by page to the last, as NDJSON parts a `Blob` takes.
+ *
+ * Each page becomes one part rather than one string, so a long log is never joined into a
+ * single string before it is saved.
+ */
+export async function readEveryLine(
+    runId: string,
+    read: (runId: string, after: string | null) => Promise<Page<LogEntryOut>> = readLogs,
+): Promise<{ parts: string[]; count: number }> {
+    const parts: string[] = []
+    let count = 0
+    let after: string | null = null
+    do {
+        // A cursor walk is sequential by definition: the next page is named by this one.
+        // oxlint-disable-next-line no-await-in-loop
+        const page: Page<LogEntryOut> = await read(runId, after)
+        if (page.items.length > 0) {
+            parts.push(`${page.items.map((entry) => JSON.stringify(entry)).join('\n')}\n`)
+            count += page.items.length
+        }
+        after = page.next
+    } while (after !== null)
+    return { parts, count }
+}
+
 /** Stop what has not started, and tell the remote about what has. */
 export function cancelRun(runId: string): Promise<RunOut> {
     return apiJson<RunOut>(`/runs/${encodeURIComponent(runId)}/$cancel`, { method: 'POST' })

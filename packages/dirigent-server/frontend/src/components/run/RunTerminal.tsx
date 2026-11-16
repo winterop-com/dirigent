@@ -14,9 +14,8 @@ import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
 import { followTails } from '@/lib/preferences'
 import { itemLabels, itemOfEntry, type RunDetailState } from '@/lib/run-detail'
-import { readLogs, type LogEntryOut } from '@/lib/runs'
+import { readEveryLine, type LogEntryOut } from '@/lib/runs'
 import {
-    asNdjson,
     copyText,
     countLines,
     downloadName,
@@ -50,9 +49,6 @@ export const NEWEST_LABEL = LABELS.terminal.newest
 
 /** What the step select's "no step at all" row is worth, which is every step. */
 const EVERY_STEP = ''
-
-/** How many pages of `$logs` a download walks before it stops asking. Fifty of them is 25,000 lines. */
-const DOWNLOAD_PAGE_LIMIT = 50
 
 /**
  * Everything one run said, as a console across the foot of the screen.
@@ -160,24 +156,10 @@ export function RunTerminal({
      */
     const download = () => {
         setSaving(true)
-        void (async () => {
-            const collected: LogEntryOut[] = []
-            let after: string | null = null
-            for (let page = 0; page < DOWNLOAD_PAGE_LIMIT; page += 1) {
-                // A cursor walk is sequential by definition: the next page is named by this one.
-                // oxlint-disable-next-line no-await-in-loop
-                const answer = await readLogs(runId, after)
-                collected.push(...answer.items)
-                after = answer.next
-                if (after === null) break
-            }
-            return collected
-        })().then(
-            (collected) => {
+        void readEveryLine(runId).then(
+            ({ parts, count }) => {
                 setSaving(false)
-                const url = URL.createObjectURL(
-                    new Blob([asNdjson(collected)], { type: 'application/x-ndjson' }),
-                )
+                const url = URL.createObjectURL(new Blob(parts, { type: 'application/x-ndjson' }))
                 const anchor = document.createElement('a')
                 anchor.href = url
                 anchor.download = downloadName(runId)
@@ -186,7 +168,7 @@ export function RunTerminal({
                 anchor.click()
                 anchor.remove()
                 URL.revokeObjectURL(url)
-                toast.success(counted(collected.length, LABELS.terminal.saved)(String(collected.length)))
+                toast.success(counted(count, LABELS.terminal.saved)(String(count)))
             },
             (error: unknown) => {
                 setSaving(false)
