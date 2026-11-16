@@ -80,21 +80,19 @@ jobs:
         run: make coverage
 
   # Branch protection requires a status named `check`. This job is that status: it runs
-  # nothing itself and holds only when every job it waits on succeeded.
+  # nothing itself and holds only when every job it waits on succeeded, every lane included.
   check:
     name: check
     runs-on: ubuntu-24.04
-    needs: [static, tests]
+    needs: [static, tests, postgres, storage, queues, containers, browser, compose]
     if: always()
     steps:
       - name: Every part of the gate held
         run: |
-          echo "static: $STATIC"
-          echo "tests:  $TESTS"
-          test "$STATIC" = success && test "$TESTS" = success
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' >/dev/null
         env:
-          STATIC: ${{ needs.static.result }}
-          TESTS: ${{ needs.tests.result }}
+          NEEDS: ${{ toJSON(needs) }}
 
   postgres:
     name: concurrency lane
@@ -191,9 +189,6 @@ jobs:
   containers:
     name: docker lane
     runs-on: ubuntu-24.04
-    # docker.run needs a daemon socket, which not every runner or fork's CI has, so this
-    # lane may fail without blocking a merge.
-    continue-on-error: true
     env:
       # Unset, and the image is pulled anonymously, against a rate limit the runner's
       # address shares with every other job on the machine.
@@ -217,8 +212,14 @@ jobs:
         if: env.DOCKERHUB_USERNAME != ''
         run: echo "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin
 
+      # A runner without a daemon socket skips every test in the lane, and has nothing to pull.
       - name: Pull the images the lane runs
-        run: python3 scripts/pull_images.py alpine:3
+        run: |
+          if [ -S /var/run/docker.sock ] || [ -n "${DOCKER_HOST:-}" ]; then
+            python3 scripts/pull_images.py alpine:3
+          else
+            echo "no Docker daemon socket, so the lane skips and there is nothing to pull"
+          fi
 
       - name: Docker lane
         run: make test-docker

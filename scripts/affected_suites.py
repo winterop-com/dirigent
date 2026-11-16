@@ -2,10 +2,11 @@
 """Name the test suites a change can reach, for a pull request that runs only those.
 
 The graph is read from the workspace packages' own ``pyproject.toml`` files, so a package
-added, removed or re-pointed changes the answer without this file being touched. Two edges no
-manifest spells out are added here, because both are resolved at run time rather than
-declared: the ``dirigent.*`` entry points the plugin host discovers, and the ``pytest11``
-entry point every suite in the interpreter loads.
+added, removed or re-pointed changes the answer without this file being touched. Edges no
+manifest spells out are added here: the ``dirigent.*`` entry points the plugin host discovers,
+the ``pytest11`` entry point every suite in the interpreter loads, and every ``dirigent_*``
+package a suite's own tests import. Two suites walk every package and run on any change, and
+the subtrees other suites read as files select those suites.
 
 Anything outside ``packages/`` selects every suite: a document, an infra file or the root
 manifest is read by tests that reach out of their own package, and a rule naming which ones
@@ -18,6 +19,7 @@ stdout, one per line, and the plan behind them to stderr.
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 import tomllib
@@ -34,8 +36,25 @@ DISCOVERER: Final = "dirigent-core"
 #: Where a requirement's name stops and its version, extras or markers begin.
 SEPARATORS: Final = "=<>!~[ ;(@"
 
-#: Paths no Python test reads. The browser lane and the UI type scale cover this subtree.
-INERT: Final = ("packages/dirigent-server/frontend/",)
+#: Suites that read every package's manifest or source, so any package change reaches them.
+WHOLE_TREE: Final = frozenset({"dirigent-common", "dirigent-testing"})
+
+#: Subtrees read as files by suites that import nothing from them, and the suites reading each.
+#: A path under one of these selects only the suites named, not the owning package's dependents.
+READ_AS_FILES: Final[dict[str, frozenset[str]]] = {
+    "packages/dirigent-server/frontend/": frozenset({"dirigent-cli", "dirigent-server"}),
+}
+
+#: Subtrees read as files by suites beyond the owning package's dependents. A path under one of
+#: these selects the suites named as well as the usual ones.
+ALSO_READ_BY: Final[dict[str, frozenset[str]]] = {
+    "packages/dirigent-examples/src/dirigent_examples/shelves/": frozenset(
+        {"dirigent-cli", "dirigent-client", "dirigent-core", "dirigent-storage-s3"}
+    ),
+}
+
+#: A ``dirigent_*`` package named by an import statement.
+IMPORT: Final = re.compile(r"^\s*(?:from|import)\s+(dirigent_\w+)", re.MULTILINE)
 
 
 def _distribution(requirement: str) -> str:
@@ -87,6 +106,17 @@ class Workspace:
         self.requires[DISCOVERER] |= contributors - {DISCOVERER}
         for name in self.requires:
             self.requires[name] |= loaded_by_every_suite - {name}
+        self.tests_import = {name: self._imported_by_tests(name) for name in self.directories}
+
+    def _imported_by_tests(self, name: str) -> set[str]:
+        """The workspace packages the suite of ``name`` imports, other than ``name`` itself."""
+        imported: set[str] = set()
+        for path in (self.directories[name] / "tests").rglob("*.py"):
+            for module in IMPORT.findall(path.read_text()):
+                distribution = module.replace("_", "-")
+                if distribution in self.directories and distribution != name:
+                    imported.add(distribution)
+        return imported
 
     def owner(self, path: str) -> str | None:
         """The package a repository path belongs to, or None when it belongs to none."""
@@ -130,11 +160,20 @@ def changed_paths(base: str) -> list[str]:
 def plan(paths: Iterable[str], workspace: Workspace) -> tuple[set[str], list[str]]:
     """The packages a change reaches, and the lines explaining why each one is in."""
     changed: set[str] = set()
+    readers: set[str] = set()
     reasons: list[str] = []
     everything = False
     for path in paths:
-        if path.startswith(INERT):
+        read_as_files = next((suites for prefix, suites in READ_AS_FILES.items() if path.startswith(prefix)), None)
+        if read_as_files is not None:
+            if not read_as_files <= readers:
+                readers |= read_as_files
+                reasons.append(f"{path} is read as a file by {', '.join(sorted(read_as_files))}")
             continue
+        for prefix, suites in ALSO_READ_BY.items():
+            if path.startswith(prefix) and not suites <= readers:
+                readers |= suites
+                reasons.append(f"{path} is read as a file by {', '.join(sorted(suites))}")
         package = workspace.owner(path)
         if package is None:
             if not everything:
@@ -147,7 +186,16 @@ def plan(paths: Iterable[str], workspace: Workspace) -> tuple[set[str], list[str
         return set(workspace.directories), reasons
     reached = workspace.dependents(changed)
     reasons.extend(f"{name} depends on a changed package" for name in sorted(reached - changed))
-    return reached, reasons
+    selected = set(reached)
+    for name, imported in sorted(workspace.tests_import.items()):
+        if name not in selected and imported & reached:
+            selected.add(name)
+            reasons.append(f"{name}'s tests import {', '.join(sorted(imported & reached))}")
+    if changed:
+        whole_tree = WHOLE_TREE - selected
+        reasons.extend(f"{name} reads every package" for name in sorted(whole_tree))
+        selected |= whole_tree
+    return selected | readers, reasons
 
 
 def main() -> int:
