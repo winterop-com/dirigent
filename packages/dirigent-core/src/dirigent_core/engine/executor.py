@@ -12,7 +12,7 @@ import contextlib
 import time
 from collections.abc import Coroutine, Generator, Sequence
 from datetime import datetime, timedelta
-from typing import Any, cast
+from typing import Any, Final, cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -78,7 +78,7 @@ from dirigent_core.engine.references import (
 )
 from dirigent_core.engine.runs import (
     EngineRuns,
-    cancel_remote,
+    cancel_held_remote,
     promote_queued_run,
 )
 from dirigent_core.engine.services import EngineServices
@@ -131,6 +131,9 @@ from dirigent_plugin import (
 )
 
 DEFAULT_PROBE_INTERVAL = timedelta(seconds=30)
+
+#: Failures that are the remote's own answer that its job ended, so there is nothing to cancel.
+_REMOTE_SETTLED: Final = frozenset({REMOTE_JOB_FAILED.code, REMOTE_JOB_SAID.code, GONE_PROBES.code})
 
 #: The statuses that free a pipeline's concurrency slot and settle what the run owes.
 TERMINAL_RUN_STATUSES = (RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.COMPLETED_WITH_ERRORS)
@@ -782,9 +785,13 @@ class Engine:
         run = await session.get(Run, unit.run_id)
         if run is None:  # pragma: no cover - the attempt was just read from this run
             return
-        await cancel_remote(session, self.services, run, attempt, await load_connections(session))
+        accepted = await cancel_held_remote(
+            session, self.services, run, attempt, await load_connections(session), utcnow()
+        )
         _steps.info(
-            "remote work submitted into a cancelled attempt was cancelled",
+            "remote work submitted into a cancelled attempt was cancelled"
+            if accepted
+            else "remote work submitted into a cancelled attempt was not cancelled; the sweep tries again",
             attempt_id=str(unit.attempt_id),
             run_id=str(unit.run_id),
             step=unit.step_name,
@@ -1084,6 +1091,7 @@ class Engine:
             attempt.error_code = DEADLINE_SKIPPED.code
             attempt.error_params = {"deadline": str(attempt.deadline_at)}
             _release(attempt)
+            await self._cancel_abandoned_remote(session, run, attempt, now)
         else:
             await self._settle_failure(
                 session,
@@ -1115,6 +1123,8 @@ class Engine:
         attempt.error_params = failure.params or None
         attempt.error_class = failure.error_class.value
         _release(attempt)
+        if failure.code not in _REMOTE_SETTLED:
+            await self._cancel_abandoned_remote(session, run, attempt, now)
 
         step = definition.steps.get(attempt.step_name)
         if step is None or not allow_retry or attempt.kind is AttemptKind.MANUAL:
@@ -1151,6 +1161,20 @@ class Engine:
             next_attempt=attempt.attempt + 1,
             delay_seconds=round(delay.total_seconds(), 3),
             error_class=failure.error_class.value,
+        )
+
+    async def _cancel_abandoned_remote(
+        self, session: AsyncSession, run: Run, attempt: StepAttempt, now: datetime
+    ) -> None:
+        """Cancel the remote work of an attempt settled while its job may still run."""
+        if not attempt.remote_handle:
+            return
+        accepted = await cancel_held_remote(session, self.services, run, attempt, await load_connections(session), now)
+        _steps.info(
+            "remote work of a settled attempt was cancelled"
+            if accepted
+            else "remote work of a settled attempt was not cancelled; the sweep tries again",
+            **await attempt_fields(session, attempt),
         )
 
     async def _settle_and_advance(

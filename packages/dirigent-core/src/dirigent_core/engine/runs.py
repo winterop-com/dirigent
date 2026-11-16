@@ -610,13 +610,13 @@ async def cancel_run(
         # A handle is what says remote work exists, and it is committed one transaction
         # before the attempt is parked as waiting. Telling only a waiting attempt's remote
         # leaves a job running whenever the cancel lands inside that window.
-        if attempt.remote_handle and not await cancel_remote(session, services, run, attempt, connections):
-            attempt.remote_cancel_since = moment
+        await cancel_held_remote(session, services, run, attempt, connections, moment)
         attempt.status = AttemptStatus.CANCELLED
         attempt.finished_at = moment
         attempt.lease_owner = None
         attempt.lease_token = None
         attempt.lease_expires_at = None
+    await _cancel_settled_remotes(session, services, run, connections)
     await _cancel_items(session, run, moment)
     run.status = RunStatus.CANCELLED
     run.error = reason.render(**params)
@@ -769,6 +769,46 @@ async def cancel_remote(
         return False
     _logger.info("remote cancellation requested", **await attempt_fields(session, attempt), accepted=accepted)
     return accepted
+
+
+async def cancel_held_remote(
+    session: AsyncSession,
+    services: EngineServices,
+    run: Run,
+    attempt: StepAttempt,
+    connections: Mapping[str, ConnectionRecord],
+    now: datetime,
+) -> bool:
+    """Cancel the remote work an attempt holds a handle on, and mark it for the sweep on a refusal.
+
+    A marked attempt is what ``retry_remote_cancels`` tries again, for ``REMOTE_CANCEL_WINDOW``.
+    """
+    if not attempt.remote_handle:
+        return True
+    if await cancel_remote(session, services, run, attempt, connections):
+        attempt.remote_cancel_since = None
+        return True
+    attempt.remote_cancel_since = now
+    return False
+
+
+async def _cancel_settled_remotes(
+    session: AsyncSession,
+    services: EngineServices,
+    run: Run,
+    connections: Mapping[str, ConnectionRecord],
+) -> None:
+    """Tell the remote again about each settled attempt of a run whose earlier cancel it refused."""
+    rows = await session.execute(
+        sa.select(StepAttempt).where(
+            StepAttempt.run_id == run.id,
+            StepAttempt.remote_cancel_since.is_not(None),
+            StepAttempt.status.in_((AttemptStatus.FAILED, AttemptStatus.SKIPPED)),
+        )
+    )
+    for attempt in rows.scalars():
+        if await cancel_remote(session, services, run, attempt, connections):
+            attempt.remote_cancel_since = None
 
 
 async def retry_remote_cancels(

@@ -2851,6 +2851,148 @@ async def test_a_handle_arriving_after_a_cancel_is_kept_and_cancelled(
     assert settled.remote_handle is not None, "and nothing recorded that it ever existed"
 
 
+async def test_a_handle_arriving_after_a_cancel_the_remote_refuses_is_told_again_from_a_worker(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def unreached(*_: object) -> bool:
+        return False
+
+    definition = PipelineDefinition(
+        code="cancel-during-submit-refused",
+        steps=steps(
+            job=StepDefinition(block="test.remote", config={"statuses": ["running"]}, poll=timedelta(minutes=5))
+        ),
+    )
+    run = await start(sessions, services, definition)
+    unit = await engine.claim()
+    assert unit is not None
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        await cancel_run(session, services, stored)
+    with monkeypatch.context() as patch:
+        patch.setattr(RemoteOperator, "cancel", unreached)
+        await engine.record_handle(unit, RemoteHandle(block_id="test.remote", ref="job-2", meta={"result": "ok"}))
+    assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is not None
+
+    async with session_scope(sessions) as session:
+        assert await retry_remote_cancels(session, services, []) == 1
+    assert RemoteOperator.cancellations == ["job-2"]
+    assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
+
+
+def _probe_raising_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make the first probe of ``test.remote`` raise, as a daemon hiccup does."""
+    real = RemoteOperator.probe
+    calls: list[str] = []
+
+    async def flaky(self: RemoteOperator, handle: RemoteHandle, config: Any, ctx: Any) -> Any:
+        calls.append(handle.ref)
+        if len(calls) == 1:
+            raise ConnectionError("connection reset by peer")
+        return await real(self, handle, config, ctx)
+
+    monkeypatch.setattr(RemoteOperator, "probe", flaky)
+
+
+def _retried_remote(code: str, backoff: timedelta = timedelta(seconds=1)) -> PipelineDefinition:
+    """A remote step that is probed forever and may run twice."""
+    return PipelineDefinition(
+        code=code,
+        steps=steps(
+            job=StepDefinition(
+                block="test.remote",
+                config={"statuses": ["running"]},
+                retry=RetryPolicy(max_attempts=2, backoff=backoff, jitter=0.0),
+            )
+        ),
+    )
+
+
+async def _run_hops(engine: Engine, hops: int) -> None:
+    """Claim and run one unit per hop, five seconds apart."""
+    moment = utcnow()
+    for _ in range(hops):
+        moment += timedelta(seconds=5)
+        unit = await engine.claim(now=moment)
+        assert unit is not None
+        await engine.run_unit(unit, now=moment)
+
+
+async def test_a_probe_that_raises_cancels_the_remote_job_before_the_retry_submits_again(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _probe_raising_once(monkeypatch)
+    run = await start(sessions, services, _retried_remote("probe-raises"))
+    await _run_hops(engine, 3)
+
+    assert RemoteOperator.submissions == ["job-1", "job-1"]
+    assert RemoteOperator.cancellations == ["job-1"], "the first remote job was left running beside the retry"
+    first, second = await attempts_of(sessions, run.id)
+    assert (first.status, first.error_class) == (AttemptStatus.FAILED, ErrorClass.TRANSIENT.value)
+    assert first.remote_cancel_since is None
+    assert second.status is AttemptStatus.WAITING
+
+
+async def test_a_settling_cancel_the_remote_refuses_is_told_again_from_a_worker(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def unreached(*_: object) -> bool:
+        return False
+
+    _probe_raising_once(monkeypatch)
+    run = await start(sessions, services, _retried_remote("probe-raises-refused"))
+    with monkeypatch.context() as patch:
+        patch.setattr(RemoteOperator, "cancel", unreached)
+        await _run_hops(engine, 2)
+    first, _ = await attempts_of(sessions, run.id)
+    assert first.status is AttemptStatus.FAILED
+    assert first.remote_cancel_since is not None
+    assert RemoteOperator.cancellations == []
+
+    async with session_scope(sessions) as session:
+        assert await retry_remote_cancels(session, services, []) == 1
+    assert RemoteOperator.cancellations == ["job-1"]
+    assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
+
+
+async def test_cancelling_a_run_tells_the_remote_of_a_failed_attempt_it_refused_before(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def unreached(*_: object) -> bool:
+        return False
+
+    _probe_raising_once(monkeypatch)
+    run = await start(sessions, services, _retried_remote("probe-raises-then-cancel", backoff=timedelta(hours=1)))
+    with monkeypatch.context() as patch:
+        patch.setattr(RemoteOperator, "cancel", unreached)
+        await _run_hops(engine, 2)
+    first, second = await attempts_of(sessions, run.id)
+    assert (first.status, second.status) == (AttemptStatus.FAILED, AttemptStatus.QUEUED)
+    assert first.remote_cancel_since is not None
+
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        await cancel_run(session, services, stored)
+    assert RemoteOperator.submissions == ["job-1"]
+    assert RemoteOperator.cancellations == ["job-1"], "the failed attempt's remote job was left running"
+    assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
+
+
+async def test_a_remote_job_that_reports_its_own_failure_is_not_cancelled(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="remote-said-failed",
+        steps=steps(job=StepDefinition(block="test.remote", config={"statuses": ["failed"]})),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+    assert (await attempts_of(sessions, run.id))[0].status is AttemptStatus.FAILED
+    assert RemoteOperator.cancellations == []
+
+
 async def test_a_deadline_that_passes_while_waiting_is_settled_without_a_poke(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
@@ -2882,6 +3024,44 @@ async def test_a_deadline_that_passes_while_waiting_is_settled_without_a_poke(
 
     assert len(settled) == 1, "the deadline was not noticed until the next poke"
     assert (await attempts_of(sessions, run.id))[0].status is AttemptStatus.SKIPPED
+
+
+@pytest.mark.parametrize(
+    ("on_timeout", "settled_as"),
+    [(TimeoutAction.FAIL, AttemptStatus.FAILED), (TimeoutAction.SKIP, AttemptStatus.SKIPPED)],
+)
+async def test_a_deadline_that_settles_a_waiting_remote_cancels_its_job(
+    engine: Engine,
+    sessions: Any,
+    services: EngineServices,
+    on_timeout: TimeoutAction,
+    settled_as: AttemptStatus,
+) -> None:
+    definition = PipelineDefinition(
+        code=f"deadline-cancels-{on_timeout.value}",
+        steps=steps(
+            job=StepDefinition(
+                block="test.remote",
+                config={"statuses": ["running"]},
+                poll=timedelta(hours=1),
+                deadline=timedelta(minutes=5),
+                on_timeout=on_timeout,
+            )
+        ),
+    )
+    run = await start(sessions, services, definition)
+    unit = await engine.claim()
+    assert unit is not None
+    await engine.run_unit(unit)
+
+    async with session_scope(sessions) as session:
+        await engine.settle_overdue_deadlines(session, now=utcnow() + timedelta(hours=1))
+
+    [attempt] = await attempts_of(sessions, run.id)
+    assert attempt.status is settled_as
+    assert attempt.remote_cancel_since is None
+    assert RemoteOperator.submissions == ["job-1"]
+    assert RemoteOperator.cancellations == ["job-1"], "the remote job ran on past the deadline"
 
 
 async def test_a_deadline_that_settles_the_active_run_releases_the_queue(
