@@ -244,7 +244,7 @@ def test_a_watched_output_that_spilled_names_its_artifact(capsys: Any) -> None:
     written = streamed(capsys)[-1]
     assert written["kind"] == "output"
     assert written["artifact"] == "file:///scratch/a.json"
-    assert written["bytes"] == 24576
+    assert written["artifact_bytes"] == 24576
     assert "status" not in written, "an output that spilled is named, not guessed at"
 
 

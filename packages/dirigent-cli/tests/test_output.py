@@ -29,7 +29,8 @@ from dirigent_cli.output import (
     alert_event,
     build_fields,
     build_table,
-    emit_json,
+    configure,
+    emit_record,
     emit_records,
     moment,
     printable,
@@ -110,8 +111,9 @@ def test_a_control_character_does_not_reach_the_log_stream(monkeypatch: pytest.M
 
 def test_a_record_keeps_a_control_character_as_the_data_it_is(capsys: pytest.CaptureFixture[str]) -> None:
     """Only what is shown is filtered: a record says exactly what the server said."""
-    emit_json({"message": HOSTILE})
-    assert json.loads(capsys.readouterr().out) == {"message": HOSTILE}
+    configure(output="json")
+    emit_record("note", said=HOSTILE)
+    assert json.loads(capsys.readouterr().out)["said"] == HOSTILE
 
 
 class Row(BaseModel):

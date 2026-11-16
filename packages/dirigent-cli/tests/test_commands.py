@@ -1160,15 +1160,16 @@ def test_the_runs_listing_narrows_by_the_tags_the_runs_pipeline_wears(tmp_path: 
 def test_a_stored_pipeline_is_re_checked_against_the_instance(tmp_path: Path, server: str) -> None:
     """A pipeline that applied cleanly is checked again, on demand, against what is here now."""
     apply_document(tmp_path)
-    valid = invoke("pipeline", "validate", "cli-demo")
+    valid = machine("pipeline", "validate", "cli-demo")
     assert valid.exit_code == 0, valid.output
-    assert "valid" in plain(valid.output)
+    checked = only(valid.stdout, "validation")
+    assert (checked["code"], checked["level"], checked["message"]) == ("cli-demo", "info", "valid")
 
-    every = invoke("pipeline", "validate", "--all")
+    every = machine("pipeline", "validate", "--all")
     assert every.exit_code == 0, every.output
-    assert "cli-demo" in plain(every.output)
+    assert [record["code"] for record in of_kind(records(every.stdout), "validation")] == ["cli-demo"]
 
-    named = invoke("pipeline", "validate", "cli-demo", "--version", "1")
+    named = machine("pipeline", "validate", "cli-demo", "--version", "1")
     assert named.exit_code == 0, named.output
 
 
@@ -1201,11 +1202,11 @@ def test_a_past_version_naming_a_deleted_connection_is_reported(tmp_path: Path, 
     path.write_text(DOCUMENT)
     assert invoke("apply", str(path)).exit_code == 0
     assert invoke("connection", "delete", "gone").exit_code == 0
-    checked = invoke("pipeline", "validate", "cli-demo", "--version", "1")
+    checked = machine("pipeline", "validate", "cli-demo", "--version", "1")
     assert checked.exit_code == 1, checked.output
-    printed = plain(checked.output)
-    assert "invalid" in printed
-    assert "gone" in printed, "it names the connection that went missing"
+    refused = only(checked.stdout, "validation")
+    assert (refused["level"], refused["message"]) == ("error", "invalid"), "the shape dg validate writes"
+    assert any("gone" in problem["message"] for problem in refused["problems"]), "it names the missing connection"
 
 
 def test_a_pipeline_can_be_deactivated_activated_and_deleted(tmp_path: Path, server: str) -> None:
@@ -1578,7 +1579,9 @@ def test_a_run_can_be_listed_cancelled_and_reported(tmp_path: Path, server: str)
     assert refused["params"]["status"] == "cancelled"
     report = invoke("runs", "report", run_id)
     assert "cli-demo" in report.output
-    assert invoke("runs", "logs", run_id).exit_code == 0
+    logged = machine("runs", "logs", run_id)
+    assert logged.exit_code == 0
+    assert {record["kind"] for record in records(logged.stdout)} <= {"log"}, "the kind --follow writes too"
 
 
 def test_a_listing_follows_its_cursor_without_the_caller_seeing_one() -> None:
@@ -2211,9 +2214,9 @@ def test_a_token_is_minted_with_an_expiry_and_lists_it(server: str) -> None:
 
 
 def test_tokens_and_users_and_auth_status(server: str) -> None:
-    created = invoke("admin", "token", "create", "ci")
+    created = machine("admin", "token", "create", "ci")
     assert created.exit_code == 0
-    assert "only time" in created.output
+    assert only(created.stdout, "token.issued")["token"]
     assert "ci" in invoke("admin", "token", "list").output
     token = next(row["id"] for row in rows(machine("admin", "token", "list").stdout) if row["name"] == "ci")
     assert only(machine("admin", "token", "revoke", token).stdout, "token.revoked")["id"] == token
@@ -2495,11 +2498,13 @@ def test_an_account_is_switched_off_and_back_on_from_the_cli(server: str) -> Non
         invoke("admin", "user", "create", "second", "--role", "operator", "--password", "another password").exit_code
         == 0
     )
-    off = invoke("--json", "admin", "user", "deactivate", "second")
+    off = machine("admin", "user", "deactivate", "second")
     assert off.exit_code == 0, off.output
-    assert [row["active"] for row in rows(off.stdout)] == [False]
-    on = invoke("--json", "admin", "user", "activate", "second")
-    assert [row["active"] for row in rows(on.stdout)] == [True]
+    assert only(off.stdout, "user.deactivated")["username"] == "second"
+    on = machine("admin", "user", "activate", "second")
+    assert only(on.stdout, "user.activated")["username"] == "second"
+    listed = {row["username"]: row["active"] for row in rows(machine("admin", "user", "list").stdout)}
+    assert listed["second"] is True
 
 
 def test_the_last_active_admin_is_not_switched_off_from_the_cli(server: str) -> None:

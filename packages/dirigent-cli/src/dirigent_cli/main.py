@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Any, NoReturn, TextIO, cast
 import typer
 from pydantic import ValidationError
 from typer import _click, rich_utils
-from typer.core import TyperGroup
+from typer.core import TyperGroup, TyperOption
 
 from dirigent_cli import audit_commands, commands, profile_commands, source_commands, triggers
 from dirigent_cli.aliases import add_alias, add_list_aliases
@@ -2046,45 +2046,46 @@ async def _scheduler(settings: Settings) -> None:
 
 
 #: Options declared on the group, which a person expects to work in any position.
-GLOBAL_TOKENS = frozenset({"-v", "-vv", "-vvv", "--verbose", "-d", "--debug", "--debug-all", "--json", "--timestamps"})
+GLOBAL_TOKENS = frozenset({"-v", "-vv", "-vvv", "--verbose", "-d", "--debug", "--debug-all", "--json"})
 
 #: The options declared on ``dg`` that take a value. Hoisting one moves its value with it.
 GLOBAL_VALUE_OPTIONS = frozenset({"--url", "--token", "--profile", "-o", "--output"})
 
-# Options that consume the next token; a verbosity-looking token after one of these is a
-# value, not a flag. A new value-taking option must be added here.
-VALUE_OPTIONS = frozenset(
-    {
-        "--url",
-        "--token",
-        "--profile",
-        "-p",
-        "--param",
-        "-P",
-        "--params-file",
-        "-o",
-        "--output",
-        "-f",
-        "--file",
-        "--as",
-        "--cron",
-        "--interval",
-        "--at",
-        "--tz",
-        "--step",
-        "--template",
-        "--connections",
-        "--concurrency",
-        "--tag",
-        "--event",
-        "--connection",
-        "--status",
-        "--pipeline",
-        "--since",
-        "--enable-unsafe",
-        "--deadline",
+
+def _taking_a_value(command: _click.Command) -> set[str]:
+    """Name one command's own options that read the next token as their value."""
+    return {
+        name
+        for param in command.params
+        if isinstance(param, TyperOption) and not param.is_flag and not param.count
+        for name in (*param.opts, *param.secondary_opts)
     }
-)
+
+
+def value_options(argv: Sequence[str]) -> frozenset[str]:
+    """Name every option that takes a value on the way to the command ``argv`` reaches, ``dg``'s own included.
+
+    Read off the declared commands, so a value-taking option added anywhere is known here
+    without being listed.
+    """
+    command = typer.main.get_command(app)
+    names = _taking_a_value(command)
+    wants_value = False
+    for token in argv:
+        if token == "--":
+            break
+        if wants_value:
+            wants_value = False
+            continue
+        if token.startswith("-"):
+            wants_value = "=" not in token and token in names
+            continue
+        found = command.get_command(_click.Context(command), token) if isinstance(command, TyperGroup) else None
+        if found is None:
+            break
+        command = found
+        names |= _taking_a_value(command)
+    return frozenset(names)
 
 
 def hoist_globals(argv: list[str]) -> list[str]:
@@ -2094,6 +2095,7 @@ def hoist_globals(argv: list[str]) -> list[str]:
     --local doc.yaml -o json`` is refused for an option the help says is global. One that
     takes a value carries the next token with it, unless it was written as ``--url=...``.
     """
+    takes_a_value = value_options(argv)
     hoisted: list[str] = []
     rest: list[str] = []
     previous = ""
@@ -2105,10 +2107,10 @@ def hoist_globals(argv: list[str]) -> list[str]:
         if wants_value:
             hoisted.append(token)
             wants_value = False
-        elif token.split("=", 1)[0] in GLOBAL_VALUE_OPTIONS and previous not in VALUE_OPTIONS:
+        elif token.split("=", 1)[0] in GLOBAL_VALUE_OPTIONS and previous not in takes_a_value:
             hoisted.append(token)
             wants_value = "=" not in token
-        elif token in GLOBAL_TOKENS and previous not in VALUE_OPTIONS:
+        elif token in GLOBAL_TOKENS and previous not in takes_a_value:
             hoisted.append(token)
         else:
             rest.append(token)
