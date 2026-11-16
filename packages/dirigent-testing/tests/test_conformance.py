@@ -1,12 +1,14 @@
 """A pack's conformance kit: its examples checked against its own contribution, without core."""
 
+from datetime import datetime
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from dirigent_common import BlockModel, CredentialForm, HealthReport
+from dirigent_common import BlockModel, CredentialForm, HealthReport, JsonMap
 from dirigent_plugin import (
     ConnectionKind,
+    ConnectionRef,
     Contribution,
     NotYet,
     Operator,
@@ -15,13 +17,15 @@ from dirigent_plugin import (
     SensorSpec,
     StepContext,
 )
+from dirigent_plugin.sources import PollContext, Polled, PolledSource, SourceHosting, SourceSpec
 from dirigent_testing import assert_contribution_conforms, check_pack_examples
 
 
 class GreetConfig(BlockModel):
     name: str = Field(min_length=1)
     times: int = Field(default=1, ge=1)
-    connection: str | None = None
+    connection: ConnectionRef | None = None
+    reply_to: ConnectionRef | None = None
 
 
 class GreetOutput(BlockModel):
@@ -58,7 +62,32 @@ class Wait(Sensor[WaitConfig, WaitOutput]):
         return WaitOutput(observed=True) if config.ready else NotYet()
 
 
-CONTRIBUTION = Contribution(operators=[Greet()], sensors=[Wait()])
+class FeedConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    feed: ConnectionRef
+    every: int = Field(default=60, ge=1)
+
+
+class FeedEntry(BaseModel):
+    seen_at: datetime
+
+
+class Feed(PolledSource[FeedConfig, FeedEntry]):
+    """A source kind the pack contributes, so its examples may start from it."""
+
+    spec = SourceSpec(kind="demo.feed", summary="Polls a feed", hosting=SourceHosting.POLLED)
+    config_model = FeedConfig
+    output_model = FeedEntry
+
+    def complete(self, config: FeedConfig, given: JsonMap, *, received_at: datetime) -> FeedEntry:
+        return FeedEntry(seen_at=received_at)
+
+    async def poll(self, config: FeedConfig, cursor: JsonMap | None, ctx: PollContext, limit: int) -> Polled[FeedEntry]:
+        return Polled()
+
+
+CONTRIBUTION = Contribution(operators=[Greet()], sensors=[Wait()], sources=[Feed()])
 
 
 def _write(directory: Path, name: str, body: str) -> Path:
@@ -337,3 +366,116 @@ def test_a_mark_that_is_not_path_data_is_reported() -> None:
     assert assert_contribution_conforms(contribution) == [
         "the mark that kind 'injected' declares is not SVG path data: it carries '\"()/<>ipr', which path data does not"
     ]
+
+
+def _source_example(
+    tmp_path: Path, source: str, *, connections: str = "requires:\n  connections: [the-feed]\n"
+) -> None:
+    """Write an example that starts from a source node and answers with a reply node."""
+    _write(
+        tmp_path,
+        "demo-feed.yaml",
+        f"""
+format: dirigent/v1
+kind: pipeline
+code: demo-feed
+description: Starts from the pack's own source kind.
+{connections}
+steps:
+  arrived:
+    source:
+{source}
+  hello:
+    block: demo.greet
+    depends_on: [arrived]
+    config:
+      name: ${{steps.arrived.output.seen_at}}
+  answered:
+    depends_on: [hello]
+    reply:
+      status: 200
+      body: {{done: true}}
+""",
+    )
+
+
+def test_a_source_node_of_a_contributed_kind_and_a_reply_node_pass(tmp_path: Path) -> None:
+    _source_example(tmp_path, "      kind: demo.feed\n      feed: the-feed\n      every: 30")
+
+    assert check_pack_examples(CONTRIBUTION, tmp_path) == []
+
+
+def test_a_source_node_is_checked_against_its_kind(tmp_path: Path) -> None:
+    _source_example(tmp_path, "      kind: demo.feed\n      feed: the-feed\n      every: 0\n      stray: 1")
+
+    issues = check_pack_examples(CONTRIBUTION, tmp_path)
+
+    assert len(issues) == 2
+    assert all("step 'arrived' source" in issue for issue in issues)
+
+
+def test_a_source_kind_the_pack_does_not_contribute_is_reported(tmp_path: Path) -> None:
+    _source_example(tmp_path, "      kind: endpoint\n      path: /in")
+
+    issues = check_pack_examples(CONTRIBUTION, tmp_path)
+
+    assert issues == [
+        "demo-feed.yaml: step 'arrived' names source kind 'endpoint', which this pack does not contribute"
+    ]
+
+
+def test_a_source_node_naming_a_connection_nothing_accounts_for_is_reported(tmp_path: Path) -> None:
+    _source_example(tmp_path, "      kind: demo.feed\n      feed: the-feed", connections="")
+
+    issues = check_pack_examples(CONTRIBUTION, tmp_path)
+
+    assert len(issues) == 1
+    assert "'the-feed'" in issues[0] and "neither carries nor requires" in issues[0]
+
+
+def test_every_field_a_block_publishes_as_a_connection_is_checked(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "demo-greet.yaml",
+        """
+format: dirigent/v1
+kind: pipeline
+code: demo-greet
+description: The step names a connection in a field not called connection.
+steps:
+  hello:
+    block: demo.greet
+    config:
+      name: ada
+      reply_to: absent-conn
+""",
+    )
+
+    issues = check_pack_examples(CONTRIBUTION, tmp_path)
+
+    assert len(issues) == 1
+    assert "'absent-conn'" in issues[0]
+
+
+def test_an_escaped_reference_is_a_literal_and_is_checked_as_one(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "demo-greet.yaml",
+        """
+format: dirigent/v1
+kind: pipeline
+code: demo-greet
+description: An escaped reference is a literal value, not one left for the run.
+steps:
+  hello:
+    block: demo.greet
+    config:
+      name: ada
+      times: $${params.times}
+""",
+    )
+
+    issues = check_pack_examples(CONTRIBUTION, tmp_path)
+
+    assert len(issues) == 1
+    assert "config.times" in issues[0]

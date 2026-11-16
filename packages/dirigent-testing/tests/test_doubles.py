@@ -1,5 +1,6 @@
 """The doubles behave like the thing they stand in for, or a block tested against them lies."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -10,8 +11,9 @@ import pytest
 from pydantic import BaseModel
 
 from dirigent_common import loggable
-from dirigent_plugin import RunState
+from dirigent_plugin import BlockFailure, ErrorClass, RunState
 from dirigent_testing import FakeContext, FakeRuns, FakeStorage, RecordingLogger
+from dirigent_testing.doubles import StorageRefused
 from dirigent_testing.messages import TEST_REFUSAL
 
 
@@ -70,10 +72,105 @@ async def test_delete_removes_an_object_and_forgives_one_that_is_gone(block_stor
     assert await block_storage.stat("file://one.txt") is None
 
 
-def test_an_absolute_uri_is_left_where_it_points(tmp_path: Path, block_storage: FakeStorage) -> None:
-    target = tmp_path / "elsewhere" / "one.txt"
+def test_an_absolute_uri_inside_the_root_is_left_where_it_points(tmp_path: Path, block_storage: FakeStorage) -> None:
+    target = tmp_path / "inside" / "one.txt"
 
     assert block_storage.path_for(f"file://{target}") == target
+
+
+@pytest.mark.parametrize(
+    ("uri", "code"),
+    [
+        ("gopher://one.txt", "testing.unknown_scheme"),
+        ("file:///etc/passwd", "testing.outside_root"),
+        ("file://../outside.txt", "testing.outside_root"),
+    ],
+    ids=["unknown-scheme", "absolute-outside", "relative-outside"],
+)
+async def test_storage_refuses_a_scheme_it_does_not_serve_and_a_path_outside_its_root(
+    tmp_path: Path, uri: str, code: str
+) -> None:
+    storage = FakeStorage(tmp_path / "root")
+    with pytest.raises(StorageRefused) as refused:
+        await write(storage, uri, b"x")
+    assert refused.value.code == code
+    assert not (tmp_path / "outside.txt").exists()
+
+
+async def test_a_scheme_the_test_names_is_served_from_the_root(tmp_path: Path) -> None:
+    storage = FakeStorage(tmp_path, schemes=("file", "s3"))
+    await write(storage, "s3://bucket/one.txt", b"x")
+
+    assert (tmp_path / "bucket" / "one.txt").read_bytes() == b"x"
+
+
+async def test_an_absolute_scratch_lists_what_it_wrote(local_block_ctx: FakeContext) -> None:
+    scratch = local_block_ctx.scratch
+    await write(local_block_ctx.storage, f"{scratch}/a.txt", b"x")
+    await write(local_block_ctx.storage, f"{scratch}/deeper/b.txt", b"y")
+
+    assert await local_block_ctx.storage.stat(f"{scratch}/a.txt") is not None
+    assert [entry.uri async for entry in local_block_ctx.storage.list(f"{scratch}/*")] == [f"{scratch}/a.txt"]
+    assert [entry.uri async for entry in local_block_ctx.storage.list(scratch)] == [
+        f"{scratch}/a.txt",
+        f"{scratch}/deeper/b.txt",
+    ]
+
+
+async def test_a_failed_overwrite_leaves_the_object_as_it_was(block_storage: FakeStorage) -> None:
+    await write(block_storage, "file://one.txt", b"whole")
+    with pytest.raises(RuntimeError):
+        async with block_storage.open_write("file://one.txt", content_type="text/csv") as sink:
+            await sink.write(b"part")
+            raise RuntimeError("the producer failed")
+
+    assert await read(block_storage, "file://one.txt") == [b"wh", b"ole"]
+    assert "file://one.txt" not in block_storage.content_types
+    assert [path.name for path in block_storage.root.iterdir()] == ["one.txt"]
+
+
+class _Installed(BaseModel):
+    x: int = 1
+
+
+class _Wanted(BaseModel):
+    y: str = "y"
+
+
+def _unknown_connection(ctx: FakeContext) -> object:
+    return ctx.connection("nope", _Installed)
+
+
+def _another_model(ctx: FakeContext) -> object:
+    return ctx.connection("installed", _Wanted)
+
+
+def _client_for_an_unknown_connection(ctx: FakeContext) -> object:
+    return ctx.http("nope")
+
+
+def _unknown_schema(ctx: FakeContext) -> object:
+    return ctx.schema("nope")
+
+
+@pytest.mark.parametrize(
+    ("ask", "code"),
+    [
+        (_unknown_connection, "testing.unknown_connection"),
+        (_another_model, "testing.connection_wrong_model"),
+        (_client_for_an_unknown_connection, "testing.unknown_connection"),
+        (_unknown_schema, "testing.unknown_schema"),
+    ],
+    ids=["unknown-connection", "wrong-model", "client-for-unknown-connection", "unknown-schema"],
+)
+def test_the_context_refuses_what_the_engine_refuses_and_as_the_engine_does(
+    block_ctx: FakeContext, ask: Callable[[FakeContext], object], code: str
+) -> None:
+    block_ctx.connections["installed"] = _Installed()
+    block_ctx.handler = lambda _request: httpx2.Response(200)
+    with pytest.raises(BlockFailure) as refused:
+        ask(block_ctx)
+    assert (refused.value.code, refused.value.error_class) == (code, ErrorClass.REJECTED)
 
 
 def test_the_logger_keeps_every_level_with_its_fields() -> None:
@@ -150,6 +247,7 @@ def test_the_context_resolves_a_connection_the_test_installed(block_ctx: FakeCon
 
 
 async def test_the_context_builds_a_client_on_the_handler_the_test_installed(block_ctx: FakeContext) -> None:
+    block_ctx.connections["service"] = _Installed()
     block_ctx.handler = lambda request: httpx2.Response(200, json={"path": request.url.path})
 
     async with block_ctx.http("service") as client:
@@ -159,6 +257,7 @@ async def test_the_context_builds_a_client_on_the_handler_the_test_installed(blo
 
 
 def test_asking_for_a_client_without_a_handler_says_so(block_ctx: FakeContext) -> None:
+    block_ctx.connections["service"] = _Installed()
     with pytest.raises(AssertionError, match="installed no handler"):
         block_ctx.http("service")
 
