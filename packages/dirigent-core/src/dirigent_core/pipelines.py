@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
-from dirigent_client.enums import AttemptStatus, AuditAction, AuditSubject, RunStatus
+from dirigent_client.enums import AttemptStatus, AuditAction, AuditSubject, ProvenanceSource, RunStatus
 from dirigent_client.schemas import (
     ApplyResult,
     DiffSummary,
@@ -370,6 +370,11 @@ async def apply_document(
         if pipeline is not None and dry_run and plan.action is not PlanAction.INVALID:
             triggers = await retiring_schedules(session, pipeline, definition)
             sources = await retiring_sources(session, pipeline, definition)
+        reactivated = (
+            pipeline is not None
+            and plan.action is not PlanAction.INVALID
+            and await _restore_pruned(session, pipeline, provenance, dry_run=dry_run)
+        )
         return ApplyResult(
             plan=plan,
             pipeline_id=pipeline.id if pipeline else None,
@@ -377,6 +382,7 @@ async def apply_document(
             dry_run=dry_run,
             triggers=triggers,
             sources=sources,
+            reactivated=reactivated,
         )
     version = await save_pipeline(session, definition, provenance=provenance)
     pipeline = await require_pipeline(session, definition.code)
@@ -394,9 +400,30 @@ async def apply_document(
         subject_id=pipeline.id,
         fields=() if created or plan.diff is None else changed_parts(plan.diff),
     )
+    reactivated = await _restore_pruned(session, pipeline, provenance, dry_run=False)
     return ApplyResult(
-        plan=plan, pipeline_id=version.pipeline_id, version=version.version, triggers=triggers, sources=sources
+        plan=plan,
+        pipeline_id=version.pipeline_id,
+        version=version.version,
+        triggers=triggers,
+        sources=sources,
+        reactivated=reactivated,
     )
+
+
+async def _restore_pruned(
+    session: AsyncSession, pipeline: Pipeline, provenance: Provenance | None, *, dry_run: bool
+) -> bool:
+    """Activate a pipeline a directory prune deactivated, when a directory applies its document again."""
+    restorable = (
+        provenance is not None
+        and provenance.source is ProvenanceSource.DIRECTORY
+        and pipeline.pruned
+        and not pipeline.active
+    )
+    if restorable and not dry_run:
+        await set_active(session, pipeline.code, active=True)
+    return restorable
 
 
 async def export_pipeline(session: AsyncSession, code: str, *, version: int | None = None) -> str:
@@ -442,6 +469,7 @@ async def set_active(session: AsyncSession, code: str, *, active: bool) -> Pipel
     await lock_pipeline(session, pipeline.id)
     was = pipeline.active
     pipeline.active = active
+    pipeline.pruned = False
     await session.flush()
     await pipeline_turned(session, pipeline, resumed=active and not was)
     if was is not active:

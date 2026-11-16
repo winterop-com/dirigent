@@ -409,11 +409,16 @@ before the pipelines, so a document whose `requires.schemas` names one applies i
 A prune never touches a schema.
 
 `DIRIGENT_APPLY_PRUNE=true` adds the reconcile half: a pipeline the directory applied
-earlier and no longer holds is deactivated, never deleted, so its history survives and a
-mistake is one `dg pipeline activate` from undone. Pruning only ever touches pipelines
+earlier and no longer holds is deactivated, never deleted, so its history survives, and
+putting its file back reactivates it at the next apply. Pruning only ever touches pipelines
 whose current version came from a directory apply -- one authored in the UI or applied by
-hand is never pruned, however absent -- and a boot that discovered zero documents refuses
-to prune at all, because an empty mount is an accident, not an instruction. The same
+hand is never pruned, however absent, and one a person deactivated is never reactivated --
+and a boot refuses to prune at all when it discovered no pipeline or triggers document,
+because an empty mount is an accident, not an instruction. It also refuses when any file
+failed to load, a YAML syntax error or a mistyped key, because such a file names no code and
+its pipeline would look absent; the `startup directory applied` record carries the reason
+as `prune_refusal`, and the next clean boot prunes. A schema whose code matches a pipeline's
+never hides that pipeline from the prune. The walk reads the directory at any depth. The same
 reconcile runs by hand as `dg apply --prune` inside a project, and
 `dg apply --dry-run --prune` prints exactly what the next boot would do.
 

@@ -104,6 +104,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("active", sa.Boolean(), server_default=sa.true(), nullable=False),
+        sa.Column("pruned", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("current_version", sa.Integer(), nullable=True),
         sa.Column(
             "created_at",

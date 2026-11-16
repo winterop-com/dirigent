@@ -12,8 +12,14 @@ refused, with a warning in the log, and the walk carries on.
 PRUNE ONLY EVER TOUCHES WHAT A DIRECTORY APPLIED. A pipeline is deactivated -- never
 deleted, so history survives -- and only when its current version's provenance says a
 directory apply wrote it. A pipeline authored in the UI or applied from a file by hand is
-never pruned, however absent it is. A walk that discovered nothing refuses to prune at all:
-an empty mount is an accident, not an instruction to turn everything off.
+never pruned, however absent it is. A walk that discovered no pipeline or triggers document
+refuses to prune at all: an empty mount is an accident, not an instruction to turn everything
+off. So does a walk in which any file failed to load: such a file names no code, so the walk
+cannot tell which pipeline it would have kept.
+
+A PRUNE IS UNDONE BY THE FILE COMING BACK. A pipeline a prune deactivated is marked so, and
+the next directory apply of its document activates it again. One a person deactivated stays
+as they left it.
 """
 
 from pathlib import Path
@@ -29,7 +35,7 @@ from dirigent_client.enums import ProvenanceSource
 from dirigent_client.schemas import PlanAction, PruneResult
 from dirigent_common import JsonMap
 from dirigent_core.database import session_scope
-from dirigent_core.documents import DocumentError, carried_refusal, load_text, safe_load
+from dirigent_core.documents import DocumentError, carried_refusal, discover_documents, load_text, safe_load
 from dirigent_core.engine.definition import KIND_TRIGGERS
 from dirigent_core.engine.runs import Provenance
 from dirigent_core.engine.services import EngineServices
@@ -42,9 +48,6 @@ from dirigent_core.trigger_documents import delete_absent_trigger_documents
 
 _logger = get_logger(__name__)
 
-#: The suffixes a document may carry, the same set a project's pipelines directory takes.
-DOCUMENT_SUFFIXES: Final = (".yaml", ".yml", ".json")
-
 #: Where a file sorts in the walk, and which applier it goes to.
 _RANK_SCHEMA: Final = 0
 _RANK_PIPELINE: Final = 1
@@ -52,21 +55,6 @@ _RANK_TRIGGERS: Final = 2
 
 #: The keywords a plain JSON Schema is recognised by when it names no ``$schema``.
 _SCHEMA_KEYWORDS: Final = ("type", "properties", "$id")
-
-
-def discover_documents(root: Path) -> list[Path]:
-    """List every document under the directory, however deep, in a stable order.
-
-    A corpus deployed from git nests -- a directory per team, per system, per cadence -- and
-    a walk that stopped at the first level would silently apply half of it. The order is the
-    relative path, so two runs of one tree agree.
-    """
-    if not root.is_dir():
-        return []
-    return sorted(
-        (path for path in root.rglob("*") if path.suffix in DOCUMENT_SUFFIXES and path.is_file()),
-        key=lambda path: path.relative_to(root).as_posix(),
-    )
 
 
 class RefusedDocument(BaseModel):
@@ -85,6 +73,9 @@ class DirectorySummary(BaseModel):
     unchanged: list[str] = []
     refused: list[RefusedDocument] = []
     pruned: list[str] = []
+    reactivated: list[str] = []
+    """The pipelines a prune had deactivated, active again because their document is back."""
+
     trigger_documents_removed: list[str] = []
     """The triggers documents the directory no longer holds, deleted with the rows they owned."""
 
@@ -92,7 +83,7 @@ class DirectorySummary(BaseModel):
     """Which of the codes above are schemas rather than pipelines, so a reader can tell them apart."""
 
     prune_refusal: str | None = None
-    """Why nothing was pruned when pruning was asked for, or nothing at all."""
+    """Why nothing was pruned when pruning was asked for: a file that did not load, or no documents."""
 
     skipped: bool = False
     """Another process held the apply lock, so it is doing this work."""
@@ -132,7 +123,9 @@ async def prune_absent(
     documents = await delete_absent_trigger_documents(session, services, keep, dry_run=dry_run)
     if not dry_run:
         for code in absent:
-            await set_active(session, code, active=False)
+            pipeline = await set_active(session, code, active=False)
+            pipeline.pruned = True
+        await session.flush()
     return PruneResult(pruned=absent, trigger_documents_removed=documents, dry_run=dry_run)
 
 
@@ -160,9 +153,9 @@ async def apply_directory(
             summary.skipped = True
             return summary
         try:
-            await _walk(sessions, services, root, summary, dry_run=dry_run, paused=paused)
+            present = await _walk(sessions, services, root, summary, dry_run=dry_run, paused=paused)
             if prune:
-                await _prune(sessions, services, summary, dry_run=dry_run)
+                await _prune(sessions, services, summary, present, dry_run=dry_run)
         except SQLAlchemyError as error:
             summary.aborted = str(error).splitlines()[0]
             _logger.error("directory apply aborted by an instance fault", root=str(root), error=summary.aborted)
@@ -180,24 +173,28 @@ async def _walk(
     *,
     dry_run: bool,
     paused: bool,
-) -> None:
+) -> set[str]:
     """Apply each discovered file into the summary, refusing without stopping.
 
     Schemas go first, pipeline documents after them, and triggers documents last, so a
     directory carrying all three converges in one pass: a pipeline is refused while a schema
     its ``requires`` names is absent, and a triggers document is refused while the pipeline it
     names is absent. Applying each ahead of what needs it is what makes it present.
+
+    Returns the code of every pipeline and triggers document that loaded, refused later or not:
+    what the directory holds, which is what a prune keeps.
     """
     documents = discover_documents(root)
     if not documents:
         _logger.warning("directory apply found no documents", root=str(root))
-        return
+        return set()
     walked: dict[str, str] = {}
     for rank, path in sorted(((_walk_rank(path), path) for path in documents), key=lambda pair: pair[0]):
         if rank == _RANK_SCHEMA:
             await _apply_schema(sessions, root, path, summary, dry_run=dry_run)
         else:
             await _apply_one(sessions, services, root, path, summary, walked, dry_run=dry_run, paused=paused)
+    return set(walked)
 
 
 def _walk_rank(path: Path) -> int:
@@ -315,31 +312,38 @@ async def _apply_one(
         summary.updated.append(plan.code)
     else:
         summary.unchanged.append(plan.code)
+    if result.reactivated:
+        summary.reactivated.append(plan.code)
 
 
 async def _prune(
     sessions: async_sessionmaker[AsyncSession],
     services: EngineServices,
     summary: DirectorySummary,
+    present: set[str],
     *,
     dry_run: bool,
 ) -> None:
     """Reconcile after the walk: deactivate what the directory no longer holds.
 
-    Schema codes are dropped from what is kept: they name no pipeline, and no schema is pruned.
+    ``present`` is every pipeline and triggers document code the walk loaded. A schema's code
+    is never in it, since no schema is pruned and a pipeline may share a schema's code.
     """
-    codes = {
-        *summary.applied,
-        *summary.updated,
-        *summary.unchanged,
-        *(refused.code for refused in summary.refused if refused.code is not None),
-    }
-    if not codes:
-        summary.prune_refusal = "the directory held no documents, and an empty directory never prunes"
+    unread = [refused.path for refused in summary.refused if refused.code is None]
+    if unread:
+        summary.prune_refusal = (
+            f"{len(unread)} file(s) in the directory did not load, so it cannot tell which "
+            f"pipelines it holds: {', '.join(unread)}"
+        )
         _logger.warning("directory prune refused", reason=summary.prune_refusal)
         return
-    keep = codes - set(summary.schemas)
+    if not present:
+        summary.prune_refusal = (
+            "the directory held no pipeline or triggers documents, and an empty directory never prunes"
+        )
+        _logger.warning("directory prune refused", reason=summary.prune_refusal)
+        return
     async with session_scope(sessions) as session:
-        result = await prune_absent(session, services, keep, dry_run=dry_run)
+        result = await prune_absent(session, services, present, dry_run=dry_run)
     summary.pruned = result.pruned
     summary.trigger_documents_removed = result.trigger_documents_removed

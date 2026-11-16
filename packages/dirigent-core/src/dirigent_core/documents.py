@@ -176,10 +176,26 @@ def is_document(raw: JsonMap) -> bool:
     return raw.get("format") == FORMAT_V1
 
 
+def discover_documents(root: Path) -> list[Path]:
+    """List every file under a directory that may be a document, however deep, in a stable order.
+
+    The one walk every reader of a directory of documents shares: the server's boot apply, a
+    project's ``dg apply``, ``dg validate`` of a directory, and a seed. A file is a candidate
+    when it carries one of the ``SUFFIXES``. The order is the relative path, so two runs of one
+    tree agree.
+    """
+    if not root.is_dir():
+        return []
+    return sorted(
+        (path for path in root.rglob("*") if path.suffix in SUFFIXES and path.is_file()),
+        key=lambda path: path.relative_to(root).as_posix(),
+    )
+
+
 def readable(directory: Path) -> list[tuple[Path, JsonMap]]:
     """Read every file under a directory that parses as a mapping, in a stable order."""
     found: list[tuple[Path, JsonMap]] = []
-    for path in sorted(one for one in directory.rglob("*") if one.suffix in SUFFIXES and one.is_file()):
+    for path in discover_documents(directory):
         try:
             parsed = safe_load(path.read_text())
         except (OSError, UnicodeDecodeError, yaml.YAMLError):
