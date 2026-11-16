@@ -242,6 +242,7 @@ class Engine:
         self.owner = owner
         self.tags = list(tags)
         """The capability tags this process carries, which the claim routes on."""
+        self._recorded: set[UUID] = set()
 
     # -- claiming ----------------------------------------------------------------
 
@@ -577,6 +578,7 @@ class Engine:
                     storage=context.uncounted_storage,
                     seconds=time.monotonic() - started,
                 )
+                self._recorded.add(unit.lease_token)
             except Exception as error:
                 telemetry.record_failure(span, error, logger.secrets)
                 raise
@@ -730,7 +732,16 @@ class Engine:
         )
 
     def _log_lost_lease(self, unit: ClaimedUnit, attempt: StepAttempt | None, what: str) -> None:
-        """Log that an outcome was dropped, which means the work may have run twice."""
+        """Log that an outcome was dropped: after a cancel at INFO, otherwise as work that may have run twice."""
+        if attempt is not None and attempt.status is AttemptStatus.CANCELLED:
+            _logger.info(
+                "attempt cancelled, outcome discarded",
+                discarded=what,
+                attempt_id=str(unit.attempt_id),
+                run_id=str(unit.run_id),
+                step=unit.step_name,
+            )
+            return
         _logger.warning(
             "lease lost, outcome discarded",
             discarded=what,
@@ -1252,6 +1263,14 @@ class Engine:
                 by = (params or {}).get("principal")
                 found[attempt_id] = Cancelled(reason=reason, by=by if isinstance(by, str) else None)
             return found
+
+    def recorded(self, unit: ClaimedUnit) -> bool:
+        """Say whether this claim's outcome transaction has run, so its lease is gone by design."""
+        return unit.lease_token in self._recorded
+
+    def forget(self, unit: ClaimedUnit) -> None:
+        """Drop what :meth:`recorded` keeps about a claim whose unit has finished."""
+        self._recorded.discard(unit.lease_token)
 
     async def heartbeat(self, units: Sequence[ClaimedUnit], *, now: datetime | None = None) -> set[UUID]:
         """Refresh the leases these claims hold, and say which ones they still hold.

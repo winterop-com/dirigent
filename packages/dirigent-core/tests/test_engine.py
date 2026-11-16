@@ -2035,6 +2035,34 @@ async def test_an_attempt_taken_back_past_the_limit_fails_instead_of_running_aga
     assert (await reload(sessions, run.id)).status is RunStatus.FAILED
 
 
+async def test_an_attempt_holding_a_handle_taken_back_past_the_limit_fails_instead_of_probing_again(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    definition = PipelineDefinition(
+        code="fetch-kills-the-worker",
+        steps=steps(job=StepDefinition(block="test.remote", config={"statuses": ["running"]})),
+    )
+    run = await start(sessions, services, definition)
+    unit = await engine.claim()
+    assert unit is not None
+    await engine.record_handle(unit, _handle())
+    later = _after_lease(services)
+    async with session_scope(sessions) as session:
+        assert await sweep_leases(session, now=later) == [unit.attempt_id]
+
+    for _ in range(services.settings.lease_recovery_limit):
+        unit = await engine.claim(now=later)
+        assert unit is not None, "each recovery within the limit probes again"
+        later += services.settings.lease * 2
+        async with session_scope(sessions) as session:
+            assert await sweep_leases(session, now=later) == [unit.attempt_id]
+
+    assert await engine.claim(now=later) is None
+    [attempt] = await attempts_of(sessions, run.id)
+    assert (attempt.status, attempt.error_code) == (AttemptStatus.FAILED, "run.lease_recoveries")
+    assert (await reload(sessions, run.id)).status is RunStatus.FAILED
+
+
 async def test_an_expired_lease_with_a_recorded_handle_resumes_probing(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:

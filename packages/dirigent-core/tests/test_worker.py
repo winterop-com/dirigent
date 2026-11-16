@@ -270,6 +270,110 @@ async def test_a_cancelled_run_stops_its_attempt_at_info_naming_who_cancelled(
     release.set()
 
 
+async def test_an_outcome_discarded_because_the_run_was_cancelled_is_said_at_info(
+    sessions: Any, settings: Settings, host: PluginHost
+) -> None:
+    services = EngineServices.build(fast(settings), host)
+    run = await create(sessions, services, fan_out(1))
+    worker = Worker(sessions, services, name="cancelled-mid-call", sweeper=False)
+    unit = await worker.engine.claim()
+    assert unit is not None
+    async with session_scope(sessions) as session:
+        row = await session.get(Run, run.id)
+        assert row is not None
+        await cancel_run(session, services, row, CANCELLED_BY, principal="ada")
+
+    with capture_logs() as logged:
+        await worker.engine.run_unit(unit)
+    assert [entry for entry in logged if entry["event"] == "lease lost, outcome discarded"] == []
+    [discarded] = [entry for entry in logged if entry["event"] == "attempt cancelled, outcome discarded"]
+    assert (discarded["log_level"], discarded["discarded"]) == ("info", "attempt outcome")
+
+
+async def start_driven(worker: Worker, unit: ClaimedUnit) -> "asyncio.Task[None]":
+    """Hand a claimed unit to the worker's own execution bookkeeping, as the claim loop does."""
+    semaphore = asyncio.Semaphore(1)
+    await semaphore.acquire()
+    worker.in_flight[unit.attempt_id] = unit
+    task = asyncio.create_task(worker._execute(unit, semaphore))  # pyright: ignore[reportPrivateUsage]
+    worker._tasks.add(task)  # pyright: ignore[reportPrivateUsage]
+    worker._running[unit.attempt_id] = task  # pyright: ignore[reportPrivateUsage]
+    return task
+
+
+async def test_a_stale_heartbeat_leaves_a_later_claim_of_the_same_attempt_running(
+    sessions: Any, settings: Settings, host: PluginHost
+) -> None:
+    """The heartbeat's snapshot names the first claim; the attempt was parked and claimed again since."""
+    services = EngineServices.build(fast(settings), host)
+    definition = PipelineDefinition(
+        code="sensor", steps={"wait": StepDefinition(block="test.tick", config={"ready_after": 1000})}
+    )
+    await create(sessions, services, definition)
+    worker = Worker(sessions, services, name="poking", sweeper=False)
+    first = await worker.engine.claim()
+    assert first is not None
+    await (await start_driven(worker, first))
+    snapshot = {first.attempt_id: first}
+
+    second = await worker.engine.claim(now=utcnow() + timedelta(minutes=1))
+    assert second is not None
+    assert (second.attempt_id, second.lease_token == first.lease_token) == (first.attempt_id, False)
+    started, release = asyncio.Event(), asyncio.Event()
+    real = worker.engine.run_unit
+
+    async def slow(unit: ClaimedUnit, *, now: datetime | None = None) -> None:
+        started.set()
+        await release.wait()
+        await real(unit, now=now)
+
+    worker.engine.run_unit = slow  # type: ignore[method-assign]
+    task = await start_driven(worker, second)
+    await started.wait()
+
+    held = await worker.engine.heartbeat(list(snapshot.values()))
+    assert held == set()
+    with capture_logs() as logged:
+        await worker._abandon([snapshot[attempt_id] for attempt_id in set(snapshot) - held])  # pyright: ignore[reportPrivateUsage]
+    assert [entry for entry in logged if entry["event"] == "lease lost, abandoning attempt"] == []
+    assert not task.done(), "the later claim's task was cancelled"
+    assert worker.in_flight == {second.attempt_id: second}
+    release.set()
+    await task
+    assert worker.in_flight == {}
+
+
+async def test_a_claim_whose_outcome_was_recorded_during_the_heartbeat_is_not_abandoned(
+    sessions: Any, settings: Settings, host: PluginHost
+) -> None:
+    """The outcome commits and the unit is still winding down when the heartbeat comes back."""
+    services = EngineServices.build(fast(settings), host)
+    await create(sessions, services, fan_out(1))
+    worker = Worker(sessions, services, name="settling", sweeper=False)
+    unit = await worker.engine.claim()
+    assert unit is not None
+    recorded, release = asyncio.Event(), asyncio.Event()
+    real = worker.engine.run_unit
+
+    async def winds_down(unit: ClaimedUnit, *, now: datetime | None = None) -> None:
+        await real(unit, now=now)
+        recorded.set()
+        await release.wait()
+
+    worker.engine.run_unit = winds_down  # type: ignore[method-assign]
+    task = await start_driven(worker, unit)
+    await recorded.wait()
+
+    held = await worker.engine.heartbeat([unit])
+    assert held == set()
+    with capture_logs() as logged:
+        await worker._abandon([unit])  # pyright: ignore[reportPrivateUsage]
+    assert [entry for entry in logged if entry["event"] == "lease lost, abandoning attempt"] == []
+    assert not task.done(), "a unit that settled was cancelled while it wound down"
+    release.set()
+    await task
+
+
 async def test_an_attempts_engine_lines_name_its_run_pipeline_step_and_item(
     sessions: Any, settings: Settings, host: PluginHost
 ) -> None:

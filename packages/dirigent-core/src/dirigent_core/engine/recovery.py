@@ -55,8 +55,8 @@ async def sweep_leases(session: AsyncSession, *, now: datetime | None = None) ->
         else:
             attempt.status = AttemptStatus.QUEUED
             attempt.available_at = moment
-            attempt.lease_recoveries += 1
             landing = "queued"
+        attempt.lease_recoveries += 1
         attempt.lease_owner = None
         attempt.lease_token = None
         attempt.lease_expires_at = None
