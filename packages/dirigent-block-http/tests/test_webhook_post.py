@@ -94,6 +94,14 @@ async def test_declared_headers_travel_with_the_post(ctx: FakeContext) -> None:
     assert responder.requests[0].headers["x-route"] == "climate"
 
 
+async def test_a_content_type_the_document_wrote_in_any_case_is_sent_once(ctx: FakeContext) -> None:
+    responder = wired(ctx)
+    config = WebhookPostConfig(connection="peer", headers={"content-type": "text/plain"})
+    await WebhookPostOperator().execute(config, ctx.as_context())
+    sent = [value for name, value in responder.requests[0].headers.multi_items() if name.lower() == "content-type"]
+    assert sent == [JSON_CONTENT_TYPE]
+
+
 # -- signing ---------------------------------------------------------------------
 
 

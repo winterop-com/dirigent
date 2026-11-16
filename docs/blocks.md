@@ -897,7 +897,7 @@ Contributed by `block-storage`. Not idempotent. Polls every 1m unless the step s
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `uri` | `string` | yes |  | A URI, which may contain a glob pattern in its final segments. |
+| `uri` | `string (storage-uri)` | yes |  | A URI, which may contain a glob pattern in its final segments. |
 | `min_size` | `string or integer` |  | `"0b"` | Ignore an object until it is at least this large, such as `1mb`. |
 
 **Output**

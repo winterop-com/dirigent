@@ -51,6 +51,9 @@ DEFAULT_TEXT_CONTENT_TYPE = "text/plain; charset=utf-8"
 
 JSON_CONTENT_TYPE = "application/json"
 
+#: How much of a refused response's body the failure quotes.
+REFUSAL_EXCERPT_CHARS = 300
+
 #: Request headers a proxy or framework may read in place of ``Host`` or the scheme and port, to
 #: choose a backend or build the URL it acts on. Spelled with hyphens and in lowercase.
 ROUTING_HEADERS: Final = frozenset(
@@ -377,12 +380,14 @@ class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
             duration_ms=duration,
         )
         if not is_success(response.status_code, config.success_status):
+            answer = refusal_excerpt(payload)
             raise BlockFailure(
                 STATUS_REFUSED,
                 error_class=status_class(response.status_code),
                 method=config.method,
                 url=shown_url(config),
                 status=response.status_code,
+                answer=f": {answer}" if answer else "",
             )
         return HttpRequestOutput(
             status=response.status_code,
@@ -462,6 +467,14 @@ class HttpReadySensor(Sensor[HttpReadyConfig, HttpReadyOutput]):
     def check_config(self, config: BaseModel) -> list[Issue]:
         """Refuse a literal absolute URL beside a connection."""
         return target_issues(config)
+
+
+def refusal_excerpt(payload: bytes) -> str:
+    """The start of a body a service refused with, on one line, for the failure to quote."""
+    text = " ".join(payload.decode("utf-8", errors="replace").split())
+    if len(text) <= REFUSAL_EXCERPT_CHARS:
+        return text
+    return f"{text[:REFUSAL_EXCERPT_CHARS]}..."
 
 
 def status_class(status: int) -> ErrorClass:

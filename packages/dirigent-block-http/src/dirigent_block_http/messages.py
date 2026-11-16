@@ -10,7 +10,7 @@ RESPONSE_TOO_LARGE = HTTP.define(
     "raise max_response, or ask the endpoint for less",
 )
 
-STATUS_REFUSED = HTTP.define("status_refused", "{method} {url} answered {status}")
+STATUS_REFUSED = HTTP.define("status_refused", "{method} {url} answered {status}{answer}")
 
 OFF_ORIGIN = HTTP.define(
     "off_origin",

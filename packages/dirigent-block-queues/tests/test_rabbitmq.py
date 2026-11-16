@@ -178,6 +178,12 @@ def test_a_connection_with_no_password_is_handed_over_as_written() -> None:
     assert settings.dsn() == "amqp://guest@localhost/shop"
 
 
+def test_an_ipv6_host_keeps_its_brackets_when_the_password_is_merged_in() -> None:
+    settings = RabbitConnectionConfig(url="amqp://app@[::1]:5672/v", password=SecretStr("pw"))
+
+    assert settings.dsn() == "amqp://app:pw@[::1]:5672/v"
+
+
 async def test_a_health_check_opens_a_channel(broker: FakeBroker) -> None:
     report = await RabbitConnectionKind().check(RabbitConnectionConfig(url="amqp://guest@localhost/"))
 
