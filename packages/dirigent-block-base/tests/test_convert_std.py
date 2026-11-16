@@ -111,6 +111,69 @@ async def test_a_line_that_is_not_json_is_refused_by_its_line_number(ctx: FakeCo
     assert raised.value.message.startswith("line 3 of the input is not JSON")
 
 
+async def test_a_line_separator_inside_a_json_string_does_not_end_an_ndjson_line(ctx: FakeContext) -> None:
+    source = '{"note":"first\u2028second\u2029third\u0085fourth"}\r\n{"note":"next"}\n'
+
+    assert json.loads(await convert(ctx, source, "ndjson", "json")) == [
+        {"note": "first\u2028second\u2029third\u0085fourth"},
+        {"note": "next"},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("source", "source_format"),
+    [("[NaN]", "json"), ("[1, Infinity]", "json"), ('{"v": -Infinity}\n', "ndjson")],
+)
+async def test_a_number_json_does_not_have_is_refused_on_every_path(
+    ctx: FakeContext, source: str, source_format: str
+) -> None:
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, source, source_format, "ndjson" if source_format == "json" else "json")
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "which is not a JSON number" in raised.value.message
+
+
+async def test_a_csv_cell_past_the_reader_limit_is_refused_naming_the_row(ctx: FakeContext) -> None:
+    source = "a,b\n1,2\n3," + "x" * 140_000 + "\n"
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, source, "csv", "json")
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert raised.value.message.startswith("row 2 of the csv cannot be read")
+
+
+@pytest.mark.parametrize(
+    ("source", "source_format", "target_format"),
+    [("[" * 100_000 + "]" * 100_000, "json", "yaml"), ("<a>" * 5_000 + "</a>" * 5_000, "xml", "json")],
+    ids=["json", "xml"],
+)
+async def test_input_nested_past_what_the_readers_follow_is_refused_by_name(
+    ctx: FakeContext, source: str, source_format: str, target_format: str
+) -> None:
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, source, source_format, target_format)
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "nests deeper than convert.std reads" in raised.value.message
+
+
+async def test_a_doctype_behind_a_byte_order_mark_is_refused(ctx: FakeContext) -> None:
+    source = '\ufeff<!DOCTYPE r [<!ENTITY e "EXPANDED">]><r><v>&e;</v></r>'
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, source, "xml", "json")
+
+    assert "<!DOCTYPE" in raised.value.message
+
+
+async def test_a_character_xml_cannot_carry_is_refused_naming_where_it_is(ctx: FakeContext) -> None:
+    with pytest.raises(BlockFailure) as raised:
+        await convert(ctx, '{"r": {"v": "a\\u0008b"}}', "json", "xml")
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert "the value at $.r.v holds the character U+0008" in raised.value.message
+
+
 async def test_a_nested_value_is_refused_naming_the_row_and_the_key(ctx: FakeContext) -> None:
     source = json.dumps([{"id": "r1"}, {"id": "r2", "meta": {"region": "east"}}])
 

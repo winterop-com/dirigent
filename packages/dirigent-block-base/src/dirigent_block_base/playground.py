@@ -17,7 +17,9 @@ anything is called, a name a provider dispatches to from its arguments included.
 leading underscore is ever in the set.
 
 One generation is bounded by the provider calls it makes, the text it makes and the time it
-takes, and it runs off the event loop.
+takes, and it runs off the event loop. A provider that answers with an iterator, as
+``time_series`` does, spends one call per element it yields, so its loop is bounded and
+stoppable too. A size argument is a whole number.
 
 Seeding is per instance, never the class-wide ``Faker.seed``: two steps generating at once
 must not be able to reach into each other's sequence.
@@ -29,7 +31,7 @@ import random
 import re
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from functools import lru_cache
@@ -377,13 +379,16 @@ class _Budget:
 
 
 def _check_sizes(provider: str, args: Any, *, size: bool = False) -> None:
-    """Refuse an integer past ``MAX_SIZE_ARGUMENT`` under a name that says how much to make."""
+    """Refuse a number under a name that says how much to make, unless it is an integer up to ``MAX_SIZE_ARGUMENT``."""
     if isinstance(args, dict):
         for name, value in cast("dict[str, Any]", args).items():
             _check_sizes(provider, value, size=size or SIZE_ARGUMENT.search(name) is not None)
     elif isinstance(args, list | tuple):
         for value in cast("list[Any]", args):
             _check_sizes(provider, value, size=size)
+    elif size and isinstance(args, float):
+        detail = f"{args} is not a whole number, and a size argument is one"
+        raise PlaygroundRefusal(PROVIDER_REFUSED, provider=provider, detail=detail)
     elif size and isinstance(args, int) and args > MAX_SIZE_ARGUMENT:
         detail = f"{args} is past the {MAX_SIZE_ARGUMENT} a size argument may ask for"
         raise PlaygroundRefusal(PROVIDER_REFUSED, provider=provider, detail=detail)
@@ -436,13 +441,24 @@ def _call(fake: Faker, spec: FieldSpec, budget: _Budget) -> JsonValue:
     provider = spec.provider if isinstance(spec, ProviderCall) else spec
     args = dict(spec.args) if isinstance(spec, ProviderCall) else {}
     try:
-        value = _jsonable(fake.format(provider, **args))
+        value = _jsonable(_drained(fake.format(provider, **args), budget))
     except PlaygroundRefusal:
         raise
     except Exception as error:
         raise PlaygroundRefusal(PROVIDER_REFUSED, provider=provider, detail=str(error)) from error
     budget.write(value)
     return value
+
+
+def _drained(answer: Any, budget: _Budget) -> Any:
+    """Read an iterator a provider answered with into a list, spending one call per element."""
+    if not isinstance(answer, Iterator):
+        return answer
+    drained: list[Any] = []
+    for element in answer:  # pyright: ignore[reportUnknownVariableType] - a provider's elements are whatever it yields
+        budget.call()
+        drained.append(element)
+    return drained
 
 
 def _record(fake: Faker, fields: dict[str, FieldSpec], budget: _Budget) -> dict[str, JsonValue]:

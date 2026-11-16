@@ -17,14 +17,18 @@ from dirigent_block_base.messages import (
     CSV_HEADER_REPEATED,
     CSV_HEADER_UNNAMED,
     CSV_NESTED_VALUE,
+    CSV_NOT_READ,
     CSV_ROW_NOT_AN_OBJECT,
     CSV_ROW_TOO_WIDE,
+    JSON_NOT_A_NUMBER,
     LINE_NOT_JSON,
     NOT_A_JSON_ARRAY,
     NOT_JSON,
     NOT_UTF8,
     NOT_XML,
     NOT_YAML,
+    TOO_DEEP,
+    XML_CHARACTER,
     XML_ELEMENT_HAS_TEXT,
     XML_EMPTY_ARRAY,
     XML_HAS_A_DOCTYPE,
@@ -64,6 +68,12 @@ TEXT_KEY: Final = "#text"
 
 #: An XML name, in ElementTree's spelling: a local name, optionally behind a ``{uri}``.
 XML_NAME: Final = re.compile(r"(\{[^{}]+\})?[A-Za-z_][\w.\-]*\Z")
+
+#: A character XML 1.0 has no spelling for, escaped or not.
+NOT_XML_CHARACTER: Final = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")
+
+#: The byte order mark a UTF-8 document may open with.
+BYTE_ORDER_MARK: Final = "\ufeff"
 
 
 def _named(value: JsonValue) -> str:
@@ -120,7 +130,13 @@ class StdConverter(Converter):
     element name to write one under; convert to json and name the root there.
 
     No document type declaration is read. A DTD is where entities and external files enter an
-    XML document, so one is refused rather than parsed.
+    XML document, so one is refused rather than parsed, behind a byte order mark as well. A
+    value holding a character XML 1.0 cannot carry is refused when xml is written.
+
+    No format here writes nan or infinity, so ``NaN`` and ``Infinity`` in JSON input are
+    refused as YAML's are. ndjson lines end at a line feed alone, since JSON carries U+2028,
+    U+2029 and U+0085 raw inside a string. A csv cell holds at most ``csv.field_size_limit()``
+    characters, and input nested past what the readers recurse into is refused by name.
     """
 
     kind = "std"
@@ -129,6 +145,13 @@ class StdConverter(Converter):
 
     def convert(self, source: bytes, *, source_format: str, target_format: str) -> bytes:
         """Re-encode the payload, by whole value where yaml and json meet and by sequence otherwise."""
+        try:
+            return self._convert(source, source_format=source_format, target_format=target_format)
+        except RecursionError as error:
+            raise TransformError(TOO_DEEP.render()) from error
+
+    def _convert(self, source: bytes, *, source_format: str, target_format: str) -> bytes:
+        """Re-encode the payload, with nothing standing between a reader's recursion and the caller."""
         text = _decode(source)
         if (source_format, target_format) == ("yaml", "json"):
             return _dump_json(_read_yaml_document(text))
@@ -166,10 +189,15 @@ def _read(text: str, source_format: str, target_format: str) -> list[JsonValue]:
     return _read_csv(text)
 
 
+def _refuse_constant(value: str) -> JsonValue:
+    """Refuse the ``NaN`` and ``Infinity`` the json module reads, which are not JSON numbers."""
+    raise TransformError(JSON_NOT_A_NUMBER.render(value=value))
+
+
 def _read_json_value(text: str) -> JsonValue:
     """Read one JSON value of any shape, for the targets that carry a value rather than a sequence."""
     try:
-        parsed: JsonValue = json.loads(text)
+        parsed: JsonValue = json.loads(text, parse_constant=_refuse_constant)
     except ValueError as error:
         raise TransformError(NOT_JSON.render(detail=str(error))) from error
     return parsed
@@ -188,11 +216,11 @@ def _read_json(text: str, target_format: str) -> list[JsonValue]:
 def _read_ndjson(text: str) -> list[JsonValue]:
     """Read one JSON value per line, skipping blank lines and naming the line that is not JSON."""
     records: list[JsonValue] = []
-    for number, line in enumerate(text.splitlines(), start=1):
+    for number, line in enumerate(text.split("\n"), start=1):
         if not line.strip():
             continue
         try:
-            records.append(json.loads(line))
+            records.append(json.loads(line, parse_constant=_refuse_constant))
         except ValueError as error:
             raise TransformError(LINE_NOT_JSON.render(number=number, detail=str(error))) from error
     return records
@@ -201,17 +229,23 @@ def _read_ndjson(text: str) -> list[JsonValue]:
 def _read_csv(text: str) -> list[JsonValue]:
     """Read the header row and its rows, as objects whose every value is a string."""
     rows = csv.reader(io.StringIO(text, newline=""))
-    header = next(rows, None)
-    if header is None:
-        return []
-    _check_header(header)
-    records: list[JsonValue] = []
-    for number, row in enumerate(rows, start=1):
-        if not row:
-            continue
-        if len(row) > len(header):
-            raise TransformError(CSV_ROW_TOO_WIDE.render(number=number))
-        records.append({name: row[index] if index < len(row) else "" for index, name in enumerate(header)})
+    number = 0
+    try:
+        header = next(rows, None)
+        if header is None:
+            return []
+        _check_header(header)
+        records: list[JsonValue] = []
+        for number, row in enumerate(rows, start=1):
+            if not row:
+                continue
+            if len(row) > len(header):
+                raise TransformError(CSV_ROW_TOO_WIDE.render(number=number))
+            records.append({name: row[index] if index < len(row) else "" for index, name in enumerate(header)})
+    except csv.Error as error:
+        raise TransformError(
+            CSV_NOT_READ.render(number=number + 1, detail=str(error), limit=csv.field_size_limit())
+        ) from error
     return records
 
 
@@ -379,7 +413,7 @@ def _refuse_doctype(text: str) -> None:
     Nothing here reads a DTD, so nothing here resolves an entity, and no input reaches a file
     or a URL the document names.
     """
-    position = 0
+    position = len(BYTE_ORDER_MARK) if text.startswith(BYTE_ORDER_MARK) else 0
     while position < len(text):
         rest = text[position:]
         position += len(rest) - len(rest.lstrip())
@@ -501,6 +535,9 @@ def _text(value: JsonValue, path: str) -> str | None:
     if value is None:
         return None
     if isinstance(value, str):
+        unwritable = NOT_XML_CHARACTER.search(value)
+        if unwritable is not None:
+            raise TransformError(XML_CHARACTER.render(path=path, character=f"U+{ord(unwritable.group()):04X}"))
         return value
     if isinstance(value, dict | list):
         raise TransformError(XML_VALUE_IS_NOT_TEXT.render(path=path, described=_named(value)))

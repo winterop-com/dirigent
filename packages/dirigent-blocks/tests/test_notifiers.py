@@ -281,7 +281,15 @@ def test_the_payload_is_the_alert_message_itself() -> None:
         "pipeline": "nightly",
         "url": "https://dirigent.test/runs/nightly",
         "context": {"run": {"pipeline": "nightly"}},
+        "error_code": None,
+        "error_params": {},
     }
+
+
+def test_the_payload_carries_the_refusal_the_run_ended_with() -> None:
+    message = an_alert().model_copy(update={"error_code": "run.deadline_passed", "error_params": {"deadline": "5m"}})
+    payload = payload_of(message)
+    assert (payload["error_code"], payload["error_params"]) == ("run.deadline_passed", {"deadline": "5m"})
 
 
 def test_the_payload_renders_the_run_id_as_a_string() -> None:

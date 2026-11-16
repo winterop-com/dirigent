@@ -191,6 +191,8 @@ def payload_of(message: AlertMessage) -> dict[str, object]:
         "pipeline": message.pipeline,
         "url": message.url,
         "context": message.context,
+        "error_code": message.error_code,
+        "error_params": message.error_params,
     }
 
 

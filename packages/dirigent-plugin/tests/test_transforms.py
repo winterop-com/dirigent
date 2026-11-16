@@ -2,8 +2,10 @@
 
 import asyncio
 import contextlib
+import subprocess
+import sys
 import time
-from typing import cast
+from typing import Final, cast
 
 import pytest
 from pydantic import JsonValue, ValidationError
@@ -310,6 +312,36 @@ async def test_an_engine_that_returns_fewer_elements_than_it_was_given_fails_the
     """The map promise is length, so an engine that breaks it fails itself rather than shortening a list."""
     with pytest.raises(AssertionError, match="map.swallow produced 1 elements from 2"):
         await call_block(SwallowingMapper(), {"input": ["ada", "grace"], "program": "upper"}, block_ctx)
+
+
+#: The swallowing engine again, run in an interpreter started with ``-O``.
+OPTIMISED_SWALLOW: Final = """
+import asyncio
+from dirigent_plugin import Mapper
+from dirigent_testing import FakeContext, FakeStorage, call_block
+import tempfile, pathlib
+
+class Swallow(Mapper):
+    kind = "swallow"
+    summary = "Drop the first element."
+    def compile(self, program):
+        return program
+    def apply(self, compiled, value):
+        return value
+    def _map_each(self, compiled, elements):
+        return elements[1:]
+
+root = pathlib.Path(tempfile.mkdtemp())
+try:
+    asyncio.run(call_block(Swallow(), {"input": ["a", "b"], "program": "x"}, FakeContext(FakeStorage(root), "file://s")))
+except AssertionError as error:
+    print("refused:", error)
+"""
+
+
+def test_the_map_promise_holds_in_an_interpreter_that_strips_assert_statements() -> None:
+    ran = subprocess.run([sys.executable, "-O", "-c", OPTIMISED_SWALLOW], capture_output=True, text=True, check=True)
+    assert ran.stdout.startswith("refused: map.swallow produced 1 elements from 2")
 
 
 async def test_a_bad_program_fails_a_map_step_as_rejected(block_ctx: FakeContext) -> None:

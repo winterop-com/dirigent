@@ -402,8 +402,15 @@ converts. It is one-way. An ndjson line carries no root element name to write a 
 under, so `json` to `xml` is the pair that round-trips, and a document is named there.
 
 **No document type declaration is read, in any direction.** A DTD is where entities and the
-files they name enter an XML document, so one is refused rather than parsed, and an entity
-nothing declared has nothing to expand to.
+files they name enter an XML document, so one is refused rather than parsed, behind a byte order
+mark too, and an entity nothing declared has nothing to expand to. Writing `xml` refuses a value
+holding a character XML 1.0 cannot carry, such as U+0008, naming its path.
+
+`std` refuses `NaN` and `Infinity` in JSON input on every path, as it refuses them in YAML. An
+ndjson line ends at a line feed alone, so U+2028, U+2029 and U+0085 inside a string stay in it.
+A csv cell holds at most 131,072 characters, and a longer one is refused naming its row. Input
+nested deeper than the readers follow is refused by name (`base.too_deep`) rather than failing
+the step unexplained.
 
 A pair the engine has no codec for is refused when the document is applied, the same hook
 that compiles a jq program, and the refusal names the thirteen pairs that do exist:
