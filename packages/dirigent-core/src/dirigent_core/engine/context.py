@@ -6,9 +6,9 @@ long step is visible working and its last lines still land with the outcome.
 """
 
 import asyncio
-from collections.abc import AsyncGenerator, Callable, Mapping
+from collections.abc import AsyncGenerator, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Final, cast
@@ -17,17 +17,13 @@ from uuid import UUID
 import httpx2
 import sqlalchemy as sa
 from jsonschema import FormatChecker
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import LogLevel
 from dirigent_common import (
-    DEFAULT_CREDENTIAL_HEADER,
-    BaseRedirect,
-    CredentialOnOrigin,
-    CredentialParameterOnOrigin,
     JsonMap,
-    credential_header_value,
+    build_client,
     loggable,
     scrub,
     scrub_json,
@@ -46,28 +42,6 @@ from dirigent_core.models import Connection
 from dirigent_core.secrets import SecretBox, unset_secrets
 from dirigent_core.storage import AttemptStorage, Meter, Storage, connection_binder, work_dir
 from dirigent_plugin import BlockFailure, ByteSink, Capture, ConnectionRef, ErrorClass, Logger, Runs
-
-#: What an HTTP connection is assumed to call its fields, so core can build a client for
-#: any connection kind without importing the package that contributed it.
-BASE_URL_FIELD = "base_url"
-VERIFY_TLS_FIELD = "verify_tls"
-FOLLOW_REDIRECTS_WITH_AUTH_FIELD = "follow_redirects_with_auth"
-TIMEOUT_FIELD = "timeout"
-BEARER_FIELD = "bearer_token"
-API_TOKEN_FIELD = "api_token"
-API_TOKEN_SCHEME_FIELD = "api_token_scheme"
-CREDENTIAL_FIELD = "credential"
-CREDENTIAL_HEADER_FIELD = "credential_header"
-CREDENTIAL_SCHEME_FIELD = "credential_scheme"
-CREDENTIAL_QUERY_FIELD = "credential_query"
-BASIC_USER_FIELD = "basic_username"
-BASIC_PASSWORD_FIELD = "basic_password"
-
-#: The authorization scheme an ``api_token`` is sent under when the config names none, which
-#: is the scheme a personal access token is usually presented with.
-DEFAULT_API_TOKEN_SCHEME = "ApiToken"
-
-DEFAULT_HTTP_TIMEOUT = 30.0
 
 _logger = get_logger("block")
 
@@ -442,7 +416,7 @@ class EngineStepContext:
             raise BlockFailure(
                 UNKNOWN_CONNECTION_KIND, error_class=ErrorClass.REJECTED, ref=repr(ref), kind=repr(record.kind)
             )
-        return build_http_client(self.connection(ref, model))
+        return build_client(self.connection(ref, model))
 
 
 def open_record[C: BaseModel](
@@ -483,68 +457,3 @@ def open_record[C: BaseModel](
 def _listed(known: "Mapping[str, object]", empty: str) -> str:
     """Name what the instance does hold, or say plainly that it holds none."""
     return ", ".join(sorted(known)) or empty
-
-
-def build_http_client(config: BaseModel) -> httpx2.AsyncClient:
-    """Build a client from any connection config that names the standard HTTP fields.
-
-    The fields are read structurally, so a config that names none of them gets a bare client.
-
-    A credential is read from one of two fields. ``bearer_token`` is sent as
-    ``Authorization: Bearer``; ``api_token`` is sent under the scheme the config's
-    ``api_token_scheme`` names, and ``ApiToken`` when it names none, which is the scheme a
-    personal access token usually needs. ``bearer_token`` wins if a config carries both.
-    ``credential`` is sent in the header ``credential_header`` names, ``Authorization`` when it
-    names none, after ``credential_scheme`` when one is set, and only to the origin of
-    ``base_url``; it wins over either token in the same header. ``credential_query`` sends it as
-    that query parameter instead of a header, on the same terms.
-    ``basic_username`` and ``basic_password`` become the client's auth, which httpx applies
-    per request, so basic credentials beside a token win over the header.
-    """
-    base_url = _text(config, BASE_URL_FIELD) or ""
-    configured = getattr(config, TIMEOUT_FIELD, None)
-    timeout = configured.total_seconds() if isinstance(configured, timedelta) else DEFAULT_HTTP_TIMEOUT
-    verify = getattr(config, VERIFY_TLS_FIELD, True)
-    headers: dict[str, str] = {}
-    bearer = _text(config, BEARER_FIELD)
-    api_token = _text(config, API_TOKEN_FIELD)
-    if bearer:
-        headers["Authorization"] = f"Bearer {bearer}"
-    elif api_token:
-        scheme = _text(config, API_TOKEN_SCHEME_FIELD) or DEFAULT_API_TOKEN_SCHEME
-        headers["Authorization"] = f"{scheme} {api_token}"
-    credential = _text(config, CREDENTIAL_FIELD)
-    credential_header = _text(config, CREDENTIAL_HEADER_FIELD) or DEFAULT_CREDENTIAL_HEADER
-    credential_query = _text(config, CREDENTIAL_QUERY_FIELD)
-    if credential and not credential_query:
-        headers[credential_header] = credential_header_value(credential, _text(config, CREDENTIAL_SCHEME_FIELD))
-    auth: httpx2.Auth | None = None
-    user = _text(config, BASIC_USER_FIELD)
-    password = _text(config, BASIC_PASSWORD_FIELD)
-    if user:
-        auth = httpx2.BasicAuth(user, password or "")
-    hooks: dict[str, list[Callable[..., Any]]] = {"request": []}
-    if credential and credential_query:
-        hooks["request"].append(CredentialParameterOnOrigin(base_url, credential_query, credential))
-    elif credential:
-        hooks["request"].append(CredentialOnOrigin(base_url, credential_header))
-    if base_url and getattr(config, FOLLOW_REDIRECTS_WITH_AUTH_FIELD, False) is True:
-        hooks["request"].append(BaseRedirect(base_url, verify=bool(verify)))
-    return httpx2.AsyncClient(
-        base_url=base_url,
-        headers=headers,
-        auth=auth,
-        verify=bool(verify),
-        timeout=timeout,
-        event_hooks=hooks,
-    )
-
-
-def _text(config: BaseModel, name: str) -> str | None:
-    """Read a field that may be a plain string, a secret, or absent."""
-    value: Any = getattr(config, name, None)
-    if value is None:
-        return None
-    if isinstance(value, SecretStr):
-        return value.get_secret_value()
-    return str(value)

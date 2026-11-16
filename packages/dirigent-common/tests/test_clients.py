@@ -1,13 +1,20 @@
-"""A connection whose base URL redirects: where the base lands, and what reaches it."""
+"""The client a connection is called through: what it sends, where, and where a redirecting base lands."""
 
 import base64
 from typing import Any
 
 import httpx2
 import pytest
-from pydantic import SecretStr, ValidationError
+from pydantic import BaseModel, SecretStr, ValidationError
 
-from dirigent_common import CredentialOnOrigin, HttpConnectionConfig, build_client, raised_detail, secrets_of
+from dirigent_common import (
+    CredentialOnOrigin,
+    CredentialParameterOnOrigin,
+    HttpConnectionConfig,
+    build_client,
+    raised_detail,
+    secrets_of,
+)
 from dirigent_common.clients import resolve_base
 
 ALIAS = "https://play.dhis2.org/2.43"
@@ -217,3 +224,170 @@ def test_a_base_url_refuses_a_credential_without_repeating_it(base_url: str, sai
         HttpConnectionConfig(base_url=base_url)
     assert said in str(refused.value)
     assert "DUMMY" not in str(refused.value)
+
+
+# -- any connection kind, read by field name ---------------------------------------
+
+
+class _TokenConfig(BaseModel):
+    """A pack's connection kind that authenticates with a personal access token."""
+
+    base_url: str = "https://play.example/api"
+    api_token: SecretStr | None = None
+
+
+class _SchemedTokenConfig(_TokenConfig):
+    """A token connection that names the scheme its token is sent under."""
+
+    api_token_scheme: str = "Bearer"
+
+
+class _BasicConfig(BaseModel):
+    """A connection kind that authenticates with the basic pair alone."""
+
+    base_url: str = "https://play.example/api"
+    basic_username: str | None = None
+    basic_password: SecretStr | None = None
+
+
+class _BearerAndTokenConfig(_TokenConfig):
+    """A connection kind that names both credential header fields."""
+
+    bearer_token: SecretStr | None = None
+
+
+class _BareConfig(BaseModel):
+    """A connection kind carrying no HTTP fields at all."""
+
+    note: str = "nothing to read"
+
+
+def test_api_token_is_sent_under_the_default_scheme() -> None:
+    """A config carrying only an api_token authorizes with ApiToken."""
+    client = build_client(_TokenConfig(api_token=SecretStr("d2pat_x")))
+
+    assert client.headers["authorization"] == "ApiToken d2pat_x"
+    assert client.auth is None
+
+
+def test_api_token_scheme_overrides_the_default() -> None:
+    """A config that names a scheme has its token sent under that scheme."""
+    client = build_client(_SchemedTokenConfig(api_token=SecretStr("t")))
+
+    assert client.headers["authorization"] == "Bearer t"
+
+
+def test_bearer_token_wins_over_an_api_token() -> None:
+    """A config carrying both header credentials sends the bearer one."""
+    client = build_client(_BearerAndTokenConfig(api_token=SecretStr("t"), bearer_token=SecretStr("b")))
+
+    assert client.headers["authorization"] == "Bearer b"
+
+
+def test_empty_api_token_authorizes_nothing() -> None:
+    """An api_token present but empty leaves the client unauthenticated."""
+    client = build_client(_TokenConfig(api_token=SecretStr("")))
+
+    assert "authorization" not in client.headers
+
+
+def test_basic_credentials_stay_basic_auth() -> None:
+    """A config carrying only the basic pair gets httpx basic auth and no header."""
+    client = build_client(_BasicConfig(basic_username="admin", basic_password=SecretStr("district")))
+
+    assert isinstance(client.auth, httpx2.BasicAuth)
+    assert "authorization" not in client.headers
+
+
+def test_a_config_naming_no_fields_gets_a_bare_client() -> None:
+    """A connection kind with none of the standard fields still yields a usable client."""
+    client = build_client(_BareConfig())
+
+    assert client.auth is None
+    assert "authorization" not in client.headers
+
+
+class _CredentialConfig(BaseModel):
+    """A connection kind that names the credential fields, and a base it may be sent to."""
+
+    base_url: str = "http://service.test"
+    credential: SecretStr | None = None
+    credential_header: str = "Authorization"
+    credential_scheme: str | None = None
+
+
+def test_a_credential_is_sent_in_the_header_the_config_names() -> None:
+    config = _CredentialConfig(credential=SecretStr("dummy"), credential_header="X-Api-Key")
+    assert build_client(config).headers["x-api-key"] == "dummy"
+
+
+def test_a_credential_is_sent_under_the_scheme_the_config_names() -> None:
+    config = _CredentialConfig(credential=SecretStr("dummy"), credential_scheme="Token")
+    assert build_client(config).headers["authorization"] == "Token dummy"
+
+
+def test_a_credential_carries_the_hook_that_keeps_it_on_its_origin() -> None:
+    bare = build_client(_CredentialConfig())
+    held = build_client(_CredentialConfig(credential=SecretStr("dummy")))
+    assert "authorization" not in bare.headers
+    assert bare.event_hooks["request"] == []
+    assert [type(hook) for hook in held.event_hooks["request"]] == [CredentialOnOrigin]
+
+
+class _QueryCredentialConfig(_CredentialConfig):
+    """A connection kind that also names the query parameter."""
+
+    credential_query: str | None = None
+
+
+def test_a_credential_sent_as_a_query_parameter_is_no_header() -> None:
+    held = build_client(_QueryCredentialConfig(credential=SecretStr("dummy"), credential_query="api_key"))
+    assert "authorization" not in held.headers
+    assert [type(hook) for hook in held.event_hooks["request"]] == [CredentialParameterOnOrigin]
+
+
+class _EveryFormConfig(BaseModel):
+    """A connection kind naming every credential form, each left unset until a test sets one."""
+
+    base_url: str = "https://service.test/api"
+    bearer_token: SecretStr | None = None
+    api_token: SecretStr | None = None
+    basic_username: str | None = None
+    basic_password: SecretStr | None = None
+    credential: SecretStr | None = None
+    credential_header: str | None = None
+
+
+@pytest.mark.parametrize(
+    ("settings", "header"),
+    [
+        ({"bearer_token": SecretStr("SECRET")}, "authorization"),
+        ({"api_token": SecretStr("SECRET")}, "authorization"),
+        ({"basic_username": "admin", "basic_password": SecretStr("SECRET")}, "authorization"),
+        ({"credential": SecretStr("SECRET")}, "authorization"),
+        ({"credential": SecretStr("SECRET"), "credential_header": "X-Api-Key"}, "x-api-key"),
+    ],
+    ids=["bearer", "api-token", "basic", "credential", "credential-header"],
+)
+async def test_every_credential_form_stays_on_the_origin_of_the_base(settings: dict[str, Any], header: str) -> None:
+    seen: list[httpx2.Request] = []
+
+    def handle(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request)
+        return httpx2.Response(200)
+
+    built = build_client(_EveryFormConfig(**settings))
+    async with httpx2.AsyncClient(
+        base_url=built.base_url,
+        headers=built.headers,
+        auth=built.auth,
+        event_hooks=built.event_hooks,
+        transport=httpx2.MockTransport(handle),
+    ) as client:
+        await client.get("/page")
+        await client.get("https://elsewhere.example.net/next")
+        await client.get("http://service.test/api/page")
+    on_origin, elsewhere, other_scheme = seen
+    assert header in on_origin.headers
+    assert header not in elsewhere.headers
+    assert header not in other_scheme.headers

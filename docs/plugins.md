@@ -556,7 +556,10 @@ webhook or a bot token and channel, one required.
 ### What `ctx.http` reads from a connection
 
 `ctx.http(ref)` builds a client for a connection of any kind, so it reads a config's fields by
-name rather than by model:
+name rather than by model. A connection check builds its client with the same function,
+`dirigent_common.build_client`, so a green check says what a step will send. Every credential
+below, whichever form it takes, is sent only to the origin of `base_url`: a block that follows an
+absolute link a response handed back, or is redirected elsewhere, sends no credential there.
 
 | Field | What the client does with it |
 | --- | --- |
@@ -564,10 +567,10 @@ name rather than by model:
 | `bearer_token` | Sent as `Authorization: Bearer <token>` |
 | `api_token` | Sent as `Authorization: ApiToken <token>`, the scheme a personal access token usually needs |
 | `api_token_scheme` | The scheme `api_token` is sent under instead of `ApiToken` |
-| `credential` | Sent in `credential_header`, after `credential_scheme` when one is set, and only to the origin of `base_url` |
+| `credential` | Sent in `credential_header`, after `credential_scheme` when one is set |
 | `credential_header` | The header `credential` is sent in instead of `Authorization` |
 | `credential_scheme` | The word sent before `credential` |
-| `credential_query` | The query parameter `credential` is sent as instead of a header, only to the origin of `base_url` |
+| `credential_query` | The query parameter `credential` is sent as instead of a header |
 | `basic_username`, `basic_password` | The client's HTTP basic auth |
 | `verify_tls` | Whether certificates are verified |
 | `follow_redirects_with_auth` | When `true`, `base_url` is followed through its redirects once, without a credential, and every request is sent to where it lands |
