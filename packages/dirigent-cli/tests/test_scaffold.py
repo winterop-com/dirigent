@@ -129,7 +129,7 @@ def test_the_scaffolded_dockerfile_builds_on_the_running_version(tmp_path: Path)
     assert instructions[0] == "ARG DIRIGENT_IMAGE=ghcr.io/winterop-com/dirigent:1.2.3"
     assert instructions[1] == "FROM ${DIRIGENT_IMAGE}"
     recipe = (tmp_path / "stack" / "Dockerfile").read_text()
-    assert "# RUN uv pip install dirigent-dhis2==1.2.3" in recipe
+    assert "# RUN uv pip install dirigent-dhis2==1.2.3 && uv pip check" in recipe
 
 
 def test_the_scaffolded_stack_carries_no_build_secret(tmp_path: Path) -> None:
@@ -276,7 +276,7 @@ def test_a_pack_is_pinned_where_the_runtime_is(tmp_path: Path) -> None:
         InitChoices(template="compose", packs=("dirigent-dhis2",), password="x" * 12),
         version="1.2.3",
     )
-    assert "RUN uv pip install dirigent-dhis2==1.2.3" in (tmp_path / "stack" / "Dockerfile").read_text()
+    assert "RUN uv pip install dirigent-dhis2==1.2.3 && uv pip check" in (tmp_path / "stack" / "Dockerfile").read_text()
 
 
 def test_every_install_page_names_the_one_install_line() -> None:

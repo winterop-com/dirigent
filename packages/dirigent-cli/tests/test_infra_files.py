@@ -66,6 +66,20 @@ def test_a_scaffolded_stack_generates_its_own_credentials(tmp_path: Path) -> Non
     assert seen[0]["POSTGRES_PASSWORD"] != seen[0]["S3_SECRET_KEY"]
 
 
+def test_the_packs_layer_refuses_a_set_that_mixes_two_releases() -> None:
+    """``uv pip install`` replaces a pinned runtime package when a pack pins another release."""
+    lines = (REPO_ROOT / "infra" / "Dockerfile").read_text().splitlines()
+    (install,) = [line for line in lines if "uv pip install" in line and "DIRIGENT_PACKS" in line]
+    assert install.index("uv pip check") > install.index("uv pip install")
+
+
+def test_every_documented_make_target_is_phony() -> None:
+    text = (REPO_ROOT / "Makefile").read_text()
+    phony = set(re.search(r"^\.PHONY:(.*)$", text, re.MULTILINE).group(1).split())  # type: ignore[union-attr]
+    documented = set(re.findall(r"^([A-Za-z0-9_-]+):[^=\n]*##", text, re.MULTILINE))
+    assert documented - phony == set()
+
+
 def test_every_dockerignore_pattern_that_names_a_kind_of_file_matches_at_any_depth() -> None:
     """A pattern with no ``**/`` matches at the root alone, and ``COPY packages/`` takes what is below."""
     patterns = [

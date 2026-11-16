@@ -33,7 +33,7 @@ COMPOSE_SINKS ?= $(COMPOSE) -f infra/compose.sinks.yaml
 #: Every overlay at once, which is what "take it all away" has to name to reach every volume.
 COMPOSE_ALL ?= $(COMPOSE) -f infra/compose.brokers.yaml -f infra/compose.sql.yaml -f infra/compose.otel.yaml -f infra/compose.sinks.yaml
 
-.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-shots ui-test ui-e2e ui-gate ui-static ui-wheel docs-shots docs-shots-basics docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean test test-affected test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf architecture architecture-validate architecture-export architecture-export-docs architecture-check-docs architecture-clean clean refresh
+.PHONY: help install lint static check gate e2e queues-up queues-down schemas dev dev-seeded ui ui-dev ui-fmt ui-lint ui-shots ui-test ui-e2e ui-gate ui-static ui-wheel docs-shots docs-shots-basics docker-build docker-rebuild docker-run docker-run-queues docker-run-sql docker-run-otel docker-run-sinks docker-run-all docker-clean docker-push docker-push-preflight test test-affected test-slowest test-postgres test-s3 test-docker test-queues load coverage docs docs-blocks docs-settings docs-build docs-pdf architecture architecture-validate architecture-export architecture-export-docs architecture-check-docs architecture-clean clean refresh
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -192,7 +192,14 @@ docker-build: .env ## Build the image
 
 docker-push: export DIRIGENT_VERSION := $(VERSION)
 docker-push: export DIRIGENT_REVISION := $(shell git rev-parse --short HEAD)
-docker-push: docker-build ## Build with the version stamped in, prove the image starts and extends, and push it to GHCR
+docker-push: docker-push-preflight docker-build ## Build with the version stamped in, prove the image starts and extends, and push it to GHCR
+
+# A push replaces what the tag names on GHCR, so it goes only from a clean checkout of the
+# commit tagged v$(VERSION), and only when that version is not published yet.
+docker-push-preflight:
+	@test -z "$$(git status --porcelain)" || { echo "docker-push: the working tree has uncommitted changes" >&2; exit 1; }
+	@test "$$(git rev-parse HEAD)" = "$$(git rev-parse -q --verify 'v$(VERSION)^{commit}')" || { echo "docker-push: HEAD is not the commit tagged v$(VERSION)" >&2; exit 1; }
+	@if docker manifest inspect $(IMAGE_REPO):$(VERSION) >/dev/null 2>&1; then echo "docker-push: $(IMAGE_REPO):$(VERSION) is already published" >&2; exit 1; fi
 	docker tag dirigent:local $(IMAGE_REPO):$(VERSION)
 	docker tag dirigent:local $(IMAGE_REPO):latest
 	docker run --rm $(IMAGE_REPO):$(VERSION) --version

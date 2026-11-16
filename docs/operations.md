@@ -600,7 +600,9 @@ docker build -f infra/Dockerfile --build-arg DIRIGENT_PACKS="dirigent-dhis2==<ve
 docker-build` builds the stack's image with it, and `.env` is where a checkout keeps the list.
 The build refuses anything else, a bare name, a range, a URL or an option, so a package
 someone publishes later cannot arrive in a rebuild under a name you already trusted. Use the image's
-version: a pack releases at the same version as the runtime. The pin covers the pack alone: its
+version: a pack releases at the same version as the runtime. A pack pinned at another release
+would replace the runtime packages it shares, so the layer runs `uv pip check` after the install
+and the build fails on a mixed set. The pin covers the pack alone: its
 own dependencies are resolved from PyPI at build time and sit outside the workspace lock, so a
 deployment that wants a locked assembly with every official pack builds `dirigent-full` from
 `dirigent-integration` instead.
@@ -612,8 +614,12 @@ certificate, a file, a pack from a git source -- is one more layer:
 
 ```dockerfile
 FROM ghcr.io/winterop-com/dirigent:<version>
-RUN uv pip install dirigent-<pack>
+RUN uv pip install dirigent-<pack>==<version> && uv pip check
 ```
+
+`uv pip install` does not keep what the image already has: a pack that pins another release of
+`dirigent-plugin` or `dirigent-common` replaces them under a runtime still pinned to its own,
+and exits 0. `uv pip check` is what fails that build, so keep it on every pack line.
 
 `dg init --template compose` writes exactly this: a `Dockerfile` that is `FROM` the published
 image with the pack line commented out, and a compose stack that builds and runs it.
