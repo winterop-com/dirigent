@@ -11,7 +11,7 @@ from dirigent_core.documents import DocumentError, load_text
 from dirigent_core.engine import Provenance
 from dirigent_core.engine.definition import TriggersDefinition
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.models import Schedule, TriggerDocument
+from dirigent_core.models import Pipeline, Schedule, TriggerDocument
 from dirigent_core.pipelines import apply_document, delete_pipeline, find_pipeline, set_active
 from dirigent_core.trigger_documents import (
     delete_absent_trigger_documents,
@@ -201,6 +201,30 @@ async def test_a_changed_document_updates_and_retires_what_it_stopped_declaring(
     assert changed.plan.action is PlanAction.UPDATE
     assert changed.triggers.schedules_updated == ["ops-nightly"]
     assert await codes(sessions) == {"inline-nightly": None, "ops-nightly": "fleet-clocks"}
+
+
+async def test_pointing_a_document_at_another_pipeline_retires_its_rows_on_the_first(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, PIPELINE)
+    other = PIPELINE.replace("code: batch-fleet", "code: other-fleet").replace("inline-nightly", "inline-other")
+    await apply(sessions, services, other)
+    await apply(sessions, services, TRIGGERS)
+    moved = TRIGGERS.replace("pipeline: batch-fleet", "pipeline: other-fleet")
+
+    planned = await apply(sessions, services, moved, dry_run=True)
+    assert planned.triggers.schedules_removed == ["ops-nightly"]
+
+    applied = await apply(sessions, services, moved)
+    assert applied.triggers.schedules_created == ["ops-nightly"]
+    assert applied.triggers.schedules_removed == ["ops-nightly"]
+    async with sessions() as session:
+        held = await session.execute(
+            sa.select(Pipeline.code)
+            .join(Schedule, Schedule.pipeline_id == Pipeline.id)
+            .where(Schedule.code == "ops-nightly")
+        )
+        assert list(held.scalars()) == ["other-fleet"]
 
 
 async def test_a_dry_run_writes_nothing(sessions: async_sessionmaker[AsyncSession], services: EngineServices) -> None:

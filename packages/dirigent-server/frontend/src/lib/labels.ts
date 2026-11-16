@@ -1275,8 +1275,12 @@ const refused = {
         duplicate: 'Pipeline {pipeline} already has a schedule coded {code}.',
         exactly_one_clock:
             'A schedule declares exactly one of cron, interval, or at. This one declares {named}.',
+        held_by_paused_run: 'Run {run} of this pipeline is paused, and holds its slot.',
         interval_too_long:
             'A schedule firing every {interval} would not fire again. The longest interval is {limit}.',
+        no_version: 'The pipeline has no current version to run.',
+        run_in_flight: 'A run of this pipeline is already in flight.',
+        run_replaced: 'The run in flight was cancelled and replaced.',
         unknown: 'Pipeline {pipeline} has no schedule coded {code}.',
         unknown_timezone: '{name} is not an IANA timezone this host knows. Try UTC or Europe/Oslo.',
     },

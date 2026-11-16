@@ -669,6 +669,16 @@ DUPLICATE_SCHEDULE = SCHEDULE.define("duplicate", "pipeline {pipeline} already h
 
 UNKNOWN_SCHEDULE = SCHEDULE.define("unknown", "pipeline {pipeline} has no schedule coded {code}")
 
+FIRING_NO_VERSION = SCHEDULE.define("no_version", "the pipeline has no current version to run")
+
+FIRING_HELD_BY_PAUSED = SCHEDULE.define(
+    "held_by_paused_run", "run {run} of this pipeline is paused, and holds its slot"
+)
+
+FIRING_IN_FLIGHT = SCHEDULE.define("run_in_flight", "a run of this pipeline is already in flight")
+
+FIRING_REPLACED = SCHEDULE.define("run_replaced", "the run in flight was cancelled and replaced")
+
 BACKFILL_ONE_TIME = SCHEDULE.define(
     "backfill_one_time",
     "schedule {code} fires once at one instant, so it has no cadence to "

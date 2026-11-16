@@ -639,7 +639,8 @@ triggers:
 It has no steps and writes no pipeline versions. It is applied through the same `dg apply`
 and reconciles the same way, but only over the rows it declared: its own apply never touches
 the pipeline's inline triggers, the pipeline's apply never touches its, and neither touches a
-hand-made one. An empty `triggers:` retires everything it owned. A code already taken on that
+hand-made one. An empty `triggers:` retires everything it owned, and pointing `pipeline:` at
+another pipeline retires the rows it owned on the old one, reported as removed. A code already taken on that
 pipeline under a different owner is refused at apply, naming the owner, and a `pipeline:` no
 instance holds -- or one that is deactivated -- is refused at `pipeline`. A directory apply
 orders pipeline documents before triggers documents, so a directory carrying both converges

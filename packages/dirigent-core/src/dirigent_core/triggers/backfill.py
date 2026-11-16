@@ -22,7 +22,7 @@ from dirigent_core.engine.runs import Attribution, RunWindow, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
-from dirigent_core.messages import BACKFILL_ONE_TIME, BACKFILL_TOO_MANY
+from dirigent_core.messages import BACKFILL_ONE_TIME, BACKFILL_TOO_MANY, FIRING_IN_FLIGHT
 from dirigent_core.models import PipelineVersion, Schedule
 from dirigent_core.triggers.schedules import occurrences_between, window_for
 
@@ -116,7 +116,7 @@ async def backfill(
             now=now,
         )
         if run is None:
-            filled.append(Filled(window=window, detail="a run of this pipeline is already in flight"))
+            filled.append(Filled(window=window, detail=FIRING_IN_FLIGHT.render()))
             continue
         filled.append(Filled(window=window, run_id=run.id))
     _logger.info(
