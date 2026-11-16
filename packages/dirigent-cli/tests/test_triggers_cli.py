@@ -503,6 +503,24 @@ def test_a_rule_takes_its_body_from_a_file(tmp_path: Path, server: str) -> None:
     assert declared["body"] is True
 
 
+def test_a_body_file_that_cannot_be_read_is_refused_as_a_record(tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        [
+            "alerts",
+            "rules",
+            "create",
+            "nightly-failures",
+            "--event",
+            "run_failed",
+            "--body-file",
+            str(tmp_path / "gone"),
+        ],
+    )
+    assert result.exit_code == 1
+    assert refusal(result.stdout)["code"] == "cli.body_file_unreadable"
+
+
 def test_a_rule_takes_one_body_and_not_two(tmp_path: Path, server: str) -> None:
     body = tmp_path / "alert-body.md.j2"
     body.write_text("{{ run.error }}")

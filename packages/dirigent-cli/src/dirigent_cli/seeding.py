@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from dirigent_cli.local import ConnectionSpec
-from dirigent_client import Dirigent, DirigentError, PlanAction, ProvenanceSource, declared_label
+from dirigent_client import Conflict, Dirigent, DirigentError, PlanAction, ProvenanceSource, declared_label
 from dirigent_common import JsonMap
 from dirigent_core.documents import CARRIED, SUFFIXES, is_document, readable
 from dirigent_core.protocol import Record, make
@@ -177,7 +177,7 @@ async def _schema(client: Dirigent, code: str, body: JsonMap) -> None:
     """
     try:
         await client.schemas.create(body, code=code)
-    except DirigentError:
+    except Conflict:
         await client.schemas.update(
             code,
             body=body,
@@ -206,12 +206,16 @@ async def _connections(client: Dirigent, declared: Sequence[ConnectionSpec], ori
 
 
 async def _connection(client: Dirigent, spec: ConnectionSpec) -> str:
-    """Store one connection and say whether it was new, letting a refusal through."""
+    """Store one connection and say whether it was new, replacing the config of one already held.
+
+    Only a code already taken falls through to the replace; a create refused for its content is
+    let through with its own reason.
+    """
     try:
         await client.connections.create(
             spec.code, kind=spec.kind, config=spec.config, name=spec.name, description=spec.description
         )
-    except DirigentError:
+    except Conflict:
         await client.connections.update(spec.code, config=spec.config)
         return "updated"
     return "created"

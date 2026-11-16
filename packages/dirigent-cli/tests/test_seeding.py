@@ -435,3 +435,14 @@ async def test_the_installed_corpus_brings_its_connection_and_schema_files(dg: D
         "no schema coded 'station-reading'" in str(record["reason"]) for record in of_kind(stream, "seed.refused")
     )
     assert all(origin.startswith("examples:") for origin in refused)
+
+
+async def test_a_connection_refused_for_its_content_is_reported_with_that_reason(dg: Dirigent, tmp_path: Path) -> None:
+    """A create the instance refuses is not followed by an update that can only say the code is unknown."""
+    (tmp_path / "connections.yaml").write_text(
+        "connections:\n  broken:\n    kind: http\n    config:\n      base_url: 5\n"
+    )
+    refused = of_kind(await seeded(dg, tmp_path), "seed.refused")
+    assert len(refused) == 1
+    assert "no connection coded" not in refused[0]["reason"]
+    assert "base_url" in refused[0]["reason"]

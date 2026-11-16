@@ -24,6 +24,7 @@ from dirigent_cli.messages import (
     CREATE_AN_ADMIN,
     DEV_FIXTURE_EXPOSED,
     DEV_IS_SQLITE_ONLY,
+    DEV_STATE_IN_USE,
     FORMATTER_TAKES_NO_TEMPLATE,
     FORMATTERS_ARE,
     GIVE_AN_AGE,
@@ -1168,6 +1169,7 @@ def dev(
     starting this somewhere else means a different instance, with none of the same runs.
     An instance that is there, made by dg init or by an earlier start, is the one that runs;
     --wipe-state deletes it first, and only a directory dirigent named itself is removed.
+    Either is refused while another dg dev is running on the same state.
 
     --seed-installed does the same with the corpus every installed plugin ships, so a
     checkout is not needed; both may be given, and the directories go in first.
@@ -1203,13 +1205,19 @@ def dev(
     exposed = not is_loopback_host(address)
     try:
         if wipe_state:
+            release_state(hold_state(settings))
             cleared = clear_state(settings)
             if cleared is not None:
                 emit(state_cleared(cleared))
         check_state(settings)
+        held = hold_state(settings)
+        migrated = _migrate_quietly(settings)
+        held = held if held is not None else hold_state(settings)
     except StateRefused as error:
         refuse_state(error)
-    migrated = _migrate_quietly(settings)
+    except StateInUse as error:
+        refuse(DEV_STATE_IN_USE, status=commands.GUARD_EXIT, title="In use", state=str(error.state))
+        raise typer.Exit(code=commands.GUARD_EXIT) from error
     guard_schema(settings)
     _dev_logging(state, settings, to_file=True)
     keyed = asyncio.run(dev_secret_key(settings))
@@ -1234,6 +1242,49 @@ def dev(
             announced=dev_facts(settings, admin=admin, password=DEV_PASSWORD if signs_in else None),
         )
     )
+    release_state(held)
+
+
+#: The file in a state directory a running ``dg dev`` holds a lock on.
+STATE_LOCK = "dev.lock"
+
+
+class StateInUse(Exception):
+    """Another process holds the lock on a state directory."""
+
+    def __init__(self, state: Path) -> None:
+        """Name the directory that is in use."""
+        super().__init__(str(state))
+        self.state = state
+
+
+def hold_state(settings: Settings) -> int | None:
+    """Lock the state directory this instance owns for as long as the descriptor is open.
+
+    Answers the descriptor, or None for a database outside a ``.dirigent/state`` directory, or
+    a directory that is not there or is a link, which ``check_state`` refuses on its own.
+    """
+    import fcntl
+
+    database = settings.sqlite_path
+    if database is None or not is_state_directory(database.parent):
+        return None
+    directory = database.parent
+    if directory.is_symlink() or not directory.is_dir():
+        return None
+    descriptor = os.open(directory / STATE_LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        os.close(descriptor)
+        raise StateInUse(directory.absolute()) from error
+    return descriptor
+
+
+def release_state(descriptor: int | None) -> None:
+    """Let go of a state directory's lock."""
+    if descriptor is not None:
+        os.close(descriptor)
 
 
 def clear_state(settings: Settings) -> Path | None:
@@ -1364,15 +1415,16 @@ def dev_started(
 async def dev_secret_key(settings: Settings) -> Path | None:
     """Generate a secret key into the project's ``.env`` when none is configured and nothing is sealed yet.
 
-    The file is created, or appended to, readable by its owner alone. A state holding a sealed
-    connection secret is left keyless, since a new key could not open what an old one sealed,
-    and so is a process that reads no ``.env`` at all. Answers the file written, or None.
+    The file is created, or appended to, readable by its owner alone before the key is written.
+    A state holding anything sealed -- a connection's secret or a source's signing secret -- is
+    left keyless, since a new key could not open what an old one sealed, and so is a process
+    that reads no ``.env`` at all. Answers the file written, or None.
     """
     from sqlalchemy import func, select
 
     from dirigent_core import config
     from dirigent_core.database import create_engine, create_session_factory, session_scope
-    from dirigent_core.models import Connection
+    from dirigent_core.models import Connection, Source
     from dirigent_core.secrets import generate_key
 
     if settings.secret_key is not None or config.ENV_FILE is None:
@@ -1383,6 +1435,9 @@ async def dev_secret_key(settings: Settings) -> Path | None:
             sealed = await session.scalar(
                 select(func.count()).select_from(Connection).where(Connection.secret_envelope.is_not(None))
             )
+            sealed = sealed or await session.scalar(
+                select(func.count()).select_from(Source).where(Source.signing_secret.is_not(None))
+            )
     finally:
         await engine.dispose()
     if sealed:
@@ -1391,8 +1446,9 @@ async def dev_secret_key(settings: Settings) -> Path | None:
     current = path.read_text() if path.exists() else ""
     separator = "" if not current or current.endswith("\n") else "\n"
     line = f"DIRIGENT_SECRET_KEY={generate_key()}\n"
-    path.write_text(f"{current}{separator}{DEV_KEY_COMMENT}{line}")
+    path.touch(mode=0o600, exist_ok=True)
     path.chmod(0o600)
+    path.write_text(f"{current}{separator}{DEV_KEY_COMMENT}{line}")
     return path
 
 
@@ -1568,7 +1624,8 @@ async def dev_admin(settings: Settings, *, exposed_on: str | None = None) -> tup
                 if not existing or (fixture and verify_password(fixture.password_hash, DEV_PASSWORD)):
                     warn_of_the_fixture_on(exposed_on)
             if existing:
-                return (existing[0].username, None)
+                admins = [user for user in existing if user.role is UserRole.ADMIN and user.active]
+                return ((admins or existing)[0].username, None)
             await create_fixture_admin(session, DEV_ADMIN, DEV_PASSWORD)
             user = await find_user(session, DEV_ADMIN)
             if user is None:  # pragma: no cover - it was just created
@@ -1586,10 +1643,11 @@ async def seed_token(settings: Settings) -> str:
 
     The seeding goes through the API rather than the database, so it needs a bearer even
     though it runs inside the process that is serving. A --keep-state instance kept its own
-    admin and handed its token over long ago, so one is minted here for the seeding alone.
+    admin and handed its token over long ago, so one is minted here for the seeding alone, and
+    the ones earlier starts minted for theirs are revoked.
     """
     from dirigent_core.audit import act_as, host
-    from dirigent_core.auth import issue_token, list_users
+    from dirigent_core.auth import issue_token, list_tokens, list_users, revoke_token
     from dirigent_core.database import create_engine, create_session_factory, session_scope
 
     engine = create_engine(settings)
@@ -1605,6 +1663,9 @@ async def seed_token(settings: Settings) -> str:
                     problems=[Issue.of(CREATE_AN_ADMIN)],
                 )
                 raise typer.Exit(code=commands.GUARD_EXIT)
+            for earlier in await list_tokens(session):
+                if earlier.name == SEED_TOKEN_NAME and earlier.revoked_at is None:
+                    await revoke_token(session, earlier.id)
             issued = await issue_token(session, admins[0], name=SEED_TOKEN_NAME, lifetime=SEED_TOKEN_LIFETIME)
             return issued.secret.get_secret_value()
     finally:
