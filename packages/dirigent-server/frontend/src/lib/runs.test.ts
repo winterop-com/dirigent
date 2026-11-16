@@ -1,5 +1,6 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
+import { apiSend } from '@/lib/api'
 import { shortId } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 
@@ -11,6 +12,7 @@ import {
     narrowed,
     priorityMark,
     replySent,
+    rerunRun,
     runReportLink,
     runsLink,
     runsPath,
@@ -22,6 +24,15 @@ import {
     type RunOut,
     runVerbs,
 } from '@/lib/runs'
+
+vi.mock('@/lib/api', async (original) => ({
+    ...(await original<typeof import('@/lib/api')>()),
+    apiSend: vi.fn(),
+}))
+
+afterEach(() => {
+    vi.resetAllMocks()
+})
 
 const RUN: RunOut = {
     id: '11111111-1111-7111-8111-111111111111',
@@ -360,5 +371,14 @@ describe("a run's four verbs", () => {
     test('a paused run resumes and cancels', () => {
         const verbs = runVerbs('paused')
         expect([verbs.pause.open, verbs.resume.open, verbs.cancel.open]).toEqual([false, true, true])
+    })
+})
+
+describe('rerunning a run', () => {
+    test("posts to the run's own $rerun, not to its pipeline's $run", async () => {
+        vi.mocked(apiSend).mockResolvedValue({ run_id: 'new', status: 'queued', detail: null })
+        const accepted = await rerunRun('11111111-1111-7111-8111-111111111111')
+        expect(apiSend).toHaveBeenCalledWith('/runs/11111111-1111-7111-8111-111111111111/$rerun', 'POST', {})
+        expect(accepted).toEqual({ run_id: 'new', status: 'queued', detail: null })
     })
 })

@@ -34,7 +34,7 @@ import { LABELS } from '@/lib/labels'
 import { problemsIn, refusalLine, refusalOf } from '@/lib/refusal'
 import { fillPanel, openPanel, openPanelTab, panelOpen, panelSheet, type PanelTab } from '@/lib/panels'
 import { RUN_GROUP, registerActions } from '@/lib/palette'
-import { readPipeline, startRun, stepsOf } from '@/lib/pipelines'
+import { readPipeline, stepsOf } from '@/lib/pipelines'
 import { decodeFrame, reduce, resumeCursor, stepViews, type RunDetailState } from '@/lib/run-detail'
 import { follow } from '@/lib/run-stream'
 import {
@@ -43,6 +43,7 @@ import {
     priorityMark,
     readReport,
     readRun,
+    rerunRun,
     resumeRun,
     runVerbs,
     startedBy,
@@ -288,18 +289,12 @@ export function RunDetail() {
         openPanelTab('step')
     }
 
-    // A RE-RUN CARRIES THE WINDOW THE RUN CARRIED. What a windowed run covers is a fact about
-    // that run, and a repeat of it over no interval at all would stop at the first step reading
-    // an edge of one.
+    // Rerun asks the server to replay this settled run on the version it pinned, with the input
+    // it entered at its source, and opens the run that answers.
     const rerun = useMemo(() => {
-        if (state === null) return null
-        const run = state.run
-        const window =
-            run.window_start === null || run.window_end === null
-                ? null
-                : { window_start: run.window_start, window_end: run.window_end }
+        if (!settled) return null
         return () => {
-            void startRun(run.pipeline, run.params, null, window).then((accepted) => {
+            void rerunRun(id).then((accepted) => {
                 if (accepted.run_id === null) {
                     toast.warning(accepted.detail ?? LABELS.runs.nothing_started(accepted.status))
                     return
@@ -307,7 +302,7 @@ export function RunDetail() {
                 void navigate(`/runs/${accepted.run_id}`)
             }, sayRefusal)
         }
-    }, [navigate, state])
+    }, [id, navigate, settled])
 
     // A verb that changes what the run is doing answers with the run, which is folded in like a frame.
     const pause = () => {
@@ -396,7 +391,7 @@ export function RunDetail() {
                           group: shelf,
                           screen: true,
                           icon: ICONS.rerun,
-                          keywords: ['repeat', 'retry'],
+                          keywords: ['again', 'repeat', 'retry'],
                           run: rerun,
                       },
                   ]),
