@@ -61,13 +61,38 @@ def test_a_bare_number_is_a_count_of_bytes(value: int) -> None:
 
 @pytest.mark.parametrize(
     "text",
-    ["", "abc", "mb", "64 mb", "64m", "1pb", "1.5b", "0.5b", "nan", "inf", "-1kb", "64mb64kb"],
+    [
+        "",
+        "abc",
+        "mb",
+        "64 mb",
+        "64m",
+        "1pb",
+        "1.5b",
+        "0.5b",
+        "nan",
+        "inf",
+        "-1kb",
+        "64mb64kb",
+        "5ib",
+        "5iB",
+        "1e3",
+        "1_0",
+        "+5",
+        "\u0661\u0662",
+    ],
 )
 def test_a_size_the_grammar_does_not_define_is_refused(text: str) -> None:
     with pytest.raises(SizeError):
         parse_size(text)
     with pytest.raises(ValidationError):
         Bounded(cap=cast("Size", text))
+
+
+def test_a_size_is_read_exactly_however_many_digits_it_has() -> None:
+    assert parse_size("9007199254740993") == 9007199254740993
+    assert parse_size("9007199254740993kb") == 9007199254740993 * 1024
+    assert parse_size("1.5gb") == 1536 * 1024**2
 
 
 def test_a_boolean_is_not_a_size() -> None:

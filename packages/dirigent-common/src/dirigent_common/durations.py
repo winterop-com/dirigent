@@ -1,5 +1,6 @@
 """Humane durations: ``30s`` and ``5m`` in a document, ``timedelta`` in the engine."""
 
+import math
 import re
 from datetime import timedelta
 from typing import Annotated, Any, Final, cast
@@ -20,11 +21,14 @@ UNITS: Final[tuple[tuple[str, float], ...]] = (
     ("ms", 0.001),
 )
 
-_TERM: Final = re.compile(r"(\d+(?:\.\d+)?)(ms|[wdhms])")
+_TERM: Final = re.compile(r"(\d+(?:\.\d+)?)(ms|[wdhms])", re.ASCII)
+
+#: A bare number of seconds, signed so that a negative one is refused as negative.
+_SECONDS: Final = re.compile(r"-?\d+(?:\.\d+)?", re.ASCII)
 
 #: A whole duration: one or more suffixed terms. Public, because it is the grammar an export
 #: must never write outside of.
-DURATION_PATTERN: Final = re.compile(r"^(?:\d+(?:\.\d+)?(?:ms|[wdhms]))+$")
+DURATION_PATTERN: Final = re.compile(r"^(?:\d+(?:\.\d+)?(?:ms|[wdhms]))+$", re.ASCII)
 
 #: The same grammar spelled for JSON Schema, with the bare number of seconds allowed as well.
 DURATION_JSON_PATTERN: Final = r"^(?:(?:\d+(?:\.\d+)?(?:ms|[wdhms]))+|\d+(?:\.\d+)?)$"
@@ -49,14 +53,17 @@ class DurationError(ValueError):
 
 
 def parse_duration(value: object) -> object:
-    """Turn a humane duration string into a timedelta, passing anything else through."""
+    """Turn a humane duration string into a timedelta, passing anything else through.
+
+    A number or a string is held to whole milliseconds, the finest unit the grammar writes.
+    """
     match value:
         case timedelta():
             return value
         case bool():
             raise DurationError(value)
         case int() | float():
-            return timedelta(seconds=float(value))
+            return _of_seconds(float(value), value)
         case str():
             return _parse_text(value.strip())
         case _:
@@ -65,17 +72,23 @@ def parse_duration(value: object) -> object:
 
 def _parse_text(text: str) -> timedelta:
     """Parse the string form: a bare number of seconds, or a sequence of suffixed terms."""
-    if not text:
-        raise DurationError(text)
-    try:
-        return timedelta(seconds=float(text))
-    except ValueError:
-        pass
+    if _SECONDS.fullmatch(text) is not None:
+        return _of_seconds(float(text), text)
     if DURATION_PATTERN.fullmatch(text) is None:
         raise DurationError(text)
     lengths = dict(UNITS)
     seconds = sum(float(amount) * lengths[unit] for amount, unit in _TERM.findall(text))
-    return timedelta(seconds=seconds)
+    return _of_seconds(seconds, text)
+
+
+def _of_seconds(seconds: float, written: object) -> timedelta:
+    """Build the timedelta of whole milliseconds nearest ``seconds``, refusing what one cannot hold."""
+    if not math.isfinite(seconds):
+        raise DurationError(written)
+    try:
+        return timedelta(milliseconds=round(seconds * 1000))
+    except OverflowError:
+        raise DurationError(written) from None
 
 
 def to_timedelta(value: object) -> timedelta:
