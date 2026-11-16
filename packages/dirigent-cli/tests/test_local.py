@@ -53,7 +53,7 @@ from dirigent_core.documents import load_pipeline_text as load_text
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import create_run, save_pipeline
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.models import Base, LogEntry, StepAttempt
+from dirigent_core.models import Base, LogEntry, Run, StepAttempt
 from dirigent_core.plugins import load_plugin_host
 from dirigent_core.protocol import parse
 
@@ -1431,6 +1431,10 @@ class _IdleWorker:
         """Let the run loop finish."""
         self._stopped.set()
 
+    def cancel_in_flight(self) -> list[asyncio.Task[None]]:
+        """Hand back no attempts, since this worker never claims one."""
+        return []
+
 
 async def test_the_local_driver_widens_its_poll_when_nothing_moves(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -1452,7 +1456,7 @@ async def test_the_local_driver_widens_its_poll_when_nothing_moves(
 
     monkeypatch.setattr(local.wakeups, "wait_settled", recording)
     with pytest.raises(_StopDriving):
-        async for _event in _drive(sessions, services, run_id, "paged", {}, [], 600.0):
+        async for _event in _drive(sessions, services, run_id, "paged", {}, [], None):
             pass
     widening = [POLL_SECONDS * POLL_WIDEN**step for step in range(QUIET_TICKS)]
     assert intervals[:QUIET_TICKS] == pytest.approx([min(seconds, POLL_CEILING) for seconds in widening])
@@ -1561,3 +1565,130 @@ def test_an_input_that_is_not_json_or_yaml_is_refused(tmp_path: Path) -> None:
     result = invoke("--json", "run", "--local", str(write(tmp_path, ECHO_BY_HAND)), "--input", "{unclosed: [")
     assert result.exit_code != 0
     assert "--input is not JSON or YAML" in result.stdout
+
+
+def test_a_second_run_under_the_same_root_takes_its_connections_again(tmp_path: Path) -> None:
+    """A kept instance already holds the connection's code, and a run given it again replaces it."""
+    root = tmp_path / "instance"
+    connections = tmp_path / "c.yaml"
+    connections.write_text("warehouse:\n  kind: http\n  config:\n    base_url: https://warehouse.example.org\n")
+    document = str(write(tmp_path, HELLO))
+    argv = ("run", "--local", "--root", str(root), document, "--connections", str(connections))
+    first = invoke(*argv, "--enable-unsafe", "shell.run")
+    assert first.exit_code == 0, first.output
+    second = invoke(*argv, "--enable-unsafe", "shell.run")
+    assert second.exit_code == 0, second.output
+    assert closing(second.stdout)["message"] == "succeeded"
+
+
+def test_a_kept_instance_seals_with_the_same_key_every_run(tmp_path: Path) -> None:
+    """What one run under a root sealed, the next run under it can open."""
+    first = local.local_settings(tmp_path, inherited=Settings())
+    second = local.local_settings(tmp_path, inherited=Settings())
+    assert first.secret_key is not None and second.secret_key is not None
+    assert first.secret_key.get_secret_value() == second.secret_key.get_secret_value()
+    assert (tmp_path / local.KEY_FILE).stat().st_mode & 0o777 == 0o600
+
+
+LONG_SLEEP = """
+format: dirigent/v1
+kind: pipeline
+code: local-long
+description: One command far longer than any test.
+steps:
+  wait:
+    block: shell.run
+    config:
+      argv: [sleep, "120"]
+"""
+
+#: The settings a long local run is given: the host's, with the shell allowed.
+SHELL_ALLOWED = Settings(enabled_unsafe_blocks=["shell.run"])
+
+
+async def _let_the_killed_command_close() -> None:
+    """Give the loop a moment to close the pipes of the command the run's stop killed, before the test's loop ends."""
+    await asyncio.sleep(2)
+
+
+async def _until_running(stream: Any) -> None:
+    """Read a local run's stream until its step is running."""
+    async for item in stream:
+        if isinstance(item, local.StepTransition) and item.status is AttemptStatus.RUNNING:
+            return
+
+
+async def test_a_local_run_has_no_deadline_unless_one_is_given() -> None:
+    import inspect
+
+    assert inspect.signature(local.run_document).parameters["deadline"].default is None
+
+
+async def test_a_local_run_past_its_deadline_stops_its_step_and_fails(tmp_path: Path) -> None:
+    started = time.monotonic()
+    outcome = None
+    async for item in local.run_document(LONG_SLEEP, inherited=SHELL_ALLOWED, deadline=timedelta(seconds=1)):
+        if isinstance(item, local.LocalOutcome):
+            outcome = item
+    assert outcome is not None
+    assert outcome.status.value == "failed"
+    assert outcome.error == "the run did not finish within 1s"
+    assert time.monotonic() - started < 30, "the overdue step is stopped, not waited on"
+    await _let_the_killed_command_close()
+
+
+async def test_an_interrupted_local_run_stops_its_step_and_settles_cancelled(tmp_path: Path) -> None:
+    root = tmp_path / "instance"
+    stream = local.run_document(LONG_SLEEP, inherited=SHELL_ALLOWED, root=root)
+    await asyncio.wait_for(_until_running(stream), timeout=60)
+    started = time.monotonic()
+    await stream.aclose()
+    assert time.monotonic() - started < 30, "the running step is cancelled, not drained"
+    await _let_the_killed_command_close()
+    engine = create_engine(local.local_settings(root, inherited=Settings()))
+    try:
+        async with create_session_factory(engine)() as session:
+            statuses = list((await session.execute(sa.select(Run.status))).scalars())
+    finally:
+        await engine.dispose()
+    assert [status.value for status in statuses] == ["cancelled"]
+
+
+async def test_an_interrupted_local_run_closes_its_stream_with_a_cancelled_record(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from dirigent_cli.commands import (
+        INTERRUPTED_EXIT,
+        _stream_local,  # pyright: ignore[reportPrivateUsage] - the driver an interrupt lands in
+    )
+    from dirigent_cli.context import CliState
+
+    driving = asyncio.ensure_future(_stream_local(LONG_SLEEP, {}, [], [], [], SHELL_ALLOWED, state=CliState()))
+    for _ in range(600):
+        if any(record.get("message") == "running" for record in _json_lines(capsys.readouterr().out)):
+            break
+        await asyncio.sleep(0.1)
+    driving.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await driving
+    await _let_the_killed_command_close()
+    closed = of_kind(_json_lines(capsys.readouterr().out), "run")[-1]
+    assert closed["message"] == "cancelled"
+    assert closed["exit_code"] == INTERRUPTED_EXIT
+
+
+def _json_lines(out: str) -> list[dict[str, Any]]:
+    """Read the records out of a capture that also holds the engine's own unconfigured log lines."""
+    return records("\n".join(line for line in out.splitlines() if line.startswith("{")))
+
+
+def test_deadline_without_local_is_refused() -> None:
+    result = invoke("run", "some-pipeline", "--deadline", "10m")
+    assert result.exit_code == 1
+    assert "--deadline" in refusal(result.stdout)["message"]
+
+
+def test_a_deadline_that_is_not_a_duration_is_refused(tmp_path: Path) -> None:
+    result = invoke("run", "--local", str(write(tmp_path, SLEEPS)), "--deadline", "soon")
+    assert result.exit_code == 1
+    assert "--deadline" in refusal(result.stdout)["message"]

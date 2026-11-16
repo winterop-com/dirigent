@@ -2015,6 +2015,7 @@ VALUE_OPTIONS = frozenset(
         "--pipeline",
         "--since",
         "--enable-unsafe",
+        "--deadline",
     }
 )
 

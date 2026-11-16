@@ -432,6 +432,35 @@ def test_apply_creates_then_reports_unchanged(tmp_path: Path, server: str) -> No
     assert "unchanged" in again.output
 
 
+ASKED = """
+format: dirigent/v1
+kind: pipeline
+code: asked
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /asked
+      auth: {kind: token}
+  shape:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output.body}
+      program: '.'
+"""
+
+
+def test_running_a_document_writes_the_apply_record_and_the_token_it_minted(tmp_path: Path, server: str) -> None:
+    path = tmp_path / "asked.yaml"
+    path.write_text(ASKED)
+    result = machine("run", str(path), "--input", "{}")
+    assert result.exit_code == 0, result.output
+    applied = only(result.stdout, "apply")["fields"]
+    assert applied["plan"]["action"] == "create"
+    assert [minted["code"] for minted in applied["sources"]["tokens"]] == ["ask"]
+
+
 def _project(tmp_path: Path, *codes: str) -> Path:
     """A project whose pipelines directory holds one document per code."""
     (tmp_path / "dirigent.yaml").write_text("project:\n  pipelines: pipelines\n")

@@ -43,6 +43,7 @@ from dirigent_cli.messages import (
     CANNOT_PROMPT_SECRET,
     CANNOT_PROMPT_SET,
     CONCURRENCY_REFUSED,
+    DEADLINE_IS_LOCAL_ONLY,
     DOCUMENT_INVALID,
     EMPTY_SECRET_ON_STDIN,
     GUARD_REFUSED,
@@ -68,6 +69,7 @@ from dirigent_cli.messages import (
     NO_SUCH_BLOCK,
     NO_SUCH_EXAMPLE,
     NOT_A_BLOCK_KIND,
+    NOT_A_DEADLINE,
     NOT_A_PIPELINE_CODE,
     NOT_A_PRIORITY,
     NOT_A_RUN_STATUS,
@@ -190,6 +192,7 @@ from dirigent_client import (
 from dirigent_client.schemas import ConnectionKindEntry, SurfaceEntry, TokenLifetime
 from dirigent_client.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_common import Issue, JsonMap, Message, bounded_load, is_entity_name
+from dirigent_common.durations import DurationError, parse_duration
 from dirigent_core import migrations
 from dirigent_core.config import STATE_DIR, Settings
 from dirigent_core.connections import said
@@ -217,6 +220,9 @@ FAILURE_LOG_LINES = 20
 # Refused before any work started. Distinct from 1 ("it ran and the answer was no") and
 # from Click's own 2 for a usage error.
 GUARD_EXIT = 3
+
+#: What a run stopped by SIGINT exits with, the shell's 128 plus the signal's number.
+INTERRUPTED_EXIT = 130
 
 pipeline_app = typer.Typer(name="pipeline", help="Inspect and manage stored pipelines.", no_args_is_help=True)
 runs_app = typer.Typer(name="runs", help="Runs held by this instance.", no_args_is_help=True)
@@ -1353,6 +1359,13 @@ def run_command(
         Path | None,
         typer.Option("--root", help="Hold a --local run's instance in DIR and keep it, so a later run reads it."),
     ] = None,
+    deadline: Annotated[
+        str | None,
+        typer.Option(
+            "--deadline",
+            help="How long a --local run may take before it is stopped and failed, such as 30m. Omitted is no limit.",
+        ),
+    ] = None,
     window: Annotated[
         str | None,
         typer.Option("--window", help="The logical interval this run covers, as START..END in ISO 8601."),
@@ -1400,6 +1413,9 @@ def run_command(
         fail(KEEP_IS_LOCAL_ONLY)
     if root is not None and not local:
         fail(ROOT_IS_LOCAL_ONLY)
+    if deadline is not None and not local:
+        fail(DEADLINE_IS_LOCAL_ONLY)
+    bound = parse_deadline(deadline)
     covered = parse_window(window)
     levels = parse_log_levels(log_level)
     wanted = parse_priority(priority)
@@ -1421,6 +1437,7 @@ def run_command(
             strict=strict,
             keep=keep,
             root=root,
+            deadline=bound,
             source=source,
             given=arrives,
         )
@@ -1435,7 +1452,7 @@ def run_command(
             except (SourceError, DocumentError) as error:
                 fail(SOURCE_REFUSED, detail=str(error))
             result = _apply_one(dg, document, code=as_code, dry_run=False)
-            if not _print_plan(result, document.label):
+            if not _report_run_apply(result, document.label, state=state, base_url=dg.url):
                 if state.json_output:
                     emit_problem(
                         DOCUMENT_INVALID,
@@ -1468,6 +1485,29 @@ def run_command(
         )
         if watch:
             _watch(dg, accepted.run_id, code, strict=strict, state=state)
+
+
+def parse_deadline(value: str | None) -> timedelta | None:
+    """Read --deadline, a humane duration, refusing anything that is not a positive one."""
+    if value is None:
+        return None
+    try:
+        bound = parse_duration(value)
+    except DurationError:
+        bound = None
+    if not isinstance(bound, timedelta) or bound <= timedelta(0):
+        fail(NOT_A_DEADLINE, value=repr(value))
+    return bound
+
+
+def _report_run_apply(result: ApplyResult, origin: str, *, state: CliState, base_url: str) -> bool:
+    """Say what the apply before a run did, tokens it minted included, and whether it was accepted."""
+    if state.json_output:
+        emit_records("apply", [result])
+        return result.plan.action is not PlanAction.INVALID
+    accepted = _print_plan(result, origin)
+    _print_source_tokens(result, base_url=base_url)
+    return accepted
 
 
 def _report_skipped(accepted: RunAccepted, *, state: CliState) -> None:
@@ -1550,6 +1590,7 @@ def _run_locally(
     strict: bool,
     keep: bool = False,
     root: Path | None = None,
+    deadline: timedelta | None = None,
     source: str | None = None,
     given: Any = None,
 ) -> None:
@@ -1581,6 +1622,7 @@ def _run_locally(
             state=state,
             keep=keep,
             root=root,
+            deadline=deadline,
             source=source,
             given=given,
         )
@@ -1623,11 +1665,17 @@ async def _stream_local(
     state: CliState,
     keep: bool = False,
     root: Path | None = None,
+    deadline: timedelta | None = None,
     source: str | None = None,
     given: Any = None,
 ) -> LocalOutcome | None:
-    """Drive a local run, printing each transition and log line as it lands."""
+    """Drive a local run, printing each transition and log line as it lands.
+
+    An interrupted run is closed with a ``run`` record saying it was cancelled, written after
+    its running steps were stopped.
+    """
     outcome: LocalOutcome | None = None
+    started: LocalStarted | None = None
     covered = RunWindow(start=window[0], end=window[1]) if window else None
     try:
         async for item in run_document(
@@ -1641,11 +1689,13 @@ async def _stream_local(
             inherited=settings,
             keep=keep,
             root=root,
+            deadline=deadline,
             source=source,
             given=given,
         ):
             match item:
                 case LocalStarted():
+                    started = item
                     track_steps(item.steps)
                     sink(state).event(
                         "run",
@@ -1663,6 +1713,18 @@ async def _stream_local(
                     _show_log(item, state=state)
                 case LocalOutcome():
                     outcome = item
+    except asyncio.CancelledError:
+        if started is not None and outcome is None:
+            sink(state).event(
+                "run",
+                level="error",
+                message=RunStatus.CANCELLED.value,
+                pipeline=started.pipeline,
+                run_id=str(started.run_id),
+                exit_code=INTERRUPTED_EXIT,
+                error="interrupted",
+            )
+        raise
     except LocalError as error:
         unsafe = list(error.unsafe_blocks)
         remedies = (
@@ -1906,18 +1968,18 @@ def in_run_order(attempts: Sequence[AttemptOut], items: Sequence[ItemOut], steps
     return in_execution_order(attempts, positions, steps)
 
 
-def transition_event(attempt: AttemptEvent, seen: dict[str, str]) -> list[WatchEvent]:
+def transition_event(attempt: AttemptEvent, seen: dict[UUID, AttemptStatus]) -> list[WatchEvent]:
     """Report one streamed attempt when it has moved since the stream last named it.
 
     The server replays every attempt on connect and after a reconnection, so an attempt in a
     state already printed is nothing to say. A queued attempt has neither started nor
     finished, so the moment it reached the state it is being announced in is when it was
-    written down.
+    written down. Every element of a fan-out is attempt 1 of the same step, and an element may
+    stream before its label is readable, so the attempt's id is what tells two of them apart.
     """
-    key = f"{attempt.step_name}#{attempt.item or ''}#{attempt.attempt}"
-    if seen.get(key) == attempt.status.value or attempt.status is AttemptStatus.PENDING:
+    if seen.get(attempt.id) is attempt.status or attempt.status is AttemptStatus.PENDING:
         return []
-    seen[key] = attempt.status.value
+    seen[attempt.id] = attempt.status
     when = attempt.finished_at or attempt.started_at or attempt.created_at
     return [(moment_of(when), _TRANSITION_FIRST, attempt, attempt.item)]
 
@@ -1985,7 +2047,7 @@ def _watch(dg: Session, run_id: UUID, pipeline: str, *, strict: bool, state: Cli
     The stream ends with the run's terminal state; the closing record is read from the run
     detail and the report.
     """
-    seen: dict[str, str] = {}
+    seen: dict[UUID, AttemptStatus] = {}
     labels: dict[UUID, str] = {}
     # A step's colour follows the order the document wrote it in, which the stream never states.
     track_steps(node.code for node in dg.call(dg.runs.get(run_id)).dag.nodes)

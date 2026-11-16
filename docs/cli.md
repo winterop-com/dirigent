@@ -561,6 +561,10 @@ dg run https://example.org/daily-load.yaml      # a URL works too
 dg run --local ./daily-load.yaml                # no server anywhere
 ```
 
+Running a document applies it first, and says so the way `dg apply` does: an `apply` record
+with the plan, and the token or signing secret the apply minted for each new source, shown
+once.
+
 `--local` needs the things a serverless run has nowhere to read from:
 
 ```bash
@@ -609,6 +613,16 @@ there, so a document whose second run reads what its first one wrote -- a marker
 dg run --local --root /tmp/rehearsal ./document.yaml --window 2026-09-05..2026-09-06
 dg run --local --root /tmp/rehearsal ./document.yaml --window 2026-09-06..2026-09-07
 ```
+
+The instance's key lives beside its database as `secret.key`, so what one run under a root
+sealed the next can open, and the connections a run is given replace the ones under the same
+code that an earlier run left there.
+
+A local run has no time limit of its own; its document's deadlines bound each step.
+`--deadline` bounds the whole run, such as `--deadline 30m`: past it the running steps are
+stopped and the run fails. Ctrl-C stops a local run the same way: the running steps are
+cancelled, given a few seconds to end what they started, and the stream closes with a `run`
+record saying `cancelled` and `exit_code` 130.
 
 `--also-apply` applies a document without running it, which is what a pipeline composed of
 other pipelines needs: a throwaway instance starts empty, and `pipeline.run` can only start a
@@ -1263,6 +1277,7 @@ dg run ... [--log-level debug] [--log-level acme.*=debug]   # what the run's log
 dg run ... [--priority low|normal|high]                      # how far ahead of other runs it is claimed
 dg run --local file|url [--connections FILE] [--schema FILE] [--enable-unsafe BLOCK,...] [--also-apply FILE] [--keep]
 dg run --local ... [--root DIR]                              # hold the instance in DIR and keep it, so a later run reads it
+dg run --local ... [--deadline 30m]                          # stop and fail the run past this; no limit when omitted
 dg backfill PIPELINE --schedule CODE --from A --to B [--dry-run]
 dg runs list [--pipeline CODE] [--status failed] [--since 24h] [--tag nightly] [--limit 50]
 dg runs stats [--since 7d] [--pipeline CODE] [--tag nightly]   # per day, durations, top errors, failing steps

@@ -173,6 +173,13 @@ ROOT_IS_LOCAL_ONLY = CLI.define(
     "--root holds a --local run's instance in a directory; a real instance has its own",
 )
 
+DEADLINE_IS_LOCAL_ONLY = CLI.define(
+    "deadline_is_local_only",
+    "--deadline bounds a --local run; a run on an instance is bounded by its document's deadlines",
+)
+
+NOT_A_DEADLINE = CLI.define("not_a_deadline", "--deadline {value} is not a duration such as 30m or 2h")
+
 PRIORITY_IS_NOT_LOCAL = CLI.define(
     "priority_is_not_local",
     "--priority orders a run against the others queued, and a --local run has none",

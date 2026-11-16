@@ -3,7 +3,7 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from typer.testing import CliRunner
@@ -20,7 +20,7 @@ from dirigent_cli.main import app
 from dirigent_cli.output import Detail, configure
 from dirigent_cli.stream import Sink
 from dirigent_client import AttemptEvent, DagView, LogEntryOut, RunDetail, RunOut, RunReport, StepReport
-from dirigent_client.enums import RunStatus
+from dirigent_client.enums import AttemptStatus, RunStatus
 
 runner = CliRunner(env={"COLUMNS": "200", "TERMINAL_WIDTH": "200"})
 
@@ -68,7 +68,7 @@ def attempt(
     )
 
 
-def transitions(*attempts: AttemptEvent, seen: dict[str, str] | None = None) -> list[Any]:
+def transitions(*attempts: AttemptEvent, seen: dict[UUID, AttemptStatus] | None = None) -> list[Any]:
     """Read a stream's attempt events the way the watch does, in the order they arrived."""
     tracked = {} if seen is None else seen
     return [event for row in attempts for event in transition_event(row, tracked)]
@@ -159,12 +159,21 @@ def test_a_transition_the_server_put_no_clock_on_is_stamped_when_the_watch_saw_i
 
 def test_an_attempt_is_announced_once_per_state_it_reaches() -> None:
     """The cursor is the state, not the attempt: a replayed attempt must not print twice."""
-    seen: dict[str, str] = {}
+    seen: dict[UUID, AttemptStatus] = {}
     running = attempt("fetch", "running", started="2026-01-01T00:00:01+00:00")
     assert len(transitions(running, seen=seen)) == 1
     assert transitions(running, seen=seen) == []
-    settled = attempt("fetch", "succeeded", started="2026-01-01T00:00:01+00:00", finished="2026-01-01T00:00:02+00:00")
+    settled = running.model_copy(
+        update={"status": AttemptStatus.SUCCEEDED, "finished_at": datetime(2026, 1, 1, 0, 0, 2, tzinfo=UTC)}
+    )
     assert len(transitions(settled, seen=seen)) == 1
+
+
+@pytest.mark.parametrize("labels", [[None, None, None], ["1", "1", "1"]])
+def test_every_element_of_a_fan_out_is_announced_though_their_labels_collide(labels: list[str | None]) -> None:
+    """Fan-out elements are each attempt 1 of one step; an unread or repeated label must not merge them."""
+    elements = [attempt("fan", "running", started="2026-01-01T00:00:01+00:00", item=label) for label in labels]
+    assert len(transitions(*elements)) == 3
 
 
 def test_a_pending_attempt_is_not_news() -> None:

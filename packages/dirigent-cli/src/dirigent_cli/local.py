@@ -2,10 +2,11 @@
 
 import asyncio
 import contextlib
+import os
 import shutil
 import tempfile
 import time
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Final, cast
@@ -18,14 +19,14 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunStatus, TriggerKind
 from dirigent_client.schemas import ValidationIssue
-from dirigent_common import JsonMap
+from dirigent_common import JsonMap, format_duration
 from dirigent_core import migrations, wakeups
 from dirigent_core.config import Settings, get_settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
 from dirigent_core.documents import DocumentError, load_pipeline_text, safe_load
 from dirigent_core.engine import Attribution, ParameterError, create_run
 from dirigent_core.engine.definition import PipelineDefinition
-from dirigent_core.engine.runs import RunCreationError, RunWindow
+from dirigent_core.engine.runs import RunCreationError, RunWindow, cancel_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import in_execution_order
 from dirigent_core.messages import STEP_UNSAFE_BLOCK
@@ -48,7 +49,11 @@ POLL_CEILING: Final = 1.0
 #: rather than held in memory.
 LOCAL_LOG_PAGE: Final = 500
 
-DEFAULT_DEADLINE_SECONDS: Final = 600.0
+#: How long the steps cancelled by an interrupted or overdue run get to end what they started.
+ABANDON_SECONDS: Final = 5.0
+
+#: The file beside a local instance's database that holds the key its secrets are sealed with.
+KEY_FILE: Final = "secret.key"
 
 TERMINAL: Final = (
     RunStatus.SUCCEEDED,
@@ -338,7 +343,7 @@ def local_settings(root: Path, *, inherited: Settings | None = None) -> Settings
         database_url=f"sqlite+aiosqlite:///{root / 'dirigent.db'}",
         artifact_root=f"file://{root / 'artifacts'}",
         work_root=str(root / "work"),
-        secret_key=SecretStr(generate_key()),
+        secret_key=SecretStr(instance_key(root)),
         secret_key_file=None,
         enabled_unsafe_blocks=list(base.enabled_unsafe_blocks),
         storage_connections=dict(base.storage_connections),
@@ -352,12 +357,24 @@ def local_settings(root: Path, *, inherited: Settings | None = None) -> Settings
     )
 
 
+def instance_key(root: Path) -> str:
+    """Read the key a local instance seals with, minting it beside the database on first use."""
+    path = root / KEY_FILE
+    if path.is_file():
+        return path.read_text().strip()
+    key = generate_key()
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w") as handle:
+        handle.write(key)
+    return key
+
+
 async def _seed_connections(
     sessions: async_sessionmaker[AsyncSession],
     services: EngineServices,
     specs: Sequence[ConnectionSpec],
 ) -> None:
-    """Store the connections a local run was given, sealed with its ephemeral key."""
+    """Store the connections a local run was given, sealed with its key, replacing any held under the same code."""
     for spec in specs:
         contributed = services.host.connection_kinds.get(spec.kind)
         if contributed is None:
@@ -366,17 +383,16 @@ async def _seed_connections(
         validated = contributed.config_model.model_validate(spec.config)
         public, envelope, key_id = services.secrets.encrypt_config(contributed.config_model, validated)
         async with session_scope(sessions) as session:
-            session.add(
-                Connection(
-                    code=spec.code,
-                    name=spec.name,
-                    kind=spec.kind,
-                    description=spec.description,
-                    config=public,
-                    secret_envelope=envelope,
-                    secret_key_id=key_id,
-                )
-            )
+            held = await session.scalar(sa.select(Connection).where(Connection.code == spec.code))
+            row = held or Connection(code=spec.code)
+            row.name = spec.name
+            row.kind = spec.kind
+            row.description = spec.description
+            row.config = public
+            row.secret_envelope = envelope
+            row.secret_key_id = key_id
+            if held is None:
+                session.add(row)
 
 
 async def _seed_schemas(
@@ -680,17 +696,18 @@ async def run_document(
     schemas: Sequence[SchemaSpec] = (),
     also: Sequence[str] = (),
     inherited: Settings | None = None,
-    deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
+    deadline: timedelta | None = None,
     keep: bool = False,
     root: Path | None = None,
     source: str | None = None,
     given: JsonValue = None,
-) -> AsyncIterator[LocalStarted | LogLine | StepTransition | LocalOutcome]:
+) -> AsyncGenerator[LocalStarted | LogLine | StepTransition | LocalOutcome]:
     """Apply and run a document in a throwaway instance, yielding logs then the outcome.
 
     The last item yielded is always the outcome. ``also`` holds documents to apply first
     and not run, for a pipeline that composes another one. ``root`` names a directory to hold
-    the instance in and keep, so a later run reads what this one wrote. A pipeline with
+    the instance in and keep, so a later run reads what this one wrote. ``deadline`` bounds the
+    whole run, which is otherwise bounded only by its document's own deadlines. A pipeline with
     sources is entered at ``source``, its only one when that is omitted, with ``given`` as the
     input, or the source's sample when that is omitted.
     """
@@ -750,10 +767,10 @@ async def run_document(
             )
             kept = {"kept_at": held, "scratch": scratch}
             edges = {name: list(step.depends_on) for name, step in definition.steps.items()}
-            async for item in _drive(
-                sessions, services, run_id, definition.code, edges, list(definition.steps), deadline_seconds
-            ):
-                yield item.model_copy(update=kept) if leave and isinstance(item, LocalOutcome) else item
+            driven = _drive(sessions, services, run_id, definition.code, edges, list(definition.steps), deadline)
+            async with contextlib.aclosing(driven):
+                async for item in driven:
+                    yield item.model_copy(update=kept) if leave and isinstance(item, LocalOutcome) else item
         finally:
             await engine.dispose()
     finally:
@@ -823,18 +840,24 @@ async def _drive(
     pipeline: str,
     edges: Mapping[str, Sequence[str]],
     order: Sequence[str],
-    deadline_seconds: float,
-) -> AsyncIterator[LogLine | StepTransition | LocalOutcome]:
-    """Run an embedded worker until the run settles, streaming transitions and logs."""
+    deadline: timedelta | None,
+) -> AsyncGenerator[LogLine | StepTransition | LocalOutcome]:
+    """Run an embedded worker until the run settles, streaming transitions and logs.
+
+    A run that is past its deadline, or whose driver is cancelled, is stopped rather than
+    waited on: its running steps are cancelled and the run is settled as cancelled.
+    """
     worker = Worker(sessions, services, name="local", sweeper=False)
     task = asyncio.create_task(worker.run())
     cursor = 0
     waited = 0.0
+    limit = deadline.total_seconds() if deadline is not None else None
     interval = POLL_SECONDS
     seen: dict[UUID, AttemptStatus] = {}
     items = _Items()
+    settled = False
     try:
-        while waited < deadline_seconds:
+        while limit is None or waited < limit:
             # The mark is taken before the read, so a commit landing between the read and the
             # wait below still wakes it.
             mark = wakeups.settled_mark(run_id)
@@ -852,6 +875,7 @@ async def _drive(
                 if not more:
                     break
             if tick.status in TERMINAL:
+                settled = True
                 yield LocalOutcome(
                     run_id=run_id,
                     pipeline=pipeline,
@@ -865,15 +889,35 @@ async def _drive(
             paused = time.monotonic()
             await wakeups.wait_settled(mark, timeout=interval)
             waited += time.monotonic() - paused
+        await _abandon(sessions, services, worker, run_id)
+        settled = True
         yield LocalOutcome(
             run_id=run_id,
             pipeline=pipeline,
             status=RunStatus.FAILED,
-            error=f"the run did not finish within {deadline_seconds:.0f}s",
+            error=f"the run did not finish within {format_duration(cast('timedelta', deadline))}",
             failures=await _failures(sessions, run_id, order),
             results=await _results(sessions, run_id, edges, order),
         )
     finally:
         worker.request_stop()
+        if not settled:
+            await _abandon(sessions, services, worker, run_id)
         with contextlib.suppress(asyncio.CancelledError):
             await task
+
+
+async def _abandon(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, worker: Worker, run_id: UUID
+) -> None:
+    """Cancel the steps still running, give them a bounded moment to end, and settle the run as cancelled."""
+    from dirigent_plugin.runners import stop_runners
+
+    running = worker.cancel_in_flight()
+    if running:
+        await asyncio.wait(running, timeout=ABANDON_SECONDS)
+    stop_runners()
+    async with session_scope(sessions) as session:
+        run = await session.get(Run, run_id)
+        if run is not None:
+            await cancel_run(session, services, run)
