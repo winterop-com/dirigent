@@ -4,21 +4,31 @@ from datetime import datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import Field, SecretStr
+from pydantic import BeforeValidator, Field, SecretStr
 
 from dirigent_client.enums import TokenKind, UserRole
 from dirigent_client.schemas.common import RequestModel, WireModel
 from dirigent_common import Duration, Email, EntityName
+from dirigent_common.storable import refuse_unstorable
 
 #: How long a token may live: above zero and under a century, so its expiry is always a real date.
 TokenLifetime = Annotated[Duration, Field(gt=timedelta(0), le=timedelta(days=36500))]
+
+#: The longest password an account may hold, short enough that a login body carrying it fits the login cap.
+MAX_PASSWORD_LENGTH = 1024
+
+#: The longest username an account may hold.
+MAX_USERNAME_LENGTH = 200
+
+#: A password as a body carries it: no NUL, no half a surrogate pair, and no longer than an account may hold.
+Password = Annotated[SecretStr, BeforeValidator(refuse_unstorable), Field(max_length=MAX_PASSWORD_LENGTH)]
 
 
 class LoginRequest(RequestModel):
     """What a login presents."""
 
     username: str = Field(min_length=1)
-    password: SecretStr
+    password: Password
 
 
 class Identity(WireModel):
@@ -86,8 +96,8 @@ class UserOut(WireModel):
 class UserIn(RequestModel):
     """What creating an account asks for."""
 
-    username: str = Field(min_length=1, max_length=200)
-    password: SecretStr
+    username: str = Field(min_length=1, max_length=MAX_USERNAME_LENGTH)
+    password: Password
     name: str | None = None
     email: Email | None = None
     role: UserRole
@@ -113,11 +123,11 @@ class UserUpdate(RequestModel):
 class PasswordChangeRequest(RequestModel):
     """What a person changing their own password presents."""
 
-    current_password: SecretStr
-    new_password: SecretStr
+    current_password: Password
+    new_password: Password
 
 
 class PasswordResetRequest(RequestModel):
     """What an admin resetting another account's password presents."""
 
-    password: SecretStr
+    password: Password

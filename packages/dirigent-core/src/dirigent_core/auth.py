@@ -4,8 +4,10 @@ No secret is stored: passwords are Argon2id hashes and tokens are stored as a SH
 presented value.
 """
 
+import asyncio
 import hashlib
 import secrets as secrets_module
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from functools import lru_cache
 from uuid import UUID
@@ -17,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, SecretStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AuditAction, AuditSubject, TokenKind, TriggerKind, UserRole
+from dirigent_client.schemas.auth import MAX_PASSWORD_LENGTH
 from dirigent_core import audit
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import DUPLICATE_EMAIL, DUPLICATE_USER, LAST_ADMIN, WEAK_PASSWORD, WRONG_PASSWORD
@@ -43,19 +46,24 @@ LAST_USED_RESOLUTION = timedelta(seconds=60)
 
 _hasher = PasswordHasher()
 
+#: How many Argon2id hashes run at once in one process, each holding 64 MiB while it runs.
+HASHING_THREADS = 4
+
+_hashing = ThreadPoolExecutor(max_workers=HASHING_THREADS, thread_name_prefix="argon2")
+
 
 class AuthError(DomainError):
     """Any refusal from the authentication layer."""
 
 
 class WeakPassword(AuthError):
-    """A password was too short to be worth hashing."""
+    """A password was too short to be worth hashing, or longer than a login can present."""
 
     message = WEAK_PASSWORD
 
     def __init__(self) -> None:
-        """Build a message stating the minimum length."""
-        super().__init__(minimum=MIN_PASSWORD_LENGTH)
+        """Build a message stating the lengths a password may have."""
+        super().__init__(minimum=MIN_PASSWORD_LENGTH, maximum=MAX_PASSWORD_LENGTH)
 
 
 class DuplicateUser(AuthError):
@@ -179,8 +187,8 @@ class TokenRow(BaseModel):
 
 
 def hash_password(password: str) -> str:
-    """Hash a password with Argon2id, refusing one too short to be worth hashing."""
-    if len(password) < MIN_PASSWORD_LENGTH:
+    """Hash a password with Argon2id, refusing one too short to be worth hashing or too long to log in with."""
+    if not MIN_PASSWORD_LENGTH <= len(password) <= MAX_PASSWORD_LENGTH:
         raise WeakPassword
     return _hasher.hash(password)
 
@@ -189,8 +197,24 @@ def verify_password(password_hash: str, password: str) -> bool:
     """Check a password against its stored hash, returning rather than raising on mismatch."""
     try:
         return _hasher.verify(password_hash, password)
-    except (VerifyMismatchError, VerificationError, InvalidHashError):
+    except (VerifyMismatchError, VerificationError, InvalidHashError, UnicodeEncodeError):
         return False
+
+
+async def hashed(password: str) -> str:
+    """Hash a password on the hashing threads, leaving the event loop free while Argon2id runs."""
+    return await asyncio.get_running_loop().run_in_executor(_hashing, hash_password, password)
+
+
+async def verified(password_hash: str, password: str) -> bool:
+    """Check a password on the hashing threads, leaving the event loop free while Argon2id runs."""
+    return await asyncio.get_running_loop().run_in_executor(_hashing, verify_password, password_hash, password)
+
+
+async def verified_against_nothing(password: str) -> None:
+    """Spend the time a real check costs, against a hash no password matches."""
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(_hashing, lambda: verify_password(absent_password_hash(), password))
 
 
 def mint_secret() -> str:
@@ -254,7 +278,7 @@ async def create_user(
         username=username,
         name=name,
         email=email,
-        password_hash=hash_password(password),
+        password_hash=await hashed(password),
         role=role,
     )
     session.add(user)
@@ -265,7 +289,8 @@ async def create_user(
 
 async def create_fixture_admin(session: AsyncSession, username: str, password: str) -> User:
     """Create the admin of a throwaway instance, whose fixed password need not meet the length rule."""
-    user = User(username=username, password_hash=_hasher.hash(password), role=UserRole.ADMIN)
+    password_hash = await asyncio.get_running_loop().run_in_executor(_hashing, _hasher.hash, password)
+    user = User(username=username, password_hash=password_hash, role=UserRole.ADMIN)
     session.add(user)
     await session.flush()
     await audit.record(session, AuditAction.CREATED, AuditSubject.USER, code=username, subject_id=user.id)
@@ -274,7 +299,7 @@ async def create_fixture_admin(session: AsyncSession, username: str, password: s
 
 async def reset_password(session: AsyncSession, user: User, password: str) -> User:
     """Replace an account's password without its old one, ending every session it holds and no API token."""
-    user.password_hash = hash_password(password)
+    user.password_hash = await hashed(password)
     await revoke_sessions(session, user.id)
     await session.flush()
     await audit.record(session, AuditAction.PASSWORD_RESET, AuditSubject.USER, code=user.username, subject_id=user.id)
@@ -389,9 +414,9 @@ async def change_password(
     Verifying the current password here is what makes this self-service rather than a reset:
     holding the credential is not enough, the person has to know the password it stands for.
     """
-    if not verify_password(user.password_hash, current):
+    if not await verified(user.password_hash, current):
         raise WrongPassword
-    user.password_hash = hash_password(new)
+    user.password_hash = await hashed(new)
     await revoke_sessions(session, user.id, keep=keep)
     await audit.record(session, AuditAction.PASSWORD_CHANGED, AuditSubject.USER, code=user.username, subject_id=user.id)
     return user
@@ -419,9 +444,9 @@ async def authenticate(session: AsyncSession, username: str, password: str) -> U
     """
     user = await find_user(session, username)
     if user is None or not user.active:
-        verify_password(absent_password_hash(), password)
+        await verified_against_nothing(password)
         return None
-    if not verify_password(user.password_hash, password):
+    if not await verified(user.password_hash, password):
         return None
     user.last_login_at = utcnow()
     await session.flush()

@@ -60,7 +60,7 @@ STATE_UNCHECKED = DATABASE.define(
 
 AUTH = Catalogue("auth")
 
-WEAK_PASSWORD = AUTH.define("weak_password", "a password must be at least {minimum} characters")
+WEAK_PASSWORD = AUTH.define("weak_password", "a password must be from {minimum} to {maximum} characters")
 
 DUPLICATE_USER = AUTH.define("duplicate_user", "a user named {username} already exists")
 

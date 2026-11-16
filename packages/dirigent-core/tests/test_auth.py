@@ -1,13 +1,18 @@
 """Accounts, passwords, and bearer credentials: what authenticates and what does not."""
 
+import asyncio
+import threading
 import time
 from datetime import timedelta
 from typing import Any
 
 import pytest
+from argon2.exceptions import VerifyMismatchError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import TokenKind, TriggerKind, UserRole
+from dirigent_client.schemas.auth import MAX_PASSWORD_LENGTH
+from dirigent_core import auth
 from dirigent_core.auth import (
     LAST_USED_RESOLUTION,
     DuplicateEmail,
@@ -66,6 +71,51 @@ def test_a_short_password_is_refused_before_it_is_hashed() -> None:
 
 def test_verifying_against_something_that_is_not_a_hash_is_false_not_an_error() -> None:
     assert not verify_password("not a hash at all", PASSWORD)
+
+
+def test_a_password_past_what_a_login_carries_is_refused_before_it_is_hashed() -> None:
+    with pytest.raises(WeakPassword):
+        hash_password("x" * (MAX_PASSWORD_LENGTH + 1))
+
+
+def test_verifying_a_password_no_encoding_holds_is_false_not_an_error() -> None:
+    assert not verify_password(hash_password(PASSWORD), "half \ud800 a pair")
+
+
+async def test_a_login_leaves_the_event_loop_free_while_argon2_runs(
+    sessions: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every request, stream and the embedded scheduler share the loop a login runs on.
+
+    The stand-in verify returns only once the loop has run something else, so a verify that holds
+    the loop sees nothing happen before its wait runs out.
+    """
+    async with session_scope(sessions) as session:
+        await create_user(session, "morten", PASSWORD, role=UserRole.ADMIN)
+    verifying = threading.Event()
+    loop_ran = threading.Event()
+    seen: list[bool] = []
+
+    class Waiting:
+        def verify(self, password_hash: str, password: str) -> bool:
+            verifying.set()
+            seen.append(loop_ran.wait(timeout=2))
+            raise VerifyMismatchError
+
+    monkeypatch.setattr(auth, "_hasher", Waiting())
+
+    async def meanwhile() -> None:
+        while not seen:
+            if verifying.is_set():
+                loop_ran.set()
+            await asyncio.sleep(0.001)
+
+    async def logging_in() -> None:
+        async with session_scope(sessions) as session:
+            assert await authenticate(session, "morten", "wrong") is None
+
+    await asyncio.gather(meanwhile(), logging_in())
+    assert seen == [True]
 
 
 def test_a_token_is_unguessable_and_stored_only_as_a_hash() -> None:
