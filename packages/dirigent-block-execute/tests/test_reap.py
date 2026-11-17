@@ -285,6 +285,32 @@ services:
 """
 
 
+def only_gone(run_id: UUID) -> reap.RunLookup:
+    """A lookup where this one run no longer exists and every other is active.
+
+    The daemon is shared with whatever else the lane runs, so a pass under test must leave
+    every other run's stacks and containers alone.
+    """
+
+    async def look_up(asked: UUID) -> RunFact | None:
+        return None if asked == run_id else ACTIVE
+
+    return look_up
+
+
+async def _docker(argv: list[str]) -> tuple[int, str]:
+    """Run the real docker CLI in the test's own environment, and hand back its exit code and stdout."""
+    process = await asyncio.create_subprocess_exec(
+        "docker",
+        *argv,
+        env=dict(os.environ),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    out, _ = await process.communicate()
+    return process.returncode or 0, out.decode().strip()
+
+
 async def _compose(argv: list[str], directory: Path) -> int:
     """Run the real compose CLI in the test's own environment, and hand back its exit code."""
     process = await asyncio.create_subprocess_exec(
@@ -311,7 +337,7 @@ async def test_a_real_stack_whose_run_is_gone_is_reaped(tmp_path: Path) -> None:
     try:
         # The grace is zero here: the project was created a moment ago, and the rule under
         # test is the run lookup rather than the age.
-        reaped = await reap.reap(dict(os.environ), tmp_path, lookup({}), grace=timedelta(0))
+        reaped = await reap.reap(dict(os.environ), tmp_path, only_gone(run_id), grace=timedelta(0))
         assert [one.project for one in reaped] == [project]
         assert reaped[0].torn_down is True
         assert reaped[0].run_status == "unknown"
@@ -330,8 +356,22 @@ async def test_a_real_stack_whose_run_is_active_is_left_running(tmp_path: Path) 
     compose_file.write_text(ONE_SERVICE_STACK)
     assert await _compose(["-p", project, "-f", str(compose_file), "up", "-d"], tmp_path) == 0
     try:
-        assert await reap.reap(dict(os.environ), tmp_path, lookup({run_id: ACTIVE}), grace=timedelta(0)) == []
+        assert await reap.reap(dict(os.environ), tmp_path, only_gone(uuid4()), grace=timedelta(0)) == []
         async with reap.daemon(dict(os.environ)) as client:
             assert [one.name for one in await reap.projects(client) if one.name == project] == [project]
     finally:
         await _compose(["-p", project, "-f", str(compose_file), "down", "-v", "--remove-orphans"], tmp_path)
+
+
+@pytest.mark.docker
+@requires_daemon
+async def test_a_real_container_whose_run_is_gone_is_removed(tmp_path: Path) -> None:
+    run_id = uuid4()
+    code, container = await _docker(["create", "--label", f"dirigent.run={run_id}", "alpine:3", "true"])
+    assert code == 0
+    try:
+        reaped = await reap.reap(dict(os.environ), tmp_path, only_gone(run_id), grace=timedelta(0))
+        assert [(one.container, one.project, one.torn_down) for one in reaped] == [(container[:12], "", True)]
+        assert (await _docker(["container", "inspect", container]))[0] != 0
+    finally:
+        await _docker(["rm", "-f", container])
