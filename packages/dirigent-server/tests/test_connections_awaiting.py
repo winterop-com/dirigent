@@ -187,9 +187,40 @@ async def test_a_kind_taking_one_secret_of_several_awaits_it_though_all_together
 
 
 async def test_a_secret_the_settings_do_not_need_is_not_awaited(operator: httpx2.AsyncClient) -> None:
-    created = await _create(operator, "local-db", "sql", {"url": "sqlite+aiosqlite:////tmp/x.db"})
+    created = await _create(operator, "local-db", "sql", {"url": "sqlite+aiosqlite:///x.db"})
     assert created.status_code == 201, created.text
     assert created.json()["awaiting_secrets"] is False, "sqlite opens with no password"
+
+
+@pytest.mark.parametrize(
+    ("kind", "config", "said"),
+    [
+        ("sql", {"url": "sqlite+aiosqlite:////srv/state/dirigent.db"}, "is an absolute path"),
+        ("sql", {"url": "duckdb:////srv/warehouse.duckdb"}, "is an absolute path"),
+        ("git", {"url": "/srv/deploy/config-repo"}, "not a network remote"),
+        ("git", {"url": "file:///srv/deploy/config-repo"}, "not a network remote"),
+    ],
+)
+async def test_a_connection_naming_a_file_on_the_worker_is_refused_for_everyone(
+    admin: httpx2.AsyncClient, operator: httpx2.AsyncClient, kind: str, config: dict[str, Any], said: str
+) -> None:
+    for client in (operator, admin):
+        refused = await _create(client, "local", kind, config)
+        assert refused.status_code == 422, refused.text
+        assert refused.json()["code"] == "server.connection_config_invalid"
+        assert said in refused.json()["detail"]
+    assert (await admin.get(f"{PREFIX}/connections")).json()["items"] == []
+
+
+async def test_an_update_naming_a_file_on_the_worker_is_refused(admin: httpx2.AsyncClient) -> None:
+    assert (await _create(admin, "local-db", "sql", {"url": "sqlite+aiosqlite:///x.db"})).status_code == 201
+    refused = await admin.patch(
+        f"{PREFIX}/connections/local-db", json={"config": {"url": "sqlite+aiosqlite:////srv/state/dirigent.db"}}
+    )
+    assert refused.status_code == 422, refused.text
+    assert refused.json()["code"] == "server.connection_config_invalid"
+    stored = (await admin.get(f"{PREFIX}/connections/local-db")).json()
+    assert stored["config"]["url"] == "sqlite+aiosqlite:///x.db"
 
 
 async def test_a_check_is_refused_until_a_person_completes_it(admin: httpx2.AsyncClient) -> None:

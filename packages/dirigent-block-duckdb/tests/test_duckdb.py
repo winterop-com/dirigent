@@ -339,15 +339,12 @@ def test_every_function_a_read_only_session_may_call_is_one_duckdb_has() -> None
     assert catalogued("scalar", "aggregate", "window", "macro") >= reads.READ_FUNCTIONS - reads.BINDER_FUNCTIONS
 
 
-async def test_a_read_only_database_held_outside_the_run_is_not_overwritten_either(
-    local_ctx: FakeContext, tmp_path: Path
-) -> None:
-    held = tmp_path / "held" / "warehouse.duckdb"
-    held.parent.mkdir()
-    duck(local_ctx, f"duckdb:///{held}")
+async def test_a_read_only_database_is_not_overwritten_either(local_ctx: FakeContext) -> None:
+    held = local_ctx.work / "held" / "warehouse.duckdb"
+    duck(local_ctx, "duckdb:///held/warehouse.duckdb")
     await execute(local_ctx, "CREATE TABLE reading (id INTEGER)", "INSERT INTO reading VALUES (1)")
     before = held.read_bytes()
-    duck(local_ctx, f"duckdb:///{held}", read_only=True)
+    duck(local_ctx, "duckdb:///held/warehouse.duckdb", read_only=True)
     copies = COPIES.format(database=held)
     with pytest.raises(BlockFailure) as raised:
         await query(
@@ -644,21 +641,39 @@ async def test_a_statement_cannot_load_an_extension(ducked: FakeContext) -> None
     assert raised.value.error_class is ErrorClass.REJECTED
 
 
-async def test_the_database_the_connection_names_opens_wherever_it_is(local_ctx: FakeContext, tmp_path: Path) -> None:
-    """The containment covers what a statement names, not the file the connection itself opens."""
-    duck(local_ctx, f"duckdb:///{tmp_path}/warehouse.duckdb")
-    await execute(local_ctx, "CREATE TABLE reading (id INTEGER)", "INSERT INTO reading VALUES (1)")
-    assert (await query(local_ctx, "SELECT COUNT(*) AS n FROM reading")).rows == [{"n": 1}]
+def held_elsewhere(tmp_path: Path) -> Path:
+    """A duckdb file outside the run, holding a table a run must not reach."""
+    other = tmp_path / "elsewhere" / "demo.duckdb"
+    other.parent.mkdir()
+    with duckdb.connect(str(other)) as held:
+        held.execute("CREATE TABLE reading (id INTEGER)")
+    return other
+
+
+def test_a_connection_naming_a_duckdb_file_by_an_absolute_path_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match="is an absolute path"):
+        SqlConnectionConfig(url=f"duckdb:///{held_elsewhere(tmp_path)}")
+
+
+async def test_an_absolute_path_stored_before_it_was_refused_is_refused_when_it_runs(
+    local_ctx: FakeContext, tmp_path: Path
+) -> None:
+    other = held_elsewhere(tmp_path)
+    before = other.read_bytes()
+    local_ctx.connections["db"] = SqlConnectionConfig.model_construct(
+        url=f"duckdb:///{other}", password=None, read_only=False, connect_timeout=timedelta(seconds=10)
+    )
+    with pytest.raises(BlockFailure) as raised:
+        await execute(local_ctx, "INSERT INTO reading VALUES (1)")
+    assert raised.value.code == "sql.database_outside_the_run"
+    assert other.read_bytes() == before
 
 
 @pytest.mark.parametrize("link", ["data", "data/demo.duckdb"], ids=["directory", "file"])
 async def test_a_link_in_the_work_directory_does_not_lead_a_run_relative_database_elsewhere(
     local_ctx: FakeContext, tmp_path: Path, link: str
 ) -> None:
-    other = tmp_path / "elsewhere" / "demo.duckdb"
-    other.parent.mkdir()
-    duck(local_ctx, f"duckdb:///{other}")
-    await execute(local_ctx, "CREATE TABLE reading (id INTEGER)")
+    other = held_elsewhere(tmp_path)
     before = other.read_bytes()
     planted = local_ctx.work / link
     planted.parent.mkdir(parents=True, exist_ok=True)
@@ -783,15 +798,17 @@ async def test_a_call_that_ignores_the_interrupt_is_left_behind_and_closes_the_c
     assert await asyncio.to_thread(closed.wait, 5)
 
 
-async def test_a_check_opens_the_duckdb_file_and_asks_it_for_a_one(tmp_path: Path) -> None:
-    report = await SqlConnectionKind().check(SqlConnectionConfig(url=f"duckdb:///{tmp_path}/check.duckdb"))
+async def test_a_check_opens_an_in_memory_duckdb_and_asks_it_for_a_one() -> None:
+    report = await SqlConnectionKind().check(SqlConnectionConfig(url="duckdb:///:memory:"))
     assert report.healthy
     assert "duckdb" in (report.detail or "")
 
 
-async def test_a_check_of_a_read_only_duckdb_file_that_is_not_there_is_red(tmp_path: Path) -> None:
-    report = await SqlConnectionKind().check(
-        SqlConnectionConfig(url=f"duckdb:///{tmp_path}/absent.duckdb", read_only=True)
-    )
+async def test_a_check_of_a_duckdb_file_opens_nothing_outside_a_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    report = await SqlConnectionKind().check(SqlConnectionConfig(url="duckdb:///check.duckdb", read_only=True))
     assert not report.healthy
-    assert report.detail
+    assert "only inside a run" in (report.detail or "")
+    assert list(tmp_path.iterdir()) == []

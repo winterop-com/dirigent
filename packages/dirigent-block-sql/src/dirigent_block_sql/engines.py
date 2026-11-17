@@ -35,6 +35,7 @@ from dirigent_block_sql.markers import ENGINES_GROUP
 from dirigent_block_sql.messages import (
     CONNECT_TIMED_OUT,
     DATABASE_OUTSIDE_THE_RUN,
+    DATABASE_PATH_ABSOLUTE,
     DRIVER_NOT_INSTALLED,
     ENGINE_PACKAGE_MISSING,
     NO_ASYNC_DRIVER,
@@ -187,14 +188,16 @@ class SqlAlchemyEngine(SqlEngine):
         if settings.read_only and backend not in READ_ONLY:
             supported = ", ".join(sorted(READ_ONLY))
             raise ValueError(READ_ONLY_UNSUPPORTED.render(backend=backend, supported=supported))
+        if _names_file(url):
+            refuse_absolute(url)
 
     def resolve(self, url: URL, ctx: StepContext) -> URL:
-        """A sqlite database written as a relative path is a file in the run's work directory."""
-        return under_work(url, ctx) if _is_run_relative(url) else url
+        """A sqlite database is a file in the run's work directory, and one anywhere else is refused."""
+        return under_work(url, ctx) if _names_file(url) else url
 
     async def check(self, settings: "SqlConnectionConfig", url: URL) -> HealthReport:
         """Open a connection and run ``SELECT 1`` over the driver the URL names."""
-        if _is_run_relative(url):
+        if _names_file(url):
             return HealthReport(healthy=False, detail=OUTSIDE_A_RUN)
         try:
             engine = _engine(_opened_as_marked(settings, url))
@@ -226,11 +229,18 @@ class SqlAlchemyEngine(SqlEngine):
 GENERIC: Final = SqlAlchemyEngine()
 
 
+def refuse_absolute(url: URL) -> None:
+    """Refuse a database file named by an absolute path: the file a connection opens is inside the run."""
+    if str(url.database).startswith("/"):
+        raise ValueError(DATABASE_PATH_ABSOLUTE.render(database=repr(str(url.database))))
+
+
 def under_work(url: URL, ctx: StepContext) -> URL:
     """The same URL with its database file placed under the run's own work directory.
 
-    The file is the one its path names once every link is followed, and one outside the work
-    directory is refused before any directory is made.
+    The file is the one its path names once every ``..`` and every link is followed, and one
+    outside the work directory, an absolute path to elsewhere among them, is refused before any
+    directory is made.
     """
     work = ctx.work.resolve()
     database = (ctx.work / str(url.database)).resolve()
@@ -289,12 +299,9 @@ def engine_for(url: URL) -> SqlEngine:
     return _installed().get(url.get_backend_name(), GENERIC)
 
 
-def _is_run_relative(url: URL) -> bool:
-    """Whether this is a sqlite file named by a path relative to the run's work directory."""
-    database = url.database or ""
-    if url.get_backend_name() != "sqlite":
-        return False
-    return bool(database) and not database.startswith("/")
+def _names_file(url: URL) -> bool:
+    """Whether this is a sqlite database held in a file rather than in memory."""
+    return url.get_backend_name() == "sqlite" and bool(url.database)
 
 
 def _engine(url: URL) -> AsyncEngine:

@@ -49,6 +49,7 @@ from dirigent_block_execute.messages import (
     GIT_EXITED,
     GIT_KEY_NEEDS_SSH,
     GIT_ONE_CREDENTIAL,
+    GIT_REMOTE_NOT_NETWORK,
     GIT_TOKEN_NEEDS_HTTPS,
     NO_GIT,
 )
@@ -85,6 +86,17 @@ HTTP_SCHEMES = ("http", "https")
 
 #: A remote that can carry a key, either ``ssh://host/path`` or the scp-like ``user@host:path``.
 SSH_SCHEME = "ssh"
+
+#: The URL schemes a remote may be written in: each reaches a host over the network.
+NETWORK_SCHEMES = (*HTTP_SCHEMES, SSH_SCHEME, "git")
+
+#: Configuration every git a step runs is given above any file: no transport reaches a path on
+#: the worker, whether the connection or a submodule names it.
+NO_LOCAL_TRANSPORT = {
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "protocol.file.allow",
+    "GIT_CONFIG_VALUE_0": "never",
+}
 
 #: What git says when the remote, rather than the request, is the problem.
 UNREACHABLE = (
@@ -133,6 +145,9 @@ class GitConnectionConfig(BlockModel):
     """The remote, in https form (``https://host/owner/repo.git``) or ssh form
     (``ssh://git@host/owner/repo.git``, or the scp-like ``git@host:owner/repo.git``).
 
+    A path on the worker, a ``file://`` url and a remote helper (``ext::``) are refused: a
+    checkout reaches a repository over the network, never one on the worker's own disk.
+
     A user in an https URL, a password in any URL and a credential in its query are refused, because a
     plain field is stored as written: a credential belongs in ``token`` or ``ssh_key``. The user of an ssh
     remote is not a secret, and is stripped before git is given it."""
@@ -161,7 +176,9 @@ class GitConnectionConfig(BlockModel):
 
     @model_validator(mode="after")
     def _check_shape(self) -> "GitConnectionConfig":
-        """Refuse a credential in the URL, two credentials at once, and one that does not fit the remote's form."""
+        """Refuse a remote on the worker, a credential in the URL, two credentials, and one that does not fit."""
+        if not _is_network(self.url):
+            raise ValueError(GIT_REMOTE_NOT_NETWORK.render(url=repr(self.url)))
         refuse_password_in_url(self.url)
         scheme = urlsplit(self.url).scheme
         if scheme in HTTP_SCHEMES and userinfo_in(self.url):
@@ -348,6 +365,7 @@ def _materialise(settings: GitConnectionConfig, directory: Path) -> Sealed:
         "GIT_CEILING_DIRECTORIES": str(directory),
         "HOME": str(home),
         "XDG_CONFIG_HOME": str(home),
+        **NO_LOCAL_TRANSPORT,
     }
     hidden: list[str] = []
     if settings.token is not None:
@@ -528,6 +546,18 @@ def public_url(url: str) -> str:
     if not split.scheme or "@" not in split.netloc:
         return url
     return urlunsplit(split._replace(netloc=split.netloc.rsplit("@", 1)[1]))
+
+
+def _is_network(url: str) -> bool:
+    """Whether git reaches this remote over the network: a network scheme, or the scp-like ``host:path``.
+
+    git reads a remote with no ``://`` as scp-like only where a colon comes before any slash; a
+    ``transport::address`` names a remote helper, and anything else is a path on the worker.
+    """
+    if "://" in url:
+        return urlsplit(url).scheme in NETWORK_SCHEMES
+    host, colon, path = url.partition(":")
+    return bool(colon and host) and "/" not in host and not path.startswith(":")
 
 
 def _is_ssh(url: str) -> bool:

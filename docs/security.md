@@ -41,6 +41,11 @@ rather than leaving the gap for you to find.
   own environment variables, cannot address a `file://` URI outside the artifact root, cannot
   open a database file its `sql` connection does not name, and
   cannot execute code on a worker at all unless the instance allowlisted the block.
+- A connection reaching the worker's own files: a `sql` connection's SQLite or DuckDB file is
+  a path inside the run's work directory, and a `git` connection's remote is on the network.
+  An absolute database path, a local repository path and a `file://` remote are refused when
+  the connection is written and again when a step resolves it, so no connection, whoever made
+  it, opens the instance's own database or state directory.
 - Brute force against the login endpoint, both as a flood from one address and as credential
   stuffing spread across many.
 - A cross-site write spending the session cookie, including a cross-site login: the browser
@@ -345,7 +350,9 @@ may, and an operator everything a viewer may.
   its kind's model refuses the settings alone, or the kind requires one of its credential
   forms (`credential_required`) -- is stored awaiting its secrets and used by nothing until an
   admin supplies them. One whose kind declares no secret, or takes its credential optionally,
-  such as `http` without auth, is stored complete and usable at once.
+  such as `http` without auth, is stored complete and usable at once. Such a connection still
+  reaches only what its kind allows anyone: a `sql` database file inside the run's work
+  directory, a `git` remote on the network, never a path on the worker.
 - An **admin** may in addition hand out authority. That set is exact:
 
 | Operation | Why it is admin |
@@ -1180,7 +1187,9 @@ Stated plainly, because a security page that lists only what exists is not much 
   every log, and create schedules on anything.
 - **Per-connection permissions.** None. Any principal can list connections, and any operator
   can write a pipeline that uses any of them. An operator may create a connection without its
-  secrets; admin gates supplying a secret and modifying a connection, not using it.
+  secrets; admin gates supplying a secret and modifying a connection, not using it. What a
+  connection may name is the same for every role: no connection reaches a file on the worker
+  outside the run's work directory.
 - **MFA, password policy, account lockout.** None of these exist. There is a minimum length of
   eight characters and a rate limit on login, and that is the whole of it.
 - **Secret-manager integration.** None, by design. See [where the key comes
