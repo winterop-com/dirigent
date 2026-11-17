@@ -349,7 +349,8 @@ database URL, a secret key, and where artifacts live.
 cp .env.example .env
 ```
 
-Two values in `.env` have no safe default.
+Three values in `.env` have no safe default, and the stack refuses to start without each of
+them.
 
 **`DIRIGENT_SECRET_KEY`** is the envelope key that connection secrets and endpoint signing
 secrets are encrypted with. Generate one:
@@ -361,6 +362,13 @@ dg secret-key
 It has to be a key this command minted, or another well-formed Fernet key. Anything else -- a
 passphrase you typed -- is refused when the process starts. **Losing this key means losing every stored connection secret**, and there
 is no rotation tooling, so back it up somewhere that is not beside the database backup.
+
+**`POSTGRES_PASSWORD`** is the database's password, and **`S3_SECRET_KEY`** the bucket's
+secret key. Nothing outside the stack needs either, so any long random value does:
+
+```bash
+openssl rand -hex 24
+```
 
 **`DIRIGENT_BOOTSTRAP_ADMIN_PASSWORD`** creates the first admin account. It is optional; see
 [first admin](#the-first-admin) for the alternative.
@@ -443,7 +451,7 @@ Both `dg auth login` and `dg admin token create` are admin-only, because minting
 is.
 
 A script holding that token reads records without asking, because its stdout is not a
-terminal; `--json` asks for them at one. It is valid on every command: a listing or a show answers with the server's own response, and a streaming command --
+terminal; `--json` asks for them at one. It is valid on every command: a listing or a show answers with records, each naming its `kind`, and a streaming command --
 `dg run --watch`, `dg run --local`, `dg runs logs --follow` -- answers with NDJSON, one event
 object per line as things happen. Nothing but JSON reaches stdout, and a command that would
 have prompted for a value fails with a problem object instead of blocking on a pipe.

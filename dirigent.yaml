@@ -1,4 +1,4 @@
-# Dirigent's settings. Every setting: docs/operations.md.
+# Dirigent's settings. Every setting: docs/settings.md.
 # Environment variables override these: DIRIGENT_LOG_LEVEL=DEBUG dg dev.
 
 log_level: INFO

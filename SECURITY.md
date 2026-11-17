@@ -18,8 +18,8 @@ say so on the advisory rather than assuming it was ignored.
 
 ## Supported versions
 
-Nothing has been released yet. Until 1.0.0, the supported version is the `main` branch, and
-a fix lands there rather than in a backport.
+Until 1.0.0, the supported version is the latest release and the `main` branch it was cut
+from. A fix lands on `main` and ships in the next release rather than in a backport.
 
 ## What is in scope
 
@@ -28,8 +28,9 @@ anything in `packages/`.
 
 Two things are deliberately dangerous and are not vulnerabilities on their own:
 
-- **`shell.run` and `docker.run` execute code on a worker.** They are refused unless the
-  instance names them in `DIRIGENT_ENABLED_UNSAFE_BLOCKS`. That an operator who enables them
+- **`shell.run`, `docker.run`, `docker.build`, `docker.compose.up` and
+  `docker.compose.down` execute code on a worker.** They are refused unless the instance names
+  them in `DIRIGENT_ENABLED_UNSAFE_BLOCKS`. That an operator who enables them
   can run code is the feature. A way to reach them *without* the allowlist is a
   vulnerability.
 - **A pipeline can call any URL its worker can reach.** There is no egress allowlist, and

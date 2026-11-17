@@ -153,8 +153,8 @@ a sentence is deliberate and passes.
 
 ## Tokens
 
-Everything colour is a CSS custom property defined by sokkel-ui's tokens and themes, exposed to
-Tailwind through the library's `@theme inline`. Nothing in this app may write a colour; a token
+Everything color is a CSS custom property defined by sokkel-ui's tokens and themes, exposed to
+Tailwind through the library's `@theme inline`. Nothing in this app may write a color; a token
 the app needs and the library lacks is added in sokkel-ui.
 
 **Two theme axes, kept apart.** The **mode** is light, dark or system, worn as a `dark` class on
@@ -218,7 +218,7 @@ body on `--card`, edged all round in `--border-strong` and lifted by no shadow -
 ground of a framed `DataTable` and a card. A panel holding a graph is `tone="graph"`, its body the
 graph canvas's dot grid, because a graph is drawn on a ground and not on a card. **A failure is the
 one panel that says so**: `tone="critical"` draws a rule in the critical tone along its top and the
-warning mark beside its title, which is the only colour a panel ever carries. Nothing draws a left
+warning mark beside its title, which is the only color a panel ever carries. Nothing draws a left
 border in a status colour, and nothing on a screen styles a surface of its own: a treatment is
 changed in sokkel-ui.
 
@@ -963,7 +963,7 @@ fan-out's count and chips or counts line, and the words its box keeps room for -
 measures, places and draws it. Every graph component is lazy, and the screens share one copy of
 React Flow, the version dirigent and the library resolve to together.
 
-**Motion lives on edges, and it means data travelling.** Beside a live state's status dot, which
+**Motion lives on edges, and it means data traveling.** Beside a live state's status dot, which
 breathes while the state is happening, a run's graph is the one place in this app that moves, and
 only while the run is live: an edge out of a step that has produced its output
 into one still reading it is dashed in the ink and travels along its path, and the
@@ -1807,7 +1807,7 @@ is a link to it, like the chip.
 
 A dropdown whose options are values the app already draws somewhere -- a status, a kind --
 renders each option as that drawing: the status filter's rows are the same chips the listing
-shows (`FilterOption.row`), and the chip carries the one it chose as its `value`. Choosing becomes recognising. An option
+shows (`FilterOption.row`), and the chip carries the one it chose as its `value`. Choosing becomes recognizing. An option
 never wraps; the menu grows to its longest row instead of folding a label in half.
 
 **The menu is floored at its control and capped at the screen.** It is never narrower than the
