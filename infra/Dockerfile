@@ -140,7 +140,8 @@ RUN python -c "import duckdb; duckdb.connect().execute('INSTALL httpfs')"
 # Packs to add to the stock image without a Dockerfile of its own: a whitespace-separated list
 # of pinned requirements -- `dirigent-dhis2==<version>`, `dirigent-block-parquet==<version>` --
 # resolved from PyPI and installed into the venv the workspace already occupies. Anything else is
-# refused. Empty by default, and the layer is then a no-op.
+# refused. Empty by default, and the layer is then a no-op. `uv pip install` replaces a package
+# the runtime pins when a pack pins another release of it, so `uv pip check` refuses the result.
 ARG DIRIGENT_PACKS=""
 RUN set -f; \
     for spec in $DIRIGENT_PACKS; do \
@@ -149,7 +150,7 @@ RUN set -f; \
             exit 1; \
         }; \
     done
-RUN if [ -n "$DIRIGENT_PACKS" ]; then uv pip install --no-cache $DIRIGENT_PACKS; fi
+RUN if [ -n "$DIRIGENT_PACKS" ]; then uv pip install --no-cache $DIRIGENT_PACKS && uv pip check; fi
 
 EXPOSE 3333
 

@@ -9,10 +9,12 @@ Versions before 0.9.0 were developed in private and are listed here for the reco
 
 **How a release is cut.** Every package in this workspace, `dirigent-dhis2`, `dirigent-contrib`,
 `dirigent-fhir` and `dirigent-integration` move to the same number together, and the sibling pins move with the
-version: every package requires its dirigent dependencies at `==<version>`, so an installed
-set can never mix two releases. The notes land here first, at the top; the bump merges; the
+version: every package requires its dirigent dependencies at `==<version>`, so a consistent
+installed set holds one release. `uv pip install` can still replace a pinned package with
+another release's; the image runs `uv pip check` after installing packs, which refuses that. The notes land here first, at the top; the bump merges; the
 merge commit is tagged `vX.Y.Z` and published as a GitHub release with the same notes. The
-tag is what publishes: `.github/workflows/release.yaml` builds every package and uploads it
+tag is what publishes: `.github/workflows/release.yaml` refuses a tagged commit that is not on
+`main`, waits for `ci`'s run on `main` for that commit and refuses unless it passed, then builds every package and uploads it
 to PyPI through trusted publishing and, once the `ghcr` environment allows it, builds the image
 from that commit and pushes it as `<version>` and `latest`. The four sibling repositories then
 relock against the tag and bump.

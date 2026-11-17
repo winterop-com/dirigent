@@ -833,15 +833,16 @@ DOCKERFILE_TEMPLATE = """\
 ARG DIRIGENT_IMAGE=ghcr.io/winterop-com/dirigent:__VERSION__
 FROM ${DIRIGENT_IMAGE}
 
-# A pack is a Python package; install it here and run `docker compose up --build`.
+# A pack is a Python package; install it here at the image's version and run
+# `docker compose up --build`. `uv pip check` refuses a pack that pins another release.
 __PACKS__"""
 
 
 def dockerfile_document(choices: InitChoices, version: str) -> str:
     """The image this stack builds, with each chosen pack installed into it."""
-    lines = "".join(f"RUN uv pip install {pack}=={version}\n" for pack in choices.packs)
+    lines = "".join(f"RUN uv pip install {pack}=={version} && uv pip check\n" for pack in choices.packs)
     return DOCKERFILE_TEMPLATE.replace(
-        "__PACKS__", lines or f"# RUN uv pip install dirigent-dhis2=={version}\n"
+        "__PACKS__", lines or f"# RUN uv pip install dirigent-dhis2=={version} && uv pip check\n"
     ).replace("__VERSION__", version)
 
 
