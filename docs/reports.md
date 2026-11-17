@@ -6,8 +6,11 @@ completed with errors, or cancelled -- stored with the run and read back over th
 CLI.
 
 The document is the engine's, not a step's. A step cannot run when a run is cancelled or a
-worker dies, and those are the runs whose report is worth the most, so the rendering happens
-in the transaction that settles the run.
+worker dies, and those are the runs whose report is worth the most, so the transaction that
+settles the run writes down that it owes its document. The document is rendered and stored as
+soon as that transaction has committed -- by the worker that settled the run, or by the server
+before it answers a cancel -- never inside it, so no template runs while the run's lock is held. A worker that dies mid-render leaves the document owed, and another takes it over
+once the first has held it for `DIRIGENT_REPORT_RENDER_TIMEOUT` and 30 seconds more.
 
 ## Asking for one
 
@@ -203,6 +206,9 @@ GET /api/v1/artifacts/{id}          # one artifact's content, in its own content
 
 An alert about the run names it too. `run.report_url` is the artifact route, filled in when
 `DIRIGENT_ALERT_BASE_URL` tells the instance its own address and the run rendered a document.
+The alerts a run's settling raises wait for its document to be stored, so they carry the link
+and, for a rule with a template, the document itself; a document that did not render releases
+them without one.
 
 One document per run, rewritten in place when a retry reopens a settled run and it settles
 again, so a link an alert already carries keeps resolving. A small document inlines on the
@@ -220,7 +226,7 @@ every name an alert template is given:
 | `run` | The run: `id`, `status`, `pipeline`, `error`, `error_code`, `error_params`, `failed_step`, `params`, `trigger`, `started_at`, `finished_at`, `duration_ms`, `window_start`, `window_end`, `trace_id`, `url`, `report_url`, as in the table above |
 | `pipeline` | `code`, `name` and `version` of the pipeline version the run pinned |
 | `params` | The parameters the run resolved to |
-| `steps` / `step` | Each step's facts in order, and the same by name |
+| `steps` / `step` | Each step's facts in order, and the same by name. A step's `output` is there when it is no larger than `DIRIGENT_INLINE_ARTIFACT_MAX` (16384 bytes), the size the engine stores inline; a larger one is null, named by its `output_uri` and `output_bytes` |
 | `items` / `items_total` / `items_failed` | The fan-out elements, how many there were, and how many failed |
 | `url` | The run in the web UI, the same as `run.url` |
 | `rendered_at` | When the alert was raised |
@@ -260,7 +266,8 @@ A subject is collapsed to one line and cut at 200 characters, because that is wh
 created, so a syntax error is refused there. They render when the alert is delivered, on the
 worker that delivers it and under [the same limits](#the-bounds) as a report, never in the
 transaction that settles the run: the notification carries the facts as they were when the run
-settled, and the report document until it renders. A render that fails or reaches a limit falls
+settled, and the report document until it renders. The facts are read only for a rule that is
+due to raise, so a run whose rules already spoke, or are inside their throttle, pays for none. A render that fails or reaches a limit falls
 back to the default and leaves a warning in the run's timeline, because an alert is the last
 thing standing between a failure and the person who needs to know. Until it is delivered, a
 queued notification lists the default subject. `dg alerts test` renders the same way, at

@@ -35,6 +35,7 @@ from dirigent_core.alerting import (
     AlertError,
     AlertRuleRequest,
     NotificationDispatcher,
+    attach_report,
     build_context,
     claim_notification,
     create_rule,
@@ -1059,7 +1060,9 @@ async def raise_one(
     async with session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
-        queued = await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW, report=report)
+        queued = await raise_for_run(session, services, stored, AlertEvent.RUN_FAILED, now=NOW)
+        if report is not None:
+            await attach_report(session, services, run.id, report=report, artifact_id=None)
     assert len(queued) == 1
     (delivered,) = await deliver(sessions, services)
     assert delivered.status is NotificationStatus.SENT

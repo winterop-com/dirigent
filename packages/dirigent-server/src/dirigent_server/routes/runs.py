@@ -45,6 +45,7 @@ from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.runs import after_commit, cancel_run, pause_run, rerun, resume_run, retry_step
 from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, item_wise_parent, step_states
+from dirigent_core.logging import get_logger
 from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import (
     ArtifactRef,
@@ -58,7 +59,7 @@ from dirigent_core.models import (
 )
 from dirigent_core.pipelines import UNWELL, FailedStep, carries_tag, failing_steps, require_pipeline
 from dirigent_core.registry import unmet_worker_tags
-from dirigent_core.reporting import duration_ms, items_in_order, run_facts
+from dirigent_core.reporting import duration_ms, items_in_order, run_facts, write_owed_report
 from dirigent_core.stats import MAX_WINDOW, item_stats, run_stats, run_summary
 from dirigent_server.dependencies import ServicesDep, SessionDep, get_sessions
 from dirigent_server.errors import Refusal
@@ -79,6 +80,8 @@ from dirigent_server.security import OperatorDep, PrincipalDep
 from dirigent_server.transactions import Transactional, retried_on_deadlock
 
 router = APIRouter(route_class=Transactional, tags=["runs"])
+
+_logger = get_logger("runs")
 
 DEFAULT_LOG_PAGE = 200
 
@@ -526,7 +529,8 @@ async def cancel(
     """Stop what has not started, and tell the remote about what has once the cancel committed.
 
     A run that already settled is refused with 409 ``run.already_settled``, its status in the
-    params, rather than answered as though the cancel had done something.
+    params, rather than answered as though the cancel had done something. The report document
+    the run owes renders once the cancel has committed, before the answer goes out.
     """
 
     async def cancel_once() -> RunOut:
@@ -538,6 +542,10 @@ async def cancel(
     async with after_commit(services, get_sessions(request)):
         cancelled = await retried_on_deadlock(session, cancel_once)
         await session.commit()
+    try:
+        await write_owed_report(get_sessions(request), services, run_id, now=utcnow())
+    except Exception as error:  # a worker's pass over owed reports writes it instead
+        _logger.warning("the run's report was left for a worker", run_id=str(run_id), error=str(error))
     return cancelled
 
 

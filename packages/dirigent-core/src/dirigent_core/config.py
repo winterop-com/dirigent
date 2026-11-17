@@ -460,7 +460,7 @@ class Settings(BaseSettings):
     """How long a schedule firing is kept."""
 
     retention_notifications: Duration | None = None
-    """How long an alert that was sent is kept, for runs too young to be pruned themselves."""
+    """How long an alert that was sent or failed for good is kept, for runs too young to be pruned themselves."""
 
     retention_audit: Duration | None = timedelta(days=365)
     """How long an entry of the audit trail is kept; null keeps every one."""

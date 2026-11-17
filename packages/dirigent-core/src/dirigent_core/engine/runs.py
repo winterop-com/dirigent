@@ -644,16 +644,16 @@ async def cancel_run(
     run.error_params = params or None
     run.finished_at = moment
     # Imported here rather than at module scope: reporting reads this module's definitions.
-    from dirigent_core.reporting import render_run_report
+    from dirigent_core.reporting import owe_report
 
     # A cancelled run is one of the runs whose report matters most, and no step of it can
-    # render one.
+    # render one: a worker renders it once this commits.
     try:
         definition: PipelineDefinition | None = await _definition_of(session, run)
     except ValidationError:
         definition = None
     if definition is not None:
-        await render_run_report(session, services, run, definition, now=moment)
+        owe_report(run, definition, moment)
         code = definition.code
     else:
         pipeline = await session.get(Pipeline, run.pipeline_id)

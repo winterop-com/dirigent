@@ -37,6 +37,7 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import StepAttempt, utcnow
 from dirigent_core.models import Worker as WorkerRow
+from dirigent_core.reporting import write_due_reports
 from dirigent_core.sources import holding, polling
 
 #: How long a stopping worker lets its background loops finish the pass they are in.
@@ -122,7 +123,11 @@ class Worker:
         await self._register(WorkerStatus.RUNNING)
         _logger.info("worker started", worker=self.name, concurrency=self.concurrency, tags=self.tags)
         semaphore = asyncio.Semaphore(self.concurrency)
-        background = [asyncio.create_task(self._heartbeat_loop()), asyncio.create_task(self._alert_loop())]
+        background = [
+            asyncio.create_task(self._heartbeat_loop()),
+            asyncio.create_task(self._alert_loop()),
+            asyncio.create_task(self._report_loop()),
+        ]
         if self.sweeper:
             background.append(asyncio.create_task(self._sweep_loop()))
             background.append(asyncio.create_task(self._work_loop()))
@@ -366,6 +371,17 @@ class Worker:
                 _logger.warning("alert delivery pass failed", worker=self.name, error=str(error))
                 sent = 0
             if not sent:
+                await self._pause(self.settings.claim_idle.total_seconds())
+
+    async def _report_loop(self) -> None:
+        """Render the report documents settled runs owe, on the same cadence as claiming."""
+        while not self._halting.is_set():
+            try:
+                written = await write_due_reports(self.sessions, self.services)
+            except Exception as error:  # an owed report stays owed; this pass retries on the next tick
+                _logger.warning("report pass failed", worker=self.name, error=str(error))
+                written = 0
+            if not written:
                 await self._pause(self.settings.claim_idle.total_seconds())
 
     async def _poll_loop(self) -> None:
