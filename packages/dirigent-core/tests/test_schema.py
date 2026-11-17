@@ -362,6 +362,21 @@ async def test_a_whole_table_that_is_not_there_is_named_once(sqlite_settings: Se
     assert str(differences[0]) == "table alert_rules missing"
 
 
+async def test_an_index_an_operator_added_is_not_a_difference(sqlite_settings: Settings) -> None:
+    await migrations.upgrade_async(settings=sqlite_settings)
+    alter(sqlite_settings, "CREATE INDEX ix_reporting_runs_started_at ON runs (started_at)")
+
+    assert await differences_of(sqlite_settings) == []
+
+
+async def test_a_unique_index_the_models_do_not_declare_is_a_difference(sqlite_settings: Settings) -> None:
+    """A unique index refuses writes the models expect to succeed."""
+    await migrations.upgrade_async(settings=sqlite_settings)
+    alter(sqlite_settings, "CREATE UNIQUE INDEX ix_older_runs_started_at ON runs (started_at)")
+
+    assert [str(one) for one in await differences_of(sqlite_settings)] == ["table runs changed"]
+
+
 async def test_a_table_the_models_do_not_declare_is_not_a_difference(sqlite_settings: Settings) -> None:
     """A database may be shared, and nothing dirigent runs reads somebody else's table."""
     await migrations.upgrade_async(settings=sqlite_settings)

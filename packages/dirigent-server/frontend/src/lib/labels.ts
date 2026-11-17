@@ -1059,6 +1059,8 @@ const refused = {
             'Nothing is stored at {uri}. Run {run} (attempt {attempt}) has an artifact row but storage has no object: restore the artifact root from the backup that matches this database, or prune the run.',
     },
     database: {
+        url_unparseable:
+            'database_url is not a URL SQLAlchemy can read. It is written dialect+driver://user:password@host/database, with any @, :, / or % in the password percent-encoded.',
         state_is_a_link:
             '{where} is a symbolic link or a special file, so this instance neither opens nor deletes it.',
         state_not_yours: '{where} belongs to another user, so this instance neither opens nor deletes it.',

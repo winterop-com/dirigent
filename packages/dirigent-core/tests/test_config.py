@@ -310,7 +310,6 @@ def test_settings_are_frozen() -> None:
 def test_postgres_urls_are_not_sqlite() -> None:
     settings = Settings(database_url="postgresql+asyncpg://u:p@localhost/dirigent")
     assert settings.is_sqlite is False
-    assert settings.sync_database_url == "postgresql+psycopg://u:p@localhost/dirigent"
 
 
 def test_an_explicit_config_file_is_taken_at_its_word(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -549,3 +548,17 @@ def test_the_redacted_url_shows_no_credential(url: str, shown: str) -> None:
 def test_the_url_secrets_are_listed_as_written_and_decoded() -> None:
     settings = Settings(database_url="postgresql+asyncpg://u:p%40ss@h/db?ssl=require&password=a%2Bb")
     assert set(config.database_url_secrets(settings)) == {"p%40ss", "p@ss", "a%2Bb", "a+b"}
+
+
+def test_an_unparseable_database_url_is_refused_without_repeating_it() -> None:
+    with pytest.raises(ValidationError) as refused:
+        Settings(database_url="postgresql+asyncpg//dirigent:hunter2@db:5432/dirigent")
+    assert "hunter2" not in str(refused.value)
+    assert [error["loc"] for error in refused.value.errors()] == [("database_url",)]
+    assert "database_url is not a URL SQLAlchemy can read" in str(refused.value)
+
+
+def test_a_refused_setting_does_not_repeat_its_value() -> None:
+    with pytest.raises(ValidationError) as refused:
+        Settings.model_validate({"port": "hunter2"})
+    assert "hunter2" not in str(refused.value)

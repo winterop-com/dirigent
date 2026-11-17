@@ -416,7 +416,7 @@ def _received(_connection: object, _pid: int, channel: str, payload: str) -> Non
 
 def sa_engine(url: str) -> AsyncEngine:
     """Build the engine the listener draws its one held connection from."""
-    return create_async_engine(url, poolclass=NullPool, future=True)
+    return create_async_engine(url, poolclass=NullPool, future=True, hide_parameters=True)
 
 
 class _Held:

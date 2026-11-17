@@ -939,6 +939,18 @@ def test_a_setting_pydantic_refuses_is_refused_with_a_record_that_leaves_out_its
     assert "log_level" in result.stdout
 
 
+def test_an_unparseable_database_url_is_refused_with_a_record_that_leaves_out_its_password(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _settings_in_a_checkout(tmp_path, monkeypatch, "dirigent.yaml", "{}\n")
+    monkeypatch.setenv("DIRIGENT_DATABASE_URL", "postgresql+asyncpg//dirigent:hunter2@db:5432/dirigent")
+    result = runner.invoke(app, ["config", "show"])
+    assert result.exit_code == 2, result.output
+    assert refusal(result.stdout)["code"] == "cli.settings_refused"
+    assert "hunter2" not in result.output
+    assert "database_url" in result.stdout
+
+
 def test_a_malformed_project_file_is_refused_with_a_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project = tmp_path / "project"
     project.mkdir()

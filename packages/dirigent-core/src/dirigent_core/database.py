@@ -145,7 +145,11 @@ def _finite(value: object) -> object:
 
 
 def create_engine(settings: Settings) -> AsyncEngine:
-    """Build the async engine for the configured database."""
+    """Build the async engine for the configured database.
+
+    A database error's message never carries its statement's parameters, which may be a
+    password hash or a sealed secret.
+    """
     if settings.is_sqlite:
         check_state(settings)
         ensure_sqlite_directory(settings)
@@ -153,6 +157,7 @@ def create_engine(settings: Settings) -> AsyncEngine:
             settings.database_url,
             echo=settings.database_echo,
             future=True,
+            hide_parameters=True,
             connect_args={"async_creator_fn": open_sqlite},
             json_serializer=storable_json,
         )
@@ -167,6 +172,7 @@ def create_engine(settings: Settings) -> AsyncEngine:
         pool_recycle=int(settings.database_pool_recycle.total_seconds()) if settings.database_pool_recycle else -1,
         pool_pre_ping=True,
         future=True,
+        hide_parameters=True,
         json_serializer=storable_json,
     )
 
@@ -191,7 +197,9 @@ def create_lock_engine(settings: Settings) -> AsyncEngine:
     The scheduler's advisory lock is session-scoped, so its connection is held for the
     process's lifetime; taking it from the API's pool would permanently consume a slot.
     """
-    return create_async_engine(settings.database_url, poolclass=NullPool, pool_pre_ping=True, future=True)
+    return create_async_engine(
+        settings.database_url, poolclass=NullPool, pool_pre_ping=True, future=True, hide_parameters=True
+    )
 
 
 def create_session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:

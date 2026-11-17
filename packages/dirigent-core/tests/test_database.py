@@ -284,3 +284,19 @@ def test_said_string_writes_its_escape_and_cuts_it_to_the_column() -> None:
 def test_text_a_run_a_caller_or_a_service_produced_is_written_as_said(column: Any, kind: type) -> None:
     """Each of these holds text from outside the instance, which can carry a NUL or half a surrogate pair."""
     assert isinstance(column.type, kind)
+
+
+async def test_a_database_error_does_not_carry_its_statements_parameters(sqlite_settings: Settings) -> None:
+    import sqlalchemy as sa
+
+    engine = create_engine(sqlite_settings)
+    try:
+        async with engine.begin() as connection:
+            await connection.execute(sa.text("CREATE TABLE held (code TEXT PRIMARY KEY, secret TEXT)"))
+            insert = sa.text("INSERT INTO held (code, secret) VALUES (:code, :secret)")
+            await connection.execute(insert, {"code": "one", "secret": "argon2-hash-one"})
+            with pytest.raises(IntegrityError) as refused:
+                await connection.execute(insert, {"code": "one", "secret": "argon2-hash-two"})
+    finally:
+        await engine.dispose()
+    assert "argon2-hash-two" not in str(refused.value)
