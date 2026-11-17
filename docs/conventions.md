@@ -252,7 +252,9 @@ like `mkdocs.yml`, keeps the name the tool expects.
 The fast lane (`make test`) runs on SQLite and is what every change is held to. Four markers
 are deselected by default and each has its own target and its own CI job: `postgres` for what
 only a real PostgreSQL proves, `s3` for a real object store, `docker` for a real daemon, and
-`queues` for real brokers. `e2e` -- the product driven through `dg` as a person drives it --
+`queues` for real brokers. A lane's fixture that cannot reach its service fails the test when
+the run selected that lane, through `dirigent_testing.lane_unavailable`, so a lane with no
+server is red rather than a column of skips; outside the lane it skips. `e2e` -- the product driven through `dg` as a person drives it --
 is marked so `make e2e` can run it alone, but it is *in* the fast lane and gates every change
 with the rest.
 

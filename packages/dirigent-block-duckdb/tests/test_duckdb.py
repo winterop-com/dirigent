@@ -26,7 +26,7 @@ from dirigent_block_sql.sql import (
 )
 from dirigent_common import JsonMap
 from dirigent_plugin import BlockFailure, ErrorClass
-from dirigent_testing import FakeContext
+from dirigent_testing import FakeContext, lane_unavailable
 
 
 def httpfs_installed() -> bool:
@@ -685,13 +685,17 @@ async def test_a_link_in_the_work_directory_does_not_lead_a_run_relative_databas
     assert other.read_bytes() == before
 
 
-@pytest.mark.skipif(not HAS_HTTPFS, reason="duckdb's httpfs extension is not installed on this worker")
-async def test_a_step_that_addresses_a_bucket_keeps_its_reach_to_it(ducked: FakeContext) -> None:
+@pytest.mark.s3
+async def test_a_step_that_addresses_a_bucket_keeps_its_reach_to_it(
+    ducked: FakeContext, pytestconfig: pytest.Config
+) -> None:
     """The s3 scheme stays open where the step asked for it: the endpoint answers, not the boundary.
 
     The endpoint is one nothing listens on, so a session that reached the network fails
     connecting and a session that was held back fails on the path instead.
     """
+    if not HAS_HTTPFS:
+        lane_unavailable(pytestconfig, "s3", "duckdb's httpfs extension is not installed on this worker")
     ducked.connections["bucket"] = S3StorageSettings(
         endpoint_url="http://127.0.0.1:1",
         access_key_id="a-key",
