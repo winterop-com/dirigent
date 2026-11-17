@@ -177,8 +177,11 @@ class Worker:
         except Exception as error:  # the outcome transaction owns failures; this is a bug
             _logger.error("executing an attempt raised", **unit.log_fields, error=str(error))
         finally:
-            self.in_flight.pop(unit.attempt_id, None)
-            self._running.pop(unit.attempt_id, None)
+            self.engine.forget(unit)
+            # The same attempt may have been claimed again by now, under a later claim.
+            if self.in_flight.get(unit.attempt_id) is unit:
+                del self.in_flight[unit.attempt_id]
+                self._running.pop(unit.attempt_id, None)
             telemetry.gauges.in_flight = len(self.in_flight)
             semaphore.release()
 
@@ -221,11 +224,17 @@ class Worker:
         Any other heartbeat that does not come back means the sweeper handed the attempt to
         somebody else: the outcome will be refused by the engine's lease fence anyway, and
         continuing is duplicate work against whatever the block talks to.
+
+        A claim whose outcome was recorded while the heartbeat ran, or that was replaced by a
+        later claim of the same attempt, has not lost anything and is left alone.
         """
+        lost = [unit for unit in lost if self._still_running(unit)]
         if not lost:
             return
         cancelled = await self.engine.cancelled([unit.attempt_id for unit in lost])
         for unit in lost:
+            if not self._still_running(unit):
+                continue
             task = self._running.pop(unit.attempt_id, None)
             stopping = task is not None and not task.done()
             why = cancelled.get(unit.attempt_id)
@@ -247,6 +256,10 @@ class Worker:
                 )
             if task is not None and stopping:
                 task.cancel()
+
+    def _still_running(self, unit: ClaimedUnit) -> bool:
+        """Say whether this claim is the one in flight for its attempt and has no outcome yet."""
+        return self.in_flight.get(unit.attempt_id) is unit and not self.engine.recorded(unit)
 
     async def _sweep_loop(self) -> None:
         """Recover what a dead worker left, settle passed deadlines, reap what stopped reporting."""
