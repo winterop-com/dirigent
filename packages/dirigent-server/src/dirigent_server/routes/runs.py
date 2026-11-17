@@ -517,13 +517,13 @@ async def pause(run_id: UUID, session: SessionDep, principal: OperatorDep) -> Ru
 
 
 @router.post("/runs/{run_id}/$resume", operation_id="resumeRun", summary="Resume a paused run", response_model=RunOut)
-async def resume(run_id: UUID, session: SessionDep, principal: OperatorDep) -> RunOut:
+async def resume(run_id: UUID, session: SessionDep, services: ServicesDep, principal: OperatorDep) -> RunOut:
     """Let a paused run go on, its open deadlines moved on by as long as it was paused."""
 
     async def resume_once() -> RunOut:
         run = await _run_row(session, run_id)
         pipeline, version, _ = await _context(session, run)
-        await resume_run(session, run)
+        await resume_run(session, services, run)
         return await _render_one(session, run, pipeline, version)
 
     return await retried_on_deadlock(session, resume_once)

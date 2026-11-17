@@ -284,6 +284,11 @@ class Engine:
         if run is None:  # pragma: no cover - the foreign key makes this unreachable
             return None
         await lock_run(session, run.id)
+        # The claim's run predicate is judged on the statement's snapshot, and a pause writes
+        # only the run row, so the run is read again under its lock.
+        await session.refresh(run)
+        if run.status not in CLAIMABLE_RUN_STATUSES:
+            return None
         version = await session.get(PipelineVersion, run.pipeline_version_id)
         if version is None:  # pragma: no cover - the foreign key makes this unreachable
             return None
