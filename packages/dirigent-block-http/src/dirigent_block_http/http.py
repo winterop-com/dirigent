@@ -11,11 +11,13 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from dirigent_block_http.connections import HttpConnectionConfig
 from dirigent_block_http.messages import (
     HOST_OFF_ORIGIN,
+    NO_ANSWER,
     NO_TARGET,
     OFF_ORIGIN,
     RESPONSE_TOO_LARGE,
     ROUTING_HEADER_REFUSED,
     STATUS_REFUSED,
+    UNREACHABLE,
     URL_BESIDE_CONNECTION,
 )
 from dirigent_common import (
@@ -264,6 +266,59 @@ async def read_bounded(response: httpx2.Response, limit: int) -> bytes:
     return b"".join(chunks)
 
 
+#: The phase of a request each timeout bounds, as httpx2 keys them in a request's timeout.
+TIMEOUT_PHASES: Final[dict[type[httpx2.TimeoutException], str]] = {
+    httpx2.ConnectTimeout: "connect",
+    httpx2.ReadTimeout: "read",
+    httpx2.WriteTimeout: "write",
+    httpx2.PoolTimeout: "pool",
+}
+
+
+async def exchange(
+    target: HttpTarget, client: httpx2.AsyncClient, request: httpx2.Request, limit: int
+) -> tuple[httpx2.Response, bytes]:
+    """Send one request and read its whole answer, naming where it went when no answer came.
+
+    A failure to connect, and an answer that did not arrive in time, are transient, and say the
+    method, the URL and the origin the request was sent to.
+    """
+    try:
+        response = await client.send(request, stream=True, follow_redirects=target.follow_redirects)
+        try:
+            payload = await read_bounded(response, limit)
+        finally:
+            await response.aclose()
+    except httpx2.TimeoutException as error:
+        phase = TIMEOUT_PHASES.get(type(error), "read")
+        raise BlockFailure(
+            NO_ANSWER,
+            error_class=ErrorClass.TRANSIENT,
+            method=request.method,
+            url=shown_url(target),
+            origin=_shown(request.url),
+            phase=phase,
+            timeout=_seconds(request.extensions.get("timeout", {}).get(phase)),
+        ) from error
+    except httpx2.TransportError as error:
+        raise BlockFailure(
+            UNREACHABLE,
+            error_class=ErrorClass.TRANSIENT,
+            method=request.method,
+            url=shown_url(target),
+            origin=_shown(request.url),
+            detail=str(error) or type(error).__name__,
+        ) from error
+    return response, payload
+
+
+def _seconds(value: object) -> str:
+    """Write a timeout in seconds the way a duration is configured."""
+    if not isinstance(value, int | float):
+        return "none"
+    return f"{value:g}s"
+
+
 class HttpRequestConfig(HttpTarget):
     """What one HTTP call sends, and which responses count as success."""
 
@@ -365,11 +420,7 @@ class HttpRequestOperator(Operator[HttpRequestConfig, HttpRequestOutput]):
                 timeout=request_timeout(config, client),
             )
             on_origin(config, client, request)
-            response = await client.send(request, stream=True, follow_redirects=config.follow_redirects)
-            try:
-                payload = await read_bounded(response, config.max_response)
-            finally:
-                await response.aclose()
+            response, payload = await exchange(config, client, request, config.max_response)
         duration = round((time.monotonic() - started) * 1000)
         ctx.log.info(
             "http call",

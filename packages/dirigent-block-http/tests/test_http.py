@@ -568,15 +568,52 @@ async def test_a_declared_success_set_overrides_the_2xx_default(ctx: FakeContext
         await HttpRequestOperator().execute(strict, ctx.as_context())
 
 
-async def test_a_transport_failure_classifies_as_transient(ctx: FakeContext) -> None:
+async def test_a_transport_failure_is_transient_and_names_where_the_request_went(ctx: FakeContext) -> None:
     def fail(request: httpx2.Request) -> httpx2.Response:
-        raise httpx2.ConnectError("refused")
+        raise httpx2.ConnectError("All connection attempts failed")
 
     ctx.handler = fail
     operator = HttpRequestOperator()
-    with pytest.raises(httpx2.ConnectError) as raised:
-        await operator.execute(HttpRequestConfig(connection="api"), ctx.as_context())
+    with pytest.raises(BlockFailure) as raised:
+        await operator.execute(HttpRequestConfig(connection="api", path="/orders"), ctx.as_context())
+    assert raised.value.code == "http.unreachable"
+    assert raised.value.error_class is ErrorClass.TRANSIENT
     assert operator.classify_error(raised.value) is ErrorClass.TRANSIENT
+    assert raised.value.params["origin"] == "http://service.test"
+    assert raised.value.params["url"] == "/orders"
+    assert raised.value.params["detail"] == "All connection attempts failed"
+
+
+async def test_a_timeout_names_the_phase_and_the_limit_it_ran_out_of(ctx: FakeContext) -> None:
+    def slow(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ReadTimeout("")
+
+    ctx.handler = slow
+    config = HttpRequestConfig(connection="api", path="/slow", timeout=timedelta(seconds=7))
+    with pytest.raises(BlockFailure) as raised:
+        await HttpRequestOperator().execute(config, ctx.as_context())
+    assert raised.value.code == "http.no_answer"
+    assert raised.value.error_class is ErrorClass.TRANSIENT
+    assert raised.value.params == {
+        "method": "GET",
+        "url": "/slow",
+        "origin": "http://service.test",
+        "phase": "read",
+        "timeout": "7s",
+    }
+
+
+async def test_a_webhook_that_reaches_nobody_names_the_receiver(ctx: FakeContext) -> None:
+    def fail(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("[Errno 111] Connection refused")
+
+    ctx.handler = fail
+    with pytest.raises(BlockFailure) as raised:
+        await WebhookPostOperator().execute(WebhookPostConfig(connection="api", path="/hook"), ctx.as_context())
+    assert raised.value.code == "http.unreachable"
+    assert raised.value.error_class is ErrorClass.TRANSIENT
+    assert raised.value.params["method"] == "POST"
+    assert raised.value.params["origin"] == "http://service.test"
 
 
 def test_a_config_naming_neither_a_connection_nor_a_url_is_refused() -> None:
