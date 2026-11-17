@@ -39,6 +39,7 @@ from dirigent_core.messages import (
     CONNECTION_WRONG_KIND,
     RUN_UNKNOWN_CONNECTION,
     RUN_UNKNOWN_SCHEMA,
+    RUN_WORK_UNWRITABLE,
     UNKNOWN_CONNECTION_KIND,
 )
 from dirigent_core.models import Connection
@@ -375,7 +376,10 @@ class EngineStepContext:
         and the paths it is to touch, and a relative one would be resolved twice.
         """
         directory = work_dir(self._work_root, self.run_id)
-        directory.mkdir(parents=True, exist_ok=True)
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as error:
+            raise BlockFailure(RUN_WORK_UNWRITABLE, path=str(directory), detail=str(error)) from error
         return directory
 
     @property

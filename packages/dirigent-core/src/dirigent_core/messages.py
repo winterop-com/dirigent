@@ -847,6 +847,12 @@ RUN = Catalogue("run")
 
 RUN_UNKNOWN_CONNECTION = RUN.define("unknown_connection", "no connection coded {ref} ({available})")
 
+RUN_WORK_UNWRITABLE = RUN.define(
+    "work_unwritable",
+    "this worker cannot make the run's work directory {path}: {detail}; its work root "
+    "(work_root, DIRIGENT_WORK_ROOT) must be writable by the user the worker runs as",
+)
+
 RUN_UNKNOWN_SCHEMA = RUN.define(
     "unknown_schema",
     "this run holds no shape coded {code}: it checks against the shapes its document named when "
