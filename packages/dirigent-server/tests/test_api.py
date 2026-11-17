@@ -949,6 +949,59 @@ def test_prune_with_an_empty_keep_is_refused_outside_a_dry_run(client: TestClien
     assert client.get(f"{PREFIX}/pipelines").json()["items"][0]["active"] is True
 
 
+def test_a_plan_reads_each_document_against_what_the_ones_before_it_wrote(client: TestClient) -> None:
+    """A triggers document whose pipeline is earlier in the plan plans as a create, and nothing is kept."""
+    pipeline = yaml.safe_load(DOCUMENT)
+    pipeline["code"] = "planned-load"
+    clocks = {
+        "format": "dirigent/v1",
+        "kind": "triggers",
+        "code": "planned-clocks",
+        "pipeline": "planned-load",
+        "triggers": {"schedules": [{"code": "nightly", "cron": "0 4 * * *"}]},
+    }
+    alone = client.post(f"{PREFIX}/pipelines/$apply", json={"document": clocks}, params={"dry_run": True})
+    assert alone.json()["plan"]["action"] == "invalid", "planned alone, its pipeline is missing"
+
+    planned = client.post(
+        f"{PREFIX}/pipelines/$plan", json={"documents": [{"document": pipeline}, {"document": clocks}]}
+    )
+
+    assert planned.status_code == 200, planned.text
+    results = planned.json()["results"]
+    assert [(one["plan"]["code"], one["plan"]["action"], one["dry_run"]) for one in results] == [
+        ("planned-load", "create", True),
+        ("planned-clocks", "create", True),
+    ]
+    assert [one["pipeline_id"] for one in results] == [None, None], "no id of a pipeline the plan created"
+    assert results[1]["triggers"]["schedules_created"] == ["nightly"]
+    assert client.get(f"{PREFIX}/pipelines").json()["items"] == [], "nothing was written"
+    assert client.get(f"{PREFIX}/trigger-documents").json()["items"] == []
+
+
+def test_a_plan_refuses_a_document_carrying_its_own_connections(client: TestClient) -> None:
+    carried = yaml.safe_load(DOCUMENT)
+    carried["connections"] = {"demo": {"kind": "http", "config": {"base_url": "https://example.org"}}}
+
+    refused = client.post(f"{PREFIX}/pipelines/$plan", json={"documents": [{"document": carried}]})
+
+    assert refused.status_code == 422, refused.text
+    assert [problem["location"] for problem in refused.json()["problems"]] == ["documents.0"]
+
+
+def test_a_plan_names_the_document_that_does_not_load(client: TestClient) -> None:
+    misspelt = yaml.safe_load(DOCUMENT)
+    misspelt["tagz"] = ["x"]
+
+    refused = client.post(
+        f"{PREFIX}/pipelines/$plan",
+        json={"documents": [{"document": yaml.safe_load(DOCUMENT)}, {"document": misspelt}]},
+    )
+
+    assert refused.status_code == 422, refused.text
+    assert [problem["location"] for problem in refused.json()["problems"]] == ["documents.1.tagz"]
+
+
 def test_a_dry_run_reports_a_plan_and_writes_nothing(client: TestClient) -> None:
     result = apply_document(client, DOCUMENT, dry_run=True)
     assert result["dry_run"] is True

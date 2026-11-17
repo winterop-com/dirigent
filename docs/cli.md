@@ -496,6 +496,16 @@ directory at any depth, walked the same way the server walks `DIRIGENT_APPLY_DIR
 would retire. That plus a pipeline repository on GitHub is the entire
 promotion story.
 
+Every document is parsed before any is sent, so one that does not parse stops the apply with
+nothing written. Each goes after what it names: a triggers document after the pipeline it
+schedules, and a pipeline after the ones its `requires.pipelines` names, when the project holds
+them; otherwise pipelines go before triggers documents, in path order. Two documents of one
+kind declaring one code are refused before anything is sent. The dry run plans the documents
+as one apply of all of them, in that order, so a triggers document for a pipeline the same
+project adds plans as a `create` rather than as missing. Each `apply` record is written as its
+document lands, with the token or signing secret it minted for a new source, so an apply that
+stops at a later document has already said what it applied before it.
+
 `--prune` reconciles the whole project: after applying every document, a pipeline an
 earlier directory apply wrote and the project no longer holds is deactivated -- never
 deleted. It marks this apply's documents with directory provenance, which is what a later

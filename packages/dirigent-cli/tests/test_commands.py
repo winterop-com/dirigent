@@ -571,6 +571,110 @@ def test_prune_refuses_a_single_document(tmp_path: Path, server: str) -> None:
     assert "whole project" in refusal(result.stdout)["message"]
 
 
+#: A pipeline whose endpoint source mints a token the first time it is applied.
+INTAKE = """
+format: dirigent/v1
+kind: pipeline
+code: a-intake
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /a-intake
+      auth: {kind: token}
+  shape:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output.body}
+      program: '.'
+"""
+
+#: A clock for the demo pipeline under the code ``load``, kept in a file that sorts first.
+LOAD_CLOCKS = """
+format: dirigent/v1
+kind: triggers
+code: load-clocks
+pipeline: load
+triggers:
+  schedules:
+    - code: nightly
+      cron: "0 4 * * *"
+"""
+
+
+def test_a_project_dry_run_plans_a_triggers_document_against_the_pipeline_it_adds(tmp_path: Path, server: str) -> None:
+    directory = _project(tmp_path, "load")
+    (directory / "a-load-clocks.yaml").write_text(LOAD_CLOCKS)
+
+    planned = machine("apply", "--dry-run")
+
+    assert planned.exit_code == 0, planned.output
+    applied = rows(planned.stdout, "apply")
+    assert [(row["plan"]["code"], row["plan"]["action"], row["dry_run"]) for row in applied] == [
+        ("load", "create", True),
+        ("load-clocks", "create", True),
+    ]
+    assert of_kind(records(planned.stdout), "validation") == []
+    assert rows(machine("pipeline", "list").stdout) == [], "nothing was written"
+    assert machine("apply").exit_code == 0
+
+
+def test_a_project_applies_a_pipeline_after_the_one_it_requires(tmp_path: Path, server: str) -> None:
+    directory = _project(tmp_path, "z-child")
+    (directory / "a-parent.yaml").write_text(
+        DOCUMENT.replace("code: cli-demo", "code: a-parent\nrequires:\n  pipelines: [z-child]")
+    )
+
+    planned = machine("apply", "--dry-run")
+    applied = machine("apply")
+
+    assert planned.exit_code == 0, planned.output
+    assert applied.exit_code == 0, applied.output
+    assert [row["plan"]["code"] for row in rows(applied.stdout, "apply")] == ["z-child", "a-parent"]
+    assert _active(machine("pipeline", "list").stdout) == {"a-parent": True, "z-child": True}
+
+
+def test_a_project_holding_one_code_twice_is_refused_before_anything_is_sent(tmp_path: Path, server: str) -> None:
+    directory = _project(tmp_path, "twice")
+    (directory / "again.yaml").write_text(DOCUMENT.replace("code: cli-demo", "code: twice"))
+
+    result = machine("apply")
+
+    assert result.exit_code == 1
+    assert refusal(result.stdout)["code"] == "cli.project_code_twice"
+    assert rows(result.stdout, "apply") == []
+    assert rows(machine("pipeline", "list").stdout) == []
+
+
+def test_a_project_apply_that_stops_keeps_what_it_applied_and_the_token_it_minted(tmp_path: Path, server: str) -> None:
+    directory = _project(tmp_path)
+    (directory / "a-intake.yaml").write_text(INTAKE)
+    carried = DOCUMENT.replace("code: cli-demo", "code: b-carries")
+    (directory / "b-carries.yaml").write_text(
+        carried + "connections:\n  demo:\n    kind: http\n    config: {base_url: 'https://example.org'}\n"
+    )
+
+    result = machine("apply")
+
+    assert result.exit_code == 1
+    applied = only(result.stdout, "apply")["fields"]
+    assert applied["plan"]["code"] == "a-intake"
+    assert [minted["code"] for minted in applied["sources"]["tokens"]] == ["ask"]
+    assert _active(machine("pipeline", "list").stdout) == {"a-intake": True}
+
+
+def test_a_project_with_a_document_that_does_not_parse_applies_none_of_it(tmp_path: Path, server: str) -> None:
+    directory = _project(tmp_path, "a-first")
+    (directory / "b-shape.json").write_text('{"$schema": "https://json-schema.org/draft/2020-12/schema"}')
+
+    result = machine("apply")
+
+    assert result.exit_code == 1
+    assert "b-shape.json" in refusal(result.stdout)["message"]
+    assert rows(machine("pipeline", "list").stdout) == []
+
+
 def test_apply_shows_a_diff_when_the_document_changed(tmp_path: Path, server: str) -> None:
     path = apply_document(tmp_path)
     path.write_text(DOCUMENT.replace("argv: [echo, goodbye]", "argv: [echo, so long]"))

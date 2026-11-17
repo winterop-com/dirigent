@@ -22,6 +22,8 @@ from dirigent_client.schemas import (
     PipelineDetail,
     PipelineOut,
     PipelineVersionOut,
+    PlanRequest,
+    PlanResult,
     PruneRequest,
     PruneResult,
     RunAccepted,
@@ -83,6 +85,16 @@ class Pipelines(Resource):
             json=request_body(payload),
             params={"dry_run": dry_run},
         )
+
+    async def plan(self, documents: Sequence[ApplyRequest]) -> PlanResult:
+        """Plan applying several documents in order, as one apply of all of them would go.
+
+        Each document is planned against what the ones before it would have written, so a
+        triggers document whose pipeline is earlier in the list, or a pipeline that requires one
+        earlier in it, plans as the apply would go rather than as missing. Nothing is written.
+        """
+        payload = PlanRequest(documents=[*documents])
+        return await self._one(PlanResult, "POST", "/pipelines/$plan", json=request_body(payload))
 
     async def prune(self, keep: Sequence[str], *, dry_run: bool = False) -> PruneResult:
         """Deactivate every directory-provenance pipeline whose code is not in ``keep``.

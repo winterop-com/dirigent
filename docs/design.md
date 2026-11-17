@@ -1159,6 +1159,7 @@ GET           /api/v1/pipelines              # + /{code}, /{code}/versions
 POST          /api/v1/pipelines/$apply       # a whole document; ?dry_run=true returns the plan
                                              # paused: true mints its new clocks and its new
                                              # polled or held sources paused
+POST          /api/v1/pipelines/$plan        # several documents planned in order as one apply
 POST          /api/v1/pipelines/$prune       # deactivate directory pipelines a set no longer names
 GET           /api/v1/pipelines/{code}/$export        # canonical YAML
 POST          /api/v1/pipelines/{code}/$validate      # re-check a stored version

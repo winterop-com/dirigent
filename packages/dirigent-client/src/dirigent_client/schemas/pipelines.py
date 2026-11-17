@@ -149,6 +149,14 @@ class ApplyRequest(RequestModel):
     )
 
 
+class PlanRequest(RequestModel):
+    """Documents planned as one apply of all of them, in the order given."""
+
+    documents: list[ApplyRequest] = Field(min_length=1)
+    """Each document as its own apply would send it, so a later one is planned against what an
+    earlier one would have written."""
+
+
 class PruneRequest(RequestModel):
     """The codes a reconcile keeps: everything else it once applied is deactivated."""
 
@@ -432,3 +440,11 @@ class ApplyResult(WireModel):
 
     reactivated: bool = False
     """A directory prune had deactivated the pipeline, and this directory apply activated it again."""
+
+
+class PlanResult(WireModel):
+    """What applying a list of documents in order would do, one result per document."""
+
+    results: list[ApplyResult]
+    """In the order the documents were given. Each is a dry run: no version is stored, no
+    schedule or source exists, and no source token is minted."""
