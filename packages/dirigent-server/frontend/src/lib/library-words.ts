@@ -366,6 +366,7 @@ export function accountWords(username: string): Partial<AccountMenuWords> {
         account: LABELS.shell.account.label(username),
         settings: LABELS.shell.settings,
         shortcuts: LABELS.shell.account.shortcuts,
+        appearance: LABELS.shell.account.appearance,
         signOut: LABELS.action.sign_out,
     }
 }

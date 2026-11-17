@@ -87,6 +87,9 @@ import { warmEditor } from '@/components/pipeline/CodePane'
 /** The settings pane the top bar's dot opens on. */
 const SERVER_PANE = 'server'
 
+/** The settings pane the account menu's Appearance row opens on. */
+const APPEARANCE_PANE = 'appearance'
+
 /**
  * The settings dialog is fetched the first time somebody asks for it.
  *
@@ -167,6 +170,12 @@ export function AppShell() {
 
     const openServerPane = useCallback(() => {
         setSettingsPane(SERVER_PANE)
+        setSettingsAsked(true)
+        setSettingsOpen(true)
+    }, [])
+
+    const openAppearancePane = useCallback(() => {
+        setSettingsPane(APPEARANCE_PANE)
         setSettingsAsked(true)
         setSettingsOpen(true)
     }, [])
@@ -322,6 +331,7 @@ export function AppShell() {
                                 detail={identity.role}
                                 where={identityLine(server)}
                                 onSettings={openSettings}
+                                onAppearance={openAppearancePane}
                                 onSignOut={leave}
                                 words={accountWords(identity.username)}
                             />

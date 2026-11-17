@@ -751,6 +751,8 @@ const shell = {
         label: (username: string) => `Account: ${username}`,
         /** The row that opens the shortcuts dialog. */
         shortcuts: 'Keyboard shortcuts',
+        /** The row that opens the settings on the Appearance section. */
+        appearance: 'Appearance',
     },
 
     resize_panel: 'Resize the side panel',

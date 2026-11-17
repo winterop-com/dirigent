@@ -195,7 +195,8 @@ Typeface and Motion, each a row with its own words, found by its own words in th
 No row of it is dirigent's, and no word on it is in the catalogue: they are the library's. The
 command palette carries the same choices as sokkel-ui's `appearanceCommands(settings, setSettings,
 { themes })`, its Scheme, Density and Theme groups after the app's own and before Session. **The
-account menu carries no scheme or theme rows, and the top strip no scheme flip.**
+account menu's Appearance row only opens that section: it carries no scheme or theme rows, and
+the top strip no scheme flip.**
 
 **Three palettes ship, ordered quiet to loud: `amber`, `paper`, `contrast`.** The default is
 `amber`: the library's neutral blue-grey surfaces under an amber accent, in a dark and a light mode;
@@ -1523,7 +1524,8 @@ included, the role leaves the row and is said only in the menu's head. **This is
 code stands in the UI face.** The username is the account's code, and wherever it is addressed -- the accounts listing, the Account pane, a
 token's owner -- it is mono; here it is the reader's own name said back to them. The menu opens
 upward: its head is the username and the role with the instance's name and environment under it, then
-Settings, Keyboard shortcuts with `?`, and Sign out. The look is not chosen here.
+Settings, Appearance, Keyboard shortcuts with `?`, and Sign out. Appearance opens the settings
+dialog on its Appearance section; the menu itself switches no scheme or theme.
 
 **The rail hides whole.** The platform's modifier plus B and the palette's row take it off screen
 and bring it back, and while it is hidden the top bar's menu button opens it as the drawer at
