@@ -1331,6 +1331,7 @@ const refused = {
         host_not_loopback: 'This instance is bound to loopback and answers only to a loopback name.',
         idempotency_key_required:
             'An Idempotency-Key header is required, so a retried request creates one attempt.',
+        idempotency_key_too_long: 'An Idempotency-Key header is at most {maximum} characters.',
         internal: 'The server failed to handle this request. The server log has the detail.',
         mcp_cross_origin:
             'This MCP request was caused by a page on another origin, which this instance does not answer.',
@@ -1431,6 +1432,7 @@ const refused = {
         route_claimed: '{method} {template} is already answered by source {step} of pipeline {pipeline}.',
         route_raced:
             '{method} {template} was claimed by another pipeline while this one was applied. Apply again to see which.',
+        run_not_created: "No run could be created ({cause}). The reason is recorded with the source's inputs.",
         run_refused: 'No run could be created: {detail}',
         run_skipped: 'A run of pipeline {pipeline} is already in flight, and its concurrency is skip.',
         sample_invalid:

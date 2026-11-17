@@ -1291,6 +1291,10 @@ SOURCE_RUN_SKIPPED = SOURCE.define(
 
 SOURCE_RUN_REFUSED = SOURCE.define("run_refused", "no run could be created: {detail}")
 
+SOURCE_RUN_NOT_CREATED = SOURCE.define(
+    "run_not_created", "no run could be created ({cause}); the reason is recorded with the source's inputs"
+)
+
 SOURCE_POLL_TIMED_OUT = SOURCE.define("poll_timed_out", "the poll did not finish within {timeout}, the source's lease")
 
 SOURCE_NOT_HELD = SOURCE.define("not_held", "the source is no longer held by this worker")

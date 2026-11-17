@@ -640,7 +640,10 @@ instance's cookies or storage. A reply may not set `set-cookie`, `www-authentica
 `x-sendfile`), among others. That is refused at apply (`source.reply_bad_header`) and again when
 the reply renders, where a value a reference resolved to that holds a line break is refused too
 (`run.reply_refused`). `location`, `content-disposition` and `access-control-*` remain the
-pipeline's to set, so a reply can redirect, name a download or answer a browser caller. A reply's
+pipeline's to set, so a reply can redirect, name a download or answer a browser caller. A
+source takes no `OPTIONS` method, so a browser's CORS preflight is answered 405: a reply answers
+a page on another origin only for a request the browser sends without one, such as a `GET` or a
+form `POST` with no `Authorization` header. A reply's
 `content_type` must be a media type and must not be one a browser runs as a script, such as
 `text/javascript`, which the sandbox does not govern when a page loads the URL in a `<script>`. That
 is refused at apply (`source.reply_bad_content_type`), and an object `body_from` names that is stored
@@ -649,7 +652,10 @@ as one is sent as `application/octet-stream`.
 **A failed step's text stays on the run.** A held caller whose run fails before a reply answers is
 told the run and the step, and nothing the step said: that text can hold the artifact root, an
 internal address or a query value, and a caller may have no right to read the run. A reply can
-still put a step's error in its own body, as the author chooses.
+still put a step's error in its own body, as the author chooses. An input no run could be made
+from is answered the same way: the caller is told the refusal's code (`source.run_not_created`),
+and its sentence, which can name the instance's schemas or its block allowlist, is kept in the
+source's input journal for an operator.
 
 **An open stream answers to its credential.** A run's log tail and event stream read the token or
 session they were opened with on every poll, in the transaction that reads what goes out. Once it

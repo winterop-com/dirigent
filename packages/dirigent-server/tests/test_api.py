@@ -5,7 +5,7 @@ import json
 import threading
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, ClassVar, cast
@@ -2703,6 +2703,48 @@ def test_a_principal_cannot_hold_more_log_streams_than_the_cap(client: TestClien
     assert client.get(f"{PREFIX}/runs/{run_id}/$logs").status_code == 200, "a page is never refused"
 
 
+def test_streams_opened_together_are_each_counted_before_any_of_them_is_sent() -> None:
+    """A burst of opens all pass a check that counts only the streams already running."""
+    from dirigent_server.errors import Refusal
+    from dirigent_server.routes import runs as runs_route
+
+    user = uuid.uuid4()
+    seats = [runs_route._claim(user) for _ in range(runs_route.MAX_TAILS_PER_PRINCIPAL)]  # pyright: ignore[reportPrivateUsage]
+    try:
+        with pytest.raises(Refusal):
+            runs_route._claim(user)  # pyright: ignore[reportPrivateUsage]
+    finally:
+        for seat in seats:
+            seat.release()
+            seat.release()
+    assert str(user) not in runs_route.OPEN_TAILS, "each seat is given back once, however often it is released"
+
+
+def test_a_stream_whose_caller_left_before_its_first_byte_gives_its_seat_back() -> None:
+    from dirigent_server.routes import runs as runs_route
+
+    user = uuid.uuid4()
+    started: list[bool] = []
+
+    async def story() -> AsyncGenerator[str]:
+        started.append(True)
+        yield "event: end\ndata: {}\n\n"
+
+    async def gone(_: Any) -> None:
+        raise OSError("the caller hung up")
+
+    async def nothing() -> Any:
+        return {"type": "http.disconnect"}
+
+    stream = runs_route.HeldStream(story(), runs_route._claim(user))  # pyright: ignore[reportPrivateUsage]
+    assert runs_route.OPEN_TAILS[str(user)] == 1
+    scope = {"type": "http", "asgi": {"spec_version": "2.4"}}
+    with pytest.raises(Exception):  # noqa: B017, PT011 - Starlette's own disconnect error
+        asyncio.run(stream(scope, nothing, gone))
+    assert started == [], "the stream never began"
+    assert str(user) not in runs_route.OPEN_TAILS
+
+
 #: A stream is read whole -- the test client runs a response to its end before it yields a line --
 #: so what a watcher saw change has to be written while the stream is open, and a writer cannot wait
 #: on what it was delivered. It waits on the poll that read the state it is about to move past: a
@@ -3223,6 +3265,18 @@ def test_a_settled_failure_can_be_retried_with_an_idempotency_key(client: TestCl
     assert again.json()["id"] == first.json()["id"], "the same key must not create a second attempt"
     third = client.post(f"{PREFIX}/attempts/{attempt['id']}/$retry", headers={"Idempotency-Key": "another"})
     assert third.status_code == 409, "the step is queued again, so there is nothing settled to retry"
+
+
+def test_an_idempotency_key_longer_than_its_column_holds_is_refused_before_anything_is_read(
+    client: TestClient,
+) -> None:
+    missing = "00000000-0000-7000-8000-000000000000"
+    longest = client.post(f"{PREFIX}/attempts/{missing}/$retry", headers={"Idempotency-Key": "k" * 255})
+    assert longest.status_code == 404, "a key at the limit is read"
+    refused = client.post(f"{PREFIX}/attempts/{missing}/$retry", headers={"Idempotency-Key": "k" * 256})
+    assert refused.status_code == 400, refused.text
+    assert refused.json()["code"] == "server.idempotency_key_too_long"
+    assert refused.json()["params"] == {"maximum": 255}
 
 
 def test_retrying_an_attempt_that_does_not_exist_is_a_404(client: TestClient) -> None:
