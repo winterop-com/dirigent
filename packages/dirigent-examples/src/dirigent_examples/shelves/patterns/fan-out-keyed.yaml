@@ -1,0 +1,93 @@
+# A fan-out over records, each item named by a field of its record rather than by the record.
+#
+# An item is named by its element. For a list of words that is the word, and it reads well:
+# the run grid says `oslo`, a log line says `item=oslo`. For a list of records it is the whole
+# record printed as text, `{'code': 'eu', 'url': ...}`, which is a name nobody can read and that
+# changes whenever a field is added to the record.
+#
+# `key: code` names each item by its record's `code`. A dotted path reaches a nested field:
+# `key: site.code`. The record itself is unchanged, and `${item.url}` still reads the rest.
+#
+# A STEP THAT MAPS OVER THE GRID TAKES ITS NAMES. `check` adopts `probe`'s grid with
+# `${steps.probe.items}` and declares no key: its items are `eu`, `af` and `as` too. That is
+# what makes a target one thing across every step that touches it -- in the run grid, in the
+# per-element stats on the pipeline screen, and in what an alert rule on change compares. A key
+# on an adopting step is refused when the document loads.
+#
+# A KEY NAMES ONE ELEMENT. Every element must carry it, as a string or a number, and no two may
+# share it. A grid that breaks either is refused before an item is written: a run whose grid is
+# fixed when it is created is not created, and a grid read from a step's output fails its step
+# as rejected. Both say which element.
+#
+# Hop by hop:
+#
+#   probe   playground.generate, once per site, named by the site's code.
+#   check   transform.jq over probe's grid: one item per site, the same names, each reading its
+#           own site's probe.
+#
+# EXPECT THIS RUN TO SUCCEED, with three items named eu, af and as under both steps.
+#
+# To change it: list two sites under one code, and the run is refused before it starts,
+# naming the two elements.
+#
+#   dg run --local examples/patterns/fan-out-keyed.yaml
+#   dg run --local examples/patterns/fan-out-keyed.yaml \
+#     -p 'sites=[{"code": "eu", "url": "https://a.example.org"}, {"code": "eu", "url": "https://b.example.org"}]'
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-keyed
+name: Items named by a field
+description: |
+  Probe three sites and check each, naming every item by its site's code.
+
+  `key: code` names each item by a field of its element, and a step mapping over that grid
+  with `${steps.<name>.items}` takes the same names.
+
+tags: [patterns, playground, transform, fan-out, references]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    sites:
+      type: array
+      minItems: 1
+      maxItems: 16
+      items:
+        type: object
+        required: [code, url]
+        properties:
+          code: { type: string }
+          url: { type: string }
+      default:
+        - {code: eu, url: https://eu.example.org}
+        - {code: af, url: https://af.example.org}
+        - {code: as, url: https://as.example.org}
+      description: The sites, each a record; its code is what its item is called.
+
+steps:
+  probe:
+    block: playground.generate
+    for_each: ${params.sites}
+    key: code
+    config:
+      rows: 1
+      input:
+        site: "${item.url}"
+
+  check:
+    block: transform.jq
+    depends_on: [probe]
+    # No key here: an adopted grid keeps the names it was given.
+    for_each: ${steps.probe.items}
+    config:
+      input:
+        site: "${item.code}"
+        probed: "${steps.probe.item.output.records}"
+      program: |
+        {site, rows: (.probed | length)}

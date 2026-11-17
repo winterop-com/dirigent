@@ -441,6 +441,14 @@ together, under a rule other than `all_success`, and when the step reads the gri
 holds: an item-wise step's grid is written the moment the grid it adopts is, rather than once
 that grid has settled, and each of its items then waits for its own match.
 
+An item is named by its element, which reads well for a list of words and badly for a list of
+records. `key: code` names each item by its element's `code` instead (`key: site.code` reaches a
+nested one), so a target listed as `{code: chap-eu, url: ...}` is `chap-eu` in the run grid, in
+the per-element stats and in a log line. A step mapping over another's grid with
+`${steps.<name>.items}` takes that step's names. A key every element must carry, as a string
+or a number, and no two may share; a grid that breaks either is refused before an item is
+written. See `examples/patterns/fan-out-keyed.yaml`.
+
 The step's `items` policy decides what one bad element means. Under the default, `fail_fast`,
 any failed item fails the step. Under `continue`, the step succeeds as long as one item did,
 the failures are recorded against their own items, and the run reports

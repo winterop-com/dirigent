@@ -46,6 +46,7 @@ describe('the fields', () => {
             'rule',
             'for_each',
             'items',
+            'key',
             'timeout',
             'poll',
             'deadline',

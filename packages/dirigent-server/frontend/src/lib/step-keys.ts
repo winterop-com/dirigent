@@ -27,6 +27,7 @@ export const STEP_KEYS = [
     'rule',
     'for_each',
     'items',
+    'key',
     'timeout',
     'poll',
     'deadline',
@@ -42,6 +43,7 @@ const STEP_WORDS: Record<(typeof STEP_KEYS)[number], string> = {
     rule: LABELS.editor.step_keys.rule,
     for_each: LABELS.editor.step_keys.for_each,
     items: LABELS.editor.step_keys.items,
+    key: LABELS.editor.step_keys.key,
     timeout: LABELS.editor.step_keys.timeout,
     poll: LABELS.editor.step_keys.poll,
     deadline: LABELS.editor.step_keys.deadline,
@@ -79,6 +81,7 @@ export const STEP_SCHEMA: JsonMap = described(
     {
         ...SHAPES.step,
         for_each: { ...SHAPES.step.for_each, examples: ['${params.regions}', '${steps.spread.items}'] },
+        key: { ...SHAPES.step.key, examples: ['code'] },
     },
     STEP_WORDS,
 )

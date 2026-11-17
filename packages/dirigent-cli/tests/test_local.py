@@ -1704,3 +1704,14 @@ async def test_a_document_that_does_not_parse_leaves_no_instance_directory(
         async for _ in local.run_document("not: [a document"):
             pass
     assert not list(tmp_path.glob("dirigent-local-*"))
+
+
+def test_the_keyed_example_names_every_item_by_its_sites_code_under_both_steps() -> None:
+    result = invoke("run", "--local", str(EXAMPLES / "patterns" / "fan-out-keyed.yaml"))
+    assert closing(result.stdout)["message"] == "succeeded", result.output
+    named = {
+        (event["step"], event["item"])
+        for event in of_kind(records(result.stdout), "step")
+        if event["message"] == "succeeded"
+    }
+    assert named == {(step, site) for step in ("probe", "check") for site in ("eu", "af", "as")}

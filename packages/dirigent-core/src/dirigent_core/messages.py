@@ -360,6 +360,17 @@ SELF_DEPENDENCY = DOCUMENT.define("self_dependency", "step {step} depends on its
 
 UNKNOWN_DEPENDENCY = DOCUMENT.define("unknown_dependency", "step {step} depends on unknown step {dependency}")
 
+KEY_WITHOUT_FAN_OUT = DOCUMENT.define("key_without_fan_out", "only a step with for_each names its elements by a key")
+
+KEY_ON_ADOPTED_GRID = DOCUMENT.define(
+    "key_on_adopted_grid",
+    "a step that maps over {adopted}'s items names them by {adopted}'s keys, and takes no key of its own",
+)
+
+KEY_NOT_A_PATH = DOCUMENT.define(
+    "key_not_a_path", "a key is a field of each element, or a dotted path to one, such as code or site.code"
+)
+
 DUPLICATE_TRIGGER_CODES = DOCUMENT.define("duplicate_trigger_codes", "duplicate {label} codes: {codes}")
 
 STEP_CYCLE = DOCUMENT.define("step_cycle", "the steps {steps} form a cycle")
@@ -956,6 +967,16 @@ GATE_NOT_RETRYABLE = RUN.define(
     "gate_not_retryable",
     "step {step} has no item to retry: its grid is read from {source} once, when the step "
     "becomes ready; retry {source}, or an item of {step} once the grid has expanded",
+)
+
+FAN_OUT_KEY_UNREADABLE = RUN.define(
+    "fan_out_key_unreadable",
+    "step {step} names its elements by {key}, and element {index} has no {key} that is a string or a number",
+)
+
+FAN_OUT_KEY_REPEATED = RUN.define(
+    "fan_out_key_repeated",
+    "step {step} names its elements by {key}, and elements {first} and {second} are both {value}",
 )
 
 FAN_OUT_NOT_A_LIST = RUN.define(
