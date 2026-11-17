@@ -587,7 +587,7 @@ async def test_what_a_poll_raises_past_its_kind_is_recorded_without_a_secret_it_
 
     async def opens(_config: object, _cursor: object, ctx: Any, _room: int) -> object:
         ctx.opened_secrets.update(spellings(secret))
-        return SimpleNamespace()
+        return SimpleNamespace(settlement=None)
 
     def validated(value: object) -> object:
         return value
