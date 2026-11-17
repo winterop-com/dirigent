@@ -114,6 +114,7 @@ Every file in this section calls the instance's own playground, so `dg dev` has 
 | [http-post-file-from-storage.yaml](http-post-file-from-storage.yaml) | How do I POST a file that lives in storage? |
 | [http-success-status-list.yaml](http-success-status-list.yaml) | How do I accept a non-2xx that is a real answer, without silencing failures? |
 | [http-follow-redirects.yaml](http-follow-redirects.yaml) | Why is a redirect not followed by default, and what do I lose when it is? |
+| [health-checks.yaml](health-checks.yaml) | How do I watch several instances, skip the checks a dead one cannot pass, and page only when something changes? |
 | [http-timeout-override.yaml](http-timeout-override.yaml) | Which of the three deadlines around a call am I actually setting? |
 | [webhook-post-hmac.yaml](webhook-post-hmac.yaml) | What exactly gets signed, with what, and what does a receiver check? |
 | [webhook-post-summary.yaml](webhook-post-summary.yaml) | What belongs in a notification body somebody has to act on? |

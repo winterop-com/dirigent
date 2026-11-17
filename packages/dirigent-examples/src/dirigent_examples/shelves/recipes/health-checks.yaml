@@ -1,0 +1,146 @@
+# A scheduled health monitor: read-only checks against several targets, paged on a change.
+#
+# In:  a list of base URLs, one per instance being watched.
+# Out: one row per target per check, each passed, failed or skipped, and an alert only when
+#      the picture changes: the first failure of an outage, and the run that recovers.
+#
+# THE TARGETS ARE THE FAN-OUT. Every check is a step, and every step maps over the same
+# targets, so one run is a grid of targets by checks: "is chap-eu down" is the reachable
+# column's row for chap-eu, and the run's item grid is the dashboard. Adding an instance is
+# one line in the targets list, never a new step.
+#
+# A FAILED FOUNDATION SKIPS WHAT STANDS ON IT. reachable is the foundation, and the other
+# checks map over its grid, `for_each: ${steps.reachable.items}`, so item three of a check is
+# item three of reachable. A target whose reachable item failed has its later checks SKIPPED
+# rather than failed: a server that is down reports one failure, not one per check, and a
+# later check never runs against something already known to be gone. The other targets carry
+# on, because every step runs under `items: continue`.
+#
+# A CHECK IS STRICTER THAN "IT ANSWERED". Each call says exactly what success is:
+#
+#   follow_redirects: false  a redirect is an answer, not a detour. A health route that
+#                            starts redirecting to a sign-in page is broken, and following
+#                            it would turn that into a 200 and a green check.
+#   success_status           the statuses that pass, and nothing else. It replaces the 2xx
+#                            default, so the check that expects a redirect lists 302 alone.
+#   validate.schema          for a check that needs more than a status: the body has to have
+#                            the shape a healthy instance answers with, and a mismatch names
+#                            the path that is wrong. A 200 carrying an error page is a failure.
+#
+# AN OUTAGE PAGES TWICE, NOT EVERY TWENTY MINUTES. The run settles completed_with_errors
+# while some targets fail, and failed when every target does. Both rules below are
+# `on_change: true`: they speak for a run whose status, or whose set of failed targets and
+# checks, differs from the previous run's -- so a second target going down pages again, and
+# the same target still down does not. `run_recovered` speaks for the first run that passes
+# everything after one that did not. The clock that runs this every twenty minutes is
+# examples/triggers/health-checks-every-20-minutes.yaml.
+#
+# NEEDS AN INSTANCE TO CALL. The targets default to the playground a dirigent instance
+# serves under /api/v1/playground, unauthenticated, reached under two host names so they are
+# two targets. Against real instances, a target is the base URL and each check's path is the
+# instance's own health route.
+#
+# To change it: add a target that is not there, and its reachable item fails, its two later
+# checks are skipped, the other targets pass, and the run is completed_with_errors.
+#
+#   dg dev &
+#   dg run --local examples/recipes/health-checks.yaml
+#   dg run --local examples/recipes/health-checks.yaml \
+#     -p 'targets=["http://127.0.0.1:3333/api/v1/playground", "http://127.0.0.1:3333/api/v1/playground/retired"]'
+
+format: dirigent/v1
+kind: pipeline
+code: health-checks
+name: Health checks
+description: |
+  Check that every target answers, answers well, and guards its pages.
+
+  Read-only checks fan out over a list of targets. A target whose first check fails has its
+  later checks skipped, and the alert rules speak only when the outcome changes.
+
+tags: [recipes, http, validate, fan-out, alerts]
+
+# A run that is still checking when the next firing comes is not doubled up: the next one
+# answers the same question.
+concurrency: skip
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+
+schemas:
+  playground-reflection:
+    title: A healthy answer
+    description: What the reflection route answers with; a real health route has its own shape.
+    type: object
+    required: [kind, request]
+    properties:
+      kind: { const: request }
+      request:
+        type: object
+        required: [method]
+        properties:
+          method: { const: GET }
+
+params:
+  type: object
+  properties:
+    targets:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items:
+        type: string
+      default:
+        - http://127.0.0.1:3333/api/v1/playground
+        - http://localhost:3333/api/v1/playground
+      description: The base URL of each target; every check is made against each one.
+
+steps:
+  reachable:
+    block: http.request
+    for_each: ${params.targets}
+    items: continue
+    config:
+      url: ${item}/request
+      method: GET
+      follow_redirects: false
+      success_status: [200]
+      # A monitor would rather report a slow target as down than wait on it past the next firing.
+      timeout: 10s
+
+  answers_well:
+    block: validate.schema
+    depends_on: [reachable]
+    for_each: ${steps.reachable.items}
+    items: continue
+    config:
+      input: ${steps.reachable.item.output.body}
+      schema: playground-reflection
+
+  guards_pages:
+    block: http.request
+    depends_on: [reachable]
+    for_each: ${steps.reachable.items}
+    items: continue
+    config:
+      # The redirect route stands in for a page that sends a stranger to sign in.
+      url: ${item}/redirect
+      method: GET
+      follow_redirects: false
+      success_status: [302]
+      timeout: 10s
+
+alerts:
+  health-checks-degraded:
+    name: Some targets are failing
+    event: run_completed_with_errors
+    on_change: true
+  health-checks-down:
+    name: Every target is failing
+    event: run_failed
+    on_change: true
+  health-checks-recovered:
+    name: Every target passes again
+    event: run_recovered
