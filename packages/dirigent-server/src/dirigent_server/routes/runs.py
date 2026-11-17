@@ -42,7 +42,7 @@ from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json,
 from dirigent_core.auth import Principal, principal_stands
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
-from dirigent_core.engine.runs import cancel_run, pause_run, rerun, resume_run, retry_step
+from dirigent_core.engine.runs import after_commit, cancel_run, pause_run, rerun, resume_run, retry_step
 from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, item_wise_parent, step_states
 from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import (
@@ -487,8 +487,10 @@ def _shown_output(attempt: StepAttempt) -> JsonMap | None:
 
 
 @router.post("/runs/{run_id}/$cancel", operation_id="cancelRun", summary="Cancel a run", response_model=RunOut)
-async def cancel(run_id: UUID, session: SessionDep, services: ServicesDep, principal: OperatorDep) -> RunOut:
-    """Stop what has not started, and tell the remote about what has.
+async def cancel(
+    run_id: UUID, request: Request, session: SessionDep, services: ServicesDep, principal: OperatorDep
+) -> RunOut:
+    """Stop what has not started, and tell the remote about what has once the cancel committed.
 
     A run that already settled is refused with 409 ``run.already_settled``, its status in the
     params, rather than answered as though the cancel had done something.
@@ -500,7 +502,10 @@ async def cancel(run_id: UUID, session: SessionDep, services: ServicesDep, princ
         await cancel_run(session, services, run, CANCELLED_BY, refuse_settled=True, principal=principal.label)
         return await _render_one(session, run, pipeline, version)
 
-    return await retried_on_deadlock(session, cancel_once)
+    async with after_commit(services, get_sessions(request)):
+        cancelled = await retried_on_deadlock(session, cancel_once)
+        await session.commit()
+    return cancelled
 
 
 @router.post("/runs/{run_id}/$pause", operation_id="pauseRun", summary="Pause a run", response_model=RunOut)

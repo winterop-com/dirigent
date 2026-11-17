@@ -1714,12 +1714,54 @@ async def test_cancelling_a_waiting_run_tells_the_remote(
     assert unit is not None
     await engine.run_unit(unit)
 
-    async with session_scope(sessions) as session:
+    async with engine.after_commit(), session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
         await cancel_run(session, services, stored)
     assert RemoteOperator.cancellations == ["job-1"]
     assert (await attempts_of(sessions, run.id))[0].status is AttemptStatus.CANCELLED
+
+
+async def _status_from_another_transaction(sessions: Any, run_id: UUID) -> RunStatus | str:
+    """Read a run's committed status in a transaction of its own, or say the database held it locked."""
+    try:
+        async with asyncio.timeout(1):
+            async with session_scope(sessions) as session:
+                run = await session.get(Run, run_id)
+                assert run is not None
+                return run.status
+    except (TimeoutError, DBAPIError):
+        return "locked"
+
+
+async def test_a_cancel_tells_the_remote_only_once_it_committed(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A remote that is slow to answer must not hold the locks the cancel took, or SQLite's one write lock."""
+    definition = PipelineDefinition(
+        code="cancel-remote-after-commit",
+        steps=steps(
+            job=StepDefinition(block="test.remote", config={"statuses": ["running"]}, poll=timedelta(minutes=5))
+        ),
+    )
+    run = await start(sessions, services, definition)
+    unit = await engine.claim()
+    assert unit is not None
+    await engine.run_unit(unit)
+    seen: list[RunStatus | str] = []
+
+    async def reads_the_database(*_: object) -> bool:
+        seen.append(await _status_from_another_transaction(sessions, run.id))
+        return True
+
+    monkeypatch.setattr(RemoteOperator, "cancel", reads_the_database)
+    async with engine.after_commit(), session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        await cancel_run(session, services, stored)
+
+    assert seen == [RunStatus.CANCELLED], "the remote was called inside the cancel's transaction"
+    assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
 
 
 async def _cancelled_with_the_remote_unreached(
@@ -1742,7 +1784,7 @@ async def _cancelled_with_the_remote_unreached(
     await engine.run_unit(unit)
     with monkeypatch.context() as patch:
         patch.setattr(RemoteOperator, "cancel", unreached)
-        async with session_scope(sessions) as session:
+        async with engine.after_commit(), session_scope(sessions) as session:
             stored = await session.get(Run, run.id)
             assert stored is not None
             await cancel_run(session, services, stored)
@@ -1758,9 +1800,24 @@ async def test_a_cancel_the_remote_did_not_agree_to_is_told_again_from_a_worker(
     assert attempt.remote_cancel_since is not None
     assert RemoteOperator.cancellations == []
 
-    async with session_scope(sessions) as session:
-        assert await retry_remote_cancels(session, services, []) == 1
+    assert await retry_remote_cancels(services, sessions, []) == 1
     assert RemoteOperator.cancellations == ["job-1"]
+    assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
+
+
+async def test_a_cancel_told_again_from_a_worker_holds_no_transaction_while_the_remote_answers(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = await _cancelled_with_the_remote_unreached(engine, sessions, services, monkeypatch, "cancel-retried-unlocked")
+    seen: list[RunStatus | str] = []
+
+    async def reads_the_database(*_: object) -> bool:
+        seen.append(await _status_from_another_transaction(sessions, run.id))
+        return True
+
+    monkeypatch.setattr(RemoteOperator, "cancel", reads_the_database)
+    assert await retry_remote_cancels(services, sessions, []) == 1
+    assert seen == [RunStatus.CANCELLED], "the remote was called inside the sweep's transaction"
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
 
 
@@ -1770,11 +1827,9 @@ async def test_a_cancel_is_retried_only_by_a_worker_the_runs_tags_allow(
     run = await _cancelled_with_the_remote_unreached(engine, sessions, services, monkeypatch, "cancel-tagged")
     async with session_scope(sessions) as session:
         await session.execute(sa.update(Run).where(Run.id == run.id).values(worker_tags=["docker"]))
-    async with session_scope(sessions) as session:
-        assert await retry_remote_cancels(session, services, []) == 0
+    assert await retry_remote_cancels(services, sessions, []) == 0
     assert RemoteOperator.cancellations == []
-    async with session_scope(sessions) as session:
-        assert await retry_remote_cancels(session, services, ["docker"]) == 1
+    assert await retry_remote_cancels(services, sessions, ["docker"]) == 1
     assert RemoteOperator.cancellations == ["job-1"]
 
 
@@ -1783,8 +1838,7 @@ async def test_a_cancel_the_remote_goes_on_refusing_stops_being_tried(
 ) -> None:
     run = await _cancelled_with_the_remote_unreached(engine, sessions, services, monkeypatch, "cancel-gives-up")
     later = utcnow() + REMOTE_CANCEL_WINDOW + timedelta(seconds=1)
-    async with session_scope(sessions) as session:
-        assert await retry_remote_cancels(session, services, [], now=later) == 0
+    assert await retry_remote_cancels(services, sessions, [], now=later) == 0
     assert RemoteOperator.cancellations == []
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
 
@@ -1802,13 +1856,12 @@ async def test_a_cancel_the_remote_agreed_to_is_not_told_again(
     unit = await engine.claim()
     assert unit is not None
     await engine.run_unit(unit)
-    async with session_scope(sessions) as session:
+    async with engine.after_commit(), session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
         await cancel_run(session, services, stored)
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
-    async with session_scope(sessions) as session:
-        assert await retry_remote_cancels(session, services, []) == 0
+    assert await retry_remote_cancels(services, sessions, []) == 0
     assert RemoteOperator.cancellations == ["job-1"]
 
 
@@ -1818,7 +1871,7 @@ async def test_cancelling_a_settled_run_changes_nothing(
     definition = PipelineDefinition(code="done", steps=steps(a=StepDefinition(block="test.echo")))
     run = await start(sessions, services, definition)
     await drain(engine)
-    async with session_scope(sessions) as session:
+    async with engine.after_commit(), session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
         await cancel_run(session, services, stored)
@@ -2841,7 +2894,7 @@ async def test_cancelling_between_the_handle_and_the_park_still_tells_the_remote
     # Exactly what run_unit does between execute() and the outcome transaction.
     await engine.record_handle(unit, RemoteHandle(block_id="test.remote", ref="job-1", meta={"result": "ok"}))
 
-    async with session_scope(sessions) as session:
+    async with engine.after_commit(), session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
         await cancel_run(session, services, stored)
@@ -2867,7 +2920,7 @@ async def test_a_handle_arriving_after_a_cancel_is_kept_and_cancelled(
     run = await start(sessions, services, definition)
     unit = await engine.claim()
     assert unit is not None
-    async with session_scope(sessions) as session:
+    async with engine.after_commit(), session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
         await cancel_run(session, services, stored)
@@ -2894,7 +2947,7 @@ async def test_a_handle_arriving_after_a_cancel_the_remote_refuses_is_told_again
     run = await start(sessions, services, definition)
     unit = await engine.claim()
     assert unit is not None
-    async with session_scope(sessions) as session:
+    async with engine.after_commit(), session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
         await cancel_run(session, services, stored)
@@ -2903,8 +2956,7 @@ async def test_a_handle_arriving_after_a_cancel_the_remote_refuses_is_told_again
         await engine.record_handle(unit, RemoteHandle(block_id="test.remote", ref="job-2", meta={"result": "ok"}))
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is not None
 
-    async with session_scope(sessions) as session:
-        assert await retry_remote_cancels(session, services, []) == 1
+    assert await retry_remote_cancels(services, sessions, []) == 1
     assert RemoteOperator.cancellations == ["job-2"]
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
 
@@ -2978,8 +3030,7 @@ async def test_a_settling_cancel_the_remote_refuses_is_told_again_from_a_worker(
     assert first.remote_cancel_since is not None
     assert RemoteOperator.cancellations == []
 
-    async with session_scope(sessions) as session:
-        assert await retry_remote_cancels(session, services, []) == 1
+    assert await retry_remote_cancels(services, sessions, []) == 1
     assert RemoteOperator.cancellations == ["job-1"]
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
 
@@ -2999,7 +3050,7 @@ async def test_a_run_cancelled_while_a_failed_attempt_owes_a_cancel_gets_it_from
     assert (first.status, second.status) == (AttemptStatus.FAILED, AttemptStatus.QUEUED)
     assert first.remote_cancel_since is not None
 
-    async with session_scope(sessions) as session:
+    async with engine.after_commit(), session_scope(sessions) as session:
         stored = await session.get(Run, run.id)
         assert stored is not None
         await cancel_run(session, services, stored)
@@ -3008,8 +3059,7 @@ async def test_a_run_cancelled_while_a_failed_attempt_owes_a_cancel_gets_it_from
     assert second.status is AttemptStatus.CANCELLED
     assert first.remote_cancel_since is not None, "the cancel the failed attempt owes was dropped"
 
-    async with session_scope(sessions) as session:
-        assert await retry_remote_cancels(session, services, []) == 1
+    assert await retry_remote_cancels(services, sessions, []) == 1
     assert RemoteOperator.submissions == ["job-1"]
     assert RemoteOperator.cancellations == ["job-1"], "the failed attempt's remote job was left running"
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
@@ -3022,7 +3072,7 @@ async def test_a_remote_that_never_answers_an_owed_cancel_does_not_hold_up_the_w
         await asyncio.Event().wait()
         return True
 
-    monkeypatch.setattr(executor_module, "REMOTE_CANCEL_TIMEOUT", timedelta(milliseconds=200))
+    monkeypatch.setattr(engine_runs, "REMOTE_CANCEL_TIMEOUT", timedelta(milliseconds=200))
     _probe_raising_once(monkeypatch)
     run = await start(sessions, services, _retried_remote("cancel-hangs"))
     with monkeypatch.context() as patch:
@@ -3063,8 +3113,7 @@ async def test_a_retry_waits_until_the_earlier_attempts_cancel_lands(
     engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _, later = await _retry_behind_a_refused_cancel(engine, sessions, services, monkeypatch, "retry-waits")
-    async with session_scope(sessions) as session:
-        assert await retry_remote_cancels(session, services, []) == 1
+    assert await retry_remote_cancels(services, sessions, []) == 1
     unit = await engine.claim(now=later)
     assert unit is not None
     assert unit.attempt_number == 2
@@ -3082,9 +3131,8 @@ async def test_a_retry_proceeds_once_the_cancel_window_gives_up(
     run, later = await _retry_behind_a_refused_cancel(engine, sessions, services, monkeypatch, "retry-gives-up")
     with monkeypatch.context() as patch:
         patch.setattr(RemoteOperator, "cancel", unreached)
-        async with session_scope(sessions) as session:
-            gave_up = utcnow() + REMOTE_CANCEL_WINDOW + timedelta(minutes=1)
-            assert await retry_remote_cancels(session, services, [], now=gave_up) == 0
+        gave_up = utcnow() + REMOTE_CANCEL_WINDOW + timedelta(minutes=1)
+        assert await retry_remote_cancels(services, sessions, [], now=gave_up) == 0
     assert (await attempts_of(sessions, run.id))[0].remote_cancel_since is None
     unit = await engine.claim(now=later)
     assert unit is not None
@@ -3165,7 +3213,7 @@ async def test_a_deadline_that_settles_a_waiting_remote_cancels_its_job(
     assert unit is not None
     await engine.run_unit(unit)
 
-    async with engine.owed_cancels(), session_scope(sessions) as session:
+    async with engine.after_commit(), session_scope(sessions) as session:
         await engine.settle_overdue_deadlines(session, now=utcnow() + timedelta(hours=1))
 
     [attempt] = await attempts_of(sessions, run.id)
@@ -3482,7 +3530,7 @@ async def test_a_secret_a_block_quotes_while_cancelling_never_reaches_the_log(
     await engine.run_unit(unit)
 
     with capture_logs() as logged:
-        async with session_scope(sessions) as session:
+        async with engine.after_commit(), session_scope(sessions) as session:
             stored = await session.get(Run, run.id)
             assert stored is not None
             await cancel_run(session, services, stored)

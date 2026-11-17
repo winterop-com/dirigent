@@ -7,12 +7,14 @@ from collections.abc import Generator, Iterable, MutableMapping
 from datetime import datetime, timedelta
 from typing import Any
 
+import pytest
 import sqlalchemy as sa
 import structlog
 from structlog.testing import capture_logs as captured_logs
 
 from dirigent_client.enums import AttemptStatus, RunStatus, WorkerStatus
 from dirigent_core import telemetry
+from dirigent_core import worker as worker_module
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
@@ -422,6 +424,44 @@ async def test_the_sweeper_recovers_what_a_dead_worker_left_behind(
     await until(recovered)
     alive.request_stop()
     await task
+
+
+async def test_a_sweep_chore_that_raises_undoes_none_of_the_others(
+    sessions: Any, settings: Settings, host: PluginHost, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    brief = fast(settings).model_copy(
+        update={"lease": timedelta(seconds=5), "sweep_interval": timedelta(milliseconds=20)}
+    )
+    services = EngineServices.build(brief, host)
+    await create(sessions, services, fan_out(1))
+    dead = Worker(sessions, services, name="dead", sweeper=False)
+    unit = await dead.engine.claim()
+    assert unit is not None
+    async with session_scope(sessions) as session:
+        attempt = await session.get(StepAttempt, unit.attempt_id)
+        assert attempt is not None
+        attempt.lease_expires_at = attempt.lease_expires_at - timedelta(hours=1) if attempt.lease_expires_at else None
+
+    async def unreadable(session: Any, *, now: datetime | None = None) -> int:
+        raise ValueError("a notification row this version cannot read")
+
+    monkeypatch.setattr(worker_module, "recover_notifications", unreadable)
+    alive = Worker(sessions, services, name="alive", sweeper=True, concurrency=1)
+
+    async def recovered() -> bool:
+        async with sessions() as session:
+            attempt = await session.get(StepAttempt, unit.attempt_id)
+            return attempt is not None and attempt.lease_owner != "dead"
+
+    with capture_logs() as logs:
+        task = asyncio.create_task(alive.run())
+        try:
+            await until(recovered, timeout=3.0)
+        finally:
+            alive.request_stop()
+            await task
+    failed = [log for log in logs if log["event"] == "sweep chore failed"]
+    assert failed and {log["chore"] for log in failed} == {"notification recovery"}
 
 
 async def register(sessions: Any, name: str, *, age: timedelta) -> None:

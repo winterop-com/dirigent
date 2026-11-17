@@ -1,8 +1,11 @@
 """Creating, cancelling, and manually retrying runs -- including one run starting another."""
 
+import asyncio
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from datetime import datetime, timedelta
+from functools import partial
 from typing import Any, Final, Literal, cast
 from uuid import UUID
 
@@ -27,7 +30,7 @@ from dirigent_common import OUTPUT_URL_FIELDS, PLAIN_URL_KEYWORD, JsonMap, Messa
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import persist_output
-from dirigent_core.database import session_scope
+from dirigent_core.database import session_scope, with_deadlock_retry
 from dirigent_core.engine.claim import is_postgres, routable
 from dirigent_core.engine.context import (
     BufferedLogger,
@@ -49,7 +52,7 @@ from dirigent_core.engine.failure import Failure
 from dirigent_core.engine.logcontext import attempt_fields, fields_of, run_fields
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.engine.state import advance, lock_pipeline, lock_run, log_settled
+from dirigent_core.engine.state import advance, lock_pipeline, lock_run, log_settled, try_lock_pipeline
 from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.instance import known_instance_id
@@ -582,13 +585,14 @@ async def cancel_run(
     refuse_settled: bool = False,
     **params: Any,
 ) -> Run:
-    """Cancel a run: stop what has not started, and tell the remote about what has.
+    """Cancel a run: stop what has not started, and mark what has as owing its remote a cancel.
 
     A run that already settled is left as it is; ``refuse_settled`` raises ``RunStateError``
     for it instead, which is what a person asking to cancel one is answered with.
 
-    Cancelling a remote is best effort by contract, so a refusal is logged rather than
-    raised and the attempt reaches its terminal state either way.
+    No remote is called here, under the pipeline and run locks. Each attempt holding a handle
+    is marked with ``remote_cancel_since``; an enclosing :func:`after_commit` tells the remote
+    once the transaction committed, and ``retry_remote_cancels`` tells what stays marked.
 
     The reason is a catalogued message, so the run carries the code it was cancelled under and
     a reader renders its own sentence rather than the one this process happened to mint.
@@ -615,13 +619,11 @@ async def cancel_run(
         )
     )
     attempts = list(rows.scalars())
-    connections = await load_connections(session)
     for attempt in attempts:
         # A handle is what says remote work exists, and it is committed one transaction
-        # before the attempt is parked as waiting. Telling only a waiting attempt's remote
+        # before the attempt is parked as waiting. Marking only a waiting attempt's remote
         # leaves a job running whenever the cancel lands inside that window.
-        if attempt.remote_handle and not await cancel_remote(session, services, run, attempt, connections):
-            attempt.remote_cancel_since = moment
+        owe_remote_cancel(attempt, moment)
         attempt.status = AttemptStatus.CANCELLED
         attempt.finished_at = moment
         attempt.lease_owner = None
@@ -739,25 +741,126 @@ REMOTE_CANCEL_BATCH: Final = 100
 REMOTE_CANCEL_TIMEOUT: Final = timedelta(seconds=30)
 
 
-async def cancel_remote(
-    session: AsyncSession,
-    services: EngineServices,
-    run: Run,
-    attempt: StepAttempt,
-    connections: Mapping[str, ConnectionRecord],
-) -> bool:
-    """Ask an operator to cancel the remote work an attempt holds a handle on, and say if it did.
+class _Owed:
+    """What the transactions inside one :func:`after_commit` block leave to do once they commit."""
 
-    The runs facade handed over is bound to the cancelling transaction, so an operator that
-    cancels by cancelling another run settles the parent and the child in one commit.
-    """
+    __slots__ = ("cancels", "releases")
+
+    def __init__(self) -> None:
+        """Start with nothing owed."""
+        self.cancels: set[UUID] = set()
+        self.releases: set[UUID] = set()
+
+
+#: What the current :func:`after_commit` block owes, or None outside one.
+_OWED: ContextVar[_Owed | None] = ContextVar("owed_after_commit", default=None)
+
+
+def owe_remote_cancel(attempt: StepAttempt, now: datetime) -> None:
+    """Mark an attempt's remote work as owing a cancel, for :func:`after_commit` and the sweep."""
     if not attempt.remote_handle:
-        return True
-    runs = EngineRuns(services, parent_run_id=run.id, session=session)
-    instance = await known_instance_id(session) or UUID(int=0)
-    return await tell_remote(
-        services, run, attempt, connections, runs, await attempt_fields(session, attempt), instance
-    )
+        return
+    attempt.remote_cancel_since = now
+    owed = _OWED.get()
+    if owed is not None:
+        owed.cancels.add(attempt.id)
+
+
+@asynccontextmanager
+async def after_commit(services: EngineServices, sessions: async_sessionmaker[AsyncSession]) -> AsyncGenerator[None]:
+    """Do what the transactions inside the block left owed, once the block has committed them.
+
+    Remote cancels are told and held runs released outside any transaction or lock, each once;
+    a remote cancel is bounded by ``REMOTE_CANCEL_TIMEOUT`` and what a remote refuses or does
+    not answer stays marked for ``retry_remote_cancels``. A block that raises does nothing
+    owed. A block inside another joins it, and the outermost one does the work.
+    """
+    if _OWED.get() is not None:
+        yield
+        return
+    owed = _Owed()
+    token = _OWED.set(owed)
+    try:
+        yield
+        # A cancel told here can cancel another run, which owes cancels of its own.
+        while owed.releases or owed.cancels:
+            releases, owed.releases = sorted(owed.releases), set()
+            for pipeline_id in releases:
+                try:
+                    await with_deadlock_retry(partial(_release, services, sessions, pipeline_id))
+                except Exception as error:  # the next settle or cancel of the pipeline releases it
+                    _logger.warning("an owed release failed", pipeline_id=str(pipeline_id), error=str(error))
+            cancels, owed.cancels = sorted(owed.cancels), set()
+            for attempt_id in cancels:
+                try:
+                    await tell_owed_cancel(services, sessions, attempt_id)
+                except Exception as error:  # the sweep tries again
+                    _logger.warning("an owed remote cancel failed", attempt_id=str(attempt_id), error=str(error))
+    finally:
+        _OWED.reset(token)
+
+
+async def _release(services: EngineServices, sessions: async_sessionmaker[AsyncSession], pipeline_id: UUID) -> None:
+    """Release a pipeline's held run in a transaction of its own."""
+    async with session_scope(sessions) as session:
+        await promote_queued_run(session, services, pipeline_id)
+
+
+async def release_after_settle(session: AsyncSession, services: EngineServices, pipeline_id: UUID) -> None:
+    """Release a held run of the pipeline from a transaction that settled a run under its run lock.
+
+    The pipeline lock is taken only if it is free. When it is not, inside :func:`after_commit`
+    the release is left to after the commit; outside one, this waits for the lock.
+    """
+    if not await try_lock_pipeline(session, pipeline_id):
+        owed = _OWED.get()
+        if owed is not None:
+            owed.releases.add(pipeline_id)
+            return
+    await promote_queued_run(session, services, pipeline_id)
+
+
+async def tell_owed_cancel(
+    services: EngineServices, sessions: async_sessionmaker[AsyncSession], attempt_id: UUID
+) -> bool:
+    """Cancel one attempt's remote work if it still owes it, clear the mark if the remote agreed, and say so.
+
+    The remote is called outside any transaction, bounded by ``REMOTE_CANCEL_TIMEOUT``, with a
+    runs facade that opens its own.
+    """
+    async with sessions() as session:
+        attempt = await session.get(StepAttempt, attempt_id)
+        if attempt is None or attempt.remote_cancel_since is None or not attempt.remote_handle:
+            return False
+        run = await session.get(Run, attempt.run_id)
+        if run is None:  # pragma: no cover - the foreign key makes this unreachable
+            return False
+        since = attempt.remote_cancel_since
+        connections = await load_connections(session)
+        fields = await attempt_fields(session, attempt)
+        instance = await known_instance_id(session) or UUID(int=0)
+    runs = EngineRuns(services, parent_run_id=run.id, sessions=sessions)
+    try:
+        async with asyncio.timeout(REMOTE_CANCEL_TIMEOUT.total_seconds()):
+            accepted = await tell_remote(services, run, attempt, connections, runs, fields, instance)
+    except TimeoutError:
+        _logger.warning(
+            "remote cancellation timed out; the sweep tries again",
+            **fields,
+            timeout_ms=round(REMOTE_CANCEL_TIMEOUT.total_seconds() * 1000),
+        )
+        return False
+    if not accepted:
+        return False
+    async with session_scope(sessions) as session:
+        await session.execute(
+            sa.update(StepAttempt)
+            .where(StepAttempt.id == attempt_id, StepAttempt.remote_cancel_since == since)
+            .values(remote_cancel_since=None)
+        )
+        # A retry of the same step waits on the marker, so clearing it can make one due.
+        await wakeups.publish(session, wakeups.WORK)
+    return True
 
 
 async def tell_remote(
@@ -823,7 +926,11 @@ async def tell_remote(
 
 
 async def retry_remote_cancels(
-    session: AsyncSession, services: EngineServices, tags: Sequence[str], *, now: datetime | None = None
+    services: EngineServices,
+    sessions: async_sessionmaker[AsyncSession],
+    tags: Sequence[str],
+    *,
+    now: datetime | None = None,
 ) -> int:
     """Tell the remote what a cancel elsewhere could not, from a worker that may reach it, and count them.
 
@@ -831,38 +938,38 @@ async def retry_remote_cancels(
     reached. So an attempt cancelled without its remote agreeing stays marked, and each worker the
     run's tags allow tries again on its sweep. A remote that says the work is gone answers no
     differently from one that did not hear, so the tries stop after ``REMOTE_CANCEL_WINDOW``.
+
+    The marked attempts are read in one short transaction, and each remote is called after it
+    as :func:`tell_owed_cancel` calls one, holding no transaction or lock.
     """
     moment = now or utcnow()
-    postgres = is_postgres(session)
-    marked = (
-        sa.select(StepAttempt)
-        .join(Run, Run.id == StepAttempt.run_id)
-        .where(StepAttempt.remote_cancel_since.is_not(None), routable(tags, postgres=postgres))
-        .order_by(StepAttempt.remote_cancel_since)
-        .limit(REMOTE_CANCEL_BATCH)
-    )
-    if postgres:
-        marked = marked.with_for_update(of=StepAttempt, skip_locked=True)
-    attempts = list((await session.execute(marked)).scalars())
-    if not attempts:
-        return 0
-    connections = await load_connections(session)
+    async with session_scope(sessions) as session:
+        marked = await session.execute(
+            sa.select(StepAttempt.id, StepAttempt.remote_cancel_since)
+            .join(Run, Run.id == StepAttempt.run_id)
+            .where(StepAttempt.remote_cancel_since.is_not(None), routable(tags, postgres=is_postgres(session)))
+            .order_by(StepAttempt.remote_cancel_since)
+            .limit(REMOTE_CANCEL_BATCH)
+        )
+        due: list[UUID] = []
+        expired = False
+        for attempt_id, since in marked.all():
+            if moment - cast("datetime", since) <= REMOTE_CANCEL_WINDOW:
+                due.append(attempt_id)
+                continue
+            await session.execute(
+                sa.update(StepAttempt)
+                .where(StepAttempt.id == attempt_id, StepAttempt.remote_cancel_since == since)
+                .values(remote_cancel_since=None)
+            )
+            expired = True
+        if expired:
+            # A retry of the same step waits on the marker, so clearing it can make one due.
+            await wakeups.publish(session, wakeups.WORK)
     told = 0
-    cleared = False
-    for attempt in attempts:
-        since = cast("datetime", attempt.remote_cancel_since)
-        run = await session.get(Run, attempt.run_id)
-        if run is None or moment - since > REMOTE_CANCEL_WINDOW:
-            attempt.remote_cancel_since = None
-            cleared = True
-            continue
-        if await cancel_remote(session, services, run, attempt, connections):
-            attempt.remote_cancel_since = None
-            cleared = True
+    for attempt_id in due:
+        if await tell_owed_cancel(services, sessions, attempt_id):
             told += 1
-    if cleared:
-        # A retry of the same step waits on the marker, so clearing it can make one due.
-        await wakeups.publish(session, wakeups.WORK)
     return told
 
 
