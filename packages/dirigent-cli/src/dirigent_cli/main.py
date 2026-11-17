@@ -1478,11 +1478,11 @@ def _dev_logging(state: CliState | None, settings: Settings, *, to_file: bool = 
     from dirigent_core.logging import ACCESS_LOGGER, NOISY_LOGGERS, STEP_LOGGER, LogFile
 
     detailed = state is not None and bool(state.verbose or state.debug or state.debug_all)
-    floors = (
-        dict(NOISY_LOGGERS)
-        if detailed
-        else {**NOISY_LOGGERS, ACCESS_LOGGER: logging.WARNING, STEP_LOGGER: logging.WARNING}
-    )
+    floors = {
+        **NOISY_LOGGERS,
+        ACCESS_LOGGER: logging.NOTSET if detailed else logging.WARNING,
+        STEP_LOGGER: logging.NOTSET if detailed else logging.WARNING,
+    }
     path = dev_log_path(settings) if to_file else None
     mode = output_mode()
     configure_logging(
