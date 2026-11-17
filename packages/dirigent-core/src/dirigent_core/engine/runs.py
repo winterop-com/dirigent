@@ -709,6 +709,10 @@ REMOTE_CANCEL_WINDOW: Final = timedelta(minutes=10)
 #: The most such attempts one worker tries on one sweep.
 REMOTE_CANCEL_BATCH: Final = 100
 
+#: How long a worker waits on a remote's answer to a cancel it owes after a commit; a remote
+#: that has not answered by then stays marked for the sweep.
+REMOTE_CANCEL_TIMEOUT: Final = timedelta(seconds=30)
+
 
 async def cancel_remote(
     session: AsyncSession,
@@ -724,6 +728,23 @@ async def cancel_remote(
     """
     if not attempt.remote_handle:
         return True
+    runs = EngineRuns(services, parent_run_id=run.id, session=session)
+    return await tell_remote(services, run, attempt, connections, runs, await attempt_fields(session, attempt))
+
+
+async def tell_remote(
+    services: EngineServices,
+    run: Run,
+    attempt: StepAttempt,
+    connections: Mapping[str, ConnectionRecord],
+    runs: "EngineRuns",
+    fields: Mapping[str, Any],
+) -> bool:
+    """Call an operator's ``cancel`` on the handle an attempt holds, and say if the remote agreed.
+
+    It touches no database itself; ``runs`` decides which transaction a cancel that reaches
+    another run lands in, and ``fields`` are what its log lines carry.
+    """
     block = services.host.operators.get(attempt.block_id)
     if block is None:
         return False
@@ -749,7 +770,7 @@ async def cancel_remote(
         connections=dict(connections),
         connection_models=services.connection_models,
         secrets=services.secrets,
-        runs=EngineRuns(services, parent_run_id=run.id, session=session),
+        runs=runs,
         format_checker=services.format_checker,
         storage_connections=services.settings.storage_connections,
     )
@@ -763,11 +784,11 @@ async def cancel_remote(
     except Exception as error:  # best effort by contract: a refusal must not block the cancel
         _logger.warning(
             "remote cancellation failed",
-            **await attempt_fields(session, attempt),
+            **fields,
             error=raised_detail(error, redact=context.opened_secrets),
         )
         return False
-    _logger.info("remote cancellation requested", **await attempt_fields(session, attempt), accepted=accepted)
+    _logger.info("remote cancellation requested", **fields, accepted=accepted)
     return accepted
 
 
@@ -797,15 +818,21 @@ async def retry_remote_cancels(
         return 0
     connections = await load_connections(session)
     told = 0
+    cleared = False
     for attempt in attempts:
         since = cast("datetime", attempt.remote_cancel_since)
         run = await session.get(Run, attempt.run_id)
         if run is None or moment - since > REMOTE_CANCEL_WINDOW:
             attempt.remote_cancel_since = None
+            cleared = True
             continue
         if await cancel_remote(session, services, run, attempt, connections):
             attempt.remote_cancel_since = None
+            cleared = True
             told += 1
+    if cleared:
+        # A retry of the same step waits on the marker, so clearing it can make one due.
+        await wakeups.publish(session, wakeups.WORK)
     return told
 
 

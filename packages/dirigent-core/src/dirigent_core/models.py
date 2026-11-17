@@ -317,6 +317,13 @@ class StepAttempt(Entity):
         sa.Index("ix_step_attempts_status_available_at", "status", "available_at"),
         sa.Index("ix_step_attempts_status_next_poll_at", "status", "next_poll_at"),
         sa.Index("ix_step_attempts_lease_expires_at", "lease_expires_at"),
+        sa.Index(
+            "ix_step_attempts_owing_cancel",
+            "run_id",
+            "step_name",
+            postgresql_where=sa.text("remote_cancel_since IS NOT NULL"),
+            sqlite_where=sa.text("remote_cancel_since IS NOT NULL"),
+        ),
     )
 
     run_id: Mapped[UUID] = mapped_column(sa.ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, index=True)

@@ -634,7 +634,16 @@ It is worth stating exactly what that promises. Recovery reads the handle on the
 attempt's own row and nothing else, so the guarantee covers **committed remote handles
 only**: async work that was submitted and recorded is never submitted twice. A previous
 attempt of the same step holds a handle on work that is already settled or cancelled, and
-adopting it would land a retry on the outcome it was meant to replace. The guarantee says
+adopting it would land a retry on the outcome it was meant to replace. An attempt that settles
+as failed or skipped while its remote job may still run -- a probe or fetch raised or timed
+out, a deadline passed, the claim refused it -- is marked as owing its remote a cancel in the
+transaction that settles it; only the remote's own answer, a `FAILED` probe or the lost-job
+policy below, settles without one. Once that commits, the worker calls the operator's `cancel`,
+outside any transaction or lock and for at most thirty seconds; a refusal or a silence stays
+marked, and the workers' sweep tells it again for ten minutes, whether or not the run is
+cancelled meanwhile. A retry of the step is not claimed
+while an earlier attempt still owes a cancel, so a late cancel never lands on the retry's own
+job. The guarantee says
 nothing about a synchronous operator that changed the world and died before its outcome
 commit -- there is no handle for recovery to find, so the attempt re-queues and `execute`
 runs again. Non-idempotent synchronous work is protected by the step's retry policy, which
