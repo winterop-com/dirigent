@@ -123,3 +123,18 @@ test.describe('on a Mac', () => {
         await expect(page.getByPlaceholder(LABELS.palette.placeholder)).toBeVisible()
     })
 })
+
+test("the palette changes the look through the library's appearance rows", async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await page.keyboard.press('ControlOrMeta+k')
+    const input = page.getByPlaceholder(LABELS.palette.placeholder)
+    await input.fill('light')
+    await page.getByRole('option', { name: /^Light/ }).click()
+    await expect(page.locator('html')).not.toHaveClass(/dark/)
+    expect(await page.evaluate(() => localStorage.getItem('sokkel-ui-scheme'))).toBe('light')
+
+    await page.keyboard.press('ControlOrMeta+k')
+    await input.fill('contrast')
+    await page.getByRole('option', { name: /^Contrast/ }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'contrast')
+})

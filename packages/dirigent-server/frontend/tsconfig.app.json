@@ -5,7 +5,7 @@
         "lib": ["ES2023", "DOM", "DOM.Iterable"],
         "module": "esnext",
         /* `node` alongside `vite/client` for the unit tests, which run in Node and read a file
-           or two off disk -- the pre-paint script in index.html is checked against lib/theme. */
+           or two off disk -- the pre-paint script in index.html is checked against lib/appearance. */
         "types": ["vite/client", "node"],
         "skipLibCheck": true,
 

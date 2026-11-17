@@ -32,7 +32,7 @@ wrong is changed on this page first and in the code second.
 | Markdown | sokkel-ui's `PlainMarkdown`, on react-markdown and remark-gfm | A description is authored markdown and has to render as prose. The library builds React elements from a syntax tree and leaves raw markup as text, so no HTML string reaches the DOM -- see `components/Description` |
 | Palette | cmdk | |
 | Toasts | sonner | |
-| Mode and palette | sokkel-ui's appearance: `useAppearance`, `useScheme`, and its `appearance.js` before the first paint | |
+| Appearance | sokkel-ui's: `useAppearance`, `themeSettings` in Settings, `appearanceCommands` in the palette, and its `appearance.js` before the first paint | |
 | Fonts | IBM Plex Sans and IBM Plex Mono, self-hosted through `@fontsource`, which sokkel-ui brings | No CDN: a UI served from a private network has to work on one |
 | Lint | oxlint, plus `scripts/check_ui_classes.py` and `scripts/check_ui_library.py` | A JS linter cannot see inside a `className`, so the type scale and the library rules get checks of their own |
 | Format | oxfmt, pinned exactly, configured in `.oxfmtrc.json` | Prettier's output from the linter's own project, and it sorts Tailwind classes against `src/index.css` rather than guessing at the theme |
@@ -157,49 +157,45 @@ Everything color is a CSS custom property defined by sokkel-ui's tokens and them
 Tailwind through the library's `@theme inline`. Nothing in this app may write a color; a token
 the app needs and the library lacks is added in sokkel-ui.
 
-**Two theme axes, kept apart.** The **mode** is light, dark or system, worn as a `dark` class on
-`<html>`, following the operating system until somebody says otherwise. The **palette** is which
-set of colors the app spends inside that mode, worn as `data-theme` on the same element. Neither
-axis knows about the other.
+**Two theme axes, kept apart.** The **scheme** is light, dark or system, worn as a `dark` class on
+`<html>`, following the operating system until somebody says otherwise. The **theme** (a palette)
+is which set of colors the app spends inside that scheme, worn as `data-theme` on the same element.
+Neither axis knows about the other. Density, corners, typeface and motion are the look's other
+parts, and the same rule holds for them.
 
-**sokkel-ui keeps both; dirigent only names what it offers.** `useAppearance(APPEARANCE_DEFAULTS)`
-runs at the root in `src/main.tsx`, and on the Theme pane that writes through it; it stores the
-choice under the library's keys (`sokkel-ui-scheme`, and `sokkel-ui-appearance` as JSON) and writes
-it on `<html>`. A component that needs only the mode reads `useScheme()`. Before the first paint,
-the library's `appearance.js` writes the stored look so there is no flash: index.html loads it at
-the top of `<head>`, right after the charset, as
-`<script src="/appearance.js" data-theme="amber" vite-ignore>`, and the `data-theme` there is the
-palette a browser with nothing stored starts in, which a test holds equal to `DEFAULT_PALETTE`. **It
-is a same-origin file and never inline**, because the server's policy allows scripts only from `'self'`;
+**The themes and the look are sokkel-ui's; dirigent sets only its defaults.** dirigent keeps no
+palette list, no theme names or labels, and no code that applies or stores the look.
+`useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)` runs at the root in `src/main.tsx`, in the
+shell and in the settings dialog; it stores the look under the library's keys (`sokkel-ui-scheme`,
+and `sokkel-ui-appearance` as JSON) and writes it on `<html>`. Before the first paint, the
+library's `appearance.js` writes the stored look so there is no flash: index.html loads it at the
+top of `<head>`, right after the charset, as
+`<script src="/appearance.js" data-theme="amber" data-scheme="system" data-themes="amber paper contrast" vite-ignore>`,
+whose data attributes are the defaults and the offer, which a test holds equal to
+`APPEARANCE_DEFAULTS` and `CARRIED_THEMES`. **It is the library's file, never its inline
+`appearanceScript`**, because the server's policy allows scripts only from `'self'`;
 `vite.config.ts` emits the library's built file beside index.html and the dev server answers the
 same bytes, and `vite-ignore` keeps Vite from taking the tag for a module to bundle.
-`src/lib/theme.ts` holds the names, the labels and the defaults, and stores nothing.
+`src/lib/appearance.ts` holds the defaults (theme `amber`, scheme `system`) and the names of the
+carried themes, and stores nothing.
 
-**A palette is one of sokkel-ui's themes: one import and one row, and nothing else in the app
-learns it exists.** The import is the theme's file, `@winterop-com/sokkel-ui/themes/<name>.css`,
-in `index.css`; the row is in `PALETTES` in `src/lib/theme.ts`, carrying the name and the label. A
-theme file hangs off `html[data-theme='<name>']` and **answers to `[data-theme-scope='<name>']` as
-well**, so an element inside the app can be painted in a palette the document is not wearing --
-which is what a palette's card on the Theme pane is, and why a card cannot drift from the tokens it
-stands for. A test asserts every palette is imported. `PALETTES` is also the list the app offers
-the library, in `APPEARANCE_OFFER` and in the pre-paint script's `data-themes`, so a stored theme outside it gives
-way to amber before the first paint. A theme dirigent needs that the library lacks is added in
-sokkel-ui, never here.
+**A theme dirigent offers is one of sokkel-ui's, carried by one import and one name.** The import
+is the theme's file, `@winterop-com/sokkel-ui/themes/<name>.css`, in `index.css`; the name is in
+`CARRIED_THEMES`, and the options offered are the library's `THEMES` filtered to those names, so
+the label and the swatch are the library's. `CARRIED_THEMES` is also the offer handed to
+`useAppearance` and the pre-paint script, so a stored theme outside it gives way to amber before the
+first paint. A test asserts every carried theme is imported. A theme dirigent needs that the library
+lacks is added in sokkel-ui, never here. The typefaces offered are the library's `TYPEFACES`
+whole, and index.css imports the Geist faces the Geist one is set in.
 
-**Both axes are chosen on the settings dialog's Theme pane, as two rows, each searched on its
-own.** Appearance is sokkel-ui's `SchemeChoice`: System, Light and Dark, in that order, one
-segmented control rather than a menu, because a choice from a fixed set of three is one control and
-not a list to open. **Palette is sokkel-ui's `ThemeCards`, one card per palette**, because what a
-palette is is what it looks like: each card is a small page in that palette's own tokens -- its
-ground, a bordered card on it, a line of ink and one of muted text, the brand -- in the mode the
-app is wearing, so a palette that changes the surfaces and lines shows them as plainly as one that
-changes the accent, and no palette carries a line about itself. The cards are the Palette row's
-control, under its title. Neither row holds a copy of what it sets -- both go through
-`useAppearance`, the one store the root wears and the account menu writes. **The mode is also three
-radio rows in the account menu**, the same three writing the same store, because it is the one
-look somebody changes in passing; the palette's Appearance rows are the third door to it. **The top
-strip carries no mode flip**: the account menu stands on every screen, and a control said twice on
-one screen has to earn the second time, which a two-way flip that cannot reach System does not.
+**The look is chosen in Settings, in the Appearance section, and in the palette, and nowhere
+else.** The section is sokkel-ui's `themeSettings({ value, onChange, themes, corners, typefaces,
+system: true })` handed to the dialog whole: Theme, Scheme (Dark, Light, System), Density, Corners,
+Typeface and Motion, each a row with its own words, found by its own words in the dialog's search.
+No row of it is dirigent's, and no word on it is in the catalogue: they are the library's. The
+command palette carries the same choices as sokkel-ui's `appearanceCommands(settings, setSettings,
+{ themes })`, its Scheme, Density and Theme groups after the app's own and before Session. **The
+account menu carries no scheme or theme rows, and the top strip no scheme flip.**
 
 **Three palettes ship, ordered quiet to loud: `amber`, `paper`, `contrast`.** The default is
 `amber`: the library's neutral blue-grey surfaces under an amber accent, in a dark and a light mode;
@@ -1404,7 +1400,8 @@ sections and settings, and the library draws the nav, the search across every ca
 the phone's list to go into and the footer with its note and `Done`{ .label }. What a row puts on
 it -- its control, and whether that control trails the title or sits under it -- is
 `components/settings/SettingsDialog.tsx`'s, keyed by the row's id: a choice from a set and a pair
-of buttons trail, the palette's cards and an open password form sit under. The dialog opens on the
+of buttons trail, an open password form sits under. The Appearance section has no rows of its own:
+`settingsGroups` takes sokkel-ui's `themeSettings` for it whole. The dialog opens on the
 category the thing that opened it is about, the server dot's on Server, and a phone then opens on
 that section rather than on the list. Its words are `SETTINGS_WORDS` in `lib/library-words`, and its
 search box says `Search`{ .label } like every other.
@@ -1526,8 +1523,7 @@ included, the role leaves the row and is said only in the menu's head. **This is
 code stands in the UI face.** The username is the account's code, and wherever it is addressed -- the accounts listing, the Account pane, a
 token's owner -- it is mono; here it is the reader's own name said back to them. The menu opens
 upward: its head is the username and the role with the instance's name and environment under it, then
-Settings, Keyboard shortcuts with `?`, the mode as System, Light and Dark, in the Theme pane's order, with the one in force
-checked, and Sign out.
+Settings, Keyboard shortcuts with `?`, and Sign out. The look is not chosen here.
 
 **The rail hides whole.** The platform's modifier plus B and the palette's row take it off screen
 and bring it back, and while it is hidden the top bar's menu button opens it as the drawer at

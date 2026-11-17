@@ -3,17 +3,11 @@ import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 
 import { Surface } from '@winterop-com/sokkel-ui/Section'
-import { SchemeChoice } from '@winterop-com/sokkel-ui/SchemeChoice'
 import { SettingsDialog as LibrarySettingsDialog } from '@winterop-com/sokkel-ui/SettingsDialog'
-import { ThemeCards } from '@winterop-com/sokkel-ui/ThemeCards'
+import { themeSettings } from '@winterop-com/sokkel-ui/ThemePicker'
+import { CORNERS, TYPEFACES } from '@winterop-com/sokkel-ui/lib/appearance'
 import { Refusal } from '@/components/Refusal'
-import {
-    LINK_WORDS,
-    SCHEME_WORDS,
-    SECRET_FIELD_WORDS,
-    SETTINGS_WORDS,
-    THEME_CARDS_WORDS,
-} from '@/lib/library-words'
+import { LINK_WORDS, SECRET_FIELD_WORDS, SETTINGS_WORDS } from '@/lib/library-words'
 import { Segmented } from '@winterop-com/sokkel-ui/Segmented'
 import { Dot } from '@winterop-com/sokkel-ui/Dot'
 import { STATUS_CSS } from '@winterop-com/sokkel-ui/lib/status'
@@ -26,6 +20,7 @@ import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { type Problem } from '@/lib/api'
 import { authStore, signOut } from '@/lib/auth'
 import { MIN_PASSWORD_LENGTH } from '@/lib/users'
+import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER, APPEARANCE_THEMES } from '@/lib/appearance'
 import { API_DOCS_URL, DOCS_URL } from '@/lib/docs'
 import { formatInstant, formatRelative } from '@/lib/format'
 import { ICONS } from '@/lib/icons'
@@ -43,7 +38,6 @@ import {
 } from '@/lib/settings'
 import { applePlatform, shortcuts } from '@/lib/shortcuts'
 import { readSystemInfo, type SystemInfo } from '@/lib/system'
-import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER, PALETTES } from '@/lib/theme'
 import { chooseTimes, TIMES_LABELS, TIMES_MODES, timesMode } from '@/lib/times'
 import { cn } from '@/lib/utils'
 import { SecretField } from '@winterop-com/sokkel-ui/SecretField'
@@ -53,8 +47,9 @@ export const SETTINGS_TITLE = LABELS.settings.title
 
 /**
  * sokkel-ui's settings dialog over the rows `lib/settings` holds, each with the control this file
- * puts on it by the row's id. Every control writes a store the screens read: the Theme rows write
- * sokkel-ui's appearance, Timezone writes `lib/times`, the log and editor rows `lib/preferences`.
+ * puts on it by the row's id, and the Appearance section, which is sokkel-ui's `themeSettings`
+ * whole. Every control writes a store the screens read: Appearance writes sokkel-ui's appearance,
+ * Timezone writes `lib/times`, the log and editor rows `lib/preferences`.
  */
 export function SettingsDialog({
     open,
@@ -71,6 +66,15 @@ export function SettingsDialog({
     const [active, setActive] = useState(startAt ?? FIRST_CATEGORY)
     const [changing, setChanging] = useState(false)
     const info = useRead(useCallback(() => readSystemInfo(), []))
+    const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
+    const appearance = themeSettings({
+        value: settings,
+        onChange: setSettings,
+        themes: APPEARANCE_THEMES,
+        corners: CORNERS,
+        typefaces: TYPEFACES,
+        system: true,
+    })
 
     const rows = useMemo(() => settingsRows(apple), [apple])
     const keys = useMemo(
@@ -86,6 +90,7 @@ export function SettingsDialog({
                 return { foot: <Refusal problem={info.problem} /> }
             return {}
         },
+        (category) => (category === 'appearance' ? appearance : []),
     )
 
     return (
@@ -113,10 +118,6 @@ interface Context {
 /** The control one row carries, and where it sits. */
 function controlOf(row: SettingsRow, context: Context): RowControl {
     switch (row.id) {
-        case 'theme:appearance':
-            return { control: <ModeControl /> }
-        case 'theme:palette':
-            return { control: <PaletteCards />, layout: 'below' }
         case 'general:times':
             return { control: <TimesControl /> }
         case 'general:tails':
@@ -172,37 +173,6 @@ function controlOf(row: SettingsRow, context: Context): RowControl {
             }
             return factControl(row.id, context.info)
     }
-}
-
-function ModeControl() {
-    const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
-    return (
-        <SchemeChoice
-            value={settings.scheme}
-            onValueChange={(scheme) => {
-                setSettings({ ...settings, scheme })
-            }}
-            words={SCHEME_WORDS}
-        />
-    )
-}
-
-/** One card per palette, each a small page in that palette's own tokens. */
-function PaletteCards() {
-    const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
-    return (
-        <ThemeCards
-            value={settings.theme}
-            onValueChange={(theme) => {
-                setSettings({ ...settings, theme })
-            }}
-            themes={PALETTES.map((palette) => ({
-                value: palette.name,
-                label: palette.label,
-            }))}
-            words={THEME_CARDS_WORDS}
-        />
-    )
 }
 
 function TimesControl() {

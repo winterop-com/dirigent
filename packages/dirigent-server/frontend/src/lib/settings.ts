@@ -6,7 +6,8 @@
  * the dialog's, keyed by the row's id, so this module holds no React and runs in plain Node.
  *
  * The shortcut rows are derived from `lib/shortcuts`, which is why building the rows needs to know
- * what kind of keyboard this is.
+ * what kind of keyboard this is. The Appearance category holds no row of its own: its settings are
+ * sokkel-ui's `themeSettings`, handed to `settingsGroups` whole.
  */
 
 import type { Setting, SettingsGroup } from '@winterop-com/sokkel-ui/SettingsDialog'
@@ -36,7 +37,7 @@ export interface SettingsCategory {
 
 export const SETTINGS_CATEGORIES: readonly SettingsCategory[] = [
     { id: 'general', label: LABELS.settings.category.general, group: 'preferences' },
-    { id: 'theme', label: LABELS.settings.category.theme, group: 'preferences' },
+    { id: 'appearance', label: LABELS.settings.category.appearance, group: 'preferences' },
     { id: 'shortcuts', label: LABELS.settings.category.shortcuts, group: 'preferences' },
     { id: 'account', label: LABELS.word.account.label, group: 'you' },
     { id: 'server', label: LABELS.settings.category.server, group: 'instance' },
@@ -69,18 +70,6 @@ export const FIRST_CATEGORY = 'general'
  */
 export function settingsRows(apple: boolean): SettingsRow[] {
     return [
-        {
-            id: 'theme:appearance',
-            category: 'theme',
-            label: LABELS.settings.row.appearance,
-            keywords: ['theme', 'mode', 'dark', 'light', 'system', 'colour', 'color'],
-        },
-        {
-            id: 'theme:palette',
-            category: 'theme',
-            label: LABELS.settings.row.palette,
-            keywords: ['palette', 'theme', 'colour', 'color', 'paper', 'contrast', 'accessibility'],
-        },
         {
             id: 'general:times',
             category: 'general',
@@ -181,13 +170,15 @@ export type RowControl = Pick<Setting, 'control' | 'layout'>
 
 /**
  * The rows as sokkel-ui's settings take them: the groups, each category a section under its group,
- * and each row a setting with the control `controlOf` puts on it. A group or a category with no row
- * is left out, so the nav never lists a destination with nothing in it.
+ * and each row a setting with the control `controlOf` puts on it, after the settings `given` hands
+ * that category whole. A group or a category with no setting is left out, so the nav never lists a
+ * destination with nothing in it.
  */
 export function settingsGroups(
     rows: readonly SettingsRow[],
     controlOf: (row: SettingsRow) => RowControl,
     around: (category: string) => { lead?: ReactNode; foot?: ReactNode } = () => ({}),
+    given: (category: string) => readonly Setting[] = () => [],
 ): SettingsGroup[] {
     return SETTINGS_GROUPS.map((group) => ({
         id: group.id,
@@ -200,19 +191,22 @@ export function settingsGroups(
                     label: category.label,
                     lead,
                     foot,
-                    settings: rows
-                        .filter((row) => row.category === category.id)
-                        .map((row) => {
-                            const { control, layout } = controlOf(row)
-                            return {
-                                id: row.id,
-                                title: row.label,
-                                description: row.description,
-                                keywords: row.keywords,
-                                control,
-                                layout,
-                            }
-                        }),
+                    settings: [
+                        ...given(category.id),
+                        ...rows
+                            .filter((row) => row.category === category.id)
+                            .map((row) => {
+                                const { control, layout } = controlOf(row)
+                                return {
+                                    id: row.id,
+                                    title: row.label,
+                                    description: row.description,
+                                    keywords: row.keywords,
+                                    control,
+                                    layout,
+                                }
+                            }),
+                    ],
                 }
             })
             .filter((section) => section.settings.length > 0),

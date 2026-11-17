@@ -1,8 +1,9 @@
 /* The tokens, themes, fonts and base styles are sokkel-ui's. styles-base.css is Tailwind's entry,
    the library's tokens and its base layer, with Tailwind pointed at none of the library's modules:
    each module this app imports adds its `sources/<module>.css` line below, or its classes are
-   missing. Each theme the app offers is its own file, worn on <html data-theme>. What follows the
-   imports is this app's own CSS, drawn in the library's tokens. */
+   missing. Each theme the app offers is its own file, worn on <html data-theme>, and the Geist
+   faces are the files behind the library's Geist typeface. What follows the imports is this app's
+   own CSS, drawn in the library's tokens. */
 @import '@winterop-com/sokkel-ui/styles-base.css';
 @import '@winterop-com/sokkel-ui/sources/AccountMenu.css';
 @import '@winterop-com/sokkel-ui/sources/AsyncSelect.css';
@@ -43,7 +44,6 @@
 @import '@winterop-com/sokkel-ui/sources/Rail.css';
 @import '@winterop-com/sokkel-ui/sources/RelativeTime.css';
 @import '@winterop-com/sokkel-ui/sources/ResizeHandle.css';
-@import '@winterop-com/sokkel-ui/sources/SchemeChoice.css';
 @import '@winterop-com/sokkel-ui/sources/SearchField.css';
 @import '@winterop-com/sokkel-ui/sources/SecretField.css';
 @import '@winterop-com/sokkel-ui/sources/SecretReveal.css';
@@ -65,7 +65,7 @@
 @import '@winterop-com/sokkel-ui/sources/TagChips.css';
 @import '@winterop-com/sokkel-ui/sources/TextField.css';
 @import '@winterop-com/sokkel-ui/sources/TextLink.css';
-@import '@winterop-com/sokkel-ui/sources/ThemeCards.css';
+@import '@winterop-com/sokkel-ui/sources/ThemePicker.css';
 @import '@winterop-com/sokkel-ui/sources/Toolbar.css';
 @import '@winterop-com/sokkel-ui/sources/TopBar.css';
 @import '@winterop-com/sokkel-ui/sources/Unfoldable.css';
@@ -100,6 +100,8 @@
 @import '@winterop-com/sokkel-ui/themes/amber.css';
 @import '@winterop-com/sokkel-ui/themes/paper.css';
 @import '@winterop-com/sokkel-ui/themes/contrast.css';
+@import '@fontsource-variable/geist';
+@import '@fontsource-variable/geist-mono';
 @import '@xyflow/react/dist/style.css';
 
 /* ---------------------------------------------------------------------------
