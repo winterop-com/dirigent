@@ -229,6 +229,9 @@ def upgrade() -> None:
             "plugins", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False
         ),
         sa.Column("tags", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False),
+        sa.Column(
+            "notifiers", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False
+        ),
         sa.Column("concurrency", sa.Integer(), server_default=sa.text("1"), nullable=False),
         sa.Column(
             "status",

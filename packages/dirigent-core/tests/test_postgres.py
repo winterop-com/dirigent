@@ -1,6 +1,7 @@
 """The concurrency lane: the claims that only a real PostgreSQL can prove."""
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -23,7 +24,7 @@ from dirigent_client.enums import (
     WorkerStatus,
 )
 from dirigent_client.schemas import ApplyResult, PlanAction
-from dirigent_core import migrations, pipelines
+from dirigent_core import alerting, migrations, pipelines
 from dirigent_core.alerting import raise_for_stuck, recover_notifications, renew_lease
 from dirigent_core.config import Settings
 from dirigent_core.connections import ConnectionInUse, remove_connection
@@ -2236,3 +2237,42 @@ async def test_an_apply_waits_for_a_delete_of_the_schema_it_names_and_then_refus
 
     result = await applying
     assert result.plan.issues, "and the plan finds the schema gone"
+
+
+async def test_runs_of_one_pipeline_settling_together_raise_one_throttled_alert(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each settle reads the throttle, and neither may decide before it can see the other's alert."""
+    first = await start(pg_sessions, pg_services, batch(1))
+    second = await start(pg_sessions, pg_services, batch(1))
+    assert first.pipeline_id == second.pipeline_id
+    async with session_scope(pg_sessions) as session:
+        session.add(
+            AlertRule(
+                code="once-an-hour",
+                event=AlertEvent.RUN_SUCCEEDED,
+                scope=AlertScope.GLOBAL,
+                notifier="log",
+                throttle_seconds=3600,
+                active=True,
+            )
+        )
+    real = alerting.raised_at
+    both = asyncio.Barrier(2)
+
+    async def read_then_wait(*args: Any, **kwargs: Any) -> Any:
+        found = await real(*args, **kwargs)
+        with contextlib.suppress(TimeoutError):
+            async with asyncio.timeout(2):
+                await both.wait()
+        return found
+
+    monkeypatch.setattr(alerting, "raised_at", read_then_wait)
+    engines = [Engine(pg_sessions, pg_services, owner=f"worker-{index}") for index in range(2)]
+    units = [await engine.claim() for engine in engines]
+    assert all(unit is not None for unit in units)
+    await asyncio.gather(*(engine.run_unit(unit) for engine, unit in zip(engines, units, strict=True) if unit))
+
+    async with pg_sessions() as session:
+        raised = await session.execute(sa.select(sa.func.count()).select_from(Notification))
+        assert raised.scalar_one() == 1

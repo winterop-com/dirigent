@@ -7,7 +7,7 @@ coarser guard against a flapping pipeline.
 
 import asyncio
 import json
-from collections.abc import AsyncGenerator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Collection, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Final, NamedTuple, cast
@@ -30,6 +30,7 @@ from dirigent_client.enums import (
     NotificationStatus,
     RunItemStatus,
     RunStatus,
+    WorkerStatus,
 )
 from dirigent_client.schemas import ValidationIssue
 from dirigent_client.schemas.alerts import LOG_NOTIFIER, TEST_BODY, TEST_SUBJECT
@@ -76,6 +77,7 @@ from dirigent_core.models import (
     Pipeline,
     PipelineVersion,
     Run,
+    Worker,
     utcnow,
 )
 from dirigent_core.reportchecks import REPORT_CONTEXT, unknown_names
@@ -582,6 +584,25 @@ async def raised_at(session: AsyncSession, rule: AlertRule, pipeline_id: UUID) -
     ).scalar()
 
 
+#: The class of the advisory locks :func:`_lock_throttles` takes, one per pipeline inside it.
+THROTTLE_LOCK_CLASS: Final = 0x64_61_6C_74
+
+
+async def _lock_throttles(session: AsyncSession, pipeline_id: UUID) -> None:
+    """Serialise the throttle decisions for one pipeline until this transaction ends.
+
+    Two runs of a pipeline settling at once each hold only their own run's lock, so neither
+    sees the other's uncommitted alert. This lock is on the pipeline's throttles alone: only
+    raising an alert takes it, and never while holding the pipeline's row.
+    PostgreSQL only: SQLite's ``BEGIN IMMEDIATE`` already serialises the transactions.
+    """
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    await session.execute(
+        sa.select(sa.func.pg_advisory_xact_lock(THROTTLE_LOCK_CLASS, sa.func.hashtext(str(pipeline_id))))
+    )
+
+
 async def throttled_until(session: AsyncSession, rule: AlertRule, pipeline_id: UUID, now: datetime) -> datetime | None:
     """Say when this rule may next raise for this pipeline, or ``None`` if it may now.
 
@@ -659,6 +680,8 @@ async def _queue_for_run(
     rules = await matching_rules(session, event, run.pipeline_id, pipeline.importance)
     if not rules:
         return []
+    if any(rule.throttle_seconds for rule in rules):
+        await _lock_throttles(session, run.pipeline_id)
     report_url = report_url_for(services.settings.alert_base_url, report_artifact_id)
     if facts is None:
         facts = await _facts_of(session, run, base_url=services.settings.alert_base_url, rendered_at=moment)
@@ -1075,14 +1098,20 @@ async def claim_notification(
     owner: str,
     now: datetime,
     lease_seconds: int,
+    notifiers: Collection[str] | None = None,
 ) -> ClaimedNotification | None:
-    """Claim the next due notification, the same way a worker claims an attempt."""
+    """Claim the next due notification, the same way a worker claims an attempt.
+
+    ``notifiers`` narrows the claim to the notifiers this worker can send through; None claims any.
+    """
     statement = (
         sa.select(Notification)
         .where(Notification.status == NotificationStatus.PENDING, Notification.available_at <= now)
         .order_by(Notification.available_at, Notification.id)
         .limit(CLAIM_LIMIT)
     )
+    if notifiers is not None:
+        statement = statement.where(Notification.notifier.in_(list(notifiers)))
     if session.get_bind().dialect.name == "postgresql":
         statement = statement.with_for_update(skip_locked=True, of=Notification)
     found = await session.execute(statement)
@@ -1406,6 +1435,48 @@ async def recover_notifications(session: AsyncSession, *, now: datetime | None =
     return len(recovered.scalars().all())
 
 
+#: The registry states of a worker that claims notifications, or is about to.
+SENDING_WORKERS: Final = (WorkerStatus.STARTING, WorkerStatus.RUNNING)
+
+
+async def fail_unsendable_notifications(
+    session: AsyncSession, *, waited: timedelta, now: datetime | None = None
+) -> int:
+    """Fail every pending notification due for longer than ``waited`` whose notifier no live worker has.
+
+    A worker claims only what it can send, so such a notification would otherwise wait forever.
+    """
+    moment = now or utcnow()
+    found = await session.execute(sa.select(Worker.notifiers).where(Worker.status.in_(SENDING_WORKERS)))
+    installed = {str(name) for names in found.scalars() for name in names}
+    statement = sa.select(Notification).where(
+        Notification.status == NotificationStatus.PENDING, Notification.available_at < moment - waited
+    )
+    if installed:
+        statement = statement.where(Notification.notifier.not_in(sorted(installed)))
+    if session.get_bind().dialect.name == "postgresql":
+        statement = statement.with_for_update(skip_locked=True)
+    failed = list((await session.execute(statement)).scalars())
+    for notification in failed:
+        message = NOTIFIER_NOT_ON_WORKER.render(notifier=repr(notification.notifier))
+        notification.status = NotificationStatus.FAILED
+        notification.error = f"AlertError: {message}"
+        _timeline(
+            session,
+            notification,
+            LogLevel.ERROR,
+            f"alert could not be delivered through {notification.notifier!r}: {message}",
+            moment,
+        )
+        _logger.error(
+            "notification failed terminally",
+            notification_id=str(notification.id),
+            notifier=notification.notifier,
+            error=message,
+        )
+    return len(failed)
+
+
 class NotificationDispatcher(BaseModel):
     """The worker's alert-delivery loop: claim one, send it, repeat until the queue is empty."""
 
@@ -1431,6 +1502,7 @@ class NotificationDispatcher(BaseModel):
                     owner=self.owner,
                     now=moment,
                     lease_seconds=int(self.services.settings.notification_lease.total_seconds()),
+                    notifiers=self.services.host.notifiers.keys(),
                 )
                 if claim is None:
                     return sent

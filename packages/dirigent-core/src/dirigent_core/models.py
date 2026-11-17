@@ -748,6 +748,8 @@ class Worker(Entity):
     version: Mapped[str] = mapped_column(sa.String(50), nullable=False)
     plugins: Mapped[JsonMap] = mapped_column(JsonDocument, nullable=False, default=dict)
     tags: Mapped[JsonList] = mapped_column(JsonDocument, nullable=False, default=list)
+    notifiers: Mapped[JsonList] = mapped_column(JsonDocument, nullable=False, default=list)
+    """The notifiers this worker can send alerts through."""
     concurrency: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=1, server_default=sa.text("1"))
     status: Mapped[WorkerStatus] = mapped_column(
         string_enum(WorkerStatus, "worker_status"), nullable=False, default=WorkerStatus.STARTING

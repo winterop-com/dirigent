@@ -3,9 +3,11 @@
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, RunStatus
+from dirigent_core import stats as stats_module
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import save_pipeline
@@ -289,3 +291,26 @@ async def test_the_summary_narrows_to_a_pipeline_a_tag_and_the_newest_state(
     assert [row.pipeline for row in failing.pipelines] == ["alpha"]
     assert {row.pipeline: sum(row.counts.values()) for row in hour.pipelines} == {"alpha": 6, "beta": 1}
     assert nobody.pipelines == []
+
+
+async def test_a_window_ending_at_midnight_has_no_empty_day_after_it(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    midnight = datetime(2026, 3, 10, tzinfo=UTC)
+    async with session_scope(sessions) as session:
+        stats = await run_stats(session, end=midnight, since=timedelta(days=2))
+    assert [day.day for day in stats.trend] == [date(2026, 3, 8), date(2026, 3, 9)]
+
+
+async def test_durations_are_sampled_per_pipeline(
+    sessions: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(stats_module, "DURATION_SAMPLE", 3)
+    await seed(sessions)
+    await seed_recent(sessions)
+    async with session_scope(sessions) as session:
+        stats = await run_stats(session, end=END, since=WEEK)
+        summary = await run_summary(session, end=END, since=timedelta(days=1))
+
+    assert {row.pipeline: row.runs for row in stats.durations} == {"alpha": 3, "beta": 3}
+    assert {row.pipeline: row.median_duration_ms for row in summary.pipelines} == {"alpha": 2000, "beta": 7000}

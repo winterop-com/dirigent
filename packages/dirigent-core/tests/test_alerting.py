@@ -24,6 +24,7 @@ from dirigent_client.enums import (
     NotificationStatus,
     RunStatus,
     TriggerKind,
+    WorkerStatus,
 )
 from dirigent_client.schemas.alerts import LOG_NOTIFIER
 from dirigent_common import JsonMap, render, spellings, templating
@@ -38,6 +39,7 @@ from dirigent_core.alerting import (
     claim_notification,
     create_rule,
     delete_rule,
+    fail_unsendable_notifications,
     find_rule,
     list_notifications,
     list_rules,
@@ -64,6 +66,7 @@ from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.runs import create_run, save_pipeline
 from dirigent_core.ids import uuid7
 from dirigent_core.models import AlertRule, AuditEntry, Connection, LogEntry, Notification, Pipeline, Run, StepAttempt
+from dirigent_core.models import Worker as WorkerRow
 from dirigent_core.plugins import PluginHost
 from dirigent_plugin import AlertMessage, Contribution, Notifier
 from engineblocks import EchoOperator, EngineTestPlugin
@@ -1747,7 +1750,7 @@ async def test_a_notifier_missing_from_this_worker_fails_the_delivery_rather_tha
         claimed, token = claim.notification, claim.lease_token
         assert await send_notification(session, services, claimed, owner=OWNER, lease_token=token, now=NOW) is False
         assert claimed.status is NotificationStatus.PENDING
-        assert "is not installed on this worker" in (claimed.error or "")
+        assert "is not installed on any worker at hand" in (claimed.error or "")
 
 
 async def test_a_message_with_no_run_and_no_context_still_delivers(
@@ -2304,3 +2307,44 @@ async def test_a_test_message_is_queued_without_rendering_and_renders_at_deliver
     (delivered,) = await deliver(sessions, services)
     assert delivered.status is NotificationStatus.SENT
     assert (delivered.subject, delivered.body) == (" ".join(SPINNING.split()), SPINNING), "kept as typed"
+
+
+async def test_a_worker_never_claims_a_message_for_a_notifier_it_does_not_have(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    elsewhere = await enqueue(
+        sessions, event=AlertEvent.RUN_SUCCEEDED, notifier="only-on-another-worker", subject="later", available_at=NOW
+    )
+    await queued_message(sessions, services, subject="now")
+    dispatcher = NotificationDispatcher(sessions=sessions, services=services, owner=OWNER)
+    assert await dispatcher.drain(now=NOW) == 1
+    waiting = await reload_notification(sessions, elsewhere.id)
+    assert (waiting.status, waiting.attempt, waiting.lease_owner) == (NotificationStatus.PENDING, 0, None)
+
+
+async def test_a_message_no_running_worker_can_send_fails_once_it_has_waited_past_the_bound(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    unsendable = await enqueue(
+        sessions, event=AlertEvent.RUN_SUCCEEDED, notifier="carrier-pigeon", subject="never", available_at=NOW
+    )
+    sendable = await enqueue(
+        sessions, event=AlertEvent.RUN_SUCCEEDED, notifier="recording", subject="soon", available_at=NOW
+    )
+    async with session_scope(sessions) as session:
+        for name, status, notifiers in (
+            ("live", WorkerStatus.RUNNING, ["log", "recording"]),
+            ("gone", WorkerStatus.STOPPED, ["carrier-pigeon"]),
+        ):
+            session.add(WorkerRow(name=name, hostname=name, version="test", status=status, notifiers=notifiers))
+    bound = timedelta(minutes=15)
+    async with session_scope(sessions) as session:
+        assert await fail_unsendable_notifications(session, waited=bound, now=NOW + bound) == 0, "not yet past it"
+    async with session_scope(sessions) as session:
+        later = NOW + bound + timedelta(seconds=1)
+        assert await fail_unsendable_notifications(session, waited=bound, now=later) == 1
+
+    failed = await reload_notification(sessions, unsendable.id)
+    assert failed.status is NotificationStatus.FAILED
+    assert "'carrier-pigeon' is not installed on any worker at hand" in (failed.error or "")
+    assert (await reload_notification(sessions, sendable.id)).status is NotificationStatus.PENDING

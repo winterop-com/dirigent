@@ -1148,7 +1148,11 @@ containers and not only the server. See [telemetry](telemetry.md).
 
 **Alert rules are the closest thing to paging that exists in the product.** A rule binds an
 event -- `run_failed`, `run_completed_with_errors`, `run_succeeded`, `run_stuck` -- at a scope
-to one channel, and delivery goes through a queued, leased, retried path a worker owns. If you
+to one channel, and delivery goes through a queued, leased, retried path a worker owns. A
+worker claims only the alerts whose notifier it has installed. An alert no starting or running
+worker can send waits for one; once it has been due for longer than `stale_worker` (`15m`), the
+sweeper fails it with `alert.notifier_not_on_worker`, so it shows as failed in
+`dg alerts queue` rather than pending for good. If you
 have one thing configured on a real instance, make it a `run_failed` rule with a throttle.
 
 **A rule may also name the least importance it fires for**, which is how paging is kept apart
@@ -1207,8 +1211,9 @@ same answer is `GET /api/v1/runs/$stats`, which any role may read, and `dg.runs.
 Python client.
 
 The window is at most 366 days. Every count is exact; the percentiles are measured over the
-window's most recent 10,000 settled runs, ordered in the server rather than by the database, so
-SQLite and PostgreSQL give the same answer.
+window's most recent 1,000 settled runs of each pipeline, ordered in the server rather than by
+the database, so SQLite and PostgreSQL give the same answer. `dg runs summary` measures its
+median durations over the same per-pipeline sample.
 
 `dg runs summary` answers per pipeline instead, for a pipeline that runs every few minutes all
 day. It reads the runs created in the window, 24 hours when `--since` names none, in flight or

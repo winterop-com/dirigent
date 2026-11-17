@@ -433,7 +433,9 @@ class Settings(BaseSettings):
     """A running run with no attempt progress for this long is flagged as stuck."""
 
     stale_worker: Duration = Field(default=timedelta(minutes=15), gt=timedelta(0))
-    """A worker whose last heartbeat is older than this has its registry row reaped by the sweeper."""
+    """A worker whose last heartbeat is older than this has its registry row reaped by the sweeper.
+
+    An alert due for longer than this, whose notifier no starting or running worker has, is failed."""
 
     docker_reap_interval: Duration = timedelta(minutes=5)
     """How often a docker-capable worker looks for compose stacks whose run has ended.

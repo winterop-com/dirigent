@@ -947,7 +947,11 @@ Alerting is rules times channels, both data. An alert rule binds an event (`run_
 to one channel, with a message template. Delivery is itself engine work, queued, retried with
 backoff, and visible in the run timeline, so a flaky SMTP server cannot take down a worker or
 silently drop an alert. Per-rule throttling prevents a flapping pipeline from paging every
-minute.
+minute. Runs of one pipeline settling at once read the throttle one after another, under a
+PostgreSQL advisory lock on that pipeline's throttles that is held to the end of the settling
+transaction and taken after its run lock. Only raising an alert takes it, and no
+transaction waits for it while holding the pipeline's row, so it closes no cycle with the
+slot's locks.
 
 **A rule names one target: a connection, or nothing.** The connection is the whole address, and
 the notifier that sends it is that connection's kind -- so a rule naming an `email` connection
