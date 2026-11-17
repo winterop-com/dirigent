@@ -1,14 +1,20 @@
 """Tests for the application factory and the health probes."""
 
+import logging
+from collections.abc import Generator, MutableMapping
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import pytest
+import structlog
 from cryptography.fernet import Fernet
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine
+from structlog.testing import capture_logs
 
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine
@@ -121,6 +127,47 @@ def test_the_startup_directory_is_applied_and_a_broken_document_does_not_stop_th
         assert codes == ["seeded-at-boot"]
         version = client.get("/api/v1/pipelines/seeded-at-boot/versions").json()["items"][0]
         assert version["provenance_source"] == "directory"
+
+
+@contextmanager
+def capture_info() -> Generator[list[MutableMapping[str, Any]]]:
+    """Capture structured log events at INFO and up, whatever level an earlier test configured."""
+    saved = structlog.get_config()
+    structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.INFO))
+    try:
+        with capture_logs() as logged:
+            yield logged
+    finally:
+        structlog.configure(**saved)
+
+
+def test_a_pruning_boot_keeps_nested_documents_and_skips_the_prune_over_a_broken_one(
+    tmp_path: Path, admin_token: str, settings: Settings
+) -> None:
+    directory = tmp_path / "pipelines"
+    (directory / "team-a").mkdir(parents=True)
+    document = (
+        "format: dirigent/v1\ncode: {code}\nsteps:\n  only:\n    block: value.const\n    config: {{ value: x }}\n"
+    )
+    (directory / "top.yaml").write_text(document.format(code="top"))
+    (directory / "team-a" / "nightly.yaml").write_text(document.format(code="nightly"))
+    booted = settings.model_copy(update={"apply_dir": directory, "apply_prune": True})
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    with capture_info() as logged, TestClient(create_app(booted), headers=headers):
+        pass
+    first = next(one for one in logged if one["event"] == "startup directory applied")
+    assert first["pruned"] == []
+    assert first["prune_refusal"] is None
+
+    (directory / "top.yaml").write_text(document.format(code="top") + "tagz: [x]\n")
+    with capture_info() as logged, TestClient(create_app(booted), headers=headers) as client:
+        active = {row["code"]: row["active"] for row in client.get("/api/v1/pipelines").json()["items"]}
+
+    record = next(one for one in logged if one["event"] == "startup directory applied")
+    assert record["refused"] == ["top.yaml"]
+    assert record["pruned"] == []
+    assert "top.yaml" in record["prune_refusal"]
+    assert active == {"nightly": True, "top": True}
 
 
 def test_a_boot_that_fails_still_disposes_the_engine(settings: Settings, monkeypatch: pytest.MonkeyPatch) -> None:

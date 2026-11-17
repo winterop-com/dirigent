@@ -187,7 +187,7 @@ from dirigent_client import (
     ValidationIssue,
     declared_label,
 )
-from dirigent_client.schemas import ConnectionKindEntry, SurfaceEntry, TokenLifetime
+from dirigent_client.schemas import ConnectionKindEntry, PruneResult, SurfaceEntry, TokenLifetime
 from dirigent_client.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_common import Issue, JsonMap, Message, bounded_load, is_entity_name
 from dirigent_core import migrations
@@ -442,13 +442,15 @@ def apply_command(
     documents = _documents_to_apply(reference, as_code)
     source = ProvenanceSource.DIRECTORY if prune else None
     with client_for(state) as dg:
-        results = [
-            (
-                _apply_one(dg, document, code=as_code, dry_run=dry_run, paused=paused, source=source),
-                document.label,
-            )
-            for document in documents
-        ]
+        results: list[tuple[ApplyResult, str]] = []
+        try:
+            for document in documents:
+                applied = _apply_one(dg, document, code=as_code, dry_run=dry_run, paused=paused, source=source)
+                results.append((applied, document.label))
+        except typer.Exit:
+            if prune:
+                _report_skipped_prune(state, dry_run=dry_run)
+            raise
         pruned = None
         if prune:
             keep = [result.plan.code for result, _ in results]
@@ -472,6 +474,9 @@ def apply_command(
         return
     accepted = all(_print_plan(result, origin) for result, origin in results)
     for result, _ in results:
+        if result.reactivated:
+            console.print(f"{styled('activated'):<10} {escape(result.plan.code)}  [dim](a prune had deactivated it)[/]")
+    for result, _ in results:
         _print_source_tokens(result, base_url=dg.url)
     if pruned is not None:
         for code in pruned.pruned:
@@ -488,6 +493,24 @@ def apply_command(
         console.print("[dim]Nothing was written: this was a dry run.[/]")
     if not accepted:
         raise typer.Exit(code=1)
+
+
+#: Why a project apply with ``--prune`` stopped before reconciling.
+PRUNE_SKIPPED: Final = "a document in the project was not applied, so nothing was pruned"
+
+
+class SkippedPrune(PruneResult):
+    """A prune that did not run, and why."""
+
+    refusal: str
+
+
+def _report_skipped_prune(state: CliState, *, dry_run: bool) -> None:
+    """Say that a prune did not run because the apply stopped at a document."""
+    if state.json_output:
+        emit_records("prune", [SkippedPrune(pruned=[], dry_run=dry_run, refusal=PRUNE_SKIPPED)])
+    else:
+        console.print(f"[yellow]prune skipped[/]  [dim]({PRUNE_SKIPPED})[/]")
 
 
 def _documents_to_apply(reference: str | None, as_code: str | None) -> list[Document]:

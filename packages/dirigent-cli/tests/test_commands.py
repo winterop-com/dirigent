@@ -473,6 +473,54 @@ def test_a_dry_run_prune_reports_and_writes_nothing(tmp_path: Path, server: str)
     assert active["drop-me"] is True
 
 
+def _active(listed: str) -> dict[str, bool]:
+    return {row["code"]: row["active"] for row in rows(listed)}
+
+
+def test_apply_prune_keeps_a_document_nested_in_the_project(tmp_path: Path, server: str) -> None:
+    directory = _project(tmp_path, "top")
+    (directory / "team-a").mkdir()
+    (directory / "team-a" / "nightly.yaml").write_text(DOCUMENT.replace("code: cli-demo", "code: nightly"))
+    assert machine("apply", "--prune").exit_code == 0
+
+    second = machine("apply", "--prune")
+
+    assert second.exit_code == 0, second.output
+    assert sorted(row["plan"]["code"] for row in rows(second.stdout, "apply")) == ["nightly", "top"]
+    assert only(second.stdout, "prune")["fields"]["pruned"] == []
+    assert _active(machine("pipeline", "list").stdout) == {"nightly": True, "top": True}
+
+
+def test_apply_prune_skips_the_prune_when_a_document_fails_to_load(tmp_path: Path, server: str) -> None:
+    directory = _project(tmp_path, "a-typo", "drop-me")
+    assert machine("apply", "--prune").exit_code == 0
+    (directory / "a-typo.yaml").write_text(DOCUMENT.replace("code: cli-demo", "code: a-typo") + "tagz: [x]\n")
+    (directory / "drop-me.yaml").unlink()
+
+    result = machine("apply", "--prune")
+
+    assert result.exit_code == 1
+    prune = only(result.stdout, "prune")["fields"]
+    assert prune["pruned"] == []
+    assert prune["refusal"] is not None
+    assert _active(machine("pipeline", "list").stdout) == {"a-typo": True, "drop-me": True}
+
+
+def test_apply_prune_reactivates_a_pruned_pipeline_whose_document_is_back(tmp_path: Path, server: str) -> None:
+    directory = _project(tmp_path, "keep-me", "drop-me")
+    assert machine("apply", "--prune").exit_code == 0
+    (directory / "drop-me.yaml").unlink()
+    assert machine("apply", "--prune").exit_code == 0
+    _project(tmp_path, "drop-me")
+
+    result = machine("apply", "--prune")
+
+    assert result.exit_code == 0, result.output
+    reactivated = {row["plan"]["code"]: row["reactivated"] for row in rows(result.stdout, "apply")}
+    assert reactivated == {"drop-me": True, "keep-me": False}
+    assert _active(machine("pipeline", "list").stdout) == {"drop-me": True, "keep-me": True}
+
+
 def test_prune_refuses_a_single_document(tmp_path: Path, server: str) -> None:
     path = tmp_path / "demo.yaml"
     path.write_text(DOCUMENT)

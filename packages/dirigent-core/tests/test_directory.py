@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import ProvenanceSource
 from dirigent_core.database import session_scope
-from dirigent_core.directory import apply_directory, discover_documents
-from dirigent_core.documents import load_text
+from dirigent_core.directory import apply_directory
+from dirigent_core.documents import discover_documents, load_text
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.runs import Provenance
-from dirigent_core.pipelines import apply_document, find_pipeline, get_version, require_pipeline
+from dirigent_core.pipelines import apply_document, find_pipeline, get_version, require_pipeline, set_active
 from dirigent_core.schemas import find_schema
 from dirigent_core.trigger_documents import list_trigger_documents
 
@@ -36,6 +36,11 @@ def write(root: Path, name: str, *, code: str, value: str = "one") -> Path:
 async def active_of(sessions: async_sessionmaker[AsyncSession], code: str) -> bool:
     async with session_scope(sessions) as session:
         return (await require_pipeline(session, code)).active
+
+
+async def pruned_of(sessions: async_sessionmaker[AsyncSession], code: str) -> bool:
+    async with session_scope(sessions) as session:
+        return (await require_pipeline(session, code)).pruned
 
 
 async def test_a_fresh_directory_seeds_every_document(
@@ -415,3 +420,155 @@ async def test_a_prune_leaves_a_schema_alone_and_keeps_its_code_out_of_the_pipel
     assert summary.schemas == ["ou-record"]
     async with session_scope(sessions) as session:
         assert await find_schema(session, "ou-record") is not None
+
+
+async def test_a_prune_keeps_a_document_nested_in_a_subdirectory(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    write(tmp_path, "top.yaml", code="top")
+    (tmp_path / "team-a").mkdir()
+    write(tmp_path, "team-a/nightly.yaml", code="nightly")
+    await apply_directory(sessions, services, tmp_path)
+
+    summary = await apply_directory(sessions, services, tmp_path, prune=True)
+
+    assert summary.unchanged == ["nightly", "top"]
+    assert summary.pruned == []
+    assert summary.prune_refusal is None
+    assert await active_of(sessions, "nightly") is True
+
+
+#: Ways a present pipeline's file can fail to load, each written over a document that applied.
+UNLOADABLE = {
+    "an unknown key": DOCUMENT.format(code="orders", value="one") + "tagz: [nightly]\n",
+    "a YAML syntax error": "format: dirigent/v1\ncode: orders\nsteps: [unclosed\n",
+}
+
+
+@pytest.mark.parametrize("broken", UNLOADABLE.values(), ids=list(UNLOADABLE))
+async def test_a_present_document_that_fails_to_load_stops_the_prune(
+    broken: str, tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    write(tmp_path, "orders.yaml", code="orders")
+    write(tmp_path, "kept.yaml", code="kept")
+    write(tmp_path, "gone.yaml", code="gone")
+    await apply_directory(sessions, services, tmp_path)
+    (tmp_path / "orders.yaml").write_text(broken)
+    (tmp_path / "gone.yaml").unlink()
+
+    summary = await apply_directory(sessions, services, tmp_path, prune=True)
+
+    assert [(refused.path, refused.code) for refused in summary.refused] == [("orders.yaml", None)]
+    assert summary.pruned == []
+    assert summary.prune_refusal is not None
+    assert "orders.yaml" in summary.prune_refusal
+    assert await active_of(sessions, "orders") is True
+    assert await active_of(sessions, "gone") is True, "the next clean walk prunes it"
+
+
+async def test_a_pipeline_sharing_a_schemas_code_is_kept_by_the_prune(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    (tmp_path / "orders.json").write_text('{"type": "object", "properties": {"id": {"type": "string"}}}')
+    write(tmp_path, "orders.yaml", code="orders")
+
+    summary = await apply_directory(sessions, services, tmp_path, prune=True)
+
+    assert summary.schemas == ["orders"]
+    assert summary.pruned == []
+    assert await active_of(sessions, "orders") is True
+
+
+async def test_a_directory_left_with_only_schemas_refuses_to_prune(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    write_schema(tmp_path, "ou-record.json")
+    (tmp_path / "pipelines").mkdir()
+    write(tmp_path, "pipelines/one.yaml", code="one")
+    write(tmp_path, "pipelines/two.yaml", code="two")
+    await apply_directory(sessions, services, tmp_path)
+    for path in (tmp_path / "pipelines").iterdir():
+        path.unlink()
+
+    summary = await apply_directory(sessions, services, tmp_path, prune=True)
+
+    assert summary.pruned == []
+    assert summary.prune_refusal is not None
+    assert await active_of(sessions, "one") is True
+    assert await active_of(sessions, "two") is True
+
+
+async def test_restoring_a_pruned_document_reactivates_its_pipeline(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    write(tmp_path, "kept.yaml", code="kept")
+    write(tmp_path, "gone.yaml", code="gone")
+    await apply_directory(sessions, services, tmp_path)
+    (tmp_path / "gone.yaml").unlink()
+    assert (await apply_directory(sessions, services, tmp_path, prune=True)).pruned == ["gone"]
+    assert await pruned_of(sessions, "gone") is True
+
+    write(tmp_path, "gone.yaml", code="gone")
+    summary = await apply_directory(sessions, services, tmp_path, prune=True)
+
+    assert summary.unchanged == ["gone", "kept"]
+    assert summary.reactivated == ["gone"]
+    assert await active_of(sessions, "gone") is True
+    assert await pruned_of(sessions, "gone") is False
+
+
+async def test_a_dry_run_reports_the_reactivation_and_writes_nothing(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    write(tmp_path, "kept.yaml", code="kept")
+    write(tmp_path, "gone.yaml", code="gone")
+    await apply_directory(sessions, services, tmp_path)
+    (tmp_path / "gone.yaml").unlink()
+    await apply_directory(sessions, services, tmp_path, prune=True)
+    write(tmp_path, "gone.yaml", code="gone")
+
+    summary = await apply_directory(sessions, services, tmp_path, prune=True, dry_run=True)
+
+    assert summary.reactivated == ["gone"]
+    assert await active_of(sessions, "gone") is False
+
+
+async def test_a_pipeline_a_person_deactivated_stays_inactive_when_its_document_is_applied(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    write(tmp_path, "kept.yaml", code="kept")
+    write(tmp_path, "gone.yaml", code="gone")
+    await apply_directory(sessions, services, tmp_path)
+    (tmp_path / "gone.yaml").unlink()
+    await apply_directory(sessions, services, tmp_path, prune=True)
+    async with session_scope(sessions) as session:
+        await set_active(session, "gone", active=True)
+        await set_active(session, "gone", active=False)
+    write(tmp_path, "gone.yaml", code="gone", value="two")
+
+    summary = await apply_directory(sessions, services, tmp_path, prune=True)
+
+    assert summary.updated == ["gone"]
+    assert summary.reactivated == []
+    assert await active_of(sessions, "gone") is False
+
+
+async def test_only_a_directory_apply_reactivates_a_pruned_pipeline(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    write(tmp_path, "kept.yaml", code="kept")
+    write(tmp_path, "gone.yaml", code="gone")
+    await apply_directory(sessions, services, tmp_path)
+    (tmp_path / "gone.yaml").unlink()
+    await apply_directory(sessions, services, tmp_path, prune=True)
+
+    async with session_scope(sessions) as session:
+        result = await apply_document(
+            session,
+            services,
+            load_text(DOCUMENT.format(code="gone", value="one")),
+            provenance=Provenance(source=ProvenanceSource.FILE),
+        )
+
+    assert result.reactivated is False
+    assert await active_of(sessions, "gone") is False

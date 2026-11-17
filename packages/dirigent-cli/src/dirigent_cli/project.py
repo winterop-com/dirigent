@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dirigent_cli.readme import readme_document
 from dirigent_core.configdocs import example_document, project_document
+from dirigent_core.documents import discover_documents
 from dirigent_core.secrets import generate_key
 
 if TYPE_CHECKING:
@@ -22,7 +23,6 @@ PROJECT_FILE: Final = "dirigent.yaml"
 #: Every setting, commented out, beside it. Read, never loaded.
 EXAMPLE_CONFIG_FILE: Final = "dirigent.example.yaml"
 DEFAULT_PIPELINES_DIR: Final = "pipelines"
-DOCUMENT_SUFFIXES: Final = (".yaml", ".yml", ".json")
 
 
 class ProjectError(Exception):
@@ -46,14 +46,14 @@ class Project(BaseModel):
         return self.root / self.pipelines
 
     def documents(self) -> list[Path]:
-        """List every document in the project, in a stable order, refusing one outside the project."""
+        """List every document in the project at any depth, in a stable order, refusing one outside the project."""
         directory = self.pipelines_dir
         root = self.root.resolve()
         if not directory.resolve().is_relative_to(root):
             raise ProjectError(f"{directory} is outside the project; {PROJECT_FILE} may name only a directory in it")
         if not directory.is_dir():
             raise ProjectError(f"{directory} does not exist; {PROJECT_FILE} points the pipelines directory at it")
-        paths = sorted(path for path in directory.iterdir() if path.suffix in DOCUMENT_SUFFIXES and path.is_file())
+        paths = discover_documents(directory)
         for path in paths:
             if not path.resolve().is_relative_to(root):
                 raise ProjectError(f"{path} is a link to a file outside the project")

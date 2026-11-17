@@ -429,3 +429,6 @@ class ApplyResult(WireModel):
 
     sources: SourceChanges = Field(default_factory=SourceChanges)
     """Which source rows the apply created, changed, or retired, and the tokens it minted."""
+
+    reactivated: bool = False
+    """A directory prune had deactivated the pipeline, and this directory apply activated it again."""

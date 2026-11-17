@@ -482,8 +482,9 @@ Like every command, `dg init` renders at a terminal and writes records into a pi
 with the `next` commands that start the stack, beginning with `uv sync`. Both carry the
 `template`, and the stack's `services`, any `packs`, and `workflow` when one was written.
 
-Inside a project, `dg apply` with no argument applies every document, and `dg apply
---dry-run` is the whole-project diff, and it names the sources and managed schedules an apply
+Inside a project, `dg apply` with no argument applies every document in the pipelines
+directory at any depth, walked the same way the server walks `DIRIGENT_APPLY_DIR` and
+`dg validate` walks a directory, and `dg apply --dry-run` is the whole-project diff, and it names the sources and managed schedules an apply
 would retire. That plus a pipeline repository on GitHub is the entire
 promotion story.
 
@@ -491,7 +492,12 @@ promotion story.
 earlier directory apply wrote and the project no longer holds is deactivated -- never
 deleted. It marks this apply's documents with directory provenance, which is what a later
 prune recognises as its own; a pipeline applied any other way is never touched. With
-`--dry-run` it prints what a reconcile would deactivate without writing anything.
+`--dry-run` it prints what a reconcile would deactivate without writing anything. When a
+document is not applied -- it does not parse, or the instance refuses to load it -- the apply
+stops there and nothing is pruned: the `prune` record says so in its `refusal`. A pipeline a
+prune deactivated is activated again by the next `dg apply --prune` that finds its document
+back in the project, and the `apply` record says `reactivated`; one a person deactivated
+stays as they left it.
 
 `--paused` creates what an apply mints that would start runs by itself already paused: its
 schedules, and its sources a worker polls or holds, such as a `sensor`, `storage`, `kafka` or
@@ -1073,8 +1079,8 @@ verb and whose fields are the identity of what changed:
 | `validation` | `dg validate`, `dg pipeline validate`, and `dg apply` for each document it refuses | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` and the `warnings[]` that refuse nothing, such as a `report.render` step no `report:` reads; a record with warnings is at `warning` level |
 | `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid`, and the files in a directory `skipped` as not documents |
-| `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an update's `diff` (`steps_added`, `steps_removed`, `steps_changed`, `alerts_added`, `alerts_removed`, `alerts_changed`, and `params_changed`, `triggers_changed`, `requires_changed`, `report_changed` and `settings_changed`, the last for the name, description, tags, concurrency, priority or importance), an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once. An invalid one is followed by a `validation` record at `error` level |
-| `prune` | `dg apply --prune` | The reconcile: under `fields`, the pipelines `pruned`, the `trigger_documents_removed` that went with them, and `dry_run` |
+| `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an update's `diff` (`steps_added`, `steps_removed`, `steps_changed`, `alerts_added`, `alerts_removed`, `alerts_changed`, and `params_changed`, `triggers_changed`, `requires_changed`, `report_changed` and `settings_changed`, the last for the name, description, tags, concurrency, priority or importance), an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once, and `reactivated` when a `--prune` apply activated a pipeline a prune had deactivated. An invalid one is followed by a `validation` record at `error` level |
+| `prune` | `dg apply --prune` | The reconcile: under `fields`, the pipelines `pruned`, the `trigger_documents_removed` that went with them, `dry_run`, and the `refusal` that says why nothing was pruned when a document was not applied |
 | `prune` | `dg prune` | The retention sweep, in flat fields rather than under `fields`: `total`, `dry_run`, and a count per family; a sweep that ran adds the `artifacts` it deleted from storage |
 | `backfill` | `dg backfill` | `pipeline`, `schedule`, `dry_run`, `windows_total`, `runs_created`, and `windows[]` of `window_start`, `window_end` and the `run_id` each became |
 | `pipeline.activated` / `.deactivated` / `.deleted` | `dg pipeline …` | `code` |

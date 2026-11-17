@@ -11,12 +11,13 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import SourceState
+from dirigent_client.enums import ProvenanceSource, SourceState
 from dirigent_common import JsonMap
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
+from dirigent_core.directory import prune_absent
 from dirigent_core.documents import load_text
-from dirigent_core.engine.runs import create_run
+from dirigent_core.engine.runs import Provenance, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.models import Pipeline, Run, Source
 from dirigent_core.pipelines import apply_document, set_active
@@ -284,6 +285,44 @@ async def test_deactivating_the_pipeline_closes_the_consumer_and_reactivating_op
 
         async def delivered() -> bool:
             return INBOX.acked == ["while-inactive"]
+
+        await eventually(delivered)
+        assert await run_count(sessions) == 1
+    finally:
+        await holder.stop()
+
+
+async def test_a_pruned_pipeline_whose_document_is_applied_again_takes_its_source_up_again(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    from_directory = Provenance(source=ProvenanceSource.DIRECTORY, ref="mailroom.yaml")
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(mailroom()), provenance=from_directory)
+    holder = Holder(sessions, services, owner=WORKER)
+    try:
+        await holder.tick()
+
+        async def opened_once() -> bool:
+            return INBOX.opened == 1
+
+        await eventually(opened_once)
+        async with session_scope(sessions) as session:
+            assert (await prune_absent(session, services, {"elsewhere"})).pruned == ["mailroom"]
+
+        async def let_go() -> bool:
+            return INBOX.closed == 1 and (await the_source(sessions)).lease_owner is None
+
+        await eventually(let_go)
+        INBOX.put("while-pruned")
+        assert await holder.tick() == []
+
+        async with session_scope(sessions) as session:
+            result = await apply_document(session, services, load_text(mailroom()), provenance=from_directory)
+        assert result.reactivated is True
+        assert len(await holder.tick()) == 1
+
+        async def delivered() -> bool:
+            return INBOX.acked == ["while-pruned"]
 
         await eventually(delivered)
         assert await run_count(sessions) == 1

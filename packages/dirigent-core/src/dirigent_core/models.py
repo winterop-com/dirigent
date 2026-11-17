@@ -111,6 +111,11 @@ class Pipeline(Entity):
     loading one."""
 
     active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
+    pruned: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    """A directory prune deactivated this pipeline, so a directory apply of its document reactivates it.
+
+    Any activation or deactivation by a person clears it."""
+
     current_version: Mapped[int | None] = mapped_column(sa.Integer)
 
 

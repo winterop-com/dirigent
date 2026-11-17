@@ -196,6 +196,8 @@ async def _apply_startup_directory(app: FastAPI) -> None:
         schemas=len(summary.schemas),
         refused=[refusal.code or refusal.path for refusal in summary.refused],
         pruned=summary.pruned,
+        prune_refusal=summary.prune_refusal,
+        reactivated=summary.reactivated,
         trigger_documents_removed=summary.trigger_documents_removed,
     )
 

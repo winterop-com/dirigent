@@ -8,10 +8,10 @@ import httpx2
 import yaml
 from pydantic import BaseModel, ConfigDict
 
-from dirigent_cli.project import DOCUMENT_SUFFIXES
 from dirigent_client import DEFAULT_CONNECT_TIMEOUT
 from dirigent_client.enums import ProvenanceSource
 from dirigent_common import bounded_load
+from dirigent_core.documents import discover_documents
 
 STDIN: Final = "-"
 
@@ -84,9 +84,7 @@ def read_directory(directory: Path) -> tuple[list[Document], int]:
     """
     documents: list[Document] = []
     skipped = 0
-    for path in sorted(directory.rglob("*")):
-        if not path.is_file() or path.suffix not in DOCUMENT_SUFFIXES:
-            continue
+    for path in discover_documents(directory):
         document = read_path(path)
         if _declares_a_format(document.text):
             documents.append(document)
