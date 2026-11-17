@@ -1,6 +1,6 @@
 # A scheduled health monitor: read-only checks against several targets, paged on a change.
 #
-# In:  a list of base URLs, one per instance being watched.
+# In:  a list of targets, one per instance being watched: a code and a base URL.
 # Out: one row per target per check, each passed, failed or skipped, and an alert only when
 #      the picture changes: the first failure of an outage, and the run that recovers.
 #
@@ -8,6 +8,11 @@
 # targets, so one run is a grid of targets by checks: "is chap-eu down" is the reachable
 # column's row for chap-eu, and the run's item grid is the dashboard. Adding an instance is
 # one line in the targets list, never a new step.
+#
+# A TARGET IS NAMED BY ITS CODE. `key: code` on the foundation names each item by its target's
+# code rather than by the whole record, and the checks that map over its grid take the same
+# names. So chap-eu is chap-eu in the run grid, in a log line, in the pipeline screen's per-target
+# uptime, and in what the alert rules compare -- and adding a field to a target renames nothing.
 #
 # A FAILED FOUNDATION SKIPS WHAT STANDS ON IT. reachable is the foundation, and the other
 # checks map over its grid, `for_each: ${steps.reachable.items}`, so item three of a check is
@@ -37,16 +42,17 @@
 #
 # NEEDS AN INSTANCE TO CALL. The targets default to the playground a dirigent instance
 # serves under /api/v1/playground, unauthenticated, reached under two host names so they are
-# two targets. Against real instances, a target is the base URL and each check's path is the
-# instance's own health route.
+# two targets. Against real instances, a target's url is its base URL and each check's path is
+# the instance's own health route.
 #
 # To change it: add a target that is not there, and its reachable item fails, its two later
 # checks are skipped, the other targets pass, and the run is completed_with_errors.
 #
 #   dg dev &
 #   dg run --local examples/recipes/health-checks.yaml
-#   dg run --local examples/recipes/health-checks.yaml \
-#     -p 'targets=["http://127.0.0.1:3333/api/v1/playground", "http://127.0.0.1:3333/api/v1/playground/retired"]'
+#   dg run --local examples/recipes/health-checks.yaml -p 'targets=[
+#     {"code": "local", "url": "http://127.0.0.1:3333/api/v1/playground"},
+#     {"code": "retired", "url": "http://127.0.0.1:3333/api/v1/playground/retired"}]'
 
 format: dirigent/v1
 kind: pipeline
@@ -91,19 +97,24 @@ params:
       minItems: 1
       maxItems: 50
       items:
-        type: string
+        type: object
+        required: [code, url]
+        properties:
+          code: { type: string, description: What the target is called in every check. }
+          url: { type: string, description: Its base URL. }
       default:
-        - http://127.0.0.1:3333/api/v1/playground
-        - http://localhost:3333/api/v1/playground
-      description: The base URL of each target; every check is made against each one.
+        - {code: by-address, url: http://127.0.0.1:3333/api/v1/playground}
+        - {code: by-name, url: http://localhost:3333/api/v1/playground}
+      description: The targets; every check is made against each one.
 
 steps:
   reachable:
     block: http.request
     for_each: ${params.targets}
+    key: code
     items: continue
     config:
-      url: ${item}/request
+      url: ${item.url}/request
       method: GET
       follow_redirects: false
       success_status: [200]
@@ -126,7 +137,7 @@ steps:
     items: continue
     config:
       # The redirect route stands in for a page that sends a stranger to sign in.
-      url: ${item}/redirect
+      url: ${item.url}/redirect
       method: GET
       follow_redirects: false
       success_status: [302]

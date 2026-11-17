@@ -1,6 +1,7 @@
 """``dg run --local``: apply and run a document with no server, and say what happened."""
 
 import asyncio
+import json
 import re
 import shutil
 import sys
@@ -1749,35 +1750,41 @@ def playground() -> Iterator[str]:
         holder.close()
 
 
-def health_grid(stdout: str) -> tuple[str, dict[str, list[str]]]:
-    """Read a health-check run's ending and each check's statuses."""
-    end = closing(stdout)
-    grid: dict[str, list[str]] = {}
-    for step in end["steps"]:
-        grid.setdefault(step["step"], []).append(step["status"])
-    return end["message"], grid
+def health_grid(stdout: str) -> tuple[str, dict[tuple[str, str], str]]:
+    """Read a health-check run's ending and how each check of each target, by its code, settled."""
+    settled = {
+        (event["step"], event["item"]): event["message"]
+        for event in of_kind(records(stdout), "step")
+        if event["message"] in {"succeeded", "failed", "skipped"}
+    }
+    return closing(stdout)["message"], settled
+
+
+def targets_param(**urls: str) -> str:
+    """The targets parameter, one ``{code, url}`` record per keyword."""
+    return "targets=" + json.dumps([{"code": code, "url": url} for code, url in urls.items()])
+
+
+CHECKS = ("reachable", "answers_well", "guards_pages")
 
 
 def test_the_health_checks_pass_every_check_on_every_target_that_answers(playground: str) -> None:
-    targets = f'targets=["{playground}", "{playground.replace("127.0.0.1", "localhost")}"]'
+    targets = targets_param(address=playground, name=playground.replace("127.0.0.1", "localhost"))
     result = invoke("run", "--local", str(EXAMPLES / "recipes" / "health-checks.yaml"), "-p", targets)
     ended, grid = health_grid(result.stdout)
     assert ended == "succeeded", result.output
-    assert grid == {
-        "reachable": ["succeeded"] * 2,
-        "answers_well": ["succeeded"] * 2,
-        "guards_pages": ["succeeded"] * 2,
-    }
+    assert grid == {(check, code): "succeeded" for check in CHECKS for code in ("address", "name")}
 
 
 def test_the_health_checks_skip_what_a_target_that_is_gone_cannot_pass(playground: str) -> None:
-    """One failure for the target that is down, its later checks skipped, the other targets passing."""
-    targets = f'targets=["{playground}", "{playground}/retired"]'
+    """One failure for the target that is down, its later checks skipped, the other target passing."""
+    targets = targets_param(live=playground, retired=f"{playground}/retired")
     result = invoke("run", "--local", str(EXAMPLES / "recipes" / "health-checks.yaml"), "-p", targets)
     ended, grid = health_grid(result.stdout)
     assert ended == "completed_with_errors", result.output
-    assert {name: sorted(statuses) for name, statuses in grid.items()} == {
-        "reachable": ["failed", "succeeded"],
-        "answers_well": ["skipped", "succeeded"],
-        "guards_pages": ["skipped", "succeeded"],
+    assert grid == {
+        **{(check, "live"): "succeeded" for check in CHECKS},
+        ("reachable", "retired"): "failed",
+        ("answers_well", "retired"): "skipped",
+        ("guards_pages", "retired"): "skipped",
     }

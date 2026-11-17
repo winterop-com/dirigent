@@ -34,5 +34,5 @@ triggers:
       cron: "*/20 * * * *"
       params:
         targets:
-          - http://127.0.0.1:3333/api/v1/playground
-          - http://localhost:3333/api/v1/playground
+          - {code: by-address, url: http://127.0.0.1:3333/api/v1/playground}
+          - {code: by-name, url: http://localhost:3333/api/v1/playground}
