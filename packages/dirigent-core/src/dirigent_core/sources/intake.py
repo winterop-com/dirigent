@@ -51,6 +51,7 @@ from dirigent_core.messages import (
     SOURCE_PAUSED,
     SOURCE_PIPELINE_INACTIVE,
     SOURCE_RATE,
+    SOURCE_RUN_NOT_CREATED,
     SOURCE_RUN_REFUSED,
     SOURCE_RUN_SKIPPED,
     SOURCE_SIGNATURE_MISMATCH,
@@ -478,7 +479,8 @@ async def _create(
                 entry=entry,
             )
     except DomainError as error:
-        return await journal.refuse(Refusal.of(SOURCE_RUN_REFUSED, status=error.status, detail=str(error)))
+        await journal.refuse(Refusal.of(SOURCE_RUN_REFUSED, status=error.status, detail=str(error)))
+        return Refusal.of(SOURCE_RUN_NOT_CREATED, status=error.status, cause=error.code)
     if run is None:
         return await journal.refuse(Refusal.of(SOURCE_RUN_SKIPPED, status=409, pipeline=repr(pipeline.code)))
     accepted = InputAccepted(
