@@ -940,6 +940,10 @@ NOT_RETRYABLE = RUN.define("not_retryable", "step {step} is {status}, and only a
 
 RUN_VERSION_GONE = RUN.define("version_gone", "run {run} pins a pipeline version that is gone")
 
+VERSION_UNREADABLE = RUN.define(
+    "version_unreadable", "the pipeline version this run pins can no longer be read: {detail}"
+)
+
 RERUN_IN_FLIGHT = RUN.define("rerun_in_flight", "run {run} is still {status}, and only a settled run can be rerun")
 
 RERUN_INPUT_GONE = RUN.define("rerun_input_gone", "run {run} no longer holds the input that entered it at {step}")
