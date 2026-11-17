@@ -537,15 +537,20 @@ def _depth(config: GitCheckoutConfig) -> list[str]:
 
 
 def public_url(url: str) -> str:
-    """The remote with any userinfo removed, which is what git and the output are both given.
+    """The remote with any credential removed, which is what git and the output are both given.
 
     A URL that carries its own credential would put it in the checkout's ``.git/config``,
-    where it outlives the step and reaches every later reader of the work directory.
+    where it outlives the step and reaches every later reader of the work directory. An
+    ``ssh://`` remote keeps its user, which is the account ssh logs in as; any other scheme
+    loses its userinfo whole, the username reaching git through the connection instead.
     """
     split = urlsplit(url)
     if not split.scheme or "@" not in split.netloc:
         return url
-    return urlunsplit(split._replace(netloc=split.netloc.rsplit("@", 1)[1]))
+    userinfo, _, host = split.netloc.rpartition("@")
+    if split.scheme == SSH_SCHEME and userinfo.partition(":")[0]:
+        return urlunsplit(split._replace(netloc=f"{userinfo.partition(':')[0]}@{host}"))
+    return urlunsplit(split._replace(netloc=host))
 
 
 def _is_network(url: str) -> bool:

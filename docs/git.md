@@ -60,7 +60,7 @@ There are three forms, and a connection is exactly one of them:
 | --- | --- | --- |
 | public | `url` | A repository anyone can clone. Nothing is sealed because nothing needs to be. |
 | token | `url`, `token`, optionally `username` | A personal, deploy or app token over `https://`. `username` defaults to `x-access-token`, which GitHub and GitLab both accept for a token. |
-| ssh key | `url`, `ssh_key`, optionally `known_hosts` | A deploy key over `ssh://` (or the scp-like `git@host:owner/repo.git`). The key is an OpenSSH private key with no passphrase: nothing here can answer a prompt. |
+| ssh key | `url`, `ssh_key`, optionally `known_hosts` | A deploy key over `ssh://git@host/owner/repo.git` (or the scp-like `git@host:owner/repo.git`); the user in the URL is the account ssh logs in as. The key is an OpenSSH private key with no passphrase: nothing here can answer a prompt. |
 
 A token on an ssh remote and a key on an https one are both refused when the connection is
 written, because neither could ever work. So are two credentials at once.

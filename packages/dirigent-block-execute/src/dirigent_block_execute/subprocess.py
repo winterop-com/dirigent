@@ -12,17 +12,23 @@ import asyncio
 import contextlib
 import os
 import signal
-from collections.abc import Sequence
+from collections.abc import Coroutine, Sequence
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, cast
 
 from dirigent_block_execute.capture import Drained, LiveLines, drain
 from dirigent_block_execute.environment import allowed
-from dirigent_block_execute.messages import PATH_LEAVES_THE_WORK_DIRECTORY, TIMED_OUT
+from dirigent_block_execute.messages import PATH_LEAVES_THE_WORK_DIRECTORY, PROGRAM_NOT_FOUND, TIMED_OUT
 from dirigent_plugin import BlockFailure, ErrorClass, StepContext
 
 #: Inherited whether or not a step's allowlist names them.
 BASELINE_ENV = ("PATH", "LANG", "LC_ALL", "TZ")
+
+#: How long the pipes may stay open once the process has exited, held by what it left running.
+PIPE_GRACE_SECONDS = 2.0
+
+#: How often a process whose pipes are still open is checked for having exited.
+EXIT_POLL_SECONDS = 0.1
 
 
 class Ran(NamedTuple):
@@ -96,7 +102,10 @@ async def run(
     handed that must not reach one of them.
 
     The process leads a session of its own, so what it starts is killable with it: a command
-    is usually ``sh -c``, and killing the shell alone leaves the children doing the work.
+    is usually ``sh -c``, and killing the shell alone leaves the children doing the work. The
+    process is done when it exits, not when its pipes close: a child it left running in the
+    background holds them open, so once it has exited the pipes get a short grace and then the
+    group is killed, and the step ends with the exit code it gave.
 
     Nothing survives this function. The block's own timeout is one way out of it; the
     engine's step timeout, which cancels the coroutine from outside, is another, and a
@@ -121,12 +130,19 @@ async def run(
             start_new_session=True,
         )
     )
-    process = await started
+    try:
+        process = await started
+    except FileNotFoundError as error:
+        program = (argv or ["the command"])[0]
+        raise BlockFailure(PROGRAM_NOT_FOUND, error_class=ErrorClass.REJECTED, program=program, what=what) from error
     pgid = group_of(process)
     try:
         async with asyncio.timeout(timeout_seconds):
             async with ctx.capture(stdout_name) as out_sink, ctx.capture(stderr_name) as err_sink:
-                out, err = await asyncio.gather(
+                out, err = await _drained(
+                    process,
+                    pgid,
+                    ctx,
                     drain(
                         process.stdout,
                         out_sink,
@@ -148,6 +164,47 @@ async def run(
     return Ran(process.returncode or 0, out, err, out_sink.uri, err_sink.uri)
 
 
+async def _drained(
+    process: asyncio.subprocess.Process,
+    pgid: int,
+    ctx: StepContext,
+    stdout: Coroutine[None, None, Drained],
+    stderr: Coroutine[None, None, Drained],
+) -> tuple[Drained, Drained]:
+    """Read both pipes to their end, which comes at most a grace after the process has exited.
+
+    A drain that fails stops the other, so neither writes to a capture that is being closed.
+    """
+    pipes = [asyncio.ensure_future(stdout), asyncio.ensure_future(stderr)]
+    try:
+        # The exit is read from the return code: waiting on the process also waits for its pipes.
+        while not all(pipe.done() for pipe in pipes) and process.returncode is None:
+            await asyncio.wait(pipes, timeout=EXIT_POLL_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+            _raise_failed(pipes)
+        if not all(pipe.done() for pipe in pipes):
+            await asyncio.wait(pipes, timeout=PIPE_GRACE_SECONDS, return_when=asyncio.FIRST_EXCEPTION)
+            _raise_failed(pipes)
+            if not all(pipe.done() for pipe in pipes):
+                ctx.log.warning(
+                    "the command exited and left processes holding its output; they were killed",
+                    exit_code=process.returncode,
+                )
+                with contextlib.suppress(ProcessLookupError, PermissionError):
+                    kill(pgid, process.pid)
+        return await pipes[0], await pipes[1]
+    finally:
+        for pipe in pipes:
+            pipe.cancel()
+        await asyncio.gather(*pipes, return_exceptions=True)
+
+
+def _raise_failed(pipes: Sequence[asyncio.Future[Drained]]) -> None:
+    """Raise what a drain that has failed raised."""
+    for pipe in pipes:
+        if pipe.done() and not pipe.cancelled() and pipe.exception() is not None:
+            raise cast("BaseException", pipe.exception())
+
+
 async def output(
     *,
     argv: list[str],
@@ -165,15 +222,18 @@ async def output(
     ``stdin`` is written to the process and the pipe closed, which is how a credential
     reaches a tool without ever being an argument.
     """
-    process = await asyncio.create_subprocess_exec(
-        *argv,
-        cwd=directory,
-        env=environ,
-        stdin=asyncio.subprocess.PIPE if stdin is not None else None,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        start_new_session=True,
-    )
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *argv,
+            cwd=directory,
+            env=environ,
+            stdin=asyncio.subprocess.PIPE if stdin is not None else None,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
+        )
+    except FileNotFoundError as error:
+        raise BlockFailure(PROGRAM_NOT_FOUND, error_class=ErrorClass.REJECTED, program=argv[0], what=what) from error
     pgid = group_of(process)
     try:
         async with asyncio.timeout(timeout_seconds):

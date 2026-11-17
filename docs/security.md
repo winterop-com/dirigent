@@ -789,7 +789,10 @@ It also gets a deadline it cannot outlive, and neither can anything it starts. T
 runs in a session of its own, and that whole session is killed when the block's own timeout
 expires, when the engine's step timeout cancels the attempt, and on any other way out of the
 block. A command is usually `sh -c`, so killing only the process that was started would
-leave the children doing the work still running.
+leave the children doing the work still running. The step ends when the command exits, not
+when its output closes: a child left running in the background (`server &`) holds the output
+open, so two seconds after the command exits the session is killed and the step ends with the
+command's exit code, logging that it killed what was left.
 
 ### What an allowlisted command can still reach
 
