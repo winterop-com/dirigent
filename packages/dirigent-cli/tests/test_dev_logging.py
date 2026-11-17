@@ -107,6 +107,16 @@ def test_verbose_adds_the_request_log_and_step_detail(tmp_path: Path) -> None:
     assert loggers == ["dirigent.audit", STEP_LOGGER, ACCESS_LOGGER]
 
 
+def test_verbose_after_a_quiet_start_in_one_process_still_adds_the_detail(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    main._dev_logging(CliState(), settings)  # pyright: ignore[reportPrivateUsage]
+    main._dev_logging(CliState(verbose=1), settings, to_file=True)  # pyright: ignore[reportPrivateUsage]
+    _speak()
+
+    loggers = [line["logger"] for line in _lines(tmp_path / ".dirigent" / "state" / "dev.log")]
+    assert loggers == ["dirigent.audit", STEP_LOGGER, ACCESS_LOGGER]
+
+
 def test_a_settings_level_quiets_the_file_too(tmp_path: Path) -> None:
     settings = _settings(tmp_path, log_level="WARNING")
     main._dev_logging(CliState(), settings, to_file=True)  # pyright: ignore[reportPrivateUsage]

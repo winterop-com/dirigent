@@ -6,7 +6,7 @@ import time
 import pytest
 
 from dirigent_block_base.report import ReportRenderConfig, ReportRenderOperator, ReportRenderOutput
-from dirigent_common import TEMPLATE_MEDIA_TYPE
+from dirigent_common import TEMPLATE_MEDIA_TYPE, templating
 from dirigent_plugin import BlockFailure, ErrorClass
 from dirigent_testing import FakeContext, call_block
 
@@ -76,8 +76,9 @@ async def test_a_loop_that_prints_nothing_is_stopped_and_rejected(ctx: FakeConte
     assert raised.value.error_class is ErrorClass.REJECTED
 
 
-async def test_the_step_timeout_reaches_a_render_in_flight(ctx: FakeContext) -> None:
+async def test_the_step_timeout_reaches_a_render_in_flight(ctx: FakeContext, monkeypatch: pytest.MonkeyPatch) -> None:
     """The render runs off the event loop, so a timeout around the step fires while it renders."""
+    monkeypatch.setattr(templating, "RENDER_STEPS", 10**12)
     endless = "{% for a in range(100000) %}{% for b in range(100000) %}{% endfor %}{% endfor %}"
     start = time.monotonic()
     with pytest.raises(TimeoutError):
