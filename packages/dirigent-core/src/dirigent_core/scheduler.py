@@ -27,6 +27,7 @@ from dirigent_core.engine.runs import ACTIVE_RUN_STATUSES, Attribution, create_r
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger, log_context
+from dirigent_core.messages import FIRING_HELD_BY_PAUSED, FIRING_IN_FLIGHT, FIRING_NO_VERSION, FIRING_REPLACED
 from dirigent_core.models import Pipeline, PipelineVersion, Run, Schedule, ScheduleFiring, StepAttempt, utcnow
 from dirigent_core.triggers.schedules import ScheduleError, advance_clock, window_for
 
@@ -165,7 +166,7 @@ async def _create(
     """
     version = await _current_version(session, schedule)
     if version is None:
-        return FiringOutcome.FAILED, None, "the pipeline has no current version to run"
+        return FiringOutcome.FAILED, None, FIRING_NO_VERSION.render()
     try:
         definition = load_definition(version.document)
         replacing = definition.concurrency is ConcurrencyPolicy.REPLACE and await _has_active(
@@ -189,10 +190,10 @@ async def _create(
     if run is None:
         paused = await _paused_run(session, schedule.pipeline_id)
         if paused is not None:
-            return FiringOutcome.SKIPPED, None, f"run {paused} of this pipeline is paused, and holds its slot"
-        return FiringOutcome.SKIPPED, None, "a run of this pipeline is already in flight"
+            return FiringOutcome.SKIPPED, None, FIRING_HELD_BY_PAUSED.render(run=str(paused))
+        return FiringOutcome.SKIPPED, None, FIRING_IN_FLIGHT.render()
     if replacing:
-        return FiringOutcome.REPLACED, run, "the run in flight was cancelled and replaced"
+        return FiringOutcome.REPLACED, run, FIRING_REPLACED.render()
     if run.status is RunStatus.QUEUED and not await _has_started_attempts(session, run):
         return FiringOutcome.QUEUED, run, None
     return FiringOutcome.FIRED, run, None

@@ -6,7 +6,8 @@ never touched by an apply. Only a row marked
 
 A reconcile reaches only the rows of its own owner: ``trigger_document_id`` is null for the
 rows a pipeline's own document declares, and the document's id for the rows a ``kind:
-triggers`` document declares.
+triggers`` document declares. A triggers document pointed at another pipeline retires the rows
+it owns on any pipeline but the one it now names.
 """
 
 from datetime import datetime
@@ -64,13 +65,25 @@ async def retiring_schedules(
     """Say which schedules applying a document would retire, and touch none of them."""
     rows = await session.execute(sa.select(Schedule).where(Schedule.pipeline_id == pipeline.id))
     declared = {spec.code for spec in definition.triggers.schedules}
-    return Materialized(
-        schedules_removed=sorted(
-            row.code
-            for row in rows.scalars()
-            if row.trigger_document_id == owner and row.managed and row.code not in declared
+    retired = [
+        row.code
+        for row in rows.scalars()
+        if row.trigger_document_id == owner and row.managed and row.code not in declared
+    ]
+    retired.extend(row.code for row in await _left_behind(session, pipeline, owner))
+    return Materialized(schedules_removed=sorted(retired))
+
+
+async def _left_behind(session: AsyncSession, pipeline: Pipeline, owner: UUID | None) -> list[Schedule]:
+    """Read the managed rows a triggers document owns on pipelines other than the one it names."""
+    if owner is None:
+        return []
+    rows = await session.execute(
+        sa.select(Schedule).where(
+            Schedule.trigger_document_id == owner, Schedule.pipeline_id != pipeline.id, Schedule.managed.is_(True)
         )
     )
+    return list(rows.scalars())
 
 
 async def _reconcile_schedules(
@@ -106,6 +119,9 @@ async def _reconcile_schedules(
     removed = [code for code, row in existing.items() if row.managed and code not in declared]
     for code in removed:
         await session.delete(existing[code])
+    for row in await _left_behind(session, pipeline, owner):
+        removed.append(row.code)
+        await session.delete(row)
     await session.flush()
     return {"schedules_created": created, "schedules_updated": updated, "schedules_removed": sorted(removed)}
 
