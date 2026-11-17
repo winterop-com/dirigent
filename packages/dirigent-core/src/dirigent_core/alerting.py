@@ -33,6 +33,7 @@ from dirigent_client.enums import (
     NotificationStatus,
     RunItemStatus,
     RunStatus,
+    TriggerKind,
     WorkerStatus,
 )
 from dirigent_client.schemas import ValidationIssue
@@ -54,7 +55,6 @@ from dirigent_core import audit
 from dirigent_core.database import insert_unless_taken, is_deadlock, session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
@@ -232,16 +232,33 @@ async def failures_of(session: AsyncSession, run: Run) -> str:
     return "sha256:" + hashlib.sha256(json.dumps(sorted(failed)).encode()).hexdigest()
 
 
+#: The class of the advisory locks :func:`_lock_outcome` takes, one per pipeline inside it.
+OUTCOME_LOCK_CLASS: Final = 0x64_6F_75_74
+
+
+async def _lock_outcome(session: AsyncSession, pipeline_id: UUID) -> None:
+    """Serialise the outcome reads and writes of one pipeline until this transaction ends.
+
+    A lock on the outcome alone, never the pipeline's row: a settling transaction already holds
+    its run's lock, and nothing that holds this one waits on a run lock or on the pipeline row.
+    PostgreSQL only: SQLite's ``BEGIN IMMEDIATE`` already serialises the transactions.
+    """
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    await session.execute(
+        sa.select(sa.func.pg_advisory_xact_lock(OUTCOME_LOCK_CLASS, sa.func.hashtext(str(pipeline_id))))
+    )
+
+
 async def record_outcome(session: AsyncSession, run: Run, status: RunStatus, *, now: datetime | None = None) -> Change:
     """Write a settled run's outcome as its pipeline's latest, and say what it replaced.
 
     The previous outcome is the one the last settlement of this pipeline to commit wrote, read
-    under the pipeline lock, so two runs settling at once are ordered by their commits rather
-    than by their clocks: the second reads the first. Every trigger counts alike, a backfill
-    and a manual run as much as a scheduled one, and a run settling again after a retry is
-    compared with its own earlier outcome.
+    under the pipeline's outcome lock, so two runs settling at once are ordered by their commits
+    rather than by their clocks: the second reads the first. A run settling again after a retry
+    is compared with its own earlier outcome.
     """
-    await lock_pipeline(session, run.pipeline_id)
+    await _lock_outcome(session, run.pipeline_id)
     current = Outcome(status=status, failures=await failures_of(session, run), run_id=run.id)
     row = await session.get(PipelineOutcome, run.pipeline_id, populate_existing=True)
     if row is None:
@@ -801,6 +818,9 @@ async def _queue_for_run(
     for rule in rules:
         if await _already_raised(session, rule.id, run.id, event):
             continue
+        if rule.on_change and run.triggered_by_kind is TriggerKind.BACKFILL:
+            session.add(_history_entry(run, rule, event, moment))
+            continue
         if rule.on_change and change is not None and not change.changed:
             session.add(_unchanged_entry(run, rule, event, change, moment))
             continue
@@ -878,6 +898,17 @@ def _change_facts(event: AlertEvent, change: Change | None) -> JsonMap:
     """Name the event an alert was raised for and how the pipeline's previous settled run ended."""
     previous = change.previous if change is not None else None
     return {"event": event.value, "previous_status": previous.status.value if previous is not None else None}
+
+
+def _history_entry(run: Run, rule: AlertRule, event: AlertEvent, moment: datetime) -> LogEntry:
+    """Say on a backfill run's timeline that a rule on change stayed quiet, since history is not compared."""
+    return LogEntry(
+        run_id=run.id,
+        level=LogLevel.INFO,
+        message=f"alert {rule.code!r} not raised: a backfill run is history, and is not compared with the present",
+        fields={"event": event.value},
+        created_at=moment,
+    )
 
 
 def _unchanged_entry(run: Run, rule: AlertRule, event: AlertEvent, change: Change, moment: datetime) -> LogEntry:
@@ -1150,12 +1181,15 @@ async def raise_for_status(
 
     The run's outcome is recorded as its pipeline's latest first, whether or not any rule
     watches it, so a rule declared later compares with the run before it. A run that succeeded
-    where the previous settled run did not raises ``run_recovered`` as well.
+    where the previous settled run did not raises ``run_recovered`` as well. A backfill run is
+    history rather than the present: it neither reads nor moves the outcome, and raises no
+    recovery.
     """
     event = EVENT_FOR_STATUS.get(status)
     if event is None:
         return []
-    change = await _recorded(session, run, status, now=now)
+    history = run.triggered_by_kind is TriggerKind.BACKFILL
+    change = None if history else await _recorded(session, run, status, now=now)
     raised: list[Notification] = []
     for each in (event, AlertEvent.RUN_RECOVERED) if change is not None and change.recovered else (event,):
         raised += await raise_for_run(session, services, run, each, now=now, change=change)

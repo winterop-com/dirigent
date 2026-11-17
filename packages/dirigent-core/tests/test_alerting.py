@@ -1066,6 +1066,7 @@ async def settle(
     status: RunStatus,
     *,
     failed_items: tuple[str, ...] = (),
+    kind: TriggerKind = TriggerKind.ADHOC,
 ) -> tuple[Run, list[NotificationEvent]]:
     """Settle one more run of the pipeline as a worker's outcome would, and name what it raised."""
     run = await stored_run(sessions, services, status=status)
@@ -1083,6 +1084,7 @@ async def settle(
         await session.flush()
         stored = await session.get(Run, run.id)
         assert stored is not None
+        stored.triggered_by_kind = kind
         queued = await raise_for_status(session, services, stored, status, now=NOW)
     return run, [notification.event for notification in queued]
 
@@ -1162,6 +1164,29 @@ async def test_a_cancelled_run_leaves_the_outcome_a_recovery_is_measured_from(
     )
     await settle(sessions, services, RunStatus.FAILED)
     await settle(sessions, services, RunStatus.CANCELLED)
+    assert (await settle(sessions, services, RunStatus.SUCCEEDED))[1] == [NotificationEvent.RUN_RECOVERED]
+
+
+async def test_a_backfill_run_neither_reads_nor_moves_the_outcome(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A backfill is history: its success is no recovery, and the outage it ran through is still on."""
+    await declare(
+        sessions, services, AlertRuleRequest(code="all-clear", event=AlertEvent.RUN_RECOVERED, connection=DESK)
+    )
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, on_change=True),
+    )
+    await settle(sessions, services, RunStatus.FAILED)
+    assert (await settle(sessions, services, RunStatus.SUCCEEDED, kind=TriggerKind.BACKFILL))[1] == []
+    history, raised = await settle(sessions, services, RunStatus.FAILED, kind=TriggerKind.BACKFILL)
+    assert raised == []
+    assert [entry.message for entry in await entries_of(sessions, history.id)] == [
+        "alert 'page-ops' not raised: a backfill run is history, and is not compared with the present"
+    ]
+    assert (await settle(sessions, services, RunStatus.FAILED))[1] == [], "the outage is the same one"
     assert (await settle(sessions, services, RunStatus.SUCCEEDED))[1] == [NotificationEvent.RUN_RECOVERED]
 
 

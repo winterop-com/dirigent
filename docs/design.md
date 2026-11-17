@@ -1049,17 +1049,24 @@ pipeline's first run. `on_change` is refused for `run_stuck` (`alert.on_change_u
 since a stuck run has not settled and has no outcome to compare.
 
 **"Previous" is the order settlements commit in.** The latest outcome is a row per pipeline,
-`pipeline_outcomes`, written by the transaction that settles a run, under the pipeline lock and
-before the alerts are queued -- whether or not any rule watches, so a rule declared later
-compares with the run before it. Two runs of one pipeline settling at once are ordered by
-their commits rather than by their clocks: the second takes the lock after the first has
-committed and reads the first's outcome. Every run counts alike, whatever started it -- a
-schedule, a backfill, a person, a source -- and in the order it settled rather than the order
-it was created or the window it covers. A cancelled run has no outcome and leaves the row as it
-was; a run that settles again after a retry is compared with its own earlier outcome, so a
-retry that clears a failure raises `run_recovered`. Only the settle path that raises alerts
-writes the row: a run failed at claim time because its document can no longer be read raises
-nothing and moves nothing.
+`pipeline_outcomes`, written by the transaction that settles a run, before the alerts are
+queued -- whether or not any rule watches, so a rule declared later compares with the run
+before it. The read and the write are serialised on a transaction-scoped advisory lock keyed on
+the pipeline, a class of its own beside the alert throttle's, and never on the pipeline's row:
+the settling transaction already holds its run's lock, and nothing holding the outcome lock
+waits for a run lock or for the pipeline row. Two runs of one pipeline settling at once are
+therefore ordered by their commits rather than by their clocks: the second takes the lock
+after the first has committed and reads the first's outcome. SQLite needs no lock, since
+`BEGIN IMMEDIATE` already serialises the transactions.
+
+Scheduled, manual, API, source and composed runs all count, in the order they settled rather
+than the order they were created. A **backfill** run does not: it is history, not the present
+state, so it neither reads nor moves the row, raises no `run_recovered`, and a rule on change
+stays quiet for it, saying so in its timeline; a rule without `on_change` raises for it as for
+any run. A cancelled run has no outcome and leaves the row as it was; a run that settles again
+after a retry is compared with its own earlier outcome, so a retry that clears a failure raises
+`run_recovered`. Only the settle path that raises alerts writes the row: a run failed at claim
+time because its document can no longer be read raises nothing and moves nothing.
 
 **`run_stuck` is the sweeper's.** A running run with no attempt progress for
 `stuck_run` is stuck; detection is a query the sweeper already runs, and the alert is

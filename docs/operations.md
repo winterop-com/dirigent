@@ -1188,8 +1188,9 @@ dg alerts rules create checks-back --event run_recovered --pipeline checks \
 ```
 
 A run that stayed quiet says so in its own timeline, naming the rule, so "why was nobody told"
-is answered from the run. See [alerting](design.md#9-alerting) for what "previous" means when
-runs settle together, and for backfills and retries.
+is answered from the run. A backfill run is history and is never compared: it neither moves
+the outcome nor raises a recovery. See [alerting](design.md#9-alerting) for what "previous"
+means when runs settle together, and for retries.
 
 **A rule may also name the least importance it fires for**, which is how paging is kept apart
 from logging without listing pipelines by hand. `importance` on a rule is matched against what
