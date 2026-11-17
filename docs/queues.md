@@ -137,8 +137,8 @@ A check opens a connection and a channel.
 ## `kafka.consume`: offsets, and the group
 
 Each poke reads from where the cursor says, takes up to `max_messages`, and succeeds once it
-has `min_messages`. Below that it parks, keeping the offsets it read so the next poke carries
-on rather than starting over.
+has `min_messages`. Below that it parks where it began, so the next poke reads those messages
+again together with whatever has arrived since, and none of them is left out of a batch.
 
 `start` decides where a poke with no cursor begins -- `latest` (the default) at whatever
 arrives next, `earliest` at the oldest record the broker still holds. It applies to the first

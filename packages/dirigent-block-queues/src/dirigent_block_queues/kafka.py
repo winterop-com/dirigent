@@ -287,8 +287,8 @@ class KafkaConsumeConfig(BlockModel):
     place on the next poke. A retry of a batch that was not stored then reads it again."""
 
     min_messages: int = Field(default=1, ge=1)
-    """How many messages a batch needs before the sensor succeeds. Below it the poke parks,
-    keeping the offsets it read so the next poke carries on from there."""
+    """How many messages a batch needs before the sensor succeeds. Below it the poke parks where
+    it began, so the next poke reads those messages again together with whatever has arrived."""
 
     max_messages: int = Field(default=100, ge=1)
     """The most messages one poke takes, which bounds the output a step carries."""
@@ -405,7 +405,7 @@ class KafkaConsumeSensor(Sensor[KafkaConsumeConfig, KafkaConsumeOutput]):
                     min_messages=config.min_messages,
                 )
                 return NotYet(
-                    cursor={"offsets": offsets},
+                    cursor={"offsets": _began(offsets, messages)},
                     next_poll_in=config.poll_every,
                     message=f"{len(messages)} of {config.min_messages} messages",
                 )
