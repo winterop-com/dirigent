@@ -1,10 +1,21 @@
 """Rendering text from a Jinja template: what degrades, what is refused, and what is capped."""
 
-from datetime import UTC, datetime
+import asyncio
+import threading
+import time
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from dirigent_common.templating import RenderTooLarge, TemplateError, compile_template, render
+from dirigent_common.templating import (
+    RenderTooLarge,
+    TemplateError,
+    TemplateTooCostly,
+    compile_template,
+    render,
+    render_off_loop,
+)
 
 CAP = 1024 * 1024
 
@@ -159,3 +170,139 @@ def test_a_boolean_and_null_print_as_json_reads_them() -> None:
 
 def test_the_tojson_filter_still_indents_on_request() -> None:
     assert render("{{ one | tojson(indent=2) }}", {"one": {"a": 1}}, max_bytes=CAP) == '{\n  "a": 1\n}'
+
+
+# -- the render budget -------------------------------------------------------------
+
+#: The time a render that must stop itself is given in these tests.
+BRIEF = timedelta(seconds=2)
+
+#: How much longer than its time a bounded render may take before the bound counts as missing.
+SLACK = 2.0
+
+
+def refused(source: str, context: dict[str, object] | None = None) -> TemplateTooCostly:
+    """Render a template that must stop itself, and hand back the refusal once it has."""
+    start = time.monotonic()
+    with pytest.raises(TemplateTooCostly) as raised:
+        render(source, context or {}, max_bytes=16, within=BRIEF)
+    assert time.monotonic() - start < BRIEF.total_seconds() + SLACK
+    return raised.value
+
+
+def test_nested_loops_that_print_nothing_stop_at_the_step_budget() -> None:
+    """Three nested full ranges are 10^15 passes and never reach the output cap."""
+    refused(
+        "{% for a in range(100000) %}{% for b in range(100000) %}{% for c in range(100000) %}"
+        "{% endfor %}{% endfor %}{% endfor %}"
+    )
+
+
+def test_a_loop_over_a_context_value_counts_its_passes_too() -> None:
+    refused("{% for a in rows %}{% for b in rows %}{% endfor %}{% endfor %}", {"rows": list(range(2000))})
+
+
+def test_a_macro_that_branches_stops_at_the_time_budget() -> None:
+    refused("{% macro f(n) %}{% if n %}{{ f(n - 1) }}{{ f(n - 1) }}{% endif %}{% endmacro %}{{ f(60) }}")
+
+
+def test_a_huge_power_is_refused_before_it_is_computed() -> None:
+    refused("{{ 3 ** 30000000 }}")
+
+
+def test_a_huge_product_is_refused_before_it_is_computed() -> None:
+    refused("{% set n = 2 ** 4000 %}{{ n * n }}")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "{{ 'x' * 1000000000 }}",
+        "{{ ['y' * 1000000] * 1000 }}",
+        "{% set ns = namespace(s='x') %}{% for i in range(60) %}{% set ns.s = ns.s ~ ns.s %}{% endfor %}",
+        "{% set ns = namespace(s='x') %}{% for i in range(60) %}{% set ns.s = ns.s + ns.s %}{% endfor %}",
+        "{{ 'a' | center(1000000000) }}",
+        "{{ 'a'.ljust(1000000000) }}",
+        "{{ '{:>999999999}'.format(1) }}",
+        "{{ '%999999999d' % 1 }}",
+        "{{ '%*d' % (5, 1) }}",
+        "{{ ('x' * 1000) | replace('', 'y' * 2000) }}",
+        "{{ range(100000) | join('y' * 1000) }}",
+        "{{ ('x\\n' * 100000) | indent('y' * 100) }}",
+        "{{ [[1]] | sum(start=[]) }}",
+    ],
+)
+def test_a_value_past_the_value_cap_is_refused_before_it_is_built(source: str) -> None:
+    refused(source)
+
+
+def test_a_render_stops_when_its_caller_stops_waiting() -> None:
+    stopped = threading.Event()
+    stopped.set()
+    with pytest.raises(TemplateTooCostly):
+        render("{% for a in range(10) %}{% endfor %}", {}, max_bytes=CAP, stopped=stopped)
+
+
+async def test_a_render_off_the_loop_stops_once_its_caller_is_cancelled() -> None:
+    """The thread a render runs on cannot be killed, so the render ends itself at its next step."""
+    passes = 0
+
+    def counted() -> Iterator[int]:
+        nonlocal passes
+        while True:
+            passes += 1
+            yield passes
+
+    rendering = asyncio.create_task(
+        render_off_loop(
+            "{% for a in endless %}{% endfor %}", {"endless": counted()}, max_bytes=CAP, within=timedelta(hours=1)
+        )
+    )
+    await asyncio.sleep(0.2)
+    rendering.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await rendering
+    await asyncio.sleep(0.2)
+    settled = passes
+    await asyncio.sleep(0.3)
+    assert passes == settled, "the render went on after its caller stopped waiting"
+
+
+async def test_the_event_loop_runs_on_while_a_template_renders_off_it() -> None:
+    ticks = 0
+
+    async def ticker() -> None:
+        nonlocal ticks
+        while True:
+            ticks += 1
+            await asyncio.sleep(0.01)
+
+    ticking = asyncio.create_task(ticker())
+    with pytest.raises(TemplateTooCostly):
+        await render_off_loop(
+            "{% for a in range(100000) %}{% for b in range(100000) %}{% endfor %}{% endfor %}", {}, max_bytes=CAP
+        )
+    ticking.cancel()
+    assert ticks > 5
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["{{ 3 ** 30000000 }}", "{{ 3 ** 3e6 }}", "{{ 'x' * 1000000000 }}", "{{ 'a' | center(1000000000) }}"],
+)
+def test_compiling_a_template_evaluates_none_of_its_expressions(source: str) -> None:
+    """A constant expression is computed at render, under the budget, never folded at compile."""
+    start = time.monotonic()
+    compile_template(source)
+    assert time.monotonic() - start < 0.5
+
+
+def test_an_honest_template_renders_as_jinja_would() -> None:
+    context = {"rows": ["a", "b"], "one": {"k": [1]}}
+    source = (
+        "{{ rows | join(', ') }}|{{ 2 ** 10 }}|{{ 'a' ~ 'b' }}|{{ '%3d' % 7 }}|{{ '{:>3}'.format(1) }}|"
+        "{% for row in rows %}{{ loop.index }}{{ row | upper }}{{ loop.length }}{% endfor %}|"
+        "{{ rows | map('upper') | join }}|{{ one | tojson }}|{{ [1, 2] | sum }}|{{ 'ab' | center(4) }}|"
+        "{% filter upper %}low{% endfilter %}|{{ 'x' * 3 }}|{{ [1] + [2] }}"
+    )
+    assert render(source, context, max_bytes=CAP) == 'a, b|1024|ab|  7|  1|1A22B2|AB|{"k": [1]}|3| ab |LOW|xxx|[1,2]'

@@ -14,7 +14,7 @@ from dirigent_common import (
     Size,
     TemplateError,
     compile_template,
-    render,
+    render_off_loop,
 )
 from dirigent_plugin import BlockFailure, ErrorClass, Operator, OperatorSpec, StepContext
 
@@ -66,7 +66,8 @@ class ReportRenderOperator(Operator[ReportRenderConfig, ReportRenderOutput]):
 
     The template renders in the same sandbox the run's own ``report:`` section uses: no
     loader, so ``include``, ``import`` and ``extends`` reach nothing, and an undefined name
-    renders as the empty string rather than failing the step.
+    renders as the empty string rather than failing the step. It renders on a worker thread
+    under the sandbox's budget of steps, time and size, and the step's timeout stops it too.
     """
 
     spec = OperatorSpec(
@@ -80,7 +81,7 @@ class ReportRenderOperator(Operator[ReportRenderConfig, ReportRenderOutput]):
     async def execute(self, config: ReportRenderConfig, ctx: StepContext) -> ReportRenderOutput:
         """Render the template against the values, and report what the text is."""
         try:
-            text = render(config.template, config.values, max_bytes=int(config.max_size))
+            text = await render_off_loop(config.template, config.values, max_bytes=int(config.max_size))
         except (RenderTooLarge, TemplateError) as error:
             raise BlockFailure(TEMPLATE_FAILED, error_class=ErrorClass.REJECTED, detail=str(error)) from error
         size = len(text.encode())

@@ -111,7 +111,15 @@ from dirigent_common.sizes import (
     format_size,
     parse_size,
 )
-from dirigent_common.templating import RenderTooLarge, TemplateError, as_text, compile_template, render
+from dirigent_common.templating import (
+    RenderTooLarge,
+    TemplateError,
+    TemplateTooCostly,
+    as_text,
+    compile_template,
+    render,
+    render_off_loop,
+)
 from dirigent_common.types import JsonList, JsonMap
 from dirigent_common.uris import STORAGE_URI_FORMAT, StorageUri
 from dirigent_common.values import loggable, spelled
@@ -195,6 +203,7 @@ __all__ = [
     "StepName",
     "StorageUri",
     "TemplateError",
+    "TemplateTooCostly",
     "as_markdown",
     "as_text",
     "entity_name_error",
@@ -221,6 +230,7 @@ __all__ = [
     "parse_duration",
     "parse_size",
     "render",
+    "render_off_loop",
     "scrub",
     "scrub_json",
     "scrub_output",

@@ -114,4 +114,4 @@ directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn a
 | `login_address_rate_per_minute` | `DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE` | `60` | How many login attempts one address gets a minute, across every username. |
 | `alert_base_url` | `DIRIGENT_ALERT_BASE_URL` | `null` | The externally reachable base URL, so an alert can link back to the run it is about. **Host only.** |
 | `report_max_size` | `DIRIGENT_REPORT_MAX_SIZE` | `1048576` | A run's report document larger than this is dropped with a warning in the run's log. |
-| `report_render_timeout` | `DIRIGENT_REPORT_RENDER_TIMEOUT` | `"5s"` | How long a report template may take to render before it is dropped with a warning. |
+| `report_render_timeout` | `DIRIGENT_REPORT_RENDER_TIMEOUT` | `"5s"` | How long a run's report or an alert's subject or body may render before it falls back with a warning. |

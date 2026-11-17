@@ -723,6 +723,9 @@ def upgrade() -> None:
         sa.Column("connection_id", sa.Uuid(), nullable=True),
         sa.Column("subject", sa.Text(), nullable=False),
         sa.Column("body", sa.Text(), server_default="", nullable=False),
+        sa.Column("subject_template", sa.Text(), nullable=True),
+        sa.Column("body_template", sa.Text(), nullable=True),
+        sa.Column("report", sa.Text(), nullable=True),
         sa.Column(
             "context", sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"), nullable=False
         ),

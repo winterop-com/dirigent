@@ -1,6 +1,5 @@
 """A run's facts, assembled once for the report, the templates and the CLI."""
 
-import asyncio
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Final
@@ -11,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus
-from dirigent_common import JsonMap, RenderTooLarge, render
+from dirigent_common import JsonMap, RenderTooLarge, render_off_loop
 from dirigent_common.depth import shown
 from dirigent_core import alerting, telemetry
 from dirigent_core.artifacts import MARKDOWN_CONTENT_TYPE, canonical_json, persist_document
@@ -352,9 +351,8 @@ async def render_run_report(
         if definition.report.step is not None:
             markdown = step_text(facts, definition.report.step, max_bytes=max_bytes)
         else:
-            markdown = await asyncio.wait_for(
-                asyncio.to_thread(render, template, as_context(facts), max_bytes=max_bytes),
-                timeout=services.settings.report_render_timeout.total_seconds(),
+            markdown = await render_off_loop(
+                template, as_context(facts), max_bytes=max_bytes, within=services.settings.report_render_timeout
             )
         existing = await _report_row(session, run.id)
         storage = await services.bound_storage(session)

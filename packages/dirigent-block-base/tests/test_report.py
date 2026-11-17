@@ -1,5 +1,8 @@
 """Tests for ``report.render``: text out of a template, and nothing saved anywhere."""
 
+import asyncio
+import time
+
 import pytest
 
 from dirigent_block_base.report import ReportRenderConfig, ReportRenderOperator, ReportRenderOutput
@@ -60,6 +63,33 @@ async def test_a_render_that_fails_is_rejected_rather_than_retried(ctx: FakeCont
     with pytest.raises(BlockFailure) as raised:
         await call_block(ReportRenderOperator(), {"template": "{{ rows.sort() }}", "values": {"rows": []}}, ctx)
     assert raised.value.error_class is ErrorClass.REJECTED
+
+
+async def test_a_loop_that_prints_nothing_is_stopped_and_rejected(ctx: FakeContext) -> None:
+    """Nine million passes never reach the size cap; the render's step budget stops them."""
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(
+            ReportRenderOperator(),
+            {"template": "{% for a in range(3000) %}{% for b in range(3000) %}{% endfor %}{% endfor %}"},
+            ctx,
+        )
+    assert raised.value.error_class is ErrorClass.REJECTED
+
+
+async def test_the_step_timeout_reaches_a_render_in_flight(ctx: FakeContext) -> None:
+    """The render runs off the event loop, so a timeout around the step fires while it renders."""
+    endless = "{% for a in range(100000) %}{% for b in range(100000) %}{% endfor %}{% endfor %}"
+    start = time.monotonic()
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.2):
+            await call_block(ReportRenderOperator(), {"template": endless}, ctx)
+    assert time.monotonic() - start < 0.5
+
+
+def test_a_constant_expression_is_not_computed_at_apply() -> None:
+    start = time.monotonic()
+    assert ReportRenderOperator().check_config(ReportRenderConfig(template="{{ 3 ** 30000000 }}")) == []
+    assert time.monotonic() - start < 0.5
 
 
 def test_the_schema_publishes_the_template_as_a_program() -> None:
