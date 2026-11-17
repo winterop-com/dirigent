@@ -460,7 +460,7 @@ class Settings(BaseSettings):
     """How long an entry of the audit trail is kept; null keeps every one."""
 
     retention_scratch: bool = True
-    """Whether pruning a run also deletes its artifacts from storage."""
+    """Whether pruning a run, by retention or by deleting its pipeline, also deletes its artifacts from storage."""
 
     retention_interval: Duration = timedelta(hours=1)
     """How often the scheduler sweeps whatever the retention ages have outlived."""

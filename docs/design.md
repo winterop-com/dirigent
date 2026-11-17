@@ -1528,7 +1528,9 @@ keeps neither.
 **Deleting deletes.** Deleting a pipeline deletes its run history with it -- every run ever
 attributed to it, and their items, attempts, log entries and artifact references, along with
 the versions, schedules, sources and alert rules the definition owns -- in one transaction,
-and the code is free again. There is no force flag and nothing is left behind to point at. The
+and the code is free again. Each run's scratch prefix is deleted from storage first, as
+retention deletes it, unless `retention_scratch` is off; a storage failure refuses the delete
+and leaves everything in place. There is no force flag and nothing is left behind to point at. The
 one refusal is about liveness, not history: runs still queued or running refuse the delete with
 a 409, because deleting them would strand work a worker holds a lease on. Finish or cancel
 them, or deactivate the pipeline instead, which stops it being runnable and keeps everything.

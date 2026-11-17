@@ -410,7 +410,7 @@ async def test_deleting_the_pipeline_takes_its_triggers_documents_with_it(
     await apply(sessions, services, TRIGGERS)
 
     async with session_scope(sessions) as session:
-        await delete_pipeline(session, "batch-fleet")
+        await delete_pipeline(session, services, "batch-fleet")
 
     async with session_scope(sessions) as session:
         assert await list_trigger_documents(session) == []

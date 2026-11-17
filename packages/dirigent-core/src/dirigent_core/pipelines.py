@@ -503,13 +503,17 @@ RUN_FAMILY: Final[tuple[type[ArtifactRef | LogEntry | Notification | RunItem | S
 )
 
 
-async def delete_pipeline(session: AsyncSession, code: str) -> None:
+async def delete_pipeline(session: AsyncSession, services: EngineServices, code: str) -> None:
     """Delete a pipeline and every run ever attributed to it, in one transaction.
 
     Refuses while runs are in flight, because deleting those would strand work a worker still
     holds a lease on: finish or cancel them first. Settled history goes with the pipeline --
     its runs, their items, attempts, logs and artifact references -- and the row itself takes
     its versions, schedules, sources and alert rules through their cascades.
+
+    Each run's stored artifacts are deleted before its rows, unless ``retention_scratch`` is
+    off, since a prefix no row names is never found again. A storage failure raises before
+    any row is deleted.
     """
     pipeline = await require_pipeline(session, code)
     # Run creation takes the same lock, so a run that commits between the count and the
@@ -518,6 +522,11 @@ async def delete_pipeline(session: AsyncSession, code: str) -> None:
     live = await count_runs(session, pipeline.id, Run.status.in_(IN_FLIGHT))
     if live:
         raise PipelineInUse(code, live)
+    if services.settings.retention_scratch:
+        storage = await services.bound_storage(session)
+        held = await session.execute(sa.select(Run.id).where(Run.pipeline_id == pipeline.id).order_by(Run.id))
+        for run_id in held.scalars():
+            await storage.delete_prefix(storage.scratch_for(run_id))
     runs = sa.select(Run.id).where(Run.pipeline_id == pipeline.id).scalar_subquery()
     for table in RUN_FAMILY:
         await session.execute(sa.delete(table).where(table.run_id.in_(runs)))

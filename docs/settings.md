@@ -79,7 +79,7 @@ directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn a
 | `retention_firings` | `DIRIGENT_RETENTION_FIRINGS` | `null` | How long a schedule firing is kept. **Host only.** |
 | `retention_notifications` | `DIRIGENT_RETENTION_NOTIFICATIONS` | `null` | How long an alert that was sent is kept, for runs too young to be pruned themselves. **Host only.** |
 | `retention_audit` | `DIRIGENT_RETENTION_AUDIT` | `"52w1d"` | How long an entry of the audit trail is kept; null keeps every one. **Host only.** |
-| `retention_scratch` | `DIRIGENT_RETENTION_SCRATCH` | `true` | Whether pruning a run also deletes its artifacts from storage. |
+| `retention_scratch` | `DIRIGENT_RETENTION_SCRATCH` | `true` | Whether pruning a run, by retention or by deleting its pipeline, also deletes its artifacts from storage. |
 | `retention_interval` | `DIRIGENT_RETENTION_INTERVAL` | `"1h"` | How often the scheduler sweeps whatever the retention ages have outlived. |
 | `retention_batch` | `DIRIGENT_RETENTION_BATCH` | `500` | How many rows of one family a single sweep deletes before committing. |
 | `lost_job_max_gone` | `DIRIGENT_LOST_JOB_MAX_GONE` | `3` | Consecutive GONE probes before the lost-job policy fails a waiting attempt. |

@@ -295,15 +295,15 @@ async def deactivate(code: str, session: SessionDep, principal: OperatorDep) -> 
     summary="Delete a pipeline and its history",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete(code: str, session: SessionDep, principal: AdminDep) -> Response:
+async def delete(code: str, session: SessionDep, services: ServicesDep, principal: AdminDep) -> Response:
     """Delete a pipeline and every run ever attributed to it, in one transaction.
 
     Admin, unlike every other pipeline verb, and it takes the history with it: the runs,
-    their items, attempts, logs and artifact references, plus the versions, schedules,
-    sources the definition owns. A run still in flight refuses the delete with a 409 --
-    finish or cancel them first. Deactivating is the reversible verb an operator has.
+    their items, attempts, logs, artifact references and stored artifacts, plus the versions,
+    schedules, sources the definition owns. A run still in flight refuses the delete with a
+    409 -- finish or cancel them first. Deactivating is the reversible verb an operator has.
     """
-    await delete_pipeline(session, code)
+    await delete_pipeline(session, services, code)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

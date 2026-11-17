@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import Importance, ProvenanceSource, RunStatus
 from dirigent_core import pipelines
+from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.documents import load_pipeline_text as load_text
 from dirigent_core.documents import to_yaml
@@ -28,6 +29,8 @@ from dirigent_core.pipelines import (
     plan_apply,
     set_active,
 )
+from dirigent_core.plugins import PluginHost
+from dirigent_core.storage import join_uri
 
 DOCUMENT = """
 format: dirigent/v1
@@ -252,7 +255,7 @@ async def test_deleting_a_pipeline_with_no_runs_removes_it(
     async with session_scope(sessions) as session:
         await apply_document(session, services, load_text(DOCUMENT))
     async with session_scope(sessions) as session:
-        await delete_pipeline(session, "daily-load")
+        await delete_pipeline(session, services, "daily-load")
     async with session_scope(sessions) as session:
         assert await list_pipelines(session) == []
 
@@ -284,11 +287,41 @@ async def test_deleting_a_pipeline_takes_its_settled_history_with_it(
     async with session_scope(sessions) as session:
         assert await counted(session, StepAttempt) > 0, "the run must have left attempts to cascade"
     async with session_scope(sessions) as session:
-        await delete_pipeline(session, "daily-load")
+        await delete_pipeline(session, services, "daily-load")
     async with session_scope(sessions) as session:
         assert await list_pipelines(session) == []
         for entity in (Run, StepAttempt, LogEntry, ArtifactRef):
             assert await counted(session, entity) == 0, f"{entity.__tablename__} kept a row of a deleted pipeline"
+
+
+async def test_deleting_a_pipeline_deletes_what_its_runs_stored(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run_id = await settled_run(sessions, services)
+    stored = join_uri(services.storage.scratch_for(run_id), "outputs", "big.json")
+    await services.storage.write_bytes(stored, b"{}")
+    elsewhere = join_uri(services.storage.artifact_root, "kept", "report.md")
+    await services.storage.write_bytes(elsewhere, b"kept")
+
+    async with session_scope(sessions) as session:
+        await delete_pipeline(session, services, "daily-load")
+
+    assert await services.storage.stat(stored) is None
+    assert await services.storage.stat(elsewhere) is not None
+
+
+async def test_deleting_a_pipeline_leaves_storage_alone_when_retention_keeps_it(
+    sessions: async_sessionmaker[AsyncSession], settings: Settings, host: PluginHost
+) -> None:
+    services = EngineServices.build(settings.model_copy(update={"retention_scratch": False}), host)
+    run_id = await settled_run(sessions, services)
+    stored = join_uri(services.storage.scratch_for(run_id), "outputs", "big.json")
+    await services.storage.write_bytes(stored, b"{}")
+
+    async with session_scope(sessions) as session:
+        await delete_pipeline(session, services, "daily-load")
+
+    assert await services.storage.stat(stored) is not None
 
 
 async def test_deleting_refuses_while_a_run_is_in_flight(
@@ -301,7 +334,7 @@ async def test_deleting_refuses_while_a_run_is_in_flight(
         await create_run(session, services, await get_version(session, pipeline), attribution=Attribution())
     async with session_scope(sessions) as session:
         with pytest.raises(PipelineInUse, match="in flight"):
-            await delete_pipeline(session, "daily-load")
+            await delete_pipeline(session, services, "daily-load")
     async with session_scope(sessions) as session:
         assert len(await list_pipelines(session)) == 1, "a refused delete leaves the pipeline alone"
         assert await counted(session, Run) == 1
@@ -312,7 +345,7 @@ async def test_deleting_frees_the_code_for_a_fresh_apply(
 ) -> None:
     await settled_run(sessions, services)
     async with session_scope(sessions) as session:
-        await delete_pipeline(session, "daily-load")
+        await delete_pipeline(session, services, "daily-load")
     async with session_scope(sessions) as session:
         result = await apply_document(session, services, load_text(DOCUMENT))
     assert result.plan.action is PlanAction.CREATE
