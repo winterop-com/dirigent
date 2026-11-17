@@ -246,9 +246,10 @@ separate steps rather than one self-contained block:
   `rule: all_done` runs whether the drive step passed or failed, so a stack is never left
   running. The engine already evaluates `all_done`; no "finally" primitive is needed.
 
-Both blocks default their **project name** deterministically from the run id, so the `down`
-addresses the exact project the `up` created with nothing wired between them, and two runs
-never collide. On a **bring-up that does not succeed** -- a non-zero exit, a bring-up that ran
+Both blocks default their **project name** deterministically from the instance and the run,
+`dirigent-<instance id>-<run id>`, so the `down` addresses the exact project the `up` created
+with nothing wired between them, and two runs never collide, on one instance or on two sharing
+a daemon. On a **bring-up that does not succeed** -- a non-zero exit, a bring-up that ran
 past its deadline, or a step that was cancelled -- the block itself best-effort tears the
 half-built project down (`cleanup: true`) before leaving, so containers compose had already
 started are never orphaned. A successful `up` is never torn down that way: it persists for the
@@ -322,10 +323,11 @@ is the worked document.
 
 ## The orphan reaper
 
-`docker.compose.up` names its project `dirigent-<run id>` and compose labels every container of
-it `com.docker.compose.project`, so a stack is addressable by the run that created it long after
-that run has gone. `docker.run` labels each container it creates `dirigent.run` with the run's
-id. Usually nothing is left: a `down` step with `rule: all_done` runs on any outcome, a failed
+`docker.compose.up` names its project `dirigent-<instance id>-<run id>` and compose labels every
+container of it `com.docker.compose.project`, so a stack is addressable by the instance and the
+run that created it long after that run has gone. `docker.run` labels each container it creates
+`dirigent.instance` and `dirigent.run`. The instance id is one the instance makes for itself, in
+its own database, the first time a step or a pass asks for it. Usually nothing is left: a `down` step with `rule: all_done` runs on any outcome, a failed
 `up` tears its own half-built project down, and `docker.run` removes its container when it
 succeeds, fails, is cancelled, cannot be started or cannot be collected. What is left over is
 what none of that reached -- a worker that died mid-run, a pipeline cancelled between `up` and
@@ -333,8 +335,8 @@ what none of that reached -- a worker that died mid-run, a pipeline cancelled be
 engine stored its handle.
 
 A worker sweeps for those on a cadence. Each pass lists the compose projects and the
-`docker.run` containers on its daemon, reads the run id out of each project's name and each
-container's label, and looks that run up:
+`docker.run` containers on its daemon that carry **its own instance id**, reads the run id out of
+each project's name and each container's label, and looks that run up:
 
 - a run that is **still active** is never touched, whatever else is true;
 - a run that is **terminal**, and a run the instance **no longer holds**, are both orphans;
@@ -345,9 +347,12 @@ container's label, and looks that run up:
 Each orphaned project is taken down with `docker compose -p <project> down -v --remove-orphans`,
 and each orphaned container is removed with its anonymous volumes. Each one is one record:
 `kind: docker_reaped`, carrying the `project` or the short `container` id, the run id and the
-run's status, so `dg worker` shows what went. A project this instance did not create -- anything
-whose name is not `dirigent-<32 hex digits>` -- and a container whose `dirigent.run` label is not
-a run id are never listed as candidates at all.
+run's status, so `dg worker` shows what went. What this instance did not create is never a
+candidate at all: a project whose name is not `dirigent-<its instance id>-<run id>`, a container
+whose `dirigent.instance` label is not its id or whose `dirigent.run` label is not a run id. That
+covers another instance's stacks and containers on a shared daemon, whose runs this instance's
+database does not hold, and anything made before the instance id was written, which carries no
+such name or label and is left for a person to remove.
 
 Two settings govern it:
 
@@ -369,10 +374,10 @@ dg docker reap
 `--dry-run` writes the same records and takes nothing down.
 
 **The reaper only sees the daemon the worker sees.** With one dind sidecar per worker that is
-exactly the stacks that worker created, which is the deployment this is written for. A worker
-pointed at a shared daemon sees every dirigent project on it, including projects other workers
-created -- which is correct, since the run lookup is the instance's own, but it means two
-instances must not share one daemon.
+exactly the stacks that worker created. A worker pointed at a shared daemon sees every project
+and container its own instance created there, other workers' included, which is correct since
+the run lookup is the instance's own. Two instances may share a daemon -- a `dg dev` beside an
+e2e instance on one laptop -- because each reaps only what carries its own instance id.
 
 ## One daemon per pipeline
 

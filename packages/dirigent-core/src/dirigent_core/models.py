@@ -738,6 +738,16 @@ class LogEntry(Journal):
     """The params that refusal rendered, so the line can be rendered again elsewhere."""
 
 
+class Instance(Entity):
+    """This instance's identity, one row at most: its id marks what a step leaves on a shared daemon."""
+
+    __tablename__ = "instance"
+
+    singleton: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, unique=True, default=True, server_default=sa.true()
+    )
+
+
 class Worker(Entity):
     """The worker registry: who is alive, on what version, with which plugins and tags."""
 
@@ -861,6 +871,7 @@ ALL_TABLES = (
     AlertRule,
     Notification,
     LogEntry,
+    Instance,
     Worker,
     ArtifactRef,
     User,

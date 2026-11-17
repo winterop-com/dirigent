@@ -20,6 +20,7 @@ from dirigent_block_execute.docker import DAEMON_ENV
 from dirigent_client.schemas import TERMINAL_RUN_STATUSES
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
+from dirigent_core.instance import instance_id
 from dirigent_core.logging import get_logger
 from dirigent_core.models import Run
 from dirigent_core.worker import Chore
@@ -67,12 +68,14 @@ async def pass_once(
     settings: Settings, sessions: async_sessionmaker[AsyncSession], *, dry_run: bool = False
 ) -> list[reap.Reaped]:
     """Run one reaping pass against the daemon this host's environment names."""
+    instance = await instance_id(sessions)
     with tempfile.TemporaryDirectory(prefix="dirigent-reap-") as home:
         root = Path(home)
         return await reap.reap(
             environment(root),
             root,
             lookup(sessions),
+            instance=instance,
             grace=settings.docker_reap_grace,
             dry_run=dry_run,
         )

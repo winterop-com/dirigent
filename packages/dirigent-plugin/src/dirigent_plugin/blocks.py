@@ -915,6 +915,10 @@ class StepContext(Protocol):
     params: Mapping[str, JsonValue]
     log: Logger
 
+    instance_id: UUID
+    """The identity of the instance running this step, which a block labels what it leaves on a
+    shared system with, such as a container on a Docker daemon other instances also use."""
+
     step: str
     """The step's key in the pipeline document, unique within the run."""
 

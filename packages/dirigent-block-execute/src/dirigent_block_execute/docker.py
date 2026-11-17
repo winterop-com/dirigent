@@ -90,6 +90,9 @@ LOGS_SINCE = "logs_since"
 #: The label every container ``docker.run`` creates carries, holding the run it belongs to.
 RUN_LABEL = "dirigent.run"
 
+#: The label every container ``docker.run`` creates carries, holding the instance that created it.
+INSTANCE_LABEL = "dirigent.instance"
+
 #: Docker frames its log stream with an eight-byte header when the container has no TTY.
 STREAM_HEADER_BYTES = 8
 
@@ -759,7 +762,11 @@ def _creation(config: DockerRunConfig, ctx: StepContext, mounts: Mounts) -> dict
         "Image": config.image,
         "Env": _environment(config),
         "Tty": False,
-        "Labels": {RUN_LABEL: str(ctx.run_id), "dirigent.attempt": str(ctx.attempt)},
+        "Labels": {
+            RUN_LABEL: str(ctx.run_id),
+            INSTANCE_LABEL: str(ctx.instance_id),
+            "dirigent.attempt": str(ctx.attempt),
+        },
         "HostConfig": host,
     }
     command = _command(config)

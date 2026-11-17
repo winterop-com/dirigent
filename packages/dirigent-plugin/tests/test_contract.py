@@ -147,6 +147,7 @@ class FakeContext:
     def __init__(self) -> None:
         """Build a context for a fresh, single-attempt run."""
         self.run_id: RunId = uuid4()
+        self.instance_id: UUID = uuid4()
         self.step = "step"
         self.run_item_id: UUID | None = None
         self.attempt = 1

@@ -235,6 +235,7 @@ class FakeContext:
     def __init__(self, storage: FakeStorage, scratch: str, work: Path | None = None) -> None:
         """Bind the context to a storage root, a scratch prefix, and a local work directory."""
         self.run_id: UUID = uuid4()
+        self.instance_id: UUID = uuid4()
         self.step = "step"
         self.run_item_id: UUID | None = None
         self.attempt = 1

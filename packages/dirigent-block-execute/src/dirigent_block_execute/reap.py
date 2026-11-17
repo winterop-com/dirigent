@@ -1,14 +1,16 @@
 """The orphan reaper: what a run left on the daemon, taken off it once the run has ended.
 
-``docker.compose.up`` names its project ``dirigent-<run id>`` and compose labels every container
-of it ``com.docker.compose.project``, so a stack is addressable by the run that created it long
-after that run has gone. ``docker.run`` labels each container it creates ``dirigent.run`` with
-the run's id. A stack or a container is an orphan when its run is terminal, or when no such run
-exists at all, and it is still there: a worker died mid-run, a pipeline was cancelled between
-``up`` and ``down``, a ``down`` step never ran, a container was created and never collected.
+``docker.compose.up`` names its project ``dirigent-<instance id>-<run id>`` and compose labels
+every container of it ``com.docker.compose.project``, so a stack is addressable by the instance
+and the run that created it long after that run has gone. ``docker.run`` labels each container it
+creates ``dirigent.instance`` and ``dirigent.run``. Only what carries this instance's own id is
+ever considered: another instance's stacks and containers on a shared daemon, and anything made
+before the instance id was written, are left alone. Of its own, a stack or a container is an
+orphan when its run is terminal, or when no such run exists at all, and it is still there: a
+worker died mid-run, a pipeline was cancelled between ``up`` and ``down``, a ``down`` step never
+ran, a container was created and never collected.
 
-The reaper sees only the daemon it is pointed at. With one docker-in-docker sidecar per worker
-that is exactly the stacks that worker created, which is the deployment this is written for.
+The reaper sees only the daemon it is pointed at.
 """
 
 import re
@@ -24,11 +26,11 @@ from pydantic import BaseModel, ConfigDict
 from dirigent_block_execute import subprocess
 from dirigent_block_execute.capture import tail
 from dirigent_block_execute.compose import PROJECT_LABEL
-from dirigent_block_execute.docker import RUN_LABEL, DockerDaemon, open_client, resolve_endpoint
+from dirigent_block_execute.docker import INSTANCE_LABEL, RUN_LABEL, DockerDaemon, open_client, resolve_endpoint
 from dirigent_plugin import BlockFailure
 
 #: A compose project this instance created, and the run id written into its name.
-DIRIGENT_PROJECT = re.compile(r"^dirigent-([0-9a-f]{32})$")
+DIRIGENT_PROJECT = re.compile(r"^dirigent-([0-9a-f]{32})-([0-9a-f]{32})$")
 
 #: The status a project whose run no longer exists is reported under.
 UNKNOWN_RUN = "unknown"
@@ -113,7 +115,7 @@ def daemon(environ: Mapping[str, str], timeout: float = REAP_TIMEOUT_SECONDS) ->
     return DockerDaemon(open_client(endpoint, timeout), endpoint.socket)
 
 
-async def projects(client: DockerDaemon) -> list[Project]:
+async def projects(client: DockerDaemon, instance: UUID) -> list[Project]:
     """List this instance's compose projects on the daemon, newest container first per project.
 
     A project's age is its **youngest** container's, so a stack something is still adding to is
@@ -124,10 +126,10 @@ async def projects(client: DockerDaemon) -> list[Project]:
     for container in listed:
         name = container.labels.get(PROJECT_LABEL, "")
         found = DIRIGENT_PROJECT.match(name)
-        if found is None:
+        if found is None or found.group(1) != instance.hex:
             continue
         created = datetime.fromtimestamp(container.created, tz=UTC)
-        run_id = UUID(found.group(1))
+        run_id = UUID(found.group(2))
         held = newest.get(name)
         if held is None or created > held[1]:
             newest[name] = (run_id, created)
@@ -137,12 +139,14 @@ async def projects(client: DockerDaemon) -> list[Project]:
     )
 
 
-async def containers(client: DockerDaemon) -> list[Container]:
-    """List the containers ``docker.run`` created on the daemon, a compose service's never among them."""
-    listed = await client.list_labelled({"label": [RUN_LABEL]})
+async def containers(client: DockerDaemon, instance: UUID) -> list[Container]:
+    """List the containers this instance's ``docker.run`` created on the daemon, never a compose service's."""
+    listed = await client.list_labelled({"label": [RUN_LABEL, f"{INSTANCE_LABEL}={instance}"]})
     found: list[Container] = []
     for container in listed:
         if PROJECT_LABEL in container.labels or not container.id:
+            continue
+        if container.labels.get(INSTANCE_LABEL) != str(instance):
             continue
         try:
             run_id = UUID(container.labels.get(RUN_LABEL, ""))
@@ -182,6 +186,7 @@ async def reap(
     root: Path,
     look_up: RunLookup,
     *,
+    instance: UUID,
     grace: timedelta,
     dry_run: bool = False,
     command_path: list[str] | None = None,
@@ -194,8 +199,8 @@ async def reap(
     """
     results: list[Reaped] = []
     async with daemon(environ) as client:
-        found = await projects(client)
-        for container, status in await orphans(await containers(client), look_up, grace=grace, now=now):
+        found = await projects(client, instance)
+        for container, status in await orphans(await containers(client, instance), look_up, grace=grace, now=now):
             results.append(await _remove(client, container, status, dry_run=dry_run))
     chosen = await orphans(found, look_up, grace=grace, now=now)
     argv_head = command_path or ["docker", "compose"]

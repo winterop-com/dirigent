@@ -220,6 +220,26 @@ def upgrade() -> None:
         batch_op.create_index("ix_audit_entries_actor_username", ["actor_username"], unique=False)
 
     op.create_table(
+        "instance",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("singleton", sa.Boolean(), server_default=sa.true(), nullable=False),
+        sa.Column(
+            "created_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            dirigent_core.types.UtcDateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_instance")),
+        sa.UniqueConstraint("singleton", name=op.f("uq_instance_singleton")),
+    )
+
+    op.create_table(
         "workers",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("name", sa.String(length=200), nullable=False),
@@ -1108,6 +1128,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop all of it."""
+    op.drop_table("instance")
     with op.batch_alter_table("audit_entries", schema=None) as batch_op:
         batch_op.drop_index("ix_audit_entries_actor_username")
         batch_op.drop_index("ix_audit_entries_subject_kind_subject_code")

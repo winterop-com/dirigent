@@ -477,6 +477,11 @@ class _OutsideRun:
         raise self._refused("the run id")
 
     @property
+    def instance_id(self) -> UUID:
+        """Refuse: a poke outside a run leaves nothing behind for the instance to mark."""
+        raise self._refused("the instance id")
+
+    @property
     def storage(self) -> Storage:
         """Storage, every scheme configured from the connection the instance names for it."""
         return self._storage

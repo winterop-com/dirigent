@@ -52,6 +52,7 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import advance, lock_pipeline, lock_run, log_settled
 from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
+from dirigent_core.instance import known_instance_id
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import (
     ALREADY_SETTLED,
@@ -753,7 +754,10 @@ async def cancel_remote(
     if not attempt.remote_handle:
         return True
     runs = EngineRuns(services, parent_run_id=run.id, session=session)
-    return await tell_remote(services, run, attempt, connections, runs, await attempt_fields(session, attempt))
+    instance = await known_instance_id(session) or UUID(int=0)
+    return await tell_remote(
+        services, run, attempt, connections, runs, await attempt_fields(session, attempt), instance
+    )
 
 
 async def tell_remote(
@@ -763,6 +767,7 @@ async def tell_remote(
     connections: Mapping[str, ConnectionRecord],
     runs: "EngineRuns",
     fields: Mapping[str, Any],
+    instance: UUID,
 ) -> bool:
     """Call an operator's ``cancel`` on the handle an attempt holds, and say if the remote agreed.
 
@@ -774,6 +779,7 @@ async def tell_remote(
         return False
     context = EngineStepContext(
         run_id=run.id,
+        instance_id=instance,
         step=attempt.step_name,
         run_item_id=attempt.run_item_id,
         attempt=attempt.attempt,

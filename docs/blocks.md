@@ -161,7 +161,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to the same deterministic name `up` derives from the run id, so a teardown step in the same run addresses the stack the `up` created with no wiring from the author. |
+| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to the same `dirigent-<instance id>-<run id>` `up` derives, so a teardown step in the same run addresses the stack the `up` created with no wiring from the author. |
 | `file` | `string or null` |  | `null` | A compose file, only if the CLI needs `-f` to resolve the project; a project tears down by its label alone otherwise. As a path inside the run's work directory. |
 | `content` | `string or null` |  | `null` | A compose file inline, written to the run's work directory, for the same reason as `file`. |
 | `profiles` | `string[]` |  |  | Compose profiles to activate, only meaningful alongside a `file`. |
@@ -196,7 +196,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | --- | --- | --- | --- | --- |
 | `file` | `string or null` |  | `null` | The compose file, as a path inside the run's work directory; never absolute, never climbing out. |
 | `content` | `string or null` |  | `null` | The compose file inline, written into the run's work directory before the CLI runs. |
-| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to a deterministic name derived from the run id, so this `up`, the steps that drive it, and a later `down` all address the same project, and two runs never collide. |
+| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to `dirigent-<instance id>-<run id>`, so this `up`, the steps that drive it, and a later `down` all address the same project, and two runs never collide. |
 | `profiles` | `string[]` |  |  | Compose profiles to activate (`--profile`). |
 | `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's work directory (`--env-file`). |
 | `env` | `object of string` |  |  | Variables set for the CLI itself, such as those a compose file interpolates; never one that chooses what the CLI runs or trusts, such as `PATH` or `DOCKER_CONFIG`. |

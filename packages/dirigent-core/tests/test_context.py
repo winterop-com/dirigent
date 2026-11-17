@@ -102,6 +102,7 @@ def _context(
     run_id = uuid4()
     return EngineStepContext(
         run_id=run_id,
+        instance_id=uuid4(),
         step="load",
         run_item_id=item,
         attempt=attempt,
