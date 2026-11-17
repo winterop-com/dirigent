@@ -1,6 +1,10 @@
 """Test configuration shared by every package."""
 
+import logging
+from collections.abc import Iterator
+
 import pytest
+import structlog
 
 from dirigent_core import config
 from dirigent_testing import pin_terminal
@@ -22,6 +26,25 @@ def _ignore_the_developer_environment(defaults_only_environment: None, monkeypat
     developer keeps a real .env there. A test about that layer asks for ``dotenv_layer``.
     """
     monkeypatch.setattr(config, "ENV_FILE", None)
+
+
+@pytest.fixture(autouse=True)
+def _logging_left_as_found() -> Iterator[None]:
+    """Put structlog's configuration and every logger's level back after each test.
+
+    A command run in-process configures logging for the whole process, and its level filter
+    would otherwise decide what a later test on the same worker can capture.
+    """
+    saved = structlog.get_config()
+    loggers = [
+        logging.getLogger(),
+        *(found for found in logging.Logger.manager.loggerDict.values() if isinstance(found, logging.Logger)),
+    ]
+    levels = [(logger, logger.level) for logger in loggers]
+    yield
+    structlog.configure(**saved)
+    for logger, level in levels:
+        logger.setLevel(level)
 
 
 @pytest.fixture

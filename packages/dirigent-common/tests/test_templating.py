@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from dirigent_common import templating
 from dirigent_common.templating import (
     RenderTooLarge,
     TemplateError,
@@ -243,8 +244,9 @@ def test_a_render_stops_when_its_caller_stops_waiting() -> None:
         render("{% for a in range(10) %}{% endfor %}", {}, max_bytes=CAP, stopped=stopped)
 
 
-async def test_a_render_off_the_loop_stops_once_its_caller_is_cancelled() -> None:
+async def test_a_render_off_the_loop_stops_once_its_caller_is_cancelled(monkeypatch: pytest.MonkeyPatch) -> None:
     """The thread a render runs on cannot be killed, so the render ends itself at its next step."""
+    monkeypatch.setattr(templating, "RENDER_STEPS", 10**12)
     passes = 0
 
     def counted() -> Iterator[int]:
@@ -268,7 +270,8 @@ async def test_a_render_off_the_loop_stops_once_its_caller_is_cancelled() -> Non
     assert passes == settled, "the render went on after its caller stopped waiting"
 
 
-async def test_the_event_loop_runs_on_while_a_template_renders_off_it() -> None:
+async def test_the_event_loop_runs_on_while_a_template_renders_off_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(templating, "RENDER_STEPS", 10**12)
     ticks = 0
 
     async def ticker() -> None:
@@ -280,7 +283,10 @@ async def test_the_event_loop_runs_on_while_a_template_renders_off_it() -> None:
     ticking = asyncio.create_task(ticker())
     with pytest.raises(TemplateTooCostly):
         await render_off_loop(
-            "{% for a in range(100000) %}{% for b in range(100000) %}{% endfor %}{% endfor %}", {}, max_bytes=CAP
+            "{% for a in range(100000) %}{% for b in range(100000) %}{% endfor %}{% endfor %}",
+            {},
+            max_bytes=CAP,
+            within=timedelta(milliseconds=300),
         )
     ticking.cancel()
     assert ticks > 5
