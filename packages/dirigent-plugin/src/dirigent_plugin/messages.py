@@ -40,6 +40,10 @@ NOT_AN_ARRAY = PLUGIN.define(
 
 NOTHING_TO_CONVERT = PLUGIN.define("nothing_to_convert", "there is nothing at {uri} to convert")
 
+SOURCE_TOO_LARGE = PLUGIN.define(
+    "source_too_large", "{uri} is larger than max_size ({maximum}); raise max_size, or convert it in parts"
+)
+
 # What a config refuses at validation. Pydantic owns the code a validator's refusal reaches
 # the wire under, so these are rendered into the ``ValueError`` it wraps.
 

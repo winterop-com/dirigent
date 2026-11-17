@@ -1198,6 +1198,8 @@ const refused = {
         route_repeated_parameter: 'The path {template} names the parameter {name} twice.',
         route_tail_not_last:
             'The path {template} has {segment} before its end, and a tail takes the rest of the path.',
+        source_too_large:
+            '{uri} is larger than the {maximum} this conversion holds in memory. Raise max_size on the step, or split the source upstream.',
         source_not_hosted:
             'Source kind {kind} is {hosting}, and a contributed kind is the ReceivedSource, PolledSource or HeldSource its hosting names.',
     },

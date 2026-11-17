@@ -712,3 +712,17 @@ class SqlConfig(BaseModel):
 )
 def test_sql_is_found_wherever_a_schema_publishes_it(config: JsonMap, expected: JsonMap) -> None:
     assert sql_values_of(config, published_config_schema(SqlConfig)) == expected
+
+
+def test_a_pack_writing_a_source_kind_imports_the_whole_contract_from_the_package() -> None:
+    """The package is the only dirigent import a pack needs, for a source kind as for a block."""
+    from dirigent_plugin import sources
+
+    defined = {
+        name
+        for name, value in vars(sources).items()
+        if not name.startswith("_") and getattr(value, "__module__", None) == sources.__name__
+    }
+
+    assert defined
+    assert defined <= set(dirigent_plugin.__all__)

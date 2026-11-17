@@ -310,3 +310,21 @@ def test_a_config_carrying_no_program_has_nothing_to_check() -> None:
 def test_an_engine_called_outside_a_step_says_where_its_programs_run() -> None:
     with pytest.raises(RuntimeError, match="offload"):
         EchoTransformer().compile("echo")
+
+
+def test_a_line_that_is_not_a_reply_stops_the_runner_rather_than_shifting_every_reply_after_it() -> None:
+    """A stray line on standard output would make each later reply answer the request before it."""
+    talks_before_it_answers = (
+        "import json, sys\n"
+        "for line in sys.stdin:\n"
+        "    print('warming up', flush=True)\n"
+        "    print(json.dumps({'outputs': [1]}), flush=True)\n"
+    )
+    started = ProgramRunner((sys.executable, "-c", talks_before_it_answers))
+    try:
+        with pytest.raises(RuntimeError, match="not a reply"):
+            started.run("any", None)
+        assert not started.alive
+    finally:
+        if started.alive:
+            started.kill()

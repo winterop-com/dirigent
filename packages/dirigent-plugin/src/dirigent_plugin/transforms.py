@@ -30,7 +30,7 @@ from typing import Any, ClassVar, Final, cast
 
 from pydantic import BaseModel, Field, JsonValue
 
-from dirigent_common import BlockModel, Issue, JsonMap, StorageUri
+from dirigent_common import BlockModel, Issue, JsonMap, Size, StorageUri, format_size
 from dirigent_plugin.blocks import (
     BlockFailure,
     ErrorClass,
@@ -47,12 +47,17 @@ from dirigent_plugin.messages import (
     NOT_AN_ARRAY,
     NOTHING_TO_CONVERT,
     PROGRAM_REFUSED,
+    SOURCE_TOO_LARGE,
     TRANSFORM_FAILED,
     UNSUPPORTED_PAIR,
 )
 
 #: How much is handed to a storage sink at a time.
 CHUNK_BYTES: Final = 64 * 1024
+
+#: The most a conversion reads when its step names no ``max_size``. A codec holds the whole
+#: source, and what it decodes into, in the worker's memory.
+CONVERT_MAX_SIZE: Final = 256 * 1024 * 1024
 
 #: What the ``map`` frame says it does, in the refusal of an input that is not a list.
 MAP_PROMISE: Final = "replaces every element of a list"
@@ -115,6 +120,10 @@ class ConvertConfig(BlockModel):
 
     to_format: str = Field(alias="to", min_length=1)
     """The format to produce."""
+
+    max_size: Size = Field(default=CONVERT_MAX_SIZE, gt=0)
+    """The most the source may hold. A larger one is refused before it is read, because the
+    whole source, and what it decodes into, is held in the worker's memory."""
 
 
 class ConvertOutput(BlockModel):
@@ -471,7 +480,7 @@ class Converter(Engine, Operator[ConvertConfig, ConvertOutput], ABC):
         unsupported = self._unsupported(config.from_format, config.to_format)
         if unsupported is not None:
             raise BlockFailure(UNSUPPORTED_PAIR, error_class=ErrorClass.REJECTED, **unsupported)
-        source = await _read(ctx, config.source)
+        source = await _read(ctx, config.source, config.max_size)
         try:
             produced = await self.offload(
                 lambda: self.convert(source, source_format=config.from_format, target_format=config.to_format)
@@ -528,14 +537,30 @@ def _named(value: JsonValue) -> str:
     return "a number"
 
 
-async def _read(ctx: StepContext, uri: str) -> bytes:
-    """Read the object whole, refusing a URI that holds nothing."""
-    if await ctx.storage.stat(uri) is None:
+async def _read(ctx: StepContext, uri: str, maximum: int) -> bytes:
+    """Read the object whole, refusing a URI that holds nothing or more than ``maximum`` bytes.
+
+    Counted as it arrives as well as asked of ``stat``, because the size a backend reports
+    and the bytes it streams can differ.
+    """
+    found = await ctx.storage.stat(uri)
+    if found is None:
         raise BlockFailure(NOTHING_TO_CONVERT, error_class=ErrorClass.REJECTED, uri=uri)
+    if found.size > maximum:
+        raise _too_large(uri, maximum)
     chunks: list[bytes] = []
+    total = 0
     async for chunk in ctx.storage.open_read(uri):
+        total += len(chunk)
+        if total > maximum:
+            raise _too_large(uri, maximum)
         chunks.append(chunk)
     return b"".join(chunks)
+
+
+def _too_large(uri: str, maximum: int) -> BlockFailure:
+    """Refuse a source larger than a conversion holds, naming the setting that raises the bound."""
+    return BlockFailure(SOURCE_TOO_LARGE, error_class=ErrorClass.REJECTED, uri=uri, maximum=format_size(maximum))
 
 
 async def _write(ctx: StepContext, uri: str, payload: bytes) -> int:
