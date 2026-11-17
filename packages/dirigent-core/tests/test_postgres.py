@@ -823,12 +823,13 @@ async def test_a_firing_past_the_grace_misfires_once_and_abandons_the_missed_slo
     pipeline = await _clocked(pg_sessions, pg_services)
     schedule = await _due_schedule(pg_sessions, pipeline, cron="* * * * *", late=timedelta(days=7))
 
+    before = utcnow()
     fired = await tick(pg_sessions, pg_services)
     assert len(fired) == 1, "a week of missed minutes is one firing, not ten thousand"
     assert fired[0].misfired is True
     assert fired[0].next_fire_at is not None
-    assert fired[0].next_fire_at > utcnow(), "the clock was advanced from now, abandoning what was missed"
-    assert fired[0].next_fire_at - utcnow() <= timedelta(minutes=1)
+    assert fired[0].next_fire_at > before, "the clock was advanced from now, abandoning what was missed"
+    assert fired[0].next_fire_at - before <= timedelta(minutes=1)
 
     rows = await _firings(pg_sessions, schedule.id)
     assert [row.misfired for row in rows] == [True]

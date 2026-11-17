@@ -258,13 +258,22 @@ with the rest.
 
 A pull request does not run the whole fast lane. `make test-affected` asks
 `scripts/affected_suites.py` which packages the diff reaches -- the ones it touches, and every
-package that depends on one of them -- and runs only those suites. The graph comes from the
-packages' own `pyproject.toml` files, plus the two edges no manifest states: the plugin host
-discovers every `dirigent.*` entry point in the interpreter, so a pack reaches
-`dirigent-core`, and `dirigent-testing` ships a pytest plugin, so it reaches every suite.
-Anything outside `packages/` runs all of them, because a document, an infra file or the root
-manifest is read by tests that reach out of their own package. A push to main runs every
-suite once under coverage, and that is where the 90 percent floor is held.
+package that depends on one of them -- and runs those suites, plus every suite whose tests
+import a reached package. The graph comes from the packages' own `pyproject.toml` files, plus
+the two edges no manifest states: the plugin host discovers every `dirigent.*` entry point in
+the interpreter, so a pack reaches `dirigent-core`, and `dirigent-testing` ships a pytest
+plugin, so it reaches every suite. The `dirigent-common` and `dirigent-testing` suites read
+every package and run on any package change. A subtree another suite reads as files selects
+that suite too: the frontend selects the `dirigent-cli` and `dirigent-server` suites, and the
+example shelves the suites that run them. Anything outside `packages/` runs all of them,
+because a document, an infra file or the root manifest is read by tests that reach out of
+their own package. `test_affected_suites.py` fails when a suite imports or reads something no
+change can select it by. A push to main runs every suite once under coverage, and that is
+where the 90 percent floor is held.
+
+The required status `check` waits on every job in the workflow: the static gate, the tests,
+and each lane below, the docker lane included. A runner without a Docker socket skips the
+docker lane's tests rather than failing them.
 
 `load` is the exception that never runs in the gate. `make load` fans a run out over fifty
 attempts logging five thousand lines each, against a real PostgreSQL, and writes what the log
