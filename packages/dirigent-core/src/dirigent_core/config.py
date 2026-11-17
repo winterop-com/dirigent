@@ -557,6 +557,9 @@ class Settings(BaseSettings):
     source_poll_batch: int = Field(default=100, ge=1)
     """The most inputs one poll may hand over, before the source's own ``max_in_flight``."""
 
+    source_poll_max: int = Field(default=8, ge=1)
+    """How many polled sources one worker takes at a time, and polls side by side."""
+
     source_held_max: int = Field(default=16, ge=1)
     """How many held sources, such as queue consumers, one worker keeps open at once."""
 

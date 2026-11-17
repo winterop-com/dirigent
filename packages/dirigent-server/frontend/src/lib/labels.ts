@@ -1383,9 +1383,11 @@ const refused = {
         kind_missing: 'Source {code} is of kind {kind}, which is not installed on this instance.',
         method_not_answered: '{path} answers {allowed}, not {method}.',
         no_route: 'Nothing on this instance answers {method} {path}.',
+        not_held: 'The source is no longer held by this worker.',
         not_signed: 'Source {code} of pipeline {pipeline} is {auth}, so it has no signing secret to set.',
         paused: 'Source {code} of pipeline {pipeline} is paused.',
         pipeline_inactive: 'Pipeline {pipeline} is deactivated, so its source {code} takes no input.',
+        poll_timed_out: "The poll did not finish within {timeout}, the source's lease.",
         poll_too_long: 'A source polled every {poll} would not poll again. The longest cadence is {limit}.',
         rate: 'This endpoint takes {per_minute} calls a minute.',
         reference_error_not_upstream:

@@ -98,6 +98,7 @@ def _kind_issues(definition: PipelineDefinition, kinds: Mapping[str, AnySource])
         except ValidationError as error:
             issues.extend(_located(f"steps.{name}.source", error))
             continue
+        refused = kind.check_config(config)
         issues.extend(
             ValidationIssue(
                 location=f"steps.{name}.source" + (f".{issue.location}" if issue.location else ""),
@@ -105,9 +106,9 @@ def _kind_issues(definition: PipelineDefinition, kinds: Mapping[str, AnySource])
                 code=issue.code,
                 params=issue.params,
             )
-            for issue in kind.check_config(config)
+            for issue in refused
         )
-        if isinstance(kind, PolledSource) and kind.poll_every(config) > LONGEST_CADENCE:
+        if not refused and isinstance(kind, PolledSource) and kind.poll_every(config) > LONGEST_CADENCE:
             issues.append(
                 ValidationIssue.of(
                     SOURCE_POLL_TOO_LONG,
