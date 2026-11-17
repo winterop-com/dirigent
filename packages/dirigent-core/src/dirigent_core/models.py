@@ -291,6 +291,27 @@ class Run(Entity):
     to the chain's first run here, and leaves its own at zero."""
 
 
+class PipelineOutcome(Base):
+    """How the pipeline's last run to settle with an outcome ended: what the next one is compared with.
+
+    Written by the transaction that settles a run, under the pipeline lock, so the runs of one
+    pipeline settling at once each read the one that committed before them. A cancelled run
+    has no outcome and leaves it as it was.
+    """
+
+    __tablename__ = "pipeline_outcomes"
+
+    pipeline_id: Mapped[UUID] = mapped_column(sa.ForeignKey("pipelines.id", ondelete="CASCADE"), primary_key=True)
+    run_id: Mapped[UUID | None] = mapped_column(sa.ForeignKey("runs.id", ondelete="SET NULL"))
+    """The run that settled this way, or null once retention removed it."""
+
+    status: Mapped[RunStatus] = mapped_column(string_enum(RunStatus, "run_status"), nullable=False)
+    failures: Mapped[str] = mapped_column(sa.String(71), nullable=False)
+    """The digest of which steps and which fan-out elements failed, so two outcomes compare without their lists."""
+
+    settled_at: Mapped[datetime] = mapped_column(Timestamp, nullable=False)
+
+
 class RunItem(Entity):
     """One element of a fan-out step's mapped input, with its own status and retry."""
 
@@ -649,6 +670,9 @@ class AlertRule(Entity):
     """The body, a Jinja template over the same facts; the run's facts one per line when null."""
 
     throttle_seconds: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    on_change: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
+    """Raise only for a run whose outcome differs from the outcome of the pipeline's previous settled run."""
+
     active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=True, server_default=sa.true())
     paused: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False, server_default=sa.false())
     """Instance state rather than document state: an apply rewrites the rule and leaves this."""
@@ -868,6 +892,7 @@ ALL_TABLES = (
     Connection,
     Schema,
     Run,
+    PipelineOutcome,
     RunItem,
     StepAttempt,
     TriggerDocument,

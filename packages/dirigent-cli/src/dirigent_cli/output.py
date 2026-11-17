@@ -531,6 +531,7 @@ ALERT_EVENTS: Mapping[str, str] = {
     "run_failed": "Failed",
     "run_completed_with_errors": "Completed with errors",
     "run_succeeded": "Succeeded",
+    "run_recovered": "Recovered",
     "run_stuck": "Stuck",
     "test": "Test message",
 }

@@ -89,7 +89,7 @@ export function RulePanel({
     }
     const floor = importanceNote(rule.importance)
     const settings: FactItem[] = [
-        { term: LABELS.word.event, value: LABELS.alerting.event[rule.event] },
+        { term: LABELS.word.event, value: <EventNote rule={rule} /> },
         {
             term: LABELS.word.scope,
             value: (
@@ -498,6 +498,18 @@ export function Target({ notifier, connection }: { notifier: string; connection:
                 </span>
             ) : (
                 <InlineCode value={connection} bare size="xs" />
+            )}
+        </span>
+    )
+}
+
+/** What a rule fires on: the event, and that it waits for a changed outcome when it does. */
+export function EventNote({ rule }: { rule: AlertRuleOut }) {
+    return (
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+            <span className="text-sm">{LABELS.alerting.event[rule.event]}</span>
+            {rule.on_change && (
+                <span className="text-xs text-muted-foreground">{LABELS.alerting.on_change.note}</span>
             )}
         </span>
     )

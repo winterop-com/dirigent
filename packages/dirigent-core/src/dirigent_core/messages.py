@@ -727,6 +727,11 @@ SCOPE_NEEDS_PIPELINE = ALERT.define(
 
 ALERT_UNKNOWN_PIPELINE = ALERT.define("unknown_pipeline", "no pipeline coded {code}")
 
+ON_CHANGE_UNSETTLED = ALERT.define(
+    "on_change_unsettled",
+    "on_change compares a run's outcome with the previous one, and {event} is raised for a run that has not settled",
+)
+
 ALERT_UNKNOWN_CONNECTION = ALERT.define("unknown_connection", "no connection coded {code}")
 
 TARGET_HAS_NO_NOTIFIER = ALERT.define(

@@ -829,6 +829,7 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         template: str | None = None,
         body: str | None = None,
         throttle: str = "0s",
+        on_change: bool = False,
         name: str | None = None,
         description: str | None = None,
     ) -> Any:
@@ -838,7 +839,10 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         or `pipeline` (the one `pipeline` names). `connection` is the slack, email or webhook
         connection it delivers through; without one it writes to the process log. `template`
         is the subject and `body` the body, Jinja over the run's facts. `throttle`, such as `15m`,
-        is the least time between two of its messages. A name the subject or body reads that an
+        is the least time between two of its messages. `on_change` raises only for a run whose
+        outcome (its status, and which steps and fan-out elements failed) differs from the
+        pipeline's previous settled run's: the first failure of an outage, not every one. The
+        event `run_recovered` is a run that succeeded after one that did not. A name the subject or body reads that an
         alert is never given renders empty; the rule is still created, and `warnings` names each
         one (`alert.template_name_unknown`) with the names that are given. A rule for one pipeline
         can instead be declared in that pipeline's document, under `alerts:`, and applied with it.
@@ -856,6 +860,7 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
                 template=template,
                 body=body,
                 throttle=throttle,
+                on_change=on_change,
             )
         )
 

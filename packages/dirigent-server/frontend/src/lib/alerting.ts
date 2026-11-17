@@ -26,7 +26,12 @@ import { PAGE } from '@/lib/paging'
 import type { Importance } from '@/lib/pipelines'
 
 /** What a rule watches for. `AlertEvent` in dirigent_client.enums. */
-export type AlertEvent = 'run_failed' | 'run_completed_with_errors' | 'run_succeeded' | 'run_stuck'
+export type AlertEvent =
+    | 'run_failed'
+    | 'run_completed_with_errors'
+    | 'run_succeeded'
+    | 'run_recovered'
+    | 'run_stuck'
 
 /** What a queued message was raised for: a rule's event, or a test. `NotificationEvent`. */
 export type NotificationEvent = AlertEvent | 'test'
@@ -42,7 +47,19 @@ export const ALERT_EVENTS: readonly AlertEvent[] = [
     'run_failed',
     'run_completed_with_errors',
     'run_succeeded',
+    'run_recovered',
     'run_stuck',
+]
+
+/**
+ * The events a settled run raises, which are the ones a rule may hear of only when the outcome
+ * changed. `SETTLED_ALERT_EVENTS` in dirigent_client.enums.
+ */
+export const SETTLED_EVENTS: readonly AlertEvent[] = [
+    'run_failed',
+    'run_completed_with_errors',
+    'run_succeeded',
+    'run_recovered',
 ]
 
 /** Every state a delivery can be in, in the order the filter offers them. */
@@ -75,6 +92,8 @@ export interface AlertRuleOut {
     body: string | null
     /** A humane duration, such as `5m`, and never a number of seconds. */
     throttle: string
+    /** Raises only for a run whose outcome differs from the pipeline's previous settled run's. */
+    on_change: boolean
     active: boolean
     /** Held by an operator rather than declared by the rule, and kept across a re-apply. */
     paused: boolean
@@ -98,6 +117,7 @@ export interface AlertRuleIn {
     template: string | null
     body: string | null
     throttle: string
+    on_change: boolean
 }
 
 /** How the server spells a duration of nothing, which is what a rule that is not throttled has. */

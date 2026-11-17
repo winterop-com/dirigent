@@ -235,6 +235,8 @@ every name an alert template is given:
 | `error` | What failed, on one line and cut at 300 characters: the element's refusal, else the step's, else the run's own. For a block that raised something it did not explain, it is what the block raised. It is read from the attempt as stored, already scrubbed of the step's secrets. The same as `run.error` |
 | `error_code` | The dotted code of that refusal, when it has one. The same as `run.error_code` |
 | `report` | The run's rendered report document when it has one, so a rule can carry the whole page rather than a link to it |
+| `event` | What the alert was raised for: `run_failed`, `run_completed_with_errors`, `run_succeeded`, `run_recovered` or `run_stuck` |
+| `previous_status` | How the pipeline's previous settled run ended, which is what `run_recovered` and a rule's `on_change` compare with; null when there was none |
 
 A rule whose `template` or `body` reads a name outside this table, or a field of `run` or
 `pipeline` that is not one, is still created or changed, and the answer carries a

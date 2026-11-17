@@ -967,8 +967,8 @@ rather than a silent one.
 ## 9. Alerting
 
 Alerting is rules times channels, both data. An alert rule binds an event (`run_failed`,
-`run_completed_with_errors`, `run_succeeded`, `run_stuck`) at a scope (global or per-pipeline)
-to one channel, with a message template. Delivery is itself engine work, queued, retried with
+`run_completed_with_errors`, `run_succeeded`, `run_recovered`, `run_stuck`) at a scope (global
+or per-pipeline) to one channel, with a message template. Delivery is itself engine work, queued, retried with
 backoff, and visible in the run timeline, so a flaky SMTP server cannot take down a worker or
 silently drop an alert. Per-rule throttling prevents a flapping pipeline from paging every
 minute. Runs of one pipeline settling at once read the throttle one after another, under a
@@ -996,7 +996,7 @@ raise on a critical run, and only the second raises on an ordinary one.
 
 **A pipeline's document may declare its own rules.** A top-level `alerts:` section, keyed by
 rule code, takes the fields a pipeline-scoped rule takes through the API -- `event`,
-`connection`, `template`, `body`, `importance`, `throttle`, `active`, `name`, `description` --
+`connection`, `template`, `body`, `importance`, `throttle`, `on_change`, `active`, `name`, `description` --
 and the scope is always that pipeline. The connection is named by code, so no credential is in
 the document. Plan refuses a connection the instance does not hold or that no installed
 notifier delivers through, and a code another owner already holds, naming the owner: a rule
@@ -1037,6 +1037,30 @@ slow notifier cannot let a burst through the window behind it.
 giving up on it all write into the run's own timeline, so "the alert never arrived" is
 answerable from the run rather than from a process log on some worker.
 
+**A rule may speak only when the outcome changes.** A settled run's outcome is its status and
+the set of steps and fan-out elements that failed, a step read by its newest attempt and an
+element by its own status. `on_change: true` on a rule raises only for a run whose outcome
+differs from the outcome of the pipeline's previous settled run, so an outage pages once, when
+it starts, and a fan-out over ten targets pages again when a second target goes down or one
+comes back while another stays down. A pipeline's first settled run is a change. The quiet run
+says so in its own timeline, naming the rule. `run_recovered` is the other half: a run that
+succeeded where the previous settled run did not, raised beside `run_succeeded`, never for a
+pipeline's first run. `on_change` is refused for `run_stuck` (`alert.on_change_unsettled`),
+since a stuck run has not settled and has no outcome to compare.
+
+**"Previous" is the order settlements commit in.** The latest outcome is a row per pipeline,
+`pipeline_outcomes`, written by the transaction that settles a run, under the pipeline lock and
+before the alerts are queued -- whether or not any rule watches, so a rule declared later
+compares with the run before it. Two runs of one pipeline settling at once are ordered by
+their commits rather than by their clocks: the second takes the lock after the first has
+committed and reads the first's outcome. Every run counts alike, whatever started it -- a
+schedule, a backfill, a person, a source -- and in the order it settled rather than the order
+it was created or the window it covers. A cancelled run has no outcome and leaves the row as it
+was; a run that settles again after a retry is compared with its own earlier outcome, so a
+retry that clears a failure raises `run_recovered`. Only the settle path that raises alerts
+writes the row: a run failed at claim time because its document can no longer be read raises
+nothing and moves nothing.
+
 **`run_stuck` is the sweeper's.** A running run with no attempt progress for
 `stuck_run` is stuck; detection is a query the sweeper already runs, and the alert is
 raised from there.
@@ -1045,7 +1069,8 @@ raised from there.
 templates over a snapshot of the run's facts taken when the alert was raised -- a snapshot,
 because delivery happens later and a message describing the run as it is *now* would be
 misleading. The context is the run's whole facts, the same ones a report document reads, plus
-`report`, the rendered document when the run has one. A name the facts do not have renders as
+`report`, the rendered document when the run has one, `event`, what the alert was raised for,
+and `previous_status`, how the pipeline's previous settled run ended. A name the facts do not have renders as
 **empty**, which is the same case as a fact that is legitimately null: half a run's facts are
 null depending on how it ended, and printing `{{ run.error }}` back at an operator whose run
 succeeded would be nonsense. A template that does not compile is refused when the rule is

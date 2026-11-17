@@ -1164,13 +1164,32 @@ containers and not only the server. See [telemetry](telemetry.md).
 | Schedules firing late | `dg schedule firings PIPELINE CODE`, whose rows carry the slot each firing owed against the moment it happened. Nothing reports the backlog as a number | `dirigent.scheduler.lag`. A standby scheduler reports zero, so take the max |
 
 **Alert rules are the closest thing to paging that exists in the product.** A rule binds an
-event -- `run_failed`, `run_completed_with_errors`, `run_succeeded`, `run_stuck` -- at a scope
-to one channel, and delivery goes through a queued, leased, retried path a worker owns. A
-worker claims only the alerts whose notifier it has installed. An alert no starting or running
-worker can send waits for one; once it has been due for longer than `stale_worker` (`15m`), the
-sweeper fails it with `alert.notifier_not_on_worker`, so it shows as failed in
-`dg alerts queue` rather than pending for good. If you
-have one thing configured on a real instance, make it a `run_failed` rule with a throttle.
+event -- `run_failed`, `run_completed_with_errors`, `run_succeeded`, `run_recovered`,
+`run_stuck` -- at a scope to one channel, and delivery goes through a queued, leased, retried
+path a worker owns. A worker claims only the alerts whose notifier it has installed. An alert no
+starting or running worker can send waits for one; once it has been due for longer than
+`stale_worker` (`15m`), the sweeper fails it with `alert.notifier_not_on_worker`, so it shows as
+failed in `dg alerts queue` rather than pending for good. If you have one thing configured on a
+real instance, make it a `run_failed` rule with a throttle.
+
+**A monitor pages on a change, not on every run.** A pipeline that checks something every few
+minutes fails on every run for as long as an outage lasts, and a throttle only spaces the
+pages out. `--on-change` raises only for a run whose outcome -- its status, and which steps and
+fan-out elements failed -- differs from the pipeline's previous settled run's, and
+`run_recovered` says when it is over:
+
+```bash
+dg alerts rules create checks-down --event run_completed_with_errors --pipeline checks \
+    --connection ops-slack --on-change
+dg alerts rules create checks-failed --event run_failed --pipeline checks \
+    --connection ops-slack --on-change
+dg alerts rules create checks-back --event run_recovered --pipeline checks \
+    --connection ops-slack
+```
+
+A run that stayed quiet says so in its own timeline, naming the rule, so "why was nobody told"
+is answered from the run. See [alerting](design.md#9-alerting) for what "previous" means when
+runs settle together, and for backfills and retries.
 
 **A rule may also name the least importance it fires for**, which is how paging is kept apart
 from logging without listing pipelines by hand. `importance` on a rule is matched against what
@@ -1326,7 +1345,7 @@ fields, never a rendered body:
 
 | Field | What it is |
 | --- | --- |
-| `event_kind` | `run_failed`, `run_completed_with_errors`, `run_succeeded` or `run_stuck`, or `test` for a message `dg alerts test` sent, which carries no run facts |
+| `event_kind` | `run_failed`, `run_completed_with_errors`, `run_succeeded`, `run_recovered` or `run_stuck`, or `test` for a message `dg alerts test` sent, which carries no run facts |
 | `run_id`, `pipeline`, `status` | The run, its pipeline's code, and its status when the alert was raised |
 | `failing_step`, `item` | The first step that failed, and the key of the fan-out element that failed in it |
 | `error`, `error_code` | What failed, on one line, scrubbed of the step's secrets, and its dotted code |

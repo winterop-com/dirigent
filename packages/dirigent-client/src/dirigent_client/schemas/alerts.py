@@ -26,6 +26,11 @@ CONNECTION_HELP = (
     "The connection this rule delivers through, whose kind names the sender; absent delivers to the process log."
 )
 
+ON_CHANGE_HELP = (
+    "Raise only for a run whose outcome, its status and which steps and fan-out elements failed, differs from "
+    "the outcome of the pipeline's previous settled run."
+)
+
 TEST_CONNECTION_HELP = (
     "The connection this message delivers through, whose kind names the sender; absent delivers to the process log."
 )
@@ -53,6 +58,7 @@ class AlertRuleIn(RequestModel):
     template: str | None = Field(default=None, description=SUBJECT_HELP)
     body: str | None = Field(default=None, description=BODY_HELP)
     throttle: Duration = timedelta(0)
+    on_change: bool = Field(default=False, description=ON_CHANGE_HELP)
 
 
 class AlertRuleOut(WireModel):
@@ -75,6 +81,9 @@ class AlertRuleOut(WireModel):
     template: str | None = None
     body: str | None = None
     throttle: str
+    on_change: bool = False
+    """Raises only when a run's outcome differs from the pipeline's previous settled run's."""
+
     active: bool
     paused: bool = False
     declared: bool = False

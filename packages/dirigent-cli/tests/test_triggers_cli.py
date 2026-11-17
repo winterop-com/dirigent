@@ -373,6 +373,7 @@ def test_an_alert_rule_is_created_listed_and_deleted(tmp_path: Path, server: str
         "cli-demo",
         "--throttle",
         "15m",
+        "--on-change",
     )
     assert created.exit_code == 0, created.output
     declared = only(created.stdout, "alert_rule.created")
@@ -382,12 +383,14 @@ def test_an_alert_rule_is_created_listed_and_deleted(tmp_path: Path, server: str
     assert declared["importance"] is None, "a rule that named none fires for every pipeline"
     assert declared["notifier"] == "log"
     assert declared["throttle"] == "15m"
+    assert declared["on_change"] is True
 
     row = rows_of("alerts", "rules", "list")[0]
     assert row["event"] == "run_failed"
     assert row["scope"] == "pipeline"
     assert row["pipeline"] == "cli-demo"
     assert row["throttle"] == "15m"
+    assert row["on_change"] is True
     assert row["paused"] is False
 
     removed = machine("alerts", "rules", "delete", "nightly-failures")

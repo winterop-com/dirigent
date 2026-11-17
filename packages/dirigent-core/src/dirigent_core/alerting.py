@@ -6,6 +6,7 @@ coarser guard against a flapping pipeline.
 """
 
 import asyncio
+import hashlib
 import json
 from collections.abc import AsyncGenerator, Collection, Mapping, Sequence
 from contextlib import asynccontextmanager, suppress
@@ -20,8 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import (
     IMPORTANCE_RANK,
+    SETTLED_ALERT_EVENTS,
     AlertEvent,
     AlertScope,
+    AttemptStatus,
     AuditAction,
     AuditSubject,
     Importance,
@@ -51,6 +54,7 @@ from dirigent_core import audit
 from dirigent_core.database import insert_unless_taken, is_deadlock, session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.errors import DomainError
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger
@@ -66,6 +70,7 @@ from dirigent_core.messages import (
     DUPLICATE_RULE,
     NOTIFICATION_IN_FLIGHT,
     NOTIFIER_NOT_ON_WORKER,
+    ON_CHANGE_UNSETTLED,
     SCOPE_NEEDS_PIPELINE,
     TARGET_HAS_NO_NOTIFIER,
 )
@@ -75,8 +80,11 @@ from dirigent_core.models import (
     LogEntry,
     Notification,
     Pipeline,
+    PipelineOutcome,
     PipelineVersion,
     Run,
+    RunItem,
+    StepAttempt,
     Worker,
     utcnow,
 )
@@ -115,6 +123,9 @@ OPENING: Final = {
     RunStatus.SUCCEEDED.value: "Succeeded",
     RunStatus.RUNNING.value: "Still running, with no progress",
 }
+
+#: How the default body of a recovery opens, before what the previous run ended as.
+RECOVERED_OPENING: Final = "Recovered"
 
 CLAIM_LIMIT = 1
 
@@ -159,6 +170,96 @@ class AlertRuleRequest(BaseModel):
     template: str | None = None
     body: str | None = None
     throttle: timedelta = timedelta(0)
+    on_change: bool = False
+    """Raise only for a run whose outcome differs from the pipeline's previous settled run's."""
+
+
+class Outcome(NamedTuple):
+    """How one settled run ended: its status, and which steps and fan-out elements failed."""
+
+    status: RunStatus
+    failures: str
+    """The digest of the failed steps and elements, which is all a comparison needs."""
+
+    run_id: UUID | None
+
+
+class Change(NamedTuple):
+    """A settled run's outcome beside the pipeline's previous one, which a rule on change is asked about."""
+
+    previous: Outcome | None
+    current: Outcome
+
+    @property
+    def changed(self) -> bool:
+        """Report whether this outcome differs from the previous one; a pipeline's first is a change."""
+        if self.previous is None:
+            return True
+        return (self.previous.status, self.previous.failures) != (self.current.status, self.current.failures)
+
+    @property
+    def recovered(self) -> bool:
+        """Report whether this run succeeded where the previous settled run did not."""
+        return (
+            self.current.status is RunStatus.SUCCEEDED
+            and self.previous is not None
+            and self.previous.status is not RunStatus.SUCCEEDED
+        )
+
+
+async def failures_of(session: AsyncSession, run: Run) -> str:
+    """Digest which steps of a settled run failed, and which elements of its fan-outs, in a stable order.
+
+    A step is read by its newest attempt, so a retry that succeeded is not a failure.
+    """
+    failed: set[str] = set()
+    items = await session.execute(
+        sa.select(RunItem.step_name, RunItem.item_key).where(
+            RunItem.run_id == run.id, RunItem.status == RunItemStatus.FAILED
+        )
+    )
+    failed.update(json.dumps([step, key]) for step, key in items.all())
+    newest: dict[str, tuple[int, AttemptStatus]] = {}
+    attempts = await session.execute(
+        sa.select(StepAttempt.step_name, StepAttempt.attempt, StepAttempt.status).where(
+            StepAttempt.run_id == run.id, StepAttempt.run_item_id.is_(None)
+        )
+    )
+    for step, number, status in attempts.all():
+        if step not in newest or number > newest[step][0]:
+            newest[step] = (number, status)
+    failed.update(json.dumps([step, None]) for step, (_, status) in newest.items() if status is AttemptStatus.FAILED)
+    return "sha256:" + hashlib.sha256(json.dumps(sorted(failed)).encode()).hexdigest()
+
+
+async def record_outcome(session: AsyncSession, run: Run, status: RunStatus, *, now: datetime | None = None) -> Change:
+    """Write a settled run's outcome as its pipeline's latest, and say what it replaced.
+
+    The previous outcome is the one the last settlement of this pipeline to commit wrote, read
+    under the pipeline lock, so two runs settling at once are ordered by their commits rather
+    than by their clocks: the second reads the first. Every trigger counts alike, a backfill
+    and a manual run as much as a scheduled one, and a run settling again after a retry is
+    compared with its own earlier outcome.
+    """
+    await lock_pipeline(session, run.pipeline_id)
+    current = Outcome(status=status, failures=await failures_of(session, run), run_id=run.id)
+    row = await session.get(PipelineOutcome, run.pipeline_id, populate_existing=True)
+    if row is None:
+        session.add(
+            PipelineOutcome(
+                pipeline_id=run.pipeline_id,
+                run_id=run.id,
+                status=status,
+                failures=current.failures,
+                settled_at=now or utcnow(),
+            )
+        )
+        await session.flush()
+        return Change(previous=None, current=current)
+    previous = Outcome(status=row.status, failures=row.failures, run_id=row.run_id)
+    row.run_id, row.status, row.failures, row.settled_at = run.id, status, current.failures, now or utcnow()
+    await session.flush()
+    return Change(previous=previous, current=current)
 
 
 def build_context(
@@ -225,6 +326,7 @@ async def create_rule(session: AsyncSession, services: EngineServices, request: 
     if await find_rule(session, request.code) is not None:
         raise AlertError(DUPLICATE_RULE, code=repr(request.code))
     check_templates(template=request.template, body=request.body)
+    check_on_change(request.event, on_change=request.on_change)
     pipeline_id = await _scope_pipeline(session, request)
     notifier, connection_id = await _target(session, services, request.connection)
     rule = AlertRule(
@@ -240,6 +342,7 @@ async def create_rule(session: AsyncSession, services: EngineServices, request: 
         template=request.template,
         body=request.body,
         throttle_seconds=int(request.throttle.total_seconds()),
+        on_change=request.on_change,
     )
 
     async def taken() -> bool:
@@ -262,6 +365,12 @@ def check_templates(*, template: str | None = None, body: str | None = None) -> 
             raise AlertError(BAD_ALERT_TEMPLATE, field=field, detail=str(error)) from error
 
 
+def check_on_change(event: AlertEvent, *, on_change: bool) -> None:
+    """Refuse to compare outcomes for an event a run raises before it has settled."""
+    if on_change and event not in SETTLED_ALERT_EVENTS:
+        raise AlertError(ON_CHANGE_UNSETTLED, event=event.value)
+
+
 #: Every name an alert's subject and body are given: a run's report facts, where it went wrong, and its report.
 ALERT_CONTEXT: Final[Mapping[str, frozenset[str] | None]] = {
     **REPORT_CONTEXT,
@@ -270,6 +379,8 @@ ALERT_CONTEXT: Final[Mapping[str, frozenset[str] | None]] = {
     "error": None,
     "error_code": None,
     "report": None,
+    "event": None,
+    "previous_status": None,
 }
 
 
@@ -446,6 +557,7 @@ async def reconcile_declared_rules(
             "template": spec.template,
             "body": spec.body,
             "throttle_seconds": int(spec.throttle.total_seconds()),
+            "on_change": spec.on_change,
             "active": spec.active,
         }
         row = existing.get(code)
@@ -632,6 +744,7 @@ async def raise_for_run(
     event: AlertEvent,
     *,
     now: datetime | None = None,
+    change: Change | None = None,
 ) -> list[Notification]:
     """Queue whatever this run's settling owes, in the caller's outcome transaction.
 
@@ -654,6 +767,7 @@ async def raise_for_run(
                 run,
                 event,
                 now=now,
+                change=change,
             )
     except Exception as error:
         if is_deadlock(error):
@@ -669,8 +783,13 @@ async def _queue_for_run(
     event: AlertEvent,
     *,
     now: datetime | None = None,
+    change: Change | None = None,
 ) -> list[Notification]:
-    """Write down the notifications and the timeline entries one raised event owes."""
+    """Write down the notifications and the timeline entries one raised event owes.
+
+    ``change`` is the run's outcome beside the previous one; without it nothing was compared,
+    and a rule on change raises as though the outcome had changed.
+    """
     moment = now or utcnow()
     pipeline = await session.get(Pipeline, run.pipeline_id)
     if pipeline is None:  # pragma: no cover - the foreign key makes this unreachable
@@ -681,6 +800,9 @@ async def _queue_for_run(
     due: list[AlertRule] = []
     for rule in rules:
         if await _already_raised(session, rule.id, run.id, event):
+            continue
+        if rule.on_change and change is not None and not change.changed:
+            session.add(_unchanged_entry(run, rule, event, change, moment))
             continue
         opens = await throttled_until(session, rule, run.pipeline_id, moment)
         if opens is not None:
@@ -706,6 +828,7 @@ async def _queue_for_run(
         return []
     facts = await _facts_of(session, run, base_url=services.settings.alert_base_url, rendered_at=moment)
     context = _context_for(run, facts, output_cap=int(services.settings.inline_artifact_max))
+    context |= _change_facts(event, change)
     queued: list[Notification] = []
     for rule in due:
         # The rule's templates render at delivery, outside this transaction and off the loop;
@@ -749,6 +872,24 @@ async def _queue_for_run(
     if queued:
         _logger.info("alerts raised", run_id=str(run.id), alert_event=event.value, rules=len(queued))
     return queued
+
+
+def _change_facts(event: AlertEvent, change: Change | None) -> JsonMap:
+    """Name the event an alert was raised for and how the pipeline's previous settled run ended."""
+    previous = change.previous if change is not None else None
+    return {"event": event.value, "previous_status": previous.status.value if previous is not None else None}
+
+
+def _unchanged_entry(run: Run, rule: AlertRule, event: AlertEvent, change: Change, moment: datetime) -> LogEntry:
+    """Say on the run's timeline that a rule on change stayed quiet, and which run it matched."""
+    previous = change.previous.run_id if change.previous is not None else None
+    return LogEntry(
+        run_id=run.id,
+        level=LogLevel.INFO,
+        message=f"alert {rule.code!r} not raised: the outcome is the same as the previous settled run's",
+        fields={"event": event.value, "previous_run_id": str(previous) if previous is not None else None},
+        created_at=moment,
+    )
 
 
 def _context_for(run: Run, facts: "RunFacts", *, output_cap: int) -> JsonMap:
@@ -867,7 +1008,8 @@ async def _facts_of(session: AsyncSession, run: Run, *, base_url: str | None, re
 def _default_subject(context: JsonMap) -> str:
     """Write the subject a rule with no subject template sends: the pipeline and how its run ended."""
     run = cast("JsonMap", context.get("run", {}))
-    return _one_line(f"{as_text(run.get('pipeline'))} run {as_text(run.get('status'))}")
+    said = "recovered" if context.get("event") == AlertEvent.RUN_RECOVERED.value else as_text(run.get("status"))
+    return _one_line(f"{as_text(run.get('pipeline'))} run {said}")
 
 
 class Rendered(NamedTuple):
@@ -956,6 +1098,9 @@ def _body(context: JsonMap) -> str:
         if part
     )
     opening = " ".join(part for part in (OPENING.get(status, status.replace("_", " ").capitalize()), where) if part)
+    if context.get("event") == AlertEvent.RUN_RECOVERED.value:
+        previous = as_text(context.get("previous_status")).replace("_", " ")
+        opening = f"{RECOVERED_OPENING}: the previous run {previous}"
     error = context.get("error")
     lines = [f"{opening}: {as_text(error)}" if error else f"{opening}."]
     started = f"Triggered by {as_text(run.get('trigger'))}" if run.get("trigger") else "Started"
@@ -1001,17 +1146,35 @@ async def raise_for_status(
     *,
     now: datetime | None = None,
 ) -> list[Notification]:
-    """Queue the alerts a terminal run status owes, if that status raises an event at all."""
+    """Queue the alerts a terminal run status owes, if that status raises an event at all.
+
+    The run's outcome is recorded as its pipeline's latest first, whether or not any rule
+    watches it, so a rule declared later compares with the run before it. A run that succeeded
+    where the previous settled run did not raises ``run_recovered`` as well.
+    """
     event = EVENT_FOR_STATUS.get(status)
     if event is None:
         return []
-    return await raise_for_run(
-        session,
-        services,
-        run,
-        event,
-        now=now,
-    )
+    change = await _recorded(session, run, status, now=now)
+    raised: list[Notification] = []
+    for each in (event, AlertEvent.RUN_RECOVERED) if change is not None and change.recovered else (event,):
+        raised += await raise_for_run(session, services, run, each, now=now, change=change)
+    return raised
+
+
+async def _recorded(session: AsyncSession, run: Run, status: RunStatus, *, now: datetime | None) -> Change | None:
+    """Record a settled run's outcome, or log why it could not be and compare nothing.
+
+    A savepoint, logged rather than raised for the reason :func:`raise_for_run` gives.
+    """
+    try:
+        async with session.begin_nested():
+            return await record_outcome(session, run, status, now=now)
+    except Exception as error:
+        if is_deadlock(error):
+            raise
+        _logger.error("outcome not recorded", run_id=str(run.id), error=str(error))
+        return None
 
 
 async def attach_report(

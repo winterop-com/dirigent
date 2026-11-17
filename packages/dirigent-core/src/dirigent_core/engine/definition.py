@@ -11,7 +11,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema import ValidationError as SchemaValidationError
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
-from dirigent_client.enums import AlertEvent, Importance, RunPriority, StepKind
+from dirigent_client.enums import SETTLED_ALERT_EVENTS, AlertEvent, Importance, RunPriority, StepKind
 from dirigent_client.schemas import Catalog, Requirements
 from dirigent_common import (
     LOCAL_REFERENCES,
@@ -37,6 +37,7 @@ from dirigent_core.messages import (
     KEY_NOT_A_PATH,
     KEY_ON_ADOPTED_GRID,
     KEY_WITHOUT_FAN_OUT,
+    ON_CHANGE_UNSETTLED,
     PARAMETER_INVALID,
     PARAMETER_SCHEMA_INVALID,
     PARAMETER_UNCHECKED,
@@ -573,7 +574,17 @@ class AlertSpec(BaseModel):
     throttle: Duration = timedelta(0)
     """At most one message per window for this pipeline."""
 
+    on_change: bool = False
+    """Raise only for a run whose outcome differs from the outcome of this pipeline's previous settled run."""
+
     active: bool = True
+
+    @model_validator(mode="after")
+    def _check_on_change(self) -> Self:
+        """Refuse to compare outcomes for an event a run raises before it has settled."""
+        if self.on_change and self.event not in SETTLED_ALERT_EVENTS:
+            raise ValueError(ON_CHANGE_UNSETTLED.render(event=self.event.value))
+        return self
 
     @field_validator("template", "body")
     @classmethod

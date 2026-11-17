@@ -567,6 +567,23 @@ def test_a_rule_delivers_through_the_notifier_its_connections_kind_names(client:
     assert listed[0]["paused"] is False
 
 
+def test_a_rule_on_change_is_declared_and_listed_as_one(client: TestClient) -> None:
+    declared = client.post(
+        f"{PREFIX}/alert-rules", json={"code": "first-failure", "event": "run_failed", "on_change": True}
+    )
+    assert declared.status_code == 201
+    assert declared.json()["on_change"] is True
+    assert client.get(f"{PREFIX}/alert-rules").json()["items"][0]["on_change"] is True
+
+
+def test_a_rule_on_change_for_a_stuck_run_is_refused_by_code(client: TestClient) -> None:
+    refused = client.post(
+        f"{PREFIX}/alert-rules", json={"code": "stuck-change", "event": "run_stuck", "on_change": True}
+    )
+    assert refused.status_code == 422
+    assert refused.json()["code"] == "alert.on_change_unsettled"
+
+
 ALERTED = """
 format: dirigent/v1
 kind: pipeline

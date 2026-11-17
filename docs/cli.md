@@ -1127,7 +1127,7 @@ verb and whose fields are the identity of what changed:
 | `source.token_rotated` | `dg source rotate-token` | `code`, `pipeline`, the `url` to call, its `auth` and, for a signed source, the signature `header`, and the new `token` or signing secret, once |
 | `source.secret_set` | `dg source set-secret` | `code`, `pipeline`, and the `fingerprint` of the secret it now holds, a short hash keyed by the instance and none of the secret |
 | `source.called` | `dg source call` | `code`, `pipeline`, `method`, `url`, and the `status` and `body` it was answered with |
-| `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, and `template` and `body` as booleans saying whether the rule carries one |
+| `alert_rule.created` / `.paused` / `.resumed` / `.deleted` | `dg alerts rules …` | `code`, `event`, the `notifier` the target resolved to, and a new one's `scope`, `connection`, `throttle`, `on_change`, and `template` and `body` as booleans saying whether the rule carries one |
 | `alert_rule.warning` | `dg alerts rules create` | One per name the rule's `template` or `body` reads that an alert is never given: the `rule`, the `location` (`template` or `body`), the `issue` code `alert.template_name_unknown`, and its `params` |
 | `notification.queued` | `dg alerts test` | `notification_id`, `notifier`, `connection`, `subject` |
 | `notification.retried` | `dg alerts retry` | `notification_id`, `notifier`, `subject`, `attempt`, `available_at` |
@@ -1364,7 +1364,7 @@ dg alerts rules list | pause | resume | delete CODE
 dg alerts rules create CODE --event run_failed
                             [--name TEXT] [--description TEXT]
                             [--pipeline P] [--importance routine|normal|critical]
-                            [--connection C] [--throttle 0s]
+                            [--connection C] [--throttle 0s] [--on-change]
                             [--template T] [--body T | --body-file F]
 dg alerts test [--connection CODE] [--subject TEXT]
 dg alerts queue
@@ -1700,6 +1700,8 @@ dg alerts rules create loud --event run_failed \
   --template '{{ pipeline.code }} failed after {{ run.duration_ms | duration }}' \
   --body-file alert-body.md.j2
 dg alerts rules create wake-me --event run_failed --importance critical
+dg alerts rules create first-failure --event run_failed --on-change   # once per outage
+dg alerts rules create all-clear --event run_recovered                # and when it ends
 dg alerts test                              # one message to the log, through the real queue
 dg alerts test --connection ops-slack       # the same message, through slack
 dg alerts queue                             # what is queued, sent, or stuck

@@ -22,6 +22,7 @@ from dirigent_client.enums import (
     LogLevel,
     NotificationEvent,
     NotificationStatus,
+    RunItemStatus,
     RunStatus,
     TriggerKind,
     WorkerStatus,
@@ -66,7 +67,17 @@ from dirigent_core.engine.definition import PipelineDefinition, RetryPolicy, Ste
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.runs import create_run, save_pipeline
 from dirigent_core.ids import uuid7
-from dirigent_core.models import AlertRule, AuditEntry, Connection, LogEntry, Notification, Pipeline, Run, StepAttempt
+from dirigent_core.models import (
+    AlertRule,
+    AuditEntry,
+    Connection,
+    LogEntry,
+    Notification,
+    Pipeline,
+    Run,
+    RunItem,
+    StepAttempt,
+)
 from dirigent_core.models import Worker as WorkerRow
 from dirigent_core.plugins import PluginHost
 from dirigent_plugin import AlertMessage, Contribution, Notifier
@@ -1044,6 +1055,185 @@ async def test_a_sweep_with_nothing_stuck_queues_nothing(
     await declare(sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_STUCK, connection=DESK))
     async with session_scope(sessions) as session:
         assert await raise_for_stuck(session, services, [], now=NOW) == 0
+
+
+# -- on change, and the recovery ----------------------------------------------------
+
+
+async def settle(
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    status: RunStatus,
+    *,
+    failed_items: tuple[str, ...] = (),
+) -> tuple[Run, list[NotificationEvent]]:
+    """Settle one more run of the pipeline as a worker's outcome would, and name what it raised."""
+    run = await stored_run(sessions, services, status=status)
+    async with session_scope(sessions) as session:
+        for index, key in enumerate(failed_items):
+            session.add(
+                RunItem(
+                    run_id=run.id,
+                    step_name="spread",
+                    item_index=index,
+                    item_key=key,
+                    status=RunItemStatus.FAILED,
+                )
+            )
+        await session.flush()
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        queued = await raise_for_status(session, services, stored, status, now=NOW)
+    return run, [notification.event for notification in queued]
+
+
+async def test_a_rule_on_change_speaks_for_the_first_failure_and_not_again_while_it_lasts(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, on_change=True),
+    )
+    assert (await settle(sessions, services, RunStatus.SUCCEEDED))[1] == []
+    assert (await settle(sessions, services, RunStatus.FAILED))[1] == [NotificationEvent.RUN_FAILED]
+    quiet, raised = await settle(sessions, services, RunStatus.FAILED)
+    assert raised == []
+    said = [entry.message for entry in await entries_of(sessions, quiet.id)]
+    assert said == ["alert 'page-ops' not raised: the outcome is the same as the previous settled run's"]
+
+
+async def test_a_rule_not_on_change_speaks_for_every_failure(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(sessions, services, AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK))
+    for _ in range(2):
+        assert (await settle(sessions, services, RunStatus.FAILED))[1] == [NotificationEvent.RUN_FAILED]
+
+
+async def test_a_pipelines_first_settled_run_is_a_change(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_FAILED, connection=DESK, on_change=True),
+    )
+    assert (await settle(sessions, services, RunStatus.FAILED))[1] == [NotificationEvent.RUN_FAILED]
+
+
+async def test_a_fan_out_failing_on_other_elements_is_a_changed_outcome(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """One target down for a week must not hide a second one going down."""
+    await declare(
+        sessions,
+        services,
+        AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_COMPLETED_WITH_ERRORS, connection=DESK, on_change=True),
+    )
+    errors = RunStatus.COMPLETED_WITH_ERRORS
+    assert (await settle(sessions, services, errors, failed_items=("alpha",)))[1] == [
+        NotificationEvent.RUN_COMPLETED_WITH_ERRORS
+    ]
+    assert (await settle(sessions, services, errors, failed_items=("alpha",)))[1] == []
+    assert (await settle(sessions, services, errors, failed_items=("alpha", "beta")))[1] == [
+        NotificationEvent.RUN_COMPLETED_WITH_ERRORS
+    ]
+    assert (await settle(sessions, services, errors, failed_items=("beta", "alpha")))[1] == []
+
+
+async def test_a_run_that_succeeds_after_one_that_did_not_raises_its_recovery(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(
+        sessions, services, AlertRuleRequest(code="all-clear", event=AlertEvent.RUN_RECOVERED, connection=DESK)
+    )
+    assert (await settle(sessions, services, RunStatus.SUCCEEDED))[1] == [], "a first success recovers from nothing"
+    assert (await settle(sessions, services, RunStatus.COMPLETED_WITH_ERRORS))[1] == []
+    assert (await settle(sessions, services, RunStatus.SUCCEEDED))[1] == [NotificationEvent.RUN_RECOVERED]
+    assert (await settle(sessions, services, RunStatus.SUCCEEDED))[1] == []
+
+
+async def test_a_cancelled_run_leaves_the_outcome_a_recovery_is_measured_from(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(
+        sessions, services, AlertRuleRequest(code="all-clear", event=AlertEvent.RUN_RECOVERED, connection=DESK)
+    )
+    await settle(sessions, services, RunStatus.FAILED)
+    await settle(sessions, services, RunStatus.CANCELLED)
+    assert (await settle(sessions, services, RunStatus.SUCCEEDED))[1] == [NotificationEvent.RUN_RECOVERED]
+
+
+async def test_a_recovery_says_so_and_names_how_the_previous_run_ended(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(
+        sessions, services, AlertRuleRequest(code="all-clear", event=AlertEvent.RUN_RECOVERED, connection=DESK)
+    )
+    await settle(sessions, services, RunStatus.FAILED)
+    await settle(sessions, services, RunStatus.SUCCEEDED)
+    (sent,) = await deliver(sessions, services)
+    assert sent.subject == "nightly run recovered"
+    assert sent.body.splitlines()[0] == "Recovered: the previous run failed."
+    assert (sent.context["event"], sent.context["previous_status"]) == ("run_recovered", "failed")
+
+
+async def test_a_run_settling_again_after_a_retry_is_compared_with_its_own_failure(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await declare(
+        sessions, services, AlertRuleRequest(code="all-clear", event=AlertEvent.RUN_RECOVERED, connection=DESK)
+    )
+    run, _ = await settle(sessions, services, RunStatus.FAILED)
+    async with session_scope(sessions) as session:
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        stored.status = RunStatus.SUCCEEDED
+        queued = await raise_for_status(session, services, stored, RunStatus.SUCCEEDED, now=NOW)
+    assert [notification.event for notification in queued] == [NotificationEvent.RUN_RECOVERED]
+
+
+async def test_a_step_is_read_by_its_newest_attempt_so_a_retry_that_succeeded_is_no_failure(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    run = await stored_run(sessions, services, status=RunStatus.SUCCEEDED)
+    async with session_scope(sessions) as session:
+        (first,) = (await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run.id))).scalars()
+        first.status = AttemptStatus.FAILED
+        await session.flush()
+        stored = await session.get(Run, run.id)
+        assert stored is not None
+        failed = await alerting.failures_of(session, stored)
+        session.add(
+            StepAttempt(
+                run_id=run.id,
+                step_name=first.step_name,
+                block_id=first.block_id,
+                attempt=2,
+                status=AttemptStatus.SUCCEEDED,
+            )
+        )
+        await session.flush()
+        retried = await alerting.failures_of(session, stored)
+    nothing = await settle(sessions, services, RunStatus.SUCCEEDED)
+    async with sessions() as session:
+        clean = await session.get(Run, nothing[0].id)
+        assert clean is not None
+        assert retried == await alerting.failures_of(session, clean)
+    assert failed != retried
+
+
+async def test_a_rule_on_change_for_a_stuck_run_is_refused(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    with pytest.raises(AlertError, match="has not settled") as refused:
+        await declare(
+            sessions,
+            services,
+            AlertRuleRequest(code="page-ops", event=AlertEvent.RUN_STUCK, connection=DESK, on_change=True),
+        )
+    assert refused.value.code == "alert.on_change_unsettled"
 
 
 # -- what a rule says --------------------------------------------------------------
