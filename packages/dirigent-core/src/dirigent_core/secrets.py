@@ -8,7 +8,7 @@ encrypt it. Only those fields go into the envelope; the rest stay queryable JSON
 import hashlib
 import hmac
 import json
-from typing import Any, Final
+from typing import Annotated, Any, Final, get_args, get_origin
 
 from cryptography.fernet import Fernet, InvalidToken
 from pydantic import BaseModel, SecretStr, ValidationError
@@ -148,11 +148,12 @@ def secret_fields(model: type[BaseModel]) -> list[str]:
 
 
 def _is_secret(annotation: object) -> bool:
-    """Report whether an annotation is SecretStr, including as an optional or a union member."""
+    """Report whether an annotation is SecretStr, however it is wrapped in ``Annotated``, an optional or a union."""
     if annotation is SecretStr:
         return True
-    arguments = getattr(annotation, "__args__", ())
-    return any(argument is SecretStr for argument in arguments)
+    if get_origin(annotation) is Annotated:
+        return _is_secret(get_args(annotation)[0])
+    return any(_is_secret(argument) for argument in get_args(annotation))
 
 
 def split_secrets(model: type[BaseModel], config: JsonMap) -> tuple[JsonMap, JsonMap]:

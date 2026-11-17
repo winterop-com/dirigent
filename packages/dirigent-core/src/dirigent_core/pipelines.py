@@ -5,10 +5,11 @@ writes no new version.
 """
 
 from collections.abc import Sequence
-from typing import Final, NamedTuple
+from typing import Final
 from uuid import UUID
 
 import sqlalchemy as sa
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
@@ -541,8 +542,10 @@ async def delete_pipeline(session: AsyncSession, services: EngineServices, code:
 UNWELL = (RunStatus.FAILED, RunStatus.COMPLETED_WITH_ERRORS)
 
 
-class PipelineCounts(NamedTuple):
+class PipelineCounts(BaseModel):
     """What a pipeline row is worth counting: its runs in flight, and what fires it."""
+
+    model_config = ConfigDict(frozen=True)
 
     active_runs: int = 0
     schedules: int = 0
@@ -565,7 +568,7 @@ async def listing_counts(session: AsyncSession, pipeline_ids: Sequence[UUID]) ->
         _count_of(Schedule, Schedule.pipeline_id).label("schedules"),
     ).where(Pipeline.id.in_(pipeline_ids))
     rows = await session.execute(counted)
-    return {row.id: PipelineCounts(row.active_runs, row.schedules) for row in rows.all()}
+    return {row.id: PipelineCounts(active_runs=row.active_runs, schedules=row.schedules) for row in rows.all()}
 
 
 def _count_of(
@@ -630,8 +633,10 @@ async def listing_shapes(session: AsyncSession, pipeline_ids: Sequence[UUID]) ->
     }
 
 
-class FailedStep(NamedTuple):
+class FailedStep(BaseModel):
     """A run's first failed attempt, as a listing names it: which step, and what it said."""
+
+    model_config = ConfigDict(frozen=True)
 
     step: str
     error: str | None
@@ -664,4 +669,7 @@ async def failing_steps(session: AsyncSession, run_ids: Sequence[UUID]) -> dict[
             ranked.c.run_id, ranked.c.step_name, ranked.c.error, ranked.c.error_code, ranked.c.error_params
         ).where(ranked.c.rank == 1)
     )
-    return {run_id: FailedStep(step, error, code, params) for run_id, step, error, code, params in rows.all()}
+    return {
+        run_id: FailedStep(step=step, error=error, code=code, params=params)
+        for run_id, step, error, code, params in rows.all()
+    }

@@ -196,6 +196,18 @@ async def test_an_unknown_expired_or_revoked_token_resolves_to_nothing(
         assert await revoke_token(session, live.id) is False
 
 
+async def test_a_zero_lifetime_token_expires_rather_than_living_forever(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    async with session_scope(sessions) as session:
+        user = await create_user(session, "morten", PASSWORD, role=UserRole.ADMIN)
+        issued = await issue_token(session, user, name="instant", lifetime=timedelta(0))
+    async with session_scope(sessions) as session:
+        assert (
+            await resolve_token(session, issued.secret.get_secret_value(), now=utcnow() + timedelta(seconds=1)) is None
+        )
+
+
 async def test_a_token_of_a_deactivated_user_stops_working(
     sessions: async_sessionmaker[AsyncSession],
 ) -> None:

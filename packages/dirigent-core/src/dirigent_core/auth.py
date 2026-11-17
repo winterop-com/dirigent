@@ -438,7 +438,7 @@ async def issue_token(
 ) -> IssuedToken:
     """Mint a credential for an account and store only its hash."""
     secret = mint_secret()
-    expires_at = utcnow() + lifetime if lifetime else None
+    expires_at = utcnow() + lifetime if lifetime is not None else None
     row = ApiToken(
         user_id=user.id,
         name=name,
