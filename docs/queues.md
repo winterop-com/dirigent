@@ -58,6 +58,28 @@ the broker's state and this instance's database to move in one transaction, and 
 give that across a boundary we do not own. So the contract says at-least-once, and a pipeline
 that must not act twice on one message makes its own step idempotent.
 
+## A batch is settled with the broker only once it is stored
+
+A poke that succeeds does not acknowledge its batch. It hands the engine the batch and leaves
+the broker owed an answer: under `ack: on_success` a `rabbitmq.consume` batch stays
+unacknowledged on the channel it was received on, and a `kafka.consume` with a `group_id`
+leaves the group's offsets where they were. The engine settles the batch -- acks it, or commits
+the offsets -- only after the transaction that stores the step's output has committed, or, under
+a `sensor` source, after the transaction that starts the run.
+
+Anything that keeps the batch from being stored hands it back instead: an output too large for
+the run's storage quota or nested too deep to store, a lost lease, a run cancelled under the
+poke, a failed commit, or a worker that dies before it settles. The RabbitMQ batch is nacked
+back onto the queue (or requeued by the broker when the connection drops), and the Kafka group
+is not moved, so the next poke, the step's retry, or a manual retry reads the same messages
+again. A retry, automatic or manual, starts from the cursor the failed attempt stood at, so
+a `kafka.consume` without a group reads the same offsets rather than seeking past them.
+
+**A batch may therefore be delivered more than once, and never fewer.** The output is stored
+before the broker is told, so an ack or a commit that fails after the store, or a worker that
+dies between the two, leaves a stored batch that the broker delivers again. A step that must not
+act twice on one message makes itself idempotent, by key or by offset.
+
 ## The `kafka` connection kind
 
 A step names a connection and never a broker address, whichever direction it reads or writes in.
@@ -125,16 +147,25 @@ answers the question. A first poke that read
 nothing still writes down the place it began, so a message arriving between two pokes is read
 by the second rather than seeked past.
 
+`latest` is a place nothing remembers, so a batch is never taken from it directly. A first
+poke under `latest` without a group writes down where the topic ends and parks, and the next
+poke reads from that stored place. With a group that has not committed on the topic yet, a poke
+that found a batch parks with the offsets the batch began at instead of succeeding. Either way
+a retry of a batch that was not stored finds the same messages again. A poke under `earliest`,
+or with a group that has committed, starts from a place a retry finds again, and succeeds at
+once.
+
 `group_id` is the one real choice.
 
 **Left unset**, the sensor tracks offsets itself and commits nothing to the broker. The offsets
 live on the waiting attempt, and under a `sensor` source on the source, so two pipelines reading one topic
 each see every message, and a topic can be read without arranging anything on the cluster.
 
-**Set**, the broker keeps the group's offsets too, and the commit happens in the poke that
-*succeeds* -- never in one that parks. A batch too small to act on is therefore read again by
-the next poke rather than committed away, and the cursor still carries the offsets the batch
-covers so a replay reads the same ground rather than skipping it. A poke that parks leaves its
+**Set**, the broker keeps the group's offsets too, and they are committed only once the engine
+has *stored* a success -- never by a poke that parks, and never for a success that was refused or
+lost before it was stored. A batch too small to act on, or one the step could not keep, is
+therefore read again rather than committed away, and the cursor still carries the offsets the
+batch covers so a replay reads the same ground rather than skipping it. A poke that parks leaves its
 place in the cursor as well, so the next poke reads on from there instead of rejoining the
 group at the last commit: the group is where an attempt's offsets end up, not how it holds
 them while it waits.
@@ -151,7 +182,8 @@ read per partition, one past the last message taken.
 [`sensor` source](concepts.md#source-and-reply) naming `kafka.consume` pokes it outside any run,
 and each batch it takes becomes one run, the next wait reading on from the offsets that batch
 ended at, without a gap and without a consumer group. A `group_id` set beside it still commits
-what each batch took; the source's cursor is what the next wait reads from. The usual way to
+what each batch took, once the run that batch became is committed; the source's cursor is what
+the next wait reads from. The usual way to
 make a topic a pipeline's entrance is the held `kafka` source, which keeps a consumer open and
 makes each message its own run:
 [`examples/queues/kafka-source-then-transform.yaml`](https://github.com/winterop-com/dirigent/tree/main/packages/dirigent-examples/src/dirigent_examples/shelves/queues/kafka-source-then-transform.yaml).
@@ -210,13 +242,16 @@ RabbitMQ, unlike Kafka, keeps its own place: a message is held unacknowledged un
 or nacked. So the sensor's decision is not *where to read* but *when to acknowledge*, and `ack`
 is that decision.
 
-`ack: on_success` is the default, and is the safe one. Messages are acked only in the poke that
-succeeds, and only once every body in the batch has been read. A poke that parks -- because
-fewer than `min_messages` were there -- nacks everything it took back onto the queue with
-`requeue`, and so does a poke that finds a body it cannot read, so one malformed message does
-not take the sound ones beside it off the queue. Nothing is lost and another consumer may take
-it instead. The cost is that a message may be delivered more than once, which is the same
-at-least-once bargain the cursor makes.
+`ack: on_success` is the default, and is the safe one. A batch is acked only once every body in
+it has been read and the engine has stored the success carrying it, on the channel it was
+received on. A poke that parks -- because fewer than `min_messages` were there -- nacks
+everything it took back onto the queue with `requeue`, and so does a poke that finds a body it
+cannot read, so one malformed message does not take the sound ones beside it off the queue. A
+success the engine refuses or loses before storing it is nacked back the same way. No message
+is acked without its batch stored, and another consumer may take a message handed back. The
+cost is that a message may be delivered more than once: an ack that fails after the store
+leaves a stored batch on the queue, and it arrives again. That is the same at-least-once
+bargain the cursor makes.
 
 `ack: always` acknowledges every message the moment it is taken, before any of them is read,
 park or no park. It suits a queue nothing else reads and a step that would rather drop a partial

@@ -6,11 +6,13 @@ there is enough, handing the batch downstream as its output.
 
 Unlike a Kafka topic, a RabbitMQ queue keeps its own place: a message is held unacknowledged
 until it is acked or nacked, so the broker rather than the cursor is the bookkeeping. What the
-sensor decides is *when* to acknowledge, and the default is ``on_success``: a poke that parks,
-or that cannot read one of the bodies it took, nacks everything back onto the queue with
-``requeue``, so a batch too small to act on is left for the next poke or another consumer
-rather than swallowed. The cursor here carries nothing the sensor needs, only what a reader
-wants -- how many messages have gone past and the last delivery tag seen.
+sensor decides is *when* to acknowledge, and the default is ``on_success``: the batch is acked
+only once the engine has stored the success carrying it, on the channel it was received on. A
+poke that parks, one that cannot read one of the bodies it took, and a success the engine
+refused or lost before storing it all nack everything back onto the queue with ``requeue``, so
+a batch is left for the next poke or another consumer rather than swallowed. The cursor here
+carries nothing the sensor needs, only what a reader wants -- how many messages have gone past
+and the last delivery tag seen.
 
 ``rabbitmq.publish`` goes the other way, and is the sink an upstream step hands a value to: it
 puts one message on an exchange, or on the default exchange where a routing key is a queue name.
@@ -54,7 +56,9 @@ from dirigent_plugin import (
     Reference,
     Sensor,
     SensorSpec,
+    Settlement,
     StepContext,
+    Taken,
 )
 
 #: What a string body is sent as when the step names no content type.
@@ -232,10 +236,12 @@ class RabbitConsumeConfig(BlockModel):
     ack: Literal["on_success", "always"] = "on_success"
     """When a message is acknowledged.
 
-    ``on_success`` acknowledges only in the poke that succeeds, once every body in the batch has
-    been read. A poke that parks, or that finds a body it cannot read, nacks what it took back
-    onto the queue with ``requeue``, so nothing is lost to a batch that was too small or to one
-    unreadable message beside sound ones, and another consumer may take it instead. ``always``
+    ``on_success`` acknowledges a batch only once the engine has stored the success carrying it.
+    A poke that parks, one that finds a body it cannot read, and a success that was refused or
+    lost before it was stored all nack what was taken back onto the queue with ``requeue``, so
+    nothing is lost to a batch that was too small, to one unreadable message beside sound ones,
+    or to a failure after the poke; another consumer may take it instead. A batch may be
+    delivered twice, when the ack after a stored success does not reach the broker. ``always``
     acknowledges every message the moment it is taken, before any of them is read, which suits a
     queue nothing else reads and a step that would rather drop a partial or unreadable batch
     than see it twice."""
@@ -294,13 +300,20 @@ class RabbitConsumeSensor(Sensor[RabbitConsumeConfig, RabbitConsumeOutput]):
     config_model: ClassVar[type[BaseModel]] = RabbitConsumeConfig
     output_model: ClassVar[type[BaseModel]] = RabbitConsumeOutput
 
-    async def poke(self, config: RabbitConsumeConfig, ctx: StepContext) -> RabbitConsumeOutput | NotYet:
-        """Take what is on the queue, and either succeed on it or hand it back."""
+    async def poke(
+        self, config: RabbitConsumeConfig, ctx: StepContext
+    ) -> RabbitConsumeOutput | NotYet | Taken[RabbitConsumeOutput]:
+        """Take what is on the queue, and either succeed on it or hand it back.
+
+        Under ``on_success`` the connection stays open for the settlement, which acks the batch
+        on the channel it was received on once the engine has stored it.
+        """
         settings = ctx.connection(config.connection, RabbitConnectionConfig)
         try:
             connection = await connect(settings)
         except Exception as error:
             raise BlockFailure(RABBIT_CONNECTION_REFUSED, error_class=classify(error), detail=str(error)) from error
+        handed = False
         try:
             queue = await _queue(connection, config)
             taken = await _drain(queue, config)
@@ -325,11 +338,12 @@ class RabbitConsumeSensor(Sensor[RabbitConsumeConfig, RabbitConsumeOutput]):
                     message=f"{len(taken)} of {config.min_messages} messages",
                 )
             messages = await _decoded(taken, config)
-            if config.ack == "on_success":
-                for delivery in taken:
-                    await delivery.ack()
             ctx.log.info("consumed", queue=config.queue, count=len(messages), ack=config.ack)
-            return RabbitConsumeOutput(messages=messages, count=len(messages))
+            output = RabbitConsumeOutput(messages=messages, count=len(messages))
+            if config.ack == "always":
+                return output
+            handed = True
+            return Taken(output, Acknowledgement(connection, taken))
         except BlockFailure:
             raise
         except Exception as error:
@@ -337,11 +351,37 @@ class RabbitConsumeSensor(Sensor[RabbitConsumeConfig, RabbitConsumeOutput]):
                 RABBIT_READ_FAILED, error_class=classify(error), queue=repr(config.queue), detail=str(error)
             ) from error
         finally:
-            await connection.close()
+            if not handed:
+                await connection.close()
 
     def classify_error(self, error: Exception) -> ErrorClass:
         """A broker that could not be reached is transient; one that said no is not."""
         return classify(error)
+
+
+class Acknowledgement(Settlement):
+    """A stored batch's acks, sent on the channel that received it."""
+
+    def __init__(self, connection: Connection, taken: list[Delivery]) -> None:
+        """Hold the open connection and the deliveries it still owes the broker an answer for."""
+        self._connection = connection
+        self._taken = taken
+
+    async def settle(self) -> None:
+        """Ack every delivery of the batch, then close the connection."""
+        try:
+            for delivery in self._taken:
+                await delivery.ack()
+        finally:
+            await self._connection.close()
+
+    async def release(self) -> None:
+        """Nack every delivery back onto the queue, then close the connection."""
+        try:
+            for delivery in self._taken:
+                await delivery.nack(requeue=True)
+        finally:
+            await self._connection.close()
 
 
 async def _queue(connection: Connection, config: RabbitConsumeConfig) -> Queue:

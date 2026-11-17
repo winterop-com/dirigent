@@ -337,6 +337,46 @@ def resume_cursor(self, output: QueueDepthOutput) -> JsonMap | None:
     return {"offset": output.messages[-1].offset + 1} if output.messages else None
 ```
 
+### A sensor that takes messages settles them after the engine stores them
+
+A sensor that takes messages off a broker must not acknowledge them in the poke: the engine
+can still refuse or lose the success afterwards, and an acknowledged batch nothing stored is
+gone. Such a poke answers its success with `Taken(output, settlement)`. The `Settlement` holds
+whatever the acknowledgement needs -- the open channel the batch arrived on, the consumer that
+commits its offsets -- and the engine calls exactly one of its two methods, once, on the worker
+and the event loop that made the poke: `settle()` after the transaction that stores the output
+has committed (under a `sensor` source, the one that starts the run), or `release()` when
+nothing stored it. Each closes what it was handed. A settle that fails is logged and the success
+stands, so the broker delivers the batch again: the read is at-least-once.
+
+```python
+class Acknowledgement(Settlement):
+    def __init__(self, connection: Connection, taken: list[Delivery]) -> None:
+        self._connection = connection
+        self._taken = taken
+
+    async def settle(self) -> None:
+        try:
+            for delivery in self._taken:
+                await delivery.ack()
+        finally:
+            await self._connection.close()
+
+    async def release(self) -> None:
+        try:
+            for delivery in self._taken:
+                await delivery.nack(requeue=True)
+        finally:
+            await self._connection.close()
+```
+
+The poke returns `Taken(QueueOutput(...), Acknowledgement(connection, taken))` and leaves the
+connection open; on every other way out it closes the connection itself. A retry of a step,
+automatic or manual, starts from the cursor the failed attempt stood at, so a sensor that keeps
+its place in the cursor reads a batch nothing stored again. `call_block` from
+`dirigent-testing` settles a `Taken` the way the engine does after a stored success and returns
+its output; a test of the release path calls `poke` itself.
+
 ## A formatter is a second extension point
 
 `dg format` renders a stream, and the formatter it dispatches on is contributed through a

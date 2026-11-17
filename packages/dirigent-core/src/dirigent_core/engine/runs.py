@@ -922,6 +922,7 @@ async def retry_step(
         available_at=moment,
         idempotency_key=scoped,
         input={IDEMPOTENCY_KEY: idempotency_key},
+        poke_cursor=latest.poke_cursor,
     )
     session.add(retried)
     await _reopen_propagated_skips(session, run.id)

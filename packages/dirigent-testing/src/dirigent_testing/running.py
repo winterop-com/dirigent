@@ -1,13 +1,13 @@
 """Making one block call from a test, through the validation the engine puts in front of it."""
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 from jsonschema import FormatChecker
 from pydantic import BaseModel
 
 from dirigent_common.formats import base_format_checker
-from dirigent_plugin import AnyOperator, AnySensor, Logger, NotYet, Operator, StepContext
+from dirigent_plugin import AnyOperator, AnySensor, Logger, NotYet, Operator, StepContext, Taken
 from dirigent_plugin.sources import Ignore, InboundRequest, ReceivedSource, Refusal
 from dirigent_testing.doubles import FakeContext, RecordingLogger
 
@@ -21,13 +21,20 @@ async def call_block(
 
     An operator's execute or a sensor's poke, with the validated config -- so a test
     exercises the same validation path a real run does, and a config the schema refuses
-    fails here rather than silently succeeding with defaults.
+    fails here rather than silently succeeding with defaults. A poke that answers
+    :class:`Taken` is settled, as the engine settles it once the output is stored, and its
+    output is returned; a test of the release path calls ``poke`` itself.
     """
     context = ctx.as_context() if isinstance(ctx, FakeContext) else ctx
     validated = block.config_model.model_validate(config)
     if isinstance(block, Operator):
         return await block.execute(validated, context)
-    return await block.poke(validated, context)
+    answer = await block.poke(validated, context)
+    if isinstance(answer, Taken):
+        await answer.settlement.settle()
+        taken = cast("Taken[BaseModel]", answer)
+        return taken.output
+    return answer
 
 
 def carry_cursor(sensor: AnySensor, answer: BaseModel, ctx: FakeContext) -> None:

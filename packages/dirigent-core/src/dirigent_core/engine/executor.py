@@ -16,7 +16,7 @@ from typing import Any, cast
 from uuid import UUID
 
 import sqlalchemy as sa
-from pydantic import BaseModel, ConfigDict, JsonValue, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptKind, AttemptStatus, LogLevel, RunStatus
@@ -82,6 +82,7 @@ from dirigent_core.engine.runs import (
     promote_queued_run,
 )
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.engine.settlement import conclude
 from dirigent_core.engine.state import advance, lock_run, mark_started
 from dirigent_core.ids import uuid7
 from dirigent_core.logging import get_logger, log_context
@@ -122,6 +123,8 @@ from dirigent_plugin import (
     NotYet,
     ProbeStatus,
     RemoteHandle,
+    Settlement,
+    Taken,
     media_fields,
     published_config_schema,
     shell_string_fields,
@@ -148,11 +151,14 @@ _steps = get_logger("engine.steps")
 class Produced(BaseModel):
     """The block finished and produced its output."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     output: JsonMap
     fetched: bool = False
     """True when a fetch returned this output and nothing has committed it yet."""
+
+    settlement: Settlement | None = Field(default=None, exclude=True)
+    """What a sensor owes its broker for this output, settled only once the output is stored."""
 
 
 class Submitted(BaseModel):
@@ -523,14 +529,16 @@ class Engine:
             )
             logger.secrets = secrets
             meter = StorageMeter(self.sessions, unit.run_id, self.services.settings.run_storage_quota)
+            stored = False
+            called: CallResult | None = None
             try:
                 context = self._context(unit, logger, meter)
                 started = time.monotonic()
                 stop = asyncio.Event()
                 flusher = asyncio.create_task(self._flush_while_running(logger, stop))
                 try:
-                    called = _bounded(await self._call_block(unit, context))
-                    result = await self._counted(await _without_secrets(called, logger.secrets), meter)
+                    called = await self._call_block(unit, context)
+                    result = await self._counted(await _without_secrets(_bounded(called), logger.secrets), meter)
                 finally:
                     stop.set()
                     with contextlib.suppress(asyncio.CancelledError):
@@ -546,7 +554,7 @@ class Engine:
                     await self.record_handle(unit, result.handle)
                 if isinstance(result, Produced) and result.fetched:
                     await self._record_fetched(unit, result.output)
-                await self._record(
+                stored = await self._record(
                     unit,
                     result,
                     logger,
@@ -558,6 +566,8 @@ class Engine:
                 telemetry.record_failure(span, error, logger.secrets)
                 raise
             finally:
+                if isinstance(called, Produced):
+                    await conclude(called.settlement, stored=stored, block=unit.block_id)
                 await meter.settle()
 
     async def _counted(self, result: CallResult, meter: StorageMeter) -> CallResult:
@@ -822,13 +832,13 @@ class Engine:
         *,
         storage: AttemptStorage,
         seconds: float | None = None,
-    ) -> None:
-        """Record an outcome and everything it implies, in one transaction."""
+    ) -> bool:
+        """Record an outcome and everything it implies, in one transaction, and say whether it stored an output."""
         # Drained here rather than inside: draining empties the buffer, and a transaction the
         # database aborted to break a deadlock is run again with the same entries.
         entries = logger.drain()
         logged = logger.recorded > 0
-        await with_deadlock_retry(
+        return await with_deadlock_retry(
             lambda: self._record_once(unit, result, entries, now, storage=storage, seconds=seconds, logged=logged)
         )
 
@@ -842,12 +852,16 @@ class Engine:
         storage: AttemptStorage,
         seconds: float | None = None,
         logged: bool = False,
-    ) -> None:
-        """Run the outcome transaction once; the caller runs it again after a deadlock."""
+    ) -> bool:
+        """Run the outcome transaction once; the caller runs it again after a deadlock.
+
+        True means it committed with the output stored on the attempt.
+        """
+        succeeded = False
         async with session_scope(self.sessions) as session:
             run = await session.get(Run, unit.run_id)
             if run is None:  # pragma: no cover - foreign keys prevent this
-                return
+                return False
             # Take the run's lock before anything reads or writes: an outcome transaction
             # that inserted a log row first would hold a share lock on the run and then have
             # to upgrade it, which is how two workers finishing at once deadlock. The lock
@@ -856,26 +870,27 @@ class Engine:
             await lock_run(session, run.id)
             attempt = await session.get(StepAttempt, unit.attempt_id)
             if attempt is None:  # pragma: no cover - foreign keys prevent this
-                return
+                return False
             if not self._holds_lease(unit, attempt):
                 self._log_lost_lease(unit, attempt, "attempt outcome")
-                return
+                return False
             if entries:
                 await session.execute(sa.insert(LogEntry), entries)
             if run.status is RunStatus.CANCELLED:
                 attempt.status = AttemptStatus.CANCELLED
                 attempt.finished_at = now
                 _release(attempt)
-                return
+                return False
             version = await session.get(PipelineVersion, run.pipeline_version_id)
             definition = load_definition(version.document) if version else None
             if definition is None:  # pragma: no cover - foreign keys prevent this
-                return
+                return False
 
             output_bytes: int | None = None
             match result:
                 case Produced(output=output):
                     output_bytes = await self._succeed(session, storage, attempt, output, now)
+                    succeeded = True
                 case Submitted(handle=handle, next_poll_in=interval):
                     _park(attempt, now, interval or probe_interval(self._poll_for(unit), 0))
                     attempt.remote_handle = handle.model_dump(mode="json")
@@ -899,6 +914,7 @@ class Engine:
             status = await self._advance(session, run, definition, now)
             telemetry.record_step(attempt.status.value, unit.block_id, seconds)
             _steps.info("attempt settled", status=attempt.status.value, run_status=status.value)
+        return succeeded
 
     async def _advance(
         self,
@@ -1126,6 +1142,7 @@ class Engine:
                 status=AttemptStatus.QUEUED,
                 available_at=now + delay,
                 deadline_at=attempt.deadline_at,
+                poke_cursor=attempt.poke_cursor,
             )
         )
         _steps.info(
@@ -1324,7 +1341,7 @@ def _note_waiting(session: AsyncSession, attempt: StepAttempt, message: str | No
     attempt.waiting_progress = progress
 
 
-def _read_poke(observed: BaseModel | NotYet) -> CallResult:
+def _read_poke(observed: BaseModel | NotYet | Taken[Any]) -> CallResult:
     """Turn a sensor's return value into an outcome; NotYet is not a failure."""
     if isinstance(observed, NotYet):
         return Waiting(
@@ -1333,6 +1350,8 @@ def _read_poke(observed: BaseModel | NotYet) -> CallResult:
             progress=observed.progress,
             cursor=observed.cursor,
         )
+    if isinstance(observed, Taken):
+        return Produced(output=observed.output.model_dump(mode="json"), settlement=observed.settlement)
     return Produced(output=observed.model_dump(mode="json"))
 
 

@@ -3,7 +3,7 @@
 import asyncio
 import base64
 from datetime import UTC, datetime, timedelta
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 import pytest
 from pydantic import SecretStr, ValidationError
@@ -20,7 +20,7 @@ from dirigent_block_queues.kafka import (
     classify,
     read_cursor,
 )
-from dirigent_plugin import BlockFailure, ErrorClass, NotYet
+from dirigent_plugin import BlockFailure, ErrorClass, NotYet, Taken
 from dirigent_testing import FakeContext, carry_cursor
 
 #: When every fake record says it was written.
@@ -78,7 +78,10 @@ class FakeConsumer:
         self.subscribed: list[str] = []
         self.positions: dict[int, int] = {}
         self.start_at = "latest"
-        self.commits = 0
+        self.commits: list[dict[int, int]] = []
+        self.group_offsets: dict[int, int] = {}
+        self.arriving: list[Record] = []
+        """Records that land on partition 0 while a fetch waits, after the poke took its place."""
         self.started = False
         self.stopped = False
         self.fail_on_start: Exception | None = None
@@ -107,12 +110,14 @@ class FakeConsumer:
         return set(self.assigned)
 
     def subscribe(self, topics: list[str]) -> None:
-        # Joining a group is what hands a subscriber its partitions and puts each one where
-        # auto_offset_reset says, which the client does inside the first fetch.
+        # Joining a group is what hands a subscriber its partitions and puts each one at the
+        # group's commit, or where auto_offset_reset says, which the client does inside the
+        # first fetch.
         self.subscribed = list(topics)
         self.assigned = [Partition("orders", number) for number in sorted(self.log)]
         for number, records in self.log.items():
-            self.positions[number] = len(records) if self.start_at == "latest" else 0
+            reset = len(records) if self.start_at == "latest" else 0
+            self.positions[number] = self.group_offsets.get(number, reset)
 
     def seek(self, partition: Any, offset: int) -> None:
         self.positions[partition.partition] = offset
@@ -129,6 +134,8 @@ class FakeConsumer:
         return self.positions.get(partition.partition, 0)
 
     async def getmany(self, *, timeout_ms: int, max_records: int) -> dict[Any, list[Any]]:
+        self.log[0].extend(self.arriving)
+        self.arriving = []
         fetched: dict[Any, list[Record]] = {}
         for number, records in self.log.items():
             at = self.positions.get(number, 0)
@@ -137,8 +144,16 @@ class FakeConsumer:
                 fetched[Partition("orders", number)] = taken
         return fetched
 
-    async def commit(self) -> None:
-        self.commits += 1
+    async def commit(self, offsets: dict[Any, int] | None = None) -> None:
+        if offsets is None:
+            moved = dict(self.positions)
+        else:
+            moved = {partition.partition: offset for partition, offset in offsets.items()}
+        self.commits.append(moved)
+        self.group_offsets.update(moved)
+
+    async def committed(self, partition: Any) -> int | None:
+        return self.group_offsets.get(partition.partition)
 
 
 @pytest.fixture
@@ -160,6 +175,12 @@ def connected(ctx: FakeContext) -> FakeContext:
     """Give the fake context the kafka connection every config below names."""
     ctx.connections["cluster"] = KafkaConnectionConfig(bootstrap_servers=["localhost:9092"])
     return ctx
+
+
+def taken(answer: object) -> Taken[KafkaConsumeOutput]:
+    """The success a group's poke answers with, still owing the group its commit."""
+    assert isinstance(answer, Taken)
+    return cast("Taken[KafkaConsumeOutput]", answer)
 
 
 def config(**overrides: Any) -> KafkaConsumeConfig:
@@ -241,7 +262,7 @@ async def test_a_message_arriving_between_two_pokes_is_read_by_the_second(
 
     output = await KafkaConsumeSensor().poke(config(), later.as_context())
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert [message.value for message in output.messages] == [{"id": 2}]
 
 
@@ -252,7 +273,7 @@ async def test_a_batch_at_the_minimum_succeeds_and_reports_where_it_ended(
 
     output = await KafkaConsumeSensor().poke(config(start="earliest"), connected(ctx).as_context())
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert output.count == 2
     assert [message.value for message in output.messages] == [{"id": 1}, {"id": 2}]
     assert output.cursor == {"0": 2}, "an offset is the next one to read"
@@ -276,7 +297,7 @@ async def test_a_poke_reads_on_from_the_cursor_it_was_handed(ctx: FakeContext, c
 
     output = await KafkaConsumeSensor().poke(config(), ready.as_context())
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert [message.offset for message in output.messages] == [1]
 
 
@@ -296,7 +317,7 @@ async def test_a_success_hands_a_watch_the_offsets_its_next_run_reads_on_from(
 
     assert batches == [[0, 1], [2, 3], [4, 5]]
     assert watched.cursor == {"offsets": {"0": 6}}
-    assert cluster.commits == 0
+    assert cluster.commits == []
 
 
 async def test_the_batch_never_runs_past_max_messages(ctx: FakeContext, cluster: FakeConsumer) -> None:
@@ -304,7 +325,7 @@ async def test_the_batch_never_runs_past_max_messages(ctx: FakeContext, cluster:
 
     output = await KafkaConsumeSensor().poke(config(start="earliest", max_messages=4), connected(ctx).as_context())
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert (output.count, output.cursor) == (4, {"0": 4})
 
 
@@ -330,7 +351,7 @@ async def test_a_key_is_base64_and_a_value_is_json_by_default(ctx: FakeContext, 
 
     output = await KafkaConsumeSensor().poke(config(start="earliest"), connected(ctx).as_context())
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     message = output.messages[0]
     assert message.key == base64.b64encode(b"\xff\xfe").decode()
     assert message.value == {"id": 1}
@@ -346,7 +367,7 @@ async def test_a_text_format_hands_the_bytes_over_as_a_string(ctx: FakeContext, 
         connected(ctx).as_context(),
     )
 
-    assert not isinstance(output, NotYet)
+    assert isinstance(output, KafkaConsumeOutput)
     assert (output.messages[0].key, output.messages[0].value) == ("k", "not json at all")
 
 
@@ -369,17 +390,72 @@ async def test_without_a_group_nothing_is_committed_to_the_broker(ctx: FakeConte
 
     await KafkaConsumeSensor().poke(config(start="earliest"), connected(ctx).as_context())
 
-    assert (cluster.commits, cluster.subscribed) == (0, [])
+    assert (cluster.commits, cluster.subscribed) == ([], [])
     assert cluster.assigned == [Partition("orders", 0)]
 
 
-async def test_a_group_commits_in_the_poke_that_succeeded(ctx: FakeContext, cluster: FakeConsumer) -> None:
+async def test_a_group_commits_only_once_the_success_is_settled(ctx: FakeContext, cluster: FakeConsumer) -> None:
+    cluster.log[0] = [Record(0, b"{}"), Record(1, b"{}")]
+
+    success = taken(
+        await KafkaConsumeSensor().poke(config(group_id="pickers", start="earliest"), connected(ctx).as_context())
+    )
+
+    assert (cluster.commits, cluster.subscribed, cluster.stopped) == ([], ["orders"], False)
+
+    await success.settlement.settle()
+
+    assert cluster.commits == [{0: 2}], "the group moves to one past the batch"
+    assert cluster.stopped
+
+
+async def test_a_group_success_nothing_stored_is_read_again_by_the_retry(
+    ctx: FakeContext, cluster: FakeConsumer
+) -> None:
+    cluster.log[0] = [Record(0, b'{"id": 1}'), Record(1, b'{"id": 2}')]
+    cluster.group_offsets = {0: 0}
+
+    success = taken(await KafkaConsumeSensor().poke(config(group_id="pickers"), connected(ctx).as_context()))
+    await success.settlement.release()
+
+    assert (cluster.commits, cluster.stopped) == ([], True)
+
+    again = taken(await KafkaConsumeSensor().poke(config(group_id="pickers"), connected(ctx).as_context()))
+
+    assert [message.offset for message in again.output.messages] == [0, 1]
+
+
+async def test_a_new_group_under_latest_parks_where_its_first_batch_began(
+    ctx: FakeContext, cluster: FakeConsumer
+) -> None:
+    """A group with no commit reads from wherever latest lands, so that place is stored before a batch is taken."""
+    cluster.arriving = [Record(0, b'{"id": 1}')]
+
+    parked = await KafkaConsumeSensor().poke(config(group_id="pickers"), connected(ctx).as_context())
+
+    assert isinstance(parked, NotYet)
+    assert parked.cursor == {"offsets": {"0": 0}}
+    assert cluster.commits == []
+
+    later = connected(ctx)
+    later.cursor = parked.cursor
+    output = taken(await KafkaConsumeSensor().poke(config(group_id="pickers"), later.as_context())).output
+
+    assert [message.value for message in output.messages] == [{"id": 1}]
+
+
+async def test_a_first_poke_under_latest_without_a_group_only_writes_down_where_it_stands(
+    ctx: FakeContext, cluster: FakeConsumer
+) -> None:
+    """Nothing is read from a place nothing stored, so a retry of the first batch finds it again."""
     cluster.log[0] = [Record(0, b"{}")]
+    cluster.arriving = [Record(1, b'{"id": 2}')]
 
-    output = await KafkaConsumeSensor().poke(config(group_id="pickers", start="earliest"), connected(ctx).as_context())
+    parked = await KafkaConsumeSensor().poke(config(), connected(ctx).as_context())
 
-    assert not isinstance(output, NotYet)
-    assert (cluster.commits, cluster.subscribed) == (1, ["orders"])
+    assert isinstance(parked, NotYet)
+    assert parked.cursor == {"offsets": {"0": 1}}
+    assert cluster.arriving, "the first poke fetched nothing"
 
 
 async def test_a_group_does_not_commit_a_poke_that_parked(ctx: FakeContext, cluster: FakeConsumer) -> None:
@@ -390,7 +466,7 @@ async def test_a_group_does_not_commit_a_poke_that_parked(ctx: FakeContext, clus
     )
 
     assert isinstance(parked, NotYet)
-    assert cluster.commits == 0, "an uncommitted batch is read again rather than lost"
+    assert cluster.commits == [], "an uncommitted batch is read again rather than lost"
 
 
 async def test_a_group_poke_that_parked_leaves_its_place_in_the_cursor(ctx: FakeContext, cluster: FakeConsumer) -> None:
@@ -398,15 +474,14 @@ async def test_a_group_poke_that_parked_leaves_its_place_in_the_cursor(ctx: Fake
     parked = await KafkaConsumeSensor().poke(config(group_id="pickers"), connected(ctx).as_context())
 
     assert isinstance(parked, NotYet)
-    assert (cluster.commits, parked.cursor) == (0, {"offsets": {"0": 0}})
+    assert (cluster.commits, parked.cursor) == ([], {"offsets": {"0": 0}})
 
     cluster.log[0] = [Record(0, b'{"id": 1}')]
     later = connected(ctx)
     later.cursor = parked.cursor
 
-    output = await KafkaConsumeSensor().poke(config(group_id="pickers"), later.as_context())
+    output = taken(await KafkaConsumeSensor().poke(config(group_id="pickers"), later.as_context())).output
 
-    assert not isinstance(output, NotYet)
     assert [message.value for message in output.messages] == [{"id": 1}]
     assert cluster.assigned == [Partition("orders", 0)], "the cursor seeks rather than rejoining at latest"
 
@@ -415,11 +490,12 @@ async def test_a_partition_left_out_of_a_capped_batch_is_read_again(ctx: FakeCon
     """A fetch cut short by max_messages leaves the untaken partition where it stood."""
     cluster.log = {0: [Record(0, b"{}"), Record(1, b"{}")], 1: [Record(0, b"{}", partition=1)]}
 
-    output = await KafkaConsumeSensor().poke(
-        config(group_id="pickers", start="earliest", max_messages=2, min_messages=2), connected(ctx).as_context()
-    )
+    output = taken(
+        await KafkaConsumeSensor().poke(
+            config(group_id="pickers", start="earliest", max_messages=2, min_messages=2), connected(ctx).as_context()
+        )
+    ).output
 
-    assert not isinstance(output, NotYet)
     assert output.cursor == {"0": 2, "1": 0}, "the partition nothing was taken from is not seeked past"
 
 

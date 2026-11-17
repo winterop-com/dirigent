@@ -126,3 +126,61 @@ steps:
     async with sessions() as session:
         source = (await session.execute(sa.select(Source))).scalar_one()
     assert source.cursor is not None and source.cursor["cursor"] == {"offsets": {"0": 6}}
+
+
+async def committed(topic: str, group: str) -> int | None:
+    """The offset a consumer group has committed on the topic's one partition, or None."""
+    from aiokafka import AIOKafkaConsumer, TopicPartition
+
+    consumer: Any = AIOKafkaConsumer(bootstrap_servers=BOOTSTRAP, group_id=group, enable_auto_commit=False)
+    await consumer.start()
+    try:
+        offset: int | None = await consumer.committed(TopicPartition(topic, 0))
+        return offset
+    finally:
+        await consumer.stop()
+
+
+async def test_a_source_with_a_group_commits_only_once_the_run_is_committed(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, topic: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    group = f"group-{uuid.uuid4().hex[:8]}"
+    async with session_scope(sessions) as session:
+        session.add(Connection(code="cluster", kind="kafka", config={"bootstrap_servers": [BOOTSTRAP]}))
+    document = f"""
+format: dirigent/v1
+kind: pipeline
+code: grouped-kafka
+steps:
+  tail:
+    source:
+      kind: sensor
+      block: kafka.consume
+      config: {{connection: cluster, topic: {topic}, group_id: {group}, start: earliest, max_messages: 2}}
+      poll: 1s
+  load:
+    block: test.echo
+    depends_on: [tail]
+    config: {{value: loaded}}
+"""
+    async with session_scope(sessions) as session:
+        await apply_document(session, services, load_text(document))
+
+    async def refused(*args: object, **kwargs: object) -> uuid.UUID:
+        raise polling.InputRefused("no run can be made")
+
+    monkeypatch.setattr(polling, "enter_input", refused)
+    [failed] = await polling.tick(sessions, services, owner="queue-lane")
+    assert failed.runs == [] and failed.error is not None
+    assert await committed(topic, group) is None, "the group moved past a batch no run holds"
+
+    monkeypatch.undo()
+    moment = datetime.now(UTC) + timedelta(minutes=5)
+    for _ in range(30):
+        if await batches(sessions):
+            break
+        await polling.tick(sessions, services, owner="queue-lane", now=moment)
+        moment += timedelta(seconds=2)
+
+    assert await batches(sessions) == [[0, 1]], "the batch the refused poll read became the run"
+    assert await committed(topic, group) == 2

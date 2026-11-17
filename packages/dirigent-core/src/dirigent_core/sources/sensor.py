@@ -5,7 +5,8 @@ answers ``NotYet`` keeps the cursor it returns and starts no run; one that succe
 run whose source node holds the sensor's output, and the next wait starts from where
 :meth:`Sensor.resume_cursor` says, polled again at once. Only a sensor that declares
 ``source`` in its spec may be poked this way: it reads nothing of a run but its cursor and
-when the wait began.
+when the wait began. A success the sensor answered with ``Taken`` is settled with its broker
+once the run and the cursor commit, and released when they do not.
 """
 
 from collections.abc import Mapping
@@ -17,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from dirigent_common import Duration, Issue, JsonMap, validation_issues
 from dirigent_core.messages import SENSOR_NOT_A_SOURCE, SENSOR_UNKNOWN
 from dirigent_plugin import StepContext
-from dirigent_plugin.blocks import NotYet, Sensor
+from dirigent_plugin.blocks import NotYet, Sensor, Settlement, Taken
 from dirigent_plugin.sources import PollContext, Polled, PolledSource, SourceHosting, SourceSpec
 
 type AnySensor = Sensor[Any, Any]
@@ -130,8 +131,21 @@ class SensorSource(PolledSource[SensorConfig, BaseModel]):
         if isinstance(answer, NotYet):
             kept = answer.cursor if answer.cursor is not None else held
             return Polled(inputs=[], cursor=_write(kept, since), next_poll_in=answer.next_poll_in)
+        output: BaseModel
+        settlement: Settlement | None
+        if isinstance(answer, Taken):
+            taken = cast("Taken[BaseModel]", answer)
+            output, settlement = taken.output, taken.settlement
+        else:
+            output, settlement = answer, None
+        try:
+            resumed = _write(sensor.resume_cursor(output), now)
+        except BaseException:
+            if settlement is not None:
+                await settlement.release()
+            raise
         ctx.log.info("the sensor succeeded", block=config.block)
-        return Polled(inputs=[answer], cursor=_write(sensor.resume_cursor(answer), now), next_poll_in=timedelta(0))
+        return Polled(inputs=[output], cursor=resumed, next_poll_in=timedelta(0), settlement=settlement)
 
     def _sensor(self, config: SensorConfig) -> AnySensor:
         """The sensor the source pokes, which apply has already checked is one a source may poke."""

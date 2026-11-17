@@ -13,13 +13,14 @@ from dirigent_block_queues.rabbitmq import (
     RabbitConnectionConfig,
     RabbitConnectionKind,
     RabbitConsumeConfig,
+    RabbitConsumeOutput,
     RabbitConsumeSensor,
     RabbitPublishConfig,
     RabbitPublishOperator,
     RabbitPublishOutput,
     classify,
 )
-from dirigent_plugin import BlockFailure, ErrorClass, NotYet
+from dirigent_plugin import BlockFailure, ErrorClass, NotYet, Taken
 from dirigent_testing import FakeContext, call_block
 
 #: When every fake delivery says it was published.
@@ -144,6 +145,12 @@ def settlements_while_reading(monkeypatch: pytest.MonkeyPatch, broker: FakeBroke
     return seen
 
 
+def taken(answer: object) -> Taken[RabbitConsumeOutput]:
+    """The success a poke under ``on_success`` answers with, still owing the broker its acks."""
+    assert isinstance(answer, Taken)
+    return cast("Taken[RabbitConsumeOutput]", answer)
+
+
 def config(**overrides: Any) -> RabbitConsumeConfig:
     """One consume config, with the fields a test does not care about already filled in."""
     return RabbitConsumeConfig.model_validate(
@@ -208,9 +215,8 @@ async def test_an_empty_queue_parks_and_takes_nothing(ctx: FakeContext, broker: 
 async def test_a_batch_at_the_minimum_succeeds_and_reads_the_message(ctx: FakeContext, broker: FakeBroker) -> None:
     broker.queued = [FakeDelivery(1, b'{"id": 1}', headers={"source": b"till"})]
 
-    output = await RabbitConsumeSensor().poke(config(), connected(ctx).as_context())
+    output = taken(await RabbitConsumeSensor().poke(config(), connected(ctx).as_context())).output
 
-    assert not isinstance(output, NotYet)
     assert output.count == 1
     message = output.messages[0]
     assert (message.body, message.routing_key, message.exchange) == ({"id": 1}, "orders.new", "shop")
@@ -220,9 +226,8 @@ async def test_a_batch_at_the_minimum_succeeds_and_reads_the_message(ctx: FakeCo
 async def test_the_batch_never_runs_past_max_messages(ctx: FakeContext, broker: FakeBroker) -> None:
     broker.queued = [FakeDelivery(tag, b"{}") for tag in range(1, 11)]
 
-    output = await RabbitConsumeSensor().poke(config(max_messages=4), connected(ctx).as_context())
+    output = taken(await RabbitConsumeSensor().poke(config(max_messages=4), connected(ctx).as_context())).output
 
-    assert not isinstance(output, NotYet)
     assert output.count == 4
     assert len(broker.queued) == 6, "what was not taken is still on the queue"
 
@@ -246,12 +251,41 @@ async def test_the_cursor_counts_what_has_gone_past_for_a_reader(ctx: FakeContex
 # -- when a message is acknowledged ----------------------------------------------
 
 
-async def test_on_success_acks_only_in_the_poke_that_succeeded(ctx: FakeContext, broker: FakeBroker) -> None:
+async def test_on_success_acks_only_once_the_success_is_settled(ctx: FakeContext, broker: FakeBroker) -> None:
     broker.queued = [FakeDelivery(1, b"{}"), FakeDelivery(2, b"{}")]
 
-    await RabbitConsumeSensor().poke(config(min_messages=2), connected(ctx).as_context())
+    success = taken(await RabbitConsumeSensor().poke(config(min_messages=2), connected(ctx).as_context()))
 
-    assert [delivery.settled for delivery in broker.taken] == ["ack", "ack"]
+    assert [delivery.settled for delivery in broker.taken] == [None, None], "acked before anything stored it"
+    assert not broker.closed, "the acks are owed on the channel the batch was received on"
+
+    await success.settlement.settle()
+
+    assert [delivery.settles for delivery in broker.taken] == [["ack"], ["ack"]]
+    assert broker.closed
+
+
+async def test_on_success_hands_a_success_nothing_stored_back_to_the_queue(
+    ctx: FakeContext, broker: FakeBroker
+) -> None:
+    broker.queued = [FakeDelivery(1, b"{}"), FakeDelivery(2, b"{}")]
+
+    success = taken(await RabbitConsumeSensor().poke(config(min_messages=2), connected(ctx).as_context()))
+    await success.settlement.release()
+
+    assert [delivery.settles for delivery in broker.taken] == [["nack requeue=True"], ["nack requeue=True"]]
+    assert broker.closed
+
+
+async def test_always_succeeds_with_the_bare_output_and_nothing_left_owing(
+    ctx: FakeContext, broker: FakeBroker
+) -> None:
+    broker.queued = [FakeDelivery(1, b"{}")]
+
+    output = await RabbitConsumeSensor().poke(config(ack="always"), connected(ctx).as_context())
+
+    assert isinstance(output, RabbitConsumeOutput)
+    assert ([delivery.settled for delivery in broker.taken], broker.closed) == (["ack"], True)
 
 
 async def test_on_success_hands_a_batch_that_was_too_small_back_to_the_queue(
@@ -280,9 +314,9 @@ async def test_on_success_acks_only_once_every_message_has_been_read(
     broker.queued = [FakeDelivery(1, b"{}"), FakeDelivery(2, b"{}")]
     while_reading = settlements_while_reading(monkeypatch, broker)
 
-    output = await RabbitConsumeSensor().poke(config(min_messages=2), connected(ctx).as_context())
+    success = taken(await RabbitConsumeSensor().poke(config(min_messages=2), connected(ctx).as_context()))
+    await success.settlement.settle()
 
-    assert not isinstance(output, NotYet)
     assert while_reading == [[None, None], [None, None]], "the batch was acked before it was read"
     assert [delivery.settled for delivery in broker.taken] == ["ack", "ack"]
 
@@ -320,18 +354,16 @@ async def test_always_acks_before_it_reads_and_still_says_what_would_not_read(
 async def test_a_text_format_hands_the_body_over_as_a_string(ctx: FakeContext, broker: FakeBroker) -> None:
     broker.queued = [FakeDelivery(1, b"not json at all")]
 
-    output = await RabbitConsumeSensor().poke(config(value_format="text"), connected(ctx).as_context())
+    output = taken(await RabbitConsumeSensor().poke(config(value_format="text"), connected(ctx).as_context())).output
 
-    assert not isinstance(output, NotYet)
     assert output.messages[0].body == "not json at all"
 
 
 async def test_a_base64_format_carries_any_bytes_through(ctx: FakeContext, broker: FakeBroker) -> None:
     broker.queued = [FakeDelivery(1, b"\xff\xfe")]
 
-    output = await RabbitConsumeSensor().poke(config(value_format="base64"), connected(ctx).as_context())
+    output = taken(await RabbitConsumeSensor().poke(config(value_format="base64"), connected(ctx).as_context())).output
 
-    assert not isinstance(output, NotYet)
     assert output.messages[0].body == "//4="
 
 

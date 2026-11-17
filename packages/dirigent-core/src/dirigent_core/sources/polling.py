@@ -33,6 +33,7 @@ from dirigent_core.engine.context import ConnectionRecord, build_http_client, lo
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.runs import Attribution, Entry, create_run
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.engine.settlement import conclude
 from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.errors import DomainError
 from dirigent_core.logging import get_logger
@@ -76,6 +77,8 @@ class PollOutcome(BaseModel):
     source_id: UUID
     runs: list[UUID]
     error: str | None = None
+    committed: bool = False
+    """Whether the runs and the cursor were committed, which is when a broker may be told."""
 
 
 def backoff_for(failures: int, services: EngineServices) -> timedelta:
@@ -223,7 +226,13 @@ async def poll_one(
     except Exception as error:  # a kind's failure is the source's, recorded and backed off
         said = scrub(str(error), ctx.opened_secrets) or type(error).__name__
         return await _failed(sessions, services, claimed, owner=owner, error=said)
-    return await _settle(sessions, services, claimed, kind, answer, owner=owner, started=started)
+    committed = False
+    try:
+        outcome = await _settle(sessions, services, claimed, kind, answer, owner=owner, started=started)
+        committed = outcome.committed
+    finally:
+        await conclude(answer.settlement, stored=committed, source=row.code)
+    return outcome
 
 
 async def _settle(
@@ -282,7 +291,7 @@ async def _settle(
         return await _failed(sessions, services, claimed, owner=owner, error=str(refused))
     if runs:
         _logger.info("source polled", source=str(claimed.source_id), runs=len(runs))
-    return PollOutcome(source_id=claimed.source_id, runs=runs)
+    return PollOutcome(source_id=claimed.source_id, runs=runs, committed=True)
 
 
 class InputRefused(Exception):
