@@ -1487,8 +1487,9 @@ trim of the runs you are still keeping, not the only thing that deletes a log en
 
 **Artifacts go before rows.** A run's scratch prefix is deleted first, and only then its row:
 a row deleted first would leave bytes nothing points at and nothing would ever find again. If
-storage refuses -- a read-only volume, an expired credential -- that run is left whole, rows
-and all, and tried again on the next sweep. Set `retention_scratch=false` where something
+storage refuses -- a read-only volume, an expired credential, a bucket policy that denies
+listing or deleting -- that run is left whole, rows and all, and tried again on the next sweep,
+while the rest of the sweep goes ahead. Set `retention_scratch=false` where something
 else owns the bucket's lifecycle, such as an S3 expiry rule.
 
 **Only a run's own prefix is swept.** The sweep deletes `runs/<run id>` under the artifact
@@ -1499,9 +1500,12 @@ survives every run and stays until somebody deletes it.
 
 The scheduler sweeps every `retention_interval` (default `1h`). It runs there rather than on
 a worker because the scheduler is the process there is exactly one of -- every worker sweeping
-would have them deleting each other's batches. Deletion is batched at `retention_batch` rows
+would have them deleting each other's batches. The sweep runs beside the scheduler's ticks, so
+schedules keep firing on time while it works. Deletion is batched at `retention_batch` rows
 (default 500) with a commit per batch, so a year's backlog is many short transactions rather
-than one that holds locks for minutes, and an interrupted sweep has still made progress.
+than one that holds locks for minutes, and an interrupted sweep has still made progress. One
+sweep stops after 200 batches; when that leaves rows still old enough to go, the next sweep
+starts at once rather than an interval later.
 
 ### Pruning by hand
 
@@ -1514,7 +1518,8 @@ dg prune --runs 90d --logs 14d             # what went
 ```
 
 An age given on the command line beats the configured one, and a family with neither is not
-pruned -- the command never guesses at an age. It writes a `prune` record like everything
+pruned -- the command never guesses at an age. An age of `0s` is refused. A prune stops after
+200 batches, and its record then says `more_left: true`; run it again to carry on. It writes a `prune` record like everything
 else, so `--dry-run` output can be read by `jq` as easily as by a person:
 
 ```bash

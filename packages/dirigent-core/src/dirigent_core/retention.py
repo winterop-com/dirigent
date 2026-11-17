@@ -90,6 +90,9 @@ class Swept(BaseModel):
     scratch_failed: int = 0
     """How many prefixes storage refused, which leaves the rows for the next sweep."""
 
+    more_left: bool = False
+    """Whether the sweep stopped at its batch limit with rows still old enough to go."""
+
     @property
     def total(self) -> int:
         """How many rows went in all."""
@@ -233,8 +236,8 @@ async def _prune_runs(
         keys = await _clear_scratch(storage, keys, swept)
         if not keys:
             return 0
-    # Storage is cleared outside the transaction, and a retry can reopen a run in that window.
-    # The delete says again what made the run prunable, so a reopened run keeps its rows.
+    # A retry can reopen a run between its selection and this delete. The delete says again
+    # what made the run prunable, so a reopened run keeps its rows.
     await session.execute(sa.delete(Run).where(Run.id.in_(keys), SETTLED, Run.finished_at < threshold))
     survived = list((await session.execute(sa.select(Run.id).where(Run.id.in_(keys)))).scalars())
     if cleared:
@@ -290,15 +293,15 @@ def _is_uuid(name: str) -> bool:
 async def _clear_scratch(storage: Storage, keys: Sequence[UUID], swept: Swept) -> list[UUID]:
     """Delete each run's artifacts, and report the runs whose rows may now go.
 
-    A run whose storage refused is left whole -- rows and all -- for the next sweep, rather
-    than having its rows deleted and its bytes orphaned.
+    A run whose storage refused, in whatever way its backend raises, is left whole -- rows and
+    all -- for the next sweep, rather than having its rows deleted and its bytes orphaned.
     """
     cleared: list[UUID] = []
     for run_id in keys:
         prefix = storage.scratch_for(run_id)
         try:
             swept.scratch_deleted += await storage.delete_prefix(prefix)
-        except OSError as error:
+        except Exception as error:  # noqa: BLE001 - a backend's own errors, such as botocore's, are no OSError
             swept.scratch_failed += 1
             _logger.warning("run scratch was not deleted", run_id=str(run_id), uri=prefix, error=str(error))
             continue

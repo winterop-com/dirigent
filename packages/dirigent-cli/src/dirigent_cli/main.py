@@ -810,7 +810,12 @@ def _prune_policy(
     from dirigent_core import retention
 
     def age(given: str | None, configured: timedelta | None) -> timedelta | None:
-        return cast("timedelta", parse_duration(given)) if given is not None else configured
+        if given is None:
+            return configured
+        parsed = cast("timedelta", parse_duration(given))
+        if parsed <= timedelta(0):
+            raise ValueError(f"{given!r} is no age to keep: give one longer than 0s")
+        return parsed
 
     return retention.Policy(
         runs=age(runs, settings.retention_runs),
@@ -857,6 +862,7 @@ async def _prune(settings: Settings, policy: "retention.Policy", state: CliState
             total=swept.total,
             artifacts=swept.scratch_deleted,
             unreachable=swept.scratch_failed or None,
+            more_left=swept.more_left or None,
             **swept.counts,
         )
     finally:

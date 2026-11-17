@@ -334,3 +334,45 @@ async def test_a_sweep_clears_scratch_through_the_configured_connection(
 async def _exists(storage: Storage, run_id: UUID) -> bool:
     """Report whether a run's scratch prefix still holds anything."""
     return bool([found async for found in storage.list(storage.scratch_for(run_id))])
+
+
+class BackendRefused(Exception):
+    """What a storage backend's own client raises, which is no ``OSError``."""
+
+
+async def test_a_backend_error_clearing_scratch_leaves_the_run_and_the_rest_of_the_sweep_goes(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async with session_scope(sessions) as session:
+        kept = await a_run(session, finished_at=NOW, age=timedelta(days=40))
+        await a_log(session, kept, age=timedelta(days=40))
+
+    async def refuse(_self: Storage, _uri: str) -> int:
+        raise BackendRefused("AccessDenied")
+
+    monkeypatch.setattr(Storage, "delete_prefix", refuse)
+    policy = retention.Policy(runs=timedelta(days=30), logs=timedelta(days=30))
+    swept = await prune(sessions, services, policy, now=NOW)
+
+    assert swept.counts == {"logs": 1}
+    assert swept.scratch_failed > 0
+    async with sessions() as session:
+        assert await counted(session, Run) == 1, "the run went while its bytes stayed"
+        assert await counted(session, LogEntry) == 0, "the log rows were rolled back with the run's batch"
+
+
+async def test_a_sweep_that_reaches_its_batch_limit_says_more_is_left(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    async with session_scope(sessions) as session:
+        run = await a_run(session, finished_at=None)
+        for _ in range(3):
+            await a_log(session, run, age=timedelta(days=40))
+    one = services.model_copy(update={"settings": services.settings.model_copy(update={"retention_batch": 1})})
+    policy = retention.Policy(logs=timedelta(days=30))
+
+    stopped = await prune(sessions, one, policy, now=NOW, max_batches=2)
+    assert (stopped.counts, stopped.more_left) == ({"logs": 2}, True)
+
+    finished = await prune(sessions, one, policy, now=NOW, max_batches=2)
+    assert (finished.counts, finished.more_left) == ({"logs": 1}, False)
