@@ -852,8 +852,8 @@ const shell = {
     preview_none: 'No preview for this kind of file.',
     /** What a preview says above a file too long to read whole. */
     preview_cut: 'Only the start of this file is shown.',
-    /** The way out of a screen and into the requests behind it. */
-    api_docs: (section: string) => `The ${section} section of this instance's API documentation`,
+    /** The account menu's and the palette's way into the requests behind the screen, in a new tab. */
+    api_docs: 'API documentation',
 
     /** What the graph canvas offers in its corner. */
     zoom_in: 'Zoom in',
@@ -1567,15 +1567,9 @@ const dashboard = {
 
 /** The pipelines listing, its rows, and the picker that starts one from a shipped starter. */
 const pipelines = {
-    /** The split button that opens the editor on a document nothing has applied. */
+    /** The button that opens the editor on a document nothing has applied. */
     new: 'New pipeline',
-    /** Behind its chevron: a document read off disk. */
-    from_file: 'From a file…',
-    /** Behind its chevron, and the title of the picker it opens: a copy of a shipped starter. */
-    from_starter: 'From a template…',
-    /** The chevron itself. */
-    more_ways: 'More ways to start a pipeline',
-    /** What the palette offers on this screen, where a rail button says it shorter. */
+    /** What the palette offers here and in the new-pipeline editor. */
     palette: {
         from_starter: 'New pipeline from a template…',
         from_file: 'New pipeline from a file…',
@@ -1770,8 +1764,9 @@ const editor = {
         no_steps: 'No steps.',
         /** The canvas with no document behind it to draw. */
         nothing_to_draw: 'No version to draw.',
-        /** The other way into a document, which is copying a shipped one. */
+        /** The ways into a new document besides adding steps: a shipped one copied, or one read off disk. */
         from_starter: 'From a template…',
+        from_file: 'From a file…',
         /** The menu's own heading, the control that opens it, and the palette row that fires it. */
         add_step: 'Add step',
         /** The same menu, opened out of a step, which the new one will wait for. */

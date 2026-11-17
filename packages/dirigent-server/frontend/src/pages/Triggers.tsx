@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 
-import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { PageHeader } from '@/components/PageHeader'
 import { SECTION_LISTING } from '@/lib/library-words'
@@ -194,7 +193,6 @@ export function Triggers() {
         <>
             <PageHeader
                 title={LABELS.screen.triggers.name}
-                lead={<ApiChip tag="triggers" />}
                 primary={{
                     id: 'schedule',
                     label: LABELS.triggers.schedule.new,

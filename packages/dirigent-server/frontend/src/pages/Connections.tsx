@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router'
 
-import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { ConnectionDialog } from '@/components/connections/ConnectionDialog'
 import { HealthSaid } from '@/components/connections/Health'
@@ -191,7 +190,6 @@ export function Connections() {
         <>
             <PageHeader
                 title={LABELS.screen.connections.name}
-                lead={<ApiChip tag="connections" />}
                 primary={{
                     id: 'new',
                     label: LABELS.connections.new,

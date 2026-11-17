@@ -1,7 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
-import { ApiChip } from '@/components/ApiChip'
 import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/PageHeader'
@@ -262,7 +261,7 @@ export function Examples() {
 
     return (
         <>
-            <PageHeader title={LABELS.screen.examples.name} lead={<ApiChip tag="examples" />} />
+            <PageHeader title={LABELS.screen.examples.name} />
 
             <DataTable
                 {...LISTING}

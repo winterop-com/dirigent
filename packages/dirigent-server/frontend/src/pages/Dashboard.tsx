@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
-import { ApiChip } from '@/components/ApiChip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { PageHeader } from '@/components/PageHeader'
 import { Section as LibrarySection } from '@winterop-com/sokkel-ui/Section'
@@ -150,15 +149,7 @@ export function Dashboard() {
 
     return (
         <>
-            <PageHeader
-                title={LABELS.screen.dashboard.name}
-                lead={
-                    <>
-                        <ApiChip tag="runs" />
-                        <RefreshControl onRefresh={again} />
-                    </>
-                }
-            />
+            <PageHeader title={LABELS.screen.dashboard.name} lead={<RefreshControl onRefresh={again} />} />
 
             {(failed.problem !== null || messy.problem !== null || look.length > 0) && (
                 <Section title={LABELS.dashboard.troubled_runs} to="/runs" count={look.length}>

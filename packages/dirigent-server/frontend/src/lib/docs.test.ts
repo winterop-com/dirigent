@@ -27,7 +27,7 @@ describe('where a listing points at the API behind it', () => {
         }
     })
 
-    test('names a different section for every screen that offers the chip', () => {
+    test('names a different section for every screen', () => {
         expect(new Set(TAGS.map(docsHref)).size).toBe(TAGS.length)
     })
 })

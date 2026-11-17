@@ -1,7 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 
-import { ApiChip } from '@/components/ApiChip'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
 import { ListingBar } from '@winterop-com/sokkel-ui/ListingBar'
@@ -52,10 +51,6 @@ const StarterPicker = lazy(() =>
 )
 
 export const NEW_PIPELINE_LABEL = LABELS.pipelines.new
-
-export const FROM_FILE_LABEL = LABELS.pipelines.from_file
-
-export const FROM_STARTER_LABEL = LABELS.pipelines.from_starter
 
 /** The address flag that opens the whole examples band. */
 const ALL_EXAMPLES = 'examples'
@@ -171,48 +166,26 @@ export function Pipelines() {
                     id: 'new',
                     label: NEW_PIPELINE_LABEL,
                     face: LABELS.action.new,
-                    moreLabel: LABELS.pipelines.more_ways,
                     ...shutWith(!write.may, write.why),
                     onSelect: () => {
                         void navigate(NEW_PIPELINE_PATH)
                     },
-                    more: [
-                        {
-                            label: FROM_STARTER_LABEL,
-                            icon: <ICONS.template aria-hidden />,
-                            onSelect: () => {
-                                setPicking(true)
-                            },
-                        },
-                        {
-                            label: FROM_FILE_LABEL,
-                            icon: <ICONS.upload aria-hidden />,
-                            onSelect: () => {
-                                filePicker.current?.click()
-                            },
-                        },
-                    ],
                 }}
-                lead={
-                    <>
-                        <ApiChip tag="pipelines" />
-                        <input
-                            ref={filePicker}
-                            type="file"
-                            accept=".yaml,.yml,.json,text/yaml,application/json"
-                            className="hidden"
-                            aria-label={FROM_FILE_LABEL}
-                            onChange={(event) => {
-                                const file = event.target.files?.[0]
-                                event.target.value = ''
-                                if (file === undefined) return
-                                void file.text().then((document) => {
-                                    void navigate(NEW_PIPELINE_PATH, { state: { document } })
-                                })
-                            }}
-                        />
-                    </>
-                }
+            />
+            <input
+                ref={filePicker}
+                type="file"
+                accept=".yaml,.yml,.json,text/yaml,application/json"
+                className="hidden"
+                aria-label={LABELS.pipelines.palette.from_file}
+                onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    event.target.value = ''
+                    if (file === undefined) return
+                    void file.text().then((document) => {
+                        void navigate(NEW_PIPELINE_PATH, { state: { document } })
+                    })
+                }}
             />
 
             <ListingBar

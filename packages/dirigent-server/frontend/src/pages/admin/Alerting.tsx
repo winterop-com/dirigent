@@ -5,7 +5,6 @@ import { Channel, NotificationPanel, Run, RulePanel, Target } from '@/components
 import { ChannelStrip } from '@/components/alerting/ChannelStrip'
 import { NewRule } from '@/components/alerting/NewRule'
 import { EMPTY_TEST, SendTest, type TestDraft } from '@/components/alerting/SendTest'
-import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { FilterChip } from '@winterop-com/sokkel-ui/FilterChip'
 import { PageHeader } from '@/components/PageHeader'
@@ -249,7 +248,6 @@ function Alerting() {
         <>
             <PageHeader
                 title={LABELS.screen.alerting.name}
-                lead={<ApiChip tag="alerts" />}
                 items={[
                     {
                         id: 'test',
