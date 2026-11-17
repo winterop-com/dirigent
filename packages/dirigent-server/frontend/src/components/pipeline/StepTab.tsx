@@ -24,7 +24,8 @@ import {
     stepNames,
 } from '@/lib/pipeline-document'
 import { formSchema } from '@/lib/form-schema'
-import { fieldsOf, sameJson, validateFields } from '@/lib/schema-form'
+import { sameJson } from '@/lib/schema-form'
+import { useFormRefusals } from '@/hooks/use-form-refusals'
 import { said } from '@/lib/refusal'
 import { sampleBody, type SourceOut } from '@/lib/sources'
 import { SourceFacts } from '@/components/triggers/Endpoint'
@@ -38,10 +39,8 @@ import {
 import {
     pickedSchema,
     RETRY_SCHEMA,
-    retryFields,
     retryValues,
     STEP_SCHEMA,
-    stepFields,
     stepKeyValues,
     withRetryKey,
     withStepKey,
@@ -75,9 +74,10 @@ import { Chip } from '@winterop-com/sokkel-ui/Chip'
  * opens and shuts on its own, and what is open is the panel's own state, so choosing another step
  * -- which is another panel -- starts shut again.
  *
- * THE REFUSAL HERE IS THE CLIENT'S HALF. What this can check is one field against one schema.
- * Whether the document as a whole applies -- its graph, its references, the blocks it names --
- * is the server's, and Validate and Apply are where it is asked.
+ * THE REFUSAL HERE IS THE CLIENT'S HALF. What this can check is one field against one schema,
+ * and the list under the form is the same check the form's controls run, so a field is refused in
+ * both places or in neither. Whether the document as a whole applies -- its graph, its
+ * references, the blocks it names -- is the server's, and Validate and Apply are where it is asked.
  *
  * THE GROUPS WRITE THROUGH THE DOCUMENT STORE, because the members they edit have no prop of
  * their own the way `config`, `depends_on` and `name` do; `changeDocument` is the same writer
@@ -127,18 +127,19 @@ export function StepTab({
     const heading = stepHeading(document, step)
     const [named, setNamed] = useState(stepName(document, step) ?? '')
     const config = configOf(document, step)
-    const fields = useMemo(() => fieldsOf(block?.config_schema), [block])
     const locked = disabled !== undefined
     const configSchema = useMemo(() => formSchema(block?.config_schema, { locked }), [block, locked])
-    // A step's config is the document's, so a `${...}` in one is the run's to resolve. Its
-    // clocks and its retry budget below are the engine's own keys and are read literally.
-    const problems = useMemo(() => validateFields(fields, config, true), [fields, config])
+    const keySchema = useMemo(() => formSchema(STEP_SCHEMA, { locked }), [locked])
+    const retrySchema = useMemo(() => formSchema(RETRY_SCHEMA, { locked }), [locked])
     const prerequisites = dependsOn(document, step)
     const offered = stepNames(document).filter((name) => name !== step && !prerequisites.includes(name))
-    const keys = stepKeyValues(document, step)
-    const retry = retryValues(document, step)
-    const keyProblems = validateFields(stepFields, keys)
-    const retryProblems = validateFields(retryFields, retry)
+    const keys = useMemo(() => stepKeyValues(document, step), [document, step])
+    const retry = useMemo(() => retryValues(document, step), [document, step])
+    // A step's config is the document's, so a `${...}` in one is the run's to resolve. Its
+    // clocks and its retry budget below are the engine's own keys and are read literally.
+    const problems = useFormRefusals(configSchema, config, { deferred: true, whole: LABELS.word.config })
+    const keyProblems = useFormRefusals(keySchema, keys, { whole: step })
+    const retryProblems = useFormRefusals(retrySchema, retry, { whole: 'retry' })
     const refusals = Object.entries({
         ...keyProblems,
         ...retryProblems,
@@ -227,7 +228,7 @@ export function StepTab({
                                 ) : group.id === 'retry' ? (
                                     <DocumentForm
                                         key={`retry-${step}`}
-                                        schema={formSchema(RETRY_SCHEMA, { locked })}
+                                        schema={retrySchema}
                                         value={retry}
                                         onChange={(next) => {
                                             changeDocument((current) =>

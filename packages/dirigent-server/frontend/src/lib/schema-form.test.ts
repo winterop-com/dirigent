@@ -1,14 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
 import type { JsonMap } from '@/lib/api'
-import {
-    fieldsOf,
-    optionLabel,
-    validateField,
-    sameJson,
-    validateFields,
-    type FieldDescriptor,
-} from '@/lib/schema-form'
+import { fieldsOf, optionLabel, sameJson, type FieldDescriptor } from '@/lib/schema-form'
 
 /**
  * Every shape in this file is transcribed from a schema the shipped catalog actually publishes.
@@ -389,117 +382,6 @@ describe('the maps a table cannot draw, which stay JSON', () => {
     })
 })
 
-describe('a reference standing for a whole map', () => {
-    const TEXT = only({ env: { additionalProperties: { type: 'string' }, type: 'object' } })
-
-    test('a reference is not refused, the way one in a JSON textarea never was', () => {
-        expect(validateField(TEXT, '${steps.read.output.env}', true)).toBeNull()
-    })
-
-    test('a string that is no reference is not a map either, and says so', () => {
-        expect(validateField(TEXT, 'whatever', true)).toBe('env must be a map, or a reference to one')
-    })
-})
-
-/**
- * The rule the server applies, on the client's side of the same document.
- *
- * `defer_references` replaces every value carrying a live `${...}` with a sentinel that every
- * JSON Schema keyword passes over, so a step's config is checked for its shape and not for what
- * a run has yet to resolve. A form that refused one would be refusing a document that applies.
- */
-describe('a value written as a reference', () => {
-    // playground.generate.delay, which is what put a red box under a valid document.
-    const DELAY = only({
-        delay: {
-            default: '0s',
-            format: 'humane-duration',
-            pattern: '^(?:(?:\\d+(?:\\.\\d+)?(?:ms|[wdhms]))+|\\d+(?:\\.\\d+)?)$',
-            type: 'string',
-        },
-    })
-    const MIN_SIZE = only({ min_size: { $ref: '#/$defs/Size', default: 0 } })
-    const ROWS = only({ rows: { default: 10, maximum: 1000, minimum: 0, type: 'integer' } })
-    const LEVEL = only({
-        level: { default: 'info', enum: ['debug', 'info', 'warning', 'error'], type: 'string' },
-    })
-    const WAIT = only({ wait: { default: true, type: 'boolean' } })
-    const PIPELINE = only({ pipeline: { $ref: '#/$defs/EntityName' } }, ['pipeline'])
-    const PORTS = only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } })
-
-    test('a humane duration carrying one is not held to its pattern', () => {
-        expect(validateField(DELAY, '${params.pace}', true)).toBeNull()
-        expect(validateField(DELAY, '10s', true)).toBeNull()
-        expect(validateField(DELAY, 'soon', true)).toBe(`delay does not match ${DELAY.bounds.pattern ?? ''}`)
-    })
-
-    test('every other constrained kind a document may write one in takes it too', () => {
-        // A size, a bounded integer, a choice, a switch and a pattern on a code.
-        expect(validateField(MIN_SIZE, '${params.floor}', true)).toBeNull()
-        expect(validateField(ROWS, '${params.rows}', true)).toBeNull()
-        expect(validateField(LEVEL, '${params.level}', true)).toBeNull()
-        expect(validateField(WAIT, '${params.wait}', true)).toBeNull()
-        expect(validateField(PIPELINE, '${params.child}', true)).toBeNull()
-    })
-
-    test('an interpolated value is deferred whole, the way the server defers it', () => {
-        expect(validateField(PIPELINE, '${params.tenant}-nightly', true)).toBeNull()
-    })
-
-    test('the escape is a literal, so it is checked like any other text', () => {
-        expect(validateField(PIPELINE, '$${params.child}', true)).toBe(
-            `pipeline does not match ${PIPELINE.bounds.pattern ?? ''}`,
-        )
-    })
-
-    test('empty braces name nothing, so they are text and are checked as text', () => {
-        expect(validateField(DELAY, '${}', true)).toBe(`delay does not match ${DELAY.bounds.pattern ?? ''}`)
-    })
-
-    test('one entry of a map may be a reference while the rest are read', () => {
-        expect(validateField(PORTS, { http: '${params.port}', https: 443 }, true)).toBeNull()
-        expect(validateField(PORTS, { http: 'eighty' }, true)).toBe('ports.http must be a whole number')
-    })
-
-    test('nothing is deferred where the values are not a document', () => {
-        // A run's parameters and a connection's config are values, and the server checks those
-        // literally, so a form over them refuses a reference before the server has to.
-        expect(validateField(DELAY, '${params.pace}')).toBe(
-            `delay does not match ${DELAY.bounds.pattern ?? ''}`,
-        )
-        expect(validateFields([ROWS], { rows: '${params.rows}' })).toEqual({ rows: 'rows must be a number' })
-        expect(validateFields([ROWS], { rows: '${params.rows}' }, true)).toEqual({})
-    })
-})
-
-describe('what is wrong with a map the document already carries', () => {
-    const TEXT = only({ env: { additionalProperties: { type: 'string' }, type: 'object' } })
-    const WHOLE = only({ ports: { additionalProperties: { type: 'integer' }, type: 'object' } })
-    const ANY = only({ query: { additionalProperties: SCALARS, type: 'object' } })
-
-    test('a map of the right shape is fine, and so is an empty one', () => {
-        expect(validateField(TEXT, { PATH: '/usr/bin' })).toBeNull()
-        expect(validateField(TEXT, {})).toBeNull()
-        expect(validateField(ANY, { page: 2, since: '2026-01-01', deep: true, ratio: 1.5 })).toBeNull()
-    })
-
-    test('a value of the wrong shape is named by the key that carries it', () => {
-        expect(validateField(TEXT, { PATH: 3 })).toBe('env.PATH must be text')
-        expect(validateField(WHOLE, { http: 1.5 })).toBe('ports.http must be a whole number')
-        expect(validateField(ANY, { page: [] })).toBe('query.page must be text or a number or true or false')
-    })
-
-    test('a list where a map goes says it is a map, or a reference to one', () => {
-        expect(validateField(TEXT, ['PATH'])).toBe('env must be a map, or a reference to one')
-        expect(validateField(TEXT, 3)).toBe('env must be a map, or a reference to one')
-    })
-
-    test('a form with a bad map in it may not be sent', () => {
-        expect(validateFields([TEXT], { env: { PATH: 3 } })).toEqual({ env: 'env.PATH must be text' })
-        expect(validateFields([TEXT], { env: { PATH: '/usr/bin' } })).toEqual({})
-    })
-})
-
 describe('what the schema says is required', () => {
     test('is marked on exactly the fields it lists, and on no others', () => {
         // Breaking this stops a form saying which fields an apply will refuse it without.
@@ -536,113 +418,6 @@ describe('a schema with no form in it', () => {
     })
 })
 
-describe('what is wrong with a value', () => {
-    const required = only({ from: { minLength: 1, type: 'string' } }, ['from'])
-    const method = only({ method: { $ref: '#/$defs/HttpMethod', default: 'GET' } })
-    const depth = only({ max_depth: { maximum: 32, minimum: 1, type: 'integer' } })
-    const optional = only({ input: { anyOf: [{ type: 'string' }, { type: 'null' }], default: null } })
-
-    test('a required field with nothing in it is named as required', () => {
-        expect(validateField(required, undefined)).toBe('from is required')
-    })
-
-    test('an optional field with nothing in it is not a problem', () => {
-        expect(validateField(optional, undefined)).toBeNull()
-    })
-
-    test('null is a value where the schema allowed one, and not where it did not', () => {
-        expect(validateField(optional, null)).toBeNull()
-        expect(validateField(required, null)).toBe('from may not be null')
-    })
-
-    test('a value outside an enum is refused, naming what it may be', () => {
-        expect(validateField(method, 'TRACE')).toBe(
-            'method must be one of GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS',
-        )
-        expect(validateField(method, 'POST')).toBeNull()
-    })
-
-    test('a number outside its bounds is refused at the bound it broke', () => {
-        expect(validateField(depth, 0)).toBe('max_depth must be at least 1')
-        expect(validateField(depth, 33)).toBe('max_depth must be at most 32')
-        expect(validateField(depth, 5)).toBeNull()
-    })
-
-    test('a fraction where the schema says integer is refused', () => {
-        expect(validateField(depth, 2.5)).toBe('max_depth must be a whole number')
-    })
-
-    test('a value below an exclusive bound is refused at zero, which a minimum would allow', () => {
-        const cpus = only({ cpus: { exclusiveMinimum: 0, type: 'number' } })
-        expect(validateField(cpus, 0)).toBe('cpus must be greater than 0')
-        expect(validateField(cpus, 0.5)).toBeNull()
-    })
-
-    test('a string that does not match the pattern says which pattern', () => {
-        const name = only({ pipeline: { $ref: '#/$defs/EntityName' } })
-        expect(validateField(name, 'Not A Name')).toContain('does not match')
-        expect(validateField(name, 'daily-report')).toBeNull()
-    })
-
-    test('a pattern this engine cannot read refuses nothing rather than everything', () => {
-        // A python-flavoured named group, which is what a plugin written against `re` may ship.
-        const odd = only({ odd: { pattern: '(?P<year>\\d{4})', type: 'string' } })
-        expect(validateField(odd, 'anything')).toBeNull()
-    })
-
-    test('a value of the wrong shape is named as the shape it should be', () => {
-        expect(validateField(required, 7)).toBe('from must be text')
-        expect(validateField(depth, 'five')).toBe('max_depth must be a number')
-        expect(validateField(only({ pull: { type: 'boolean' } }), 'yes')).toBe('pull must be true or false')
-    })
-
-    describe('a union takes either of its shapes', () => {
-        // storage.exists min_size, which is a `Size`: a humane string or a count of bytes.
-        const size = only({
-            min_size: {
-                anyOf: [
-                    { type: 'string', pattern: '^\\d+(?:\\.\\d+)?(?:[TtGgMmKk]?[Ii]?[Bb])?$' },
-                    { type: 'integer', minimum: 0 },
-                ],
-                default: '0b',
-            },
-        })
-
-        // REVERT-PROOF. Validate a union as only the branch it is edited as, and the
-        // integer a stored document legitimately carries is refused as "text".
-        test('an integer a document stored satisfies the integer branch', () => {
-            expect(validateField(size, 1)).toBeNull()
-        })
-
-        test('a humane string satisfies the string branch, and bare digits are bytes', () => {
-            expect(validateField(size, '512kb')).toBeNull()
-            expect(validateField(size, '1')).toBeNull()
-        })
-
-        test('a value no branch takes is told off by the branch of its own type', () => {
-            expect(validateField(size, 'a lot')).toContain('does not match')
-            expect(validateField(size, -3)).toBe('min_size must be at least 0')
-        })
-
-        test('a value of no branch type names every shape the union takes', () => {
-            expect(validateField(size, true)).toBe('min_size must be text or a whole number')
-        })
-    })
-
-    test('anything at all is a JSON field', () => {
-        const body = only({ body: { $ref: '#/$defs/JsonValue' } })
-        expect(validateField(body, [1, 2, 3])).toBeNull()
-    })
-
-    test('a whole form answers with a problem per field that has one', () => {
-        expect(validateFields([required, depth], { max_depth: 99 })).toEqual({
-            from: 'from is required',
-            max_depth: 'max_depth must be at most 32',
-        })
-        expect(validateFields([required, depth], { from: 'json', max_depth: 3 })).toEqual({})
-    })
-})
-
 describe('an enum that is not made of strings', () => {
     const retries = only({ retries: { enum: [0, 1, 3], type: 'integer' } })
     const strict = only({ strict: { enum: [true, false] } })
@@ -671,13 +446,6 @@ describe('an enum that is not made of strings', () => {
             value: false,
             label: 'false',
         })
-    })
-
-    test('a number the document carries is one of the choices, and its text is not', () => {
-        expect(validateField(retries, 3)).toBeNull()
-        expect(validateField(retries, '3')).toBe('retries must be one of 0, 1, 3')
-        expect(validateField(strict, true)).toBeNull()
-        expect(validateField(strict, 'true')).toBe('strict must be one of true, false')
     })
 })
 

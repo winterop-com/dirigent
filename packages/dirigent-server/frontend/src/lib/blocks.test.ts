@@ -91,7 +91,6 @@ function field(over: Partial<FieldDescriptor> = {}): FieldDescriptor {
         mediaType: null,
         hint: null,
         bounds: {},
-        accepts: [],
         holds: [],
         ...over,
     }

@@ -1184,7 +1184,8 @@ back. The same holds for an object, a list or a map written whole as a reference
 scalars is already a text box and holds one as it is.
 
 **The refusal here is the client's half.** A field is checked against its own schema so a form can
-say what is wrong before it asks. Whether a document applies -- its graph, its references, the
+say what is wrong before it asks. A list of refusals beside a form reads the same check its
+controls run (`lib/form-refusals`), so a field is refused in both places or in neither. Whether a document applies -- its graph, its references, the
 blocks it names -- is the server's, and the editor's Validate and Apply are the same dry run
 asking it.
 

@@ -19,6 +19,7 @@
 import type { JsonMap } from '@/lib/api'
 import { LABELS } from '@/lib/labels'
 import { stepsIn } from '@/lib/pipeline-document'
+import stepShapes from '@/lib/step-schema.json'
 import { fieldsOf, sameJson, type FieldDescriptor } from '@/lib/schema-form'
 
 /** The step members this form edits, in the order `StepDefinition` declares them. */
@@ -33,90 +34,57 @@ export const STEP_KEYS = [
     'continue_on_failure',
 ] as const
 
-/** A duration as somebody writes it, which is the shape `Duration` accepts. */
-const DURATION: JsonMap = { type: 'string', format: 'humane-duration' }
+/** Each member's shape as `StepDefinition` and `RetryPolicy` declare it, defaults and bounds alike. */
+const SHAPES = stepShapes as { step: Record<string, JsonMap>; retry: Record<string, JsonMap> }
+
+/** What each step member's control says about it. */
+const STEP_WORDS: Record<(typeof STEP_KEYS)[number], string> = {
+    rule: LABELS.editor.step_keys.rule,
+    for_each: LABELS.editor.step_keys.for_each,
+    items: LABELS.editor.step_keys.items,
+    timeout: LABELS.editor.step_keys.timeout,
+    poll: LABELS.editor.step_keys.poll,
+    deadline: LABELS.editor.step_keys.deadline,
+    on_timeout: LABELS.editor.step_keys.on_timeout,
+    continue_on_failure: LABELS.editor.step_keys.continue_on_failure,
+}
+
+/** What each retry member's control says about it. */
+const RETRY_WORDS: Record<string, string> = {
+    max_attempts: LABELS.editor.step_keys.max_attempts,
+    backoff: LABELS.editor.step_keys.backoff,
+    max_backoff: LABELS.editor.step_keys.max_backoff,
+    multiplier: LABELS.editor.step_keys.multiplier,
+    jitter: LABELS.editor.step_keys.jitter,
+}
+
+/** An object schema over these member shapes, each carrying its description. */
+function described(shapes: Record<string, JsonMap>, words: Record<string, string>): JsonMap {
+    return {
+        type: 'object',
+        properties: Object.fromEntries(
+            Object.entries(shapes).map(([name, shape]) => [name, { ...shape, description: words[name] }]),
+        ),
+    }
+}
 
 /**
  * The step members, as the schema `lib/schema-form` reads.
  *
- * This mirrors `StepDefinition` in `dirigent_core.engine.definition`: the same defaults, the
- * same bounds, and the same words, so a control refuses here what an apply would refuse there.
+ * The shapes are `StepDefinition`'s own: the same defaults, the same bounds, and the same words,
+ * so a control refuses here what an apply would refuse there. A server test reads the same file
+ * against the definition and fails when the two part.
  */
-export const STEP_SCHEMA: JsonMap = {
-    type: 'object',
-    properties: {
-        rule: {
-            type: 'string',
-            enum: ['all_success', 'all_done', 'one_failed', 'always'],
-            default: 'all_success',
-            description: LABELS.editor.step_keys.rule,
-        },
-        for_each: {
-            type: 'string',
-            description: LABELS.editor.step_keys.for_each,
-            examples: ['${params.regions}', '${steps.spread.items}'],
-        },
-        items: {
-            type: 'string',
-            enum: ['fail_fast', 'continue'],
-            default: 'fail_fast',
-            description: LABELS.editor.step_keys.items,
-        },
-        timeout: {
-            ...DURATION,
-            description: LABELS.editor.step_keys.timeout,
-        },
-        poll: {
-            ...DURATION,
-            description: LABELS.editor.step_keys.poll,
-        },
-        deadline: {
-            ...DURATION,
-            description: LABELS.editor.step_keys.deadline,
-        },
-        on_timeout: {
-            type: 'string',
-            enum: ['fail', 'skip'],
-            default: 'fail',
-            description: LABELS.editor.step_keys.on_timeout,
-        },
-        continue_on_failure: {
-            type: 'boolean',
-            default: false,
-            description: LABELS.editor.step_keys.continue_on_failure,
-        },
+export const STEP_SCHEMA: JsonMap = described(
+    {
+        ...SHAPES.step,
+        for_each: { ...SHAPES.step.for_each, examples: ['${params.regions}', '${steps.spread.items}'] },
     },
-}
+    STEP_WORDS,
+)
 
 /** `RetryPolicy`, which is one map under `retry` rather than eight keys on the step. */
-export const RETRY_SCHEMA: JsonMap = {
-    type: 'object',
-    properties: {
-        max_attempts: {
-            type: 'integer',
-            minimum: 1,
-            maximum: 100,
-            default: 1,
-            description: LABELS.editor.step_keys.max_attempts,
-        },
-        backoff: { ...DURATION, default: '30s', description: LABELS.editor.step_keys.backoff },
-        max_backoff: { ...DURATION, default: '1h', description: LABELS.editor.step_keys.max_backoff },
-        multiplier: {
-            type: 'number',
-            minimum: 1,
-            maximum: 10,
-            default: 2,
-            description: LABELS.editor.step_keys.multiplier,
-        },
-        jitter: {
-            type: 'number',
-            minimum: 0,
-            maximum: 1,
-            default: 0.2,
-            description: LABELS.editor.step_keys.jitter,
-        },
-    },
-}
+export const RETRY_SCHEMA: JsonMap = described(SHAPES.retry, RETRY_WORDS)
 
 /** The controls the step section draws, in the order the definition declares them. */
 export const stepFields: FieldDescriptor[] = fieldsOf(STEP_SCHEMA)

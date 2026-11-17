@@ -2175,16 +2175,13 @@ const form = {
     /** What a field says when its value is not one the schema accepts. */
     refusal: {
         required: (label: string) => `${label} is required`,
-        not_null: (label: string) => `${label} may not be null`,
-        /** A union, none of whose branches take the value. */
+        /** A type with no words of its own, named as the schema names it. */
         shapes: (label: string, shapes: string) => `${label} must be ${shapes}`,
         one_of: (label: string, options: string) => `${label} must be one of ${options}`,
         boolean: (label: string) => `${label} must be true or false`,
         text: (label: string) => `${label} must be text`,
         number: (label: string) => `${label} must be a number`,
         map: (label: string) => `${label} must be a map, or a reference to one`,
-        /** One entry of a map, named by its key. */
-        entry: (label: string, key: string, shapes: string) => `${label}.${key} must be ${shapes}`,
         /** The count decides which form is drawn, so the number crosses rather than the text. */
         min_length: {
             one: (label: string, count: string) => `${label} must be at least ${count} character long`,
@@ -2200,6 +2197,24 @@ const form = {
         maximum: (label: string, most: string) => `${label} must be at most ${most}`,
         greater_than: (label: string, least: string) => `${label} must be greater than ${least}`,
         less_than: (label: string, most: string) => `${label} must be less than ${most}`,
+        /** A value in the wrong format, with the format's words from `format` above. */
+        format: (label: string, shape: string) => `${label} must be ${shape}`,
+        list: (label: string) => `${label} must be a list`,
+        min_items: {
+            one: (label: string, count: string) => `${label} must hold at least ${count} item`,
+            many: (label: string, count: string) => `${label} must hold at least ${count} items`,
+        },
+        max_items: {
+            one: (label: string, count: string) => `${label} must hold at most ${count} item`,
+            many: (label: string, count: string) => `${label} must hold at most ${count} items`,
+        },
+        unique_items: (label: string) => `${label} holds one value twice`,
+        /** A key the schema does not take, named by its own path. */
+        additional: (label: string) => `${label} is not a field this takes`,
+        /** A rule with no words of its own, said as the checker says it. */
+        other: (label: string, message: string) => `${label}: ${message}`,
+        /** The schema could not be checked at all, so nothing passes. */
+        unchecked: (reason: string) => `Nothing here could be checked: ${reason}`,
     },
 } as const
 
