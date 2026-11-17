@@ -304,8 +304,8 @@ export function RunDetail() {
         }
     }, [id, navigate, settled])
 
-    // The palette's Rerun is refused for the account the toolbar's is shut for, with its sentence.
-    const rerunShut = write.why
+    // The palette's Rerun and Cancel are refused where the toolbar's are shut, with its sentence.
+    const writeShut = write.why
 
     // A verb that changes what the run is doing answers with the run, which is folded in like a frame.
     const pause = () => {
@@ -382,7 +382,10 @@ export function RunDetail() {
                           screen: true,
                           icon: ICONS.cancel,
                           keywords: ['stop', 'abort'],
-                          run: cancel,
+                          run: () => {
+                              if (writeShut === undefined) cancel()
+                              else toast.info(writeShut)
+                          },
                       },
                   ]),
             ...(rerun === null
@@ -396,8 +399,8 @@ export function RunDetail() {
                           icon: ICONS.rerun,
                           keywords: ['again', 'repeat', 'retry'],
                           run: () => {
-                              if (rerunShut === undefined) rerun()
-                              else toast.info(rerunShut)
+                              if (writeShut === undefined) rerun()
+                              else toast.info(writeShut)
                           },
                       },
                   ]),
@@ -421,7 +424,7 @@ export function RunDetail() {
                       },
                   ]),
         ])
-    }, [cancel, rerun, rerunShut, shelf, trace])
+    }, [cancel, rerun, shelf, trace, writeShut])
 
     const tabs = useMemo<PanelTab[]>(() => {
         if (state === null) return []

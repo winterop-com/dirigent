@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type Page } from '@playwright/tes
 import { LABELS } from '../src/lib/labels.ts'
 import {
     apiPrefix,
+    applyDocument,
     applyExample,
     pageHead,
     ranToCompletion,
@@ -129,6 +130,37 @@ test("a viewer's palette Rerun is refused with the toolbar's sentence, and asks 
 
     await expect(page.locator('[data-sonner-toast]').getByText(SHUT, { exact: true })).toBeVisible()
     expect(new URL(page.url()).pathname).toBe(`/runs/${runId}`)
+    expect(asked).toEqual([])
+})
+
+test("a viewer's palette Cancel is refused with the toolbar's sentence, and asks nothing", async ({
+    page,
+}) => {
+    await signIn(page)
+    await seedUser(page.request, VIEWER, VIEWER_PASSWORD, 'viewer')
+    await applyDocument(page.request, {
+        format: 'dirigent/v1',
+        kind: 'pipeline',
+        code: 'e2e-role-wait',
+        steps: { wait: { block: 'time.sleep', config: { for: '60s' } } },
+    })
+    const runId = await startRun(page.request, 'e2e-role-wait')
+
+    await signOut(page)
+    await signInAs(page, VIEWER, VIEWER_PASSWORD)
+    const asked: string[] = []
+    page.on('request', (request) => {
+        if (new URL(request.url()).pathname.endsWith('/$cancel')) asked.push(request.url())
+    })
+
+    await page.goto(`/runs/${runId}`)
+    await expect(pageHead(page)).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+k')
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill(LABELS.runs.cancel_action)
+    await page.getByRole('option', { name: LABELS.runs.cancel_action }).click()
+
+    await expect(page.locator('[data-sonner-toast]').getByText(SHUT, { exact: true })).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
     expect(asked).toEqual([])
 })
 
