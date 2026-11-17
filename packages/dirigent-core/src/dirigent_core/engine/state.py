@@ -395,6 +395,22 @@ async def lock_pipeline(session: AsyncSession, pipeline_id: UUID) -> None:
     await session.execute(sa.select(Pipeline.id).where(Pipeline.id == pipeline_id).with_for_update())
 
 
+#: The class of the advisory locks :func:`lock_pipeline_code` takes, one per code inside it.
+APPLY_LOCK_CLASS: Final = 0x64_61_70_70
+
+
+async def lock_pipeline_code(session: AsyncSession, code: str) -> None:
+    """Serialise every apply of one pipeline code, the first one included, until this transaction ends.
+
+    A row lock needs a row, and two first applies of one code have none to share; this lock is
+    on the code. PostgreSQL only: SQLite's ``BEGIN IMMEDIATE`` already serialises the
+    transactions.
+    """
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    await session.execute(sa.select(sa.func.pg_advisory_xact_lock(APPLY_LOCK_CLASS, sa.func.hashtext(code))))
+
+
 async def load_attempts(session: AsyncSession, run_id: UUID) -> list[StepAttempt]:
     """Read every attempt of a run."""
     rows = await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run_id))

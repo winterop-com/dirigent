@@ -397,7 +397,7 @@ The server applies a directory at boot when one is named. `DIRIGENT_APPLY_DIR` p
 a mounted directory of documents; every boot applies what is new or changed there -- the
 digest makes an unchanged document a no-op -- before the scheduler starts firing. One bad
 document never stops the boot: it is refused with a warning naming the file and the first
-issue, and the rest apply. A document that carries its own `connections:` or its own
+issue, and the rest apply. A file that is not UTF-8 is such a refusal. A document that carries its own `connections:` or its own
 `schemas:` is refused by the seed exactly as the API refuses it, with the same sentence: an
 instance holds a connection and a schema as its own named resource, so a carried one is for a
 `dg run --local` and never for a document a server stores. Several servers booting together
@@ -406,6 +406,7 @@ elect one applier on an advisory lock, the same way the scheduler elects a leade
 A directory carries schemas as well as documents. A `.json` file that is a plain JSON Schema
 rather than a `dirigent/v1` document is stored the way `dg schema create` stores it, and stored
 before the pipelines, so a document whose `requires.schemas` names one applies in the same boot.
+Two schema files that resolve to one code store the first in path order and refuse the second.
 A prune never touches a schema.
 
 `DIRIGENT_APPLY_PRUNE=true` adds the reconcile half: a pipeline the directory applied

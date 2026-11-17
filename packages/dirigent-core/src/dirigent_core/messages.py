@@ -195,6 +195,10 @@ SCHEMA_NO_CODE = SCHEMA.define(
 
 SCHEMA_INVALID = SCHEMA.define("invalid", "this is not a valid JSON Schema{at}: {detail}")
 
+SCHEMA_NAME_TOO_LONG = SCHEMA.define(
+    "name_too_long", "a schema's name is at most {limit} characters, and this one is {length}"
+)
+
 SCHEMA_CHECK_NAMES_ONE = SCHEMA.define(
     "check_names_one",
     "a value is checked against one schema: give its code or its body, not both and not neither",

@@ -29,16 +29,14 @@ from dirigent_core import audit
 from dirigent_core.messages import SCHEMA_CHECK_NAMES_ONE
 from dirigent_core.models import Schema
 from dirigent_core.schemas import (
-    SchemaInUse,
-    SchemaReferenced,
     SchemaRefused,
     check_valid_schema,
     check_value,
     held_bodies,
     record_schema_update,
+    remove_schema,
     resolve_identity,
     schema_fields,
-    schema_referrers,
     schema_users,
 )
 from dirigent_server.dependencies import ServicesDep, SessionDep
@@ -197,14 +195,5 @@ async def delete_schema(code: str, session: SessionDep, services: ServicesDep, p
     flight, would be what discovered it. No foreign key can say so: a schema is named from
     inside a document's JSON, not by a row.
     """
-    row = await find(session, code)
-    named = (await schema_users(session, services.host.catalog())).get(code, [])
-    if named:
-        raise SchemaInUse(code, named)
-    referrers = await schema_referrers(session, code)
-    if referrers:
-        raise SchemaReferenced(code, referrers)
-    await session.delete(row)
-    await session.flush()
-    await audit.record(session, AuditAction.DELETED, AuditSubject.SCHEMA, code=code, subject_id=row.id)
+    await remove_schema(session, services.host.catalog(), await find(session, code))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

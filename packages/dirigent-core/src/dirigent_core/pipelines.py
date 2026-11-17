@@ -42,10 +42,11 @@ from dirigent_core.engine.definition import (
     connections_named,
     dump_definition,
     load_definition,
+    schemas_named,
 )
 from dirigent_core.engine.runs import Provenance, save_pipeline
 from dirigent_core.engine.services import EngineServices
-from dirigent_core.engine.state import lock_pipeline
+from dirigent_core.engine.state import lock_pipeline, lock_pipeline_code
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import (
     PIPELINE_IN_USE,
@@ -68,7 +69,7 @@ from dirigent_core.models import (
 from dirigent_core.outputchecks import output_field_warnings
 from dirigent_core.registry import live_worker_tags
 from dirigent_core.reportchecks import report_warnings
-from dirigent_core.schemas import held_bodies
+from dirigent_core.schemas import held_bodies, hold_schemas
 from dirigent_core.sources.rows import claimed_route_issues, pipeline_turned, reconcile_sources, retiring_sources
 from dirigent_core.triggers.materialize import materialize_triggers, owner_issues, retiring_schedules
 
@@ -331,24 +332,27 @@ async def apply_document(
             dry_run=dry_run,
             paused=paused,
         )
+    # The plan reads the current version and everything after it writes against that read,
+    # so the two are one decision. The code lock is taken before the first read, so an apply
+    # that waited plans against what the one before it committed, a first apply included.
+    await lock_pipeline_code(session, definition.code)
     pipeline = await find_pipeline(session, definition.code)
     if pipeline is not None:
-        # The plan reads the current version and everything after it writes against that
-        # read, so the two are one decision: without the lock an apply that commits a new
-        # version in between has its triggers reconciled away by a plan made before it. A
-        # pipeline that does not exist yet has no row to lock, and the unique code refuses
-        # the second of two creations.
         await lock_pipeline(session, pipeline.id)
+        await session.refresh(pipeline)
     if not dry_run:
-        # Held from before the plan reads which connections exist until this version commits, so
-        # a delete either finished first and the plan refuses, or waits and then sees this version.
+        # Held from before the plan reads which connections and schemas exist until this version
+        # commits, so a delete either finished first and the plan refuses, or waits and then
+        # sees this version.
+        document = dump_definition(definition)
         await hold_connections(
             session,
             [
-                *connections_named(dump_definition(definition), services.host.catalog()),
+                *connections_named(document, services.host.catalog()),
                 *(spec.connection for spec in definition.alerts.values() if spec.connection is not None),
             ],
         )
+        await hold_schemas(session, schemas_named(document, services.host.catalog()))
     plan = await plan_apply(session, services, definition)
     if dry_run or plan.action in (PlanAction.INVALID, PlanAction.UNCHANGED):
         # An unchanged document still reconciles its triggers: the digest covers the

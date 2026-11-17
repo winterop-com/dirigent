@@ -381,6 +381,51 @@ async def test_an_invalid_schema_is_refused_and_the_pipelines_still_apply(
     assert "not a valid JSON Schema" in summary.refused[0].message
 
 
+async def test_a_file_that_is_not_utf8_is_refused_and_the_walk_goes_on(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    (tmp_path / "1-latin.yaml").write_bytes(DOCUMENT.format(code="latin", value="caf\u00e9").encode("latin-1"))
+    write(tmp_path, "2-good.yaml", code="good")
+
+    summary = await apply_directory(sessions, services, tmp_path)
+
+    assert summary.applied == ["good"]
+    assert [refusal.path for refusal in summary.refused] == ["1-latin.yaml"]
+    assert summary.aborted is None
+
+
+async def test_two_schema_files_of_one_code_store_the_first_and_refuse_the_second(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    write_schema(tmp_path, "a.json", title="First")
+    write_schema(tmp_path, "b.json", title="Second")
+    await apply_directory(sessions, services, tmp_path)
+
+    again = await apply_directory(sessions, services, tmp_path)
+
+    assert again.unchanged == ["ou-record"]
+    assert again.updated == []
+    assert [(refusal.path, refusal.code) for refusal in again.refused] == [("b.json", "ou-record")]
+    async with session_scope(sessions) as session:
+        stored = await find_schema(session, "ou-record")
+        assert stored is not None
+        assert stored.name == "First"
+
+
+async def test_a_schema_title_longer_than_its_column_is_refused_and_the_walk_goes_on(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    write_schema(tmp_path, "long.json", title="x" * 201)
+    write(tmp_path, "good.yaml", code="good")
+
+    summary = await apply_directory(sessions, services, tmp_path)
+
+    assert summary.applied == ["good"]
+    assert summary.schemas == []
+    assert [refusal.path for refusal in summary.refused] == ["long.json"]
+    assert "at most 200 characters" in summary.refused[0].message
+
+
 async def test_a_json_file_declaring_the_format_is_still_a_document(
     tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

@@ -240,6 +240,11 @@ async def _apply_schema(
         summary.refused.append(RefusedDocument(path=ref, message=str(error)))
         _logger.warning("directory schema refused", path=ref, error=str(error))
         return
+    if code in summary.schemas:
+        message = f"schema code '{code}' was already stored from another file in this walk"
+        summary.refused.append(RefusedDocument(path=ref, code=code, message=message))
+        _logger.warning("directory schema refused", path=ref, schema=code, error=message)
+        return
     async with session_scope(sessions) as session:
         existing = await find_schema(session, code)
         if existing is None:
@@ -268,7 +273,7 @@ async def _apply_one(
     ref = path.relative_to(root).as_posix()
     try:
         definition = load_text(path.read_text())
-    except (OSError, DocumentError) as error:
+    except (OSError, UnicodeDecodeError, DocumentError) as error:
         summary.refused.append(RefusedDocument(path=ref, message=str(error)))
         _logger.warning("directory document refused", path=ref, error=str(error))
         return

@@ -156,6 +156,7 @@ async def apply_triggers_document(
     if pipeline is not None:
         # The plan reads the pipeline's rows and everything after it writes against that read.
         await lock_pipeline(session, pipeline.id)
+        await session.refresh(pipeline)
     existing = await find_trigger_document(session, definition.code)
     plan = await plan_triggers_apply(session, services, definition, pipeline, existing)
     if pipeline is None or dry_run or plan.action is PlanAction.INVALID:
