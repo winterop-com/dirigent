@@ -662,6 +662,7 @@ def upgrade() -> None:
         sa.Column("started_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("finished_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("paused_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
+        sa.Column("report_due_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("window_start", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column("window_end", dirigent_core.types.UtcDateTime(timezone=True), nullable=True),
         sa.Column(
@@ -711,6 +712,7 @@ def upgrade() -> None:
     with op.batch_alter_table("runs", schema=None) as batch_op:
         batch_op.create_index("ix_runs_created_at", ["created_at"], unique=False)
         batch_op.create_index("ix_runs_finished_at", ["finished_at"], unique=False)
+        batch_op.create_index("ix_runs_report_due_at", ["report_due_at"], unique=False)
         batch_op.create_index(
             "ix_runs_pipeline_id_status_created_at", ["pipeline_id", "status", "created_at"], unique=False
         )
@@ -1182,6 +1184,7 @@ def downgrade() -> None:
         batch_op.drop_index("ix_runs_triggered_by_id_status")
         batch_op.drop_index(batch_op.f("ix_runs_status"))
         batch_op.drop_index("ix_runs_pipeline_id_status_created_at")
+        batch_op.drop_index("ix_runs_report_due_at")
         batch_op.drop_index("ix_runs_finished_at")
         batch_op.drop_index("ix_runs_created_at")
 
