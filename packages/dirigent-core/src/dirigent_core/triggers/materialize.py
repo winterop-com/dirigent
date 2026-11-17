@@ -113,7 +113,9 @@ async def _reconcile_schedules(
             continue
         current.managed = True
         if _schedule_differs(current, request):
-            await update_schedule(session, current, request, now=now)
+            # A document declares no log levels, so the ones set on the row by hand stay.
+            kept = request.model_copy(update={"log_levels": current.log_levels})
+            await update_schedule(session, current, kept, now=now)
             updated.append(code)
 
     removed = [code for code, row in existing.items() if row.managed and code not in declared]

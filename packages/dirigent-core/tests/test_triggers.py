@@ -25,6 +25,7 @@ from dirigent_core.triggers.schedules import (
     find_schedule,
     list_schedules,
     set_paused,
+    update_schedule,
 )
 
 #: A pipeline document with no triggers, which every materialization test starts from.
@@ -423,3 +424,88 @@ async def test_a_whole_second_interval_is_stored_as_the_seconds_it_names(
         )
     assert schedule.kind is ScheduleKind.INTERVAL
     assert schedule.interval_seconds == 90
+
+
+async def test_a_one_time_schedule_declared_after_its_moment_is_paused_rather_than_live(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """It has no firing, so it reads the way a one-time schedule that fired is left: paused."""
+    await apply(sessions, services, BASE)
+    async with session_scope(sessions) as session:
+        pipeline = await find_pipeline(session, "daily-load")
+        assert pipeline is not None
+        gone = await create_schedule(session, pipeline, ScheduleRequest(code="gone", at=utcnow() - timedelta(hours=1)))
+        coming = await create_schedule(
+            session, pipeline, ScheduleRequest(code="coming", at=utcnow() + timedelta(hours=1))
+        )
+    assert gone.next_fire_at is None
+    assert gone.paused is True
+    assert coming.next_fire_at is not None
+    assert coming.paused is False
+
+
+async def test_a_one_time_schedule_redeclared_to_a_moment_gone_by_pauses(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, BASE)
+    async with session_scope(sessions) as session:
+        pipeline = await find_pipeline(session, "daily-load")
+        assert pipeline is not None
+        once = await create_schedule(session, pipeline, ScheduleRequest(code="once", at=utcnow() + timedelta(hours=1)))
+        await update_schedule(session, once, ScheduleRequest(code="once", at=utcnow() - timedelta(hours=1)))
+    assert once.next_fire_at is None
+    assert once.paused is True
+
+
+async def test_resuming_a_one_time_schedule_whose_moment_has_gone_by_is_refused(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, BASE)
+    async with session_scope(sessions) as session:
+        pipeline = await find_pipeline(session, "daily-load")
+        assert pipeline is not None
+        gone = await create_schedule(session, pipeline, ScheduleRequest(code="gone", at=utcnow() - timedelta(hours=1)))
+        with pytest.raises(ScheduleError) as refused:
+            await set_paused(session, gone, paused=False)
+    assert refused.value.code == "schedule.one_time_passed"
+    assert gone.paused is True
+
+
+async def test_redeclaring_an_interval_schedule_without_touching_its_clock_keeps_its_phase(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A description edit at 12:07 does not move a 12:00, 13:00, 14:00 grid to 13:07, 14:07."""
+    await apply(sessions, services, BASE)
+    declared = utcnow() - timedelta(minutes=7)
+    async with session_scope(sessions) as session:
+        pipeline = await find_pipeline(session, "daily-load")
+        assert pipeline is not None
+        hourly = await create_schedule(
+            session, pipeline, ScheduleRequest(code="hourly", interval=timedelta(hours=1)), now=declared
+        )
+        owed = hourly.next_fire_at
+        await update_schedule(
+            session, hourly, ScheduleRequest(code="hourly", interval=timedelta(hours=1), description="now described")
+        )
+        assert hourly.next_fire_at == owed
+        await update_schedule(session, hourly, ScheduleRequest(code="hourly", interval=timedelta(minutes=30)))
+        assert hourly.next_fire_at != owed
+
+
+async def test_a_document_redeclare_keeps_the_log_levels_set_on_its_schedule_by_hand(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    await apply(sessions, services, WITH_TRIGGERS)
+    async with session_scope(sessions) as session:
+        pipeline = await find_pipeline(session, "daily-load")
+        assert pipeline is not None
+        nightly = await find_schedule(session, pipeline.id, "nightly")
+        assert nightly is not None
+        nightly.log_levels = {"*": "debug"}
+
+    await apply(sessions, services, WITH_TRIGGERS.replace("0 5 * * *", "0 6 * * *"))
+
+    after = await schedule_named(sessions, "daily-load", "nightly")
+    assert after is not None
+    assert after.cron == "0 6 * * *"
+    assert after.log_levels == {"*": "debug"}
