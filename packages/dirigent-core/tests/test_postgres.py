@@ -1064,6 +1064,13 @@ async def test_the_run_stats_fold_the_same_way_on_postgresql(pg_sessions: Any) -
     await assert_the_stats_fold(pg_sessions)
 
 
+async def test_the_item_stats_fold_the_same_way_on_postgresql(pg_sessions: Any) -> None:
+    """Each element's days are UTC days on PostgreSQL too."""
+    from test_stats import assert_the_items_fold
+
+    await assert_the_items_fold(pg_sessions)
+
+
 async def test_the_run_summary_ranks_the_same_way_on_postgresql(pg_sessions: Any) -> None:
     """The window-function read, asserted by the body the SQLite lane runs."""
     from test_stats import assert_the_summary_folds

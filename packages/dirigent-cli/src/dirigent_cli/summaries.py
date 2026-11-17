@@ -60,6 +60,7 @@ BULKY: Final = frozenset(
         "durations",
         "top_errors",
         "failing_steps",
+        "elements",
     }
 )
 
@@ -872,6 +873,39 @@ def _summary(record: Record) -> RenderableType | None:
     )
 
 
+def _item_stats(record: Record) -> RenderableType | None:
+    """Render each fan-out element's record: its uptime, how long it took, and how it stands now."""
+    items = _mappings(record, "elements")
+    if not items:
+        return None
+    return build_table(
+        "per element",
+        ["step", "element", "now", "uptime", "ok", "failed", "skipped", "p50", "p95", "last failed"],
+        [
+            [
+                escape(str(row.get("step"))),
+                escape(str(row.get("item"))),
+                styled(row.get("last_status")),
+                _uptime(row.get("uptime")),
+                escape(str(row.get("succeeded", 0))),
+                _count(row.get("failed"), "failed"),
+                escape(str(row.get("skipped", 0))),
+                elapsed(row.get("p50_duration_ms")),
+                elapsed(row.get("p95_duration_ms")),
+                moment(row.get("last_failed_at")),
+            ]
+            for row in items
+        ],
+    )
+
+
+def _uptime(value: object) -> str:
+    """Render an uptime share as a percentage to two decimals, or a dash where nothing was measured."""
+    if not isinstance(value, int | float):
+        return "-"
+    return f"{value * 100:.2f}%"
+
+
 def _field(value: object, name: str) -> object:
     """Read one field of a nested mapping, or nothing where the value is not one."""
     return cast("Mapping[str, object]", value).get(name) if isinstance(value, Mapping) else None
@@ -909,6 +943,7 @@ RENDERERS: Final[Mapping[str, Callable[[Record], RenderableType | None]]] = {
     "run.attempt": _attempt,
     "runs.stats": _stats,
     "runs.summary": _summary,
+    "pipeline.item_stats": _item_stats,
     "backfill": _backfill,
     "config": _config,
     "db.history": _db_history,

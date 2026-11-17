@@ -1610,6 +1610,27 @@ const pipelines = {
         report_run: (when: string) => `from the run ${when}`,
         /** The latest settled run rendered no document, as when its template failed. */
         report_none: 'This run rendered no report.',
+        /**
+         * Each fan-out element's record over the last days: a target's uptime under one check.
+         */
+        elements: {
+            title: 'Elements',
+            /** The control that chooses which step's elements are drawn. */
+            step: 'Step',
+            /** The slowest twentieth of an element's runs took at least this long. */
+            p95: (duration: string) => `p95 ${duration}`,
+            /** A screen reader's name for one element's bar. */
+            bar: (item: string, step: string, days: number) => `${item}, ${step}, the last ${days} days`,
+            /** What the bar says under itself, given its uptime written, or how long ago its first day was. */
+            uptime: (percent: string) => `${percent} uptime`,
+            since: (days: number) => `${days} days ago`,
+            today: 'today',
+            no_runs: 'no runs',
+            /** A day pointed at that had failures: how many of its runs failed. */
+            failed_of: (failed: number, ran: number) => `${failed} of ${ran} failed`,
+            /** When an element last failed, and what it said. */
+            last_failed: (when: string) => `failed ${when}`,
+        },
         /** Before the links to the reports of the settled runs before it. */
         earlier_reports: 'Earlier',
         /** A step chip under a block, which chooses that step on the graph. */

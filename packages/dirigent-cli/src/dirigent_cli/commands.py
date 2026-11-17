@@ -182,6 +182,7 @@ from dirigent_client import (
     ProvenanceSource,
     RunAccepted,
     RunDetail,
+    RunItemStatus,
     RunOut,
     RunPriority,
     RunReport,
@@ -2280,6 +2281,27 @@ def runs_stats(
         top_errors=[row.model_dump(mode="json") for row in measured.top_errors],
         failing_steps=[row.model_dump(mode="json") for row in measured.failing_steps],
         **({"pipeline": pipeline} if pipeline is not None else {}),
+    )
+
+
+@pipeline_app.command("item-stats")
+def pipeline_item_stats(
+    ctx: typer.Context,
+    code: Annotated[str, typer.Argument(help="The pipeline whose fan-out elements to read.")],
+    since: Annotated[str | None, typer.Option(help="How far back to look, such as 24h; 7d when omitted.")] = None,
+    step: Annotated[str | None, typer.Option(help="Only the elements of this step.")] = None,
+) -> None:
+    """Read how each fan-out element went within a window: per target, per check, its uptime and duration."""
+    with client_for(state_of(ctx)) as dg:
+        measured = dg.call(dg.pipelines.item_stats(code, since=since, step=step))
+    failing = sum(1 for row in measured.items if row.last_status is RunItemStatus.FAILED)
+    emit_fact(
+        "pipeline.item_stats",
+        message=f"{len(measured.items)} elements, {failing} failing now",
+        pipeline=measured.pipeline,
+        window_start=measured.window.start.isoformat(),
+        window_end=measured.window.end.isoformat(),
+        elements=[row.model_dump(mode="json") for row in measured.items],
     )
 
 

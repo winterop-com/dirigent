@@ -23,6 +23,7 @@ from dirigent_client.schemas import (
     DagNode,
     DagView,
     ItemOut,
+    ItemStats,
     LogEntryOut,
     Page,
     RerunRequest,
@@ -55,10 +56,10 @@ from dirigent_core.models import (
     StepAttempt,
     utcnow,
 )
-from dirigent_core.pipelines import UNWELL, FailedStep, carries_tag, failing_steps
+from dirigent_core.pipelines import UNWELL, FailedStep, carries_tag, failing_steps, require_pipeline
 from dirigent_core.registry import unmet_worker_tags
 from dirigent_core.reporting import duration_ms, items_in_order, run_facts
-from dirigent_core.stats import MAX_WINDOW, run_stats, run_summary
+from dirigent_core.stats import MAX_WINDOW, item_stats, run_stats, run_summary
 from dirigent_server.dependencies import ServicesDep, SessionDep, get_sessions
 from dirigent_server.errors import Refusal
 from dirigent_server.messages import (
@@ -290,6 +291,38 @@ async def stats(
             since=since,
         )
     return await run_stats(session, end=utcnow(), since=window, pipeline=pipeline, tags=tag or ())
+
+
+@router.get(
+    "/pipelines/{code}/items/$stats",
+    operation_id="getItemStats",
+    summary="Summarise how each fan-out element of a pipeline went",
+    response_model=ItemStats,
+)
+async def items_stats(
+    code: str,
+    session: SessionDep,
+    principal: PrincipalDep,
+    since: Annotated[str, Query(description="How far back to look, e.g. 7d; runs that settled within it.")] = "7d",
+    step: Annotated[str | None, Query(description="Only the elements of this step.")] = None,
+) -> ItemStats:
+    """Read each fan-out element's record over the pipeline's runs that settled within a window.
+
+    One row per step and element key: its runs, how many succeeded, failed and were skipped, its
+    uptime over the ones that succeeded or failed, its p50 and p95 duration, and how it stands in
+    the newest run, with its newest failure. A cancelled run is in none of it. The window is at
+    most 366 days, and the read covers its most recent fifty thousand elements.
+    """
+    window = _window(since)
+    if window > MAX_WINDOW:
+        raise Refusal(
+            STATS_WINDOW_TOO_LONG,
+            status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            maximum=format_duration(MAX_WINDOW),
+            since=since,
+        )
+    pipeline = await require_pipeline(session, code)
+    return await item_stats(session, pipeline, end=utcnow(), since=window, step=step)
 
 
 @router.get(

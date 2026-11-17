@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Section } from '@winterop-com/sokkel-ui/Section'
 import { Instant } from '@/components/Instant'
 import { PageState } from '@winterop-com/sokkel-ui/PageState'
+import { ElementHealth } from '@/components/pipeline/ElementHealth'
 import { LatestReport, RecentRuns, RECENT_ROWS, REPORT_RUNS } from '@/components/pipeline/PipelineRuns'
 import { RunDialog } from '@/components/pipeline/RunDialog'
 import { ShapeGraph } from '@/components/pipeline/ShapeGraph'
@@ -26,6 +27,7 @@ import { TAG_CHIPS_WORDS } from '@/lib/library-words'
 import { titleOf } from '@/lib/identity'
 import { ICONS } from '@/lib/icons'
 import { counted, LABELS } from '@/lib/labels'
+import { readItemStats } from '@/lib/item-stats'
 import { reportIn } from '@/lib/pipeline-document'
 import { applyPipeline, readPipeline, type StepShape } from '@/lib/pipelines'
 import { EVERY_RUN, readRuns, readSettledRuns } from '@/lib/runs'
@@ -42,8 +44,8 @@ import { cn } from '@/lib/utils'
  * One pipeline, led by its graph.
  *
  * THE GRAPH FIRST, THEN WHAT IT DID, THEN WHAT IT RUNS, WHAT FIRES IT AND WHAT IT REACHES. What it
- * did is its newest runs and, where the document declares a report, the latest settled run's
- * document. The heading carries the
+ * did is its newest runs, where the document declares a report the latest settled run's
+ * document, and where a step fans out each element's record over the last days. The heading carries the
  * three verbs: Edit opens the editor, Validate dry-runs the stored version against the instance
  * as it is now, and `Run…` asks for what a run needs. Nothing on this page writes the document.
  */
@@ -58,6 +60,10 @@ export function PipelinePage() {
     const listening = useRead(useCallback(() => readPipelineSources(code), [code]))
     const recent = useRead(
         useCallback(() => readRuns({ ...EVERY_RUN, pipeline: code }, null, RECENT_ROWS), [code]),
+    )
+    const fanned = detail.value?.shape.some((step) => step.fan_out) ?? false
+    const elements = useRead(
+        useCallback(() => (fanned ? readItemStats(code) : Promise.resolve(null)), [code, fanned]),
     )
     const declared = reportIn(detail.value?.document ?? null).declared
     const settled = useRead(
@@ -205,6 +211,15 @@ export function PipelinePage() {
                 {/* The same bases as the row under it, so the seams between the two rows line up. */}
                 {reported.length > 0 && <LatestReport runs={reported} className="flex-[1_1_300px]" />}
             </div>
+
+            {elements.value !== null && elements.value.items.length > 0 && (
+                <ElementHealth
+                    stats={elements.value}
+                    selected={selected}
+                    onSelect={select}
+                    className="mt-5"
+                />
+            )}
 
             <div className="mt-5 flex flex-wrap items-start gap-5">
                 {steps.some((step) => step.kind === 'block') && (

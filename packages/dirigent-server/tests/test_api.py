@@ -1657,6 +1657,37 @@ def settled_fan_out(client: TestClient) -> str:
     return run_id
 
 
+def test_item_stats_read_each_element_of_a_pipelines_settled_runs(client: TestClient) -> None:
+    run_id = settled_fan_out(client)
+    now = datetime.now(UTC)
+    rows_written(
+        client,
+        sa.update(Run)
+        .where(Run.id == UUID(run_id))
+        .values(status=RunStatus.COMPLETED_WITH_ERRORS, started_at=now - timedelta(seconds=9), finished_at=now),
+        sa.update(RunItem)
+        .where(RunItem.run_id == UUID(run_id))
+        .values(started_at=now - timedelta(seconds=3), finished_at=now - timedelta(seconds=1)),
+    )
+    answered = client.get(f"{PREFIX}/pipelines/fanned/items/$stats")
+    assert answered.status_code == 200, answered.text
+    read = answered.json()
+    assert read["pipeline"] == "fanned"
+    assert [(row["step"], row["item"], row["last_status"], row["uptime"]) for row in read["items"]] == [
+        ("spread", "oslo", "succeeded", 1.0),
+        ("spread", "bergen", "failed", 0.0),
+        ("spread", "tromso", "succeeded", 1.0),
+    ]
+    assert read["items"][0]["p50_duration_ms"] == 2000
+    assert client.get(f"{PREFIX}/pipelines/fanned/items/$stats", params={"step": "seed"}).json()["items"] == []
+
+
+def test_item_stats_refuse_an_unknown_pipeline_and_a_window_too_long(client: TestClient) -> None:
+    assert client.get(f"{PREFIX}/pipelines/nowhere/items/$stats").status_code == 404
+    refused = client.get(f"{PREFIX}/pipelines/nowhere/items/$stats", params={"since": "400d"})
+    assert refused.json()["code"] == "server.stats_window_too_long"
+
+
 def test_the_dag_is_the_same_story_the_grid_told(client: TestClient) -> None:
     """Every node field the inlined grid was folded from is folded from counts instead."""
     run_id = settled_fan_out(client)

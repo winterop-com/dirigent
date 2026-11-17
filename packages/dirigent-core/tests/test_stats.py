@@ -6,13 +6,13 @@ from uuid import UUID
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import AttemptStatus, RunStatus
+from dirigent_client.enums import AttemptStatus, RunItemStatus, RunStatus
 from dirigent_core import stats as stats_module
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import save_pipeline
-from dirigent_core.models import PipelineVersion, Run, StepAttempt
-from dirigent_core.stats import RECENT_RUNS, percentile, run_stats, run_summary
+from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, StepAttempt
+from dirigent_core.stats import RECENT_RUNS, item_stats, percentile, run_stats, run_summary
 
 END = datetime(2026, 3, 10, 12, 0, tzinfo=UTC)
 
@@ -314,3 +314,105 @@ async def test_durations_are_sampled_per_pipeline(
 
     assert {row.pipeline: row.runs for row in stats.durations} == {"alpha": 3, "beta": 3}
     assert {row.pipeline: row.median_duration_ms for row in summary.pipelines} == {"alpha": 2000, "beta": 7000}
+
+
+# -- each fan-out element's record ------------------------------------------------
+
+
+def _checks() -> PipelineDefinition:
+    """A pipeline whose two steps fan out over targets, which is what an item read is about."""
+    return PipelineDefinition(
+        code="checks",
+        steps={
+            "reachable": StepDefinition(block="test.echo", for_each=["a", "b"], config={"value": "${item}"}),
+            "answers": StepDefinition(block="test.echo", depends_on=["reachable"], config={"value": "x"}),
+        },
+    )
+
+
+def _element(
+    run: Run, step: str, key: str, index: int, status: RunItemStatus, *, took: int, error: str | None = None
+) -> RunItem:
+    """One element of one run's grid, that ran ``took`` seconds and ended as ``status``."""
+    assert run.finished_at is not None
+    return RunItem(
+        run_id=run.id,
+        step_name=step,
+        item_index=index,
+        item_key=key,
+        status=status,
+        error=error,
+        started_at=run.finished_at - timedelta(seconds=took + 1),
+        finished_at=run.finished_at - timedelta(seconds=1),
+    )
+
+
+async def seed_items(sessions: async_sessionmaker[AsyncSession]) -> Pipeline:
+    """Four runs over two targets: ``b`` fails on the 8th and its dependent check is skipped then.
+
+    ``a`` succeeds every time, taking one to four seconds. A cancelled run and a run outside the
+    window carry elements that count for nothing.
+    """
+    async with session_scope(sessions) as session:
+        version = await save_pipeline(session, _checks())
+        eighth, ninth = datetime(2026, 3, 8, 10, 0, tzinfo=UTC), datetime(2026, 3, 9, 10, 0, tzinfo=UTC)
+        runs = [
+            _run(version, RunStatus.SUCCEEDED, finished=eighth - timedelta(hours=1), took=timedelta(seconds=9)),
+            _run(version, RunStatus.COMPLETED_WITH_ERRORS, finished=eighth, took=timedelta(seconds=9)),
+            _run(version, RunStatus.SUCCEEDED, finished=ninth, took=timedelta(seconds=9)),
+            _run(version, RunStatus.SUCCEEDED, finished=ninth + timedelta(hours=1), took=timedelta(seconds=9)),
+        ]
+        cancelled = _run(version, RunStatus.CANCELLED, finished=ninth + timedelta(hours=2), took=timedelta(seconds=9))
+        old = _run(version, RunStatus.FAILED, finished=datetime(2026, 2, 1, tzinfo=UTC), took=timedelta(seconds=9))
+        session.add_all([*runs, cancelled, old])
+        await session.flush()
+        for took, run in enumerate(runs, start=1):
+            down = run.status is RunStatus.COMPLETED_WITH_ERRORS
+            b = RunItemStatus.FAILED if down else RunItemStatus.SUCCEEDED
+            session.add_all(
+                [
+                    _element(run, "reachable", "a", 0, RunItemStatus.SUCCEEDED, took=took),
+                    _element(run, "reachable", "b", 1, b, took=10 * took, error="HTTP 503" if down else None),
+                    _element(
+                        run, "answers", "b", 1, RunItemStatus.SKIPPED if down else RunItemStatus.SUCCEEDED, took=1
+                    ),
+                ]
+            )
+        for run in (cancelled, old):
+            session.add(_element(run, "reachable", "a", 0, RunItemStatus.FAILED, took=1))
+        pipeline = await session.get(Pipeline, version.pipeline_id)
+        assert pipeline is not None
+        return pipeline
+
+
+async def test_each_element_is_read_as_its_own_record_over_the_window(
+    sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    await assert_the_items_fold(sessions)
+
+
+async def assert_the_items_fold(sessions: async_sessionmaker[AsyncSession]) -> None:
+    """The whole item read over the seeded runs, which the PostgreSQL lane asserts with the same body."""
+    pipeline = await seed_items(sessions)
+    async with session_scope(sessions) as session:
+        read = await item_stats(session, pipeline, end=END, since=WEEK)
+    rows = {(row.step, row.item): row for row in read.items}
+    assert [(row.step, row.item) for row in read.items] == [("reachable", "a"), ("reachable", "b"), ("answers", "b")]
+    a, b, answers = rows["reachable", "a"], rows["reachable", "b"], rows["answers", "b"]
+    assert (a.runs, a.succeeded, a.failed, a.uptime) == (4, 4, 0, 1.0), "a cancelled or older run counts for nothing"
+    assert (a.p50_duration_ms, a.p95_duration_ms) == (2000, 4000)
+    assert (b.succeeded, b.failed, b.uptime) == (3, 1, 0.75)
+    assert (b.last_status, b.last_error) == (RunItemStatus.SUCCEEDED, "HTTP 503")
+    assert b.last_failed_at == datetime(2026, 3, 8, 9, 59, 59, tzinfo=UTC)
+    assert [(day.day, day.succeeded, day.failed) for day in b.days] == [
+        (date(2026, 3, 8), 1, 1),
+        (date(2026, 3, 9), 2, 0),
+    ]
+    assert (answers.skipped, answers.uptime) == (1, 1.0), "a skipped element is neither up nor down"
+
+
+async def test_an_element_read_narrows_to_one_step(sessions: async_sessionmaker[AsyncSession]) -> None:
+    pipeline = await seed_items(sessions)
+    async with session_scope(sessions) as session:
+        read = await item_stats(session, pipeline, end=END, since=WEEK, step="answers")
+    assert [(row.step, row.item) for row in read.items] == [("answers", "b")]

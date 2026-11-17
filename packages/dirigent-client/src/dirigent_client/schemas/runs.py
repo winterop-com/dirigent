@@ -364,6 +364,59 @@ class RunStats(WireModel):
     failing_steps: list[StepFailures] = Field(default_factory=list[StepFailures])
 
 
+class ItemDay(WireModel):
+    """How one fan-out element of one step went on one UTC day, by its runs that settled that day."""
+
+    day: date
+    succeeded: int = 0
+    failed: int = 0
+    skipped: int = 0
+
+
+class ItemHealth(WireModel):
+    """How one fan-out element of one step went over a window: a target's record under one check."""
+
+    step: str
+    item: str
+    """The element's key, which is what the run grid names it by."""
+
+    runs: int
+    """How many settled runs in the window carried this element."""
+
+    succeeded: int = 0
+    failed: int = 0
+    skipped: int = 0
+    """Not run because what it depends on did not succeed; neither up nor down."""
+
+    uptime: float | None = None
+    """The share of its runs that succeeded, of those that succeeded or failed; null when none did either."""
+
+    p50_duration_ms: int | None = None
+    p95_duration_ms: int | None = None
+    """From the element's first attempt starting to its last finishing, so a retry's wait is in it."""
+
+    last_status: RunItemStatus
+    last_run_id: UUID
+    last_at: datetime | None = None
+    """When the newest run carrying this element settled."""
+
+    last_failed_at: datetime | None = None
+    last_error: str | None = None
+    """What the newest failure said."""
+
+    days: list[ItemDay] = Field(default_factory=list[ItemDay])
+    """One row per UTC day the element ran on, oldest first; a day it did not run on is absent."""
+
+
+class ItemStats(WireModel):
+    """How each fan-out element of a pipeline went over a window: per target, per check."""
+
+    pipeline: str
+    window: StatsWindow
+    items: list[ItemHealth] = Field(default_factory=list[ItemHealth])
+    """One row per step and element, in step order and then in the element's place in its grid."""
+
+
 class RecentRun(WireModel):
     """One run as a pipeline's summary names it: which, how it stands, and when it was created."""
 
