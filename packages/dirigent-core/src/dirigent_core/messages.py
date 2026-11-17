@@ -677,6 +677,10 @@ NO_INTERVAL = SCHEDULE.define("no_interval", "an interval schedule has no interv
 
 NO_INSTANT = SCHEDULE.define("no_instant", "a one-time schedule has no instant")
 
+ONE_TIME_PASSED = SCHEDULE.define(
+    "one_time_passed", "this one-time schedule's moment {at} has gone by: redeclare its at to resume it"
+)
+
 BAD_INTERVAL = SCHEDULE.define("bad_interval", "{detail}")
 
 BAD_MOMENT = SCHEDULE.define("bad_moment", "{text} is not a moment: write one as 2026-06-01T09:00:00Z")

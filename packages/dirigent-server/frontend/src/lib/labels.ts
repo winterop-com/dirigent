@@ -1285,6 +1285,8 @@ const refused = {
         interval_too_long:
             'A schedule firing every {interval} would not fire again. The longest interval is {limit}.',
         no_version: 'The pipeline has no current version to run.',
+        one_time_passed:
+            "This one-time schedule's moment, {at}, has gone by, so there is nothing to resume. Give it a later at first.",
         run_in_flight: 'A run of this pipeline is already in flight.',
         run_replaced: 'The run in flight was cancelled and replaced.',
         unknown: 'Pipeline {pipeline} has no schedule coded {code}.',
