@@ -444,6 +444,9 @@ present. A triggers document the directory no longer holds is *deleted* rather t
 deactivated -- it has no history worth keeping -- and the delete takes the schedules
 it declared with it, never the pipeline's own inline ones and never a hand-made row.
 The same narrowing applies: only a triggers document a directory apply wrote is ever pruned.
+A triggers document may share its pipeline's code, since the two are separate resources; two
+files of one kind and one code are a mistake, and the walk applies the first in path order and
+refuses the second.
 
 Standing an instance up by hand is still one command for the whole directory:
 
