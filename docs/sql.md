@@ -247,7 +247,10 @@ facade itself uses. So `read_parquet` of a bucket object opens it, and `COPY ...
 's3://...'` writes back, with no local copy in the document. On an instance whose artifact
 root is a bucket, `${run.scratch}/readings.parquet` is one of those objects, which is what
 lets the example above run unchanged there. A step that names `s3://` with no connection bound
-to the scheme is refused, because there is no credential to open it with. The scheme is granted
+to the scheme is refused, because there is no credential to open it with. duckdb speaks TLS to
+AWS and to an `https` endpoint, and always verifies the certificate it is shown, so a connection
+with `verify_tls: false` and either of those is refused (`sql.duckdb.s3_unverified_tls`); only an
+`http` endpoint is reached in plain text. The scheme is granted
 alongside the run's directories, and only for a step that names a bucket: a step that names none
 reaches no further than its own files.
 
@@ -317,6 +320,12 @@ as well:
 block exists to write. And a connection on a dialect with no read-only mode cannot be marked
 `read_only` at all: the connection is refused when it is written, rather than accepted and left
 quietly writable.
+
+`sql.query` on a writable connection runs its statement in a transaction that commits once the
+rows are read, so `INSERT ... RETURNING id` stores the row it answers with. A statement that
+fails, or answers more than `max_rows`, is rolled back. Because a query may write, a retry runs
+it again: a write that must happen once belongs in `sql.execute`, or in a statement written to
+be repeated (`ON CONFLICT DO NOTHING`).
 
 The pattern this is for: one connection per role. A `warehouse-read` connection every reporting
 pipeline names, and a `warehouse-write` one only the pipelines that load data name.

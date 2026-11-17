@@ -41,6 +41,7 @@ from dirigent_block_duckdb.messages import (
     READ_ONLY_IN_MEMORY,
     READ_ONLY_RUNS_SELECT,
     READ_ONLY_UNPARSED,
+    S3_UNVERIFIED_TLS,
     STATEMENT_LOADS_AN_EXTENSION,
     STATEMENT_OUTSIDE_THE_RUN,
 )
@@ -197,15 +198,19 @@ def s3_secret(config: S3StorageSettings) -> dict[str, str | bool]:
     """The parameters of the duckdb secret that points httpfs at one endpoint with one credential.
 
     duckdb takes the endpoint as host and port with no scheme, and asks separately whether to
-    speak TLS to it, so one ``endpoint_url`` becomes two parameters.
+    speak TLS to it, so one ``endpoint_url`` becomes two parameters. AWS itself is spoken to over
+    TLS. duckdb always verifies the certificate of an endpoint it speaks TLS to, so a connection
+    that turns ``verify_tls`` off for one is refused rather than verified anyway.
     """
     secret: dict[str, str | bool] = {"REGION": config.region}
     if config.endpoint_url:
         split = urlsplit(config.endpoint_url)
         secret["ENDPOINT"] = split.netloc or split.path
-        secret["USE_SSL"] = split.scheme == "https"
+        secret["USE_SSL"] = split.scheme != "http"
     else:
-        secret["USE_SSL"] = config.verify_tls
+        secret["USE_SSL"] = True
+    if secret["USE_SSL"] and not config.verify_tls:
+        raise BlockFailure(S3_UNVERIFIED_TLS, error_class=ErrorClass.REJECTED, scheme=S3)
     if config.access_key_id:
         secret["KEY_ID"] = config.access_key_id
     if config.secret_access_key is not None:
