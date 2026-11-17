@@ -585,7 +585,8 @@ would commit the outcome with no log. A pipeline's row lock serializes its concu
 and every transaction that takes it with a run's takes it first: creating a run, cancelling,
 retrying and resuming one. The outcome that settles a run already holds the run's lock when it
 frees the slot, so it takes the pipeline lock only if it is free, and otherwise releases the
-held run in a transaction of its own once the outcome committed. No remote is called and no
+held run in a transaction of its own once the outcome committed; the workers' sweep releases
+any run a process that stopped in between left held behind a free slot. No remote is called and no
 lock waited on inside a transaction holding a run's lock. The claim also routes: a document declares
 `requires.workers`, the run pins that list at creation, and
 a worker claims only what its own tags cover -- `jsonb` containment on PostgreSQL, a

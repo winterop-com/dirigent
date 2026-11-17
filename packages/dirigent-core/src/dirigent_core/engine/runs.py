@@ -1009,6 +1009,27 @@ async def promote_queued_run(session: AsyncSession, services: EngineServices, pi
     return None
 
 
+async def release_free_slots(session: AsyncSession, services: EngineServices) -> list[UUID]:
+    """Release the run held behind every pipeline whose slot is free, and name the runs released.
+
+    A settle that found the pipeline lock busy releases after its commit, so a process that
+    stopped in between leaves a run held with nothing in flight to release it. The worker's
+    sweep calls this. Each pipeline is released under its own lock, in a fixed order.
+    """
+    waiting = await session.execute(
+        sa.select(Run.pipeline_id)
+        .where(Run.status == RunStatus.QUEUED, Run.started_at.is_(None))
+        .distinct()
+        .order_by(Run.pipeline_id)
+    )
+    released: list[UUID] = []
+    for pipeline_id in waiting.scalars().all():
+        run = await promote_queued_run(session, services, pipeline_id)
+        if run is not None:
+            released.append(run.id)
+    return released
+
+
 async def _occupies_slot(session: AsyncSession, run: Run) -> bool:
     """Say whether an active run holds the pipeline's slot rather than waiting behind it.
 

@@ -31,7 +31,7 @@ from dirigent_core.database import session_scope
 from dirigent_core.engine.claim import ClaimedUnit
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.recovery import detect_stuck_runs, reap_workers, sweep_leases
-from dirigent_core.engine.runs import retry_remote_cancels
+from dirigent_core.engine.runs import release_free_slots, retry_remote_cancels
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import StepAttempt, utcnow
@@ -285,6 +285,9 @@ class Worker:
                 "unsendable notifications",
                 lambda session: fail_unsendable_notifications(session, waited=self.settings.stale_worker),
             )
+            released = await self._chore_once(
+                "held run release", lambda session: release_free_slots(session, self.services)
+            )
             # This worker's own row was refreshed by the heartbeat well inside the age below,
             # so a sweeper never reaps the process running it.
             reaped = await self._chore_once(
@@ -302,6 +305,8 @@ class Worker:
             _logger.info("settled attempts past their deadline", worker=self.name, count=len(overdue))
         if reaped:
             _logger.info("reaped worker registry rows", worker=self.name, count=len(reaped))
+        if released:
+            _logger.info("released held runs whose slot was free", worker=self.name, count=len(released))
         if told:
             _logger.info("told the remote about a cancel", worker=self.name, count=told)
 
