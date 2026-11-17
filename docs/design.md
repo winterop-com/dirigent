@@ -1073,7 +1073,12 @@ Dirigent standardizes the reference, not the format or the backend:
 - **`file://` is rooted.** The local backend resolves every URI inside the configured
   artifact root and refuses anything outside it, so a stored pipeline cannot turn a copy
   step into an arbitrary-file read. A write becomes visible only once it finished, because
-  the bytes are staged beside the target and renamed on close.
+  the bytes are staged beside the target and renamed on close; a listing leaves the staging
+  file out, and a write that fails at the rename removes it. Everything after `file://` is
+  the path as written: `?`, `#` and `[` are characters of a name, never a query or a fragment,
+  so `file:///data/Order #12.json` is that file. In a listing URI `?` and `[` are glob
+  characters, as `*` is. Deleting a run's prefix also removes its emptied directories and any
+  staging file a killed worker left.
 - **The cap governs the artifact copy, not the attempt.** Every successful attempt keeps its
   structured output whole in `step_attempts.output`, whatever its size, and that is the column
   reference resolution reads -- so `${steps.<name>.output.*}` never pays a storage round trip
