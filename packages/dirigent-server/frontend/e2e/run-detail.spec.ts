@@ -773,7 +773,7 @@ test("a refused rerun says the server's reason, and the screen stays on the run"
     await page.goto(`/runs/${runId}`)
     await pageHead(page).getByRole('button', { name: LABELS.action.rerun, exact: true }).click()
     await expect(
-        page.getByText(`Run ${runId} no longer holds the input that entered it at 'source'.`, {
+        page.getByText(`Run ${runId.slice(-8)} no longer holds the input that entered it at 'source'.`, {
             exact: true,
         }),
     ).toBeVisible()

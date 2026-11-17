@@ -7,7 +7,7 @@ import type { PageStateWords, ReadOutcome } from '@winterop-com/sokkel-ui/PageSt
 import type { Problem } from '@/lib/api'
 import { TABLE_WORDS } from '@/lib/library-words'
 import { LABELS } from '@/lib/labels'
-import { refusalLine, refusalLines, refusalOf } from '@/lib/refusal'
+import { refusalLine, refusalLines, refusalOf, withShortRun } from '@/lib/refusal'
 
 /**
  * The words of a refusal: the sentence, and under it the failures it does not already spell out.
@@ -108,8 +108,8 @@ export function refusedTable(
  *
  * A row's button and a panel's verb are pressed against a listing, and there is no card beside
  * either -- so the refusal is a toast, which is the one place in this app that says something
- * about a request nothing on screen is waiting for.
+ * about a request nothing on screen is waiting for. A run it names is named by its short id.
  */
 export function sayRefusal(error: unknown): void {
-    toast.error(refusalLine(refusalOf(error)))
+    toast.error(refusalLine(withShortRun(refusalOf(error))))
 }

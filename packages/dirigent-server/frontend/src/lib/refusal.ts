@@ -18,6 +18,7 @@
  */
 
 import { ApiError, issuesOf, type Issue, type JsonMap, type Problem } from '@/lib/api'
+import { shortId } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
 import { sentenceFor } from '@/lib/wording'
 
@@ -79,4 +80,11 @@ export function refusalLines(problem: Problem): { detail: string | null; problem
 export function refusalLine(problem: Problem): string {
     const lines = refusalLines(problem)
     return lines.detail ?? lines.problems.join(JOIN)
+}
+
+/** A refusal with the run it names written as the short id the rest of the interface shows. */
+export function withShortRun(problem: Problem): Problem {
+    const run = problem.params.run
+    if (typeof run !== 'string') return problem
+    return { ...problem, params: { ...problem.params, run: shortId(run) } }
 }
