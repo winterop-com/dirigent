@@ -68,3 +68,31 @@ NESTED_VALUE = PARQUET.define(
     "nested_value",
     "row {number} has a nested value at {key}, and this codec writes flat columns; flatten it before converting",
 )
+
+
+CSV_ROW_UNREADABLE = PARQUET.define("csv_row_unreadable", "line {line} of the csv cannot be read: {detail}")
+
+TOO_MANY_CELLS = PARQUET.define(
+    "too_many_cells",
+    "the parquet decodes to {rows} rows by {columns} columns, {cells} cells, and a conversion "
+    "decodes at most {limit}; select fewer rows or columns before converting",
+)
+
+INTEGER_OUT_OF_RANGE = PARQUET.define(
+    "integer_out_of_range",
+    "row {number} key {key} is {value}, which is outside the 64-bit integers a parquet column holds",
+)
+
+INTEGER_NOT_A_FLOAT = PARQUET.define(
+    "integer_not_a_float",
+    "row {number} key {key} is the integer {value} in a column that also holds fractions, and a "
+    "float column holds no integer past 2**53 exactly; write the column as one kind before converting",
+)
+
+UNPAIRED_SURROGATE = PARQUET.define(
+    "unpaired_surrogate",
+    "row {number} key {key} holds half of a surrogate pair at character {position}, which has no "
+    "UTF-8 spelling for parquet to write",
+)
+
+NOT_WRITTEN = PARQUET.define("not_written", "parquet could not write the records: {detail}")
