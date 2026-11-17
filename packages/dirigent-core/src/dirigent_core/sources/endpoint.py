@@ -277,9 +277,9 @@ def _readable_pattern(pattern: str) -> bool:
 
 
 def _declares_a_body(headers: dict[str, str]) -> bool:
-    """Say whether a request's head promises a body."""
+    """Say whether a request's head promises a body: a length of ASCII digits above zero, or a transfer coding."""
     length = headers.get("content-length", "").strip()
-    return (length.isdigit() and int(length) > 0) or "transfer-encoding" in headers
+    return (length.isascii() and length.isdigit() and int(length) > 0) or "transfer-encoding" in headers
 
 
 def _read_body(raw: bytes, family: BodyKind, charset: str) -> JsonValue | Refusal:
