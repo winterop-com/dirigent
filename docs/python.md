@@ -321,6 +321,11 @@ with BlockingDirigent(url=DG_URL, token=DG_TOKEN) as dg:
 thread and hands back the result; `iterate` does the same for an async iterator. The
 accessors are the same objects, so nothing is duplicated. This is what `dg` itself uses.
 
+A wait the calling thread gives up on, such as one Ctrl-C interrupts, cancels the coroutine it
+was waiting for and gives it up to five seconds to unwind before the exception reaches the
+caller, so a log tail or event stream interrupted mid-read is closed, not left running on the
+loop, when the client closes.
+
 ## Testing a block
 
 `dirigent-testing` is the other package written for people outside this repository. It is a
