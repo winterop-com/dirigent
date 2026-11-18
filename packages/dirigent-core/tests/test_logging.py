@@ -22,6 +22,7 @@ from dirigent_core.logging import (
     BRIDGED_LOGGERS,
     PACKAGE_LOGGER,
     GrammarRenderer,
+    ProcessLog,
     bind_context,
     clear_context,
     configure_logging,
@@ -212,6 +213,17 @@ def test_a_field_takes_its_stored_shape_when_it_is_logged() -> None:
     fields = log.drain()[0]["fields"]
     assert fields == SPELLED
     json.dumps(fields, allow_nan=False)
+
+
+def test_a_source_kinds_process_log_shapes_its_fields_as_a_runs_log_does() -> None:
+    """A source kind logs before any run exists, and its fields take the same shape."""
+    log = ProcessLog(get_logger("sources.test"))
+    with structlog.testing.capture_logs() as captured:
+        log.warning("polled", event="landing", level="secret", **UNSPELLED)
+    [entry] = captured
+    assert entry["event"] == "polled"
+    assert entry["fields"] == {"event": "landing", "level": "secret", **SPELLED}
+    json.dumps(entry["fields"], allow_nan=False)
 
 
 def test_the_recording_logger_keeps_what_the_engine_stores() -> None:

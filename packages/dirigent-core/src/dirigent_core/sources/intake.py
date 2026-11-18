@@ -22,7 +22,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from jsonschema import FormatChecker
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,7 +39,7 @@ from dirigent_core.engine.runs import Attribution, Entry, create_run
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
 from dirigent_core.errors import DomainError
-from dirigent_core.logging import get_logger
+from dirigent_core.logging import ProcessLog, get_logger
 from dirigent_core.messages import (
     INTAKE_RATE,
     METHOD_NOT_ANSWERED,
@@ -577,32 +577,12 @@ class _ReceiveContext(BaseModel):
     @property
     def log(self) -> Logger:
         """Where the kind says what it did with the request."""
-        return _ProcessLog()
+        return ProcessLog(_logger)
 
     @property
     def format_checker(self) -> FormatChecker:
         """The instance's assembled format checker."""
         return self.services.format_checker
-
-
-class _ProcessLog:
-    """A received kind's log, written to the server's own: no run exists yet to hold it."""
-
-    def debug(self, message: str, **fields: JsonValue) -> None:
-        """Record a debug-level entry."""
-        _logger.debug(message, **fields)
-
-    def info(self, message: str, **fields: JsonValue) -> None:
-        """Record an info-level entry."""
-        _logger.info(message, **fields)
-
-    def warning(self, message: str, **fields: JsonValue) -> None:
-        """Record a warning-level entry."""
-        _logger.warning(message, **fields)
-
-    def error(self, message: str, **fields: JsonValue) -> None:
-        """Record an error-level entry."""
-        _logger.error(message, **fields)
 
 
 def _counted(refusal: Refusal) -> Refusal:

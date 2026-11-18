@@ -34,7 +34,7 @@ from dirigent_core.engine.context import ConnectionRecord, load_connections, ope
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import lock_pipeline
-from dirigent_core.logging import get_logger
+from dirigent_core.logging import ProcessLog, get_logger
 from dirigent_core.messages import RUN_UNKNOWN_CONNECTION, SOURCE_NOT_HELD
 from dirigent_core.models import Pipeline, Source, utcnow
 from dirigent_core.sources.polling import InputRefused, backoff_for, enter_input
@@ -346,7 +346,7 @@ class _HoldContext:
     @property
     def log(self) -> Logger:
         """Where the kind says what it is doing."""
-        return _ProcessLog()
+        return ProcessLog(_logger)
 
     @property
     def storage(self) -> Storage:
@@ -360,23 +360,3 @@ class _HoldContext:
             known = ", ".join(sorted(self._connections)) or "none are configured"
             raise LookupError(RUN_UNKNOWN_CONNECTION.render(ref=repr(ref), available=known))
         return open_record(self._services.secrets, record, model, self._services.connection_models, opened=self._opened)
-
-
-class _ProcessLog:
-    """A held kind's log, written to the worker's own: no run exists yet to hold it."""
-
-    def debug(self, message: str, **fields: JsonValue) -> None:
-        """Record a debug-level entry."""
-        _logger.debug(message, **fields)
-
-    def info(self, message: str, **fields: JsonValue) -> None:
-        """Record an info-level entry."""
-        _logger.info(message, **fields)
-
-    def warning(self, message: str, **fields: JsonValue) -> None:
-        """Record a warning-level entry."""
-        _logger.warning(message, **fields)
-
-    def error(self, message: str, **fields: JsonValue) -> None:
-        """Record an error-level entry."""
-        _logger.error(message, **fields)

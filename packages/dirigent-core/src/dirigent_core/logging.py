@@ -14,9 +14,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import structlog
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, JsonValue
 from structlog.typing import EventDict, Processor
 
+from dirigent_common import loggable
 from dirigent_core.protocol import Paint, adopt, console
 
 if TYPE_CHECKING:
@@ -265,6 +266,40 @@ def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     full_name = PACKAGE_LOGGER if name is None else f"{PACKAGE_LOGGER}.{name}"
     logger: structlog.stdlib.BoundLogger = structlog.get_logger(full_name)
     return logger
+
+
+class ProcessLog:
+    """A source kind's log, written to this process's own because no run exists yet to hold it.
+
+    Each field takes its :func:`~dirigent_common.loggable` shape, as a run's log gives it, and the
+    fields are nested under ``fields`` rather than spread, so a kind may name one ``event`` or
+    ``level``.
+    """
+
+    def __init__(self, logger: structlog.stdlib.BoundLogger) -> None:
+        """Write through the logger of the module that hosts the kind."""
+        self._logger = logger
+
+    def debug(self, message: str, **fields: JsonValue) -> None:
+        """Record a debug-level entry."""
+        self._logger.debug(message, fields=_shaped(fields))
+
+    def info(self, message: str, **fields: JsonValue) -> None:
+        """Record an info-level entry."""
+        self._logger.info(message, fields=_shaped(fields))
+
+    def warning(self, message: str, **fields: JsonValue) -> None:
+        """Record a warning-level entry."""
+        self._logger.warning(message, fields=_shaped(fields))
+
+    def error(self, message: str, **fields: JsonValue) -> None:
+        """Record an error-level entry."""
+        self._logger.error(message, fields=_shaped(fields))
+
+
+def _shaped(given: Mapping[str, object]) -> dict[str, JsonValue]:
+    """Give every field its log shape."""
+    return {name: loggable(value) for name, value in given.items()}
 
 
 #: The package's stdlib logger, held so a hot path can ask its level without a lookup.
