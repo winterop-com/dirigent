@@ -15,6 +15,7 @@ from typing import Any, cast
 from dirigent_cli.local import ConnectionSpec
 from dirigent_client import Conflict, Dirigent, DirigentError, PlanAction, ProvenanceSource, declared_label
 from dirigent_common import JsonMap
+from dirigent_common.redaction import REDACTED
 from dirigent_core.documents import CARRIED, SUFFIXES, is_document, readable
 from dirigent_core.protocol import Record, make
 from dirigent_core.schemas import code_from_id
@@ -190,7 +191,7 @@ async def _connections(client: Dirigent, declared: Sequence[ConnectionSpec], ori
     """Create each declared connection, or replace the config of one that is already there."""
     for spec in declared:
         try:
-            action = await _connection(client, spec)
+            action = await _connection(client, await _keeping_stored_secrets(client, spec))
         except DirigentError as error:
             yield _refused(origin, f"connection {spec.code}: {_reason(error)}")
             continue
@@ -203,6 +204,25 @@ async def _connections(client: Dirigent, declared: Sequence[ConnectionSpec], ori
             action=action,
             origin=origin,
         )
+
+
+async def _keeping_stored_secrets(client: Dirigent, spec: ConnectionSpec) -> ConnectionSpec:
+    """Mark each secret the instance holds and the file leaves out as kept, so a re-seed does not drop it.
+
+    An update replaces a connection's config whole, and a secret set with ``dg connection
+    set-secret`` after the first seed is in no file. The redaction marker a read shows for a
+    stored secret is what an update reads as "keep this one". A secret the file names is sent
+    as written, and a connection the instance does not hold, or cannot read back, goes in as
+    the file declares it.
+    """
+    try:
+        held = await client.connections.get(spec.code)
+    except DirigentError:
+        return spec
+    kept = {name: REDACTED for name, value in held.config.items() if value == REDACTED and name not in spec.config}
+    if not kept:
+        return spec
+    return spec.model_copy(update={"config": {**spec.config, **kept}})
 
 
 async def _connection(client: Dirigent, spec: ConnectionSpec) -> str:
