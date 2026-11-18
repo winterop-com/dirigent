@@ -130,7 +130,6 @@ from dirigent_cli.output import (
     refuse,
     render_bool,
     render_check,
-    stream_line,
     styled,
     table,
 )
@@ -1123,24 +1122,14 @@ def pipeline_validate(
         checked: dict[str, list[ValidationIssue]] = {
             one: list(dg.call(dg.pipelines.validate(one, version=version))) for one in codes
         }
-    if state.json_output:
-        for one, found in checked.items():
-            emit_record(
-                "validation",
-                code=one,
-                valid=not found,
-                issues=[issue.model_dump(mode="json") for issue in found],
-            )
-        if any(checked.values()):
-            raise typer.Exit(code=1)
-        return
     for one, found in checked.items():
-        if not found:
-            console.print(f"[green]valid[/]    {escape(str(one))}")
-            continue
-        console.print(f"[red]invalid[/]  {escape(str(one))}")
-        for issue in found:
-            stream_line(f"  {escape(str(issue))}")
+        emit_fact(
+            "validation",
+            level="error" if found else "info",
+            message="invalid" if found else "valid",
+            code=one,
+            problems=[issue.issue().model_dump(mode="json") for issue in found] or None,
+        )
     if any(checked.values()):
         raise typer.Exit(code=1)
 
@@ -1819,7 +1808,7 @@ def _settled_fields(item: StepTransition) -> dict[str, Any]:
 def _output_fields(item: StepTransition) -> dict[str, Any]:
     """What a settled step produced: the values themselves, or the artifact holding them."""
     if item.spill is not None:
-        return {"artifact": item.spill.uri, "bytes": item.spill.size_bytes}
+        return {"artifact": item.spill.uri, "artifact_bytes": item.spill.size_bytes}
     return dict(item.output or {})
 
 
@@ -1832,7 +1821,7 @@ def _attempt_settled_fields(attempt: AttemptOut) -> dict[str, Any]:
 def _attempt_output_fields(attempt: AttemptOut) -> dict[str, Any]:
     """The same, for an attempt read back from a server."""
     if attempt.output_uri is not None:
-        return {"artifact": attempt.output_uri, "bytes": attempt.output_bytes}
+        return {"artifact": attempt.output_uri, "artifact_bytes": attempt.output_bytes}
     return dict(attempt.output or {})
 
 
@@ -2546,8 +2535,6 @@ def runs_logs(
         entries = list(
             paged(lambda after, size: dg.call(dg.runs.logs(run_id, after=after, limit=size, step=step)), None)
         )
-        if state.json_output and not follow:
-            return emit_records("log_entry", entries)
         for entry in entries:
             _relay_log(entry, state)
         if not follow:
@@ -3434,23 +3421,16 @@ def token_create(
             created = dg.call(dg.admin.tokens.create(name, expires_in=expires_in))
         else:
             created = dg.call(dg.admin.users.create_token(user, name, expires_in=expires_in))
-    if state_of(ctx).json_output:
-        return emit_fact(
-            "token.issued",
-            message="created",
-            id=str(created.id),
-            username=created.username,
-            name=created.name,
-            prefix=created.prefix,
-            token=created.token,
-            expires_at=created.expires_at.isoformat() if created.expires_at else None,
-        )
-    console.print(f"[green]created[/] token [bold]{escape(created.name)}[/] for [bold]{escape(created.username)}[/]")
-    console.print(f"\n  {escape(created.token)}\n")
-    console.print(f"Its id is {created.id}, which is what revokes it.")
-    if created.expires_at is not None:
-        console.print(f"It expires at {moment(created.expires_at)}.")
-    console.print("[yellow]This is the only time the token is shown.[/] Store it, or create another.")
+    emit_fact(
+        "token.issued",
+        message="created",
+        id=str(created.id),
+        username=created.username,
+        name=created.name,
+        prefix=created.prefix,
+        token=created.token,
+        expires_at=created.expires_at.isoformat() if created.expires_at else None,
+    )
 
 
 @token_app.command("list")
@@ -3510,9 +3490,7 @@ def user_deactivate(ctx: typer.Context, username: Annotated[str, typer.Argument(
     """Bar an account from logging in and revoke the sessions it already holds."""
     with client_for(state_of(ctx)) as dg:
         row = dg.call(dg.admin.users.deactivate(username))
-    if state_of(ctx).json_output:
-        return emit_records("user", [row])
-    console.print(f"[red]deactivated[/] user {escape(row.username)}")
+    emit_fact("user.deactivated", message="deactivated", username=row.username)
 
 
 @user_app.command("activate")
@@ -3520,9 +3498,7 @@ def user_activate(ctx: typer.Context, username: Annotated[str, typer.Argument()]
     """Let an account log in again; the sessions it lost are not restored."""
     with client_for(state_of(ctx)) as dg:
         row = dg.call(dg.admin.users.activate(username))
-    if state_of(ctx).json_output:
-        return emit_records("user", [row])
-    console.print(f"[green]activated[/] user {escape(row.username)}")
+    emit_fact("user.activated", message="activated", username=row.username)
 
 
 @user_app.command("password")

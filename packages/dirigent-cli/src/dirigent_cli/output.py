@@ -179,15 +179,6 @@ STATUS_STYLES: Mapping[str, str] = {
 }
 
 
-def emit_json(payload: object) -> None:
-    """Print a response exactly as the server sent it, on one line, for a script to parse.
-
-    Writes to plain stdout, not through rich: rich wraps to the terminal width, and a
-    JSON document with a newline inserted mid-token is neither JSON nor NDJSON.
-    """
-    sys.stdout.write(json.dumps(payload, default=str, separators=(",", ":")) + "\n")
-
-
 def emit_record(kind: str, /, **fields: Any) -> None:
     """Write one record of a command's answer in the spelling this invocation asked for, and flush it."""
     from dirigent_cli.stream import Sink
@@ -483,33 +474,8 @@ def styled(value: object) -> str:
 
 STATUS_WIDTH = 15
 
-#: How wide the step column is, so names line up down the page rather than floating with the
-#: message before them.
-STEP_WIDTH = 22
-
-#: Colours a step is tracked by, assigned in document order and reused for every line it
-#: writes. Colour is the fast path for the eye; the column is what makes the stream readable
-#: where there is no colour at all.
-STEP_COLOURS: tuple[str, ...] = ("cyan", "magenta", "green", "yellow", "blue", "bright_cyan", "bright_magenta")
-
-#: What a level is called in a line, and how wide that column is. One word each, so the
-#: column is a token and not a sentence.
-LEVEL_NAMES: Mapping[str, str] = {"warning": "warn", "critical": "error"}
-
-LEVEL_WIDTH = 5
-
-#: Colour is decoration: it says the same thing the level word already says.
-LEVEL_COLOURS: Mapping[str, str] = {"warning": "bold yellow", "error": "bold red", "critical": "bold red"}
-
-#: How wide the event column is, and which event is worth a weight of its own.
-EVENT_WIDTH = 6
-
-EVENT_STYLE: Mapping[str, str] = {"step": "[bold]"}
-
 #: What stands in an empty column, so a line never has fewer tokens than the grammar says.
 NOTHING = "-"
-
-_step_colours: dict[str, str] = {}
 
 
 def flagged(warnings: int) -> str:

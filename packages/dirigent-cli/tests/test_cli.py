@@ -810,6 +810,27 @@ class TestHoistGlobals:
         argv = ["run", "p.yaml", "-p", "-v"]
         assert main.hoist_globals(argv) == argv
 
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["connection", "create", "c", "--description", "-v"],
+            ["run", "p.yaml", "--input", "-d"],
+            ["alerts", "rules", "create", "r", "--event", "run_failed", "--body", "--json"],
+        ],
+    )
+    def test_the_value_of_any_declared_option_is_not_stolen(self, argv: list[str]) -> None:
+        assert main.hoist_globals(argv) == argv
+
+    def test_a_flag_one_command_declares_does_not_take_a_value_because_another_does(self) -> None:
+        """`--current` is a value of `auth password` and a flag of `runs rerun`."""
+        assert main.hoist_globals(["runs", "rerun", "abc", "--current", "-v"]) == [
+            "-v",
+            "runs",
+            "rerun",
+            "abc",
+            "--current",
+        ]
+
     def test_tokens_after_double_dash_are_untouched(self) -> None:
         argv = ["run", "p.yaml", "--", "-v"]
         assert main.hoist_globals(argv) == argv

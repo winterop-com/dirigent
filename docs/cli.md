@@ -942,7 +942,7 @@ rather than being able to change what a parser reads the record by.
 | `run` | A run starts, and when it settles | `pipeline`, `run_id`, `local`, `priority` where one was asked for, and `rerun_of` when `dg runs rerun` started it. The closing one adds `exit_code`, `error` and the per-step `steps` and `failures` summaries in JSON; a watched run's also carries `pipeline_version`, `triggered_by`, `duration_ms`, `items_total`, `items_failed` and `priority`, and a kept `--local` run's its `scratch` and `kept_at` |
 | `step` | An attempt changes state; the message is the new status | `block`, `attempt`, `duration_ms` once it has settled |
 | `log` | A block writes a line | Whatever the block bound to it |
-| `output` | A step settles, from `-v` up; the message is its status | The output's own fields, or `artifact` and `bytes` when it went to storage |
+| `output` | A step settles, from `-v` up; the message is its status | The output's own fields, or `artifact` and `artifact_bytes` when it went to storage |
 | `process` | A long-running process starts, when it is ready, when `dg dev --wipe-state` clears its state, and when the process that started `dg dev` goes | `process`; for `dg dev` and `dg server` a `starting` carries the `version`, `api`, `ui` when the UI is served, `docs` and `mcp` when MCP is enabled, and `dg dev`'s adds the `admin`, `state`, the `log` file, the `token` it minted and the schema it `migrated` to; a `ready` carries the same addresses and `version`, the `packs[]` loaded, each a `name` and `version`, and how many `blocks`, `connection_kinds` and `source_kinds` they contribute, and `dg dev`'s adds the `admin`, the fixture `password` while it still signs in, the `state` and the `log` file; a `state cleared` carries the `state` it deleted and the `hint` that keeps it, and a `parent gone` the `parent` pid that went |
 | `seed.connection` | `dg dev --seed` creates a connection a file or a document declares | `connection`, `connection_kind`, `action` of `created` or `updated`, and the `origin` file it was read from |
 | `seed.schema` | `dg dev --seed` stores a standalone JSON Schema file | `schema`, the code it is stored under, and the `origin` file it was read from |
@@ -1083,7 +1083,7 @@ adds to them:
 | --- | --- |
 | `run` | The run itself, opening and closing. Opening: `pipeline`, `run_id`, `local`, `scratch`. Closing: `exit_code`, `error`, `steps`, `failures`, `kept_at` |
 | `step` | One state an attempt passed through: `block`, `attempt`, and `duration_ms` on the one it settles in |
-| `log` | A line a step wrote, with whatever it bound in `fields` |
+| `log` | A line a step wrote, with whatever it bound in `fields`; `dg runs logs` writes the same kind, followed or not |
 | `output` | What a step produced, at `-v` and above; a block's own shape, so an HTTP call adds `status`, `headers`, `body`, `body_bytes` |
 | `error` | A refusal, from the server or from the CLI |
 
@@ -1098,7 +1098,7 @@ verb and whose fields are the identity of what changed:
 | `db.history` | `dg db history` | `history`, as alembic wrote it |
 | `db.upgraded` | `dg db upgrade` | `database`, `target`, and the `revision` it reached |
 | `storage.ensured` | `dg storage ensure` | the artifact `root`, the `bucket` it addresses, whether this call `created` it, and the `endpoint` it was made at |
-| `validation` | `dg validate`, `dg pipeline validate`, and `dg apply` for each document it refuses | `code`, `document`, `problems[]` of issues, and a valid pipeline's `steps[]` and the `warnings[]` that refuse nothing, such as a `report.render` step no `report:` reads; a record with warnings is at `warning` level |
+| `validation` | `dg validate`, `dg pipeline validate`, and `dg apply` for each document it refuses | `code`, `document` (not for `dg pipeline validate`, which checks what is stored), `problems[]` of issues at `error` level, and a valid pipeline's `steps[]` and the `warnings[]` that refuse nothing, such as a `report.render` step no `report:` reads; a record with warnings is at `warning` level |
 | `validation.shape` | `dg validate --explain` | `code`, `document`, `checked`, the totals `attempts_max`, `attempts_at_least` and `deadline_longest`, one `steps[]` row per step of what it will cost, and `warnings[]` |
 | `validated` | `dg validate` | The closing count: `documents`, `invalid`, and the files in a directory `skipped` as not documents |
 | `apply` | `dg apply` | One per document: under `fields`, the plan's `action` of `create`, `update`, `unchanged` or `invalid`, the `code` it applied under, an update's `diff` (`steps_added`, `steps_removed`, `steps_changed`, `alerts_added`, `alerts_removed`, `alerts_changed`, and `params_changed`, `triggers_changed`, `requires_changed`, `report_changed` and `settings_changed`, the last for the name, description, tags, concurrency, priority or importance), an invalid one's issues, and `sources`: the source rows it `created`, `updated` and `removed`, and the `tokens` it minted for the new ones, each shown once, and `reactivated` when a `--prune` apply activated a pipeline a prune had deactivated. An invalid one is followed by a `validation` record at `error` level |
@@ -1153,6 +1153,7 @@ verb and whose fields are the identity of what changed:
 | `user.created` | `dg admin user create` | `username`, `role`, `database` |
 | `password.changed` | `dg auth password` | `other_sessions` |
 | `password.reset` | `dg admin user password` | `username`, `sessions` |
+| `user.activated` / `.deactivated` | `dg admin user activate`, `dg admin user deactivate` | `username` |
 | `project.scaffolded` | `dg init --template documents`, `dg init --template compose` | `template`, `directory`, `version`, `files[]` including the `pyproject.toml` that pins the runtime, `skipped[]` for files already there, and `next[]`, the `uv run dg` commands that start a scaffolded stack |
 | `instance.initialised` | `dg init` | `template`, `directory`, `state`, `schema`, `admin`, `version`, `files[]` including the `pyproject.toml` that pins the runtime, `skipped[]` for files already there, and the `token` it minted |
 
