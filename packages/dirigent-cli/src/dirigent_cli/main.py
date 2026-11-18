@@ -934,6 +934,7 @@ def server(
         port=listening,
         reload=reload,
         log_level=settings.log_level.lower(),
+        log_config=None,
     )
 
 
