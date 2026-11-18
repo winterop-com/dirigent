@@ -168,6 +168,13 @@ def test_a_negative_index_is_refused() -> None:
         build("regions[first]=north")
 
 
+@pytest.mark.parametrize("digit", ["\u00b2", "\u0663", "\uff14"])
+def test_an_index_is_written_in_ascii_digits_only(digit: str) -> None:
+    with pytest.raises(ParamError, match="a whole number or nothing at all"):
+        split_key(f"regions[{digit}]")
+    assert split_key(f"regions.{digit}") == ["regions", digit]
+
+
 def test_a_path_that_mixes_a_key_and_an_index_is_refused_with_the_schema_s_word() -> None:
     with pytest.raises(ParamError, match="calls 'regions' an array, so it takes an index"):
         build("regions.name=north")

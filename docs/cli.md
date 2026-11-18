@@ -457,7 +457,9 @@ for naming a pipeline or a schema a later document supplies is applied again onc
 are in, pass after pass until one stores nothing new. What is still refused then is reported
 and passed over: a corpus holds those on purpose. Name `--seed` more than once to seed one
 directory after another, in the order given. It seeds whatever instance is there, so without
-`--wipe-state` every apply is an `unchanged`.
+`--wipe-state` every apply is an `unchanged`. A connection already held takes the file's
+settings, and keeps every secret it holds that the file leaves out, such as one set since with
+`dg connection set-secret`; a secret the file names replaces the stored one.
 
 `--seed-installed` does the same for the corpus every installed plugin ships, so no checkout
 and no path is needed: it walks the shelves the catalogue `dg examples list` reads, the

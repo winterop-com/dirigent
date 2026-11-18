@@ -12,6 +12,7 @@ from pydantic import SecretStr
 from dirigent_cli.seeding import seed_directories, seed_installed
 from dirigent_client import Dirigent, PlanAction, SourceState
 from dirigent_client.enums import UserRole
+from dirigent_common import REDACTED
 from dirigent_core.auth import create_user, issue_token
 from dirigent_core.config import Settings
 from dirigent_core.database import create_engine, create_session_factory, session_scope
@@ -239,6 +240,19 @@ async def test_the_connections_a_file_and_a_document_declare_are_created(dg: Dir
     assert created[0]["origin"].endswith("connections.yaml")
     assert created[1]["origin"].endswith("carrying.yaml")
     assert {row.code for row in (await dg.connections.list()).items} == {"declared-service", "carried-service"}
+
+
+async def test_re_seeding_keeps_a_secret_set_since_and_takes_the_files_settings(dg: Dirigent, corpus: Path) -> None:
+    await seeded(dg, corpus)
+    await dg.connections.update(
+        "declared-service", config={"base_url": "https://declared.test", "bearer_token": "set-by-hand"}
+    )
+    (corpus / "connections.yaml").write_text(CONNECTIONS.replace("declared.test", "moved.test"))
+    stream = await seeded(dg, corpus)
+    assert [record["action"] for record in of_kind(stream, "seed.connection")] == ["updated", "updated"]
+    held = await dg.connections.get("declared-service")
+    assert held.config["base_url"] == "https://moved.test"
+    assert held.config["bearer_token"] == REDACTED
 
 
 async def test_a_carried_section_is_created_and_not_stored_with_the_document(dg: Dirigent, corpus: Path) -> None:

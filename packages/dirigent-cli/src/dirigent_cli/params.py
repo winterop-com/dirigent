@@ -58,7 +58,7 @@ def split_key(key: str) -> list[Step]:
         name = match["name"]
         if not name:
             raise ParamError(f"-p {key}: a dotted key names each level, so it may not have an empty segment")
-        if name.isdigit():
+        if _is_index(name):
             raise ParamError(
                 f"-p {key}: a dotted path cannot tell the index {name!r} from an object key named {name!r}. "
                 f"Address an element with brackets instead ({path[-1] if path else 'name'}[{name}]=...)"
@@ -68,12 +68,17 @@ def split_key(key: str) -> list[Step]:
     return path
 
 
+def _is_index(text: str) -> bool:
+    """Whether a text is written as an array index: ASCII digits and nothing else."""
+    return text.isascii() and text.isdigit()
+
+
 def _index(raw: str, key: str) -> int:
     """Read what one pair of brackets addresses: an element, or the end of the array."""
     if not raw:
         return APPEND
-    if not raw.isdigit():
-        if raw.lstrip("-").isdigit():
+    if not _is_index(raw):
+        if _is_index(raw.removeprefix("-")):
             raise ParamError(f"-p {key}: an index counts from the start of the array, so {raw!r} is not one")
         raise ParamError(f"-p {key}: an index is a whole number or nothing at all, not {raw!r}")
     return int(raw)

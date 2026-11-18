@@ -76,7 +76,12 @@ def schedule_create(
     description: Annotated[str | None, typer.Option("--description", help="What this schedule is for.")] = None,
     cron: Annotated[str | None, typer.Option("--cron", help="A cron expression, in the schedule's timezone.")] = None,
     interval: Annotated[str | None, typer.Option("--interval", help="A humane duration, such as 1h or 30m.")] = None,
-    at: Annotated[str | None, typer.Option("--at", help="An ISO instant, for a schedule that fires once.")] = None,
+    at: Annotated[
+        str | None,
+        typer.Option(
+            "--at", help="An ISO instant, for a schedule that fires once; one with no offset is read in --tz."
+        ),
+    ] = None,
     timezone: Annotated[str, typer.Option("--tz", help="The IANA zone the clock is read in.")] = "UTC",
     param: Annotated[
         list[str] | None,
