@@ -9,7 +9,7 @@ attempts, and deletes the gate, all in the transaction that readied it.
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import cast
+from typing import Any, Final, cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -17,13 +17,19 @@ from pydantic import JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AttemptKind, AttemptStatus, LogLevel, RunItemStatus
-from dirigent_common import JsonMap
+from dirigent_common import JsonMap, Message
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.failure import Failure
 from dirigent_core.engine.references import ReferenceScope, UnknownReference, resolve
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.ids import uuid7
-from dirigent_core.messages import FAN_OUT_EMPTY, FAN_OUT_NOT_A_LIST, FAN_OUT_TOO_WIDE
+from dirigent_core.messages import (
+    FAN_OUT_EMPTY,
+    FAN_OUT_KEY_REPEATED,
+    FAN_OUT_KEY_UNREADABLE,
+    FAN_OUT_NOT_A_LIST,
+    FAN_OUT_TOO_WIDE,
+)
 from dirigent_core.models import LogEntry, Run, RunItem, StepAttempt
 from dirigent_core.storage import scratch_prefix
 from dirigent_plugin import ErrorClass
@@ -59,6 +65,54 @@ def new_attempt(
     )
 
 
+#: The most characters an item's key keeps.
+KEY_CAP: Final = 500
+
+
+class KeyRefused(Exception):
+    """A grid's elements could not be named by the key their step declares."""
+
+    def __init__(self, message: Message, **params: Any) -> None:
+        """Hold the refusal and its params, for a run's creation or a gate to answer with."""
+        super().__init__(message.render(**params))
+        self.message = message
+        self.params = params
+
+
+def keys_of(name: str, step: StepDefinition, elements: Sequence[JsonValue]) -> list[str]:
+    """Name each element of a grid: by the field its step's ``key`` names, else by the whole element.
+
+    A key that an element lacks, or that is not a string or a number, is refused, and so is a
+    key two elements share, since a key is what an element is told apart by.
+    """
+    if step.key is None:
+        return [str(element)[:KEY_CAP] for element in elements]
+    keys: list[str] = []
+    seen: dict[str, int] = {}
+    for index, element in enumerate(elements):
+        value = _at_path(element, step.key)
+        if isinstance(value, bool) or not isinstance(value, str | int | float):
+            raise KeyRefused(FAN_OUT_KEY_UNREADABLE, step=repr(name), key=step.key, index=index)
+        key = str(value)[:KEY_CAP]
+        if key in seen:
+            raise KeyRefused(
+                FAN_OUT_KEY_REPEATED, step=repr(name), key=step.key, first=seen[key], second=index, value=repr(key)
+            )
+        seen[key] = index
+        keys.append(key)
+    return keys
+
+
+def _at_path(element: JsonValue, path: str) -> JsonValue:
+    """Read a dotted path into an element, or None where any part of it is missing."""
+    found = element
+    for part in path.split("."):
+        if not isinstance(found, dict) or part not in found:
+            return None
+        found = found[part]
+    return found
+
+
 async def write_items(
     session: AsyncSession,
     run: Run,
@@ -67,17 +121,18 @@ async def write_items(
     elements: Sequence[JsonValue],
     moment: datetime,
     *,
+    keys: Sequence[str],
     held: bool = False,
     ready: bool = False,
 ) -> list[StepAttempt]:
-    """Write one run item per element, in list order, and the first attempt of each."""
+    """Write one run item per element, in list order, named by its key, and the first attempt of each."""
     items = [
         RunItem(
             id=uuid7(),
             run_id=run.id,
             step_name=name,
             item_index=index,
-            item_key=str(element)[:500],
+            item_key=keys[index],
             item_value={"value": element},
             status=RunItemStatus.PENDING,
         )
@@ -172,7 +227,7 @@ async def expand_gate(
     step = definition.steps[name]
     source = definition.grid_source(name) or name
     try:
-        elements = await _late_elements(session, services, run, definition, step)
+        elements, adopted_keys = await _late_elements(session, services, run, definition, step)
     except UnknownReference as error:
         _fail(
             gate,
@@ -196,7 +251,12 @@ async def expand_gate(
     if not listed:
         _skip_empty(gate, name, expression, source, moment)
         return None
-    written = await write_items(session, run, name, step, listed, moment, ready=ready)
+    try:
+        keys = adopted_keys if adopted_keys is not None else keys_of(name, step, listed)
+    except KeyRefused as refused:
+        _fail(gate, Failure.rejected(refused.message, **refused.params), moment)
+        return None
+    written = await write_items(session, run, name, step, listed, moment, keys=keys, ready=ready)
     await session.delete(gate)
     session.add(
         LogEntry(
@@ -216,8 +276,12 @@ async def _late_elements(
     run: Run,
     definition: PipelineDefinition,
     step: StepDefinition,
-) -> JsonValue:
-    """Read the list a late grid expands into: an adopted grid's items, or what ``for_each`` resolves to."""
+) -> tuple[JsonValue, list[str] | None]:
+    """Read the list a late grid expands into, and the keys it inherits.
+
+    An adopted grid's items come with the keys the adopted step named them by; what
+    ``for_each`` resolves to comes with none, and is named by this step's own ``key``.
+    """
     adopted = step.adopted_grid
     if adopted is not None and step.output_source is None:
         rows = await session.execute(
@@ -225,7 +289,8 @@ async def _late_elements(
             .where(RunItem.run_id == run.id, RunItem.step_name == adopted)
             .order_by(RunItem.item_index)
         )
-        return [item_value_of(item)[0] for item in rows.scalars()]
+        items = list(rows.scalars())
+        return [item_value_of(item)[0] for item in items], [item.item_key for item in items]
     scope = ReferenceScope(
         params=dict(run.params),
         outputs=await collect_outputs(session, run.id, definition),
@@ -235,7 +300,7 @@ async def _late_elements(
         window_start=run.window_start,
         window_end=run.window_end,
     )
-    return resolve(cast("JsonValue", step.for_each), scope)
+    return resolve(cast("JsonValue", step.for_each), scope), None
 
 
 def _fail(gate: StepAttempt, failure: Failure, moment: datetime) -> None:

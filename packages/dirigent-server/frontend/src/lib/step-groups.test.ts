@@ -48,7 +48,7 @@ describe('the groups', () => {
     })
 
     test('carry the controls of their own half and none of another', () => {
-        expect(group('fan_out').fields.map((one) => one.name)).toEqual(['for_each', 'items'])
+        expect(group('fan_out').fields.map((one) => one.name)).toEqual(['for_each', 'items', 'key'])
         expect(group('timing').fields.map((one) => one.name)).toEqual(['timeout', 'deadline', 'on_timeout'])
         expect(group('rule').fields.map((one) => one.name)).toEqual(['rule', 'continue_on_failure'])
         expect(group('retry').fields.map((one) => one.name)).toEqual([
@@ -108,6 +108,11 @@ describe('what a shut Fan-out says', () => {
         const summary = fanOutSummary({ for_each: '${params.regions}', items: 'continue' })
         expect(line(summary)).toBe('${params.regions} · continue')
         expect(set(summary)).toEqual(['${params.regions}', 'continue'])
+    })
+
+    test('says the field its items are named by, only when it names one', () => {
+        const summary = fanOutSummary({ for_each: '${params.sites}', key: 'code' })
+        expect(line(summary)).toBe('${params.sites} · fail_fast · named by code')
     })
 
     test('reads a literal list as the JSON the box holds', () => {

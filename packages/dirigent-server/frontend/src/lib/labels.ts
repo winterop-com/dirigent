@@ -1106,6 +1106,11 @@ const refused = {
         yaml_nested_too_deep: 'This YAML nests too deeply to be read.',
     },
     document: {
+        key_not_a_path:
+            'A key is a field of each element, or a dotted path to one, such as code or site.code.',
+        key_on_adopted_grid:
+            "A step that maps over {adopted}'s items names them by {adopted}'s keys, and takes no key of its own.",
+        key_without_fan_out: 'Only a step with for_each names its elements by a key.',
         report_no_such_step: 'report.from names {step}, and no step is called that.',
         report_render_unseen:
             "Step {step} renders text with report.render, and with no report key it is not the run's report and does not appear in the Report tab. Write report: {from: {bare}} to make it the run's report.",
@@ -1224,6 +1229,10 @@ const refused = {
         entry_not_a_source:
             'Step {step} is not a source of pipeline {code}. A run enters at one of {sources}.',
         entry_on_no_sources: 'Pipeline {code} has no sources, so a run of it is not entered at a step.',
+        fan_out_key_repeated:
+            'Step {step} names its elements by {key}, and elements {first} and {second} are both {value}.',
+        fan_out_key_unreadable:
+            'Step {step} names its elements by {key}, and element {index} has no {key} that is a string or a number.',
         given_no_entry:
             'Pipeline {code} starts at its sources ({sources}), so a run of it enters through one of them.',
         input_too_deep:
@@ -1814,6 +1823,8 @@ const editor = {
     step_groups: {
         waits_for: 'Waits for',
         fan_out: 'Fan-out',
+        /** A fan-out whose items are named by a field of their element. */
+        keyed: (key: string) => `named by ${key}`,
         timing: 'Timing',
         retry: 'Retry',
         /** When a step becomes ready, over the steps it waits for. Not an alert rule. */
@@ -1846,6 +1857,7 @@ const editor = {
         for_each:
             "A reference to a list, or a literal list: one run item per element. A reference may read params, run, and an upstream fan-out's grid as ${steps.<name>.items}, which maps this step over that step's items.",
         items: 'Whether one failed item stops the batch, or the rest carry on.',
+        key: "The field of each element its item is named by, such as code or site.code. A step mapping over another step's items takes that step's names.",
         timeout: 'How long one attempt may take.',
         poll: "How often a sensor checks. Defaults to the sensor's own cadence.",
         deadline: 'How long the step may wait before the timeout applies.',

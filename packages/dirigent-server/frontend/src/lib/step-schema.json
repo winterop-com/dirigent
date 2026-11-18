@@ -7,6 +7,7 @@
         },
         "for_each": { "type": "string" },
         "items": { "type": "string", "enum": ["fail_fast", "continue"], "default": "fail_fast" },
+        "key": { "type": "string" },
         "timeout": { "type": "string", "format": "humane-duration" },
         "poll": { "type": "string", "format": "humane-duration" },
         "deadline": { "type": "string", "format": "humane-duration" },

@@ -55,6 +55,7 @@ const GROUP_OF: Record<(typeof STEP_KEYS)[number], StepGroupId> = {
     continue_on_failure: 'rule',
     for_each: 'fan_out',
     items: 'fan_out',
+    key: 'fan_out',
     timeout: 'timing',
     poll: 'timing',
     deadline: 'timing',
@@ -89,10 +90,13 @@ export function dependsOnSummary(prerequisites: readonly string[]): SummaryPart[
 export function fanOutSummary(keys: JsonMap): SummaryPart[] {
     if (!carries(keys, 'for_each')) return [{ text: LABELS.editor.step_groups.off, set: false }]
     const items = carries(keys, 'items')
-    return [
+    const parts = [
         { text: forEachText(keys.for_each), set: true },
         { text: items ? String(keys.items) : fallbackOf(stepFields, 'items'), set: items },
     ]
+    if (carries(keys, 'key'))
+        parts.push({ text: LABELS.editor.step_groups.keyed(String(keys.key)), set: true })
+    return parts
 }
 
 /** How long a step may take, how often a sensor checks, and what an expired deadline does. */

@@ -34,6 +34,9 @@ from dirigent_core.messages import (
     BAD_TAG,
     DUPLICATE_TAG,
     DUPLICATE_TRIGGER_CODES,
+    KEY_NOT_A_PATH,
+    KEY_ON_ADOPTED_GRID,
+    KEY_WITHOUT_FAN_OUT,
     PARAMETER_INVALID,
     PARAMETER_SCHEMA_INVALID,
     PARAMETER_UNCHECKED,
@@ -92,6 +95,9 @@ _TAG = re.compile(TAG_PATTERN)
 #: A ``for_each`` that maps over another fan-out's grid, written as that step's ``items`` and
 #: nothing else: an adoption is the whole value, never a fragment of a larger string.
 ADOPTED_GRID: Final = re.compile(r"^\$\{\s*steps\.([a-z][a-z0-9_]*)\.items\s*\}$")
+
+#: What a fan-out's ``key`` is: a field name, or field names joined by dots.
+KEY_PATH: Final = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)*")
 
 #: A reference that reads a step's stored output, which is what makes a ``for_each`` late.
 OUTPUT_REFERENCE: Final = re.compile(r"^\s*steps\.([a-z][a-z0-9_]*)\.output(\.|\s*$)")
@@ -358,6 +364,10 @@ class StepDefinition(BaseModel):
 
     items: ItemPolicy = ItemPolicy.FAIL_FAST
 
+    key: str | None = None
+    """The field of each element its item is named by, or a dotted path to one: ``code`` names
+    ``{code: oslo, url: ...}`` as ``oslo``. Without one an item is named by its whole element."""
+
     config: JsonMap = Field(default_factory=dict)
     """Block config, opaque to the document format and validated against the block's model."""
 
@@ -395,6 +405,13 @@ class StepDefinition(BaseModel):
                 raise ValueError(REPLY_FIELD_REFUSED.render(field=field))
         if self.source is None and "sample" in written:
             raise ValueError(SAMPLE_OUTSIDE_SOURCE.render())
+        if self.key is not None:
+            if self.for_each is None:
+                raise ValueError(KEY_WITHOUT_FAN_OUT.render())
+            if self.adopted_grid is not None:
+                raise ValueError(KEY_ON_ADOPTED_GRID.render(adopted=self.adopted_grid))
+            if KEY_PATH.fullmatch(self.key) is None:
+                raise ValueError(KEY_NOT_A_PATH.render())
         return self
 
     @property

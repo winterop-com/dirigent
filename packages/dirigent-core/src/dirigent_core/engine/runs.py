@@ -47,7 +47,7 @@ from dirigent_core.engine.definition import (
     load_definition,
     schemas_named,
 )
-from dirigent_core.engine.expansion import is_gate, new_attempt, write_items
+from dirigent_core.engine.expansion import KeyRefused, is_gate, keys_of, new_attempt, write_items
 from dirigent_core.engine.failure import Failure
 from dirigent_core.engine.logcontext import attempt_fields, fields_of, run_fields
 from dirigent_core.engine.references import ReferenceScope, resolve
@@ -345,19 +345,26 @@ async def create_run(
         # grid has to be expanded before the step adopting it is. A late grid is None here: its
         # step gets a gate, and the walk expands it once the step is ready.
         grids: dict[str, list[JsonValue]] = {}
-        expanded: list[tuple[str, list[JsonValue] | None]] = []
+        named: dict[str, list[str]] = {}
+        expanded: list[tuple[str, list[JsonValue] | None, list[str]]] = []
         maximum = services.settings.fan_out_max_items
         for name in definition.topological_order():
             step = definition.steps[name]
             if definition.grid_source(name) is not None:
-                expanded.append((name, None))
+                expanded.append((name, None, []))
                 continue
             elements = resolve_fan_out(name, step, scope.model_copy(update={"grids": grids}))
             if len(elements) > maximum:
                 raise FanOutError(FAN_OUT_TOO_WIDE, step=repr(name), count=len(elements), maximum=maximum)
-            expanded.append((name, elements))
+            adopted = step.adopted_grid
+            try:
+                keys = named[adopted] if adopted is not None and adopted in named else keys_of(name, step, elements)
+            except KeyRefused as refused:
+                raise FanOutError(refused.message, **refused.params) from refused
+            expanded.append((name, elements, keys))
             if step.is_fan_out:
                 grids[name] = elements
+                named[name] = keys
 
         # A run is many rows written in sequence, and a database error refuses once some of
         # them are flushed. The savepoint discards the half-written run while the caller's
@@ -398,11 +405,11 @@ async def create_run(
             await session.flush()
             span.set_attribute("dirigent.run.id", str(run.id))
 
-            for name, grid in expanded:
+            for name, grid, keys in expanded:
                 if definition.steps[name].source is not None and entry is not None:
                     await _write_source(session, services, run, name, definition.steps[name], entry, moment)
                     continue
-                await _create_step_rows(session, run, name, definition.steps[name], grid, moment, held=held)
+                await _create_step_rows(session, run, name, definition.steps[name], grid, keys, moment, held=held)
             await session.flush()
             if not held:
                 await advance(session, run, definition, services=services, now=moment)
@@ -422,6 +429,7 @@ async def _create_step_rows(
     name: str,
     step: StepDefinition,
     elements: Sequence[JsonValue] | None,
+    keys: Sequence[str],
     moment: datetime,
     *,
     held: bool,
@@ -433,7 +441,7 @@ async def _create_step_rows(
     if not step.is_fan_out or elements is None:
         session.add(new_attempt(run, name, step, moment, held=held))
         return
-    await write_items(session, run, name, step, elements, moment, held=held)
+    await write_items(session, run, name, step, elements, moment, keys=keys, held=held)
 
 
 def _check_entry(definition: PipelineDefinition, entry: Entry | None) -> None:
