@@ -1,6 +1,15 @@
 import { describe, expect, test } from 'vitest'
 
-import { chosenStep, pipelineStepPath, queryForStep, queryWith, runStepPath } from '@/lib/step-address'
+import { matchPath } from 'react-router'
+
+import {
+    chosenStep,
+    pipelineEditPath,
+    pipelineStepPath,
+    queryForStep,
+    queryWith,
+    runStepPath,
+} from '@/lib/step-address'
 
 describe('a chosen step as an address', () => {
     test('is the run or the pipeline with the step after it', () => {
@@ -25,5 +34,14 @@ describe('a chosen step as an address', () => {
         expect(chosenStep(undefined, ['jobs'])).toEqual({ kind: 'none' })
         // While the graph is still being read nothing is called unknown.
         expect(chosenStep('nope', null)).toEqual({ kind: 'none' })
+    })
+})
+
+describe("a pipeline's editor and its steps", () => {
+    test('a step keyed edit is a step of the page, never the editor', () => {
+        const step = pipelineStepPath('health', 'edit')
+        expect(step).not.toBe(pipelineEditPath('health'))
+        expect(matchPath('/pipelines/:code/$edit', step)).toBeNull()
+        expect(matchPath('/pipelines/:code/$edit', pipelineEditPath('health'))?.params.code).toBe('health')
     })
 })

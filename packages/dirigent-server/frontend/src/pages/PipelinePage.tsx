@@ -34,14 +34,9 @@ import { authLine, readPipelineSources, sampleBody, type SourceOut } from '@/lib
 import type { JsonMap } from '@/lib/api'
 import { refusedRead, sayRefusal } from '@/components/Refusal'
 import { clearScreenStatus, setScreenStatus } from '@/lib/screen-status'
-import { chosenStep, pipelineStepPath } from '@/lib/step-address'
+import { chosenStep, pipelineEditPath, pipelineStepPath } from '@/lib/step-address'
 import { clockOf, nextFireView, readSchedules, type ScheduleOut } from '@/lib/triggers'
 import { cn } from '@/lib/utils'
-
-/** The address of a pipeline's editor. */
-export function editorPath(code: string): string {
-    return `/pipelines/${encodeURIComponent(code)}/edit`
-}
 
 /**
  * One pipeline, led by its graph.
@@ -133,7 +128,7 @@ export function PipelinePage() {
                         label: LABELS.action.edit,
                         icon: <ICONS.edit aria-hidden />,
                         onSelect: () => {
-                            void navigate(editorPath(pipeline.code))
+                            void navigate(pipelineEditPath(pipeline.code))
                         },
                     },
                     {

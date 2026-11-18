@@ -28,7 +28,8 @@ export const repositoryRoot = path.resolve(here, '../../../..')
 
 /** Read one of this repository's YAML examples as the JSON document the API applies. */
 export function documentOf(reference: string): Record<string, unknown> {
-    const read = 'import json,sys,yaml; print(json.dumps(yaml.safe_load(open(sys.argv[1]))))'
+    const read =
+        'import json,sys; from dirigent_core.documents import safe_load; print(json.dumps(safe_load(open(sys.argv[1]).read())))'
     const text = execFileSync('uv', ['run', 'python', '-c', read, reference], {
         cwd: repositoryRoot,
         encoding: 'utf8',

@@ -66,6 +66,7 @@ import {
     writeSource,
 } from '@/lib/pipeline-document'
 import { appliedNote, issuesNote } from '@/lib/pipeline-plan'
+import { pipelineEditPath } from '@/lib/step-address'
 import {
     importanceMark,
     importanceOf,
@@ -869,9 +870,7 @@ export function PipelineEditor() {
                         setIssues(issuesNote(result.plan.issues))
                         const note = appliedNote(result)
                         toast.success(note.line, { description: note.detail })
-                        const address = creating
-                            ? `/pipelines/${encodeURIComponent(result.plan.code)}/edit`
-                            : null
+                        const address = creating ? pipelineEditPath(result.plan.code) : null
                         const { tokens } = result.sources
                         setMinted({ tokens, after: address })
                         if (tokens.length > 0 && address !== null) return

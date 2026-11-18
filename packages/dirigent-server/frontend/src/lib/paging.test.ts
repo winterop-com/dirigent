@@ -85,6 +85,35 @@ describe('a cursor-paged listing', () => {
         expect(prepended(held, page(['a', 'b'], 'somewhere else'), idOf).next).toBe('b')
     })
 
+    it('lets go of a held row that left the question, such as a run that finished under a running filter', () => {
+        const held = appended(noRows<Row>(), page(['a', 'b', 'c', 'd'], 'd'), idOf)
+        const after = prepended(held, page(['a', 'c', 'e'], 'e'), idOf)
+        expect(after.rows.map(idOf)).toEqual(['e', 'a', 'c', 'd'])
+    })
+
+    it('lets go of every held row the answer lacks when the answer is the whole listing', () => {
+        const held = appended(noRows<Row>(), page(['a', 'b', 'c']), idOf)
+        expect(prepended(held, page(['a', 'c']), idOf).rows.map(idOf)).toEqual(['a', 'c'])
+    })
+
+    it('keeps the rows below the answer, which it says nothing about', () => {
+        const held = appended(
+            appended(noRows<Row>(), page(['b', 'c'], 'c'), idOf),
+            page(['d', 'e'], 'e'),
+            idOf,
+        )
+        const after = prepended(held, page(['a', 'b'], 'b'), idOf)
+        expect(after.rows.map(idOf)).toEqual(['a', 'b', 'c', 'd', 'e'])
+        expect(after.next).toBe('e')
+    })
+
+    it('replaces what is held when the answer shares nothing with it, rather than leaving a silent gap', () => {
+        const held = appended(noRows<Row>(), page(['x', 'y'], 'y'), idOf)
+        const after = prepended(held, page(['a', 'b'], 'b'), idOf)
+        expect(after.rows.map(idOf)).toEqual(['a', 'b'])
+        expect(after.next).toBe('b')
+    })
+
     it('forgets what arrived once the reader has been told', () => {
         const held = prepended(appended(noRows<Row>(), page(['b'], 'b'), idOf), page(['a', 'b'], 'b'), idOf)
         expect(held.fresh).toBe(1)

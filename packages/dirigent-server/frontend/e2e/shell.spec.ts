@@ -150,7 +150,7 @@ test('the rail is dragged by its edge, moved by the keys, kept, and reset by a d
 test('the seams hold with the right panel open', async ({ page }) => {
     // The panel exists only when a screen fills it, so open a document and choose a box on it.
     await applyExample(page.request, 'examples/transform/jq-reshape.yaml')
-    await page.goto('/pipelines/jq-reshape/edit')
+    await page.goto('/pipelines/jq-reshape/$edit')
     await page.locator('.react-flow__node').first().click()
     await expect(page.getByRole('tab', { name: LABELS.word.step.label })).toBeVisible()
 

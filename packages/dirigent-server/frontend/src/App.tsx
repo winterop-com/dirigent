@@ -163,7 +163,7 @@ export default function App() {
                     }
                 />
                 <Route
-                    path="pipelines/:code/edit"
+                    path="pipelines/:code/$edit"
                     element={
                         <Suspense fallback={<Loading />}>
                             <PipelineEditor />

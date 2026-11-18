@@ -182,7 +182,9 @@ describe('the screen a path shows', () => {
     })
 
     test("is the editor apart from the pipeline's page", () => {
-        expect(screenPath('/pipelines/daily/edit')).toBe('/pipelines/daily/edit')
+        expect(screenPath('/pipelines/daily/$edit')).toBe('/pipelines/daily/$edit')
+        // A step keyed `edit` is a step of the pipeline's page.
+        expect(screenPath('/pipelines/daily/edit')).toBe('/pipelines/daily')
     })
 })
 
