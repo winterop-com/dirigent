@@ -1,11 +1,12 @@
 """The engine's side of a block call, faked: a step context, storage, logs, and runs."""
 
+import os
 import tempfile
-from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Iterable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Final, cast
 from uuid import UUID, uuid4
 
 import httpx2
@@ -14,8 +15,10 @@ from pydantic import BaseModel, JsonValue
 
 from dirigent_common import Message, format_checker_with, loggable
 from dirigent_plugin import (
+    BlockFailure,
     ByteSink,
     Capture,
+    ErrorClass,
     FormatCheck,
     RunRefused,
     RunSnapshot,
@@ -24,7 +27,17 @@ from dirigent_plugin import (
     StatResult,
     StepContext,
 )
-from dirigent_testing.messages import TEST_REFUSAL
+from dirigent_testing.messages import (
+    CONNECTION_WRONG_MODEL,
+    OUTSIDE_ROOT,
+    TEST_REFUSAL,
+    UNKNOWN_CONNECTION,
+    UNKNOWN_SCHEMA,
+    UNKNOWN_SCHEME,
+)
+
+#: The characters that make a listing URI a glob rather than a prefix.
+GLOB_CHARACTERS: Final = frozenset("*?[")
 
 
 class RecordingLogger:
@@ -63,21 +76,37 @@ class RecordingLogger:
         return [message for _, message, _ in self.entries]
 
 
+class StorageRefused(Exception):
+    """A URI the storage double refuses, as the engine's facade refuses it: by its message."""
+
+    def __init__(self, message: Message, **params: Any) -> None:
+        """Render the refusal and keep its code."""
+        super().__init__(message.render(**params))
+        self.code = message.code
+
+
 class FakeSink:
-    """The write end of a local file, standing in for a storage backend's sink."""
+    """The write end of a local file, staged beside its target and published only when it is finished."""
 
     def __init__(self, path: Path) -> None:
-        """Open the file for writing."""
+        """Open a staging file beside the target."""
         self.path = path
-        self._handle = path.open("wb")
+        self._staged = path.with_name(f".{path.name}.{uuid4().hex}.partial")
+        self._handle = self._staged.open("wb")
 
     async def write(self, data: bytes) -> int:
         """Append bytes."""
         return self._handle.write(data)
 
     def close(self) -> None:
-        """Finish the file."""
+        """Finish the file and publish it onto the target."""
         self._handle.close()
+        os.replace(self._staged, self.path)
+
+    def discard(self) -> None:
+        """Drop what was written, leaving the target as it was."""
+        self._handle.close()
+        self._staged.unlink(missing_ok=True)
 
 
 class FakeCapture:
@@ -94,19 +123,32 @@ class FakeCapture:
 
 
 class FakeStorage:
-    """A storage facade over one directory, backing the storage blocks in a test."""
+    """A storage facade over one directory, backing the storage blocks in a test.
 
-    def __init__(self, root: Path) -> None:
-        """Root the facade at a throwaway directory."""
+    A relative location is read under the root, so ``file://out/a.csv`` is ``<root>/out/a.csv``;
+    an absolute one must resolve inside the root. A scheme outside ``schemes`` is refused, and
+    so is a location outside the root, each as :class:`StorageRefused`. Every scheme is served
+    from the same directory.
+    """
+
+    def __init__(self, root: Path, *, schemes: Iterable[str] = ("file",)) -> None:
+        """Root the facade at a throwaway directory, serving the schemes named."""
         self.root = root
+        self.schemes = frozenset(schemes)
         #: What each written URI was declared to be, since a file has nowhere to keep it.
         self.content_types: dict[str, str] = {}
 
     def path_for(self, uri: str) -> Path:
-        """Map a URI onto a local path: absolute as given, relative under the root."""
-        _, _, location = uri.partition("://")
-        path = Path(location)
-        return path if path.is_absolute() else self.root / location
+        """Map a URI onto a local path under the root, or refuse it."""
+        scheme, _, location = uri.partition("://")
+        if scheme not in self.schemes:
+            raise StorageRefused(UNKNOWN_SCHEME, scheme=repr(scheme), registered=", ".join(sorted(self.schemes)))
+        path = Path(os.path.normpath(location if Path(location).is_absolute() else self.root / location))
+        root = self.root.resolve()
+        resolved = path.resolve()
+        if resolved != root and not resolved.is_relative_to(root):
+            raise StorageRefused(OUTSIDE_ROOT, uri=repr(uri), root=repr(str(self.root)))
+        return path
 
     async def open_read(self, uri: str) -> AsyncGenerator[bytes]:
         """Stream an object in two chunks, so callers cannot assume one."""
@@ -117,21 +159,23 @@ class FakeStorage:
             yield payload[middle:]
 
     def open_write(self, uri: str, *, content_type: str | None = None) -> AbstractAsyncContextManager[ByteSink]:
-        """Open a writer for a URI, creating the directories it needs and recording its type."""
+        """Open a writer for a URI; the object and its type appear only once writing finished."""
+        path = self.path_for(uri)
 
         @asynccontextmanager
         async def writer() -> AsyncGenerator[ByteSink]:
-            path = self.path_for(uri)
             path.parent.mkdir(parents=True, exist_ok=True)
+            sink = FakeSink(path)
+            try:
+                yield sink
+            except BaseException:
+                sink.discard()
+                raise
+            sink.close()
             if content_type is None:
                 self.content_types.pop(uri, None)
             else:
                 self.content_types[uri] = content_type
-            sink = FakeSink(path)
-            try:
-                yield sink
-            finally:
-                sink.close()
 
         return writer()
 
@@ -148,15 +192,34 @@ class FakeStorage:
             content_type=self.content_types.get(uri),
         )
 
+    def _matches(self, uri: str) -> list[Path]:
+        """Expand a listing URI into the sorted files it names."""
+        scheme, _, location = uri.partition("://")
+        if not GLOB_CHARACTERS & set(location):
+            base = self.path_for(uri)
+            if base.is_file():
+                return [base]
+            return sorted(child for child in base.rglob("*") if child.is_file()) if base.is_dir() else []
+        fixed, _, _ = location[: min(location.index(mark) for mark in GLOB_CHARACTERS if mark in location)].rpartition(
+            "/"
+        )
+        base = self.path_for(f"{scheme}://{fixed or '.'}")
+        pattern = str(base / location[len(fixed) :].lstrip("/"))
+        return sorted(path for path in base.rglob("*") if path.is_file() and path.full_match(pattern))
+
     async def list(self, uri: str) -> AsyncIterator[StatResult]:
-        """List the objects matching a pattern, in a stable order."""
-        scheme, _, pattern = uri.partition("://")
-        for path in sorted(self.root.glob(pattern.lstrip("/"))):
-            if not path.is_file():
-                continue
+        """List the files under a prefix, or the files matching a glob pattern, in a stable order.
+
+        Each is named as the listing URI names its location: absolute for an absolute one,
+        relative to the root for a relative one.
+        """
+        scheme, _, location = uri.partition("://")
+        absolute = Path(location).is_absolute()
+        for path in self._matches(uri):
             info = path.stat()
+            named = path if absolute else path.relative_to(self.root)
             yield StatResult(
-                uri=f"{scheme}://{path.relative_to(self.root)}",
+                uri=f"{scheme}://{named}",
                 size=info.st_size,
                 modified_at=datetime.fromtimestamp(info.st_mtime, tz=UTC),
             )
@@ -308,24 +371,57 @@ class FakeContext:
         return cast("StepContext", self)
 
     def connection(self, ref: str, model: type[Any]) -> Any:
-        """Resolve a named connection the test installed."""
-        return self.connections[ref]
+        """Resolve a named connection the test installed, refusing an unknown code or another model.
+
+        Both refusals are a rejected :class:`BlockFailure`, as the engine's are.
+        """
+        installed = self._installed(ref)
+        if not isinstance(installed, model):
+            raise BlockFailure(
+                CONNECTION_WRONG_MODEL,
+                error_class=ErrorClass.REJECTED,
+                ref=repr(ref),
+                installed=type(installed).__name__,
+                wanted=model.__name__,
+            )
+        return installed
+
+    def _installed(self, ref: str) -> BaseModel:
+        """The connection the test installed under a code, or the engine's refusal of an unknown one."""
+        installed = self.connections.get(ref)
+        if installed is None:
+            raise BlockFailure(
+                UNKNOWN_CONNECTION,
+                error_class=ErrorClass.REJECTED,
+                ref=repr(ref),
+                available=", ".join(sorted(self.connections)) or "none are installed",
+            )
+        return installed
 
     def storage_connection(self, scheme: str, model: type[Any]) -> Any:
         """Resolve the connection the test bound to a storage scheme, or None where it bound none."""
         ref = self.storage_connections.get(scheme)
-        return None if ref is None else self.connections[ref]
+        return None if ref is None else self.connection(ref, model)
 
     def schema(self, code: str) -> Any:
-        """Resolve a named schema the test installed; an unknown code fails as the engine's does."""
-        return self.schemas[code]
+        """Resolve a named schema the test installed; an unknown code is a rejected :class:`BlockFailure`."""
+        body = self.schemas.get(code)
+        if body is None:
+            raise BlockFailure(
+                UNKNOWN_SCHEMA,
+                error_class=ErrorClass.REJECTED,
+                code=repr(code),
+                available=", ".join(sorted(self.schemas)) or "none are installed",
+            )
+        return body
 
     def format_checker(self) -> FormatChecker:
         """The base formats plus any the test installed on ``formats``."""
         return format_checker_with(self.formats)
 
     def http(self, ref: str) -> httpx2.AsyncClient:
-        """Build a client whose transport is the test's own handler."""
+        """Build a client whose transport is the test's own handler, for a connection the test installed."""
+        self._installed(ref)
         if self.handler is None:
             raise AssertionError("this test asked for an HTTP client but installed no handler")
         return httpx2.AsyncClient(base_url="http://service.test", transport=httpx2.MockTransport(self.handler))

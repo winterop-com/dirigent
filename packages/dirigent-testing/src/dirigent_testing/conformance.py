@@ -5,7 +5,7 @@ plugin contract stops at dirigent-plugin, and a pack must not reach past it. So 
 conformance check re-derives the structural half here, over the pack's own ``Contribution``
 and its own example documents. It is deliberately lighter than the engine's preflight: it
 proves an example is a well-formed ``dirigent/v1`` pipeline coded after its file, that every
-block it names is one the pack contributes, that each config fits that block's published
+block and source kind it names is one the pack contributes, that each config fits the published
 schema, and that a connection a step names is one the document accounts for -- carried, so
 the document runs alone, or named under ``requires``. It does not resolve references, run
 blocks, or reach for an instance.
@@ -23,10 +23,20 @@ from pydantic import BaseModel, JsonValue
 
 from dirigent_common import LOCAL_REFERENCES, BlockModel, HumaneJsonSchema, JsonMap
 from dirigent_common.bounds import BOUNDS_KEYWORD, bounds_keyword
-from dirigent_plugin import AnyOperator, AnySensor, Contribution, mark_refusal
+from dirigent_plugin import AnyOperator, AnySensor, Contribution, mark_refusal, reference_fields
+from dirigent_plugin.sources import AnySource
 
-#: A ``${...}`` reference, matched the way the engine matches one.
-_REFERENCE: Final = re.compile(r"\$\{[^{}]+\}")
+#: A ``${...}`` reference behind its run of dollars, matched the way the engine matches one: an
+#: even run is the ``$${...}`` escape and names no reference.
+_REFERENCE: Final = re.compile(r"(\$+)\{[^{}]+\}")
+
+#: What a connection field publishes itself as a reference to.
+_CONNECTION: Final = "connection"
+
+
+def _has_reference(value: str) -> bool:
+    """Whether a string names at least one reference, ignoring every escaped ``$${...}``."""
+    return any(len(match.group(1)) % 2 for match in _REFERENCE.finditer(value))
 
 
 class _Deferred:
@@ -65,7 +75,7 @@ def _defer_references(value: JsonValue) -> object:
     """Replace every value that is a ``${...}`` reference with the deferred sentinel."""
     match value:
         case str():
-            return _DEFERRED if _REFERENCE.search(value) else value
+            return _DEFERRED if _has_reference(value) else value
         case list():
             return [_defer_references(item) for item in value]
         case dict():
@@ -79,17 +89,29 @@ def check_pack_examples(contribution: Contribution, examples_dir: Path) -> list[
 
     Reads every ``*.yaml`` under ``examples_dir`` (recursively) and, for each, checks that it
     is a ``dirigent/v1`` pipeline coded after its file with a description, that every block a
-    step names is one ``contribution`` provides, that each step's config fits that block's
-    published ``config_schema`` (a ``${...}`` value is left for the run), and that a connection
-    a step names is either carried by the document's own ``connections`` block or named under
-    its ``requires.connections``. Every issue is a human-readable line prefixed with the file
-    it was found in; an empty list means the examples conform.
+    step names and every source kind a ``source`` node names is one ``contribution`` provides,
+    that each config fits its block's or kind's published schema (a ``${...}`` value is left for
+    the run), and that a connection a config field publishes as one is either carried by the
+    document's own ``connections`` block or named under its ``requires.connections``. A
+    ``reply`` node is the engine's own and is not checked here. Every issue is a human-readable
+    line prefixed with the file it was found in; an empty list means the examples conform.
     """
-    blocks = _blocks_by_id(contribution)
+    contributed = _Contributed(
+        _blocks_by_id(contribution), {source.spec.kind: source for source in contribution.sources}
+    )
     issues: list[str] = []
     for path in sorted(examples_dir.rglob("*.yaml")):
-        issues.extend(_check_document(path, path.relative_to(examples_dir), blocks))
+        issues.extend(_check_document(path, path.relative_to(examples_dir), contributed))
     return issues
+
+
+class _Contributed:
+    """What a pack contributes that a step may name: its blocks by id and its source kinds by kind."""
+
+    def __init__(self, blocks: dict[str, AnyOperator | AnySensor], sources: dict[str, AnySource]) -> None:
+        """Hold both indexes."""
+        self.blocks = blocks
+        self.sources = sources
 
 
 def _every_block(contribution: Contribution) -> list[AnyOperator | AnySensor]:
@@ -103,7 +125,7 @@ def _blocks_by_id(contribution: Contribution) -> dict[str, AnyOperator | AnySens
     return {block.spec.id: block for block in _every_block(contribution)}
 
 
-def _check_document(path: Path, label: Path, blocks: dict[str, AnyOperator | AnySensor]) -> list[str]:
+def _check_document(path: Path, label: Path, contributed: _Contributed) -> list[str]:
     """Check one example document, prefixing every issue with the file it was found in."""
     try:
         loaded: object = yaml.safe_load(path.read_text())
@@ -127,7 +149,7 @@ def _check_document(path: Path, label: Path, blocks: dict[str, AnyOperator | Any
     if isinstance(steps, dict):
         known = _known_connections(document)
         for name, step in cast("JsonMap", steps).items():
-            issues.extend(_check_step(label, str(name), step, blocks, known))
+            issues.extend(_check_step(label, str(name), step, contributed, known))
     return issues
 
 
@@ -146,33 +168,54 @@ def _check_step(
     label: Path,
     name: str,
     step: Any,
-    blocks: dict[str, AnyOperator | AnySensor],
+    contributed: _Contributed,
     connections: set[str],
 ) -> list[str]:
-    """Check one step: the block it names, the config it carries, the connection it references.
+    """Check one step: the block or source kind it names, the config it carries, the connections it references.
 
     ``connections`` is every code the document accounts for, carried or required.
     """
     if not isinstance(step, dict):
         return [f"{label}: step {name!r} is not a mapping"]
     step_map = cast("JsonMap", step)
-    issues: list[str] = []
+    if "reply" in step_map:
+        return []
+    source = step_map.get("source")
+    if source is not None:
+        return _check_source(label, name, source, contributed.sources, connections)
     block_id = step_map.get("block")
     raw_config = step_map.get("config")
     config = cast("JsonMap", raw_config) if isinstance(raw_config, dict) else cast("JsonMap", {})
-
-    block = blocks.get(block_id) if isinstance(block_id, str) else None
+    block = contributed.blocks.get(block_id) if isinstance(block_id, str) else None
     if block is None:
-        issues.append(f"{label}: step {name!r} names block {block_id!r}, which this pack does not contribute")
-    else:
-        schema = block.config_model.model_json_schema(schema_generator=HumaneJsonSchema)
-        issues.extend(_config_issues(label, name, config, schema))
+        return [f"{label}: step {name!r} names block {block_id!r}, which this pack does not contribute"]
+    schema = block.config_model.model_json_schema(schema_generator=HumaneJsonSchema)
+    return [*_config_issues(label, name, config, schema), *_connection_issues(label, name, config, schema, connections)]
 
-    named = config.get("connection")
-    if isinstance(named, str) and not _REFERENCE.search(named) and named not in connections:
-        issues.append(
-            f"{label}: step {name!r} names connection {named!r}, which the document neither carries nor requires"
-        )
+
+def _check_source(label: Path, name: str, source: Any, kinds: dict[str, AnySource], connections: set[str]) -> list[str]:
+    """Check one source node: the kind it names, and its own fields against that kind's schema."""
+    if not isinstance(source, dict):
+        return [f"{label}: step {name!r} source is not a mapping"]
+    fields = dict(cast("JsonMap", source))
+    kind_name = fields.pop("kind", None)
+    kind = kinds.get(kind_name) if isinstance(kind_name, str) else None
+    if kind is None:
+        return [f"{label}: step {name!r} names source kind {kind_name!r}, which this pack does not contribute"]
+    schema = kind.config_model.model_json_schema(schema_generator=HumaneJsonSchema)
+    issues = [issue.replace(" config", " source", 1) for issue in _config_issues(label, name, fields, schema)]
+    return [*issues, *_connection_issues(label, name, fields, schema, connections)]
+
+
+def _connection_issues(label: Path, name: str, config: JsonMap, schema: JsonMap, connections: set[str]) -> list[str]:
+    """List each connection a config names in a field published as one, that the document does not account for."""
+    issues: list[str] = []
+    for field in sorted(reference_fields(schema, _CONNECTION)):
+        named = config.get(field)
+        if isinstance(named, str) and not _has_reference(named) and named not in connections:
+            issues.append(
+                f"{label}: step {name!r} names connection {named!r}, which the document neither carries nor requires"
+            )
     return issues
 
 

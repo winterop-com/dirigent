@@ -45,6 +45,8 @@ BLOCK_ID_PATTERN = r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$"
 #: A block group is one bare word, the shape of a block id's first half.
 BLOCK_GROUP_PATTERN = r"^[a-z][a-z0-9_]*$"
 
+#: The shape of a connection kind id, a notifier id, a storage scheme and a format name, which a
+#: ``Contribution`` refuses any other spelling of.
 SURFACE_ID_PATTERN = r"^[a-z][a-z0-9_-]*$"
 
 
