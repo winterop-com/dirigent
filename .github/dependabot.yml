@@ -4,3 +4,26 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  # The lock alone moves: the first-party packages pin each other exactly and carry no upper
+  # bound on anything else. One pull request a week for the lot.
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python:
+        patterns: ["*"]
+
+  # The image's bases, each pinned by digest.
+  - package-ecosystem: docker
+    directory: /infra
+    schedule:
+      interval: weekly
+
+  # The stack's images, each pinned by digest. .env.example and the stack `dg init` writes name
+  # the same references, and test_infra_files.py fails a bump that moves one copy alone.
+  - package-ecosystem: docker-compose
+    directory: /infra
+    schedule:
+      interval: weekly

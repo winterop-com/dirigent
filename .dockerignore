@@ -26,6 +26,9 @@ packages/dirigent-server/frontend/playwright-report
 **/test-results
 packages/dirigent-server/src/dirigent_server/static
 
+# The suites run from a checkout, never in the image.
+packages/*/tests
+
 **/.claude
 **/.dirigent
 **/.playwright-mcp

@@ -298,6 +298,25 @@ def check_choices(choices: InitChoices) -> None:
             )
 
 
+#: The images the stack's optional services run, each pinned by digest.
+STACK_IMAGES: Final = {
+    "__S3_IMAGE__": "rustfs/rustfs:1.0.0-rc.4@sha256:a9fbb5e5bfce09ccd0869ac9a7b0e39191c6868d75ec4c5d08ebbd5475db5d6b",
+    "__KAFKA_IMAGE__": (
+        "redpandadata/redpanda:v24.2.18@sha256:0270951e8793c77f0dd9178d137198018fa7ffd920e5a2a3b02a050ec76195b8"
+    ),
+    "__RABBITMQ_IMAGE__": (
+        "rabbitmq:3-management-alpine@sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281"
+    ),
+}
+
+
+def _with_images(text: str) -> str:
+    """Put each pinned image where its placeholder stands."""
+    for placeholder, image in STACK_IMAGES.items():
+        text = text.replace(placeholder, image)
+    return text
+
+
 COMPOSE_HEAD = """\
 name: dirigent
 
@@ -341,7 +360,7 @@ __ARTIFACTS__    # What a tool opens through the filesystem -- a checkout, a bui
 __DEPENDS_S3__
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:a77aa70e641402a21411b92b721c58d10f23b50ae5fdd2333efd22d166e1e5f7
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-dirigent}
@@ -453,7 +472,7 @@ COMPOSE_S3 = """\
   # Artifact storage. The endpoint the connection names is the one containers resolve, not
   # the one a shell on the host does: `localhost` inside a container is the container.
   s3:
-    image: ${DIRIGENT_S3_IMAGE:-rustfs/rustfs:1.0.0-rc.4}
+    image: ${DIRIGENT_S3_IMAGE:-__S3_IMAGE__}
     restart: unless-stopped
     environment:
       RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-dirigent}
@@ -540,7 +559,7 @@ COMPOSE_KAFKA = """\
   # It advertises its compose name, so the workers reach it and a producer on the host runs
   # inside the network: `docker compose exec kafka rpk topic produce ...`.
   kafka:
-    image: ${DIRIGENT_KAFKA_IMAGE:-redpandadata/redpanda:v24.2.18}
+    image: ${DIRIGENT_KAFKA_IMAGE:-__KAFKA_IMAGE__}
     restart: unless-stopped
     command:
       - redpanda
@@ -565,7 +584,7 @@ COMPOSE_KAFKA = """\
 
   # The topic the hello example publishes to has to exist: the broker refuses to invent one.
   kafka-topic:
-    image: ${DIRIGENT_KAFKA_IMAGE:-redpandadata/redpanda:v24.2.18}
+    image: ${DIRIGENT_KAFKA_IMAGE:-__KAFKA_IMAGE__}
     depends_on:
       kafka:
         condition: service_healthy
@@ -578,7 +597,7 @@ COMPOSE_KAFKA = """\
 
 COMPOSE_RABBITMQ = """\
   rabbitmq:
-    image: ${DIRIGENT_RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
+    image: ${DIRIGENT_RABBITMQ_IMAGE:-__RABBITMQ_IMAGE__}
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-dirigent}
@@ -596,7 +615,7 @@ COMPOSE_RABBITMQ = """\
 
   # The queue the hello example waits on has to exist: the block declares nothing.
   rabbitmq-queue:
-    image: ${DIRIGENT_RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
+    image: ${DIRIGENT_RABBITMQ_IMAGE:-__RABBITMQ_IMAGE__}
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -718,7 +737,7 @@ def compose_document(choices: InitChoices, version: str) -> str:
         + "".join(COMPOSE_VOLUMES[code] for code in choices.services),
         COMPOSE_DOCKER_NETWORK if docker else "",
     ]
-    return "".join(parts).replace("__VERSION__", version)
+    return _with_images("".join(parts).replace("__VERSION__", version))
 
 
 ENV_HEAD = """\
@@ -768,12 +787,12 @@ S3_CONNECTION=artifacts
 # Where the bundled S3 server is published on the host, on loopback only; the stack itself reaches
 # it as http://s3:9000.
 S3_PORT=9010
-DIRIGENT_S3_IMAGE=rustfs/rustfs:1.0.0-rc.4
+DIRIGENT_S3_IMAGE=__S3_IMAGE__
 
 """
 
 ENV_KAFKA = """\
-DIRIGENT_KAFKA_IMAGE=redpandadata/redpanda:v24.2.18
+DIRIGENT_KAFKA_IMAGE=__KAFKA_IMAGE__
 
 """
 
@@ -781,7 +800,7 @@ ENV_RABBITMQ = """\
 RABBITMQ_USER=dirigent
 RABBITMQ_PASSWORD=dirigent
 RABBITMQ_UI_PORT=15672
-DIRIGENT_RABBITMQ_IMAGE=rabbitmq:3-management-alpine
+DIRIGENT_RABBITMQ_IMAGE=__RABBITMQ_IMAGE__
 
 """
 
@@ -812,7 +831,7 @@ DIRIGENT_IMAGE=ghcr.io/winterop-com/dirigent:__VERSION__
 
 def env_document(choices: InitChoices, version: str, key: str) -> str:
     """Assemble the ``.env`` for the services chosen."""
-    return (
+    return _with_images(
         (
             ENV_HEAD
             + (ENV_S3 if choices.has("s3") else "")

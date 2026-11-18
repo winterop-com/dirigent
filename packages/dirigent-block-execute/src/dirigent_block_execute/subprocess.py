@@ -30,6 +30,9 @@ PIPE_GRACE_SECONDS = 2.0
 #: How often a process whose pipes are still open is checked for having exited.
 EXIT_POLL_SECONDS = 0.1
 
+#: How long a killed group's members that became the worker's own children are waited for.
+REAP_SECONDS = 1.0
+
 
 class Ran(NamedTuple):
     """What one child process left behind: how it exited, both streams, and where they were written."""
@@ -268,6 +271,30 @@ async def end(process: asyncio.subprocess.Process, pgid: int) -> None:
         kill(pgid, process.pid)
     with contextlib.suppress(ProcessLookupError):
         await process.wait()
+    await reap(pgid)
+
+
+async def reap(pgid: int) -> None:
+    """Collect the members of a killed group that were handed to the worker when their parent died.
+
+    A process whose parent exits is reparented to the first process of its namespace, or to the
+    nearest subreaper. In a container the worker is that process, and nothing else waits on
+    them, so each would stay a zombie holding a process slot. Only children in ``pgid`` are
+    waited for, never one asyncio is waiting on: those lead groups of their own.
+    """
+    if pgid <= 1 or pgid == os.getpgrp():
+        return
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + REAP_SECONDS
+    while True:
+        try:
+            pid, _ = os.waitpid(-pgid, os.WNOHANG)
+        except ChildProcessError:
+            return
+        if pid == 0:
+            if loop.time() >= deadline:
+                return
+            await asyncio.sleep(EXIT_POLL_SECONDS / 10)
 
 
 def kill(pgid: int, pid: int) -> None:
@@ -292,6 +319,7 @@ __all__ = [
     "group_of",
     "kill",
     "output",
+    "reap",
     "run",
     "segment",
     "workspace",

@@ -32,10 +32,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # No cache: one restored here was written by another run, and what this job builds is
+      # what PyPI keeps for good.
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          enable-cache: true
+          enable-cache: false
 
       - name: Set up Python
         run: uv python install

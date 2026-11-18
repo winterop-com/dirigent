@@ -272,13 +272,14 @@ docs-build: ## Build the documentation site, failing on any warning
 	$(UV) run mkdocs build --strict
 
 docs-pdf: ## Build the site and print the basics tutorial to site/basics.pdf
-	$(UV) run --with playwright playwright install chromium
-	$(UV) run --with playwright python scripts/docs_pdf.py
+	$(UV) run --with playwright==$(PLAYWRIGHT_VERSION) playwright install chromium
+	$(UV) run --with playwright==$(PLAYWRIGHT_VERSION) python scripts/docs_pdf.py
 
 #: The renderers the architecture model goes through. A bump re-exports in the same commit.
-STRUCTURIZR_IMAGE ?= structurizr/structurizr:2026.06.28
-PLAYWRIGHT_VERSION ?= 1.63.0
-PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v$(PLAYWRIGHT_VERSION)-noble
+#: PLAYWRIGHT_VERSION is also the Python package docs-pdf prints with, and the one pages.yaml installs.
+STRUCTURIZR_IMAGE ?= structurizr/structurizr:2026.06.28@sha256:251905a1a2d73195e84b784966babc71b329223fdbb25368261a9e3ba39041c4
+PLAYWRIGHT_VERSION ?= 1.64.1
+PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v$(PLAYWRIGHT_VERSION)-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
 
 #: The image runs as its own uid, which cannot write a bind-mounted directory on Linux.
 DOCKER_AS_HOST_USER := --user $(shell id -u):$(shell id -g)
@@ -311,6 +312,7 @@ architecture-export: ## Export every view to architecture/diagrams as PNG (needs
 architecture-export-docs: ## Regenerate docs/architecture-model.md (native Mermaid) from workspace.dsl
 	@set -e; \
 	mkdir -p architecture/exports/mermaid; \
+	docker image inspect $(STRUCTURIZR_IMAGE) >/dev/null 2>&1 || python3 scripts/pull_images.py $(STRUCTURIZR_IMAGE); \
 	docker run --rm $(DOCKER_AS_HOST_USER) -v "$(CURDIR)/architecture:/work" -w /work $(STRUCTURIZR_IMAGE) export -workspace workspace.dsl -format mermaid -output exports/mermaid >/dev/null; \
 	$(UV) run python architecture/mermaid_to_docs.py
 
