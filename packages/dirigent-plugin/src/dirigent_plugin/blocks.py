@@ -560,6 +560,8 @@ class ProbeResult(BaseModel):
     message: str | None = None
     progress: float | None = Field(default=None, ge=0.0, le=1.0)
     next_poll_in: timedelta | None = None
+    """How long until the next probe, or None for the engine's own widening cadence; zero is at once."""
+
     meta: dict[str, str] | None = None
     """What the handle's metadata becomes from here on, or None to leave it as it is.
 
@@ -578,6 +580,8 @@ class NotYet(BaseModel):
     """A sensor's "the condition does not hold yet" result, which is not a failure."""
 
     next_poll_in: timedelta | None = None
+    """How long until the next poke, or None for the step's poll cadence; zero is at once."""
+
     message: str | None = None
     """What the sensor is seeing while it waits, surfaced on the waiting attempt."""
 

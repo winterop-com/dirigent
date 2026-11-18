@@ -445,8 +445,8 @@ class Engine:
                 remote_handle=RemoteHandle.model_validate(attempt.remote_handle) if attempt.remote_handle else None,
                 fetched_output=attempt.fetched_output,
                 poke_cursor=attempt.poke_cursor,
-                deadline_at=deadline,
                 gone_probes=attempt.gone_probes,
+                logged_entries=attempt.logged_entries,
             )
         except ValidationError as error:
             problems = validation_issues(error.errors(include_url=False), model=model)
@@ -543,6 +543,7 @@ class Engine:
                 keep=kept_level(unit.log_levels, unit.block_id),
                 limit=self.services.settings.log_entries_per_attempt,
                 batch=self.services.settings.log_flush_batch,
+                recorded=unit.logged_entries,
             )
             logger.secrets = secrets
             meter = StorageMeter(self.sessions, unit.run_id, self.services.settings.run_storage_quota)
@@ -853,6 +854,13 @@ class Engine:
             async with session_scope(self.sessions) as session:
                 await lock_run(session, logger.run_id)
                 await session.execute(sa.insert(LogEntry), entries)
+                if logger.step_attempt_id is not None:
+                    await session.execute(
+                        sa.update(StepAttempt)
+                        .where(StepAttempt.id == logger.step_attempt_id)
+                        .values(logged_entries=StepAttempt.logged_entries + len(entries))
+                        .execution_options(synchronize_session=False)
+                    )
         except Exception as error:
             logger.restore(entries)
             _logger.debug("a log flush failed; its entries stay buffered", error=str(error))
@@ -871,7 +879,7 @@ class Engine:
         # Drained here rather than inside: draining empties the buffer, and a transaction the
         # database aborted to break a deadlock is run again with the same entries.
         entries = logger.drain()
-        logged = logger.recorded > 0
+        logged = logger.recorded > unit.logged_entries
         return await with_deadlock_retry(
             lambda: self._record_once(unit, result, entries, now, storage=storage, seconds=seconds, logged=logged)
         )
@@ -910,6 +918,7 @@ class Engine:
                 return False
             if entries:
                 await session.execute(sa.insert(LogEntry), entries)
+                attempt.logged_entries += len(entries)
             if run.status is RunStatus.CANCELLED:
                 attempt.status = AttemptStatus.CANCELLED
                 attempt.finished_at = now
@@ -928,7 +937,7 @@ class Engine:
                     output_bytes = await self._succeed(session, storage, attempt, output, now)
                     succeeded = True
                 case Submitted(handle=handle, next_poll_in=interval):
-                    _park(attempt, now, interval or probe_interval(self._poll_for(unit), 0))
+                    _park(attempt, now, interval if interval is not None else probe_interval(self._poll_for(unit), 0))
                     attempt.remote_handle = handle.model_dump(mode="json")
                 case Waiting(next_poll_in=interval, message=message, progress=progress, handle=advanced, cursor=cursor):
                     attempt.poke_count += 1
@@ -938,7 +947,7 @@ class Engine:
                     if cursor is not None:
                         attempt.poke_cursor = cursor
                     _note_waiting(session, attempt, message, progress)
-                    _park(attempt, now, interval or self._wait_for(unit, attempt))
+                    _park(attempt, now, interval if interval is not None else self._wait_for(unit, attempt))
                 case Vanished(message=message):
                     await self._record_gone(session, run, definition, attempt, unit, message, now)
                 case Errored(failure=failure):

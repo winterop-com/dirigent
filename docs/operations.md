@@ -371,6 +371,13 @@ A run whose tags no live worker carries simply queues: `dg apply` says so when i
 document, and `dg runs show` and the run screen say which tag the run is waiting for. Start a
 worker carrying it and the run is claimed on the next pass.
 
+**Keep every host's clock synchronized.** A lease, a due time and a deadline are written by one
+host's clock and judged by another's: a sweeper whose clock runs ahead of a worker's by more
+than the lease less the heartbeat interval takes back attempts that are still running. Run NTP
+(or the platform's time sync) on every host. A worker on PostgreSQL compares its clock with the
+database's when it registers, and logs at WARNING when the two stand more than five seconds
+apart.
+
 ### Why SQLite is refused for `dg worker` and `dg scheduler`
 
 Both refuse to start on SQLite, with exit code 3 and a message saying so. This is a guardrail
@@ -741,7 +748,7 @@ the stack is complete out of the box; see
 | `DIRIGENT_HEARTBEAT` | `15s` | How often a worker refreshes the leases it holds and its registry row. |
 | `DIRIGENT_CLAIM_IDLE` | `500ms` | How long an idle worker waits before asking for work again when nothing wakes it. A commit that queues work wakes it at once, so this is what a lost wake-up costs; see [how soon a run starts](#how-soon-a-run-starts). |
 | `DIRIGENT_SWEEP_INTERVAL` | `30s` | How often a worker runs the crash-recovery sweeper over expired leases. This is also the cadence the queue-depth and `waiting` gauges are sampled on. |
-| `DIRIGENT_STUCK_RUN` | `1h` | A running run with no attempt progress for this long is flagged as stuck, which is what raises a `run_stuck` alert. |
+| `DIRIGENT_STUCK_RUN` | `1h` | A running run with no attempt progress for this long is flagged as stuck, which is what raises a `run_stuck` alert. A run parked on a poll or a retry backoff is not stuck until the look it is owed is this far overdue. |
 | `DIRIGENT_STALE_WORKER` | `15m` | A worker registry row whose last heartbeat is older than this is deleted by the sweeper, not marked stopped -- a worker's name carries its process id, so the process it described can never come back under that name. Fifteen minutes is sixty beats at the default heartbeat, and the margin has to survive a paused container: deleting the row of a worker that is merely slow removes it from the inventory while it is still claiming work. Reaping the registry does not touch the work such a worker held; expired leases are reclaimed by the lease sweeper on a much shorter clock. |
 | `DIRIGENT_LOST_JOB_MAX_GONE` | `3` | Consecutive `GONE` probes before the lost-job policy fails a waiting attempt, rather than letting it hang forever on a remote that forgot the job. |
 | `DIRIGENT_ENABLED_UNSAFE_BLOCKS` | empty | Block ids permitted to execute code on a worker, comma-separated. Empty means none. See [security](security.md#local-execution-and-the-unsafe-block-allowlist). |
@@ -1111,7 +1118,8 @@ the exception: a parked container's logs reach the run at each probe of it. What
 logs reaches the run itself within `log_flush_interval`, one second by default, and sooner
 when it logs faster than that, so the run screen and `dg run --watch` show the lines while the
 step is still running. One attempt may write `log_entries_per_attempt` of them, a thousand by
-default; past that the rest are dropped and the attempt gets one warning saying so.
+default, over every call made for it: a sensor's pokes and an operator's probes share one
+allowance. Past that the rest are dropped and the attempt gets one warning saying so.
 
 A field a block logs is given its JSON shape at the call, so a value JSON cannot hold never
 stops the attempt from settling. A date or timestamp becomes ISO 8601, a decimal its digits as
