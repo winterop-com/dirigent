@@ -128,8 +128,30 @@ class BlockingDirigent:
         self.close()
 
     def call[T](self, awaitable: Awaitable[T]) -> T:
-        """Run one of the client's coroutines to completion and return what it produced."""
-        return asyncio.run_coroutine_threadsafe(_awaited(awaitable), self._loop).result()
+        """Run one of the client's coroutines to completion and return what it produced.
+
+        A wait the calling thread gives up on, such as one Ctrl-C interrupts, cancels the
+        coroutine and waits a bounded time for it to unwind, so a stream it was reading is no
+        longer running when the client closes.
+        """
+        future = asyncio.run_coroutine_threadsafe(_awaited(awaitable), self._loop)
+        try:
+            return future.result()
+        except BaseException:
+            if not future.done():
+                future.cancel()
+                self._settle()
+            raise
+
+    def _settle(self) -> None:
+        """Wait, up to the shutdown bound, for every task on the client's loop to finish."""
+
+        async def settled() -> None:
+            others = asyncio.all_tasks() - {asyncio.current_task()}
+            if others:
+                await asyncio.wait(others, timeout=SHUTDOWN_SECONDS)
+
+        asyncio.run_coroutine_threadsafe(settled(), self._loop).result()
 
     def iterate[T](self, source: AsyncIterator[T]) -> Iterator[T]:
         """Read an async iterator, such as a log tail, as an ordinary one."""

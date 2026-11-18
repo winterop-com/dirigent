@@ -1,6 +1,10 @@
 """The blocking bridge: the same accessors, driven from synchronous code."""
 
-from collections.abc import Callable
+import asyncio
+import os
+import signal
+import threading
+from collections.abc import AsyncIterator, Callable
 
 import httpx2
 import pytest
@@ -56,3 +60,22 @@ def test_a_log_tail_reads_as_an_ordinary_iterator() -> None:
 
     with blocking(handler) as dg:
         assert [entry.message for entry in dg.iterate(dg.runs.follow_logs(ID))] == ["hello"]
+
+
+def test_a_stream_interrupted_mid_read_has_stopped_by_the_time_the_interrupt_arrives() -> None:
+    finalised = threading.Event()
+
+    async def stream() -> AsyncIterator[int]:
+        try:
+            while True:
+                await asyncio.sleep(3600)
+                yield 1
+        finally:
+            finalised.set()
+
+    with blocking(lambda request: httpx2.Response(204)) as dg:
+        threading.Timer(0.2, os.kill, (os.getpid(), signal.SIGINT)).start()
+        with pytest.raises(KeyboardInterrupt):
+            for _ in dg.iterate(stream()):
+                pass
+        assert finalised.is_set(), "the interrupted stream is still running on the client's loop"
