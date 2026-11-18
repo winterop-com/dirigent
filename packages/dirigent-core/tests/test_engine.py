@@ -570,6 +570,35 @@ async def test_an_outcome_the_database_aborted_keeps_the_log_it_buffered(
     assert stored is not None and stored.status is RunStatus.SUCCEEDED
 
 
+async def test_an_outcome_whose_connection_was_lost_is_written_by_the_retry(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A step that ran is settled when the outcome's connection drops once, not left to run again.
+
+    Without the retry the attempt stays running until its lease expires, and the sweep queues
+    the step to execute a second time.
+    """
+    definition = PipelineDefinition(code="reconnected", steps=steps(only=StepDefinition(block="test.echo")))
+    run = await start(sessions, services, definition)
+
+    once = iter([True])
+    original = Engine._record_once  # pyright: ignore[reportPrivateUsage] - the seam a lost connection lands on
+
+    async def disconnect_first(self: Engine, *args: Any, **kwargs: Any) -> None:
+        if next(once, False):
+            raise DBAPIError("COMMIT", None, ConnectionResetError("connection reset"), connection_invalidated=True)
+        await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Engine, "_record_once", disconnect_first)
+    await drain(engine)
+
+    attempts = await attempts_of(sessions, run.id)
+    async with sessions() as session:
+        stored = await session.get(Run, run.id)
+    assert [attempt.status for attempt in attempts] == [AttemptStatus.SUCCEEDED], "one attempt, settled by the retry"
+    assert stored is not None and stored.status is RunStatus.SUCCEEDED
+
+
 async def test_an_unknown_reference_fails_the_step_as_rejected(
     engine: Engine, sessions: Any, services: EngineServices
 ) -> None:
