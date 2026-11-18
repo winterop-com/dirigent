@@ -1388,7 +1388,7 @@ dependencies = [
 requires-dist = [
     { name = "dirigent-client", editable = "packages/dirigent-client" },
     { name = "dirigent-common", editable = "packages/dirigent-common" },
-    { name = "mcp", specifier = ">=2.3.0" },
+    { name = "mcp", specifier = ">=2.3.0,<2.4" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "starlette", specifier = ">=1.10.0" },
     { name = "uvicorn", specifier = ">=0.52.4" },

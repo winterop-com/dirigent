@@ -1,6 +1,7 @@
 """Keeping every answer an agent reads under one size, and editing a document's text in place."""
 
 import json
+import re
 from collections.abc import Sequence
 from typing import Any, Final, cast
 
@@ -33,6 +34,9 @@ PREVIEW_CHARS: Final = 200
 
 #: Room left beside a page's rows for the note that says it was cut.
 PAGE_SLACK: Final = 512
+
+#: An array index as RFC 6901 spells one: ASCII digits, with no leading zero.
+ARRAY_INDEX: Final = re.compile(r"0|[1-9][0-9]*")
 
 
 class Edit(BaseModel):
@@ -134,7 +138,7 @@ def pointed(value: Any, path: str) -> Any:
                 continue
         elif isinstance(reached, list):
             items = cast(list[object], reached)
-            if token.isdigit() and int(token) < len(items):
+            if ARRAY_INDEX.fullmatch(token) and int(token) < len(items):
                 reached = items[int(token)]
                 continue
         raise ToolError(POINTER_MISSES.render(path=path, token=token))

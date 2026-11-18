@@ -62,6 +62,13 @@ def test_a_pointer_reads_one_part_of_an_output() -> None:
         pointed(output, "rows")
 
 
+@pytest.mark.parametrize("index", ["\u00b2", "\u0661", "01", "-", "+1"])
+def test_a_pointer_reads_an_array_index_only_as_rfc_6901_spells_one(index: str) -> None:
+    output = {"rows": ["first", "second"]}
+    with pytest.raises(ToolError, match="reaches nothing"):
+        pointed(output, f"/rows/{index}")
+
+
 def test_edits_apply_in_turn() -> None:
     text = "one: 1\ntwo: 2\n"
     assert edited(text, [Edit(old="one: 1", new="one: 10"), Edit(old="one: 10\n", new="")]) == "two: 2\n"
