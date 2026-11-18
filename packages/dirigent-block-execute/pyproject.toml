@@ -15,6 +15,7 @@ dependencies = [
     "dirigent-common==0.36.0",
     "dirigent-plugin==0.36.0",
     "httpx2>=2.12.0",
+    "pydantic>=2.13.5",
 ]
 
 [project.entry-points."dirigent.plugins.v1"]

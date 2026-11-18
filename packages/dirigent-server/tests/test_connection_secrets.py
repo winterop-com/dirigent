@@ -174,10 +174,13 @@ async def test_a_held_source_naming_another_kind_keeps_the_secret_out_of_its_err
 
     holder = Holder(app.state.session_factory, app.state.services, owner="worker")
     await holder.tick()
-    await asyncio.sleep(0.3)
-    await holder.stop()
+    try:
+        async with asyncio.timeout(10):
+            while not (last_error := await _last_error(admin, "held")):
+                await asyncio.sleep(0.05)
+    finally:
+        await holder.stop()
 
-    last_error = await _last_error(admin, "held")
     assert "connection 'web' has kind 'http'" in last_error
     assert not _carries_a_secret(last_error)
     assert not _carries_a_secret("".join(capfd.readouterr()))

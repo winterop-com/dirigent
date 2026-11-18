@@ -16,8 +16,12 @@ dependencies = [
     "dirigent-core==0.36.0",
     "dirigent-examples==0.36.0",
     "dirigent-mcp==0.36.0",
+    "anyio>=4.15.1",
     "fastapi>=0.142.2",
     "httpx2>=2.12.0",
+    "pydantic>=2.13.5",
+    "sqlalchemy[asyncio]>=2.1.3",
+    "starlette>=1.10.0",
 ]
 
 [build-system]

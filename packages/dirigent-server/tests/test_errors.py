@@ -11,7 +11,7 @@ from dirigent_core.documents import DocumentError
 from dirigent_core.messages import DOCUMENT_UNSATISFIED, STEP_CONFIG_INVALID
 from dirigent_core.pipelines import PipelineInUse, UnknownPipeline
 from dirigent_core.plugins import UnknownExample
-from dirigent_server.errors import INTERNAL_DETAIL, VERSION_HEADER, install_error_handlers
+from dirigent_server.errors import INTERNAL_DETAIL, VERSION_HEADER, install_error_handlers, render
 from dirigent_server.messages import HTTP_ERROR, INTERNAL, REQUEST_INVALID
 
 
@@ -161,3 +161,10 @@ def test_every_handler_answers_with_the_code_of_the_message_it_rendered(refusals
     assert refusals.get("/refusals/in-use").json()["code"] == "pipeline.in_use"
     assert refusals.get("/refusals/example").json()["code"] == "host.unknown_example"
     assert refusals.get("/refusals/ambiguous-example").json()["code"] == "host.ambiguous_example"
+
+
+def test_a_status_http_has_no_phrase_for_is_titled_plainly() -> None:
+    """A plugin may answer with a status outside the standard list, such as 499."""
+    answered = render(499, "the client went away", code="plugin.gone")
+    assert answered.status == 499
+    assert answered.title == "Error"

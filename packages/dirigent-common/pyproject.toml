@@ -16,6 +16,7 @@ dependencies = [
     # nongpl: the format-nongpl extra pulls permissively-licensed format validators, not the
     # GPL rfc3987 the plain format extra carries -- safe while the project's own licence is undecided.
     "jsonschema[format-nongpl]>=4.23.0",
+    "pydantic-core>=2.50.1",
     "pydantic>=2.13.5",
     "pyyaml>=6.0.3",
     "referencing>=0.37.0",

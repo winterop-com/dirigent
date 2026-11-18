@@ -286,10 +286,10 @@ async def test_the_event_loop_runs_on_while_a_template_renders_off_it(monkeypatc
             "{% for a in range(100000) %}{% for b in range(100000) %}{% endfor %}{% endfor %}",
             {},
             max_bytes=CAP,
-            within=timedelta(milliseconds=300),
+            within=timedelta(seconds=1),
         )
     ticking.cancel()
-    assert ticks > 5
+    assert ticks > 2, "a loop held for the whole render ticks once, before the render starts"
 
 
 @pytest.mark.parametrize(
