@@ -620,3 +620,91 @@ def test_the_members_of_a_killed_group_handed_to_the_worker_are_reaped() -> None
         [sys.executable, "-c", SUBREAPER_SCENARIO], capture_output=True, text=True, check=True, timeout=30
     )
     assert result.stdout.strip() == "0", result.stderr
+
+
+async def test_a_second_cancel_while_the_process_is_reaped_still_closes_its_pipes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A step can be cancelled again while it is cleaning up, as an anyio cancel scope does at every await.
+
+    Pipes left open then are closed by nothing once the loop stops, and are collected as unclosed
+    transports in whatever test runs next.
+    """
+    import asyncio
+    from typing import cast
+
+    from dirigent_block_execute import subprocess as block_subprocess
+
+    real_group_of = block_subprocess.group_of
+    real_end = block_subprocess.end
+    started: list[asyncio.subprocess.Process] = []
+    ending = asyncio.Event()
+
+    def group_of(process: asyncio.subprocess.Process) -> int:
+        started.append(process)
+        return real_group_of(process)
+
+    async def end(process: asyncio.subprocess.Process, pgid: int) -> None:
+        ending.set()
+        await real_end(process, pgid)
+
+    monkeypatch.setattr(block_subprocess, "group_of", group_of)
+    monkeypatch.setattr(block_subprocess, "end", end)
+    task = asyncio.create_task(
+        block_subprocess.output(
+            argv=["sleep", "30"], directory=tmp_path, environ={"PATH": os.environ["PATH"]}, timeout_seconds=60
+        )
+    )
+    while not started:
+        await asyncio.sleep(0.01)
+    task.cancel()
+    await ending.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    transport = cast("asyncio.SubprocessTransport", vars(started[0])["_transport"])
+    pipes = [transport.get_pipe_transport(fd) for fd in (1, 2)]
+    assert all(pipe is not None and pipe.is_closing() for pipe in pipes), "the process's pipes were left open"
+    assert started[0].returncode is not None, "the killed process was not reaped"
+
+
+async def test_a_second_cancel_while_the_process_starts_still_ends_it_and_closes_its_pipes(tmp_path: Path) -> None:
+    """A cancel during the start is held until the process exists, and one more must not leave it running."""
+    import asyncio
+    from typing import cast
+
+    from dirigent_block_execute import subprocess as block_subprocess
+
+    started: list[asyncio.subprocess.Process] = []
+    spawned = asyncio.Event()
+    release = asyncio.Event()
+
+    async def starting() -> asyncio.subprocess.Process:
+        process = await asyncio.create_subprocess_exec(
+            "sleep",
+            "30",
+            cwd=tmp_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
+        )
+        started.append(process)
+        spawned.set()
+        await release.wait()
+        return process
+
+    task = asyncio.create_task(block_subprocess._started(starting()))  # pyright: ignore[reportPrivateUsage]
+    await spawned.wait()
+    task.cancel()
+    await asyncio.sleep(0)
+    task.cancel()
+    await asyncio.sleep(0)
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    transport = cast("asyncio.SubprocessTransport", vars(started[0])["_transport"])
+    pipes = [transport.get_pipe_transport(fd) for fd in (1, 2)]
+    assert all(pipe is not None and pipe.is_closing() for pipe in pipes), "the process's pipes were left open"
+    assert started[0].returncode is not None, "the process outlived the cancelled start"

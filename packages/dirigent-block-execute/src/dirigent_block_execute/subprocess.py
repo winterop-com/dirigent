@@ -261,9 +261,13 @@ async def _started(starting: Coroutine[None, None, asyncio.subprocess.Process]) 
     try:
         return await asyncio.shield(starting_task)
     except asyncio.CancelledError:
-        with contextlib.suppress(Exception):
+
+        async def ended() -> None:
             process = await starting_task
             await end(process, group_of(process))
+
+        with contextlib.suppress(Exception):
+            await _through_cancels(ended())
         raise
 
 
@@ -279,18 +283,55 @@ def group_of(process: asyncio.subprocess.Process) -> int:
 
 
 async def end(process: asyncio.subprocess.Process, pgid: int) -> None:
-    """Kill the process group and reap it, whatever the reason for leaving.
+    """Kill the process group, reap it, and close its pipes, whatever the reason for leaving.
 
     The group is signalled whether or not the leader is still running: a shell that
     backgrounded its work exits 0 while the work it started keeps the group alive, and that
     work must not outlive the step. A group the worker may not signal is not one this can do
     anything about, and neither that nor a group already gone is worth failing a step over.
+
+    A cancel that arrives while the group is being reaped does not stop the reaping: it is
+    raised once the pipes are closed. Left half done, the process's pipes stay open with
+    nothing reading them, and the descriptors outlive the step.
     """
     with contextlib.suppress(ProcessLookupError, PermissionError):
         kill(pgid, process.pid)
-    with contextlib.suppress(ProcessLookupError):
-        await process.wait()
+    await _through_cancels(_closed(process, pgid))
+
+
+async def _closed(process: asyncio.subprocess.Process, pgid: int) -> None:
+    """Wait for a killed process and its pipes, close the pipes whatever still holds them, and reap the group.
+
+    The wait ends at the exit only when the pipes have closed too, and a process outside the
+    group may still hold them, so the wait is bounded.
+    """
+    try:
+        with contextlib.suppress(ProcessLookupError, TimeoutError):
+            async with asyncio.timeout(PIPE_GRACE_SECONDS):
+                await process.wait()
+    finally:
+        # asyncio.subprocess.Process has no public way to close its pipes.
+        transport = cast("asyncio.SubprocessTransport | None", vars(process).get("_transport"))
+        if transport is not None:
+            transport.close()
     await reap(pgid)
+
+
+async def _through_cancels[T](work: Coroutine[None, None, T]) -> T:
+    """Run ``work`` to its end even when the caller is cancelled meanwhile, and raise the cancel after.
+
+    An anyio cancel scope cancels again at every await, so one shielded await is not enough.
+    """
+    task = asyncio.ensure_future(work)
+    cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            cancelled = True
+    if cancelled:
+        raise asyncio.CancelledError
+    return task.result()
 
 
 async def reap(pgid: int) -> None:
