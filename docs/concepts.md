@@ -283,6 +283,11 @@ its consumer at once and lets the lease go; a message that arrives in between ma
 is not acknowledged, so it is delivered again once the source is resumed or the pipeline
 activated. Each worker holds at most `source_held_max` sources.
 
+A polled or held source whose stored fields its installed kind no longer reads, as a pack
+upgrade that renames or drops a field can leave it, fails each time a worker takes it up with
+`source.config_unreadable`, naming the field, and backs off as any other failure does until its
+pipeline is applied again.
+
 A `sensor` source is polled too, and what it polls is a sensor block, poked outside any run:
 
 ```yaml

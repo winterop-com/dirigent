@@ -26,6 +26,7 @@ from dirigent_core.logging import get_logger
 from dirigent_core.messages import (
     ROUTE_CLAIMED,
     ROUTE_RACED,
+    SOURCE_CONFIG_UNREADABLE,
     SOURCE_EMPTY_SECRET,
     SOURCE_NOT_SIGNED,
     SOURCE_TAKES_NO_TOKEN,
@@ -257,6 +258,21 @@ def held(kinds: Mapping[str, AnySource], row: Source) -> tuple[HeldSource[Any, A
         return kind, source_config(kind, row.config)
     except ValidationError:
         return None
+
+
+def unreadable_config(kinds: Mapping[str, AnySource], row: Source) -> str | None:
+    """Say why a worker-hosted row's installed kind cannot read its stored config, or None when it can."""
+    kind = kinds.get(row.kind)
+    if not isinstance(kind, PolledSource | HeldSource):
+        return None
+    try:
+        source_config(kind, row.config)
+    except ValidationError as error:
+        first = error.errors()[0]
+        where = ".".join(str(part) for part in first["loc"])
+        detail = f"{where}: {first['msg']}" if where else first["msg"]
+        return SOURCE_CONFIG_UNREADABLE.render(code=row.code, kind=row.kind, detail=detail)
+    return None
 
 
 def worker_hosted(kinds: Mapping[str, AnySource], row: Source) -> bool:

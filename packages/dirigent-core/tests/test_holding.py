@@ -19,6 +19,7 @@ from dirigent_core.directory import prune_absent
 from dirigent_core.documents import load_text
 from dirigent_core.engine.runs import Provenance, create_run
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.messages import SOURCE_CONFIG_UNREADABLE
 from dirigent_core.models import Pipeline, Run, Source
 from dirigent_core.pipelines import apply_document, set_active
 from dirigent_core.plugins import PluginHost
@@ -515,6 +516,33 @@ async def test_a_consumer_that_will_not_open_is_failing_and_backs_off(
         row = await the_source(sessions)
         assert row.last_error == "the inbox refused the connection"
         assert row.next_poll_at is not None and row.next_poll_at > datetime.now(UTC)
+    finally:
+        await holder.stop()
+
+
+async def test_a_source_whose_stored_fields_its_kind_no_longer_reads_fails_by_name_and_backs_off(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A pack upgrade can leave a row whose config the installed kind refuses."""
+    await apply(sessions, services, mailroom())
+    async with session_scope(sessions) as session:
+        row = (await session.execute(sa.select(Source))).scalar_one()
+        row.config = {"folder": "front-desk"}
+    holder = Holder(sessions, services, owner=WORKER)
+    try:
+        await holder.tick()
+
+        async def failed() -> bool:
+            return (await the_source(sessions)).poll_failures == 1
+
+        await eventually(failed)
+        row = await the_source(sessions)
+        assert row.last_error == SOURCE_CONFIG_UNREADABLE.render(
+            code="letters", kind="tests.inbox", detail="name: Field required"
+        )
+        assert row.lease_owner is None
+        assert row.next_poll_at is not None and row.next_poll_at > datetime.now(UTC), "it is not taken up again at once"
+        assert INBOX.opened == 0
     finally:
         await holder.stop()
 
