@@ -26,11 +26,6 @@ class Captured(NamedTuple):
     """Whether the text above is short of the stream; the artifact URI always holds all of it."""
 
 
-def captured(payload: bytes, limit: int) -> Captured:
-    """Cut one captured stream down to what may be inlined, and say what was cut."""
-    return Captured(text=decode(payload[:limit]), total_bytes=len(payload), truncated=len(payload) > limit)
-
-
 #: How much of the end of a stream is kept, for the lines a failure message quotes. The head
 #: is what a block may inline; this is the other end, and together they bound what is held.
 TAIL_BYTES = 8 * 1024
@@ -217,12 +212,6 @@ def tail(
 ) -> str:
     """Take the last few lines of a stream, which is what a failure message wants."""
     return scrub(separator.join(lines_of(payload)[-count:]), redact)
-
-
-async def store(ctx: StepContext, uri: str, payload: bytes) -> None:
-    """Write one captured stream to storage, so it outlives the worker that produced it."""
-    async with ctx.storage.open_write(uri) as sink:
-        await sink.write(payload)
 
 
 def log_stream(ctx: StepContext, stream: str, drained: Drained, redact: Sequence[str] = ()) -> None:

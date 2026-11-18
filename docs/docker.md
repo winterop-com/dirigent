@@ -208,6 +208,13 @@ where it outlives the run, and a target without one is a path relative to the wo
 which is how one step produces the compose file or the build context the next step opens.
 `inputs` is always storage: a URI read into the read-only mount.
 
+A container's two streams reach the run whichever way it ends. While it runs, each probe puts
+what it printed since the last one into the run log. Once it exits, both streams are written to
+storage as the step's `stdout` and `stderr` captures and the part no probe has logged yet is
+logged. On success the output carries their URIs; on a non-zero exit the `container failed` log
+line does, and the failure quotes the last lines of stderr, or of stdout when stderr is empty,
+and says so when the kernel killed the container for its `memory` limit.
+
 An image is not trusted about what it leaves in its output mount. Each declared output is opened
 without following a link, on the way to it or at its end, and has to be a regular file, so a link
 planted under the declared name fails the step as `execute.output_not_a_file` rather than copying
@@ -239,9 +246,10 @@ separate steps rather than one self-contained block:
   `rule: all_done` runs whether the drive step passed or failed, so a stack is never left
   running. The engine already evaluates `all_done`; no "finally" primitive is needed.
 
-Both blocks default their **project name** deterministically from the run id, so the `down`
-addresses the exact project the `up` created with nothing wired between them, and two runs
-never collide. On a **bring-up that does not succeed** -- a non-zero exit, a bring-up that ran
+Both blocks default their **project name** deterministically from the instance and the run,
+`dirigent-<instance id>-<run id>`, so the `down` addresses the exact project the `up` created
+with nothing wired between them, and two runs never collide, on one instance or on two sharing
+a daemon. On a **bring-up that does not succeed** -- a non-zero exit, a bring-up that ran
 past its deadline, or a step that was cancelled -- the block itself best-effort tears the
 half-built project down (`cleanup: true`) before leaving, so containers compose had already
 started are never orphaned. A successful `up` is never torn down that way: it persists for the
@@ -301,10 +309,10 @@ build:
     push: true
 ```
 
-The step logs in against a `DOCKER_CONFIG` directory of its own under the run's work
-directory, with the
-password on stdin rather than in an argument, pushes each tag with `docker push`, and logs out
-again; the directory goes with the step. The worker's own docker config is never written to and
+The step logs in against a `DOCKER_CONFIG` directory of its own in the system's temporary
+directory, outside the roots a sibling step can read, with the password on stdin rather than in
+an argument, pushes each tag with `docker push`, and logs out again; the directory goes with the
+step. The worker's own docker config is never written to and
 no session survives the step. The output carries `pushed`, the tags that reached the registry,
 and `digests`, the digest the registry gave each of them where the CLI reported one -- a tag can
 be moved and a digest cannot, so the digest is the only exact name for what was pushed. The
@@ -315,26 +323,36 @@ is the worked document.
 
 ## The orphan reaper
 
-`docker.compose.up` names its project `dirigent-<run id>` and compose labels every container of
-it `com.docker.compose.project`, so a stack is addressable by the run that created it long after
-that run has gone. Usually nothing is left: a `down` step with `rule: all_done` runs on any
-outcome, and a failed `up` tears its own half-built project down. What is left over is what none
-of that reached -- a worker that died mid-run, a pipeline cancelled between `up` and `down`, a
-`down` step that never ran.
+`docker.compose.up` names its project `dirigent-<instance id>-<run id>` and compose labels every
+container of it `com.docker.compose.project`, so a stack is addressable by the instance and the
+run that created it long after that run has gone. `docker.run` labels each container it creates
+`dirigent.instance` and `dirigent.run`. The instance id is one the instance makes for itself, in
+its own database, the first time a step or a pass asks for it. Usually nothing is left: a `down` step with `rule: all_done` runs on any outcome, a failed
+`up` tears its own half-built project down, and `docker.run` removes its container when it
+succeeds, fails, is cancelled, cannot be started or cannot be collected. What is left over is
+what none of that reached -- a worker that died mid-run, a pipeline cancelled between `up` and
+`down`, a `down` step that never ran, a container created by a worker that died before the
+engine stored its handle.
 
-A worker sweeps for those on a cadence. Each pass lists the compose projects on its daemon,
-reads the run id out of each project's name, and looks that run up:
+A worker sweeps for those on a cadence. Each pass lists the compose projects and the
+`docker.run` containers on its daemon that carry **its own instance id**, reads the run id out of
+each project's name and each container's label, and looks that run up:
 
 - a run that is **still active** is never touched, whatever else is true;
 - a run that is **terminal**, and a run the instance **no longer holds**, are both orphans;
-- a project **younger than the grace** is left alone whatever its run says, because a stack whose
-  `up` has only just returned is a stack whose `down` has not been reached yet. A project's age
-  is its newest container's.
+- a project or container **younger than the grace** is left alone whatever its run says, because
+  a stack whose `up` has only just returned is a stack whose `down` has not been reached yet. A
+  project's age is its newest container's.
 
-Each orphan is taken down with `docker compose -p <project> down -v --remove-orphans`, and each
-one is one record: `kind: docker_reaped`, carrying the project, the run id and the run's status,
-so `dg worker` shows what went. A project this instance did not create -- anything
-whose name is not `dirigent-<32 hex digits>` -- is never listed as a candidate at all.
+Each orphaned project is taken down with `docker compose -p <project> down -v --remove-orphans`,
+and each orphaned container is removed with its anonymous volumes. Each one is one record:
+`kind: docker_reaped`, carrying the `project` or the short `container` id, the run id and the
+run's status, so `dg worker` shows what went. What this instance did not create is never a
+candidate at all: a project whose name is not `dirigent-<its instance id>-<run id>`, a container
+whose `dirigent.instance` label is not its id or whose `dirigent.run` label is not a run id. That
+covers another instance's stacks and containers on a shared daemon, whose runs this instance's
+database does not hold, and anything made before the instance id was written, which carries no
+such name or label and is left for a person to remove.
 
 Two settings govern it:
 
@@ -356,10 +374,10 @@ dg docker reap
 `--dry-run` writes the same records and takes nothing down.
 
 **The reaper only sees the daemon the worker sees.** With one dind sidecar per worker that is
-exactly the stacks that worker created, which is the deployment this is written for. A worker
-pointed at a shared daemon sees every dirigent project on it, including projects other workers
-created -- which is correct, since the run lookup is the instance's own, but it means two
-instances must not share one daemon.
+exactly the stacks that worker created. A worker pointed at a shared daemon sees every project
+and container its own instance created there, other workers' included, which is correct since
+the run lookup is the instance's own. Two instances may share a daemon -- a `dg dev` beside an
+e2e instance on one laptop -- because each reaps only what carries its own instance id.
 
 ## One daemon per pipeline
 

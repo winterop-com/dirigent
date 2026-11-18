@@ -161,7 +161,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 
 | Field | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to the same deterministic name `up` derives from the run id, so a teardown step in the same run addresses the stack the `up` created with no wiring from the author. |
+| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to the same `dirigent-<instance id>-<run id>` `up` derives, so a teardown step in the same run addresses the stack the `up` created with no wiring from the author. |
 | `file` | `string or null` |  | `null` | A compose file, only if the CLI needs `-f` to resolve the project; a project tears down by its label alone otherwise. As a path inside the run's work directory. |
 | `content` | `string or null` |  | `null` | A compose file inline, written to the run's work directory, for the same reason as `file`. |
 | `profiles` | `string[]` |  |  | Compose profiles to activate, only meaningful alongside a `file`. |
@@ -196,7 +196,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | --- | --- | --- | --- | --- |
 | `file` | `string or null` |  | `null` | The compose file, as a path inside the run's work directory; never absolute, never climbing out. |
 | `content` | `string or null` |  | `null` | The compose file inline, written into the run's work directory before the CLI runs. |
-| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to a deterministic name derived from the run id, so this `up`, the steps that drive it, and a later `down` all address the same project, and two runs never collide. |
+| `project_name` | `string or null` |  | `null` | The compose project (`-p`). Defaults to `dirigent-<instance id>-<run id>`, so this `up`, the steps that drive it, and a later `down` all address the same project, and two runs never collide. |
 | `profiles` | `string[]` |  |  | Compose profiles to activate (`--profile`). |
 | `env_files` | `string[]` |  |  | Env files for compose to read, as paths inside the run's work directory (`--env-file`). |
 | `env` | `object of string` |  |  | Variables set for the CLI itself, such as those a compose file interpolates; never one that chooses what the CLI runs or trusts, such as `PATH` or `DOCKER_CONFIG`. |
@@ -245,7 +245,7 @@ Contributed by `block-execute`. Not idempotent. **Runs code on the worker**, so 
 | `inputs_path` | `string` |  | `"/dirigent/inputs"` | Where the staged inputs appear inside the container. |
 | `outputs_path` | `string` |  | `"/dirigent/outputs"` | Where the container is expected to write its declared outputs. |
 | `network` | `string` |  | `"none"` | The daemon's network mode. It defaults to `none`: an image the pipeline named should not reach the worker's network, or anything the worker can reach, unless the step says so. |
-| `pull` | `boolean` |  | `false` | Pull the image before creating the container, rather than requiring it to be present. |
+| `pull` | `boolean` |  | `false` | Pull the image before creating the container, rather than requiring it to be present. An image pinned by digest (`name@sha256:...`) is pulled by that digest, and a pull the registry breaks off part way fails the step as transient. |
 | `memory` | `string or integer or null` |  | `null` | A hard memory limit, such as `64mb`; the container is OOM-killed rather than the worker. At least `6mb`. |
 | `cpus` | `number or null` |  | `null` | A CPU quota expressed the way `docker run --cpus` expresses it. |
 | `nano_cpus` | `integer or null` |  | `null` | The same quota expressed the way the daemon counts it, for a config that prefers exactness. |

@@ -20,6 +20,7 @@ from dirigent_block_execute.docker import DAEMON_ENV
 from dirigent_client.schemas import TERMINAL_RUN_STATUSES
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
+from dirigent_core.instance import instance_id
 from dirigent_core.logging import get_logger
 from dirigent_core.models import Run
 from dirigent_core.worker import Chore
@@ -67,32 +68,30 @@ async def pass_once(
     settings: Settings, sessions: async_sessionmaker[AsyncSession], *, dry_run: bool = False
 ) -> list[reap.Reaped]:
     """Run one reaping pass against the daemon this host's environment names."""
+    instance = await instance_id(sessions)
     with tempfile.TemporaryDirectory(prefix="dirigent-reap-") as home:
         root = Path(home)
         return await reap.reap(
             environment(root),
             root,
             lookup(sessions),
+            instance=instance,
             grace=settings.docker_reap_grace,
             dry_run=dry_run,
         )
 
 
 def record(reaped: reap.Reaped) -> Mapping[str, object]:
-    """The fields one reaped project contributes, whether a record or a log line carries them."""
-    fields: dict[str, object] = {
-        "project": reaped.project,
-        "run_id": str(reaped.run_id),
-        "run_status": reaped.run_status,
-        "torn_down": reaped.torn_down,
-    }
+    """The fields one reaped project or container contributes, whether a record or a log line carries them."""
+    fields: dict[str, object] = {"project": reaped.project} if reaped.project else {"container": reaped.container}
+    fields.update(run_id=str(reaped.run_id), run_status=reaped.run_status, torn_down=reaped.torn_down)
     if reaped.detail:
         fields["detail"] = reaped.detail
     return fields
 
 
 def outcome(reaped: reap.Reaped, *, dry_run: bool = False) -> str:
-    """What happened to one project, in the words a record and a log line both carry."""
+    """What happened to one project or container, in the words a record and a log line both carry."""
     if dry_run:
         return "would reap"
     return "reaped" if reaped.torn_down else "could not reap"

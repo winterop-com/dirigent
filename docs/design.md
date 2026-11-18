@@ -241,10 +241,11 @@ ownership rules.
 
 `StepContext` is the engine's side of the bargain: scoped, audited access to everything a
 block may touch, so blocks hold no global state and never construct their own clients. It
-carries `run_id`, `attempt`, `step`, `run_item_id`, `started_at`, `cursor`, `inline_capture`,
+carries `run_id`, `instance_id`, `attempt`, `step`, `run_item_id`, `started_at`, `cursor`, `inline_capture`,
 resolved `params`, a scoped `log`, `connection(ref, model)`, `storage_connection(scheme,
 model)`, `http(ref)`, `schema(code)`, `format_checker()`, `storage`, `scratch`, `capture`,
-`work`, and `runs`. `started_at` is
+`work`, and `runs`. `instance_id` is the instance's own id, made once in its database, which a
+block labels what it leaves on a shared system with. `started_at` is
 when the attempt first started, unchanged by a later poke or a worker restart, so a wait
 measures itself from the attempt rather than from the poke that happens to observe it. `connection` is synchronous by contract, so
 the claim transaction snapshots the connection table for the attempt and secrets are opened

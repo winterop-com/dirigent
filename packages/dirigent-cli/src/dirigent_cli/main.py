@@ -1006,7 +1006,7 @@ def docker_reap(
         typer.Option("--dry-run", help="Say what would be taken down, and take nothing down."),
     ] = False,
 ) -> None:
-    """Take down compose stacks this host's daemon still holds for runs that have ended.
+    """Take down compose stacks and containers this host's daemon still holds for runs that have ended.
 
     The same pass a worker runs on `docker_reap_interval`, on demand. It sees only the daemon
     this host's environment names, which with one daemon per worker is that worker's own stacks.

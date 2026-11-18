@@ -1145,7 +1145,7 @@ verb and whose fields are the identity of what changed:
 | `run.profile` | `dg runs profile` | The chain that decided the run: `run_id`, `pipeline`, `status`, `duration_ms`, `critical_path`, and the `queued_ms`, `running_ms` and `waiting_ms` along it |
 | `run.profile.step` | `dg runs profile` | One step on that chain: `step`, `block`, `attempts`, `queued_ms`, `running_ms`, `waiting_ms` |
 | `run.profile.warning` | `dg runs profile` | One cause the timestamps prove: the `step` it is about and the `cause` |
-| `docker_reaped` | `dg docker reap` | One compose project: `project`, `run_id`, `run_status`, whether it was `torn_down`, and the `detail` when it was not |
+| `docker_reaped` | `dg docker reap` | One compose project or `docker.run` container: `project` or `container` (its short id), `run_id`, `run_status`, whether it was `torn_down`, and the `detail` when it was not |
 | `system.info` | `dg system info` | The instance the CLI is talking to, under `fields` |
 | `check` | `dg system health …` | One check: `check`, `status`, `probe`, the `code` of the message it found and its `params`, and what it found as the `message` |
 | `health` | `dg system health` | The closing verdict: `checked`, `healthy`, `absent`, `unhealthy` |
@@ -1360,7 +1360,7 @@ dg dev [--host H] [--port 3333] [--ui/--no-ui] [--wipe-state] [--seed DIR]... [-
 dg server [--host H] [--port 3333] [--reload] [--no-scheduler] [--ui/--no-ui]  # dg serve works too
 dg worker [--concurrency N] [--tag T] [--name NAME]   # --tag is what this worker advertises
 dg scheduler                            # the clock on its own; PostgreSQL only
-dg docker reap [--dry-run]              # compose stacks left up by runs that have ended
+dg docker reap [--dry-run]              # compose stacks and containers left by runs that have ended
 
 # Administration
 dg --version | dg config show

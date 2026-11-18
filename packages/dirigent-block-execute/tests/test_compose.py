@@ -287,7 +287,7 @@ async def test_up_brings_the_stack_up_then_reports_its_state(
 
     assert isinstance(output, DockerComposeUpOutput)
     assert output.up is True
-    assert output.project == f"dirigent-{local_ctx.run_id.hex}"
+    assert output.project == f"dirigent-{local_ctx.instance_id.hex}-{local_ctx.run_id.hex}"
     assert output.default_network == f"{output.project}_default"
     assert [service.service for service in output.services] == ["web"]
     assert output.services[0].health == "healthy"
@@ -493,7 +493,7 @@ async def test_down_tears_the_project_down_by_its_deterministic_name(
 
     assert isinstance(output, DockerComposeDownOutput)
     assert output.torn_down is True
-    assert output.project == f"dirigent-{local_ctx.run_id.hex}"
+    assert output.project == f"dirigent-{local_ctx.instance_id.hex}-{local_ctx.run_id.hex}"
     down_call = calls[0]
     assert down_call[:4] == ["docker", "compose", "--project-name", output.project]
     assert "down" in down_call and "-f" not in down_call, "down works by project label without a file"
@@ -511,7 +511,7 @@ async def test_up_and_down_default_their_project_name_so_a_run_matches_itself(
 
     assert isinstance(up, DockerComposeUpOutput)
     assert isinstance(down, DockerComposeDownOutput)
-    assert up.project == down.project == f"dirigent-{local_ctx.run_id.hex}"
+    assert up.project == down.project == f"dirigent-{local_ctx.instance_id.hex}-{local_ctx.run_id.hex}"
     up_project = next(call for call in calls if "up" in call)[3]
     down_project = next(call for call in calls if "down" in call)[3]
     assert up_project == down_project

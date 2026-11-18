@@ -275,6 +275,7 @@ class EngineStepContext:
         self,
         *,
         run_id: UUID,
+        instance_id: UUID,
         step: str,
         run_item_id: UUID | None,
         attempt: int,
@@ -297,6 +298,7 @@ class EngineStepContext:
     ) -> None:
         """Bind the context to one attempt's scope, counting what it writes on ``meter`` when given one."""
         self.run_id: UUID = run_id
+        self.instance_id: UUID = instance_id
         self.step: str = step
         self.run_item_id: UUID | None = run_item_id
         self.attempt: int = attempt

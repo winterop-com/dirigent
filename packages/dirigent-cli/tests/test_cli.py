@@ -1490,7 +1490,7 @@ def test_docker_reap_writes_one_record_per_project_it_took_down(monkeypatch: pyt
     from dirigent_block_execute.reap import Reaped
 
     run_id = UUID("0123456789abcdef0123456789abcdef")
-    reaped = [Reaped(f"dirigent-{run_id.hex}", run_id, "failed", torn_down=True)]
+    reaped = [Reaped(project=f"dirigent-{run_id.hex}", run_id=run_id, run_status="failed", torn_down=True)]
     monkeypatch.setattr("dirigent_cli.reaper.reachable", a_daemon)
 
     async def one_pass(settings: object, sessions: object, *, dry_run: bool = False) -> list[Reaped]:
@@ -1517,7 +1517,7 @@ def test_a_dry_run_says_it_would_reap_and_takes_nothing_down(monkeypatch: pytest
 
     async def one_pass(settings: object, sessions: object, *, dry_run: bool = False) -> list[Reaped]:
         seen.append(dry_run)
-        return [Reaped(f"dirigent-{run_id.hex}", run_id, "unknown", torn_down=False)]
+        return [Reaped(project=f"dirigent-{run_id.hex}", run_id=run_id, run_status="unknown", torn_down=False)]
 
     monkeypatch.setattr("dirigent_cli.reaper.pass_once", one_pass)
     result = runner.invoke(app, ["docker", "reap", "--dry-run"])
@@ -1556,7 +1556,15 @@ def test_a_teardown_the_daemon_refused_is_reported_as_such(monkeypatch: pytest.M
     monkeypatch.setattr("dirigent_cli.reaper.reachable", a_daemon)
 
     async def one_pass(settings: object, sessions: object, *, dry_run: bool = False) -> list[Reaped]:
-        return [Reaped(f"dirigent-{run_id.hex}", run_id, "failed", torn_down=False, detail="network in use")]
+        return [
+            Reaped(
+                project=f"dirigent-{run_id.hex}",
+                run_id=run_id,
+                run_status="failed",
+                torn_down=False,
+                detail="network in use",
+            )
+        ]
 
     monkeypatch.setattr("dirigent_cli.reaper.pass_once", one_pass)
     result = runner.invoke(app, ["docker", "reap"])

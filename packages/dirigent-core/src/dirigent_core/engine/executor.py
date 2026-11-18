@@ -87,6 +87,7 @@ from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.settlement import conclude
 from dirigent_core.engine.state import advance, lock_run, mark_started
 from dirigent_core.ids import uuid7
+from dirigent_core.instance import instance_id
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.messages import (
     BLOCK_NOT_INSTALLED,
@@ -238,6 +239,7 @@ class Engine:
     ) -> None:
         """Bind the engine to a session factory, the shared services, a lease owner, and its tags."""
         self.sessions = session_factory
+        self._instance: UUID | None = None
         self.services = services
         self.owner = owner
         self.tags = list(tags)
@@ -248,6 +250,7 @@ class Engine:
 
     async def claim(self, *, now: datetime | None = None) -> ClaimedUnit | None:
         """Claim the next due unit of work, settling anything unclaimable on the way."""
+        await self._instance_id()
         async with self.owed_cancels():
             async with self.sessions() as probe_session:
                 postgres = is_postgres(probe_session)
@@ -550,7 +553,7 @@ class Engine:
             stored = False
             called: CallResult | None = None
             try:
-                context = self._context(unit, logger, meter)
+                context = self._context(unit, logger, meter, await self._instance_id())
                 started = time.monotonic()
                 stop = asyncio.Event()
                 flusher = asyncio.create_task(self._flush_while_running(logger, stop))
@@ -604,7 +607,15 @@ class Engine:
             return Errored(failure=meter.refusal)
         return result
 
-    def _context(self, unit: ClaimedUnit, logger: BufferedLogger, meter: StorageMeter) -> EngineStepContext:
+    async def _instance_id(self) -> UUID:
+        """This instance's id, read once and held for every call this executor makes."""
+        if self._instance is None:
+            self._instance = await instance_id(self.sessions)
+        return self._instance
+
+    def _context(
+        self, unit: ClaimedUnit, logger: BufferedLogger, meter: StorageMeter, instance: UUID
+    ) -> EngineStepContext:
         """Build the context one unit's call and the outcome of that call both work through.
 
         Its storage is the one the step's own writes went through, so an output too large to
@@ -613,6 +624,7 @@ class Engine:
         """
         return EngineStepContext(
             run_id=unit.run_id,
+            instance_id=instance,
             step=unit.step_name,
             run_item_id=unit.run_item_id,
             attempt=unit.attempt_number,
@@ -1222,7 +1234,9 @@ class Engine:
         runs = EngineRuns(self.services, parent_run_id=run.id, sessions=self.sessions)
         try:
             async with asyncio.timeout(REMOTE_CANCEL_TIMEOUT.total_seconds()):
-                accepted = await tell_remote(self.services, run, attempt, connections, runs, fields)
+                accepted = await tell_remote(
+                    self.services, run, attempt, connections, runs, fields, await self._instance_id()
+                )
         except TimeoutError:
             _logger.warning(
                 "remote cancellation timed out; the sweep tries again",

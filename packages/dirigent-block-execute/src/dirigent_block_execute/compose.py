@@ -18,7 +18,7 @@ steps that drive it and the ``down`` all have to name the same one.
 The lifecycle is two steps. ``docker.compose.up`` brings a stack up detached and it
 **persists** for the run, so later steps drive it; a separate ``docker.compose.down`` step
 with ``rule: all_done`` tears it down whether the drive step passed or failed. Both default
-their project name deterministically from the run id, so the ``down`` addresses the same
+their project name deterministically from the instance and the run, so the ``down`` addresses the same
 project the ``up`` created with no wiring from the author. A bring-up that does not succeed --
 a non-zero exit, a timeout, a cancelled step -- is the one case a block cleans up itself,
 because a half-built stack should never be left behind.
@@ -146,7 +146,7 @@ class DockerComposeUpConfig(BlockModel):
     here and given to ``env`` under that name, so compose reads it as a value and never as YAML."""
 
     project_name: str | None = None
-    """The compose project (``-p``). Defaults to a deterministic name derived from the run id, so
+    """The compose project (``-p``). Defaults to ``dirigent-<instance id>-<run id>``, so
     this ``up``, the steps that drive it, and a later ``down`` all address the same project, and
     two runs never collide."""
 
@@ -215,8 +215,8 @@ class DockerComposeDownConfig(BlockModel):
     """Which project to tear down, and how thoroughly."""
 
     project_name: str | None = None
-    """The compose project (``-p``). Defaults to the same deterministic name ``up`` derives from
-    the run id, so a teardown step in the same run addresses the stack the ``up`` created with no
+    """The compose project (``-p``). Defaults to the same ``dirigent-<instance id>-<run id>`` ``up``
+    derives, so a teardown step in the same run addresses the stack the ``up`` created with no
     wiring from the author."""
 
     file: str | None = None
@@ -662,8 +662,8 @@ def _work_relative(path: Path, root: Path) -> str:
 
 
 def _default_project(ctx: StepContext) -> str:
-    """A project name that is the same across a run's up, drive and down, and unique between runs."""
-    return f"dirigent-{ctx.run_id.hex}"
+    """A project name the same across a run's up, drive and down, unique between runs and instances."""
+    return f"dirigent-{ctx.instance_id.hex}-{ctx.run_id.hex}"
 
 
 def _classify(stderr_tail: bytes) -> ErrorClass:

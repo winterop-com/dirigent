@@ -573,9 +573,11 @@ That worker carries `DIRIGENT_WORKER_TAGS: docker`, so a document declaring
 The `docker.*` blocks are still `local_execution`, so name them in
 `DIRIGENT_ENABLED_UNSAFE_BLOCKS` before a step will run.
 
-**Stacks a run left up are reaped.** A worker with a docker CLI on its PATH runs a pass every
-`DIRIGENT_DOCKER_REAP_INTERVAL` that takes down compose projects whose run is terminal or no
-longer held, once the project is older than `DIRIGENT_DOCKER_REAP_GRACE`. `dg docker reap` is
+**Stacks and containers a run left up are reaped.** A worker with a docker CLI on its PATH runs
+a pass every `DIRIGENT_DOCKER_REAP_INTERVAL` that takes down compose projects and removes
+`docker.run` containers whose run is terminal or no longer held, once they are older than
+`DIRIGENT_DOCKER_REAP_GRACE`. It considers only what carries the instance's own id, so two
+instances sharing one Docker daemon never reap each other's work. `dg docker reap` is
 the same pass on demand, `--dry-run` says what it would take down. Full behaviour is in
 [the orphan reaper](docker.md#the-orphan-reaper).
 
