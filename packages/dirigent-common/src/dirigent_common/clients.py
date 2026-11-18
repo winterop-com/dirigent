@@ -1,67 +1,134 @@
 """Turning a connection's configuration into the client that talks to it.
 
-This lives beside the configuration rather than in the standard library of blocks, so an
-adapter pack can use the shared HTTP connection without depending on that library.
+The one builder serves a step's ``ctx.http`` and a connection's check alike. It lives beside the
+configuration rather than in the standard library of blocks, so an adapter pack can use the
+shared HTTP connection without depending on that library.
 """
 
 from collections.abc import Callable
-from typing import Any
+from datetime import timedelta
+from typing import Any, Final
 
 import httpx2
+from pydantic import BaseModel, SecretStr
 
 from dirigent_common.credentials import DEFAULT_CREDENTIAL_HEADER, credential_header_value
-from dirigent_common.schemas import HttpConnectionConfig
+
+#: What an HTTP connection is assumed to call its fields, so a client can be built for any
+#: connection kind without importing the package that contributed it.
+BASE_URL_FIELD: Final = "base_url"
+VERIFY_TLS_FIELD: Final = "verify_tls"
+FOLLOW_REDIRECTS_WITH_AUTH_FIELD: Final = "follow_redirects_with_auth"
+TIMEOUT_FIELD: Final = "timeout"
+BEARER_FIELD: Final = "bearer_token"
+API_TOKEN_FIELD: Final = "api_token"
+API_TOKEN_SCHEME_FIELD: Final = "api_token_scheme"
+CREDENTIAL_FIELD: Final = "credential"
+CREDENTIAL_HEADER_FIELD: Final = "credential_header"
+CREDENTIAL_SCHEME_FIELD: Final = "credential_scheme"
+CREDENTIAL_QUERY_FIELD: Final = "credential_query"
+BASIC_USER_FIELD: Final = "basic_username"
+BASIC_PASSWORD_FIELD: Final = "basic_password"
+
+#: The authorization scheme an ``api_token`` is sent under when the config names none, which
+#: is the scheme a personal access token is usually presented with.
+DEFAULT_API_TOKEN_SCHEME: Final = "ApiToken"
+
+#: The timeout of a client whose config names none, in seconds.
+DEFAULT_HTTP_TIMEOUT: Final = 30.0
+
+#: The header ``bearer_token``, ``api_token`` and basic credentials are sent in.
+AUTHORIZATION: Final = "Authorization"
 
 
-def build_client(config: HttpConnectionConfig) -> httpx2.AsyncClient:
-    """Build a client carrying a connection's base URL, auth, TLS setting, and timeout."""
+def build_client(config: BaseModel) -> httpx2.AsyncClient:
+    """Build a client from any connection config that names the standard HTTP fields.
+
+    The fields are read by name, so a config that names none of them gets a bare client.
+
+    A credential is read from one of two fields. ``bearer_token`` is sent as
+    ``Authorization: Bearer``; ``api_token`` is sent under the scheme the config's
+    ``api_token_scheme`` names, and ``ApiToken`` when it names none, which is the scheme a
+    personal access token usually needs. ``bearer_token`` wins if a config carries both.
+    ``credential`` is sent in the header ``credential_header`` names, ``Authorization`` when it
+    names none, after ``credential_scheme`` when one is set; it wins over either token in the
+    same header. ``credential_query`` sends it as that query parameter instead of a header.
+    ``basic_username`` and ``basic_password`` become the client's auth, which httpx applies
+    per request, so basic credentials beside a token win over the header.
+
+    Every one of these is sent only to the origin of ``base_url``: a request to any other
+    origin, such as an absolute link a response handed back, goes without it.
+    """
+    base_url = _text(config, BASE_URL_FIELD) or ""
+    configured = getattr(config, TIMEOUT_FIELD, None)
+    timeout = configured.total_seconds() if isinstance(configured, timedelta) else DEFAULT_HTTP_TIMEOUT
+    verify = getattr(config, VERIFY_TLS_FIELD, True)
     headers: dict[str, str] = {}
-    if config.bearer_token is not None:
-        headers["Authorization"] = f"Bearer {config.bearer_token.get_secret_value()}"
-    credential_header = config.credential_header or DEFAULT_CREDENTIAL_HEADER
-    if config.credential is not None and config.credential_query is None:
-        headers[credential_header] = credential_header_value(
-            config.credential.get_secret_value(), config.credential_scheme
-        )
+    bearer = _text(config, BEARER_FIELD)
+    api_token = _text(config, API_TOKEN_FIELD)
+    if bearer:
+        headers[AUTHORIZATION] = f"Bearer {bearer}"
+    elif api_token:
+        scheme = _text(config, API_TOKEN_SCHEME_FIELD) or DEFAULT_API_TOKEN_SCHEME
+        headers[AUTHORIZATION] = f"{scheme} {api_token}"
+    credential = _text(config, CREDENTIAL_FIELD)
+    credential_header = _text(config, CREDENTIAL_HEADER_FIELD) or DEFAULT_CREDENTIAL_HEADER
+    credential_query = _text(config, CREDENTIAL_QUERY_FIELD)
+    if credential and not credential_query:
+        headers[credential_header] = credential_header_value(credential, _text(config, CREDENTIAL_SCHEME_FIELD))
     auth: httpx2.Auth | None = None
-    if config.basic_username:
-        password = config.basic_password.get_secret_value() if config.basic_password else ""
-        auth = httpx2.BasicAuth(config.basic_username, password)
+    user = _text(config, BASIC_USER_FIELD)
+    if user:
+        auth = httpx2.BasicAuth(user, _text(config, BASIC_PASSWORD_FIELD) or "")
+    pinned = list(headers)
+    if auth is not None and AUTHORIZATION not in pinned:
+        pinned.append(AUTHORIZATION)
     hooks: dict[str, list[Callable[..., Any]]] = {"request": []}
-    if config.credential is not None and config.credential_query is not None:
-        hooks["request"].append(
-            CredentialParameterOnOrigin(config.base_url, config.credential_query, config.credential.get_secret_value())
-        )
-    elif config.credential is not None:
-        hooks["request"].append(CredentialOnOrigin(config.base_url, credential_header))
-    if config.follow_redirects_with_auth:
-        hooks["request"].append(BaseRedirect(config.base_url, verify=config.verify_tls))
+    if credential and credential_query:
+        hooks["request"].append(CredentialParameterOnOrigin(base_url, credential_query, credential))
+    if pinned:
+        hooks["request"].append(CredentialOnOrigin(base_url, *pinned))
+    if base_url and getattr(config, FOLLOW_REDIRECTS_WITH_AUTH_FIELD, False) is True:
+        hooks["request"].append(BaseRedirect(base_url, verify=bool(verify)))
     return httpx2.AsyncClient(
-        base_url=config.base_url,
+        base_url=base_url,
         headers=headers,
         auth=auth,
-        verify=config.verify_tls,
-        timeout=config.timeout.total_seconds(),
+        verify=bool(verify),
+        timeout=timeout,
         event_hooks=hooks,
     )
 
 
-class CredentialOnOrigin:
-    """A request hook that takes a credential's header off a request leaving a base URL's origin.
+def _text(config: BaseModel, name: str) -> str | None:
+    """Read a field that may be a plain string, a secret, or absent."""
+    value: Any = getattr(config, name, None)
+    if value is None:
+        return None
+    if isinstance(value, SecretStr):
+        return value.get_secret_value()
+    return str(value)
 
-    A client drops ``Authorization`` itself when a redirect changes the origin, and no other header.
-    Placed before :class:`BaseRedirect`, it judges a request by the base it was addressed under.
+
+class CredentialOnOrigin:
+    """A request hook that takes credential headers off a request leaving a base URL's origin.
+
+    It runs after a client's auth has set its header, so it removes basic credentials too. A
+    client drops ``Authorization`` itself when a redirect changes the origin, and no other
+    header. Placed before :class:`BaseRedirect`, it judges a request by the base it was
+    addressed under.
     """
 
-    def __init__(self, base_url: str, header: str) -> None:
-        """Hold the origin the header may go to."""
+    def __init__(self, base_url: str, *headers: str) -> None:
+        """Hold the origin the headers may go to."""
         self._origin = _origin_of(httpx2.URL(base_url))
-        self._header = header
+        self._headers = headers
 
     async def __call__(self, request: httpx2.Request) -> None:
-        """Remove the header from a request to any other origin."""
+        """Remove the headers from a request to any other origin."""
         if _origin_of(request.url) != self._origin:
-            request.headers.pop(self._header, None)
+            for header in self._headers:
+                request.headers.pop(header, None)
 
 
 class CredentialParameterOnOrigin:
