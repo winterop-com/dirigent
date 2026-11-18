@@ -603,7 +603,7 @@ dg alerts rules create load-failed \
 ```
 
 ```text
-2026-01-01T18:28:59.547+01:00 [info    ] created                        [alert_rule.created] code=load-failed event=run_failed scope=regional-load notifier=log template=false body=false throttle=15m
+2026-01-01T18:28:59.547+01:00 [info    ] created                        [alert_rule.created] code=load-failed event=run_failed scope=regional-load notifier=log template=false body=false throttle=15m on_change=false
 ```
 
 ```bash
@@ -612,16 +612,18 @@ dg alerts rules list
 
 ```text
 alert rules
-┏━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┓
-┃ code        ┃ name ┃ event  ┃ scope         ┃ target ┃ throttle ┃ active ┃ last sent ┃
-┡━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━┩
-│ load-failed │ -    │ Failed │ regional-load │ log    │ 15m      │ yes    │ -         │
-└─────────────┴──────┴────────┴───────────────┴────────┴──────────┴────────┴───────────┘
+┏━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ code        ┃ name ┃ event  ┃ scope         ┃ target ┃ throttle ┃ on change ┃ active ┃ declared by ┃ last sent ┃
+┡━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ load-failed │ -    │ Failed │ regional-load │ log    │ 15m      │ no        │ yes    │ -           │ -         │
+└─────────────┴──────┴────────┴───────────────┴────────┴──────────┴───────────┴────────┴─────────────┴───────────┘
 ```
 
-The four events are `run_failed`, `run_completed_with_errors`, `run_succeeded`, and
-`run_stuck` -- which a listing and the web UI both draw as Failed, Completed with errors,
-Succeeded and Stuck. The scope is a pipeline here; leave `--pipeline` off for a global rule.
+The five events are `run_failed`, `run_completed_with_errors`, `run_succeeded`,
+`run_recovered` -- a success after a run that was not one -- and `run_stuck`, which a listing
+and the web UI draw as Failed, Completed with errors, Succeeded, Recovered and Stuck.
+`--on-change` keeps a rule quiet until a run ends differently from the one before it, which is
+what a check that runs every few minutes wants. The scope is a pipeline here; leave `--pipeline` off for a global rule.
 
 A rule names one target, and this one named none -- so it delivers to the process log, which
 needs no credential and is what makes alerting work on a fresh install. `--connection` names

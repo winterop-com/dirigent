@@ -295,6 +295,7 @@ def upgrade() -> None:
                 "run_failed",
                 "run_completed_with_errors",
                 "run_succeeded",
+                "run_recovered",
                 "run_stuck",
                 name="alert_event",
                 native_enum=False,
@@ -316,6 +317,7 @@ def upgrade() -> None:
         sa.Column("template", sa.Text(), nullable=True),
         sa.Column("body", sa.Text(), nullable=True),
         sa.Column("throttle_seconds", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("on_change", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("active", sa.Boolean(), server_default=sa.true(), nullable=False),
         sa.Column("paused", sa.Boolean(), server_default=sa.false(), nullable=False),
         sa.Column("declared", sa.Boolean(), server_default=sa.false(), nullable=False),
@@ -720,6 +722,40 @@ def upgrade() -> None:
         batch_op.create_index("ix_runs_triggered_by_id_status", ["triggered_by_id", "status"], unique=False)
 
     op.create_table(
+        "pipeline_outcomes",
+        sa.Column("pipeline_id", sa.Uuid(), nullable=False),
+        sa.Column("run_id", sa.Uuid(), nullable=True),
+        sa.Column(
+            "status",
+            sa.Enum(
+                "queued",
+                "running",
+                "paused",
+                "succeeded",
+                "completed_with_errors",
+                "failed",
+                "cancelled",
+                name="run_status",
+                native_enum=False,
+                length=32,
+            ),
+            nullable=False,
+        ),
+        sa.Column("failures", sa.String(length=71), nullable=False),
+        sa.Column("settled_at", dirigent_core.types.UtcDateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["pipeline_id"],
+            ["pipelines.id"],
+            name=op.f("fk_pipeline_outcomes_pipeline_id_pipelines"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["run_id"], ["runs.id"], name=op.f("fk_pipeline_outcomes_run_id_runs"), ondelete="SET NULL"
+        ),
+        sa.PrimaryKeyConstraint("pipeline_id", name=op.f("pk_pipeline_outcomes")),
+    )
+
+    op.create_table(
         "notifications",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("alert_rule_id", sa.Uuid(), nullable=True),
@@ -731,6 +767,7 @@ def upgrade() -> None:
                 "run_failed",
                 "run_completed_with_errors",
                 "run_succeeded",
+                "run_recovered",
                 "run_stuck",
                 "test",
                 name="notification_event",
@@ -1180,6 +1217,7 @@ def downgrade() -> None:
         batch_op.drop_index(batch_op.f("ix_notifications_alert_rule_id"))
 
     op.drop_table("notifications")
+    op.drop_table("pipeline_outcomes")
     with op.batch_alter_table("runs", schema=None) as batch_op:
         batch_op.drop_index("ix_runs_triggered_by_id_status")
         batch_op.drop_index(batch_op.f("ix_runs_status"))

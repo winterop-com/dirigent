@@ -43,6 +43,7 @@ alerts:
     connection: desk
     template: "{{ run.pipeline }} failed"
     throttle: 15m
+    on_change: true
   nightly-logged:
     event: run_completed_with_errors
 """
@@ -105,13 +106,15 @@ async def test_an_apply_creates_the_rules_a_document_declares_scoped_to_its_pipe
     held = await rules(sessions)
     assert sorted(held) == ["nightly-failed", "nightly-logged"]
     failed = held["nightly-failed"]
-    assert (failed.declared, failed.scope, failed.notifier, failed.throttle_seconds) == (
+    assert (failed.declared, failed.scope, failed.notifier, failed.throttle_seconds, failed.on_change) == (
         True,
         AlertScope.PIPELINE,
         "desk",
         900,
+        True,
     )
     assert held["nightly-logged"].notifier == "log"
+    assert held["nightly-logged"].on_change is False
 
 
 @pytest.mark.usefixtures("desk")
@@ -216,6 +219,11 @@ async def test_plan_warns_on_a_name_a_declared_rule_reads_that_an_alert_is_never
 def test_a_template_that_does_not_compile_is_refused_by_the_document() -> None:
     with pytest.raises(DocumentError, match=r"alerts\.nightly-failed\.template"):
         load_pipeline_text(DOCUMENT.replace('"{{ run.pipeline }} failed"', '"{{ run.pipeline "'))
+
+
+def test_a_document_asking_a_stuck_run_for_a_changed_outcome_is_refused() -> None:
+    with pytest.raises(DocumentError, match=r"alerts\.nightly-failed.*has not settled"):
+        load_pipeline_text(DOCUMENT.replace("event: run_failed", "event: run_stuck"))
 
 
 @pytest.mark.usefixtures("desk")

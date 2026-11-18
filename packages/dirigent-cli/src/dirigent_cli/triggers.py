@@ -262,7 +262,7 @@ def alerts_rules_list(
         return emit_records("alert_rule", rows)
     table(
         "alert rules",
-        ["code", "name", "event", "scope", "target", "throttle", "active", "declared by", "last sent"],
+        ["code", "name", "event", "scope", "target", "throttle", "on change", "active", "declared by", "last sent"],
         [
             [
                 escape(row.code),
@@ -271,6 +271,7 @@ def alerts_rules_list(
                 escape(watching(row.pipeline or row.scope.value, row.importance)),
                 escape(row.connection or LOG_NOTIFIER),
                 throttle_note(row.throttle),
+                render_bool(row.on_change),
                 render_bool(row.active),
                 escape(f"{row.pipeline} document") if row.declared and row.pipeline else "-",
                 moment(row.last_sent_at),
@@ -288,7 +289,10 @@ def alerts_rules_create(
         str,
         typer.Option(
             "--event",
-            help="The event that fires it: run_failed, run_completed_with_errors, run_succeeded, or run_stuck.",
+            help=(
+                "The event that fires it: run_failed, run_completed_with_errors, run_succeeded, run_recovered, "
+                "or run_stuck."
+            ),
         ),
     ],
     name: Annotated[str | None, typer.Option("--name", help="A human title for this rule.")] = None,
@@ -306,6 +310,13 @@ def alerts_rules_create(
         Path | None, typer.Option("--body-file", help="Read the body template from a file instead.")
     ] = None,
     throttle: Annotated[str, typer.Option("--throttle", help="At most one message per window, e.g. 15m.")] = "0s",
+    on_change: Annotated[
+        bool,
+        typer.Option(
+            "--on-change",
+            help="Only when the run's outcome differs from the pipeline's previous settled run's.",
+        ),
+    ] = False,
     importance: Annotated[
         str | None,
         typer.Option(
@@ -339,6 +350,7 @@ def alerts_rules_create(
                 template=template,
                 body=body,
                 throttle=throttle,
+                on_change=on_change,
             )
         )
     emit_fact(
@@ -354,6 +366,7 @@ def alerts_rules_create(
         template=created.template is not None,
         body=created.body is not None,
         throttle=created.throttle,
+        on_change=created.on_change,
     )
     for warning in created.warnings:
         emit_fact(

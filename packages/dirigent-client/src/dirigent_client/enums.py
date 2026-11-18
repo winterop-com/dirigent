@@ -1,6 +1,7 @@
 """The closed vocabularies the engine's state machines are built from."""
 
 from enum import StrEnum
+from typing import Final
 
 
 class RunStatus(StrEnum):
@@ -150,7 +151,21 @@ class AlertEvent(StrEnum):
     RUN_FAILED = "run_failed"
     RUN_COMPLETED_WITH_ERRORS = "run_completed_with_errors"
     RUN_SUCCEEDED = "run_succeeded"
+    RUN_RECOVERED = "run_recovered"
+    """A run succeeded where the pipeline's previous settled run did not."""
+
     RUN_STUCK = "run_stuck"
+
+
+#: The events a settled run raises, so the ones a rule may ask to hear of only when the outcome changed.
+SETTLED_ALERT_EVENTS: Final = frozenset(
+    {
+        AlertEvent.RUN_FAILED,
+        AlertEvent.RUN_COMPLETED_WITH_ERRORS,
+        AlertEvent.RUN_SUCCEEDED,
+        AlertEvent.RUN_RECOVERED,
+    }
+)
 
 
 class NotificationEvent(StrEnum):
@@ -159,6 +174,7 @@ class NotificationEvent(StrEnum):
     RUN_FAILED = "run_failed"
     RUN_COMPLETED_WITH_ERRORS = "run_completed_with_errors"
     RUN_SUCCEEDED = "run_succeeded"
+    RUN_RECOVERED = "run_recovered"
     RUN_STUCK = "run_stuck"
     TEST = "test"
     """Sent by ``dg alerts test`` or its API route, by no rule and for no run."""

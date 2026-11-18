@@ -389,10 +389,13 @@ async def lock_pipeline(session: AsyncSession, pipeline_id: UUID) -> None:
     A transaction that takes both locks takes this one first: creating a run, retrying a
     step, resuming and cancelling all do. The settle path holds the run lock from its first
     statement, so it never waits here: it takes this lock through :func:`try_lock_pipeline`.
+
+    The row is locked ``FOR NO KEY UPDATE``: a row referencing the pipeline, inserted by a
+    transaction that holds a run lock, takes ``FOR KEY SHARE`` on it and must not wait here.
     """
     if session.get_bind().dialect.name != "postgresql":
         return
-    await session.execute(sa.select(Pipeline.id).where(Pipeline.id == pipeline_id).with_for_update())
+    await session.execute(sa.select(Pipeline.id).where(Pipeline.id == pipeline_id).with_for_update(key_share=True))
 
 
 #: The class of the advisory locks :func:`lock_pipeline_code` takes, one per code inside it.
@@ -421,7 +424,9 @@ async def try_lock_pipeline(session: AsyncSession, pipeline_id: UUID) -> bool:
         return True
     try:
         async with session.begin_nested():
-            await session.execute(sa.select(Pipeline.id).where(Pipeline.id == pipeline_id).with_for_update(nowait=True))
+            await session.execute(
+                sa.select(Pipeline.id).where(Pipeline.id == pipeline_id).with_for_update(nowait=True, key_share=True)
+            )
     except DBAPIError as error:
         if getattr(getattr(error, "orig", None), "sqlstate", None) != LOCK_NOT_AVAILABLE:
             raise

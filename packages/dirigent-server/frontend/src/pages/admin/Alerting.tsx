@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { AdminOnly } from '@/components/admin/AdminOnly'
-import { Channel, NotificationPanel, Run, RulePanel, Target } from '@/components/alerting/AlertPanels'
+import {
+    Channel,
+    EventNote,
+    NotificationPanel,
+    Run,
+    RulePanel,
+    Target,
+} from '@/components/alerting/AlertPanels'
 import { ChannelStrip } from '@/components/alerting/ChannelStrip'
 import { NewRule } from '@/components/alerting/NewRule'
 import { EMPTY_TEST, SendTest, type TestDraft } from '@/components/alerting/SendTest'
@@ -478,7 +485,7 @@ const RULE_COLUMNS: DataColumn<AlertRuleOut>[] = [
         id: 'event',
         header: LABELS.word.event,
         width: 'minmax(5rem,1fr)',
-        cell: (rule) => <span className="text-sm">{LABELS.alerting.event[rule.event]}</span>,
+        cell: (rule) => <EventNote rule={rule} />,
     },
     {
         id: 'scope',

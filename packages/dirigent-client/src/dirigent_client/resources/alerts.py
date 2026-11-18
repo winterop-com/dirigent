@@ -42,6 +42,7 @@ class Alerts(Resource):
         template: str | None = None,
         body: str | None = None,
         throttle: timedelta | str = timedelta(0),
+        on_change: bool = False,
     ) -> AlertRuleOut:
         """Declare an alert rule, refusing a target or a pipeline this instance does not have."""
         payload = AlertRuleIn(
@@ -56,6 +57,7 @@ class Alerts(Resource):
             template=template,
             body=body,
             throttle=to_timedelta(throttle),
+            on_change=on_change,
         )
         return await self._one(AlertRuleOut, "POST", "/alert-rules", json=request_body(payload))
 

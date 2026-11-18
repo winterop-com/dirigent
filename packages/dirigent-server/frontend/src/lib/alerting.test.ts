@@ -38,6 +38,7 @@ function aRule(over: Partial<AlertRuleOut> = {}): AlertRuleOut {
         template: null,
         body: null,
         throttle: '0s',
+        on_change: false,
         active: true,
         paused: false,
         declared: false,
@@ -83,6 +84,7 @@ describe('what an event is called', () => {
             'Failed',
             'Completed with errors',
             'Succeeded',
+            'Recovered',
             'Stuck',
         ])
     })

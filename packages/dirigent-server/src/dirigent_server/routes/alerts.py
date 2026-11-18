@@ -59,6 +59,7 @@ def render(rule: AlertRule, pipeline: str | None, connection: str | None = None)
         template=rule.template,
         body=rule.body,
         throttle=format_duration(timedelta(seconds=rule.throttle_seconds)),
+        on_change=rule.on_change,
         active=rule.active,
         paused=rule.paused,
         declared=rule.declared,
@@ -139,6 +140,7 @@ async def add_rule(
             template=payload.template,
             body=payload.body,
             throttle=payload.throttle,
+            on_change=payload.on_change,
         ),
     )
     return render(rule, payload.pipeline, payload.connection)
