@@ -131,7 +131,7 @@ async def run(
         )
     )
     try:
-        process = await started
+        process = await _started(started)
     except FileNotFoundError as error:
         program = (argv or ["the command"])[0]
         raise BlockFailure(PROGRAM_NOT_FOUND, error_class=ErrorClass.REJECTED, program=program, what=what) from error
@@ -223,14 +223,16 @@ async def output(
     reaches a tool without ever being an argument.
     """
     try:
-        process = await asyncio.create_subprocess_exec(
-            *argv,
-            cwd=directory,
-            env=environ,
-            stdin=asyncio.subprocess.PIPE if stdin is not None else None,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            start_new_session=True,
+        process = await _started(
+            asyncio.create_subprocess_exec(
+                *argv,
+                cwd=directory,
+                env=environ,
+                stdin=asyncio.subprocess.PIPE if stdin is not None else None,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                start_new_session=True,
+            )
         )
     except FileNotFoundError as error:
         raise BlockFailure(PROGRAM_NOT_FOUND, error_class=ErrorClass.REJECTED, program=argv[0], what=what) from error
@@ -243,6 +245,23 @@ async def output(
     finally:
         await end(process, pgid)
     return process.returncode or 0, out, err
+
+
+async def _started(starting: Coroutine[None, None, asyncio.subprocess.Process]) -> asyncio.subprocess.Process:
+    """The process once it has started, its group killed if the step is cancelled meanwhile.
+
+    A cancel landing while asyncio is still connecting the pipes kills only the process it
+    made, not what that process has already started; the start is let finish instead, and the
+    whole group goes.
+    """
+    starting_task = asyncio.ensure_future(starting)
+    try:
+        return await asyncio.shield(starting_task)
+    except asyncio.CancelledError:
+        with contextlib.suppress(Exception):
+            process = await starting_task
+            await end(process, group_of(process))
+        raise
 
 
 def group_of(process: asyncio.subprocess.Process) -> int:
@@ -277,8 +296,13 @@ def kill(pgid: int, pid: int) -> None:
     process that is not its group's leader shares the worker's group, and signalling that
     would kill the worker: kill just the process instead rather than everything running
     beside it.
+
+    The group is stopped before it is killed. On macOS a group killed in one signal can lose a
+    child before its shell, and the shell, woken by that, runs its next command before it dies.
     """
     if pgid > 1 and pgid != os.getpgrp():
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(pgid, signal.SIGSTOP)
         os.killpg(pgid, signal.SIGKILL)
     else:  # pragma: no cover - only reachable if the process stops leading its own session
         os.kill(pid, signal.SIGKILL)

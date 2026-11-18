@@ -316,6 +316,106 @@ async def test_a_cancelled_step_does_not_leave_the_command_running(local_ctx: Fa
     assert not marker.exists(), "the command outlived the step that was cancelled"
 
 
+async def _group_gone(pgid: int, *, seconds: float = 5.0) -> bool:
+    """Whether no live process is left in a process group within ``seconds``.
+
+    macOS refuses to signal a group whose only members are zombies, and init reaps those soon.
+    """
+    import asyncio
+
+    for _ in range(int(seconds / 0.05)):
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:
+            pass
+        await asyncio.sleep(0.05)
+    return False
+
+
+async def _until_exists(paths: list[Path], *, seconds: float = 10.0) -> None:
+    """Wait for every path to exist, and fail the test if one does not within ``seconds``."""
+    import asyncio
+
+    for _ in range(int(seconds / 0.01)):
+        if all(path.exists() for path in paths):
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"never appeared: {[str(path) for path in paths if not path.exists()]}")
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are a posix notion")
+async def test_a_killed_shell_does_not_live_to_start_its_next_command(tmp_path: Path) -> None:
+    """Killing a group must not let a shell whose child died first go on to its next command.
+
+    Whether the kernel takes the child before the shell is a race, so many shells are killed.
+    """
+    import asyncio
+    import contextlib
+    import signal
+
+    from dirigent_block_execute import subprocess
+
+    readies = [tmp_path / f"ready-{n}" for n in range(32)]
+    processes = [
+        await asyncio.create_subprocess_shell(f"sleep 30 & touch {ready}; wait; sleep 30", start_new_session=True)
+        for ready in readies
+    ]
+    try:
+        await _until_exists(readies)
+        for process in processes:
+            subprocess.kill(process.pid, process.pid)
+        for process in processes:
+            await process.wait()
+        survived = [process.pid for process in processes if not await _group_gone(process.pid)]
+        assert not survived, f"{len(survived)} killed shells lived on to start their next command"
+    finally:
+        for process in processes:
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.killpg(process.pid, signal.SIGKILL)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="process groups are a posix notion")
+async def test_a_step_cancelled_while_its_command_starts_takes_the_command_with_it(
+    local_ctx: FakeContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cancel landing before the started process is handed back still kills all it started.
+
+    asyncio, cancelled while it connects the pipes, kills the process it made and nothing else.
+    """
+    import asyncio
+    import contextlib
+    import signal
+
+    ready = Path(local_ctx.storage.root) / "ready"
+    create = asyncio.create_subprocess_shell
+    group: asyncio.Future[int] = asyncio.get_running_loop().create_future()
+
+    async def slow_to_hand_back(*args: Any, **kwargs: Any) -> asyncio.subprocess.Process:
+        process = await create(*args, **kwargs)
+        await _until_exists([ready])
+        group.set_result(process.pid)
+        try:
+            await asyncio.sleep(0.5)
+        except asyncio.CancelledError:
+            process.kill()
+            raise
+        return process
+
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", slow_to_hand_back)
+    task = asyncio.create_task(run(local_ctx, ShellRunConfig(command=f"sleep 30 & touch {ready}; wait")))
+    pgid = await group
+    try:
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert await _group_gone(pgid), "the command outlived the step cancelled while it started"
+    finally:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(pgid, signal.SIGKILL)
+
+
 async def test_a_timeout_takes_the_commands_children_with_it(local_ctx: FakeContext) -> None:
     """`sh -c` is the process that is killed; what it started is what actually does the work."""
     import asyncio
