@@ -1,25 +1,26 @@
 """A run's facts, assembled once for the report, the templates and the CLI."""
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Final
 from uuid import UUID
 
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus
 from dirigent_common import JsonMap, RenderTooLarge, render_off_loop
 from dirigent_common.depth import shown
 from dirigent_core import alerting, telemetry
 from dirigent_core.artifacts import MARKDOWN_CONTENT_TYPE, canonical_json, persist_document
-from dirigent_core.engine.definition import PipelineDefinition
+from dirigent_core.database import session_scope
+from dirigent_core.engine.definition import PipelineDefinition, load_definition
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.engine.state import build_step_states, in_execution_order
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import REPORT_STEP_LEFT_NO_TEXT
-from dirigent_core.models import ArtifactRef, LogEntry, Pipeline, PipelineVersion, Run, RunItem, StepAttempt
+from dirigent_core.models import ArtifactRef, LogEntry, Pipeline, PipelineVersion, Run, RunItem, StepAttempt, utcnow
 
 #: The document a run renders when it declares ``report:`` without a template of its own.
 DEFAULT_TEMPLATE: Final = """\
@@ -62,6 +63,12 @@ DEFAULT_TEMPLATE: Final = """\
 
 #: What the document is stored as when it is too large to inline.
 REPORT_NAME: Final = "report.md"
+
+#: How long past its render budget a worker holds a run's report before another may take it over.
+REPORT_HOLD_MARGIN: Final = timedelta(seconds=30)
+
+#: The most owed reports one pass writes.
+REPORT_BATCH: Final = 10
 
 _logger = get_logger("reporting")
 
@@ -313,73 +320,149 @@ def as_context(facts: RunFacts) -> JsonMap:
     return facts.model_dump(mode="json")
 
 
-class RenderedReport(BaseModel):
-    """What a settling run's report amounted to: its facts, and the document when there is one.
+def owe_report(run: Run, definition: PipelineDefinition, now: datetime) -> None:
+    """Write down, in the transaction that settles the run, that it owes the document its ``report:`` declares.
 
-    ``facts`` is null for a run whose document declared no ``report:`` section: nothing has
-    asked for them yet, and an alert rule that wants them builds them itself.
+    The document is rendered and stored once that transaction has committed, by
+    ``write_owed_report`` or a worker's pass over every run owing one, so no template runs
+    while the run's lock is held. A document that declares no ``report:`` owes nothing.
     """
-
-    model_config = ConfigDict(frozen=True)
-
-    facts: RunFacts | None = None
-    markdown: str | None = None
-    artifact_id: UUID | None = None
+    if definition.report is not None:
+        run.report_due_at = now
 
 
-async def render_run_report(
-    session: AsyncSession,
+async def write_owed_report(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, run_id: UUID, *, now: datetime
+) -> bool:
+    """Write the report one run owes, if it owes one, and say whether this call wrote it."""
+    async with sessions() as session:
+        seen = (await session.execute(sa.select(Run.report_due_at).where(Run.id == run_id))).scalar_one_or_none()
+    if seen is None:
+        return False
+    return await _write_report(sessions, services, run_id, seen, now=now)
+
+
+async def write_due_reports(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, *, now: datetime | None = None
+) -> int:
+    """Write the reports owed by runs whose turn has come, and say how many this pass wrote.
+
+    A run is due from the moment it settles, and again once a worker that took it has held
+    it past its render budget, which is how a document outlives a worker dying mid-render.
+    """
+    moment = now or utcnow()
+    async with sessions() as session:
+        found = await session.execute(
+            sa.select(Run.id, Run.report_due_at)
+            .where(Run.report_due_at.is_not(None), Run.report_due_at <= moment)
+            .order_by(Run.report_due_at, Run.id)
+            .limit(REPORT_BATCH)
+        )
+        due = [(run_id, seen) for run_id, seen in found.all() if seen is not None]
+    written = 0
+    for run_id, seen in due:
+        written += await _write_report(sessions, services, run_id, seen, now=moment)
+    return written
+
+
+async def _write_report(
+    sessions: async_sessionmaker[AsyncSession],
     services: EngineServices,
-    run: Run,
-    definition: PipelineDefinition,
+    run_id: UUID,
+    seen: datetime,
     *,
     now: datetime,
-) -> RenderedReport:
-    """Render and store the document a settling run owes, and never fail the run doing it.
+) -> bool:
+    """Take one owed report, render it with no transaction open, and store it with the alerts it releases.
 
-    Called from the transaction that settles the run, so the facts are the ones the alerts it
-    owes are raised over. A run whose document declares no ``report:`` section costs nothing
-    here: the facts are a pass of queries, and nothing has asked for them. A template that
-    loops, overflows or names nothing leaves a warning in the run's timeline and no document.
+    The take is a conditional write of the due time, so of two workers reaching one run only
+    one renders it, and the store is fenced on the time this take wrote: a run that settled
+    again, or a take that outlived its hold, leaves the document to the later one.
     """
+    held = now + services.settings.report_render_timeout + REPORT_HOLD_MARGIN
+    async with session_scope(sessions) as session:
+        taken = await session.execute(
+            sa.update(Run)
+            .where(Run.id == run_id, Run.report_due_at == seen)
+            .values(report_due_at=held)
+            .returning(Run.id)
+            .execution_options(synchronize_session=False)
+        )
+        if taken.scalar_one_or_none() is None:
+            return False
+    async with sessions() as session:
+        run = await session.get(Run, run_id)
+        version = await session.get(PipelineVersion, run.pipeline_version_id) if run is not None else None
+        if run is None or version is None:  # pragma: no cover - the foreign keys make this unreachable
+            return False
+        definition = load_definition(version.document)
+        facts = await facts_of_run(session, run, definition, base_url=services.settings.alert_base_url, rendered_at=now)
+    markdown, failure = await _render(services, definition, facts)
+    async with session_scope(sessions) as session:
+        released = await session.execute(
+            sa.update(Run)
+            .where(Run.id == run_id, Run.report_due_at == held)
+            .values(report_due_at=None)
+            .returning(Run.id)
+            .execution_options(synchronize_session=False)
+        )
+        if released.scalar_one_or_none() is None:
+            return False
+        reference: ArtifactRef | None = None
+        if markdown is not None:
+            try:
+                async with session.begin_nested():
+                    existing = await _report_row(session, run_id)
+                    storage = await services.bound_storage(session)
+                    reference = await persist_document(
+                        session,
+                        storage,
+                        run_id,
+                        name=REPORT_NAME,
+                        text=markdown,
+                        content_type=MARKDOWN_CONTENT_TYPE,
+                        inline_max_bytes=int(services.settings.inline_artifact_max),
+                        existing=existing,
+                    )
+            except Exception as error:  # noqa: BLE001 - a report is never worth the run it describes
+                failure = str(error)
+        if failure is not None:
+            session.add(
+                LogEntry(
+                    run_id=run_id,
+                    level=LogLevel.WARNING,
+                    message="the run's report was not rendered",
+                    fields={"reason": failure},
+                    created_at=now,
+                )
+            )
+            _logger.warning("the run's report was not rendered", run_id=str(run_id), error=failure)
+        stored = reference is not None
+        await alerting.attach_report(
+            session,
+            services,
+            run_id,
+            report=markdown if stored else None,
+            artifact_id=reference.id if reference is not None else None,
+        )
+    return True
+
+
+async def _render(
+    services: EngineServices, definition: PipelineDefinition, facts: RunFacts
+) -> tuple[str | None, str | None]:
+    """Render a run's document off the loop, as the markdown or the reason there is none."""
     if definition.report is None:
-        return RenderedReport()
-    facts = await facts_of_run(session, run, definition, base_url=services.settings.alert_base_url, rendered_at=now)
-    template = definition.report.template or DEFAULT_TEMPLATE
+        return None, None
     max_bytes = int(services.settings.report_max_size)
     try:
         if definition.report.step is not None:
-            markdown = step_text(facts, definition.report.step, max_bytes=max_bytes)
-        else:
-            markdown = await render_off_loop(
-                template, as_context(facts), max_bytes=max_bytes, within=services.settings.report_render_timeout
-            )
-        existing = await _report_row(session, run.id)
-        storage = await services.bound_storage(session)
-        async with session.begin_nested():
-            reference = await persist_document(
-                session,
-                storage,
-                run.id,
-                name=REPORT_NAME,
-                text=markdown,
-                content_type=MARKDOWN_CONTENT_TYPE,
-                inline_max_bytes=int(services.settings.inline_artifact_max),
-                existing=existing,
-            )
+            return step_text(facts, definition.report.step, max_bytes=max_bytes), None
+        template = definition.report.template or DEFAULT_TEMPLATE
+        within = services.settings.report_render_timeout
+        return await render_off_loop(template, as_context(facts), max_bytes=max_bytes, within=within), None
     except Exception as error:  # noqa: BLE001 - a report is never worth the run it describes
-        session.add(
-            LogEntry(
-                run_id=run.id,
-                level=LogLevel.WARNING,
-                message="the run's report was not rendered",
-                fields={"reason": str(error)},
-                created_at=now,
-            )
-        )
-        _logger.warning("the run's report was not rendered", run_id=str(run.id), error=str(error))
-        return RenderedReport(facts=facts)
-    return RenderedReport(facts=facts, markdown=markdown, artifact_id=reference.id)
+        return None, str(error)
 
 
 def step_text(facts: RunFacts, step: str, *, max_bytes: int) -> str:

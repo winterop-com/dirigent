@@ -20,6 +20,7 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dirigent_client.enums import NotificationStatus
 from dirigent_core.engine.claim import is_postgres
 from dirigent_core.logging import get_logger
 from dirigent_core.models import AuditEntry, LogEntry, Notification, Run, ScheduleFiring, SourceInput
@@ -34,6 +35,9 @@ _logger: Final = get_logger("dirigent.retention")
 #: many short transactions rather than one that holds locks for minutes.
 BATCH: Final = 500
 
+#: The notification statuses nothing will move a row out of again but an operator's retry.
+FINISHED_NOTIFICATIONS: Final = (NotificationStatus.SENT, NotificationStatus.FAILED)
+
 #: Each family a sweep prunes on its own age: the policy field, the table, and what else
 #: disqualifies a row from going. Runs are not here -- they are pruned on when they settled
 #: rather than on when they were created, and their artifacts go before their rows.
@@ -41,8 +45,8 @@ FAMILIES: Final[tuple[tuple[str, type[Any], tuple[sa.ColumnElement[bool], ...]],
     ("logs", LogEntry, ()),
     ("inputs", SourceInput, ()),
     ("firings", ScheduleFiring, ()),
-    # An alert that has not been sent is still owed to somebody.
-    ("notifications", Notification, (Notification.sent_at.is_not(None),)),
+    # An alert still pending or sending is owed to somebody; a sent or failed one is history.
+    ("notifications", Notification, (Notification.status.in_(FINISHED_NOTIFICATIONS),)),
     ("audit", AuditEntry, ()),
 )
 

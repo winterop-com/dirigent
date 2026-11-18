@@ -1053,10 +1053,12 @@ run's own timeline, because an alert is the last thing standing between a failur
 person who needs to know.
 
 **A settled run brings its own document.** When a pipeline document declares a `report:`
-section, the transaction that settles a run renders that section's template against the run's
-facts and stores the markdown as a run-level artifact before the alerts are raised, so an
-alert can point at it: `run.report_url` names the route the document is read from, and a run
-that rendered none names nothing. The rendering never costs the run -- a template that
+section, the transaction that settles a run writes down that the run owes its document, and a
+worker renders that section's template against the run's facts once the transaction has
+committed, then stores the markdown as a run-level artifact. The alerts the settlement raised
+are not claimed until then, so an alert can point at it: `run.report_url` names the route the
+document is read from, and a run that rendered none names nothing. The owed mark is a leased
+claim like an attempt's, so a worker that dies mid-render hands the document to the next. The rendering never costs the run -- a template that
 overflows `report_max_size`, outruns `report_render_timeout`, or reaches for something the
 sandbox refuses leaves a warning in the run's timeline and no document. `docs/reports.md` is
 the template context reference.

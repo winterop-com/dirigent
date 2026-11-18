@@ -77,7 +77,7 @@ directory's files tried to set, and `dg dev`, `dg server` and `dg worker` warn a
 | `retention_logs` | `DIRIGENT_RETENTION_LOGS` | `null` | How long a log entry is kept, for runs too young to be pruned themselves. **Host only.** |
 | `retention_inputs` | `DIRIGENT_RETENTION_INPUTS` | `null` | How long the record of an input that reached a source is kept. **Host only.** |
 | `retention_firings` | `DIRIGENT_RETENTION_FIRINGS` | `null` | How long a schedule firing is kept. **Host only.** |
-| `retention_notifications` | `DIRIGENT_RETENTION_NOTIFICATIONS` | `null` | How long an alert that was sent is kept, for runs too young to be pruned themselves. **Host only.** |
+| `retention_notifications` | `DIRIGENT_RETENTION_NOTIFICATIONS` | `null` | How long an alert that was sent or failed for good is kept, for runs too young to be pruned themselves. **Host only.** |
 | `retention_audit` | `DIRIGENT_RETENTION_AUDIT` | `"52w1d"` | How long an entry of the audit trail is kept; null keeps every one. **Host only.** |
 | `retention_scratch` | `DIRIGENT_RETENTION_SCRATCH` | `true` | Whether pruning a run, by retention or by deleting its pipeline, also deletes its artifacts from storage. |
 | `retention_interval` | `DIRIGENT_RETENTION_INTERVAL` | `"1h"` | How often the scheduler sweeps whatever the retention ages have outlived. |

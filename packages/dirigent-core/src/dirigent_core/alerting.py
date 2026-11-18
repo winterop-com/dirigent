@@ -93,6 +93,9 @@ EVENT_FOR_STATUS: dict[RunStatus, AlertEvent] = {
     RunStatus.SUCCEEDED: AlertEvent.RUN_SUCCEEDED,
 }
 
+#: The events a run's settling raises, which are the ones its report document is handed to.
+SETTLED_EVENTS: Final = tuple(NotificationEvent(event.value) for event in EVENT_FOR_STATUS.values())
+
 #: The characters a subject is cut to, which is what a subject line is.
 SUBJECT_CAP: Final = 200
 
@@ -629,17 +632,14 @@ async def raise_for_run(
     event: AlertEvent,
     *,
     now: datetime | None = None,
-    facts: "RunFacts | None" = None,
-    report: str | None = None,
-    report_artifact_id: UUID | None = None,
 ) -> list[Notification]:
     """Queue whatever this run's settling owes, in the caller's outcome transaction.
 
     Called from the same commit that settles the run, so a run cannot reach a terminal state
-    without its alerts having been queued. ``facts`` is the run's full facts when the caller
-    has already assembled them, and they are read here when a rule matched and the caller had
-    none, so a run nothing watches pays for no facts at all. The rendered document is what the
-    templates read as ``report``; it is not stored on the notification.
+    without its alerts having been queued. The run's facts are read only once a rule is due to
+    raise, so a run nothing watches, or whose rules already spoke or are throttled, pays for
+    none. A run that owes its report document holds its alerts until the document is stored,
+    which hands them the link and the text.
 
     A savepoint, and everything that fails inside it is logged rather than raised: the caller
     has already written the outcome this reports on, and an alert nobody can queue must not
@@ -654,9 +654,6 @@ async def raise_for_run(
                 run,
                 event,
                 now=now,
-                facts=facts,
-                report=report,
-                report_artifact_id=report_artifact_id,
             )
     except Exception as error:
         if is_deadlock(error):
@@ -672,9 +669,6 @@ async def _queue_for_run(
     event: AlertEvent,
     *,
     now: datetime | None = None,
-    facts: "RunFacts | None" = None,
-    report: str | None = None,
-    report_artifact_id: UUID | None = None,
 ) -> list[Notification]:
     """Write down the notifications and the timeline entries one raised event owes."""
     moment = now or utcnow()
@@ -682,15 +676,9 @@ async def _queue_for_run(
     if pipeline is None:  # pragma: no cover - the foreign key makes this unreachable
         return []
     rules = await matching_rules(session, event, run.pipeline_id, pipeline.importance)
-    if not rules:
-        return []
     if any(rule.throttle_seconds for rule in rules):
         await _lock_throttles(session, run.pipeline_id)
-    report_url = report_url_for(services.settings.alert_base_url, report_artifact_id)
-    if facts is None:
-        facts = await _facts_of(session, run, base_url=services.settings.alert_base_url, rendered_at=moment)
-    context = _context_for(run, pipeline, facts, base_url=services.settings.alert_base_url, report_url=report_url)
-    queued: list[Notification] = []
+    due: list[AlertRule] = []
     for rule in rules:
         if await _already_raised(session, rule.id, run.id, event):
             continue
@@ -713,9 +701,15 @@ async def _queue_for_run(
                 )
             )
             continue
+        due.append(rule)
+    if not due:
+        return []
+    facts = await _facts_of(session, run, base_url=services.settings.alert_base_url, rendered_at=moment)
+    context = _context_for(run, facts, output_cap=int(services.settings.inline_artifact_max))
+    queued: list[Notification] = []
+    for rule in due:
         # The rule's templates render at delivery, outside this transaction and off the loop;
         # until then the row carries the defaults.
-        templated = rule.template is not None or rule.body is not None
         notification = Notification(
             alert_rule_id=rule.id,
             rule_code=rule.code,
@@ -727,7 +721,6 @@ async def _queue_for_run(
             body=_body(context),
             subject_template=rule.template,
             body_template=rule.body,
-            report=report if templated else None,
             context=context,
             status=NotificationStatus.PENDING,
             available_at=moment,
@@ -758,31 +751,29 @@ async def _queue_for_run(
     return queued
 
 
-def _context_for(
-    run: Run,
-    pipeline: Pipeline,
-    facts: "RunFacts | None",
-    *,
-    base_url: str | None,
-    report_url: str | None,
-) -> JsonMap:
-    """The frozen context a notification carries: the run's whole facts when the caller has them.
+def _context_for(run: Run, facts: "RunFacts", *, output_cap: int) -> JsonMap:
+    """The frozen context a notification carries: the run's facts, where it went wrong, and bounded outputs.
 
-    The ``run`` namespace is the same either way, so a template written against it reads the
-    same whether the facts came with the call or were built here.
+    A step output larger than ``output_cap`` bytes is the one the engine stored as an object
+    rather than inline, and the context names it by its ``output_uri`` and ``output_bytes``
+    with a null ``output``, in ``steps`` and in ``step`` alike.
     """
-    if facts is None:
-        context = build_context(run, pipeline, base_url=base_url, report_url=report_url)
-        failure: JsonMap = {"failing_step": None, "failing_item": None, "error": None, "error_code": None}
-        if run.status in FAILING and run.error:
-            failure |= {"error": _said(run.error, run.error_code, run.error_params), "error_code": run.error_code}
-        return {**context, **failure}
     # Imported here rather than at module scope: reporting imports this module back.
     from dirigent_core.reporting import as_context
 
     context = as_context(facts)
-    cast("JsonMap", context["run"])["report_url"] = report_url
+    steps = [_bounded(cast("JsonMap", one), output_cap) for one in cast("list[JsonValue]", context["steps"])]
+    context["steps"] = cast("list[JsonValue]", steps)
+    context["step"] = {cast("str", one["step"]): one for one in steps}
     return {**context, **failure_of(run, facts)}
+
+
+def _bounded(step: JsonMap, cap: int) -> JsonMap:
+    """A step's facts with its output left out when it is larger than ``cap`` bytes."""
+    size = step.get("output_bytes")
+    if isinstance(size, int) and size > cap:
+        return {**step, "output": None}
+    return step
 
 
 def failure_of(run: Run, facts: "RunFacts") -> JsonMap:
@@ -1009,9 +1000,6 @@ async def raise_for_status(
     status: RunStatus,
     *,
     now: datetime | None = None,
-    facts: "RunFacts | None" = None,
-    report: str | None = None,
-    report_artifact_id: UUID | None = None,
 ) -> list[Notification]:
     """Queue the alerts a terminal run status owes, if that status raises an event at all."""
     event = EVENT_FOR_STATUS.get(status)
@@ -1023,10 +1011,41 @@ async def raise_for_status(
         run,
         event,
         now=now,
-        facts=facts,
-        report=report,
-        report_artifact_id=report_artifact_id,
     )
+
+
+async def attach_report(
+    session: AsyncSession,
+    services: EngineServices,
+    run_id: UUID,
+    *,
+    report: str | None,
+    artifact_id: UUID | None,
+) -> int:
+    """Hand a run's stored report to the alerts its settling raised, which nothing has claimed yet.
+
+    Each gets ``run.report_url`` and a default body that links it, and a rule with a template
+    gets the document its template reads as ``report``. A report that did not render hands on
+    nothing, and the alerts go out without one. Say how many were handed it.
+    """
+    report_url = report_url_for(services.settings.alert_base_url, artifact_id)
+    found = await session.execute(
+        sa.select(Notification).where(
+            Notification.run_id == run_id,
+            Notification.status == NotificationStatus.PENDING,
+            Notification.attempt == 0,
+            Notification.event.in_(SETTLED_EVENTS),
+        )
+    )
+    held = list(found.scalars())
+    for notification in held:
+        context = dict(notification.context or {})
+        context["run"] = {**cast("JsonMap", context.get("run") or {}), "report_url": report_url}
+        notification.context = context
+        notification.body = _body(context)
+        if notification.subject_template is not None or notification.body_template is not None:
+            notification.report = report
+    return len(held)
 
 
 async def raise_for_stuck(
@@ -1107,10 +1126,12 @@ async def claim_notification(
     """Claim the next due notification, the same way a worker claims an attempt.
 
     ``notifiers`` narrows the claim to the notifiers this worker can send through; None claims any.
+    An alert of a run still owing its report document waits for the document, which it links.
     """
+    owing = sa.exists().where(Run.id == Notification.run_id, Run.report_due_at.is_not(None))
     statement = (
         sa.select(Notification)
-        .where(Notification.status == NotificationStatus.PENDING, Notification.available_at <= now)
+        .where(Notification.status == NotificationStatus.PENDING, Notification.available_at <= now, ~owing)
         .order_by(Notification.available_at, Notification.id)
         .limit(CLAIM_LIMIT)
     )

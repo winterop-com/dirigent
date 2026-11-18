@@ -1,7 +1,7 @@
 """A run's facts, assembled from a run driven to settlement by the engine."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AlertEvent, LogLevel, RunItemStatus, RunStatus
 from dirigent_common import render
-from dirigent_core.alerting import AlertRuleRequest, create_rule
+from dirigent_core.alerting import AlertRuleRequest, claim_notification, create_rule, raise_for_stuck
 from dirigent_core.artifacts import canonical_json, load_document
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
@@ -28,7 +28,7 @@ from dirigent_core.engine.runs import cancel_run, retry_step
 from dirigent_core.messages import CANCELLED_BY
 from dirigent_core.models import ArtifactRef, LogEntry, Notification, Pipeline, PipelineVersion, Run
 from dirigent_core.plugins import PluginHost
-from dirigent_core.reporting import DEFAULT_TEMPLATE, RunFacts, as_context, run_facts
+from dirigent_core.reporting import DEFAULT_TEMPLATE, RunFacts, as_context, run_facts, write_due_reports
 from dirigent_core.storage import parse_uri
 from engineblocks import FailOperator
 from test_engine import drain, reload, start, steps
@@ -436,7 +436,10 @@ async def test_a_cancelled_run_has_a_report(engine: Engine, sessions: Any, servi
         stored = await session.get(Run, run.id)
         assert stored is not None
         await cancel_run(session, services, stored, CANCELLED_BY, principal="an operator")
+    assert (await reload(sessions, run.id)).report_due_at is not None, "owed by the cancel, rendered after it"
 
+    assert await write_due_reports(sessions, services) == 1
+    assert (await reload(sessions, run.id)).report_due_at is None
     document = await only_document(sessions, run.id)
     assert document.inline_value is not None
     text = document.inline_value["text"]
@@ -497,6 +500,101 @@ async def test_a_queued_alert_names_the_document_the_run_rendered(
     assert context["run"]["report_url"] == f"https://dirigent.test/api/v1/artifacts/{document.id}"
     assert context["pipeline"]["code"] == "reported-document", "the whole facts, not the run namespace alone"
     assert [step["step"] for step in context["steps"]] == ["first", "second"]
+
+
+async def test_a_report_renders_once_the_settlement_has_committed(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No template runs inside the outcome transaction, which holds the run's lock."""
+    from dirigent_core import reporting as module
+
+    run = await start(sessions, services, REPORTED)
+    settling = False
+    recording = Engine._record_once  # pyright: ignore[reportPrivateUsage] - the outcome transaction
+
+    async def tracked(self: Engine, *args: Any, **kwargs: Any) -> bool:
+        nonlocal settling
+        settling = True
+        try:
+            return await recording(self, *args, **kwargs)
+        finally:
+            settling = False
+
+    inside: list[bool] = []
+    rendering = module.render_off_loop
+
+    async def watching(*args: Any, **kwargs: Any) -> str:
+        inside.append(settling)
+        return await rendering(*args, **kwargs)
+
+    monkeypatch.setattr(Engine, "_record_once", tracked)
+    monkeypatch.setattr(module, "render_off_loop", watching)
+    await drain(engine)
+
+    assert inside == [False], "rendered once, after the outcome transaction"
+    assert (await reload(sessions, run.id)).report_due_at is None
+    await only_document(sessions, run.id)
+
+
+async def test_an_alert_waits_for_the_report_its_run_owes_and_then_links_it(
+    sessions: Any, settings: Settings, host: PluginHost, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dirigent_core import reporting as module
+
+    services = EngineServices.build(settings.model_copy(update={"alert_base_url": "https://dirigent.test/"}), host)
+    engine = Engine(sessions, services, owner="worker-under-test")
+    async with session_scope(sessions) as session:
+        await create_rule(
+            session,
+            services,
+            AlertRuleRequest(code="tell-ops", event=AlertEvent.RUN_SUCCEEDED, body="{{ report }}"),
+        )
+    run = await start(sessions, services, REPORTED)
+
+    async def dropped(*_args: Any, **_kwargs: Any) -> bool:
+        return False
+
+    monkeypatch.setattr(module, "write_owed_report", dropped)
+    settled_at = await drain(engine)
+    monkeypatch.undo()
+
+    async with session_scope(sessions) as session:
+        claimed = await claim_notification(session, owner="worker-under-test", now=settled_at, lease_seconds=60)
+    assert claimed is None, "held while the run owes its report"
+    assert await documents_of(sessions, run.id) == []
+
+    assert await write_due_reports(sessions, services, now=settled_at) == 1
+    document = await only_document(sessions, run.id)
+    async with session_scope(sessions) as session:
+        claimed = await claim_notification(session, owner="worker-under-test", now=settled_at, lease_seconds=60)
+    assert claimed is not None
+    url = f"https://dirigent.test/api/v1/artifacts/{document.id}"
+    assert claimed.notification.context["run"]["report_url"] == url
+    assert f"Report: {url}" in claimed.notification.body
+    assert claimed.notification.report == (document.inline_value or {})["text"]
+
+
+async def test_a_report_a_worker_took_and_never_stored_is_taken_again_once_its_hold_passes(
+    engine: Engine, sessions: Any, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A worker that dies mid-render leaves the report owed, not lost."""
+    from dirigent_core import reporting as module
+
+    run = await start(sessions, services, REPORTED)
+
+    async def crashing(*_args: Any, **_kwargs: Any) -> tuple[str | None, str | None]:
+        raise ConnectionError("the worker went away")
+
+    monkeypatch.setattr(module, "_render", crashing)
+    settled_at = await drain(engine)
+    monkeypatch.undo()
+
+    held = (await reload(sessions, run.id)).report_due_at
+    assert held is not None and held > settled_at, "taken, and held for the render's budget"
+    assert await write_due_reports(sessions, services, now=settled_at) == 0, "nobody takes it while it is held"
+    assert await write_due_reports(sessions, services, now=held) == 1
+    assert (await reload(sessions, run.id)).report_due_at is None
+    await only_document(sessions, run.id)
 
 
 async def test_an_alert_for_a_run_with_no_report_names_no_document(
@@ -575,3 +673,46 @@ async def test_a_matching_rule_assembles_the_facts_a_report_did_not(
         rows = await session.execute(sa.select(Notification).where(Notification.run_id == run.id))
         notification = rows.scalar_one()
     assert [step["step"] for step in notification.context["steps"]] == ["first", "second"]
+
+
+async def test_a_sweep_that_finds_a_run_already_raised_assembles_no_facts(
+    sessions: Any, services: EngineServices, counted_facts: list[UUID]
+) -> None:
+    """A run stuck for a day is redetected every sweep; only the first sweep reads its facts."""
+    async with session_scope(sessions) as session:
+        await create_rule(session, services, AlertRuleRequest(code="stuck", event=AlertEvent.RUN_STUCK))
+    run = await start(sessions, services, CHAIN)
+    for sweep in range(3):
+        async with session_scope(sessions) as session:
+            await raise_for_stuck(session, services, [run.id], now=RENDERED_AT + timedelta(seconds=30 * sweep))
+
+    assert counted_facts == [run.id]
+
+
+async def test_an_alert_carries_a_step_output_stored_inline_and_names_a_larger_one(
+    sessions: Any, settings: Settings, host: PluginHost
+) -> None:
+    """An output past the inline cap is left out of the stored context, in ``steps`` and ``step`` alike."""
+    services = EngineServices.build(settings.model_copy(update={"inline_artifact_max": 64}), host)
+    engine = Engine(sessions, services, owner="worker-under-test")
+    async with session_scope(sessions) as session:
+        await create_rule(session, services, AlertRuleRequest(code="tell-ops", event=AlertEvent.RUN_SUCCEEDED))
+    definition = PipelineDefinition(
+        code="sized-outputs",
+        steps=steps(
+            small=StepDefinition(block="test.echo", config={"value": "s"}),
+            large=StepDefinition(block="test.echo", config={"value": "x" * 1000}),
+        ),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+
+    async with sessions() as session:
+        rows = await session.execute(sa.select(Notification).where(Notification.run_id == run.id))
+        context = rows.scalar_one().context
+    by_name = {step["step"]: step for step in context["steps"]}
+    assert by_name["small"]["output"] is not None
+    assert by_name["large"]["output"] is None
+    assert by_name["large"]["output_bytes"] > 64
+    assert context["step"]["large"]["output"] is None
+    assert context["step"]["small"]["output"] == by_name["small"]["output"]

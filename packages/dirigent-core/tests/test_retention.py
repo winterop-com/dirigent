@@ -9,14 +9,31 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from dirigent_client.enums import AttemptStatus, InputOutcome, LogLevel, RunStatus, TriggerKind
+from dirigent_client.enums import (
+    AttemptStatus,
+    InputOutcome,
+    LogLevel,
+    NotificationEvent,
+    NotificationStatus,
+    RunStatus,
+    TriggerKind,
+)
 from dirigent_core import retention
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import create_run, retry_step, save_pipeline
-from dirigent_core.models import LogEntry, Pipeline, PipelineVersion, Run, Source, SourceInput, StepAttempt
+from dirigent_core.models import (
+    LogEntry,
+    Notification,
+    Pipeline,
+    PipelineVersion,
+    Run,
+    Source,
+    SourceInput,
+    StepAttempt,
+)
 from dirigent_core.plugins import PluginHost
 from dirigent_core.scheduler import prune
 from dirigent_core.storage import Storage, build_storage, parse_uri
@@ -119,6 +136,34 @@ async def test_a_log_entry_is_pruned_on_its_own_age(session: AsyncSession) -> No
     assert swept.counts == {"logs": 1}
     assert await counted(session, Run) == 1
     assert await counted(session, LogEntry) == 1
+
+
+async def test_a_notification_that_was_sent_or_failed_is_pruned_on_its_own_age(session: AsyncSession) -> None:
+    """A failed one has no run to cascade from when it was a test message, and goes on its age alike."""
+    run = await a_run(session, finished_at=NOW, age=timedelta(days=2))
+    for status, run_id in (
+        (NotificationStatus.SENT, run.id),
+        (NotificationStatus.FAILED, run.id),
+        (NotificationStatus.FAILED, None),
+        (NotificationStatus.PENDING, run.id),
+    ):
+        session.add(
+            Notification(
+                run_id=run_id,
+                event=NotificationEvent.TEST if run_id is None else NotificationEvent.RUN_FAILED,
+                notifier="log",
+                subject="old",
+                status=status,
+                created_at=NOW - timedelta(days=40),
+            )
+        )
+    await session.flush()
+
+    swept = await retention.sweep(session, retention.Policy(notifications=timedelta(days=30)), now=NOW)
+
+    assert swept.counts == {"notifications": 3}
+    left = list((await session.execute(sa.select(Notification.status))).scalars())
+    assert left == [NotificationStatus.PENDING], "an alert still owed is kept"
 
 
 async def test_the_record_of_an_input_to_a_source_is_pruned_on_its_own_age(session: AsyncSession) -> None:
