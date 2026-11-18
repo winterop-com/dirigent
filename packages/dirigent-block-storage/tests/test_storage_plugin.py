@@ -3,7 +3,8 @@
 from pluginkit import PluginManager
 
 from dirigent_block_storage import StorageBlocks, plugin
-from dirigent_common import API_VERSION
+from dirigent_block_storage.storage import StorageExistsConfig
+from dirigent_common import API_VERSION, STORAGE_URI_FORMAT
 from dirigent_plugin import ENTRY_POINT_GROUP, PROJECT_NAME, contribute, markers
 
 STORAGE_BLOCKS = [
@@ -60,3 +61,7 @@ def test_the_family_is_discovered_under_its_entry_point_name() -> None:
     registered = manager.load_entrypoints(ENTRY_POINT_GROUP)
     assert registered >= 1
     assert manager.get_plugin("block-storage") is not None
+
+
+def test_every_storage_uri_a_block_takes_is_published_as_one() -> None:
+    assert StorageExistsConfig.model_json_schema()["properties"]["uri"]["format"] == STORAGE_URI_FORMAT

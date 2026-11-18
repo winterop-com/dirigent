@@ -308,7 +308,7 @@ def _as_value(config: StorageReadConfig, payload: bytes) -> JsonValue:
 class StorageExistsConfig(BlockModel):
     """Which object, or which pattern of objects, to wait for."""
 
-    uri: str = Field(min_length=1)
+    uri: StorageUri = Field(min_length=1)
     """A URI, which may contain a glob pattern in its final segments."""
 
     min_size: Size = Field(default=0, ge=0)

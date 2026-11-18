@@ -103,7 +103,8 @@ class WebhookPostOperator(Operator[WebhookPostConfig, WebhookPostOutput]):
     async def execute(self, config: WebhookPostConfig, ctx: StepContext) -> WebhookPostOutput | RemoteHandle:
         """Render the body once, sign those bytes, send them, and read the answer."""
         payload = render(config.body)
-        headers = {**config.headers, "Content-Type": JSON_CONTENT_TYPE}
+        headers = {name: value for name, value in config.headers.items() if name.lower() != "content-type"}
+        headers["Content-Type"] = JSON_CONTENT_TYPE
         secret = _secret(config, ctx)
         if secret is not None:
             stamp = str(int(time.time()))

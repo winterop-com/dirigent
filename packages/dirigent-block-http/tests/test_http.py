@@ -256,6 +256,25 @@ async def test_a_failure_and_a_log_line_do_not_say_a_token_an_earlier_step_suppl
     assert "DUMMYTOKEN" not in str(ctx.log.entries)
 
 
+async def test_a_refused_request_quotes_the_start_of_what_the_service_said(ctx: FakeContext) -> None:
+    ctx.handler = Responder(httpx2.Response(422, text='{"error": "day must be a date"}\n' + "x" * 1000))
+    config = HttpRequestConfig.model_validate({"connection": "api", "path": "/x"})
+    with pytest.raises(BlockFailure) as raised:
+        await HttpRequestOperator().execute(config, ctx.as_context())
+    message = str(raised.value)
+    assert 'answered 422: {"error": "day must be a date"}' in message
+    assert message.endswith("...")
+    assert len(message) < 500
+
+
+async def test_a_refusal_with_no_body_says_only_the_status(ctx: FakeContext) -> None:
+    ctx.handler = Responder(httpx2.Response(503))
+    config = HttpRequestConfig.model_validate({"connection": "api", "path": "/x"})
+    with pytest.raises(BlockFailure) as raised:
+        await HttpRequestOperator().execute(config, ctx.as_context())
+    assert str(raised.value).endswith("answered 503")
+
+
 def test_a_step_refuses_a_credential_in_its_query_and_keeps_a_page_token() -> None:
     with pytest.raises(ValidationError) as refused:
         HttpRequestConfig.model_validate({"connection": "api", "query": {"api_key": "DUMMYSECRET"}})

@@ -115,6 +115,8 @@ class RabbitConnectionConfig(BlockModel):
         user = quote(split.username or "guest", safe="")
         secret = quote(self.password.get_secret_value(), safe="")
         host = split.hostname or "localhost"
+        if ":" in host:
+            host = f"[{host}]"
         authority = f"{user}:{secret}@{host}" + (f":{split.port}" if split.port else "")
         return urlunsplit(split._replace(netloc=authority))
 
