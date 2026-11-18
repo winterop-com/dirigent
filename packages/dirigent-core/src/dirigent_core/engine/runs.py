@@ -1336,6 +1336,10 @@ async def _admit_retry(
             pass
 
 
+#: The longest key a manual retry takes: scoped by ``idempotency_scope``, it fits the stored column.
+IDEMPOTENCY_KEY_MAX_LENGTH: Final = 255
+
+
 def idempotency_scope(step_name: str, run_item_id: UUID | None, key: str) -> str:
     """Render the key a manual retry is stored under: the caller's key, scoped to its target.
 

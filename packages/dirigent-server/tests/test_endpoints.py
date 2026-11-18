@@ -671,3 +671,41 @@ def test_a_signature_in_the_sources_own_header_never_reaches_the_input(client: T
     attempts = Page[AttemptOut].model_validate(client.get(f"{PREFIX}/runs/{run_id}/attempts").json()).items
     entered = next(attempt for attempt in attempts if attempt.step_name == "ask").output or {}
     assert "x-hub-signature-256" not in entered["headers"]
+
+
+#: A public source whose run fans out over a fixed list, so a low enough limit refuses the run itself.
+WIDE = """
+format: dirigent/v1
+kind: pipeline
+code: wide
+steps:
+  ask:
+    source:
+      kind: endpoint
+      path: /wide
+      auth: {kind: public}
+  each:
+    block: transform.jq
+    depends_on: [ask]
+    for_each: [1, 2, 3]
+    config:
+      input: ${item}
+      program: '.'
+"""
+
+
+def test_a_caller_whose_input_no_run_could_be_made_from_is_told_the_code_and_not_the_reason(
+    settings: Settings, admin_token: str
+) -> None:
+    app = create_app(settings.model_copy(update={"fan_out_max_items": 2}))
+    with TestClient(app, headers={"Authorization": f"Bearer {admin_token}"}) as client:
+        apply_document(client, WIDE)
+        called = client.post("/endpoints/wide", json={}, headers={"Authorization": ""})
+        journal = inputs(client, "wide")
+    assert called.status_code == 409, called.text
+    problem = called.json()
+    assert problem["code"] == "source.run_not_created"
+    assert problem["params"] == {"cause": "run.fan_out_too_wide"}
+    assert "each" not in problem["detail"], "what the refusal said stays with the instance"
+    assert journal[0].code == "source.run_refused"
+    assert journal[0].reason is not None and "each" in journal[0].reason, "an operator still reads why"

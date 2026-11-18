@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from fastapi import APIRouter, Body, Header, Query, Request, Response, status
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from starlette.types import Receive, Scope, Send
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus, TriggerKind
 from dirigent_client.schemas import (
@@ -43,7 +44,15 @@ from dirigent_core.artifacts import JSON_CONTENT_TYPE, TEXT_KEY, canonical_json,
 from dirigent_core.auth import Principal, principal_stands
 from dirigent_core.database import session_scope
 from dirigent_core.engine.definition import PipelineDefinition, load_definition
-from dirigent_core.engine.runs import after_commit, cancel_run, pause_run, rerun, resume_run, retry_step
+from dirigent_core.engine.runs import (
+    IDEMPOTENCY_KEY_MAX_LENGTH,
+    after_commit,
+    cancel_run,
+    pause_run,
+    rerun,
+    resume_run,
+    retry_step,
+)
 from dirigent_core.engine.state import StepCounts, attempt_counts, item_counts, item_wise_parent, step_states
 from dirigent_core.logging import get_logger
 from dirigent_core.messages import CANCELLED_BY
@@ -67,6 +76,7 @@ from dirigent_server.messages import (
     ARTIFACT_EMPTY,
     BAD_SINCE,
     IDEMPOTENCY_KEY_REQUIRED,
+    IDEMPOTENCY_KEY_TOO_LONG,
     NO_ARTIFACT,
     NO_ATTEMPT,
     NO_RUN,
@@ -641,12 +651,19 @@ async def retry(
     principal: OperatorDep,
     idempotency_key: Annotated[
         str | None,
-        Header(alias="Idempotency-Key", description="Required, so a retried request creates one attempt."),
+        Header(
+            alias="Idempotency-Key",
+            description=(
+                f"Required, so a retried request creates one attempt; at most {IDEMPOTENCY_KEY_MAX_LENGTH} characters."
+            ),
+        ),
     ] = None,
 ) -> AttemptOut:
     """Create one manual attempt of a failed step, reading its upstream stored outputs."""
     if not idempotency_key:
         raise Refusal(IDEMPOTENCY_KEY_REQUIRED, status=status.HTTP_400_BAD_REQUEST)
+    if len(idempotency_key) > IDEMPOTENCY_KEY_MAX_LENGTH:
+        raise Refusal(IDEMPOTENCY_KEY_TOO_LONG, status=status.HTTP_400_BAD_REQUEST, maximum=IDEMPOTENCY_KEY_MAX_LENGTH)
     attempt = await session.get(StepAttempt, attempt_id)
     if attempt is None:
         raise Refusal(NO_ATTEMPT, status=status.HTTP_404_NOT_FOUND, attempt_id=attempt_id)
@@ -699,11 +716,7 @@ async def read_logs(
     if follow != "sse":
         return await _log_page(session, run_id, start, limit, step)
     watcher = _claim(principal.user_id)
-    return StreamingResponse(
-        _tail(get_sessions(request), run_id, start, step, watcher, principal),
-        media_type="text/event-stream",
-        headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
-    )
+    return HeldStream(_tail(get_sessions(request), run_id, start, step, watcher, principal), watcher)
 
 
 def _resume_from(after: str | None, last_event_id: str | None) -> int:
@@ -731,11 +744,51 @@ async def quiet_wait(mark: wakeups.Mark, waited: float, interval: float) -> tupl
     return waited + elapsed, next_interval(interval)
 
 
-def _claim(user_id: UUID) -> str:
-    """Name the principal a stream is opened by, refusing one that already holds the cap.
+class Seat:
+    """One open stream counted against its principal's budget from the moment it is granted, given back once."""
+
+    def __init__(self, watcher: str) -> None:
+        """Take the seat."""
+        self.watcher = watcher
+        self._taken = True
+        OPEN_TAILS[watcher] = OPEN_TAILS.get(watcher, 0) + 1
+
+    def release(self) -> None:
+        """Give the seat back; a second call does nothing."""
+        if not self._taken:
+            return
+        self._taken = False
+        remaining = OPEN_TAILS.get(self.watcher, 1) - 1
+        if remaining > 0:
+            OPEN_TAILS[self.watcher] = remaining
+        else:
+            OPEN_TAILS.pop(self.watcher, None)
+
+
+class HeldStream(StreamingResponse):
+    """An event stream that gives its seat back however it ends, including before its first byte."""
+
+    def __init__(self, content: AsyncGenerator[str], seat: Seat) -> None:
+        """Stream ``content`` as server-sent events, holding ``seat`` until the response is done."""
+        super().__init__(
+            content, media_type="text/event-stream", headers={"cache-control": "no-cache", "x-accel-buffering": "no"}
+        )
+        self.seat = seat
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Send the stream, then give the seat back."""
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            self.seat.release()
+
+
+def _claim(user_id: UUID) -> Seat:
+    """Take a seat for a stream the principal opens, refusing one that already holds the cap.
 
     Log tails and event streams draw on one budget: what a principal costs this instance is
-    the number of poll loops it holds open, not what they carry.
+    the number of poll loops it holds open, not what they carry. The seat is counted here,
+    before the response is sent, so streams opened together cannot all pass the check.
     """
     watcher = str(user_id)
     if OPEN_TAILS.get(watcher, 0) >= MAX_TAILS_PER_PRINCIPAL:
@@ -745,21 +798,16 @@ def _claim(user_id: UUID) -> str:
             headers={"retry-after": "5"},
             maximum=MAX_TAILS_PER_PRINCIPAL,
         )
-    return watcher
+    return Seat(watcher)
 
 
 @contextmanager
-def _held(watcher: str) -> Generator[None]:
-    """Count one open stream against a principal's budget for as long as it runs."""
-    OPEN_TAILS[watcher] = OPEN_TAILS.get(watcher, 0) + 1
+def _held(seat: Seat) -> Generator[None]:
+    """Give a stream's seat back when its generator ends."""
     try:
         yield
     finally:
-        remaining = OPEN_TAILS.get(watcher, 1) - 1
-        if remaining > 0:
-            OPEN_TAILS[watcher] = remaining
-        else:
-            OPEN_TAILS.pop(watcher, None)
+        seat.release()
 
 
 async def _tail_read(
@@ -792,7 +840,7 @@ async def _tail(
     run_id: UUID,
     after: int,
     step: str | None,
-    watcher: str,
+    watcher: Seat,
     principal: Principal,
 ) -> AsyncGenerator[str]:
     """Stream a run's log entries as server-sent events until the run settles.
@@ -852,10 +900,8 @@ async def read_events(
     """
     await _run_row(session, run_id)
     watcher = _claim(principal.user_id)
-    return StreamingResponse(
-        _story(get_sessions(request), run_id, _resume_from(after, last_event_id), watcher, principal),
-        media_type="text/event-stream",
-        headers={"cache-control": "no-cache", "x-accel-buffering": "no"},
+    return HeldStream(
+        _story(get_sessions(request), run_id, _resume_from(after, last_event_id), watcher, principal), watcher
     )
 
 
@@ -1018,7 +1064,7 @@ async def _story(
     sessions: async_sessionmaker[AsyncSession],
     run_id: UUID,
     after: int,
-    watcher: str,
+    watcher: Seat,
     principal: Principal,
 ) -> AsyncGenerator[str]:
     """Stream a run's own state and its attempt transitions and log entries, in order.

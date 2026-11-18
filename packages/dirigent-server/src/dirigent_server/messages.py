@@ -124,6 +124,10 @@ IDEMPOTENCY_KEY_REQUIRED = SERVER.define(
     "an Idempotency-Key header is required, so a retried request creates one attempt",
 )
 
+IDEMPOTENCY_KEY_TOO_LONG = SERVER.define(
+    "idempotency_key_too_long", "an Idempotency-Key header is at most {maximum} characters"
+)
+
 NO_ATTEMPT = SERVER.define("no_attempt", "no attempt {attempt_id}")
 
 TOO_MANY_TAILS = SERVER.define("too_many_tails", "you already have {maximum} streams open on this server")
