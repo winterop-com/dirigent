@@ -16,6 +16,7 @@ dependencies = [
     "dirigent-core==0.36.0",
     "dirigent-examples==0.36.0",
     "dirigent-mcp==0.36.0",
+    "dirigent-plugin==0.36.0",
     "anyio>=4.15.1",
     "fastapi>=0.142.2",
     "httpx2>=2.12.0",
@@ -33,3 +34,4 @@ dirigent-client = { workspace = true }
 dirigent-core = { workspace = true }
 dirigent-examples = { workspace = true }
 dirigent-mcp = { workspace = true }
+dirigent-plugin = { workspace = true }
