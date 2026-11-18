@@ -1707,6 +1707,15 @@ const editor = {
             one: (count: string) => `${count} unapplied edit`,
             many: (count: string) => `${count} unapplied edits`,
         },
+        /** The palette row that throws the unapplied edits away for the version the instance holds. */
+        revert: 'Discard unapplied edits',
+        /** The question asked before a move inside the app leaves a document with unapplied edits. */
+        leave: {
+            question: 'Leave without applying?',
+            detail: 'This document has edits the instance does not hold, and leaving discards them.',
+            keep: 'Stay',
+            discard: 'Leave',
+        },
         /** The status bar's count of what this instance has not got. */
         unmet_here: (count: number) => `${String(count)} unmet here`,
         /** Why Run is shut on a document the instance holds no version of. */

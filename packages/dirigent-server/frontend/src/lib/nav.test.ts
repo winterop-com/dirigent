@@ -7,6 +7,7 @@ import {
     entriesFor,
     entryAt,
     marksOnlyItself,
+    onwardFrom,
     railGroups,
     screenPath,
     sectionsFor,
@@ -182,5 +183,25 @@ describe('the screen a path shows', () => {
 
     test("is the editor apart from the pipeline's page", () => {
         expect(screenPath('/pipelines/daily/edit')).toBe('/pipelines/daily/edit')
+    })
+})
+
+describe('where signing in goes', () => {
+    test('back to the page a lost session left', () => {
+        expect(onwardFrom({ from: '/runs/abc?tab=output' })).toBe('/runs/abc?tab=output')
+    })
+
+    test('to the front door when nothing was left, or what was left is not a page of this app', () => {
+        for (const state of [
+            null,
+            undefined,
+            {},
+            { from: 42 },
+            { from: 'https://elsewhere.example/' },
+            { from: '//elsewhere.example/' },
+            { from: '/login' },
+        ]) {
+            expect(onwardFrom(state)).toBe(DASHBOARD_PATH)
+        }
     })
 })

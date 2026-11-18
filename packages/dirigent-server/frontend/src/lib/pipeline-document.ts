@@ -125,6 +125,62 @@ export function forgetDocument(): void {
     documentStore.set(NOTHING)
 }
 
+/** A document set aside while its account signs in again, with whose it is. */
+let parked: { username: string; state: DocumentState } | null = null
+
+/**
+ * Set the document aside for this account, to be taken up again by `resumeDocument`.
+ *
+ * It is held in this tab's memory only: a session that expired sends the reader to the login
+ * page and back without a reload, and nothing else is meant to bring the document back.
+ */
+export function parkDocument(username: string): void {
+    const state = documentStore.get()
+    parked = state.code === null ? null : { username, state }
+}
+
+/**
+ * Take up the document this account set aside for this pipeline, and answer whether there was
+ * one. It is taken up only while the instance still holds the version its edits were made
+ * against; either way it is no longer set aside.
+ */
+export function resumeDocument(code: string, username: string | null, applied: JsonMap | null): boolean {
+    const held = parked
+    parked = null
+    if (held === null || held.username !== username || held.state.code !== code) return false
+    if (stable(held.state.applied) !== stable(applied)) return false
+    documentStore.set(held.state)
+    return true
+}
+
+/**
+ * Whether leaving now would lose anything: an edit the instance does not hold, or text in the
+ * source pane that does not parse. A document nothing has applied counts once it differs from
+ * the skeleton it started as.
+ */
+export function documentUnsaved(state: DocumentState): boolean {
+    if (state.draft !== null) return true
+    if (state.local === null) return false
+    if (state.applied === null) return stable(state.local) !== stable(newDocument())
+    return editsIn(state.applied, state.local).count > 0
+}
+
+/**
+ * Take the version an apply wrote as the one the instance holds.
+ *
+ * The local document becomes that version only if it is still the one that was sent: an edit
+ * made while the apply was answering is kept, now measured against what was written.
+ */
+export function documentApplied(code: string, sent: JsonMap, applied: JsonMap | null): void {
+    const state = documentStore.get()
+    if (state.code !== code) return
+    if (state.local === sent && state.draft === null) {
+        loadDocument(code, applied)
+        return
+    }
+    documentStore.set({ ...state, applied })
+}
+
 /**
  * Change the local document, unless the source pane is holding text that does not parse.
  *
@@ -397,7 +453,7 @@ export function editsIn(applied: JsonMap | null, local: JsonMap | null): Documen
     const before = stepsIn(applied)
     const after = stepsIn(local)
     const names = [...new Set([...Object.keys(before), ...Object.keys(after)])]
-    const steps = names.filter((name) => stable(before[name]) !== stable(after[name]))
+    const steps = names.filter((name) => stable(bareStep(before[name])) !== stable(bareStep(after[name])))
 
     const keys = [...new Set([...Object.keys(applied), ...Object.keys(local)])].filter(
         (key) => key !== 'steps',
@@ -405,6 +461,13 @@ export function editsIn(applied: JsonMap | null, local: JsonMap | null): Documen
     const fields = keys.filter((key) => stable(applied[key]) !== stable(local[key]))
 
     return { steps, fields, count: steps.length + fields.length }
+}
+
+/** A step without its empty `depends_on`, which an instance may store and an edit drops. */
+function bareStep(step: JsonMap | undefined): JsonMap | undefined {
+    if (step === undefined || !Array.isArray(step.depends_on) || step.depends_on.length > 0) return step
+    const { depends_on: _empty, ...rest } = step
+    return rest
 }
 
 /** Whether one step differs from the version the instance holds. */

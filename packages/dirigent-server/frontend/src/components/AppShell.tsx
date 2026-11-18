@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router'
 
 import { AccountMenu } from '@winterop-com/sokkel-ui/AccountMenu'
@@ -19,7 +19,7 @@ import { refusedRead } from '@/components/Refusal'
 import { warmLayout } from '@/components/graph/elk'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
-import { authStore, refreshIdentity, signOut } from '@/lib/auth'
+import { authStore, refreshIdentity, sessionLost, signOut } from '@/lib/auth'
 import {
     accountWords,
     PALETTE_SEARCH_WORDS,
@@ -122,7 +122,7 @@ export function AppShell() {
     const open = useStore(small ? panelSheet : panelOpen)
     const actions = useStore(paletteActions)
     const server = useStore(serverStatus)
-    const { pathname } = useLocation()
+    const { pathname, search } = useLocation()
     const navigate = useNavigate()
     const { scheme, setScheme } = useScheme()
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -134,13 +134,11 @@ export function AppShell() {
     // A refusal for want of a session is the shell's, not a screen's: the session expired, and
     // the answer is the login page rather than a refusal card on whatever was open.
     useEffect(() => {
-        onUnauthorized(() => {
-            void navigate(LOGIN_PATH, { replace: true })
-        })
+        onUnauthorized(sessionLost)
         return () => {
             onUnauthorized(null)
         }
-    }, [navigate])
+    }, [])
 
     useEffect(() => {
         void refreshIdentity().catch((error: unknown) => {
@@ -149,10 +147,16 @@ export function AppShell() {
     }, [])
 
     // A read that answers "nobody" sends the reader to the login page rather than leaving them
-    // on a screen whose every request is about to be refused.
+    // on a screen whose every request is about to be refused, and signing in again comes back
+    // here. A reader who signed out themselves starts again at the front door.
     const signedOut = auth.status === 'signed-out'
+    const chosen = useRef(false)
+    const here = `${pathname}${search}`
     useEffect(() => {
-        if (signedOut) void navigate(LOGIN_PATH, { replace: true })
+        if (!signedOut) return
+        void navigate(LOGIN_PATH, { replace: true, state: chosen.current ? null : { from: here } })
+        // Only the moment the session ends decides where signing in returns to.
+        // oxlint-disable-next-line react-hooks/exhaustive-deps
     }, [navigate, signedOut])
 
     const openSettings = useCallback(() => {
@@ -168,8 +172,9 @@ export function AppShell() {
     }, [])
 
     const leave = useCallback(() => {
-        void signOut().then(() => navigate(LOGIN_PATH, { replace: true }))
-    }, [navigate])
+        chosen.current = true
+        void signOut()
+    }, [])
 
     // The rail's chord is heard in a box too, where clearing the screen is worth most, but not in
     // the code editor, which keeps its own keys.

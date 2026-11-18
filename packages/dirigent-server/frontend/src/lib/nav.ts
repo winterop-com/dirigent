@@ -50,6 +50,13 @@ export const DASHBOARD_PATH = '/'
 /** The login screen, which is where a refused request sends a reader. */
 export const LOGIN_PATH = '/login'
 
+/** Where signing in goes: back to the page a lost session left, else the front door. */
+export function onwardFrom(state: unknown): string {
+    const from = (state as { from?: unknown } | null)?.from
+    if (typeof from !== 'string' || !from.startsWith('/') || from.startsWith('//')) return DASHBOARD_PATH
+    return from === LOGIN_PATH || from.startsWith(`${LOGIN_PATH}?`) ? DASHBOARD_PATH : from
+}
+
 /**
  * The editor with no pipeline behind it, which is where a new document is written.
  *

@@ -12,6 +12,7 @@ import {
     belowTheFold,
     canvasSettled,
     clickEdge,
+    DEV_PASSWORD,
     DEV_USERNAME,
     dragBy,
     dragFromTo,
@@ -23,6 +24,7 @@ import {
     repositoryRoot,
     saysShut,
     signIn,
+    signOut,
     statusChip,
     writeInEditor,
 } from './support.ts'
@@ -993,11 +995,14 @@ test('an edge dragged between two ports is the dependency, and Delete takes it a
     // Choosing the edge and pressing the key is how it is taken back. The panel that just
     // opened narrowed the canvas, and the graph re-fits itself when that happens.
     await canvasSettled(page)
+    // Let go of the step first: Delete takes every chosen element, a chosen step among them.
+    await page.locator('.react-flow__pane').click({ position: { x: 8, y: 8 } })
     const edge = page.locator('.react-flow__edge')
     await clickEdge(page, edge)
     await expect(edge).toHaveClass(/selected/)
     await page.keyboard.press('Delete')
     await expect(page.locator('.react-flow__edge')).toHaveCount(0)
+    await expect(page.locator('.react-flow__node')).toHaveCount(2)
     await expect(page.getByText(/unapplied edit/)).toHaveCount(0)
 })
 
@@ -1924,4 +1929,93 @@ test("a long stored shape leaves the row's own controls on screen", async ({ pag
                 .toBeLessThanOrEqual(0)
         }
     }
+})
+
+/** Open the editor on the convert example, with its source pane in front and loaded. */
+async function sourcePaneOf(page: Page): Promise<Locator> {
+    await signIn(page)
+    await applyExample(page.request, DOCUMENT_EXAMPLE)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
+    await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
+    const panel = page.locator('aside')
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+    const editor = panel.locator('[data-slot="code-editor"]')
+    await expect(editor.locator('.cm-content')).toContainText(DOCUMENT_PIPELINE, { timeout: 30_000 })
+    return editor
+}
+
+const UNPARSED = 'steps:\n  parse: [\n'
+
+test('text in the source pane that does not parse is still there after another tab', async ({ page }) => {
+    const editor = await sourcePaneOf(page)
+    const panel = page.locator('aside')
+    // Leaving inside the settle window writes what was typed rather than dropping it.
+    await writeInEditor(page, editor, UNPARSED)
+    await panel.getByRole('tab', { name: LABELS.word.report }).click()
+    await panel.getByRole('tab', { name: LABELS.word.source }).click()
+
+    await expect(panel.locator('.cm-content')).toContainText('parse: [', { timeout: 30_000 })
+    await expect(panel.locator('.cm-content')).not.toContainText(DOCUMENT_PIPELINE)
+    await expect(panel.getByText(LABELS.editor.source.stale, { exact: true })).toBeVisible()
+})
+
+test("the palette's Validate is refused with the toolbar's reason while the source does not parse", async ({
+    page,
+}) => {
+    const editor = await sourcePaneOf(page)
+    await writeInEditor(page, editor, UNPARSED)
+    await expect(page.getByText(LABELS.editor.source.stale, { exact: true })).toBeVisible()
+
+    await page.locator('.react-flow__pane').click()
+    await page.keyboard.press('ControlOrMeta+k')
+    await page.getByPlaceholder(LABELS.palette.placeholder).fill(LABELS.editor.apply.validate_title)
+    await page.getByRole('option').filter({ hasText: LABELS.editor.apply.validate_title }).first().click()
+
+    await expect(page.getByText(LABELS.editor.topbar.unparsed, { exact: true }).last()).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+})
+
+/** Change one field of the convert example's `parse` step, which is one unapplied edit. */
+async function editOneField(page: Page): Promise<void> {
+    await signIn(page)
+    await applyExample(page.request, DOCUMENT_EXAMPLE)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
+    await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
+    await page.locator('aside').getByLabel('to', { exact: true }).fill('yaml')
+    await expect(page.getByText(ONE_EDIT, { exact: true })).toBeVisible()
+}
+
+const ONE_EDIT = LABELS.editor.topbar.unapplied_edits.one('1')
+
+test('the topbar counts unapplied edits, and a move away asks before it discards them', async ({ page }) => {
+    await editOneField(page)
+
+    const leave = LABELS.editor.topbar.leave
+    const rail = page.getByRole('link', { name: LABELS.screen.pipelines.name, exact: true }).first()
+    await rail.click()
+    const asked = page.getByRole('dialog', { name: LABELS.editor.topbar.leave.question })
+    await expect(asked.getByText(leave.question, { exact: true })).toBeVisible()
+    await asked.getByRole('button', { name: leave.keep, exact: true }).click()
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${DOCUMENT_PIPELINE}/edit$`))
+    await expect(page.getByText(ONE_EDIT, { exact: true })).toBeVisible()
+
+    await rail.click()
+    await asked.getByRole('button', { name: leave.discard, exact: true }).click()
+    await expect(page).toHaveURL(/\/pipelines$/)
+})
+
+test('a session that expires under the editor keeps its edits through signing in again', async ({ page }) => {
+    await editOneField(page)
+
+    // The session ends behind the screen's back, and the next read it makes is refused.
+    await signOut(page)
+    await page.locator('.react-flow__node').getByText('rows', { exact: true }).click()
+    await expect(page).toHaveURL(/\/login$/)
+
+    await page.getByLabel(LABELS.word.username).fill(DEV_USERNAME)
+    await page.getByLabel(LABELS.word.password, { exact: true }).fill(DEV_PASSWORD)
+    await page.getByRole('button', { name: LABELS.action.sign_in.verb }).click()
+
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${DOCUMENT_PIPELINE}/edit$`))
+    await expect(page.getByText(ONE_EDIT, { exact: true })).toBeVisible()
 })

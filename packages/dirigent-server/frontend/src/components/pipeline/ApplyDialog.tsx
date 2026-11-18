@@ -62,7 +62,8 @@ export function ApplyDialog({
     onOpenChange: (open: boolean) => void
     /** What the dry run said, so the screen can state it on the status bar. */
     onPlan?: (plan: PipelinePlan) => void
-    onApplied: (result: ApplyResult) => void
+    /** Called with what the apply wrote and the local document that was sent for it. */
+    onApplied: (result: ApplyResult, sent: JsonMap) => void
     /** The same document with its carried sections named under `requires:`, or null. */
     onLift: () => JsonMap | null
 }) {
@@ -202,7 +203,7 @@ export function ApplyDialog({
         void applyPipeline(document, false).then(
             (result: ApplyResult) => {
                 setApplying(false)
-                onApplied(result)
+                onApplied(result, document)
                 onOpenChange(false)
             },
             (error: unknown) => {
@@ -260,7 +261,7 @@ export function ApplyDialog({
                     readHeld(document)
                     return
                 }
-                onApplied(result)
+                onApplied(result, document)
                 onOpenChange(false)
             } catch (error: unknown) {
                 setProblem(letGo.refused(error))

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 
 import { SignIn, type SignInValues } from '@winterop-com/sokkel-ui/SignIn'
 import { FlowLines } from '@winterop-com/sokkel-ui/SignInArt'
@@ -9,7 +9,7 @@ import { authStore, refreshIdentity, signIn } from '@/lib/auth'
 import { SIGN_IN_WORDS } from '@/lib/library-words'
 import { ICONS } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
-import { DASHBOARD_PATH } from '@/lib/nav'
+import { onwardFrom } from '@/lib/nav'
 import { said } from '@/lib/refusal'
 
 /** Where this browser keeps the username it last signed in as. */
@@ -28,13 +28,14 @@ const PANE_STORAGE_KEY = 'dirigent.login.pane'
 export function Login() {
     const auth = useStore(authStore)
     const navigate = useNavigate()
+    const onward = onwardFrom(useLocation().state)
     const [version, setVersion] = useState<string | null>(null)
 
     // A reader already signed in -- a bookmark, a back button -- is sent on rather than shown a form.
     const signedIn = auth.status === 'signed-in'
     useEffect(() => {
-        if (signedIn) void navigate(DASHBOARD_PATH, { replace: true })
-    }, [navigate, signedIn])
+        if (signedIn) void navigate(onward, { replace: true })
+    }, [navigate, onward, signedIn])
 
     // A form sent before an `unknown` status resolved would sign in over a session that was good.
     useEffect(() => {
@@ -55,7 +56,7 @@ export function Login() {
     }, [])
 
     async function submit(values: SignInValues): Promise<void> {
-        if (await signIn(values.user, values.password)) void navigate(DASHBOARD_PATH, { replace: true })
+        if (await signIn(values.user, values.password)) void navigate(onward, { replace: true })
     }
 
     return (
