@@ -1277,7 +1277,8 @@ nothing in the API process to subscribe to. One indexed query every half second 
 three kinds of event: an `attempt` for every state an attempt is found in, a `log` for each
 entry, and a `run` for every state the run itself is found in -- on connect, and again each
 time its status, start, end or error changes -- the last of them terminal and followed by the
-`end` sentinel that closes the stream. `end` means the run settled and nothing else: a stream
+`end` sentinel that closes the stream. `end` means the run settled, or was deleted, and nothing
+else: a stream
 that reaches the server's wall-clock limit with the run still going closes with `expired`, which
 a client reopens from its cursor rather than reading as the end of the story. A stream that has
 sent nothing for fifteen seconds sends a `: ping` comment, which an SSE client reads past, so a
@@ -1288,9 +1289,10 @@ theirs out of timestamp order; a transition is placed ahead of the first entry w
 earlier than it. On connect every attempt is replayed once in
 its current state, so a client that joined late reads the same story as one that was there
 from the start, minus the states it missed; after that only what changed is sent, measured
-against the status, attempt number, finish time and waiting message last reported. That makes
-the full-grid read a watcher used to cause per poll a read the server does once per watcher,
-and the answer a delta.
+against the status, attempt number, finish time and waiting message last reported. Each poll
+reads only those columns for the whole grid, and whole rows, with their inputs and outputs, only
+for the attempts that moved, so a watcher of a fan-out of thousands costs one narrow read a poll
+until something changes.
 
 Every log frame on either endpoint carries an SSE `id`, which is the log entry's id, and both
 endpoints read `Last-Event-ID` as the log cursor when no `after` was given. A browser's own

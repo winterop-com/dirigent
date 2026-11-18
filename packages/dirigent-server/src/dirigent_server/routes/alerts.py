@@ -1,10 +1,12 @@
 """Alert rules, and the notification queue they deliver through."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Query, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import NotificationStatus
 from dirigent_client.schemas import (
@@ -80,8 +82,14 @@ async def rules(
 ) -> Page[AlertRuleOut]:
     """List every alert rule, with the pipeline each one watches when it is scoped."""
     rows = await list_rules(session, after=uuid_cursor(after), limit=limit + 1)
+    pipelines = await _codes(session, Pipeline, {rule.pipeline_id for rule in rows})
+    connections = await _codes(session, Connection, {rule.connection_id for rule in rows})
     found = [
-        render(rule, await _pipeline_code(session, rule), await _connection_code(session, rule.connection_id))
+        render(
+            rule,
+            pipelines.get(rule.pipeline_id) if rule.pipeline_id else None,
+            connections.get(rule.connection_id) if rule.connection_id else None,
+        )
         for rule in rows
     ]
     items, following = clip(found, limit, lambda row: row.id)
@@ -224,7 +232,17 @@ async def notifications(
         after=uuid_cursor(after),
         limit=limit + 1,
     )
-    found = [await _notification(session, services, row) for row in rows]
+    runs = await _runs_named(session, {row.run_id for row in rows})
+    connections = await _codes(session, Connection, {row.connection_id for row in rows})
+    found = [
+        _rendered_notification(
+            services,
+            row,
+            runs.get(row.run_id) if row.run_id else None,
+            connections.get(row.connection_id) if row.connection_id else None,
+        )
+        for row in rows
+    ]
     items, following = clip(found, limit, lambda row: row.id)
     return Page(items=items, next=following)
 
@@ -259,21 +277,53 @@ async def retry(
 
 async def _notification(session: SessionDep, services: ServicesDep, row: Notification) -> NotificationOut:
     """Render one notification row, naming the run by its pipeline rather than by its id."""
-    run = await session.get(Run, row.run_id) if row.run_id else None
-    pipeline = await session.get(Pipeline, run.pipeline_id) if run else None
+    runs = await _runs_named(session, {row.run_id})
+    connection = await _connection_code(session, row.connection_id)
+    return _rendered_notification(services, row, runs.get(row.run_id) if row.run_id else None, connection)
+
+
+async def _codes(
+    session: AsyncSession, model: type[Pipeline] | type[Connection], ids: set[UUID | None]
+) -> dict[UUID, str]:
+    """Map the ids of one page's pipelines or connections to their codes, in one read."""
+    wanted = [found for found in ids if found is not None]
+    if not wanted:
+        return {}
+    rows = await session.execute(sa.select(model.id, model.code).where(model.id.in_(wanted)))
+    return {found: code for found, code in rows.all()}
+
+
+async def _runs_named(session: AsyncSession, ids: set[UUID | None]) -> dict[UUID, tuple[str, datetime | None]]:
+    """Map the ids of one page's runs to their pipeline's code and when they started, in one read."""
+    wanted = [found for found in ids if found is not None]
+    if not wanted:
+        return {}
+    rows = await session.execute(
+        sa.select(Run.id, Pipeline.code, Run.started_at)
+        .join(Pipeline, Pipeline.id == Run.pipeline_id)
+        .where(Run.id.in_(wanted))
+    )
+    return {found: (code, started) for found, code, started in rows.all()}
+
+
+def _rendered_notification(
+    services: ServicesDep, row: Notification, run: tuple[str, datetime | None] | None, connection: str | None
+) -> NotificationOut:
+    """Render one notification row from the run and connection already read for it."""
+    pipeline, started = run if run is not None else (None, None)
     return NotificationOut(
         id=row.id,
         event=row.event,
         rule=row.rule_code,
         notifier=row.notifier,
-        connection=await _connection_code(session, row.connection_id),
+        connection=connection,
         subject=row.subject,
         status=row.status,
         attempt=row.attempt,
         max_attempts=services.settings.notification_max_attempts,
         run_id=row.run_id,
-        run_pipeline=pipeline.code if pipeline else None,
-        run_started_at=run.started_at if run else None,
+        run_pipeline=pipeline,
+        run_started_at=started,
         available_at=row.available_at,
         sent_at=row.sent_at,
         error=row.error,

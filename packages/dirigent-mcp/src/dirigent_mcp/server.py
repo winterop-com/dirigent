@@ -44,9 +44,11 @@ from dirigent_client import (
     DirigentError,
     ExampleOut,
     Importance,
+    NotFound,
     NotificationStatus,
     RunStatus,
     SourceEntry,
+    ValidationFailed,
 )
 from dirigent_client.resources.pipelines import parse_document
 from dirigent_client.schemas import ConnectionKindEntry
@@ -992,9 +994,12 @@ async def _every_attempt(dg: Dirigent, run_id: str) -> list[AttemptOut]:
 
 
 async def _attempt(dg: Dirigent, run_id: str, attempt_id: str) -> AttemptOut:
-    """Find one attempt of a run, refusing an id the run does not have."""
-    found = next((row for row in await _every_attempt(dg, run_id) if str(row.id) == attempt_id.strip()), None)
-    if found is None:
+    """Read one attempt of a run by its id, refusing an id the run does not have."""
+    try:
+        found = await dg.attempts.get(attempt_id.strip())
+    except (NotFound, ValidationFailed) as error:
+        raise ToolError(NO_ATTEMPT.render(run_id=run_id, attempt_id=attempt_id)) from error
+    if str(found.run_id) != run_id.strip():
         raise ToolError(NO_ATTEMPT.render(run_id=run_id, attempt_id=attempt_id))
     return found
 

@@ -22,6 +22,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel, SecretStr
+from sqlalchemy import event
 from sqlalchemy.exc import DBAPIError
 
 from dirigent_client.enums import AttemptStatus, LogLevel, RunItemStatus, RunStatus, TriggerKind, WorkerStatus
@@ -815,6 +816,26 @@ def test_the_queue_narrows_by_status_and_by_notifier(client: TestClient) -> None
     assert client.get(f"{PREFIX}/notifications", params={"status": "sent"}).json()["items"] == []
     assert len(client.get(f"{PREFIX}/notifications", params={"notifier": "log"}).json()["items"]) == 1
     assert client.get(f"{PREFIX}/notifications", params={"notifier": "slack"}).json()["items"] == []
+
+
+def test_a_page_of_the_queue_reads_its_connections_in_one_query(client: TestClient) -> None:
+    for index in range(5):
+        hook = {"code": f"hook-{index}", "kind": "webhook", "config": {"url": "https://ops.example.org/hooks"}}
+        assert client.post(f"{PREFIX}/connections", json=hook).status_code == 201
+        assert client.post(f"{PREFIX}/alert-rules/$test", json={"connection": f"hook-{index}"}).status_code == 202
+    engine = cast("FastAPI", client.app).state.engine.sync_engine
+    statements: list[str] = []
+
+    def seen(conn: object, cursor: object, statement: str, *args: object) -> None:
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", seen)
+    try:
+        listed = client.get(f"{PREFIX}/notifications").json()["items"]
+    finally:
+        event.remove(engine, "before_cursor_execute", seen)
+    assert sorted(row["connection"] for row in listed) == [f"hook-{index}" for index in range(5)]
+    assert len([one for one in statements if "FROM connections" in one]) == 1
 
 
 def test_checking_a_connection_reports_rather_than_raises(client: TestClient) -> None:
@@ -3913,3 +3934,68 @@ def test_an_artifact_is_streamed_through_the_configured_storage_connection(
         assert response.status_code == 200
         assert response.text == "# a stored report\n"
         assert opened == [STORAGE_CREDENTIAL], "the artifact was read through a backend no connection configured"
+
+
+def test_a_story_poll_reads_whole_only_the_attempts_that_moved(client: TestClient) -> None:
+    """A watcher of a large fan-out would otherwise hydrate every attempt's input and output twice a second."""
+    from dirigent_server.routes import runs as runs_route
+
+    run_id = started_run(client)
+    settings = cast("FastAPI", client.app).state.settings
+    principal = runs_route.Principal.model_validate(
+        {"user_id": uuid.uuid4(), "username": "nobody", "role": "admin", "via": None}
+    )
+
+    async def polls() -> tuple[int, int]:
+        engine = create_engine(settings)
+        sessions = create_session_factory(engine)
+        story_read = runs_route._story_read  # pyright: ignore[reportPrivateUsage]
+        stands = runs_route.principal_stands
+
+        async def standing(*_: object) -> bool:
+            return True
+
+        runs_route.principal_stands = standing  # type: ignore[assignment]
+        try:
+            first = await story_read(sessions, run_id, 0, None, principal, {})
+            assert first is not None
+            reported = {row.id: runs_route._fingerprint(row) for row in first[0]}  # pyright: ignore[reportPrivateUsage]
+            second = await story_read(sessions, run_id, 0, None, principal, reported)
+            assert second is not None
+        finally:
+            runs_route.principal_stands = stands
+            await engine.dispose()
+        return len(first[0]), len(second[0])
+
+    whole, again = asyncio.run(polls())
+    assert whole >= 1
+    assert again == 0
+
+
+def test_a_tail_of_a_deleted_run_ends(client: TestClient) -> None:
+    """A run deleted under a tail leaves nothing to wait for."""
+    from dirigent_server.routes import runs as runs_route
+
+    settings = cast("FastAPI", client.app).state.settings
+    principal = runs_route.Principal.model_validate(
+        {"user_id": uuid.uuid4(), "username": "nobody", "role": "admin", "via": None}
+    )
+
+    async def poll() -> bool:
+        engine = create_engine(settings)
+        sessions = create_session_factory(engine)
+        stands = runs_route.principal_stands
+
+        async def standing(*_: object) -> bool:
+            return True
+
+        runs_route.principal_stands = standing  # type: ignore[assignment]
+        try:
+            read = await runs_route._tail_read(sessions, uuid.uuid4(), 0, None, principal)  # pyright: ignore[reportPrivateUsage]
+        finally:
+            runs_route.principal_stands = stands
+            await engine.dispose()
+        assert read is not None
+        return read[1]
+
+    assert asyncio.run(poll()) is True

@@ -5,7 +5,7 @@ import time
 from collections.abc import AsyncGenerator, Generator, Mapping, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Final
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -738,7 +738,7 @@ async def _tail_read(
         run = await session.get(Run, run_id)
         if not await principal_stands(session, principal):
             return None
-        return page, run is not None and run.status in TERMINAL_RUN_STATUSES
+        return page, run is None or run.status in TERMINAL_RUN_STATUSES
 
 
 async def _tail(
@@ -751,7 +751,7 @@ async def _tail(
 ) -> AsyncGenerator[str]:
     """Stream a run's log entries as server-sent events until the run settles.
 
-    ``end`` says the run settled and there is nothing more to read. At the wall-clock limit,
+    ``end`` says the run settled, or was deleted, and there is nothing more to read. At the wall-clock limit,
     or when the credential it was opened with stops standing, the stream says ``expired``
     instead, which a client reopens from the last id it saw and is answered for afresh.
     """
@@ -801,8 +801,8 @@ async def read_events(
 ) -> StreamingResponse:
     """Stream one run's story: its attempts as they move, its log entries, and how it ended.
 
-    Each cycle reads the run's whole attempt grid, which is the read a polling client caused
-    once per poll; it is made once per watcher here and goes out as the states that changed.
+    Each cycle reads the observable columns of the run's attempt grid, and whole rows only for
+    the attempts whose state moved since the watcher was last told.
     """
     await _run_row(session, run_id)
     watcher = _claim(principal.user_id)
@@ -822,6 +822,19 @@ def _fingerprint(attempt: StepAttempt) -> Fingerprint:
     return (attempt.status, attempt.attempt, attempt.finished_at, attempt.waiting_message, attempt.waiting_progress)
 
 
+#: The columns a fingerprint is read from, without hydrating the attempt's input or output.
+FINGERPRINTED: Final = (
+    StepAttempt.status,
+    StepAttempt.attempt,
+    StepAttempt.finished_at,
+    StepAttempt.waiting_message,
+    StepAttempt.waiting_progress,
+)
+
+#: How many attempt ids one ``IN`` list carries, under every dialect's limit on bound parameters.
+ID_BATCH: Final = 500
+
+
 #: What a run looks like from outside: a change to any of it is news to a watcher.
 type RunFingerprint = tuple[RunStatus, datetime | None, datetime | None, str | None]
 
@@ -836,10 +849,20 @@ def _moment(when: datetime | None) -> datetime:
     return when if when is not None else datetime.min.replace(tzinfo=UTC)
 
 
-async def _attempt_rows(session: AsyncSession, run_id: UUID) -> list[StepAttempt]:
-    """Read every attempt of a run by id, which is the order they were created in."""
-    rows = await session.execute(sa.select(StepAttempt).where(StepAttempt.run_id == run_id).order_by(StepAttempt.id))
-    return list(rows.scalars())
+async def _moved_attempts(
+    session: AsyncSession, run_id: UUID, reported: Mapping[UUID, Fingerprint]
+) -> list[StepAttempt]:
+    """Read whole the attempts of a run whose fingerprint differs from what was reported, in id order."""
+    marks = await session.execute(
+        sa.select(StepAttempt.id, *FINGERPRINTED).where(StepAttempt.run_id == run_id).order_by(StepAttempt.id)
+    )
+    moved = [found for found, *seen in marks.all() if reported.get(found) != tuple(seen)]
+    rows: list[StepAttempt] = []
+    for start in range(0, len(moved), ID_BATCH):
+        batch = moved[start : start + ID_BATCH]
+        read = await session.execute(sa.select(StepAttempt).where(StepAttempt.id.in_(batch)))
+        rows += read.scalars()
+    return sorted(rows, key=lambda row: row.id)
 
 
 def _render_event(
@@ -872,6 +895,7 @@ async def _story_read(
     cursor: int,
     want_labels: bool | None,
     principal: Principal,
+    reported: Mapping[UUID, Fingerprint],
 ) -> (
     tuple[
         list[StepAttempt],
@@ -887,7 +911,8 @@ async def _story_read(
     See ``_tail_read`` for why.
 
     The run is rendered on every poll, not only once it has settled: a watcher learns that a
-    run started the same way it learns that one ended.
+    run started the same way it learns that one ended. The attempts are only those that moved
+    since ``reported``.
     """
     async with session_scope(sessions) as session:
         read_labels = None
@@ -896,8 +921,8 @@ async def _story_read(
                 item.id: (item.item_key.strip() or str(item.item_index), item.item_index)
                 for item in await items_in_order(session, run_id)
             }
-        attempts = await _attempt_rows(session, run_id)
-        spilled = await _spilled(session, run_id)
+        attempts = await _moved_attempts(session, run_id, reported)
+        spilled = await _spilled(session, run_id, [row.id for row in attempts]) if attempts else {}
         page = await _log_page(session, run_id, cursor, DEFAULT_LOG_PAGE, None)
         found = (
             await session.execute(
@@ -960,7 +985,8 @@ async def _story(
     be told again; the log cursor is the only position a reconnect can restore, and a client
     dedupes the replayed attempts by their own ids.
 
-    ``end`` says the run settled and follows the ``run`` frame. At the wall-clock limit, or when
+    ``end`` says the run settled and follows the ``run`` frame, or alone that the run was
+    deleted. At the wall-clock limit, or when
     the credential it was opened with stops standing, the stream says ``expired`` instead, which
     a client reopens from the last id it saw and is answered for afresh.
     """
@@ -978,15 +1004,20 @@ async def _story(
             changed = wakeups.settled_mark(run_id)
             # Shielded for the same reason _tail_read is: a disconnect lands between polls,
             # never inside a driver await holding the pooled connection.
-            read = await asyncio.shield(_story_read(sessions, run_id, cursor, None if loaded else True, principal))
+            read = await asyncio.shield(
+                _story_read(sessions, run_id, cursor, None if loaded else True, principal, dict(reported))
+            )
             if read is None:
                 break
             attempts, spilled, page, rendered, read_labels = read
+            if rendered is None:
+                yield "event: end\ndata: {}\n\n"
+                return
             if read_labels is not None:
                 labels = read_labels
                 loaded = True
-            settled = rendered is not None and rendered.status in TERMINAL_RUN_STATUSES
-            if rendered is not None and not settled and _run_fingerprint(rendered) != reported_run:
+            settled = rendered.status in TERMINAL_RUN_STATUSES
+            if not settled and _run_fingerprint(rendered) != reported_run:
                 reported_run = _run_fingerprint(rendered)
                 yield f"event: run\ndata: {rendered.model_dump_json()}\n\n"
                 spoke = time.monotonic()
@@ -1015,7 +1046,7 @@ async def _story(
             if page.next is not None:
                 interval = FOLLOW_INTERVAL_SECONDS
                 continue
-            if settled and rendered is not None:
+            if settled:
                 # One more pass after the run settles, for the lines a block wrote on its way out.
                 if drained:
                     yield f"event: run\ndata: {rendered.model_dump_json()}\n\n"
