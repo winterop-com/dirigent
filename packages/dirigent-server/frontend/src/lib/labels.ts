@@ -1364,7 +1364,7 @@ const refused = {
         secrets_withheld:
             '{fields} {verb} secret, and a connection created awaiting its secrets carries none. Leave {pronoun} out, and set {pronoun} afterwards.',
         redacted_secret:
-            '{fields} came back as {redacted}, which is what a read shows for a secret that is set, not a secret. Send the real value, or leave the field out to keep what is stored.',
+            '{fields} came back as {redacted}, which is what a read shows for a secret that is set, and nothing is stored behind it. Send the real value, or leave the field out to set none.',
         stats_window_too_long: 'A stats window is at most {maximum}, and {since} is longer.',
         too_many_logins: 'Too many login attempts. This instance accepts {per_minute} a minute.',
         too_many_tails: 'You already have {maximum} streams open on this server.',
