@@ -1935,7 +1935,7 @@ test("a long stored shape leaves the row's own controls on screen", async ({ pag
 async function sourcePaneOf(page: Page): Promise<Locator> {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/$edit`)
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
     const panel = page.locator('aside')
     await panel.getByRole('tab', { name: LABELS.word.source }).click()
@@ -1979,7 +1979,7 @@ test("the palette's Validate is refused with the toolbar's reason while the sour
 async function editOneField(page: Page): Promise<void> {
     await signIn(page)
     await applyExample(page.request, DOCUMENT_EXAMPLE)
-    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/edit`)
+    await page.goto(`/pipelines/${DOCUMENT_PIPELINE}/$edit`)
     await page.locator('.react-flow__node').getByText('parse', { exact: true }).click()
     await page.locator('aside').getByLabel('to', { exact: true }).fill('yaml')
     await expect(page.getByText(ONE_EDIT, { exact: true })).toBeVisible()
@@ -1996,7 +1996,7 @@ test('the topbar counts unapplied edits, and a move away asks before it discards
     const asked = page.getByRole('dialog', { name: LABELS.editor.topbar.leave.question })
     await expect(asked.getByText(leave.question, { exact: true })).toBeVisible()
     await asked.getByRole('button', { name: leave.keep, exact: true }).click()
-    await expect(page).toHaveURL(new RegExp(`/pipelines/${DOCUMENT_PIPELINE}/edit$`))
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${DOCUMENT_PIPELINE}/\\$edit$`))
     await expect(page.getByText(ONE_EDIT, { exact: true })).toBeVisible()
 
     await rail.click()
@@ -2016,6 +2016,6 @@ test('a session that expires under the editor keeps its edits through signing in
     await page.getByLabel(LABELS.word.password, { exact: true }).fill(DEV_PASSWORD)
     await page.getByRole('button', { name: LABELS.action.sign_in.verb }).click()
 
-    await expect(page).toHaveURL(new RegExp(`/pipelines/${DOCUMENT_PIPELINE}/edit$`))
+    await expect(page).toHaveURL(new RegExp(`/pipelines/${DOCUMENT_PIPELINE}/\\$edit$`))
     await expect(page.getByText(ONE_EDIT, { exact: true })).toBeVisible()
 })
