@@ -177,10 +177,10 @@ test('escape on the target picker leaves the box saying what is chosen', async (
 test.describe('on a phone', () => {
     test.use({ viewport: { width: 390, height: 844 } })
 
-    test('the four events wrap to two rows, and nothing scrolls sideways', async ({ page }) => {
+    test('the five events wrap two to a row, and nothing scrolls sideways', async ({ page }) => {
         await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
         const events = page.getByRole('group', { name: LABELS.word.event }).getByRole('button')
-        await expect(events).toHaveCount(4)
+        await expect(events).toHaveCount(5)
 
         const read = () =>
             events.evaluateAll((found) =>
@@ -195,7 +195,7 @@ test.describe('on a phone', () => {
         await expect
             .poll(async () => Math.min(...(await read()).map((box) => box.height)))
             .toBeGreaterThanOrEqual(42)
-        expect(new Set((await read()).map((box) => box.top)).size).toBe(2)
+        expect(new Set((await read()).map((box) => box.top)).size).toBe(3)
 
         const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
         expect(sideways).toBeLessThanOrEqual(0)
