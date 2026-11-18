@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { Surface } from '@winterop-com/sokkel-ui/Section'
 import { SettingsDialog as LibrarySettingsDialog } from '@winterop-com/sokkel-ui/SettingsDialog'
-import { themeSettings } from '@winterop-com/sokkel-ui/ThemePicker'
+import { useThemeSettings } from '@winterop-com/sokkel-ui/ThemePicker'
 import { CORNERS, TYPEFACES } from '@winterop-com/sokkel-ui/lib/appearance'
 import { Refusal } from '@/components/Refusal'
 import { LINK_WORDS, SECRET_FIELD_WORDS, SETTINGS_WORDS } from '@/lib/library-words'
@@ -47,7 +47,7 @@ export const SETTINGS_TITLE = LABELS.settings.title
 
 /**
  * sokkel-ui's settings dialog over the rows `lib/settings` holds, each with the control this file
- * puts on it by the row's id, and the Appearance section, which is sokkel-ui's `themeSettings`
+ * puts on it by the row's id, and the Appearance section, which is sokkel-ui's `useThemeSettings`
  * whole. Every control writes a store the screens read: Appearance writes sokkel-ui's appearance,
  * Timezone writes `lib/times`, the log and editor rows `lib/preferences`.
  */
@@ -67,7 +67,7 @@ export function SettingsDialog({
     const [changing, setChanging] = useState(false)
     const info = useRead(useCallback(() => readSystemInfo(), []))
     const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
-    const appearance = themeSettings({
+    const appearance = useThemeSettings({
         value: settings,
         onChange: setSettings,
         themes: APPEARANCE_THEMES,

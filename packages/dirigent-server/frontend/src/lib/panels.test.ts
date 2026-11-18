@@ -1,10 +1,9 @@
+import { RAIL_SIZE } from '@winterop-com/sokkel-ui/Rail'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import {
     PANEL_MAX_WIDTH,
     PANEL_MIN_WIDTH,
-    RAIL_MAX_WIDTH,
-    RAIL_MIN_WIDTH,
     clampPanelWidth,
     clampRailWidth,
     closePanel,
@@ -45,15 +44,15 @@ describe('the right panel width', () => {
 })
 
 describe('the rail width', () => {
-    test('is held between what its words need and what the screen can spare', () => {
-        expect(clampRailWidth(200.4)).toBe(200)
-        expect(clampRailWidth(40)).toBe(RAIL_MIN_WIDTH)
-        expect(clampRailWidth(4000)).toBe(RAIL_MAX_WIDTH)
+    test("is held inside the rail's own range", () => {
+        expect(clampRailWidth(280.4)).toBe(280)
+        expect(clampRailWidth(40)).toBe(RAIL_SIZE.min)
+        expect(clampRailWidth(4000)).toBe(RAIL_SIZE.max)
     })
 
     test('is set clamped', () => {
         setRailWidth(9000)
-        expect(railWidth.get()).toBe(RAIL_MAX_WIDTH)
+        expect(railWidth.get()).toBe(RAIL_SIZE.max)
     })
 })
 

@@ -7,7 +7,7 @@
  *
  * The shortcut rows are derived from `lib/shortcuts`, which is why building the rows needs to know
  * what kind of keyboard this is. The Appearance category holds no row of its own: its settings are
- * sokkel-ui's `themeSettings`, handed to `settingsGroups` whole.
+ * sokkel-ui's `useThemeSettings`, handed to `settingsGroups` whole.
  */
 
 import type { Setting, SettingsGroup } from '@winterop-com/sokkel-ui/SettingsDialog'

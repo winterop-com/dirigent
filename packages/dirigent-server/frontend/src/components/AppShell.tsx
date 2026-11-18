@@ -52,9 +52,6 @@ import {
     PANEL_DEFAULT_WIDTH,
     PANEL_MAX_WIDTH,
     PANEL_MIN_WIDTH,
-    RAIL_MAX_WIDTH,
-    RAIL_MIN_WIDTH,
-    RAIL_WIDTH,
     panelOpen,
     panelSheet,
     panelTab,
@@ -320,9 +317,6 @@ export function AppShell() {
                     onCollapsedChange={setRailCollapsed}
                     size={width}
                     onSizeChange={setRailWidth}
-                    minSize={RAIL_MIN_WIDTH}
-                    maxSize={RAIL_MAX_WIDTH}
-                    defaultSize={RAIL_WIDTH}
                     words={RAIL_WORDS}
                     foot={
                         identity === null ? undefined : (
