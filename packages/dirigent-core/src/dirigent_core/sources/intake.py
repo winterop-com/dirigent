@@ -30,6 +30,7 @@ from dirigent_client.enums import EntryVia, InputOutcome, TriggerKind
 from dirigent_client.schemas import InputAccepted
 from dirigent_common import JsonMap
 from dirigent_common.durations import format_duration
+from dirigent_common.hosts import counted_as
 from dirigent_core import telemetry, wakeups
 from dirigent_core.auth import hash_token
 from dirigent_core.engine.definition import load_definition
@@ -249,7 +250,8 @@ class Intake:
         limit = settings.source_intake_rate_per_minute
         found = (await self.routes(session)).find(call.method, call.path)
         route = found.route.template if isinstance(found, Matched) else ""
-        if not self.instance_bucket.allow(f"{call.caller} {call.method} {route}", per_minute=limit):
+        counted = counted_as(call.caller) if call.caller is not None else None
+        if not self.instance_bucket.allow(f"{counted} {call.method} {route}", per_minute=limit):
             return _counted(Refusal.of(INTAKE_RATE, status=429, headers=retry_after(limit), per_minute=limit))
         called = endpoint_path(settings, call.path)
         if found is None:

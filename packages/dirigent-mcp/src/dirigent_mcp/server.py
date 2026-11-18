@@ -155,8 +155,10 @@ document stops declaring them, so plan first and keep every source and schedule 
 edit_pipeline changes a stored pipeline by exact replacements in the text export_pipeline answers,
 without sending the whole document again.
 A run is started with run_pipeline, read with get_run, run_logs and run_attempts, and run again with rerun_run.
-A secret never passes through this server: create_connection stores a connection's settings
+A connection's secret never passes through this server: create_connection stores its settings
 alone, and an admin supplies its secrets with the command it answers before anything uses it.
+An endpoint source's own credential does: apply_document and edit_pipeline answer the token or
+signing secret they mint for a new source, and rotate_source_token the new one, once each.
 run_attempts shows each output's size and opening characters; get_attempt_output reads one output,
 or one part of it by JSON pointer. get_run_report reads the report document a run rendered, and
 get_run_profile where its wall clock went. Every answer is bounded in size: one that would be

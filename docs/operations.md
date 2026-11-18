@@ -1579,6 +1579,10 @@ See [security](security.md#rotation-honestly).
 the whole instance, so any operator can run any pipeline and read any run.
 See [security](security.md#what-authorizes).
 
+**MCP sessions are per process.** A `/mcp` session is held in the memory of the replica that
+opened it, and another replica answers its `Mcp-Session-Id` with 404. Behind more than one API
+replica, route `/mcp` sticky on that header, or send it to one replica.
+
 **Rate limiter buckets are per process.** The endpoint intake limits, the login limit and the
 `/mcp` limit live in process memory, so behind N API replicas the effective limit is N times the configured
 one. This is a deliberate trade -- the alternative is a database write per refusal, which is

@@ -193,3 +193,9 @@ def test_an_operator_is_still_refused_an_admin_route(operator: TestClient) -> No
     response = operator.post(f"{PREFIX}/tokens", json={"name": "mine"})
     assert response.status_code == 403
     assert "not permitted for your role" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("scheme", ["Bearer", "bearer", "BEARER"])
+def test_the_bearer_scheme_is_read_in_any_case(anonymous: TestClient, admin_token: str, scheme: str) -> None:
+    response = anonymous.get("/api/v1/auth/me", headers={"Authorization": f"{scheme} {admin_token}"})
+    assert response.status_code == 200, response.text

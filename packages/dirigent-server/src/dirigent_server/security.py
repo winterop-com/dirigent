@@ -83,10 +83,15 @@ LOGIN_PATH = "/auth/login"
 CROSS_SITE = CROSS_SITE_MESSAGE.render()
 
 
+def _bears(header: str | None) -> bool:
+    """Whether an Authorization header names the bearer scheme, in any case."""
+    return header is not None and header[: len(BEARER_PREFIX)].lower() == BEARER_PREFIX.lower()
+
+
 def presented_secret(request: Request) -> str | None:
     """Read the credential from the request: an Authorization header, or the session cookie."""
     header = request.headers.get("authorization")
-    if header and header.startswith(BEARER_PREFIX):
+    if header is not None and _bears(header):
         return header[len(BEARER_PREFIX) :].strip() or None
     return request.cookies.get(SESSION_COOKIE)
 
@@ -157,8 +162,7 @@ def spends_the_cookie(request: Request, api_prefix: str) -> bool:
         return False
     if request.url.path == f"{api_prefix.rstrip('/')}{LOGIN_PATH}":
         return True
-    header = request.headers.get("authorization")
-    if header and header.startswith(BEARER_PREFIX):
+    if _bears(request.headers.get("authorization")):
         return False
     return SESSION_COOKIE in request.cookies
 
@@ -236,7 +240,8 @@ def _stamp(headers: MutableHeaders, path: str) -> None:
     """Add the default security headers for this path, keeping any a response set itself."""
     for name, value in DEFAULT_HEADERS:
         headers.setdefault(name, value)
-    headers.setdefault("content-security-policy", DOCS_POLICY if path.startswith(DOCS_PATHS) else UI_POLICY)
+    docs = any(path == page or path.startswith(f"{page}/") for page in DOCS_PATHS)
+    headers.setdefault("content-security-policy", DOCS_POLICY if docs else UI_POLICY)
 
 
 class SecurityHeaders:
@@ -305,7 +310,9 @@ class LoopbackHostsOnly:
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Pass one request through, or answer 421 without reading any of it."""
-        if scope["type"] != "http" or all(_names_loopback(host) for host in Headers(scope=scope).getlist("host")):
+        if scope["type"] != "http" or all(
+            _names_loopback(host) for host in Headers(scope=scope).getlist("host") or [""]
+        ):
             await self.app(scope, receive, send)
             return
         problem = render(

@@ -72,3 +72,26 @@ def test_two_host_headers_are_judged_together(guarded: TestClient) -> None:
 def test_a_server_not_asked_to_is_served_under_any_name(settings: Settings, admin_token: str) -> None:
     with TestClient(create_app(settings, scheduler=False)) as client:
         assert client.get("/health", headers={"host": "dirigent.example.org"}).status_code == 200
+
+
+async def test_a_request_naming_no_host_is_refused() -> None:
+    """An absent Host header names no loopback host either."""
+    from dirigent_server.security import LoopbackHostsOnly
+
+    reached: list[bool] = []
+
+    async def app(scope: object, receive: object, send: object) -> None:
+        reached.append(True)
+
+    sent: list[dict[str, object]] = []
+
+    async def receive() -> dict[str, object]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict[str, object]) -> None:
+        sent.append(message)
+
+    scope: dict[str, object] = {"type": "http", "method": "GET", "path": "/health", "headers": [], "query_string": b""}
+    await LoopbackHostsOnly(app)(scope, receive, send)  # type: ignore[arg-type]
+    assert reached == []
+    assert sent[0]["status"] == 421
