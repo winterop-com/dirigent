@@ -25,10 +25,11 @@ import threading
 import weakref
 from collections.abc import AsyncGenerator, Iterable
 from datetime import datetime
-from typing import Any, Final, NamedTuple
+from typing import Any, Final
 from uuid import UUID
 
 import sqlalchemy as sa
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import Session, SessionTransaction, UOWTransaction
@@ -73,8 +74,10 @@ class _Signal:
         self.waiters: set[asyncio.Future[None]] = set()
 
 
-class Mark(NamedTuple):
+class Mark(BaseModel):
     """A topic's position, taken before a read, so a publish during the read is not lost."""
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     signal: _Signal
     generation: int
@@ -106,7 +109,7 @@ class Hub:
             if signal is None:
                 signal = _Signal()
                 self._signals[(channel, key)] = signal
-            return Mark(signal, signal.generation)
+            return Mark(signal=signal, generation=signal.generation)
 
     async def wait(self, mark: Mark, *, timeout: float) -> bool:
         """Wait until the topic moves past the mark, or the timeout passes; True if it moved."""

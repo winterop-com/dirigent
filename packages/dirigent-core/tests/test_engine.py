@@ -2336,6 +2336,53 @@ async def test_stuck_runs_are_detected(engine: Engine, sessions: Any, services: 
     assert stuck == [run.id]
 
 
+async def test_a_run_parked_on_a_long_poll_or_backoff_is_not_stuck_until_its_look_is_overdue(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    """Its last change is old, but the look it is owed lies ahead, so nothing has stopped."""
+    definition = PipelineDefinition(code="parked", steps=steps(only=StepDefinition(block="test.echo")))
+    run = await start(sessions, services, definition)
+    unit = await engine.claim()
+    assert unit is not None
+    moment = utcnow()
+    long_ago = moment - timedelta(hours=3)
+
+    async def park(**values: Any) -> list[UUID]:
+        async with session_scope(sessions) as session:
+            await session.execute(
+                sa.update(StepAttempt)
+                .where(StepAttempt.id == unit.attempt_id)
+                .values(updated_at=long_ago, lease_owner=None, lease_token=None, lease_expires_at=None, **values)
+            )
+        async with sessions() as session:
+            return await detect_stuck_runs(session, after=timedelta(hours=1), now=moment)
+
+    assert await park(status=AttemptStatus.WAITING, next_poll_at=moment + timedelta(hours=1)) == []
+    assert await park(status=AttemptStatus.QUEUED, available_at=moment + timedelta(minutes=30)) == []
+    assert await park(status=AttemptStatus.WAITING, next_poll_at=moment - timedelta(hours=2)) == [run.id]
+    assert await park(status=AttemptStatus.QUEUED, available_at=moment - timedelta(hours=2)) == [run.id]
+
+
+async def test_a_waiting_attempt_logs_at_most_its_limit_over_every_call(
+    sessions: async_sessionmaker[AsyncSession], settings: Settings, host: PluginHost
+) -> None:
+    """The limit is per attempt, so a sensor poked a thousand times is held by it too."""
+    services = EngineServices.build(settings.model_copy(update={"log_entries_per_attempt": 5}), host)
+    engine = Engine(sessions, services, owner="worker-under-test")
+    definition = PipelineDefinition(
+        code="chatty-sensor",
+        steps=steps(wait=StepDefinition(block="test.tick", config={"ready_after": 6, "logs": 2, "key": "chatty"})),
+    )
+    run = await start(sessions, services, definition)
+    await drain(engine)
+
+    entries = [entry for entry in await logs_of(sessions, run.id) if entry.message.startswith("poke ")]
+    [attempt] = await attempts_of(sessions, run.id)
+    assert attempt.status is AttemptStatus.SUCCEEDED
+    assert len(entries) == 5
+    assert attempt.logged_entries == 6, "five lines and the one warning that the rest were dropped"
+
+
 def _after_lease(services: EngineServices) -> datetime:
     """A moment far enough in the future that every lease this test took has expired."""
     return utcnow() + services.settings.lease + timedelta(minutes=1)
@@ -2819,6 +2866,24 @@ async def test_a_sensor_keeps_the_cadence_it_was_given(engine: Engine, sessions:
     )
     run = await start(sessions, services, definition)
     assert await parked_intervals(engine, sessions, run.id, cycles=4) == [timedelta(seconds=30)] * 4
+
+
+async def test_a_sensor_asking_for_its_next_poke_in_zero_time_is_due_at_once(
+    engine: Engine, sessions: Any, services: EngineServices
+) -> None:
+    """Zero is an answer, not a missing one: the step's cadence is for a poke that names none."""
+    definition = PipelineDefinition(
+        code="eager-sensor",
+        steps=steps(
+            gate=StepDefinition(
+                block="test.tick",
+                poll=timedelta(seconds=30),
+                config={"ready_after": 5, "key": "eager", "poll_hint": "PT0S"},
+            )
+        ),
+    )
+    run = await start(sessions, services, definition)
+    assert await parked_intervals(engine, sessions, run.id, cycles=2) == [timedelta(0)] * 2
 
 
 async def test_cancelling_between_the_handle_and_the_park_still_tells_the_remote(

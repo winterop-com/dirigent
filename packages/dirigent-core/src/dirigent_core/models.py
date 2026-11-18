@@ -369,6 +369,8 @@ class StepAttempt(Entity):
 
     gone_probes: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
     poke_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    logged_entries: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0, server_default=sa.text("0"))
+    """How many log entries this attempt has stored over all its calls, held to ``log_entries_per_attempt``."""
 
     waiting_message: Mapped[str | None] = mapped_column(SaidString(WAITING_MESSAGE_LENGTH))
     """What the last probe or poke said it was seeing, while the attempt waits."""

@@ -991,6 +991,7 @@ def upgrade() -> None:
         ),
         sa.Column("gone_probes", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("poke_count", sa.Integer(), server_default=sa.text("0"), nullable=False),
+        sa.Column("logged_entries", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("waiting_message", sa.String(length=500), nullable=True),
         sa.Column("waiting_progress", sa.Float(), nullable=True),
         sa.Column("idempotency_key", sa.String(length=400), nullable=True),

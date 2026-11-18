@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from structlog.testing import capture_logs
 
 from dirigent_client.enums import (
     AlertEvent,
@@ -2276,3 +2277,24 @@ async def test_runs_of_one_pipeline_settling_together_raise_one_throttled_alert(
     async with pg_sessions() as session:
         raised = await session.execute(sa.select(sa.func.count()).select_from(Notification))
         assert raised.scalar_one() == 1
+
+
+async def test_a_worker_whose_clock_stands_off_the_databases_says_so(
+    pg_sessions: async_sessionmaker[AsyncSession], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A lease one host writes is judged expired by another host's clock."""
+    async with session_scope(pg_sessions) as session:
+        level = await recovery.warn_on_clock_skew(session, worker="in-step")
+    assert level is not None
+    assert abs(level) < recovery.CLOCK_SKEW_TOLERANCE
+
+    ahead = utcnow() + timedelta(minutes=2)
+    monkeypatch.setattr(recovery, "utcnow", lambda: ahead)
+    with capture_logs() as logs:
+        async with session_scope(pg_sessions) as session:
+            skew = await recovery.warn_on_clock_skew(session, worker="ahead")
+    assert skew is not None
+    assert skew > recovery.CLOCK_SKEW_TOLERANCE
+    [warned] = [entry for entry in logs if entry.get("worker") == "ahead"]
+    assert warned["log_level"] == "warning"
+    assert warned["skew_ms"] > 100_000

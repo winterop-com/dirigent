@@ -76,8 +76,9 @@ class ClaimedUnit(BaseModel):
     poke_cursor: JsonMap | None = None
     """The cursor the last committed poke returned, handed to the next one."""
 
-    deadline_at: datetime | None = None
     gone_probes: int = 0
+    logged_entries: int = 0
+    """How many log entries the attempt's earlier calls stored, which this call's buffer counts on from."""
 
     @property
     def log_fields(self) -> LogFields:

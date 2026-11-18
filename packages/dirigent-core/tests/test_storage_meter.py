@@ -73,6 +73,25 @@ async def test_a_meter_takes_a_grant_and_hands_back_what_it_did_not_write(
     assert await counts(sessions, run.id) == (30, 30)
 
 
+async def test_a_hand_back_the_attempt_is_cancelled_out_of_still_lands(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A worker abandoning the attempt cancels it inside ``settle``, between zeroing and handing back."""
+    run = await start(sessions, services, "abandoned")
+    meter = StorageMeter(sessions, run.id, 4 * GRANT)
+    await meter.take(10)
+
+    settling = asyncio.create_task(meter.settle())
+    await asyncio.sleep(0)
+    settling.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await settling
+
+    async with asyncio.timeout(5):
+        while await counts(sessions, run.id) != (10, 10):
+            await asyncio.sleep(0.01)
+
+
 async def test_a_meter_refuses_every_write_after_the_one_it_refused(
     sessions: async_sessionmaker[AsyncSession], services: EngineServices
 ) -> None:

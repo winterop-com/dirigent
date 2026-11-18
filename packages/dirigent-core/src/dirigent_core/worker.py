@@ -11,10 +11,10 @@ import signal
 import socket
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import timedelta
-from typing import NamedTuple
 from uuid import UUID
 
 import sqlalchemy as sa
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import AttemptStatus, WorkerStatus
@@ -28,6 +28,7 @@ from dirigent_core.alerting import (
 )
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
+from dirigent_core.engine import recovery
 from dirigent_core.engine.claim import ClaimedUnit
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.recovery import detect_stuck_runs, reap_workers, sweep_leases
@@ -44,13 +45,15 @@ GRACEFUL_STOP_SECONDS = 5.0
 _logger = get_logger("worker")
 
 
-class Chore(NamedTuple):
+class Chore(BaseModel):
     """One periodic job a worker runs beside the sweeper, on a cadence of its own.
 
     The worker owns the loop -- its cadence, its halt flag and its failure handling -- and
     knows nothing about what the job does. A chore that raises is logged and tried again on
     its next tick, exactly as the sweeper is.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     name: str
     interval: timedelta
@@ -398,6 +401,7 @@ class Worker:
             if row is None:
                 row = WorkerRow(name=self.name, hostname=socket.gethostname(), version=_version())
                 session.add(row)
+                await recovery.warn_on_clock_skew(session, worker=self.name)
             row.status = status
             row.version = _version()
             row.plugins = _plugin_counts(catalog)

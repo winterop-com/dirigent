@@ -12,6 +12,7 @@ cannot both pass a quota only one of them fits under.
 """
 
 import asyncio
+import contextlib
 from typing import Any, Final
 from uuid import UUID
 
@@ -70,6 +71,7 @@ class StorageMeter:
         self.quota = quota
         self._root: UUID | None = None
         self._credit = 0
+        self._granting: asyncio.Future[int] | None = None
         self._lock = asyncio.Lock()
         self.refusal: Failure | None = None
 
@@ -83,17 +85,33 @@ class StorageMeter:
             if size <= self._credit:
                 self._credit -= size
                 return
-            needed = size - self._credit
-            granted = await self._reserve(max(needed, GRANT))
-            if not granted and needed < GRANT:
-                granted = await self._reserve(needed)
-            if not granted:
+            self._granting = asyncio.ensure_future(self._grant(size - self._credit))
+            if not await asyncio.shield(self._granting):
                 self.refusal = await self._refused(size)
                 raise _raised(self.refusal)
-            self._credit += granted - size
+            self._credit -= size
+
+    async def _grant(self, needed: int) -> int:
+        """Reserve a grant covering ``needed`` and hold it as credit, and say how much was reserved."""
+        granted = await self._reserve(max(needed, GRANT))
+        if not granted and needed < GRANT:
+            granted = await self._reserve(needed)
+        self._credit += granted
+        return granted
 
     async def settle(self) -> None:
-        """Hand back what was reserved and not written, so the counts say what was stored."""
+        """Hand back what was reserved and not written, so the counts say what was stored.
+
+        The hand-back runs to its end when the attempt is cancelled out of it, and waits for a
+        grant the attempt was cancelled out of, so no reserved byte stays counted.
+        """
+        await asyncio.shield(self._settle())
+
+    async def _settle(self) -> None:
+        """Wait for a grant still landing, then hand back every unwritten byte reserved."""
+        if self._granting is not None:
+            with contextlib.suppress(Exception):
+                await self._granting
         async with self._lock:
             unused, self._credit = self._credit, 0
         if unused:

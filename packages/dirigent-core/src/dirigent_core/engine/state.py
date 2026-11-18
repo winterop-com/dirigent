@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Final, NamedTuple, cast
+from typing import Final, cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -581,8 +581,10 @@ async def _settle_items(
             item.failing_step = step_name if outcome is StepOutcome.FAILED else None
 
 
-class StepCounts(NamedTuple):
+class StepCounts(BaseModel):
     """One step's attempts read as counts: how many there were, and what the newest amount to."""
+
+    model_config = ConfigDict(frozen=True)
 
     total: int
     latest: tuple[StepOutcome, ...]
@@ -631,7 +633,7 @@ async def attempt_counts(session: AsyncSession, run_id: UUID) -> dict[str, StepC
     )
     counts: dict[str, StepCounts] = {}
     for name, attempt_status, total, newest, started, finished in rows.all():
-        held = counts.get(name, StepCounts(0, (), None, None))
+        held = counts.get(name, StepCounts(total=0, latest=(), started_at=None, finished_at=None))
         counts[name] = StepCounts(
             total=held.total + total,
             latest=held.latest + (ATTEMPT_OUTCOME[attempt_status],) * newest,

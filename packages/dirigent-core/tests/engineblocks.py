@@ -493,6 +493,9 @@ class TickConfig(BaseModel):
     opens: str | None = None
     """A secret the sensor opens before it pokes, as a connection is opened."""
 
+    logs: int = 0
+    """How many lines each poke logs."""
+
 
 class TickOutput(BaseModel):
     """What the tick sensor observed."""
@@ -518,6 +521,8 @@ class TickSensor(Sensor[TickConfig, TickOutput]):
         """Observe once, read-only, and never sleep."""
         seen = TickSensor.pokes.get(config.key, 0) + 1
         TickSensor.pokes[config.key] = seen
+        for line in range(config.logs):
+            ctx.log.info(f"poke {seen} line {line}")
         if config.opens is not None:
             cast("Any", ctx).opened_secrets.update(spellings(config.opens))
         if config.raises:
