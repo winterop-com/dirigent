@@ -581,7 +581,13 @@ locks the attempt and then the run, the outcome the run and then the attempts, s
 can still close a cycle between them: both transactions re-read everything they decide on, and
 the one PostgreSQL aborts to break a deadlock is run again. An attempt's buffered log is drained
 before that retry rather than inside it, since draining empties the buffer and a second pass
-would commit the outcome with no log. The claim also routes: a document declares
+would commit the outcome with no log. A pipeline's row lock serializes its concurrency slot,
+and every transaction that takes it with a run's takes it first: creating a run, cancelling,
+retrying and resuming one. The outcome that settles a run already holds the run's lock when it
+frees the slot, so it takes the pipeline lock only if it is free, and otherwise releases the
+held run in a transaction of its own once the outcome committed; the workers' sweep releases
+any run a process that stopped in between left held behind a free slot. No remote is called and no
+lock waited on inside a transaction holding a run's lock. The claim also routes: a document declares
 `requires.workers`, the run pins that list at creation, and
 a worker claims only what its own tags cover -- `jsonb` containment on PostgreSQL, a
 `json_each` walk on SQLite. A run requiring nothing is claimable by anyone.
@@ -639,10 +645,14 @@ adopting it would land a retry on the outcome it was meant to replace. An attemp
 as failed or skipped while its remote job may still run -- a probe or fetch raised or timed
 out, a deadline passed, the claim refused it -- is marked as owing its remote a cancel in the
 transaction that settles it; only the remote's own answer, a `FAILED` probe or the lost-job
-policy below, settles without one. Once that commits, the worker calls the operator's `cancel`,
-outside any transaction or lock and for at most thirty seconds; a refusal or a silence stays
-marked, and the workers' sweep tells it again for ten minutes, whether or not the run is
-cancelled meanwhile. A retry of the step is not claimed
+policy below, settles without one. Cancelling a run marks each of its attempts holding a handle
+the same way. Once that commits, the process that settled or cancelled it calls the operator's
+`cancel`, outside any transaction or lock and for at most thirty seconds; a refusal or a
+silence stays marked, and the workers' sweep tells it again for ten minutes, whether or not
+the run is cancelled meanwhile, reading the marks in one short transaction and calling each
+remote after it. A run cancelled by a concurrency policy as another is created leaves its
+remotes to that sweep. The sweep runs each of its chores in a transaction of its own, so one
+that raises undoes none of the others. A retry of the step is not claimed
 while an earlier attempt still owes a cancel, so a late cancel never lands on the retry's own
 job. The guarantee says
 nothing about a synchronous operator that changed the world and died before its outcome

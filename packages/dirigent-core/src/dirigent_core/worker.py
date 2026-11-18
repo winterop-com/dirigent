@@ -31,7 +31,7 @@ from dirigent_core.database import session_scope
 from dirigent_core.engine.claim import ClaimedUnit
 from dirigent_core.engine.executor import Engine
 from dirigent_core.engine.recovery import detect_stuck_runs, reap_workers, sweep_leases
-from dirigent_core.engine.runs import retry_remote_cancels
+from dirigent_core.engine.runs import release_free_slots, retry_remote_cancels
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.logging import get_logger, log_context
 from dirigent_core.models import StepAttempt, utcnow
@@ -272,29 +272,57 @@ class Worker:
             await self._pause(self.settings.sweep_interval.total_seconds())
             if self._halting.is_set():
                 return
-            try:
-                async with self.engine.owed_cancels(), session_scope(self.sessions) as session:
-                    recovered = await sweep_leases(session)
-                    overdue = await self.engine.settle_overdue_deadlines(session)
-                    stuck = await detect_stuck_runs(session, after=self.settings.stuck_run)
-                    await raise_for_stuck(session, self.services, stuck)
-                    await recover_notifications(session)
-                    await fail_unsendable_notifications(session, waited=self.settings.stale_worker)
-                    told = await retry_remote_cancels(session, self.services, self.tags)
-                    # This worker's own row was refreshed by the heartbeat well inside the
-                    # age below, so a sweeper never reaps the process running it.
-                    reaped = await reap_workers(session, older_than=self.settings.stale_worker)
-                    await self._observe_levels(session)
-                if recovered:
-                    _logger.info("recovered abandoned attempts", worker=self.name, count=len(recovered))
-                if overdue:
-                    _logger.info("settled attempts past their deadline", worker=self.name, count=len(overdue))
-                if reaped:
-                    _logger.info("reaped worker registry rows", worker=self.name, count=len(reaped))
-                if told:
-                    _logger.info("told the remote about a cancel", worker=self.name, count=told)
-            except Exception as error:  # the sweeper retries on its next tick
-                _logger.warning("sweep failed", worker=self.name, error=str(error))
+            await self._sweep()
+
+    async def _sweep(self) -> None:
+        """Run each chore of one sweep in a transaction of its own, so one that raises undoes no other."""
+        async with self.engine.after_commit():
+            recovered = await self._chore_once("lease recovery", sweep_leases)
+            overdue = await self._chore_once("deadlines", self.engine.settle_overdue_deadlines)
+            await self._chore_once("stuck runs", self._raise_for_stuck)
+            await self._chore_once("notification recovery", recover_notifications)
+            await self._chore_once(
+                "unsendable notifications",
+                lambda session: fail_unsendable_notifications(session, waited=self.settings.stale_worker),
+            )
+            released = await self._chore_once(
+                "held run release", lambda session: release_free_slots(session, self.services)
+            )
+            # This worker's own row was refreshed by the heartbeat well inside the age below,
+            # so a sweeper never reaps the process running it.
+            reaped = await self._chore_once(
+                "worker reaping", lambda session: reap_workers(session, older_than=self.settings.stale_worker)
+            )
+            await self._chore_once("queue levels", self._observe_levels)
+        try:
+            told = await retry_remote_cancels(self.services, self.sessions, self.tags)
+        except Exception as error:  # the sweeper retries on its next tick
+            _logger.warning("sweep chore failed", worker=self.name, chore="remote cancels", error=str(error))
+            told = 0
+        if recovered:
+            _logger.info("recovered abandoned attempts", worker=self.name, count=len(recovered))
+        if overdue:
+            _logger.info("settled attempts past their deadline", worker=self.name, count=len(overdue))
+        if reaped:
+            _logger.info("reaped worker registry rows", worker=self.name, count=len(reaped))
+        if released:
+            _logger.info("released held runs whose slot was free", worker=self.name, count=len(released))
+        if told:
+            _logger.info("told the remote about a cancel", worker=self.name, count=told)
+
+    async def _chore_once[T](self, chore: str, work: Callable[[AsyncSession], Awaitable[T]]) -> T | None:
+        """Run one sweep chore in its own transaction, and log and swallow what it raises."""
+        try:
+            async with session_scope(self.sessions) as session:
+                return await work(session)
+        except Exception as error:  # the sweeper retries on its next tick
+            _logger.warning("sweep chore failed", worker=self.name, chore=chore, error=str(error))
+            return None
+
+    async def _raise_for_stuck(self, session: AsyncSession) -> None:
+        """Raise the alerts owed for runs that stopped moving."""
+        stuck = await detect_stuck_runs(session, after=self.settings.stuck_run)
+        await raise_for_stuck(session, self.services, stuck)
 
     async def _work_loop(self) -> None:
         """Remove the work directories of runs the retention policy has outlived.

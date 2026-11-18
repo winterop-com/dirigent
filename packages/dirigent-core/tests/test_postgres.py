@@ -24,7 +24,7 @@ from dirigent_client.enums import (
     WorkerStatus,
 )
 from dirigent_client.schemas import ApplyResult, PlanAction
-from dirigent_core import alerting, migrations, pipelines
+from dirigent_core import alerting, database, migrations, pipelines
 from dirigent_core.alerting import raise_for_stuck, recover_notifications, renew_lease
 from dirigent_core.config import Settings
 from dirigent_core.connections import ConnectionInUse, remove_connection
@@ -1890,6 +1890,77 @@ async def test_creating_and_settling_at_once_never_strands_a_held_run(
     for _ in range(SLOT_ROUNDS):
         await asyncio.gather(create(), settle())
         await assert_the_slot_is_sound(pg_sessions, pipeline_id)
+
+
+async def test_a_cancel_racing_the_outcome_that_settles_the_run_never_deadlocks(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cancel takes the pipeline lock and then the run's; the outcome holds the run's lock first.
+
+    The outcome that settles the run's last attempt frees the slot, which needs the pipeline
+    lock. Waiting for it there, with the run's lock held, closes a cycle with the cancel.
+    """
+    async with session_scope(pg_sessions) as session:
+        version = await save_pipeline(session, queued_pipeline("cancel-races-the-outcome"))
+        first = await create_run(session, pg_services, version)
+        second = await create_run(session, pg_services, version)
+    assert first is not None and second is not None
+
+    worker = Engine(pg_sessions, pg_services, owner="settling-worker")
+    unit = await worker.claim()
+    assert unit is not None and unit.run_id == first.id
+
+    deadlocks: list[BaseException] = []
+    seen_as_deadlock = database.is_deadlock
+
+    def recorded(error: BaseException) -> bool:
+        if seen_as_deadlock(error):
+            deadlocks.append(error)
+            return True
+        return False
+
+    monkeypatch.setattr(database, "is_deadlock", recorded)
+
+    cancel_holds_the_pipeline = asyncio.Event()
+    outcome_holds_the_run = asyncio.Event()
+    lock_the_run = engine_runs.lock_run
+
+    async def lock_once_the_outcome_holds_it(session: AsyncSession, run_id: Any) -> None:
+        cancel_holds_the_pipeline.set()
+        await outcome_holds_the_run.wait()
+        await lock_the_run(session, run_id)
+
+    monkeypatch.setattr(engine_runs, "lock_run", lock_once_the_outcome_holds_it)
+    walk = Engine._advance  # pyright: ignore[reportPrivateUsage] - the seam to pause on
+
+    async def walk_once_the_cancel_waits(self: Engine, *args: Any, **kwargs: Any) -> Any:
+        if not outcome_holds_the_run.is_set():
+            await cancel_holds_the_pipeline.wait()
+            outcome_holds_the_run.set()
+            # Long enough for the cancel to queue on the run lock this transaction holds.
+            await asyncio.sleep(BLOCKED_ON_THE_LOCK)
+        return await walk(self, *args, **kwargs)
+
+    monkeypatch.setattr(Engine, "_advance", walk_once_the_cancel_waits)
+
+    async def cancel() -> Run:
+        async with session_scope(pg_sessions) as session:
+            stored = await session.get(Run, first.id)
+            assert stored is not None
+            return await cancel_run(session, pg_services, stored)
+
+    async def settle() -> None:
+        await cancel_holds_the_pipeline.wait()
+        await worker.run_unit(unit)
+
+    cancelled, _ = await asyncio.gather(cancel(), settle())
+
+    assert deadlocks == [], "the outcome waited for the pipeline lock while holding the run's"
+    assert cancelled.status is RunStatus.SUCCEEDED, "the cancel overwrote a run that had settled"
+    async with pg_sessions() as session:
+        rows = await session.execute(sa.select(StepAttempt.status).where(StepAttempt.run_id == second.id))
+        assert list(rows.scalars()) == [AttemptStatus.QUEUED], "the held run was not released"
+    await assert_the_slot_is_sound(pg_sessions, first.pipeline_id)
 
 
 async def messages_of(sessions: async_sessionmaker[AsyncSession], run_id: Any) -> list[str]:

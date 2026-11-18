@@ -359,6 +359,59 @@ async def test_a_sensor_observes_the_drop_when_it_arrives(
     assert (await reload(sessions, run.id)).status is RunStatus.SUCCEEDED
 
 
+@pytest.mark.parametrize(
+    ("on_timeout", "parent_settles_as"),
+    [(TimeoutAction.FAIL, RunStatus.FAILED), (TimeoutAction.SKIP, RunStatus.SUCCEEDED)],
+)
+async def test_a_deadline_that_settles_a_waiting_child_step_cancels_the_child_run(
+    engine: Engine,
+    sessions: async_sessionmaker[AsyncSession],
+    services: EngineServices,
+    on_timeout: TimeoutAction,
+    parent_settles_as: RunStatus,
+) -> None:
+    async with session_scope(sessions) as session:
+        await save_pipeline(
+            session,
+            PipelineDefinition(
+                code="slow-child",
+                steps={"nap": StepDefinition(block="time.sleep", config={"for": "6h"}, deadline=timedelta(hours=12))},
+            ),
+        )
+    parent = await start(
+        sessions,
+        services,
+        PipelineDefinition(
+            code=f"impatient-parent-{on_timeout.value}",
+            steps={
+                "call": StepDefinition(
+                    block="pipeline.run",
+                    config={"pipeline": "slow-child"},
+                    deadline=timedelta(minutes=5),
+                    on_timeout=on_timeout,
+                )
+            },
+        ),
+    )
+    moment = datetime.now(UTC)
+    for _ in range(6):
+        unit = await engine.claim(now=moment)
+        if unit is None:
+            break
+        await engine.run_unit(unit, now=moment)
+        moment += timedelta(seconds=5)
+    call = (await attempts(sessions, parent.id))["call"]
+    assert call.status is AttemptStatus.WAITING and call.remote_handle is not None
+    child_id = UUID(call.remote_handle["ref"])
+
+    async with engine.after_commit(), session_scope(sessions) as session:
+        assert len(await engine.settle_overdue_deadlines(session, now=moment + timedelta(minutes=10))) == 1
+
+    assert (await reload(sessions, parent.id)).status is parent_settles_as
+    assert (await reload(sessions, child_id)).status is RunStatus.CANCELLED, "the child ran on past the deadline"
+    assert (await attempts(sessions, parent.id))["call"].remote_cancel_since is None
+
+
 def test_the_installed_catalog_is_what_a_dev_process_would_serve(services: EngineServices) -> None:
     catalog = services.host.catalog()
     assert sorted(entry.id for entry in catalog.blocks) == [

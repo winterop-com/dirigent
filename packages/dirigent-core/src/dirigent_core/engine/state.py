@@ -13,10 +13,12 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, JsonValue
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dirigent_client.enums import AttemptKind, AttemptStatus, RunItemStatus, RunStatus
 from dirigent_client.schemas import AttemptOut
+from dirigent_core.database import LOCK_NOT_AVAILABLE
 from dirigent_core.engine.definition import ItemPolicy, PipelineDefinition, StepDefinition, TriggerRule
 from dirigent_core.engine.expansion import expand_gate, is_gate
 from dirigent_core.engine.references import references_in
@@ -385,10 +387,8 @@ async def lock_pipeline(session: AsyncSession, pipeline_id: UUID) -> None:
     releasing the run one of them held. PostgreSQL only, as :func:`lock_run` is.
 
     A transaction that takes both locks takes this one first: creating a run, retrying a
-    step, and cancelling all do. The settle path is the single exception, because it holds
-    the run lock from its first statement and reaches the pipeline only at the end, when the
-    run it settled frees the slot. That leaves one cycle of two, which PostgreSQL breaks and
-    ``with_deadlock_retry`` runs again.
+    step, resuming and cancelling all do. The settle path holds the run lock from its first
+    statement, so it never waits here: it takes this lock through :func:`try_lock_pipeline`.
     """
     if session.get_bind().dialect.name != "postgresql":
         return
@@ -409,6 +409,24 @@ async def lock_pipeline_code(session: AsyncSession, code: str) -> None:
     if session.get_bind().dialect.name != "postgresql":
         return
     await session.execute(sa.select(sa.func.pg_advisory_xact_lock(APPLY_LOCK_CLASS, sa.func.hashtext(code))))
+
+
+async def try_lock_pipeline(session: AsyncSession, pipeline_id: UUID) -> bool:
+    """Take the pipeline lock if nobody holds it, and say whether this transaction now does.
+
+    For a transaction that already holds a run lock: waiting here would close a cycle with one
+    that holds this lock and waits for that run. A refusal leaves the transaction usable.
+    """
+    if session.get_bind().dialect.name != "postgresql":
+        return True
+    try:
+        async with session.begin_nested():
+            await session.execute(sa.select(Pipeline.id).where(Pipeline.id == pipeline_id).with_for_update(nowait=True))
+    except DBAPIError as error:
+        if getattr(getattr(error, "orig", None), "sqlstate", None) != LOCK_NOT_AVAILABLE:
+            raise
+        return False
+    return True
 
 
 async def load_attempts(session: AsyncSession, run_id: UUID) -> list[StepAttempt]:

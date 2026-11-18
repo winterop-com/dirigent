@@ -223,6 +223,9 @@ async def session_scope(factory: async_sessionmaker[AsyncSession]) -> AsyncGener
 #: PostgreSQL's SQLSTATE for a deadlock it broke by aborting one of the transactions.
 DEADLOCK: Final = "40P01"
 
+#: PostgreSQL's SQLSTATE for a ``NOWAIT`` lock another transaction holds.
+LOCK_NOT_AVAILABLE: Final = "55P03"
+
 #: How many times a transaction aborted by a deadlock is run again before it is raised.
 DEADLOCK_ATTEMPTS: Final = 3
 

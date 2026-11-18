@@ -7,17 +7,19 @@ from collections.abc import Generator, Iterable, MutableMapping
 from datetime import datetime, timedelta
 from typing import Any
 
+import pytest
 import sqlalchemy as sa
 import structlog
 from structlog.testing import capture_logs as captured_logs
 
 from dirigent_client.enums import AttemptStatus, RunStatus, WorkerStatus
 from dirigent_core import telemetry
+from dirigent_core import worker as worker_module
 from dirigent_core.config import Settings
 from dirigent_core.database import session_scope
 from dirigent_core.engine import EngineServices
 from dirigent_core.engine.claim import ClaimedUnit
-from dirigent_core.engine.definition import PipelineDefinition, StepDefinition
+from dirigent_core.engine.definition import ConcurrencyPolicy, PipelineDefinition, StepDefinition
 from dirigent_core.engine.recovery import reap_workers
 from dirigent_core.engine.runs import cancel_run, create_run, save_pipeline
 from dirigent_core.messages import CANCELLED_BY
@@ -422,6 +424,75 @@ async def test_the_sweeper_recovers_what_a_dead_worker_left_behind(
     await until(recovered)
     alive.request_stop()
     await task
+
+
+async def test_a_sweep_chore_that_raises_undoes_none_of_the_others(
+    sessions: Any, settings: Settings, host: PluginHost, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    brief = fast(settings).model_copy(
+        update={"lease": timedelta(seconds=5), "sweep_interval": timedelta(milliseconds=20)}
+    )
+    services = EngineServices.build(brief, host)
+    await create(sessions, services, fan_out(1))
+    dead = Worker(sessions, services, name="dead", sweeper=False)
+    unit = await dead.engine.claim()
+    assert unit is not None
+    async with session_scope(sessions) as session:
+        attempt = await session.get(StepAttempt, unit.attempt_id)
+        assert attempt is not None
+        attempt.lease_expires_at = attempt.lease_expires_at - timedelta(hours=1) if attempt.lease_expires_at else None
+
+    async def unreadable(session: Any, *, now: datetime | None = None) -> int:
+        raise ValueError("a notification row this version cannot read")
+
+    monkeypatch.setattr(worker_module, "recover_notifications", unreadable)
+    alive = Worker(sessions, services, name="alive", sweeper=True, concurrency=1)
+
+    async def recovered() -> bool:
+        async with sessions() as session:
+            attempt = await session.get(StepAttempt, unit.attempt_id)
+            return attempt is not None and attempt.lease_owner != "dead"
+
+    with capture_logs() as logs:
+        task = asyncio.create_task(alive.run())
+        try:
+            await until(recovered, timeout=3.0)
+        finally:
+            alive.request_stop()
+            await task
+    failed = [log for log in logs if log["event"] == "sweep chore failed"]
+    assert failed and {log["chore"] for log in failed} == {"notification recovery"}
+
+
+async def test_the_sweep_releases_a_run_held_behind_a_slot_nobody_occupies(
+    sessions: Any, settings: Settings, host: PluginHost
+) -> None:
+    """A settle that left the release to after its commit, then stopped, leaves a run held with nothing in flight."""
+    services = EngineServices.build(fast(settings), host)
+    definition = PipelineDefinition(
+        code="stranded-queue",
+        concurrency=ConcurrencyPolicy.QUEUE,
+        steps={"only": StepDefinition(block="test.echo", config={"value": "once"})},
+    )
+    async with session_scope(sessions) as session:
+        version = await save_pipeline(session, definition)
+        first = await create_run(session, services, version)
+        second = await create_run(session, services, version)
+    assert first is not None and second is not None
+    async with session_scope(sessions) as session:
+        await session.execute(
+            sa.update(StepAttempt).where(StepAttempt.run_id == first.id).values(status=AttemptStatus.SUCCEEDED)
+        )
+        await session.execute(
+            sa.update(Run).where(Run.id == first.id).values(status=RunStatus.SUCCEEDED, finished_at=utcnow())
+        )
+
+    sweeper = Worker(sessions, services, name="the-sweeper", sweeper=False)
+    await sweeper._sweep()  # pyright: ignore[reportPrivateUsage] - one pass, without the loop's pause
+
+    async with sessions() as session:
+        rows = await session.execute(sa.select(StepAttempt.status).where(StepAttempt.run_id == second.id))
+        assert list(rows.scalars()) == [AttemptStatus.QUEUED], "the held run stayed behind a free slot"
 
 
 async def register(sessions: Any, name: str, *, age: timedelta) -> None:
