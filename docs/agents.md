@@ -210,6 +210,7 @@ text that is not a document, and the file is not opened.
 | `get_run_profile` | Where a run's wall clock went: the critical path, and its queued, running and waiting time |
 | `get_attempt` | Read one attempt by its id alone, as an engine log line names it, with the `run_id`, `pipeline`, step and `item` it belongs to |
 | `run_stats` | How the runs of a window went: per day, each pipeline's p50, p95 and max duration, and what failed most |
+| `item_stats` | One pipeline's fan-out elements over a window, per step and element: counts, uptime, p50 and p95 duration, the newest status and the newest failure |
 | `runs_by_pipeline` | Each pipeline's runs in a window: the newest, how many per state, its last 10 runs, and the median duration, for the first `limit` (20) pipelines with `more` counting the rest |
 | `cancel_run`, `pause_run`, `resume_run`, `retry_attempt`, `rerun_run` | Stop a run, pause or resume one, retry one attempt, or run a settled run again with its parameters and source input |
 | `list_sources`, `get_source`, `source_inputs`, `pause_source`, `resume_source` | The input sources and what arrived; `get_source` gives an endpoint's full URL and how a caller authenticates, never its token |

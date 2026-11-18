@@ -13,15 +13,19 @@ from collections import Counter, defaultdict
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from typing import Final
+from uuid import UUID
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from dirigent_client.enums import AttemptStatus, RunStatus
+from dirigent_client.enums import AttemptStatus, RunItemStatus, RunStatus
 from dirigent_client.schemas import (
     TERMINAL_RUN_STATUSES,
     DayCounts,
     ErrorCount,
+    ItemDay,
+    ItemHealth,
+    ItemStats,
     PipelineDurations,
     PipelineRuns,
     RecentRun,
@@ -30,7 +34,7 @@ from dirigent_client.schemas import (
     StatsWindow,
     StepFailures,
 )
-from dirigent_core.models import Pipeline, Run, StepAttempt
+from dirigent_core.models import Pipeline, PipelineVersion, Run, RunItem, StepAttempt
 from dirigent_core.pipelines import carries_tag
 
 #: The longest window a stats read covers, which also bounds the trend at one row per day.
@@ -39,6 +43,12 @@ MAX_WINDOW: Final = timedelta(days=366)
 #: How many of each pipeline's most recent settled runs its duration percentiles are measured
 #: over. The percentiles are ordered in Python, so SQLite and PostgreSQL answer the same.
 DURATION_SAMPLE: Final = 1_000
+
+#: The most recent fan-out elements an item stats read covers, newest run first.
+ITEM_SAMPLE: Final = 50_000
+
+#: The run statuses an item's record is read from: settled, and not cancelled part-way.
+ITEM_RUN_STATUSES: Final = (RunStatus.SUCCEEDED, RunStatus.COMPLETED_WITH_ERRORS, RunStatus.FAILED)
 
 #: How many rows ``top_errors`` and ``failing_steps`` answer with at most.
 TOP: Final = 10
@@ -327,3 +337,122 @@ async def run_summary(
     rows.sort(key=lambda row: row.pipeline)
     rows.sort(key=lambda row: row.latest.created_at, reverse=True)
     return RunSummary(window=StatsWindow(start=start, end=end), pipelines=rows)
+
+
+class _Record:
+    """One step's element read across the window's runs, newest first, as the rows arrive."""
+
+    def __init__(self, status: RunItemStatus, run_id: UUID, settled: datetime | None, index: int) -> None:
+        """Start the record from the newest run that carried the element."""
+        self.last_status = status
+        self.last_run_id = run_id
+        self.last_at = settled
+        self.index = index
+        self.counts: Counter[RunItemStatus] = Counter()
+        self.durations: list[int] = []
+        self.days: dict[date, Counter[RunItemStatus]] = {}
+        self.last_failed_at: datetime | None = None
+        self.last_error: str | None = None
+
+
+async def item_stats(
+    session: AsyncSession, pipeline: Pipeline, *, end: datetime, since: timedelta, step: str | None = None
+) -> ItemStats:
+    """Read each fan-out element's record over the runs of one pipeline that settled in ``[end - since, end)``.
+
+    One row per step and element key: how often it succeeded, failed and was skipped, its
+    uptime, how long it took, and how it stands in the newest run. A cancelled run is in none
+    of it. The read covers the window's most recent ``ITEM_SAMPLE`` elements.
+    """
+    start = end - since
+    day = _day(session).label("day")
+    statement = (
+        sa.select(
+            RunItem.step_name,
+            RunItem.item_key,
+            RunItem.item_index,
+            RunItem.status,
+            RunItem.started_at,
+            RunItem.finished_at,
+            RunItem.error,
+            Run.id,
+            Run.finished_at,
+            day,
+        )
+        .select_from(RunItem)
+        .join(Run, Run.id == RunItem.run_id)
+        .where(
+            Run.pipeline_id == pipeline.id,
+            Run.finished_at >= start,
+            Run.finished_at < end,
+            Run.status.in_(ITEM_RUN_STATUSES),
+        )
+        .order_by(Run.finished_at.desc(), Run.id.desc())
+        .limit(ITEM_SAMPLE)
+    )
+    if step is not None:
+        statement = statement.where(RunItem.step_name == step)
+    records: dict[tuple[str, str], _Record] = {}
+    for name, key, index, status, began, finished, error, run_id, settled, on in (
+        await session.execute(statement)
+    ).all():
+        state = RunItemStatus(status)
+        record = records.get((name, key))
+        if record is None:
+            record = records[(name, key)] = _Record(state, run_id, settled, index)
+        record.counts[state] += 1
+        record.days.setdefault(_as_date(on), Counter())[state] += 1
+        if state in (RunItemStatus.SUCCEEDED, RunItemStatus.FAILED) and began is not None and finished is not None:
+            record.durations.append(max(0, round((finished - began).total_seconds() * 1000)))
+        if state is RunItemStatus.FAILED and record.last_failed_at is None:
+            record.last_failed_at = finished or settled
+            record.last_error = error
+    order = {name: place for place, name in enumerate(await _step_order(session, pipeline))}
+    rows = sorted(records.items(), key=lambda pair: (order.get(pair[0][0], len(order)), pair[0][0], pair[1].index))
+    return ItemStats(
+        pipeline=pipeline.code,
+        window=StatsWindow(start=start, end=end),
+        items=[_health(name, key, record) for (name, key), record in rows],
+    )
+
+
+def _health(step: str, item: str, record: _Record) -> ItemHealth:
+    """Write one element's record as the row the wire carries."""
+    up, down = record.counts[RunItemStatus.SUCCEEDED], record.counts[RunItemStatus.FAILED]
+    return ItemHealth(
+        step=step,
+        item=item,
+        runs=record.counts.total(),
+        succeeded=up,
+        failed=down,
+        skipped=record.counts[RunItemStatus.SKIPPED],
+        uptime=up / (up + down) if up + down else None,
+        p50_duration_ms=percentile(record.durations, 50) if record.durations else None,
+        p95_duration_ms=percentile(record.durations, 95) if record.durations else None,
+        last_status=record.last_status,
+        last_run_id=record.last_run_id,
+        last_at=record.last_at,
+        last_failed_at=record.last_failed_at,
+        last_error=record.last_error,
+        days=[
+            ItemDay(
+                day=on,
+                succeeded=counted[RunItemStatus.SUCCEEDED],
+                failed=counted[RunItemStatus.FAILED],
+                skipped=counted[RunItemStatus.SKIPPED],
+            )
+            for on, counted in sorted(record.days.items())
+        ],
+    )
+
+
+async def _step_order(session: AsyncSession, pipeline: Pipeline) -> list[str]:
+    """The step names of the pipeline's current version, in the order its author wrote them."""
+    if pipeline.current_version is None:
+        return []
+    found = await session.execute(
+        sa.select(PipelineVersion.step_order).where(
+            PipelineVersion.pipeline_id == pipeline.id, PipelineVersion.version == pipeline.current_version
+        )
+    )
+    return list(found.scalar_one_or_none() or [])

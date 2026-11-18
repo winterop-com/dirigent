@@ -505,6 +505,34 @@ def test_run_stats_render_the_days_the_durations_and_what_failed_most() -> None:
     assert summaries.beneath(make("runs.stats", at=AT, message="0 settled, 0 failed", trend=[])) is None
 
 
+def test_item_stats_render_a_row_per_element_with_its_uptime() -> None:
+    read = make(
+        "pipeline.item_stats",
+        at=AT,
+        message="2 elements, 1 failing now",
+        pipeline="health-checks",
+        elements=[
+            {
+                "step": "reachable",
+                "item": "https://chap.example.org",
+                "last_status": "failed",
+                "uptime": 0.9875,
+                "succeeded": 79,
+                "failed": 1,
+                "skipped": 0,
+                "p50_duration_ms": 120,
+                "p95_duration_ms": 900,
+            },
+            {"step": "reachable", "item": "https://dhis2.example.org", "last_status": "succeeded", "uptime": None},
+        ],
+    )
+    text = printed(Console().render(read))
+    assert "per element" in text and "https://chap.example.org" in text
+    assert "98.75%" in text, "an uptime is a percentage to two decimals"
+    assert "elements" not in summaries.line(read)
+    assert summaries.beneath(make("pipeline.item_stats", at=AT, message="0 elements", elements=[])) is None
+
+
 def test_a_runs_summary_renders_a_row_per_pipeline_and_leaves_out_empty_states() -> None:
     summary = make(
         "runs.summary",

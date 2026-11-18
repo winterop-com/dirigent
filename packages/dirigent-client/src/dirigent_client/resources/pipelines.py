@@ -17,6 +17,7 @@ from dirigent_client.schemas import (
     ApplyResult,
     BackfillAccepted,
     BackfillRequest,
+    ItemStats,
     JsonMap,
     Page,
     PipelineDetail,
@@ -117,6 +118,16 @@ class Pipelines(Resource):
         """List every immutable version, newest first, with its provenance."""
         return await self._many(
             PipelineVersionOut, "GET", f"/pipelines/{segment(code)}/versions", params=query(after=after, limit=limit)
+        )
+
+    async def item_stats(self, code: str, *, since: str | None = None, step: str | None = None) -> ItemStats:
+        """Read how each fan-out element of a pipeline went over a window, ``7d`` when none is named.
+
+        One row per step and element: its counts, uptime, p50 and p95 duration, and how it
+        stands in the newest run.
+        """
+        return await self._one(
+            ItemStats, "GET", f"/pipelines/{segment(code)}/items/$stats", params=query(since=since, step=step)
         )
 
     async def export(self, code: str, *, version: int | None = None) -> str:

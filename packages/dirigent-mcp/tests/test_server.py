@@ -261,6 +261,17 @@ async def test_run_stats_are_read_only_and_answer_the_window(server: MCPServer) 
         await server.call_tool("run_stats", {"since": "400d"})
 
 
+async def test_item_stats_are_read_only_and_answer_the_pipelines_window(server: MCPServer) -> None:
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    assert tools["item_stats"].annotations is not None and tools["item_stats"].annotations.read_only_hint
+
+    await call(server, "apply_document", document=DOCUMENT)
+    read = await call(server, "item_stats", code="mcp-demo", since="24h")
+    assert (read["pipeline"], read["items"]) == ("mcp-demo", []), "nothing has settled yet"
+    with pytest.raises(ToolError, match="no pipeline"):
+        await server.call_tool("item_stats", {"code": "nowhere"})
+
+
 async def test_runs_by_pipeline_are_read_only_and_answer_one_row_per_pipeline(server: MCPServer) -> None:
     tools = {tool.name: tool for tool in await server.list_tools()}
     annotations = tools["runs_by_pipeline"].annotations

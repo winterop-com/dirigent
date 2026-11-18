@@ -1238,6 +1238,26 @@ dg runs summary --latest failed | jq -r '.pipelines[].pipeline'
 The same answer is `GET /api/v1/runs/$summary`, `dg.runs.summary()` in the Python client, the
 `runs_by_pipeline` MCP tool, and the Runs screen's By pipeline view.
 
+`dg pipeline item-stats CODE` answers per fan-out element instead, which is the record of each
+target a monitor watches: for each step and each element key, over the runs of that pipeline
+that settled in the window (7 days when `--since` names none, a cancelled run in none of it),
+how many runs carried it and how many it succeeded, failed and was skipped in, its uptime --
+succeeded over succeeded and failed, since a skipped check was neither up nor down -- its p50 and
+p95 duration from its first attempt starting to its last finishing, how it stands in the newest
+run, and its newest failure with what it said, with one row per UTC day it ran on. `--step`
+narrows to one step's elements.
+
+```bash
+dg pipeline item-stats health-checks
+dg pipeline item-stats health-checks --since 30d --step reachable
+dg pipeline item-stats health-checks | jq -r '.elements[] | select(.last_status == "failed") | .item'
+```
+
+The same answer is `GET /api/v1/pipelines/{code}/items/$stats` (`ItemStats`),
+`dg.pipelines.item_stats()`, the `item_stats` MCP tool, and the Elements panel on the pipeline's
+screen, which draws each element's days as an uptime bar. The read covers the window's most recent
+50,000 elements, and the window is at most 366 days.
+
 ## Why was that run slow
 
 `dg runs profile RUN_ID` breaks one run into where its wall clock went. It walks back from the

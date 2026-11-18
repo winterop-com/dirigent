@@ -364,6 +364,16 @@ def build(connect: Connect, *, offers: Offers = Offers.ADMINISTERING) -> MCPServ
         return await call(lambda dg: dg.runs.stats(since=since, pipeline=pipeline, tags=tags or ()))
 
     @tool(READS)
+    async def item_stats(code: str, since: str = "7d", step: str | None = None) -> Any:
+        """Read how each fan-out element of one pipeline went within `since` (such as `7d`): per target, per check.
+
+        One row per step and element key: succeeded, failed and skipped counts, uptime over the
+        runs that succeeded or failed, p50 and p95 `duration_ms`, the status in the newest run,
+        and the newest failure with what it said. `step` narrows to one step's elements.
+        """
+        return await call(lambda dg: dg.pipelines.item_stats(code, since=since, step=step))
+
+    @tool(READS)
     async def runs_by_pipeline(
         since: str = "24h",
         pipeline: str | None = None,

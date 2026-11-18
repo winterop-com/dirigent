@@ -1446,6 +1446,13 @@ def test_run_stats_are_one_record_carrying_the_days_and_the_durations(tmp_path: 
     assert (narrowed["settled"], narrowed["pipeline"], narrowed["durations"]) == (0, "other", [])
 
 
+def test_item_stats_are_one_record_with_a_row_per_element(tmp_path: Path, server: str) -> None:
+    apply_document(tmp_path)
+    read = only(invoke("pipeline", "item-stats", "cli-demo", "--since", "24h", "--json").stdout, "pipeline.item_stats")
+    assert (read["pipeline"], read["elements"]) == ("cli-demo", []), "nothing has settled yet"
+    assert set(read) >= {"window_start", "window_end"}
+
+
 def test_a_runs_summary_is_one_record_with_a_row_per_pipeline(tmp_path: Path, server: str) -> None:
     apply_document(tmp_path)
     assert invoke("run", "cli-demo").exit_code == 0
