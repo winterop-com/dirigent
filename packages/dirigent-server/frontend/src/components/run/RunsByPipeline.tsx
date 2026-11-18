@@ -77,7 +77,7 @@ function summaryColumns(): DataColumn<PipelineRuns>[] {
         {
             id: 'pipeline',
             header: LABELS.word.pipeline.label,
-            width: 'minmax(15rem,2fr)',
+            width: 'minmax(14rem,2fr)',
             stackTitle: 'free',
             cell: (row) => <PipelineRef code={row.pipeline} name={row.name} />,
         },
@@ -90,7 +90,7 @@ function summaryColumns(): DataColumn<PipelineRuns>[] {
         {
             id: 'counts',
             header: LABELS.runs.grouped.counts,
-            width: 'minmax(7rem,1fr)',
+            width: 'minmax(6rem,1fr)',
             cell: (row) => (
                 <span className="flex items-center gap-3 text-xs whitespace-nowrap">
                     {countsShown(row.counts).map(({ status, runs }) => {
