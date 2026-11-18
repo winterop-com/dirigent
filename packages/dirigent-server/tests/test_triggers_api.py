@@ -61,6 +61,18 @@ def test_a_cron_schedule_carries_its_zone_its_parameters_and_a_computed_next_fir
     assert created["last_fired_at"] is None
 
 
+def test_a_schedule_holds_nothing_a_firing_never_reads() -> None:
+    """Connection pins were accepted, stored and audited, and no firing ever read them."""
+    from dirigent_client.schemas import ScheduleIn
+    from dirigent_core.models import Schedule
+    from dirigent_core.triggers.schedules import DECLARED, ScheduleRequest
+
+    assert "connection_pins" not in ScheduleIn.model_fields
+    assert "connection_pins" not in ScheduleRequest.model_fields
+    assert "connection_pins" not in Schedule.__table__.columns
+    assert "connection_pins" not in DECLARED
+
+
 def test_an_interval_schedule_reads_back_as_the_humane_duration_it_was_written_as(client: TestClient) -> None:
     apply_document(client, DOCUMENT)
     created = create_schedule(client, code="hourly", interval="90m")

@@ -36,7 +36,6 @@ class Schedules(Resource):
         at: datetime | None = None,
         timezone: str = "UTC",
         params: JsonMap | None = None,
-        connection_pins: JsonMap | None = None,
         log_levels: dict[str, LogLevel] | None = None,
         priority: RunPriority | None = None,
     ) -> ScheduleOut:
@@ -45,9 +44,7 @@ class Schedules(Resource):
             ScheduleOut,
             "POST",
             f"/pipelines/{segment(pipeline)}/triggers/schedules",
-            json=_declaration(
-                code, name, description, cron, interval, at, timezone, params, connection_pins, log_levels, priority
-            ),
+            json=_declaration(code, name, description, cron, interval, at, timezone, params, log_levels, priority),
         )
 
     async def update(
@@ -62,7 +59,6 @@ class Schedules(Resource):
         at: datetime | None = None,
         timezone: str = "UTC",
         params: JsonMap | None = None,
-        connection_pins: JsonMap | None = None,
         log_levels: dict[str, LogLevel] | None = None,
         priority: RunPriority | None = None,
     ) -> ScheduleOut:
@@ -71,9 +67,7 @@ class Schedules(Resource):
             ScheduleOut,
             "PATCH",
             f"/pipelines/{segment(pipeline)}/triggers/schedules/{segment(code)}",
-            json=_declaration(
-                code, name, description, cron, interval, at, timezone, params, connection_pins, log_levels, priority
-            ),
+            json=_declaration(code, name, description, cron, interval, at, timezone, params, log_levels, priority),
         )
 
     async def pause(self, pipeline: str, code: str) -> ScheduleOut:
@@ -113,7 +107,6 @@ def _declaration(
     at: datetime | None,
     timezone: str,
     params: JsonMap | None,
-    connection_pins: JsonMap | None,
     log_levels: dict[str, LogLevel] | None,
     priority: RunPriority | None,
 ) -> JsonMap:
@@ -127,7 +120,6 @@ def _declaration(
         at=at,
         timezone=timezone,
         params=params or {},
-        connection_pins=connection_pins or {},
         log_levels=log_levels,
         priority=priority,
     )
