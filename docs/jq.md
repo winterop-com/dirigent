@@ -25,7 +25,8 @@ differences a program author has to know:
 | `env` and `$ENV` read the process environment. | Both read an empty object. The worker's environment is where dirigent's own secrets live, and a parameter or a connection is how a pipeline is handed a value. |
 | A broken program errors when it runs. | A program that does not compile is refused when the document is applied, with jq's own message. One that compiles and meets the wrong data fails the attempt as rejected -- retrying would meet the same data again. |
 | `input`, `--arg`, and the rest of the command line | There is no command line and there are no files: the program's one input is the step's `input`, and its arguments arrive by composing them into that input (the join example below). A document held in storage reaches a program as the `value` a `storage.read` step answers with. |
-| A long program runs until it is done. | A program is evaluated in a jq process dirigent starts and holds, so the step's timeout ends a program that runs too long: the process is killed and the attempt fails on its timeout. A worker keeps answering while a program runs, whatever the program costs. |
+| `import` and `include` load a module or a JSON file from a search path. | A program that opens with `import`, `include` or `module` is refused when the document is applied, with the same message whether the file it names exists or not; nothing is read. |
+| A long program runs until it is done. | A program is evaluated in a jq process dirigent starts and holds, so the step's timeout ends a program that runs too long: the process is killed and the attempt fails on its timeout. A worker keeps answering while a program runs, whatever the program costs. The outputs for one value cross back to the worker as one line, and one longer than 64 MiB rejects the step. |
 
 ## A value in, values out
 

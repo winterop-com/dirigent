@@ -40,7 +40,7 @@ from uuid import uuid4
 from pydantic import BaseModel, JsonValue
 
 from dirigent_common import Issue
-from dirigent_plugin.messages import PROGRAM_REFUSED
+from dirigent_plugin.messages import PROGRAM_REFUSED, RUNNER_REPLY_TOO_LARGE
 from dirigent_plugin.transforms import Engine, ProgramConfig, TransformError
 
 #: What a step is told when the process running its program stopped on its own. It is not a
@@ -57,6 +57,10 @@ RUNNER_ENVIRONMENT = ("PATH", "LANG", "LC_ALL", "TZ")
 
 #: How long a runner whose pipe was closed has to exit, and then to answer a terminate, before it is killed.
 RUNNER_STOP_SECONDS = 1.0
+
+#: The longest reply line the worker reads from a runner. A program's outputs cross as one
+#: line, and the worker holds that line and the values parsed from it at once.
+RUNNER_REPLY_LIMIT = 64 * 1024 * 1024
 
 
 def _own_group() -> dict[str, Any]:
@@ -152,13 +156,17 @@ class ProgramRunner:
         try:
             self._to.write(json.dumps(request).encode() + b"\n")
             self._to.flush()
-            reply = self._from.readline()
+            reply = self._from.readline(RUNNER_REPLY_LIMIT + 1)
         except OSError as error:
             raise RuntimeError(RUNNER_STOPPED) from error
         if not reply:
             # A killed process, which is how a cancelled step ends its program, and how a
             # program that ran the process out of memory ends itself.
             raise RuntimeError(RUNNER_STOPPED)
+        if len(reply) > RUNNER_REPLY_LIMIT:
+            # The rest of the line is still in the pipe, so no later reply could be read in step.
+            self.kill()
+            raise TransformError(RUNNER_REPLY_TOO_LARGE.render(limit=f"{RUNNER_REPLY_LIMIT:,}"))
         try:
             answered = json.loads(reply)
         except ValueError:

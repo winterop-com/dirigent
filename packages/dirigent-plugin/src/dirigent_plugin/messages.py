@@ -10,6 +10,12 @@ PROGRAM_REFUSED = PLUGIN.define("program_refused", "{detail}")
 
 ELEMENT_FAILED = PLUGIN.define("element_failed", "element {index}: {detail}")
 
+RUNNER_REPLY_TOO_LARGE = PLUGIN.define(
+    "runner_reply_too_large",
+    "the program's answer for one value came to more than {limit} bytes, the most a runner may "
+    "answer with; reduce the value inside the program, or split the input across steps",
+)
+
 FILTER_ANSWER = PLUGIN.define(
     "filter_answer",
     "{block} answered {answer} for element {index}, and a filter's answer is true or false",

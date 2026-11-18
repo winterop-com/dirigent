@@ -10,7 +10,7 @@ import aioboto3
 
 # botocore ships no py.typed, and the workspace mypy config only exempts ``aioboto3.*``.
 from botocore.config import Config  # type: ignore[import-untyped]
-from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import-untyped]
 from pydantic import BaseModel, ConfigDict, SecretStr
 
 from dirigent_common import BlockModel, PlainUrl
@@ -232,8 +232,10 @@ class S3Sink:
         """Discard an in-flight multipart upload, so a failed write leaves no object behind."""
         if self._upload_id is None:
             return
-        # A failed abort must not mask the failure that caused it; S3 expires the upload anyway.
-        with suppress(ClientError):
+        # A failed abort must not replace the failure that called it, whether S3 refused it or
+        # never answered. An upload it could not discard stays, its parts stored and billed,
+        # until a lifecycle rule on the bucket expires it.
+        with suppress(ClientError, BotoCoreError, OSError):
             await self._client.abort_multipart_upload(Bucket=self.bucket, Key=self.key, UploadId=self._upload_id)
         self._upload_id = None
 
