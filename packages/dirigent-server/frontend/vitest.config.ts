@@ -21,5 +21,8 @@ export default defineConfig({
     test: {
         environment: 'node',
         include: ['src/**/*.test.ts'],
+        // sokkel-ui's schema check imports `ajv/dist/2020` without an extension, which only a
+        // bundler resolves, so that module goes through Vite rather than Node's loader.
+        server: { deps: { inline: [/sokkel-ui[\\/]dist[\\/]components[\\/]schema[\\/]validate/] } },
     },
 })

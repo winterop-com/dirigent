@@ -1,8 +1,8 @@
 /**
  * A JSON Schema, read as field descriptors: which kind of value each field takes, its bounds,
  * whether it is required, what its enum offers and what it falls back to. The catalog's
- * descriptions, the pipeline pane's parameter list, a step group's summary line and the step
- * panel's refusal list read them; the forms themselves are sokkel-ui's `SchemaForm`.
+ * descriptions, the pipeline pane's parameter list and a step group's summary line read them; the
+ * forms themselves, and what they refuse, are sokkel-ui's `SchemaForm`.
  *
  * THE LABEL IS THE KEY, not the schema's `title`. What is being edited is a document, and the
  * word an author writes in that document is `max_input` rather than "Max Input".
@@ -12,19 +12,10 @@
  * is `json`, and so are a list and a schema with no type at all.
  *
  * A STRING WITH `contentMediaType` is a `code` field carrying that media type.
- *
- * A VALUE WRITTEN AS A REFERENCE IS NOT CHECKED AGAINST THE FIELD IT STANDS IN. `${...}` stands
- * wherever a value goes in a document, so under `deferred` a field carrying one is checked for
- * nothing else; a run's parameters and a connection's config are values, and are checked
- * literally.
- *
- * THE SERVER REMAINS THE AUTHORITY. `validateField` checks the bounds the descriptor carries,
- * and an apply is what decides.
  */
 
 import type { JsonMap } from '@/lib/api'
-import { counted, LABELS } from '@/lib/labels'
-import { hasReference } from '@/lib/references'
+import { LABELS } from '@/lib/labels'
 
 /** Which control a field is edited with. */
 export type FieldKind = 'text' | 'code' | 'number' | 'integer' | 'switch' | 'select' | 'json' | 'pairs'
@@ -35,7 +26,7 @@ export type ReferenceKind = 'connection' | 'schema'
 /** The keyword a block's schema names a reference field with. `Reference` in dirigent_plugin. */
 export const REFERENCE_KEYWORD = 'x-dirigent-ref'
 
-/** What `validateField` checks, gathered from the schema the descriptor came from. */
+/** The bounds a schema sets on a value, gathered from the schema the descriptor came from. */
 export interface Bounds {
     minLength?: number
     maxLength?: number
@@ -67,14 +58,6 @@ export interface FieldDescriptor {
     hint: string | null
     bounds: Bounds
     /**
-     * Every shape a several-branch union takes, in the schema's order; empty otherwise.
-     *
-     * A union is edited as its first branch, but a document may carry any of them -- a
-     * `Size` is written `"512kb"` or `4096` -- so what the control validates is the union,
-     * not the branch it happens to draw.
-     */
-    accepts: BranchShape[]
-    /**
      * Every shape one entry of a `pairs` map takes, in the schema's order; empty otherwise.
      *
      * This is what a value cell is read and refused against: a map of integers refuses `1.5`,
@@ -90,12 +73,6 @@ export interface FieldOption {
     value: unknown
     /** What the choice reads as on screen. */
     label: string
-}
-
-/** One branch of a union, reduced to what `validateField` checks. */
-export interface BranchShape {
-    kind: FieldKind
-    bounds: Bounds
 }
 
 /** How far a chain of `$ref`s is followed before it is treated as a shape nothing understands. */
@@ -324,127 +301,13 @@ export function fieldsOf(schema: JsonMap | null | undefined): FieldDescriptor[] 
                 mediaType: stringAt(resolved.schema, 'contentMediaType'),
                 hint: kind === 'pairs' ? pairsHint(holds) : hintOf(resolved.schema, resolved.branches),
                 bounds: boundsOf(resolved.schema),
-                accepts:
-                    resolved.branches.length > 1
-                        ? resolved.branches.map((one) => ({ kind: kindOf(one), bounds: boundsOf(one) }))
-                        : [],
                 holds,
             },
         ]
     })
 }
 
-/**
- * What is wrong with one value, in the words the person editing it is thinking in, or null.
- *
- * This is the client half of a refusal, and it checks only what the descriptor carries. A
- * document that satisfies every field here can still be refused at apply, which is where the
- * whole document -- its graph, its references, its blocks -- is decided.
- *
- * `deferred` says the values are a document's, where `${...}` stands wherever a value goes: a
- * field carrying one is left alone, exactly as `defer_references` leaves it alone on the server.
- * Whether the reference names anything a run will have is the whole document's question, and
- * Validate is what asks it.
- */
-export function validateField(field: FieldDescriptor, value: unknown, deferred = false): string | null {
-    if (value === undefined) return field.required ? LABELS.form.refusal.required(field.name) : null
-    if (deferred && hasReference(value)) return null
-    if (value === null) return field.nullable ? null : LABELS.form.refusal.not_null(field.name)
-
-    if (field.accepts.length === 0) {
-        return shapeProblem(field, { kind: field.kind, bounds: field.bounds }, value, deferred)
-    }
-    // A union: the value is fine under any branch. When none takes it, the branch whose
-    // type the value already is says what is wrong with it, because "min_size is text"
-    // about a badly written size sends somebody looking at the wrong thing.
-    const problems = field.accepts.map((branch) => shapeProblem(field, branch, value, deferred))
-    if (problems.includes(null)) return null
-    const typed = field.accepts.findIndex((branch) => typeMatches(branch.kind, value))
-    if (typed !== -1) return problems[typed] ?? null
-    return LABELS.form.refusal.shapes(
-        field.name,
-        field.accepts.map((branch) => wordFor(branch.kind)).join(LABELS.form.or),
-    )
-}
-
-/** What is wrong with a value under one shape, or null. */
-function shapeProblem(
-    field: FieldDescriptor,
-    shape: BranchShape,
-    value: unknown,
-    deferred: boolean,
-): string | null {
-    switch (shape.kind) {
-        case 'select':
-            if (!field.options.some((option) => sameJson(option.value, value))) {
-                return LABELS.form.refusal.one_of(
-                    field.name,
-                    field.options.map((option) => option.label).join(', '),
-                )
-            }
-            return null
-        case 'switch':
-            return typeof value === 'boolean' ? null : LABELS.form.refusal.boolean(field.name)
-        case 'text':
-        case 'code':
-            return typeof value === 'string'
-                ? textProblem(field, shape.bounds, value)
-                : LABELS.form.refusal.text(field.name)
-        case 'number':
-        case 'integer':
-            return typeof value === 'number' && Number.isFinite(value)
-                ? numberProblem(field, shape, value)
-                : LABELS.form.refusal.number(field.name)
-        case 'pairs':
-            return mapProblem(field, value, deferred)
-        case 'json':
-            return null
-    }
-}
-
-/**
- * What is wrong with a whole map, or null.
- *
- * Where a document is being edited, a reference standing for the whole field never reaches
- * here: `validateField` has already let it through. One entry of the map may be written as one
- * too, and the same holds for that.
- */
-function mapProblem(field: FieldDescriptor, value: unknown, deferred: boolean): string | null {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-        return LABELS.form.refusal.map(field.name)
-    }
-    for (const [key, held] of Object.entries(value as JsonMap)) {
-        if (deferred && hasReference(held)) continue
-        if (!fits(field.holds, held)) return LABELS.form.refusal.entry(field.name, key, wordsOf(field.holds))
-    }
-    return null
-}
-
-/** Whether one entry's value is a shape the map holds. */
-function fits(holds: readonly FieldKind[], value: unknown): boolean {
-    return holds.some((kind) => typeMatches(kind, value) && (kind !== 'integer' || Number.isInteger(value)))
-}
-
-/** Whether a value already has the type a shape edits, whatever its bounds say. */
-function typeMatches(kind: FieldKind, value: unknown): boolean {
-    switch (kind) {
-        case 'text':
-        case 'code':
-        case 'select':
-            return typeof value === 'string'
-        case 'number':
-        case 'integer':
-            return typeof value === 'number'
-        case 'switch':
-            return typeof value === 'boolean'
-        case 'pairs':
-            return value !== null && typeof value === 'object' && !Array.isArray(value)
-        case 'json':
-            return true
-    }
-}
-
-/** The word a union's refusal names a shape by. */
+/** The word a hint names a shape by. */
 function wordFor(kind: FieldKind): string {
     switch (kind) {
         case 'text':
@@ -463,58 +326,4 @@ function wordFor(kind: FieldKind): string {
         case 'json':
             return LABELS.form.shape.json
     }
-}
-
-function textProblem(field: FieldDescriptor, bounds: Bounds, value: string): string | null {
-    const { minLength, maxLength, pattern } = bounds
-    if (minLength !== undefined && value.length < minLength) {
-        return counted(minLength, LABELS.form.refusal.min_length)(field.name, String(minLength))
-    }
-    if (maxLength !== undefined && value.length > maxLength) {
-        return counted(maxLength, LABELS.form.refusal.max_length)(field.name, String(maxLength))
-    }
-    if (pattern !== undefined && !matches(pattern, value)) {
-        return LABELS.form.refusal.pattern(field.name, pattern)
-    }
-    return null
-}
-
-/** Whether a value satisfies a schema's pattern. A pattern this engine cannot read refuses nothing. */
-function matches(pattern: string, value: string): boolean {
-    try {
-        return new RegExp(pattern).test(value)
-    } catch {
-        return true
-    }
-}
-
-function numberProblem(field: FieldDescriptor, shape: BranchShape, value: number): string | null {
-    if (shape.kind === 'integer' && !Number.isInteger(value))
-        return LABELS.form.refusal.whole_number(field.name)
-    const { minimum, maximum, exclusiveMinimum, exclusiveMaximum } = shape.bounds
-    if (minimum !== undefined && value < minimum)
-        return LABELS.form.refusal.minimum(field.name, String(minimum))
-    if (maximum !== undefined && value > maximum)
-        return LABELS.form.refusal.maximum(field.name, String(maximum))
-    if (exclusiveMinimum !== undefined && value <= exclusiveMinimum) {
-        return LABELS.form.refusal.greater_than(field.name, String(exclusiveMinimum))
-    }
-    if (exclusiveMaximum !== undefined && value >= exclusiveMaximum) {
-        return LABELS.form.refusal.less_than(field.name, String(exclusiveMaximum))
-    }
-    return null
-}
-
-/** Every field of a form that has something wrong with it, by name. */
-export function validateFields(
-    fields: FieldDescriptor[],
-    values: JsonMap,
-    deferred = false,
-): Record<string, string> {
-    const problems: Record<string, string> = {}
-    for (const field of fields) {
-        const problem = validateField(field, values[field.name], deferred)
-        if (problem !== null) problems[field.name] = problem
-    }
-    return problems
 }

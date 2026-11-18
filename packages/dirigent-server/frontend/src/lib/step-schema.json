@@ -1,0 +1,23 @@
+{
+    "step": {
+        "rule": {
+            "type": "string",
+            "enum": ["all_success", "all_done", "one_failed", "always"],
+            "default": "all_success"
+        },
+        "for_each": { "type": "string" },
+        "items": { "type": "string", "enum": ["fail_fast", "continue"], "default": "fail_fast" },
+        "timeout": { "type": "string", "format": "humane-duration" },
+        "poll": { "type": "string", "format": "humane-duration" },
+        "deadline": { "type": "string", "format": "humane-duration" },
+        "on_timeout": { "type": "string", "enum": ["fail", "skip"], "default": "fail" },
+        "continue_on_failure": { "type": "boolean", "default": false }
+    },
+    "retry": {
+        "max_attempts": { "type": "integer", "minimum": 1, "maximum": 100, "default": 1 },
+        "backoff": { "type": "string", "format": "humane-duration", "default": "30s" },
+        "max_backoff": { "type": "string", "format": "humane-duration", "default": "1h" },
+        "multiplier": { "type": "number", "minimum": 1, "maximum": 10, "default": 2 },
+        "jitter": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.2 }
+    }
+}

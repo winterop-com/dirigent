@@ -6,11 +6,13 @@ import {
     forEachValue,
     retryFields,
     retryValues,
+    STEP_KEYS,
     stepFields,
     stepKeyValues,
     withRetryKey,
     withStepKey,
 } from '@/lib/step-keys'
+import stepShapes from '@/lib/step-schema.json'
 
 /** A document with one fan-out step and one plain one. */
 function document(): JsonMap {
@@ -35,6 +37,10 @@ function stepIn(source: JsonMap, step: string): JsonMap {
 }
 
 describe('the fields', () => {
+    test('are drawn from the step shapes, every one of them', () => {
+        expect([...STEP_KEYS]).toEqual(Object.keys(stepShapes.step))
+    })
+
     test('are the step members the engine reads, in the definition order', () => {
         expect(stepFields.map((field) => field.name)).toEqual([
             'rule',
