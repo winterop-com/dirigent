@@ -83,6 +83,7 @@ Contributed by `block-parquet`. Idempotent.
 | `target` | `string (storage-uri)` | yes |  | The URI the re-encoded bytes are written to, replacing whatever is there. |
 | `from` | `string` | yes |  | The format the source is in, named as the engine names it. |
 | `to` | `string` | yes |  | The format to produce. |
+| `max_size` | `string or integer` |  | `"256mb"` | The most the source may hold. A larger one is refused before it is read, because the whole source, and what it decodes into, is held in the worker's memory. More than `0b`. |
 
 **Output**
 
@@ -106,6 +107,7 @@ Contributed by `block-base`. Idempotent.
 | `target` | `string (storage-uri)` | yes |  | The URI the re-encoded bytes are written to, replacing whatever is there. |
 | `from` | `string` | yes |  | The format the source is in, named as the engine names it. |
 | `to` | `string` | yes |  | The format to produce. |
+| `max_size` | `string or integer` |  | `"256mb"` | The most the source may hold. A larger one is refused before it is read, because the whole source, and what it decodes into, is held in the worker's memory. More than `0b`. |
 
 **Output**
 

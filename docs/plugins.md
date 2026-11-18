@@ -83,7 +83,9 @@ with no change to dirigent, no config file, and no registry to edit. Uninstall a
   `admit`, and hands `receive` the read request, which answers with an input, `Ignore` for a
   sign of life such as a handshake (answered 204, no run), or a `Refusal` carrying the status
   its caller gets. `receive` runs in the server process with no connection and no secret in
-  reach. `endpoint` is dirigent's own kind, and a pack cannot take its name.
+  reach. `endpoint` is dirigent's own kind, and a pack cannot take its name. Every name of the
+  source contract, the three bases, their specs, contexts and answers, is imported from
+  `dirigent_plugin` like a block's.
   `dirigent_testing.receive_request` takes a request through a kind the way the intake does.
 - `storage_backends` -- a scheme a `<scheme>://` URI writes bytes to
 - `notifiers` -- where an alert is sent

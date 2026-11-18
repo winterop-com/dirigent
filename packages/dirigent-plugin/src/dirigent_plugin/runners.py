@@ -47,6 +47,10 @@ from dirigent_plugin.transforms import Engine, ProgramConfig, TransformError
 #: TransformError, because nothing about the program says it will happen again.
 RUNNER_STOPPED = "the process running the program stopped before it answered"
 
+#: What a step is told when the process running its program wrote a line that is not a reply.
+#: The process is killed: the replies after that line would no longer answer their requests.
+RUNNER_GARBLED = "the process running the program wrote a line that is not a reply, and was stopped"
+
 #: All of the worker's environment a runner starts with. A program runs behind no allowlist,
 #: and the worker's environment holds the instance's secrets.
 RUNNER_ENVIRONMENT = ("PATH", "LANG", "LC_ALL", "TZ")
@@ -155,7 +159,14 @@ class ProgramRunner:
             # A killed process, which is how a cancelled step ends its program, and how a
             # program that ran the process out of memory ends itself.
             raise RuntimeError(RUNNER_STOPPED)
-        answered = cast("dict[str, Any]", json.loads(reply))
+        try:
+            answered = json.loads(reply)
+        except ValueError:
+            answered = None
+        if not isinstance(answered, dict):
+            self.kill()
+            raise RuntimeError(RUNNER_GARBLED)
+        answered = cast("dict[str, Any]", answered)
         refusal = answered.get("error")
         if refusal is not None:
             raise TransformError(cast("str", refusal))

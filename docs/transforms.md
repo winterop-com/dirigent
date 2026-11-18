@@ -326,6 +326,12 @@ The `reload` step is there only when the run itself has to look at the records. 
 whose result the pipeline just passes on -- to another conversion, to a copy, to a load that
 reads the URI -- names `${steps.parse.output.target}` and never holds the bytes.
 
+**A conversion holds its whole source in memory, so it reads at most `max_size`.** The default
+is 256 MiB, written like any size (`max_size: 1GB`). A larger source is refused before a byte is
+read (`plugin.source_too_large`), and one that streams more than its storage reported is refused
+at the byte that passes the bound. What a codec decodes the source into is larger still, so
+raise the bound with the worker's memory in mind, or split the source upstream.
+
 **Every cell read out of a csv is a string.** A csv carries no types: `4.5` in a cell is the
 three characters, and a codec that decided it was a number would be guessing, on a column
 where `007` is a code and `1-2` is a range. So `csv` to `json` produces `"4.5"`, and a
@@ -668,7 +674,9 @@ compiling the program and releasing it are the frame's.
 two pipes, and one reply read for each request sent. A runner is any program, in any language,
 that reads its standard input and writes its standard output. It reads one JSON object per
 line and answers one JSON object per line, one reply per request and in the order the requests
-arrived, and it ends when the pipe closes. It starts with `PATH`, `LANG`, `LC_ALL` and `TZ` from
+arrived, and it ends when the pipe closes. Its standard output carries replies and nothing else:
+a line that is not a JSON object stops the runner and fails the step, because every reply after
+it would answer the wrong request, so a runner writes its diagnostics to standard error. It starts with `PATH`, `LANG`, `LC_ALL` and `TZ` from
 the worker's environment and nothing else:
 
 | The request | The answer |

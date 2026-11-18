@@ -16,6 +16,7 @@ from dirigent_plugin import (
     ErrorClass,
     Filterer,
     Mapper,
+    StatResult,
     Transformer,
     TransformError,
 )
@@ -241,6 +242,37 @@ async def test_a_source_that_is_not_there_is_rejected(block_ctx: FakeContext) ->
 
     assert raised.value.error_class is ErrorClass.REJECTED
     assert "there is nothing at file://in.csv to convert" in raised.value.message
+
+
+async def test_a_source_larger_than_max_size_is_refused_before_it_is_read(
+    block_ctx: FakeContext, block_storage: FakeStorage
+) -> None:
+    block_storage.path_for("file://in.csv").write_text("ada,grace,hopper,lovelace")
+
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(NoopConverter(), PAIR | {"max_size": 16}, block_ctx)
+
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert raised.value.code == "plugin.source_too_large"
+    assert not block_storage.path_for("file://out.csv").exists()
+
+
+async def test_a_source_that_streams_more_than_its_stat_said_is_refused_at_max_size(
+    block_ctx: FakeContext, block_storage: FakeStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    block_storage.path_for("file://in.csv").write_text("ada,grace,hopper,lovelace")
+    stat = block_storage.stat
+
+    async def under_reported(uri: str) -> StatResult | None:
+        found = await stat(uri)
+        return None if found is None else found.model_copy(update={"size": 1})
+
+    monkeypatch.setattr(block_storage, "stat", under_reported)
+
+    with pytest.raises(BlockFailure) as raised:
+        await call_block(NoopConverter(), PAIR | {"max_size": 16}, block_ctx)
+
+    assert raised.value.code == "plugin.source_too_large"
 
 
 def test_an_unsupported_pair_is_refused_at_apply_and_names_what_is_supported() -> None:
