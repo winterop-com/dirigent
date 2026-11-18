@@ -42,6 +42,7 @@ from dirigent_core.messages import (
     NO_CRON,
     NO_INSTANT,
     NO_INTERVAL,
+    ONE_TIME_PASSED,
     SCHEDULE_EXACTLY_ONE_CLOCK,
     SCHEDULE_PARAMS,
     UNKNOWN_SCHEDULE,
@@ -455,11 +456,14 @@ async def create_schedule(
     """Declare a schedule on a pipeline, with its first firing already computed.
 
     ``paused`` is a column on the row being inserted rather than a second write, so a
-    schedule asked for paused is never live for the width of a transaction.
+    schedule asked for paused is never live for the width of a transaction. A one-time
+    schedule declared after its moment has no firing, and is inserted paused, as one that
+    fired is left.
     """
     check_schedule(request)
     if await find_schedule(session, pipeline.id, request.code) is not None:
         raise DuplicateSchedule(pipeline.code, request.code)
+    first = first_fire_at(request, now=now)
     schedule = Schedule(
         pipeline_id=pipeline.id,
         code=request.code,
@@ -473,8 +477,8 @@ async def create_schedule(
         params=dict(request.params),
         log_levels=dict(request.log_levels) if request.log_levels else None,
         priority=request.priority,
-        next_fire_at=first_fire_at(request, now=now),
-        paused=paused,
+        next_fire_at=first,
+        paused=paused or first is None,
     )
 
     async def taken() -> bool:
@@ -492,6 +496,9 @@ async def create_schedule(
     )
     return schedule
 
+
+#: The fields a schedule's clock is computed from: a redeclaration that changes none of them keeps its next firing.
+CLOCK: Final = ("kind", "cron", "interval_seconds", "run_at", "timezone")
 
 #: What a redeclaration may change on a schedule, compared before and after to name the fields it did.
 DECLARED: Final = (
@@ -521,9 +528,11 @@ async def update_schedule(
     *,
     now: datetime | None = None,
 ) -> Schedule:
-    """Redeclare a schedule's clock and parameters, recomputing when it next fires.
+    """Redeclare a schedule's clock and parameters, recomputing when it next fires if the clock changed.
 
-    Operational state is untouched: a paused schedule stays paused through an edit.
+    Operational state is untouched: a paused schedule stays paused through an edit, and an
+    interval schedule keeps its phase through an edit that leaves its clock as it was. A
+    one-time schedule redeclared to a moment already gone by pauses, as one that fired does.
     """
     check_schedule(request)
     before = {field: getattr(schedule, field) for field in DECLARED}
@@ -537,7 +546,10 @@ async def update_schedule(
     schedule.params = dict(request.params)
     schedule.log_levels = dict(request.log_levels) if request.log_levels else None
     schedule.priority = request.priority
-    schedule.next_fire_at = first_fire_at(request, now=now)
+    if any(before[field] != getattr(schedule, field) for field in CLOCK):
+        schedule.next_fire_at = first_fire_at(request, now=now)
+        if schedule.next_fire_at is None:
+            schedule.paused = True
     await session.flush()
     fields = audit.changed(before, {field: getattr(schedule, field) for field in DECLARED})
     if fields:
@@ -556,12 +568,16 @@ async def update_schedule(
 async def set_paused(session: AsyncSession, schedule: Schedule, *, paused: bool) -> Schedule:
     """Pause or resume a schedule; resuming recomputes the next firing from now.
 
-    Resuming without recomputing would fire once for every slot missed while paused.
+    Resuming without recomputing would fire once for every slot missed while paused. A
+    one-time schedule whose moment has gone by has no firing to resume to, and is refused.
     """
     was = schedule.paused
-    schedule.paused = paused
     if not paused:
-        schedule.next_fire_at = next_fire_for(schedule, utcnow())
+        following = next_fire_for(schedule, utcnow())
+        if following is None:
+            raise ScheduleError(ONE_TIME_PASSED, at=str(schedule.run_at))
+        schedule.next_fire_at = following
+    schedule.paused = paused
     await session.flush()
     if was is not paused:
         await audit.record(

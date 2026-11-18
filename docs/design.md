@@ -777,7 +777,13 @@ advances one slot per tick and catches up over the next few ticks, which is what
 grid" means. Only the misfire path guarantees a next firing in the future.
 
 A one-time schedule whose instant has gone by has no next firing, so it pauses itself rather
-than being deleted: the row, its parameters, and its history stay readable.
+than being deleted: the row, its parameters, and its history stay readable. One declared or
+redeclared with an instant already gone by is stored paused the same way, and resuming it is
+refused until its `at` names a later moment.
+
+A redeclaration recomputes the next firing only when it changes the clock (the kind, the cron
+expression, the interval, the instant or the timezone). Editing a schedule's description,
+parameters or priority leaves an interval schedule on the phase it already keeps.
 
 ### The window a firing covers
 
