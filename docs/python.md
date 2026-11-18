@@ -62,8 +62,8 @@ and `.` or `..` are refused with a `DirigentError` before any request is made.
 | Accessor | What it reaches |
 | --- | --- |
 | `dg.pipelines` | `list`, `get`, `apply`, `prune`, `versions`, `export`, `validate`, `activate`, `deactivate`, `delete`, `run`, `backfill` |
-| `dg.runs` | `list`, `get`, `stats`, `items`, `attempts`, `artifacts`, `artifact_text`, `cancel`, `pause`, `resume`, `rerun`, `retry`, `logs`, `report`, `report_document`, `wait`, `follow_logs`, `events` |
-| `dg.schedules` | `list`, `get`, `create`, `update`, `pause`, `resume`, `firings`, `delete` |
+| `dg.runs` | `list`, `get`, `stats`, `items`, `attempts`, `artifacts`, `artifact_text`, `cancel`, `pause`, `resume`, `rerun`, `retry`, `logs`, `report`, `report_document`, `summary`, `wait`, `follow_logs`, `events` |
+| `dg.schedules` | `list`, `get`, `create`, `redeclare`, `pause`, `resume`, `firings`, `delete`, `preview` |
 | `dg.sources` | `list`, `get`, `pause`, `resume`, `rotate_token`, `set_secret`, `inputs` |
 | `dg.trigger_documents` | `list`, `get`, `delete` |
 | `dg.alerts` | `rules`, `create_rule`, `update_rule`, `set_rule_paused`, `delete_rule`, `test`, `notifications`, `notification`, `retry` |
@@ -72,7 +72,7 @@ and `.` or `..` are refused with a `DirigentError` before any request is made.
 | `dg.blocks` | `catalog`, `get` |
 | `dg.examples` | `list`, `get` |
 | `dg.workers` | `list` |
-| `dg.system` | `info`, `health`, `ready` |
+| `dg.system` | `info`, `labels`, `health`, `ready` |
 | `dg.auth` | `login`, `logout`, `whoami`, `change_password` |
 | `dg.admin` | `users.list`, `users.create`, `users.update`, `users.deactivate`, `users.activate`, `users.reset_password`, `users.tokens`, `users.create_token`, `tokens.list`, `tokens.create`, `tokens.revoke` |
 
@@ -201,9 +201,13 @@ terminal and there is nothing more to read. `expired` means the stream reached t
 wall-clock limit with the run still going: the client reopens it from the id of the last entry
 it yielded and keeps going, so following a run for a day is the same call as following one for
 a minute. A stream that closes saying neither was cut -- a proxy's idle timeout, a restarted
-server -- and is reopened the same way, which is why a reconnection neither loses a line nor
-repeats one. `reconnects=` bounds how many cut streams and transport failures it will absorb;
-an expiry is not one of them, and an entry delivered restores the budget in full.
+server, a connection that carried no byte for a minute though the server sends a keepalive
+every fifteen seconds -- and is reopened the same way, which is why a reconnection neither
+loses a line nor repeats one. `reconnects=` bounds how many cut streams and transport failures
+it will absorb; an expiry is not one of them, and an entry delivered restores the budget in
+full. Past the budget the iterator raises rather than ending: `StreamCut` for a stream that
+kept closing without `end`, `TransportError` for one that kept failing. An iterator that ends
+quietly has read `end`, so the run is terminal.
 
 For a page rather than a stream, `runs.logs` takes `after`, `limit`, and `step`, and answers
 the same `Page` every other listing does. `next` is null when there was nothing past this page,
@@ -223,9 +227,10 @@ async for event in dg.runs.events(run_id):
 ```
 
 `runs.events` is one stream carrying three things in the order they happened: an `AttemptEvent`
-for every state an attempt reaches, a `LogEntryOut` for every line, and one `RunOut` when the
-run settles, which is the last thing sent before `end`. `expired` and a cut stream are reopened
-here exactly as they are for a log tail. Every attempt is replayed in its current state when
+for every state an attempt reaches, a `LogEntryOut` for every line, and a `RunOut` when the stream opens and each time the run's
+own state changes, the last one sent before `end` being the state it settled in. `expired` and
+a cut stream are reopened here exactly as they are for a log tail, and any of the three events
+restores the reconnect budget. Every attempt is replayed in its current state when
 the stream opens and again after a reconnection, so a consumer keys on what it has already seen
 rather than on how many times it read it; the log cursor resumes where it left off, so a line
 is never repeated. An `AttemptEvent` is an `AttemptOut` plus `item`, the element a fan-out

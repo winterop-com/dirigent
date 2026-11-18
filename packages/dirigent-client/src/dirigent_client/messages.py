@@ -13,6 +13,11 @@ NOT_DIRIGENT = CLIENT.define(
 
 NO_PROBLEM_DOCUMENT = CLIENT.define("no_problem_document", "{detail}")
 
+STREAM_CUT = CLIENT.define(
+    "stream_cut",
+    "the stream from {url} was cut {times} times in a row without saying the run had settled",
+)
+
 
 # What a wire shape refuses at validation. Pydantic owns the code a validator's refusal
 # reaches the wire under, so these are rendered into the ``ValueError`` it wraps.

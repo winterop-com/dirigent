@@ -1193,7 +1193,7 @@ what makes the detail one small query however many attempts a run holds. A watch
 Then the trigger and alerting surface, and the one route that is not under `/api/v1`:
 
 ```text
-GET/POST      /api/v1/pipelines/{code}/triggers/schedules          # + /{schedule}, PATCH, DELETE
+GET/POST      /api/v1/pipelines/{code}/triggers/schedules          # + /{schedule}, PUT, DELETE
 POST          /api/v1/pipelines/{code}/triggers/schedules/{s}/$pause   # + /$resume
 GET           /api/v1/pipelines/{code}/triggers/schedules/{s}/firings
 POST          /api/v1/schedules/$preview                          # what a clock nobody declared would fire

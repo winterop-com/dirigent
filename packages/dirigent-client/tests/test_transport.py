@@ -3,7 +3,7 @@
 import httpx2
 import pytest
 
-from clientsupport import BASE_URL, Recorder, client_of, ok, refusal
+from clientsupport import BASE_URL, STAMPED, Recorder, client_of, ok, refusal
 from dirigent_client import (
     API_PREFIX,
     Conflict,
@@ -203,6 +203,29 @@ async def test_a_post_is_never_repeated_because_it_may_already_have_taken_effect
         with pytest.raises(ServerError):
             await dg.pipelines.run("demo")
     assert len(recorder.calls) == 1
+
+
+async def test_a_delete_whose_answer_was_lost_is_not_sent_again(no_sleep: list[float]) -> None:
+    """A repeat of a delete that went through answers 404, which would report a success as a failure."""
+    attempts: list[int] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise httpx2.ReadTimeout("slow", request=request)
+        return refusal(404, "no pipeline coded 'big'")
+
+    async with client_of(Recorder(handler)) as dg:
+        with pytest.raises(TransportError):
+            await dg.pipelines.delete("big")
+    assert len(attempts) == 1
+
+
+async def test_a_delete_answered_with_a_server_error_is_retried(no_sleep: list[float]) -> None:
+    recorder = Recorder([refusal(503, "restarting"), httpx2.Response(204, headers=STAMPED)])
+    async with client_of(recorder) as dg:
+        await dg.pipelines.delete("big")
+    assert len(recorder.calls) == 2
 
 
 async def test_retries_can_be_turned_off(no_sleep: list[float]) -> None:

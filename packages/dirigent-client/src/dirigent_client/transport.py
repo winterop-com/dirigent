@@ -38,6 +38,10 @@ DEFAULT_TIMEOUT: Final = 30.0
 #: the TLS handshake finished. Nothing that has to be read is counted here.
 DEFAULT_CONNECT_TIMEOUT: Final = 2.0
 
+#: How long a stream may go without a byte before it is read as cut. The server sends a
+#: keepalive comment every 15 seconds, so this is four of them missed.
+STREAM_READ_TIMEOUT: Final = 60.0
+
 DEFAULT_RETRIES: Final = 2
 BACKOFF_SECONDS: Final = 0.25
 BACKOFF_MAX_SECONDS: Final = 4.0
@@ -45,6 +49,11 @@ BACKOFF_MAX_SECONDS: Final = 4.0
 #: A POST or a PATCH can have taken effect before the connection broke, so repeating one
 #: risks a second run, a second token, a second account.
 IDEMPOTENT_METHODS: Final = frozenset({"GET", "HEAD", "OPTIONS", "PUT", "DELETE"})
+
+#: Verbs whose repeat after a lost answer reports something other than the first did: a DELETE
+#: that went through answers its repeat 404. One is retried after an error answer, never after
+#: a connection that broke once the request was sent.
+ANSWER_CHANGES_ON_REPEAT: Final = frozenset({"DELETE"})
 
 #: Failures no second attempt can change: the connection was never established -- refused,
 #: unresolvable, or never answered within the connect budget -- or the request was not a
@@ -160,7 +169,8 @@ class Transport:
             try:
                 response = await self._client.request(method, target, **sent)
             except httpx2.HTTPError as error:
-                if last or isinstance(error, NEVER_RETRIED):
+                sent_once = method.upper() in ANSWER_CHANGES_ON_REPEAT and not isinstance(error, NEVER_RETRIED)
+                if last or sent_once or isinstance(error, NEVER_RETRIED):
                     raise TransportError(self.url, error) from error
                 await asyncio.sleep(backoff_for(attempt))
                 continue
@@ -201,10 +211,11 @@ class Transport:
 
     @asynccontextmanager
     async def stream(self, path: str, **kwargs: Any) -> AsyncGenerator[httpx2.Response]:
-        """Open a streaming GET, held open for as long as the caller reads it."""
+        """Open a streaming GET, held open for as long as the caller reads it and bytes keep arriving."""
         target = f"{self.api_prefix}{path}"
+        budget = httpx2.Timeout(None, connect=self.connect_timeout, read=STREAM_READ_TIMEOUT)
         try:
-            async with self._client.stream("GET", target, timeout=self.budget(None), **kwargs) as response:
+            async with self._client.stream("GET", target, timeout=budget, **kwargs) as response:
                 if response.status_code >= 400:
                     await response.aread()
                     raise self._refusal(response, target)

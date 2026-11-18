@@ -175,9 +175,9 @@ async def add_schedule(
     return await _schedule_out(session, await create_schedule(session, pipeline, _schedule_request(payload)))
 
 
-@router.patch(
+@router.put(
     "/pipelines/{code}/triggers/schedules/{schedule}",
-    operation_id="updateSchedule",
+    operation_id="redeclareSchedule",
     summary="Redeclare a schedule",
     response_model=ScheduleOut,
 )
@@ -189,7 +189,7 @@ async def edit_schedule(
     services: ServicesDep,
     principal: OperatorDep,
 ) -> ScheduleOut:
-    """Change a schedule's clock or parameters, keeping whether it is paused."""
+    """Replace a schedule's whole declaration, keeping whether it is paused; a field left out takes its default."""
     row = await _require_schedule(session, code, schedule)
     await _check_pins(session, services, row.pipeline_id, payload)
     return await _schedule_out(session, await update_schedule(session, row, _schedule_request(payload)))

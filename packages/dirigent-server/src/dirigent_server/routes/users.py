@@ -8,8 +8,8 @@ from dirigent_client.schemas import (
     IssuedTokenOut,
     Page,
     PasswordResetRequest,
+    TokenIn,
     TokenOut,
-    TokenRequest,
     UserIn,
     UserOut,
     UserUpdate,
@@ -182,7 +182,7 @@ async def list_account_tokens(
 )
 async def create_account_token(
     username: str,
-    payload: TokenRequest,
+    payload: TokenIn,
     session: SessionDep,
     principal: AdminDep,
 ) -> IssuedTokenOut:

@@ -1076,6 +1076,10 @@ const refused = {
         weak_password: 'A password must be at least {minimum} characters.',
         wrong_password: 'The current password is not correct.',
     },
+    client: {
+        stream_cut:
+            'The stream from {url} was cut {times} times in a row without the run settling, so it stopped following. The run may still be going.',
+    },
     common: {
         bad_credential:
             'A credential must be visible ASCII with no whitespace, or it cannot be sent as a header value. A scheme such as Bearer goes in credential_scheme.',

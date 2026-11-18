@@ -11,8 +11,8 @@ from dirigent_client.schemas import (
     LoginRequest,
     Page,
     PasswordChangeRequest,
+    TokenIn,
     TokenOut,
-    TokenRequest,
 )
 from dirigent_common.hosts import counted_as
 from dirigent_core.auth import (
@@ -197,7 +197,7 @@ async def list_api_tokens(
     response_model=IssuedTokenOut,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_api_token(payload: TokenRequest, session: SessionDep, principal: AdminDep) -> IssuedTokenOut:
+async def create_api_token(payload: TokenIn, session: SessionDep, principal: AdminDep) -> IssuedTokenOut:
     """Mint a bearer token for automation and return its secret exactly once."""
     user = await _require_user(session, principal.username)
     issued = await issue_token(session, user, name=payload.name, lifetime=payload.expires_in)
