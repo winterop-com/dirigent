@@ -29,6 +29,7 @@ from dirigent_block_execute.docker import (
     split_image,
     write_cli_config,
 )
+from dirigent_block_execute.subprocess import segment
 from dirigent_common import SHELL_MEDIA_TYPE
 from dirigent_plugin import BlockFailure, ErrorClass, ProbeResult, ProbeStatus, RemoteHandle
 from dirigent_testing import FakeContext
@@ -570,6 +571,49 @@ async def test_inputs_are_staged_into_a_read_only_mount(daemon: FakeDaemon, loca
     staged = Path(binds[0].split(":")[0]) / "data.csv"
     assert staged.read_bytes() == b"a,b\n1,2\n"
     assert handle.meta["outputs_dir"].endswith("/outputs")
+
+
+async def test_an_input_staged_onto_a_planted_link_leaves_the_outside_file_alone(
+    daemon: FakeDaemon, local_ctx: FakeContext, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    """An ordinary step such as git.checkout can leave a link where an input is staged."""
+    source = local_ctx.storage.path_for("file://in/data.csv")
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_bytes(b"a,b\n1,2\n")
+    outside = tmp_path_factory.mktemp("outside") / "profile"
+    outside.write_text("the worker's own file\n")
+    staged = local_ctx.work / segment(local_ctx.as_context(), "docker") / "inputs" / "data.csv"
+    staged.parent.mkdir(parents=True)
+    staged.symlink_to(outside)
+    config = DockerRunConfig(image="alpine", inputs={"data.csv": "file://in/data.csv"})
+
+    with pytest.raises(BlockFailure) as raised:
+        await DockerRunOperator().execute(config, local_ctx.as_context())
+
+    assert raised.value.code == "execute.input_target_refused"
+    assert raised.value.error_class is ErrorClass.REJECTED
+    assert outside.read_text() == "the worker's own file\n"
+    assert not [request for request in daemon.requests if request.url.path == "/containers/create"]
+
+
+@pytest.mark.parametrize("mount", ["inputs", "outputs"])
+async def test_a_mount_directory_linked_out_of_the_work_directory_is_refused(
+    daemon: FakeDaemon, local_ctx: FakeContext, tmp_path_factory: pytest.TempPathFactory, mount: str
+) -> None:
+    """The daemon follows a link in a bind's source, so the container would mount what the link names."""
+    outside = tmp_path_factory.mktemp("outside")
+    attempt = local_ctx.work / segment(local_ctx.as_context(), "docker")
+    attempt.mkdir(parents=True)
+    (attempt / mount).symlink_to(outside, target_is_directory=True)
+    config = DockerRunConfig(
+        image="alpine", inputs={"data.csv": "file://in/data.csv"}, outputs={"result.txt": "file://out/result.txt"}
+    )
+
+    with pytest.raises(BlockFailure) as raised:
+        await DockerRunOperator().execute(config, local_ctx.as_context())
+
+    assert raised.value.code == "execute.path_leaves_the_work_directory"
+    assert not [request for request in daemon.requests if request.url.path == "/containers/create"]
 
 
 # -- probe -----------------------------------------------------------------------

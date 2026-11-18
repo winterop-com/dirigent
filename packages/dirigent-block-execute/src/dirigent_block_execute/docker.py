@@ -8,6 +8,7 @@ daemon through the same material: a ``DOCKER_HOST``, and for a tcp daemon the cl
 triple as three 0600 files in a 0700 directory that goes when the step leaves.
 """
 
+import asyncio
 import contextlib
 import errno
 import json
@@ -35,6 +36,7 @@ from dirigent_block_execute.messages import (
     CREDENTIAL_IS_A_PAIR,
     DAEMON_REFUSED,
     DOCKER_CONNECTION_NAMES_NEITHER,
+    INPUT_TARGET_REFUSED,
     MOUNTED_FILE_STAYS_INSIDE,
     NO_DAEMON,
     NOT_A_DAEMON_SCHEME,
@@ -314,8 +316,10 @@ async def logout(binary: str, directory: Path, environ: Mapping[str, str], setti
         )
 
 
-class Sealed(NamedTuple):
+class Sealed(BaseModel):
     """What a connection became for one invocation: an environment, and the strings never to log."""
+
+    model_config = ConfigDict(frozen=True)
 
     environ: dict[str, str]
     secrets: list[str]
@@ -333,7 +337,7 @@ def sealed(settings: DockerConnectionConfig | None, *, isolate_config: bool = Fa
     stands.
     """
     if settings is None and not isolate_config:
-        yield Sealed({}, [])
+        yield Sealed(environ={}, secrets=[])
         return
     with secrets.private_directory("dirigent-docker-") as directory:
         yield _materialise(settings, directory, isolate_config=isolate_config)
@@ -349,7 +353,7 @@ def _materialise(settings: DockerConnectionConfig | None, directory: Path, *, is
         write_cli_config(config)
         environ["DOCKER_CONFIG"] = str(config)
     if settings is None:
-        return Sealed(environ, hidden)
+        return Sealed(environ=environ, secrets=hidden)
     if settings.host:
         environ["DOCKER_HOST"] = settings.host
     if settings.tls_key is not None:
@@ -361,7 +365,7 @@ def _materialise(settings: DockerConnectionConfig | None, directory: Path, *, is
         hidden.append(settings.tls_key.get_secret_value())
     if settings.password is not None:
         hidden.append(settings.password.get_secret_value())
-    return Sealed(environ, hidden)
+    return Sealed(environ=environ, secrets=hidden)
 
 
 def daemon_environment(base: dict[str, str], material: Sealed) -> dict[str, str]:
@@ -478,11 +482,14 @@ class DockerRunConfig(ShellVariables):
     """The daemon socket, when neither the default nor ``DOCKER_HOST`` is right."""
 
     api_timeout: Duration = Field(default=timedelta(seconds=60), gt=timedelta(0))
-    """How long one call to the daemon may take. This is not the container's runtime: the
-    container runs under the step's deadline, which the engine owns and this block never waits on."""
+    """How long the daemon may keep one call waiting at each phase: connecting, sending the
+    request, and between two reads of its answer. It bounds a silent daemon, not the whole call.
+    This is not the container's runtime: the container runs under the step's deadline, which the
+    engine owns and this block never waits on."""
 
     pull_timeout: Duration = Field(default=timedelta(minutes=10), gt=timedelta(0))
-    """How long a pull may take, which is a different order of magnitude from an API call."""
+    """How long a pull may go without the daemon answering, at each of the same phases. A pull
+    that keeps reporting progress runs on past it, under the step's deadline."""
 
     @model_validator(mode="after")
     def _check_shape(self) -> "DockerRunConfig":
@@ -736,15 +743,23 @@ def _mounts(config: DockerRunConfig, ctx: StepContext) -> Mounts:
     """Place this attempt's mounts inside the run's work directory, which a bind needs to be local."""
     if not config.inputs and not config.outputs:
         return Mounts()
-    workspace = ctx.work / subprocess.segment(ctx, "docker")
-    mounts = Mounts(
-        inputs=workspace / "inputs" if config.inputs else None,
-        outputs=workspace / "outputs" if config.outputs else None,
+    segment = subprocess.segment(ctx, "docker")
+    return Mounts(
+        inputs=_mount_directory(ctx, f"{segment}/inputs") if config.inputs else None,
+        outputs=_mount_directory(ctx, f"{segment}/outputs") if config.outputs else None,
     )
-    for directory in (mounts.inputs, mounts.outputs):
-        if directory is not None:
-            directory.mkdir(parents=True, exist_ok=True)
-    return mounts
+
+
+def _mount_directory(ctx: StepContext, relative: str) -> Path:
+    """Make one mount's directory, refused where a link another step left leads it out of the work directory.
+
+    The daemon follows a link in a bind's source, so a link there would mount whatever it names,
+    read-write for the outputs.
+    """
+    subprocess.inside_work(ctx.work, relative)
+    directory = ctx.work / relative
+    directory.mkdir(parents=True, exist_ok=True)
+    return subprocess.inside_work(ctx.work, relative)
 
 
 def _creation(config: DockerRunConfig, ctx: StepContext, mounts: Mounts) -> dict[str, JsonValue]:
@@ -814,11 +829,12 @@ async def _stage_inputs(config: DockerRunConfig, ctx: StepContext, mounts: Mount
     if mounts.inputs is None:
         return
     for name, uri in config.inputs.items():
-        target = mounts.inputs / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("wb") as handle:
+        handle = await asyncio.to_thread(_open_input, mounts.inputs, name)
+        try:
             async for chunk in ctx.storage.open_read(uri):
-                handle.write(chunk)
+                await asyncio.to_thread(handle.write, chunk)
+        finally:
+            await asyncio.to_thread(handle.close)
         ctx.log.debug("input staged", name=name, uri=uri)
 
 
@@ -829,18 +845,19 @@ async def _collect_outputs(config: DockerRunConfig, handle: RemoteHandle, ctx: S
     directory = Path(handle.meta["outputs_dir"])
     collected: dict[str, str] = {}
     for name, target in config.outputs.items():
-        with _open_output(directory, name, config) as source:
+        source = await asyncio.to_thread(_open_output, directory, name, config)
+        try:
             written = 0
             if "://" in target:
                 async with ctx.storage.open_write(target) as sink:
-                    while chunk := source.read(COPY_CHUNK_BYTES):
+                    while chunk := await asyncio.to_thread(source.read, COPY_CHUNK_BYTES):
                         written += await sink.write(chunk)
                 ctx.log.info("output collected", name=name, uri=target, bytes_written=written)
             else:
-                with _open_target(ctx.work, target) as sink:
-                    while chunk := source.read(COPY_CHUNK_BYTES):
-                        written += sink.write(chunk)
+                written = await asyncio.to_thread(_copy_to_target, source, ctx.work, target)
                 ctx.log.info("output collected", name=name, path=target, bytes_written=written)
+        finally:
+            await asyncio.to_thread(source.close)
         collected[name] = target
     return collected
 
@@ -882,6 +899,25 @@ def _open_output(directory: Path, name: str, config: DockerRunConfig) -> BinaryI
     except OSError as error:
         raise refused from error
     return _regular(descriptor, "rb", refused)
+
+
+def _copy_to_target(source: BinaryIO, root: Path, target: str) -> int:
+    """Copy an opened output to its target in the run's work directory and say how many bytes it wrote."""
+    written = 0
+    with _open_target(root, target) as sink:
+        while chunk := source.read(COPY_CHUNK_BYTES):
+            written += sink.write(chunk)
+    return written
+
+
+def _open_input(directory: Path, name: str) -> BinaryIO:
+    """Open where one input is staged for writing, making its parents and following no link."""
+    refused = BlockFailure(INPUT_TARGET_REFUSED, error_class=ErrorClass.REJECTED, name=repr(name))
+    try:
+        descriptor = _open_below(directory, name, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, make_parents=True)
+    except OSError as error:
+        raise refused from error
+    return _regular(descriptor, "wb", refused)
 
 
 def _open_target(root: Path, target: str) -> BinaryIO:
