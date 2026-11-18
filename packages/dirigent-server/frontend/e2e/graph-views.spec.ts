@@ -121,6 +121,26 @@ async function pageScroll(page: Page): Promise<number> {
     return page.evaluate(() => document.querySelector('main')?.scrollTop ?? 0)
 }
 
+/** Wait until the page has stopped scrolling: two reads a frame apart agree. */
+async function scrollSettled(page: Page): Promise<void> {
+    let last = -1
+    await expect
+        .poll(async () => {
+            const now = await page.evaluate(
+                () =>
+                    new Promise<number>((resolve) => {
+                        requestAnimationFrame(() => {
+                            resolve(document.querySelector('main')?.scrollTop ?? 0)
+                        })
+                    }),
+            )
+            const steady = now === last
+            last = now
+            return steady
+        })
+        .toBe(true)
+}
+
 /** Where each box stands on the page, by its step. */
 async function boxes(page: Page): Promise<Record<string, { x: number; y: number }>> {
     return page.evaluate(() =>
@@ -188,7 +208,7 @@ test('every box is on the canvas on the first fit, and the canvas fills the room
     await canvasSettled(page)
     const after = await transformOf(page)
     expect(after).not.toBe(before)
-    await page.waitForTimeout(600)
+    await canvasSettled(page)
     expect(await transformOf(page)).toBe(after)
     await everyNodeIsInView(page)
 })
@@ -217,6 +237,8 @@ test('a plain wheel over the run canvas zooms it one step about the pointer, and
     const before = viewOf(drawn)
     await page.mouse.wheel(0, -100)
     await expect.poll(() => transformOf(page)).not.toBe(drawn)
+    // On the page's own clock, which is the one the canvas spaces its notches by.
+    const notched = await page.evaluate(() => performance.now())
     const after = viewOf(await transformOf(page))
 
     // One notch is one zoom button's step, and the point under the pointer stays under it.
@@ -232,10 +254,14 @@ test('a plain wheel over the run canvas zooms it one step about the pointer, and
 
     // A notch the other way steps back out, and the page still stands where it was. Wheel events
     // closer together than the canvas's notch interval are one notch, so this one waits it out.
-    await page.waitForTimeout(GRAPH_WHEEL_STEP_MS + 50)
+    await page.waitForFunction(({ since, interval }) => performance.now() - since > interval, {
+        since: notched,
+        interval: GRAPH_WHEEL_STEP_MS,
+    })
     await page.mouse.wheel(0, 100)
     await expect.poll(async () => viewOf(await transformOf(page)).zoom).toBeCloseTo(before.zoom, 3)
-    await page.waitForTimeout(300)
+    await canvasSettled(page)
+    await scrollSettled(page)
     expect(await pageScroll(page)).toBe(0)
 })
 
@@ -254,7 +280,8 @@ test("a plain wheel over a pipeline's canvas scrolls the page; a modified one zo
     const before = await transformOf(page)
     await page.mouse.wheel(0, 200)
     await expect.poll(() => pageScroll(page)).toBeGreaterThan(0)
-    await page.waitForTimeout(400)
+    await scrollSettled(page)
+    await canvasSettled(page)
     expect(await transformOf(page)).toBe(before)
 
     // A pinch is a wheel with Ctrl held, and so is Ctrl and a mouse wheel: one notch is one step.
@@ -271,7 +298,9 @@ test("a plain wheel over a pipeline's canvas scrolls the page; a modified one zo
 
     // The view is the reader's now: a page scroll does not take it back.
     await page.mouse.wheel(0, 200)
-    await page.waitForTimeout(400)
+    await expect.poll(() => pageScroll(page)).toBeGreaterThan(0)
+    await scrollSettled(page)
+    await canvasSettled(page)
     expect(await transformOf(page)).toBe(zoomed)
 })
 
