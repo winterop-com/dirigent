@@ -60,6 +60,11 @@ UNSUPPORTED_API_VERSION = PLUGIN.define(
 
 DUPLICATE_ID = PLUGIN.define("duplicate_id", "duplicate {label} {value} in contribution")
 
+BAD_SURFACE_ID = PLUGIN.define(
+    "bad_surface_id",
+    "{label} {value} is not a lowercase word: it starts with a letter and holds only a-z, 0-9, - and _",
+)
+
 INVALID_MARK = PLUGIN.define(
     "invalid_mark",
     "the mark that kind {kind} declares is not SVG path data: {detail}",

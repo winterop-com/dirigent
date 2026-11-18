@@ -1,7 +1,7 @@
 """Tests for the dirigent block contract."""
 
 import tempfile
-from collections.abc import AsyncGenerator, AsyncIterator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -389,6 +389,25 @@ def test_contribution_rejects_duplicate_notifier_ids() -> None:
 
     with pytest.raises(ValidationError, match="duplicate notifier id"):
         Contribution(notifiers=[NullNotifier(), NullNotifier()])
+
+
+class SpacedConnectionKind(ToyConnectionKind):
+    """A connection kind whose id is not a lowercase word."""
+
+    id = "Acme HTTP"
+
+
+@pytest.mark.parametrize(
+    ("built", "label"),
+    [
+        (lambda: Contribution(connection_kinds=[SpacedConnectionKind()]), "connection kind id"),
+        (lambda: Contribution(formats={"Dhis2 UID": lambda _value: True}), "format"),
+    ],
+    ids=["connection-kind", "format"],
+)
+def test_contribution_rejects_a_surface_id_off_the_pattern(built: Callable[[], Contribution], label: str) -> None:
+    with pytest.raises(ValidationError, match=f"{label} '.+' is not a lowercase word"):
+        built()
 
 
 class MarkedConnectionKind(ToyConnectionKind):

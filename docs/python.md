@@ -348,6 +348,11 @@ engine does, and then makes the block's first call: an operator's `execute` or a
 directory, an HTTP client built on a handler the test installs, and an in-memory runs facade.
 The recording logger keeps each field in the shape the engine stores it in, so a block that logs
 a `datetime` sees its ISO 8601 text in `block_ctx.log.entries`, as the run's log would hold it.
+`block_ctx` refuses what the engine refuses, the way the engine does: a connection, a client or a schema
+under a code the test installed nothing under, and a connection installed as another model than
+the one the block reads, are each a rejected `BlockFailure`. Its storage serves `file://` alone
+unless the test names more schemes (`FakeStorage(root, schemes=("file", "s3"))`), refuses a path
+outside its root as `StorageRefused`, and publishes an object only when its writer finishes.
 `defaults_only_environment` is the fixture that takes `DIRIGENT_*`, `DG_*` and `OTEL_*` out of
 one test's environment; request it from your own conftest to run a suite against defaults.
 `no_connection_outlives_its_loop` fails a test that ends with a database connection it opened

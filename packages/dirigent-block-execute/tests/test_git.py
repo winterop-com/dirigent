@@ -521,6 +521,7 @@ async def test_a_checkout_lands_in_the_work_directory_whatever_scratch_is(
 ) -> None:
     """A checkout is a directory on the worker, so a bucket for an artifact root is no obstacle."""
     local_ctx.scratch_uri = "s3://bucket/artifacts/runs/one"
+    local_ctx.storage.schemes |= {"s3"}
     output = await checkout(install(local_ctx, public))
     assert (work_root(local_ctx) / output.target / "README.md").exists()
 
