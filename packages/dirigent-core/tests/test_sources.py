@@ -358,6 +358,11 @@ def test_an_endpoint_refuses_a_media_type_it_does_not_take_before_reading_the_bo
     assert EndpointSource().admit(ECHO_ROUTE, inbound()) is None
 
 
+@pytest.mark.parametrize("length", ["\u00b2", "\u0663", "\uff14"])
+def test_an_endpoint_reads_only_ascii_digits_as_a_content_length(length: str) -> None:
+    assert EndpointSource().admit(ECHO_ROUTE, inbound(content_length=length)) is None
+
+
 async def test_an_endpoint_reads_a_body_by_its_content_type_and_drops_credentials() -> None:
     read = await EndpointSource().receive(
         ECHO_ROUTE,
