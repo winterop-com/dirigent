@@ -446,11 +446,18 @@ def test_the_server_leaves_uvicorn_logging_to_its_own(monkeypatch: pytest.Monkey
     import uvicorn
 
     ran: list[dict[str, object]] = []
-    monkeypatch.setattr(main, "keep_same_user_out", lambda: None)
-    monkeypatch.setattr(main, "check_state", lambda _settings: None)
-    monkeypatch.setattr(main, "guard_schema", lambda _settings: None)
-    monkeypatch.setattr(main, "_announce_once_answering", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(uvicorn, "run", lambda *_args, **kwargs: ran.append(kwargs))
+
+    def nothing(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    def run(*_args: object, **kwargs: object) -> None:
+        ran.append(kwargs)
+
+    monkeypatch.setattr(main, "keep_same_user_out", nothing)
+    monkeypatch.setattr(main, "check_state", nothing)
+    monkeypatch.setattr(main, "guard_schema", nothing)
+    monkeypatch.setattr(main, "_announce_once_answering", nothing)
+    monkeypatch.setattr(uvicorn, "run", run)
 
     result = runner.invoke(app, ["server", "--no-scheduler"])
 
