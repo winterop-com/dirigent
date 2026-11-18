@@ -26,6 +26,7 @@ UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 #: name a schedule or a run that does not exist.
 OPERATOR_ONLY = [
     ("post", "/pipelines/$apply"),
+    ("post", "/pipelines/$plan"),
     ("post", "/pipelines/$prune"),
     ("post", "/pipelines/api-demo/$activate"),
     ("post", "/pipelines/api-demo/$deactivate"),

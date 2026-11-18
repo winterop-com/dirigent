@@ -1,11 +1,14 @@
 """Pipelines: apply, export, versions, activation, deletion, the ad hoc run, and backfill."""
 
+from collections.abc import Sequence
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Query, Response, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from dirigent_client.enums import DocumentKind
 from dirigent_client.schemas import (
     ApplyRequest,
     ApplyResult,
@@ -17,6 +20,9 @@ from dirigent_client.schemas import (
     PipelineDetail,
     PipelineOut,
     PipelineVersionOut,
+    PlanAction,
+    PlanRequest,
+    PlanResult,
     PruneRequest,
     PruneResult,
     RunAccepted,
@@ -24,10 +30,11 @@ from dirigent_client.schemas import (
     StepShape,
     ValidationIssue,
 )
+from dirigent_common import Issue
 from dirigent_core.directory import prune_absent
-from dirigent_core.documents import carried_refusal, load_document
+from dirigent_core.documents import DocumentError, carried_refusal, load_document
 from dirigent_core.engine import Attribution, create_run
-from dirigent_core.engine.definition import load_definition
+from dirigent_core.engine.definition import Document, load_definition
 from dirigent_core.engine.runs import Provenance, RunWindow
 from dirigent_core.engine.services import EngineServices
 from dirigent_core.messages import PIPELINE_DEACTIVATED, PIPELINE_NO_VERSIONS
@@ -157,6 +164,88 @@ async def apply(
         provenance=Provenance(source=payload.source, ref=payload.source_ref, applied_by=principal.label),
         dry_run=dry_run,
         paused=payload.paused,
+    )
+
+
+@router.post(
+    "/pipelines/$plan",
+    operation_id="planPipelines",
+    summary="Plan applying several documents in order",
+    response_model=PlanResult,
+)
+async def plan(
+    payload: PlanRequest,
+    session: SessionDep,
+    services: ServicesDep,
+    principal: OperatorDep,
+) -> PlanResult:
+    """Apply each document in order inside a savepoint, answer what each did, and roll it all back.
+
+    A document is planned against what the ones before it wrote: a triggers document whose
+    pipeline an earlier document creates plans as a create rather than as missing. Every result
+    is a dry run, with no source token in it, and a pipeline the plan created carries no id. A
+    document that does not load, or carries its own connections or schemas, refuses the whole
+    plan, each problem located under ``documents.<index>``.
+    """
+    definitions: list[tuple[Document, ApplyRequest]] = []
+    for index, one in enumerate(payload.documents):
+        raw = dict(one.document)
+        if one.code is not None:
+            raw["code"] = one.code
+        try:
+            definition = load_document(raw)
+        except DocumentError as error:
+            raise _refused_at(index, error.problems, str(error)) from error
+        refusal = carried_refusal(definition)
+        if refusal is not None:
+            raise _refused_at(index, [refusal], refusal.message)
+        definitions.append((definition, one))
+    results: list[ApplyResult] = []
+    savepoint = await session.begin_nested()
+    try:
+        for definition, one in definitions:
+            results.append(
+                await apply_document(
+                    session,
+                    services,
+                    definition,
+                    provenance=Provenance(source=one.source, ref=one.source_ref, applied_by=principal.label),
+                    paused=one.paused,
+                )
+            )
+    finally:
+        await savepoint.rollback()
+    created = {
+        result.pipeline_id
+        for result in results
+        if result.kind is DocumentKind.PIPELINE
+        and result.plan.action is PlanAction.CREATE
+        and result.pipeline_id is not None
+    }
+    return PlanResult(results=[_planned(result, created) for result in results])
+
+
+def _refused_at(index: int, problems: Sequence[Issue], detail: str) -> Refusal:
+    """Refuse a plan for one of its documents, each problem located under that document's place."""
+    located = [
+        problem.model_copy(
+            update={"location": f"documents.{index}" + (f".{problem.location}" if problem.location else "")}
+        )
+        for problem in problems
+    ]
+    return Refusal(DOCUMENT_REFUSED, status=status.HTTP_422_UNPROCESSABLE_CONTENT, problems=located, detail=detail)
+
+
+def _planned(result: ApplyResult, created: set[UUID]) -> ApplyResult:
+    """Read an apply that was rolled back as the dry run it was."""
+    unchanged = result.kind is DocumentKind.PIPELINE and result.plan.action is PlanAction.UNCHANGED
+    return result.model_copy(
+        update={
+            "dry_run": True,
+            "pipeline_id": None if result.pipeline_id in created else result.pipeline_id,
+            "version": result.plan.current_version if unchanged else None,
+            "sources": result.sources.model_copy(update={"tokens": []}),
+        }
     )
 
 

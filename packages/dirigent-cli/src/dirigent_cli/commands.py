@@ -82,6 +82,7 @@ from dirigent_cli.messages import (
     OR_DG_AUTH_LOGIN,
     PARAMS_REFUSED,
     PRIORITY_IS_NOT_LOCAL,
+    PROJECT_CODE_TWICE,
     PROJECT_IS_EMPTY,
     PRUNE_IS_PROJECT_WIDE,
     ROOT_IS_LOCAL_ONLY,
@@ -188,7 +189,7 @@ from dirigent_client import (
     ValidationIssue,
     declared_label,
 )
-from dirigent_client.schemas import ConnectionKindEntry, PruneResult, SurfaceEntry, TokenLifetime
+from dirigent_client.schemas import ApplyRequest, ConnectionKindEntry, PruneResult, SurfaceEntry, TokenLifetime
 from dirigent_client.timing import RunProfile, attempt_timing, by_step, profile, step_timing
 from dirigent_common import Issue, JsonMap, Message, bounded_load, is_entity_name
 from dirigent_common.durations import DurationError, parse_duration
@@ -446,43 +447,52 @@ def apply_command(
         fail(PRUNE_IS_PROJECT_WIDE)
     documents = _documents_to_apply(reference, as_code)
     source = ProvenanceSource.DIRECTORY if prune else None
+    requests = [
+        ApplyRequest(
+            document=_parsed(document),
+            code=as_code,
+            source=source if source is not None else document.source,
+            source_ref=document.ref,
+            paused=paused,
+        )
+        for document in documents
+    ]
     with client_for(state) as dg:
-        results: list[tuple[ApplyResult, str]] = []
+        results: list[ApplyResult] = []
         try:
-            for document in documents:
-                applied = _apply_one(dg, document, code=as_code, dry_run=dry_run, paused=paused, source=source)
-                results.append((applied, document.label))
+            if dry_run and reference is None:
+                for result, document in zip(dg.call(dg.pipelines.plan(requests)).results, documents, strict=True):
+                    _report_applied(result, document.label, state=state, base_url=dg.url)
+                    results.append(result)
+            else:
+                for request, document in zip(requests, documents, strict=True):
+                    result = dg.call(
+                        dg.pipelines.apply(
+                            request.document,
+                            code=request.code,
+                            source=request.source,
+                            source_ref=request.source_ref,
+                            dry_run=dry_run,
+                            paused=paused,
+                        )
+                    )
+                    _report_applied(result, document.label, state=state, base_url=dg.url)
+                    results.append(result)
         except typer.Exit:
             if prune:
                 _report_skipped_prune(state, dry_run=dry_run)
             raise
         pruned = None
         if prune:
-            keep = [result.plan.code for result, _ in results]
+            keep = [result.plan.code for result in results]
             pruned = dg.call(dg.pipelines.prune(keep, dry_run=dry_run))
-    if state_of(ctx).json_output:
-        emit_records("apply", [result for result, _ in results])
-        refused = [(result, label) for result, label in results if result.plan.action is PlanAction.INVALID]
-        for result, label in refused:
-            emit_fact(
-                "validation",
-                level="error",
-                message="invalid",
-                code=result.plan.code,
-                document=label,
-                problems=[issue.issue().model_dump(mode="json") for issue in result.plan.issues],
-            )
+    accepted = all(result.plan.action is not PlanAction.INVALID for result in results)
+    if state.json_output:
         if pruned is not None:
             emit_records("prune", [pruned])
-        if refused:
+        if not accepted:
             raise typer.Exit(code=1)
         return
-    accepted = all(_print_plan(result, origin) for result, origin in results)
-    for result, _ in results:
-        if result.reactivated:
-            console.print(f"{styled('activated'):<10} {escape(result.plan.code)}  [dim](a prune had deactivated it)[/]")
-    for result, _ in results:
-        _print_source_tokens(result, base_url=dg.url)
     if pruned is not None:
         for code in pruned.pruned:
             console.print(f"{styled('deactivated'):<10} {escape(code)}  [dim](absent from the project)[/]")
@@ -498,6 +508,38 @@ def apply_command(
         console.print("[dim]Nothing was written: this was a dry run.[/]")
     if not accepted:
         raise typer.Exit(code=1)
+
+
+def _parsed(document: Document) -> dict[str, Any]:
+    """Parse one document, refusing by its path what is plainly not one."""
+    try:
+        return parse_document(document)
+    except SourceError as error:
+        fail(SOURCE_REFUSED, detail=str(error))
+
+
+def _report_applied(result: ApplyResult, origin: str, *, state: CliState, base_url: str) -> None:
+    """Say what one apply did the moment it lands, tokens it minted included.
+
+    A project apply that stops at a later document has already written each record before it,
+    so what was applied, and every token shown once, is never lost to the stop.
+    """
+    if state.json_output:
+        emit_records("apply", [result])
+        if result.plan.action is PlanAction.INVALID:
+            emit_fact(
+                "validation",
+                level="error",
+                message="invalid",
+                code=result.plan.code,
+                document=origin,
+                problems=[issue.issue().model_dump(mode="json") for issue in result.plan.issues],
+            )
+        return
+    _print_plan(result, origin)
+    if result.reactivated:
+        console.print(f"{styled('activated'):<10} {escape(result.plan.code)}  [dim](a prune had deactivated it)[/]")
+    _print_source_tokens(result, base_url=base_url)
 
 
 #: Why a project apply with ``--prune`` stopped before reconciling.
@@ -539,20 +581,63 @@ def _documents_to_apply(reference: str | None, as_code: str | None) -> list[Docu
         fail(SOURCE_REFUSED, detail=str(error))
     if not paths:
         fail(PROJECT_IS_EMPTY, directory=cast("Any", project).pipelines_dir)
-    # Pipelines go before triggers documents: one that names a pipeline the instance does not
-    # hold yet is refused, and applying the pipeline first is what makes it present.
     try:
-        return sorted((read_path(path) for path in paths), key=_declares_triggers)
+        return _in_apply_order([read_path(path) for path in paths])
     except SourceError as error:
         fail(SOURCE_REFUSED, detail=str(error))
 
 
-def _declares_triggers(document: Document) -> bool:
-    """Peek at a document's kind, without holding an unreadable one against the format here."""
+def _in_apply_order(documents: Sequence[Document]) -> list[Document]:
+    """Order a project's documents so each comes after what it names, refusing a code declared twice.
+
+    A pipeline or a triggers document that names a pipeline the instance does not hold yet is
+    refused, so a triggers document goes after the pipeline it schedules and a pipeline after
+    the ones its ``requires.pipelines`` names, when the project holds them. Otherwise pipelines
+    go before triggers documents, each in path order. A file that does not load stays with the
+    pipelines, where the server refuses it by its path, and documents caught in a cycle go in path order.
+    """
+    loaded = [(document, _loaded(document)) for document in documents]
+    declared: dict[tuple[str, str], Document] = {}
+    for document, definition in loaded:
+        if definition is None:
+            continue
+        first = declared.setdefault((definition.kind, definition.code), document)
+        if first is not document:
+            fail(
+                PROJECT_CODE_TWICE,
+                first=first.label,
+                second=document.label,
+                kind=definition.kind,
+                code=repr(definition.code),
+            )
+    held = {definition.code for _, definition in loaded if isinstance(definition, PipelineDefinition)}
+    waiting = sorted(loaded, key=lambda pair: isinstance(pair[1], TriggersDefinition))
+    ordered: list[Document] = []
+    placed: set[str] = set()
+    while waiting:
+        index = next((at for at, (_, one) in enumerate(waiting) if _names(one) & held <= placed), 0)
+        document, definition = waiting.pop(index)
+        ordered.append(document)
+        if isinstance(definition, PipelineDefinition):
+            placed.add(definition.code)
+    return ordered
+
+
+def _loaded(document: Document) -> PipelineDefinition | TriggersDefinition | None:
+    """Read a document to order it, without holding an unreadable one against the format here."""
     try:
-        return isinstance(load_text(document.text), TriggersDefinition)
+        return load_text(document.text)
     except DocumentError:
-        return False
+        return None
+
+
+def _names(definition: PipelineDefinition | TriggersDefinition | None) -> set[str]:
+    """The pipelines a document needs the instance to hold before it applies."""
+    if isinstance(definition, TriggersDefinition):
+        return {definition.pipeline}
+    if isinstance(definition, PipelineDefinition):
+        return set(definition.requires.pipelines) - {definition.code}
+    return set()
 
 
 def export_command(

@@ -154,6 +154,11 @@ AS_IS_ONE_DOCUMENT = CLI.define(
 
 PROJECT_IS_EMPTY = CLI.define("project_is_empty", "{directory} holds no documents")
 
+PROJECT_CODE_TWICE = CLI.define(
+    "project_code_twice",
+    "{first} and {second} both declare the {kind} {code}; a project holds one document per code",
+)
+
 ALL_TAKES_NO_CODE = CLI.define(
     "all_takes_no_code", "--all checks every pipeline, so it takes neither a code nor a version"
 )

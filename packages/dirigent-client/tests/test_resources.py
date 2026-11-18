@@ -25,7 +25,7 @@ from dirigent_client import (
 )
 from dirigent_client.enums import Importance
 from dirigent_client.resources.base import CLEAR
-from dirigent_client.schemas import LoginRequest
+from dirigent_client.schemas import ApplyRequest, LoginRequest
 
 ID = "0193b0f0-0000-7000-8000-000000000001"
 WHEN = "2026-01-01T00:00:00+00:00"
@@ -105,6 +105,7 @@ ALERT_RULE = {
 PAYLOADS: dict[str, Any] = {
     "/pipelines": {"items": [PIPELINE], "next": None},
     "/pipelines/$apply": {"plan": {"code": "demo", "action": "create", "digest": "sha256:abc"}},
+    "/pipelines/$plan": {"results": [{"plan": {"code": "demo", "action": "create", "digest": "sha256:abc"}}]},
     "/pipelines/demo": {**PIPELINE, "document": {"steps": {}}},
     "/pipelines/demo/versions": {
         "items": [{"id": ID, "version": 3, "digest": "sha256:abc", "provenance_source": "file", "created_at": WHEN}],
@@ -248,6 +249,12 @@ LISTED_TOKENS = {
 ACCESSORS: list[tuple[str, Callable[[Dirigent], Awaitable[object]], str, str]] = [
     ("pipelines.list", lambda dg: dg.pipelines.list(), "GET", "/pipelines"),
     ("pipelines.apply", lambda dg: dg.pipelines.apply({"code": "demo"}), "POST", "/pipelines/$apply"),
+    (
+        "pipelines.plan",
+        lambda dg: dg.pipelines.plan([ApplyRequest(document={"code": "demo"})]),
+        "POST",
+        "/pipelines/$plan",
+    ),
     ("pipelines.get", lambda dg: dg.pipelines.get("demo"), "GET", "/pipelines/demo"),
     ("pipelines.versions", lambda dg: dg.pipelines.versions("demo"), "GET", "/pipelines/demo/versions"),
     ("pipelines.export", lambda dg: dg.pipelines.export("demo"), "GET", "/pipelines/demo/$export"),
