@@ -59,6 +59,37 @@ def test_an_argument_naming_a_size_past_the_limit_is_refused(spec: object) -> No
         generate(one(spec), 1)
 
 
+@pytest.mark.parametrize("value", [3.0e7, 20.0, 1.5])
+def test_a_size_argument_that_is_not_a_whole_number_is_refused_at_apply_and_at_run(value: float) -> None:
+    knobs = one({"provider": "text", "args": {"max_nb_chars": value}})
+    assert [issue.code for issue in playground.generation_issues(knobs)] == ["playground.provider_refused"]
+    with pytest.raises(PlaygroundRefusal, match="not a whole number"):
+        generate(knobs, 1)
+
+
+def test_a_provider_that_answers_with_an_iterator_spends_a_call_per_element(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(playground, "MAX_PROVIDER_CALLS", 50)
+    with pytest.raises(PlaygroundRefusal) as refused:
+        generate(one({"provider": "time_series", "args": {"precision": 60}}), 1)
+    assert refused.value.code == "playground.generation_past_its_bound"
+
+
+def test_a_provider_that_answers_with_an_iterator_stops_when_its_caller_has() -> None:
+    stopped = threading.Event()
+    timer = threading.Timer(0.2, stopped.set)
+    timer.start()
+    began = time.monotonic()
+    with pytest.raises(PlaygroundRefusal):
+        generate(one({"provider": "time_series", "args": {"precision": 0.01}}), 1, stopped=stopped)
+    assert time.monotonic() - began < 5
+
+
+def test_an_iterator_a_provider_answers_with_is_generated_whole() -> None:
+    [record] = generate(one({"provider": "time_series", "args": {"start_date": "-1h", "precision": 600}}), 1)
+    assert isinstance(record, dict)
+    assert isinstance(record["x"], list) and 5 <= len(record["x"]) <= 7
+
+
 def test_an_argument_naming_a_value_takes_any_number() -> None:
     [record] = generate(one({"provider": "pyint", "args": {"min_value": 10**12, "max_value": 10**12}}), 1)
     assert isinstance(record, dict)

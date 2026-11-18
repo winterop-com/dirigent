@@ -68,6 +68,21 @@ NOT_A_JSON_ARRAY = BASE.define(
 
 LINE_NOT_JSON = BASE.define("line_not_json", "line {number} of the input is not JSON: {detail}")
 
+JSON_NOT_A_NUMBER = BASE.define(
+    "json_not_a_number",
+    "the input writes {value}, which is not a JSON number, and no format here writes nan or infinity",
+)
+
+TOO_DEEP = BASE.define(
+    "too_deep",
+    "the input nests deeper than convert.std reads; flatten it with a transform first",
+)
+
+CSV_NOT_READ = BASE.define(
+    "csv_not_read",
+    "row {number} of the csv cannot be read: {detail}; a cell holds at most {limit} characters",
+)
+
 CSV_ROW_TOO_WIDE = BASE.define(
     "csv_row_too_wide",
     "row {number} of the csv has more cells than the header names columns, "
@@ -124,6 +139,11 @@ XML_HAS_A_DOCTYPE = BASE.define(
 )
 
 NOT_XML = BASE.define("not_xml", "the input is not XML: {detail}")
+
+XML_CHARACTER = BASE.define(
+    "xml_character",
+    "the value at {path} holds the character {character}, which XML 1.0 cannot carry",
+)
 
 XML_ROOT_HAS_TEXT = BASE.define(
     "xml_root_has_text",

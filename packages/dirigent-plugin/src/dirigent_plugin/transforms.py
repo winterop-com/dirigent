@@ -267,9 +267,10 @@ class Mapper(Engine, Operator[ProgramConfig, TransformOutput], ABC):
         """Replace every element of the input list and hand the list on as the step's output."""
         elements = _elements(config.input, self.spec.id, MAP_PROMISE)
         mapped = await self.offload(lambda: self._mapped(config.program, elements))
-        assert len(mapped) == len(elements), (
-            f"{self.spec.id} produced {len(mapped)} elements from {len(elements)}, breaking the map promise"
-        )
+        if len(mapped) != len(elements):
+            raise AssertionError(
+                f"{self.spec.id} produced {len(mapped)} elements from {len(elements)}, breaking the map promise"
+            )
         return TransformOutput(value=mapped)
 
     def _mapped(self, program: str, elements: list[JsonValue]) -> list[JsonValue]:
