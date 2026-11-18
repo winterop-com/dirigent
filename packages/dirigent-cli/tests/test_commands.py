@@ -277,7 +277,7 @@ def test_init_refuses_a_short_password_before_writing_anything(tmp_path: Path) -
     project = tmp_path / "short"
     result = machine("init", str(project), "--password", "short", "--json")
     assert result.exit_code == 1
-    assert "at least 8" in only(result.stdout, "error")["message"]
+    assert "from 8 to 1024" in only(result.stdout, "error")["message"]
     assert not project.exists(), "nothing is written for a password that would have been refused"
 
 
@@ -318,7 +318,7 @@ def test_a_stack_refuses_admin_as_its_password(tmp_path: Path) -> None:
     project = tmp_path / "stack"
     result = machine("init", str(project), "--template", "compose", "--password", "admin", "--json")
     assert result.exit_code == 1
-    assert "at least 8" in only(result.stdout, "error")["message"]
+    assert "from 8 to 1024" in only(result.stdout, "error")["message"]
     assert not project.exists()
 
 
