@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 
-import { ApiChip } from '@/components/ApiChip'
 import { PageHeader } from '@/components/PageHeader'
 import { DataTable, useTableCell, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { ItemHeading } from '@winterop-com/sokkel-ui/ItemHeading'
@@ -84,7 +83,6 @@ export function Schemas() {
         <>
             <PageHeader
                 title={LABELS.screen.schemas.name}
-                lead={<ApiChip tag="schemas" />}
                 primary={{
                     id: 'new',
                     label: LABELS.schemas.new,

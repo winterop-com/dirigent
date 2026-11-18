@@ -1220,13 +1220,14 @@ everything in it is editable, the code among it. Validate is the same dry run ag
 Run is shut, because `$run` runs the version the instance holds and there is not one. The first
 apply creates the pipeline and the screen goes to the address it will answer at from then on --
 which is why a static `pipelines/$new` route sits beside the dynamic `pipelines/:code`, and why
-`New` is the primary half of the listing's split button while the two doors for a document
-written somewhere else, `From a template…`{ .label } and `From a file…`{ .label }, are in the menu beside it.
+`New` on the listing is a plain button to that editor, where the two doors for a document written
+somewhere else, `From a template…`{ .label } and `From a file…`{ .label }, stand on the empty canvas.
+The palette offers both on the listing and in the editor.
 
 **A document opens on the source that holds it.** The editor's panel opens on the step tab,
 because a pipeline is read a step at a time, and choosing a box on the canvas opens that tab
 rather than whichever one was last in front of somebody. The exception is a document that arrived
-as text: `From a file…`{ .label } on the listing hands the editor what it read and `From a template…`{ .label } hands
+as text: `From a file…`{ .label } hands the editor what it read and `From a template…`{ .label } hands
 it the copy it made, and the editor opens on the source pane, which is where that document
 actually is. A blank `/pipelines/$new` opens on the step tab like every other screen -- the canvas
 says how to add the first step, and the source, whose schema would mark an empty `steps` map
@@ -1531,8 +1532,10 @@ toward its least width included, the role leaves the row and is said only in the
 code stands in the UI face.** The username is the account's code, and wherever it is addressed -- the accounts listing, the Account pane, a
 token's owner -- it is mono; here it is the reader's own name said back to them. The menu opens
 upward: its head is the username and the role with the instance's name and environment under it, then
-Settings, Appearance, Keyboard shortcuts with `?`, and Sign out. Appearance opens the settings
-dialog on its Appearance section; the menu itself switches no scheme or theme.
+Settings, Appearance, Keyboard shortcuts with `?`, API documentation, and Sign out. Appearance opens the settings
+dialog on its Appearance section; the menu itself switches no scheme or theme. API documentation opens this
+instance's `/docs` in a new tab, at the section behind the screen in front of the reader (`apiDocsAt`, from the
+`docs` tag on the screen's `NAV` entry).
 
 **The rail hides whole.** The platform's modifier plus B and the palette's row take it off screen
 and bring it back, and while it is hidden the top bar's menu button opens it as the drawer at
@@ -1673,7 +1676,7 @@ show.
 The height is one token, `--spacing-finger`, and below the breakpoint every control takes its
 minimum from it. sokkel-ui sizes its own: buttons but the extra-small sizes, toggles, inputs,
 input groups, both selects, the combobox, tabs, menu, command and combobox rows, `SearchField`,
-`FilterChip` and a `Chip` of `size="control"` -- the API chip on a heading's strip -- icon buttons as
+`FilterChip` and a `Chip` of `size="control"`, icon buttons as
 wide, a finger-square hit area on a menu's or a tooltip's trigger, the one given `render` too, the
 command input, and the graph library's `GraphViewButtons` -- so a listing's bar is a finger tall
 throughout. `index.css` grows the one thing left: `control-link`, which is what a link drawn as a
@@ -2245,7 +2248,8 @@ four in the same order, its tooltips saying the buttons' names. **The editor is 
 stage, and carries the library's own cluster in its corner** -- zoom in, zoom out, fit -- with
 `Add step` after them in the same cluster (`extraControls`, a `GraphControlButton`). An empty
 editor draws no zoom buttons and keeps `Add step` in the corner; its words say it has no steps, and
-under them, on a document nothing has applied, stands `From a template…`{ .label } (`emptyAction`).
+under them, on a document nothing has applied, stand `From a template…`{ .label } and `From a file…`{ .label }
+(`emptyAction`).
 
 ## The canvas edits
 
@@ -2483,8 +2487,9 @@ installed. Plugins contribute them." is the shape, and every empty state on ever
 shape or the bare fact alone -- one of them punctuated its own way for long enough that the
 catalogue could show it beside the others. **A way in that is off screen is stated wherever it is
 off screen**, so a listing whose rows are declared by a document says so even where a button
-beside it declares one too. A listing carries an `API` chip linking `/docs#/<tag>`, the fragment Swagger UI
-writes on its own tag headings, so the requests behind a screen are one click away. Every screen
+beside it declares one too. A heading carries no link out: `API documentation`{ .label }, in the account menu and the
+palette, opens `/docs#/<tag>` for the screen in front of the reader, the fragment Swagger UI writes
+on its own tag headings, so the requests behind a screen stay a click or two away. Every screen
 states its own two facts in the status line through `lib/screen-status`, the address nothing
 answers for included.
 
@@ -2521,8 +2526,9 @@ own line, in this app's words (`refused`, `running`), where the choice was made.
    `DataTable` instead, through `refusedTable`. Collapsing "refused" into "empty" is how
    an instance whose database is unreachable gets told it has no pipelines.
 2. A `<Route>` in `src/App.tsx`, inside the `AppShell` route.
-3. An entry in `NAV` in `src/lib/nav.ts`. The rail draws that array and the command palette offers
-   every entry in it, so nothing else has to be told the screen exists. An admin-only screen goes
+3. An entry in `NAV` in `src/lib/nav.ts`, its `docs` the API documentation's tag for the screen.
+   The rail draws that array and the command palette offers every entry in it, so nothing else has
+   to be told the screen exists. An admin-only screen goes
    in the section whose `requires` is `admin` -- which hides it, and hides nothing from the server,
    because role gating here is a courtesy rather than a control.
 4. Anything the screen alone can do, registered with `registerActions` from an effect that returns
@@ -2706,7 +2712,7 @@ library's `PageHeader` set in the shell's `ShellHead`, words only, with this app
 | Component | When |
 | --- | --- |
 | `ItemHeading` (sokkel-ui) | Any addressable thing headed by its name and code, given as `{...itemOf(thing)}` so the name is the one `headingOf` finds. `stacked` puts the code under the name, for a listing's lead cell; `inline` beside it, where a row has one line; `size="dialog"` inside a dialog's title, where it is a `span`, with `lead={LABELS.action.edit}` while the dialog edits the thing; `as="span"` wherever the heading is not in the page's outline. A long name gives way before the inline code, which stays on screen. The name, else the code; the code always on screen in mono and never twice; a glyph before it, chips after it, an optional one-line description |
-| `Chip` (sokkel-ui) | A word on a chip: `neutral`, `mono` for a key, `absent` dashed for an absence, `good`, `critical`, `warning`, `info`; `icon` before the word. `onSelect` makes it a button named by `selectLabel`, saying what pressing does ("Filter by finance"); `onRemove` adds an X with its own focus ring, named by `words={chipWords(...)}` from a function of the chip's words ("Stop filtering by finance"). Neither press reaches the row or card around the chip, so a pressable row needs no guard of its own. `outline` is a hairline edge with no wash, for a mark beside a title such as the starter mark or a role; `hue` is a kind family's color, which is what `KindChip` draws; `href` makes it a link and `external` opens it in a new tab with its mark (the API chip); `size="control"` stands it alone as a control, a finger tall on a phone; `selected` edges a toggle chip in its ink over a stronger wash; `menu` makes it a menu's trigger at `menuAlign`. It replaces the hand-typed chip and the pill `Badge` for a word |
+| `Chip` (sokkel-ui) | A word on a chip: `neutral`, `mono` for a key, `absent` dashed for an absence, `good`, `critical`, `warning`, `info`; `icon` before the word. `onSelect` makes it a button named by `selectLabel`, saying what pressing does ("Filter by finance"); `onRemove` adds an X with its own focus ring, named by `words={chipWords(...)}` from a function of the chip's words ("Stop filtering by finance"). Neither press reaches the row or card around the chip, so a pressable row needs no guard of its own. `outline` is a hairline edge with no wash, for a mark beside a title such as the starter mark or a role; `hue` is a kind family's color, which is what `KindChip` draws; `href` makes it a link and `external` opens it in a new tab with its mark; `size="control"` stands it alone as a control, a finger tall on a phone; `selected` edges a toggle chip in its ink over a stronger wash; `menu` makes it a menu's trigger at `menuAlign`. It replaces the hand-typed chip and the pill `Badge` for a word |
 | `StatusChip` (sokkel-ui) | A state as a chip, with the dot the `StatusProvider` gives every chip: the state's color on a wash of it, the word from `STATUSES`. A live state's dot pulses -- queued, running, waiting, sending -- and a paused or settled one is still; the pulse stops for somebody who asked for less motion. `label` where a screen names the state in its own terms, such as a count in flight |
 | `Dot` (sokkel-ui) | Every state drawn as a dot, given as `{...dotOf(...)}` from one map: a tone (`good`, `critical`, `warning`, `info`, `quiet`, `unknown`, the last hollow) or a run status, 8px. A dot alone is the answer -- a green dot says connected -- and its word is its name and its tooltip. The word is drawn beside it only when it is news: failed, unknown. `tip` adds a sentence to the tooltip, and `focusable` puts the dot in the tab order where nothing around it is a control. `StatusChip` takes a `label` where a screen names the state in its own terms |
 | `IconButton` (sokkel-ui) | Any button that is an icon and nothing else, the glyph its child, which is why every icon button has a tooltip. Its type requires `label`; the tooltip is the label or a longer `tooltip`, with `reason` under it when it is shut. Sizes `icon-xs`, `icon-sm` and `icon`. Shut with `reason`, never with `disabled`, so it stays reachable; `destructive` tints critical under the pointer |
@@ -2721,7 +2727,7 @@ library's `PageHeader` set in the shell's `ShellHead`, words only, with this app
 | `SecretReveal` (sokkel-ui) | A secret the server answers with once: the value whole in mono on its own field, wrapped rather than cut, a copy button that says it copied and resets, and the line in the warning ink saying it is shown once. `secretWords` names the copy button for the secret and says that line |
 | `CopyButton` (sokkel-ui) | The ghost icon button beside a string somebody pastes elsewhere -- a secret, a URL, a command line, a run's or an attempt's id: it puts the string on the clipboard, says it copied, and resets. `copyWords` gives it its name and the copied word |
 | `Code` (sokkel-ui) | A value to read as JSON, always through `JsonBlock`: highlighted in `json`, unwrapped so its lines scroll sideways, a head row over the text holding the window button in `actions` beside the library's copy button, named for the block, and a stated height |
-| `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` held in the shell's `ShellHead` by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds, a `SplitButton` when it carries `more`, its chevron named by the item's `moreLabel`. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the API chip; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
+| `PageHeader`, `SplitButton` (sokkel-ui) | A screen's heading, sokkel-ui's `PageHeader` held in the shell's `ShellHead` by dirigent's. Its verbs are `items`, which fold from the last into "More actions" in the room the title leaves, and one `primary` after them, filled, that never folds. The primary is a plain button and never carries `more`: a heading has no split button, and another way to the same start stands where it reads on its own, such as the new document's empty canvas, and in the palette. The row is words only; More carries the marks. A title that is the code is cut short with the whole of it on hover. A verb's `label` is its name and `face` the shorter word on the button: `New` named "New pipeline". `lead` stands before the verbs and never folds -- the dashboard's refresh, the runs listing's count of rows that arrived; a `count` beside the title; a `code` under it in mono for a detail screen, with `meta` a line of small facts under that; a `trail` for a detail screen. No subtitle. A screen whose strip is not a heading -- the editor's -- puts the same items in sokkel-ui's `Toolbar` |
 | `TextLink` (sokkel-ui) | Every link that is text, through the app's `LinkProvider`. `inline` in prose, in ink and underlined, `data` for a number or a reference in a table (`code` for mono), `aside` in the muted ink beside a section heading; `external` with `words={LINK_WORDS}` adds its mark and a new tab; `onPress` is a link that opens something in place |
 | `InlineCode` (sokkel-ui) | Every code, key, block and kind in mono, `bare` at `size="xs"`. One line, truncated with an ellipsis, the whole value on `title`; `tone="muted"` beside a title, `tone="neutral"` where the code is the value, and `size="sm"` where it heads a row |
 | `Unfoldable` (sokkel-ui) | Every row that opens what is under it in place: a step's engine groups, the reference row under a field, a fan-out element's output on a run's Step tab, and the channel strip's fold on a phone. The whole heading row is the button with `aria-expanded` and the chevron; `open` with `onOpenChange` where the app holds the state, `summary` for the line it reads while shut, `wrapSummary` where that line may run long, `aside` for a count or fact at the row's right end, `forced` to hold it open with no button. On a phone an unfolding row is a finger tall. A row with nothing to open is the same component without children: no chevron and no button, lined up with the rest |

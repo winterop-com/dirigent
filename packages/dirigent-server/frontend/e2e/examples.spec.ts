@@ -136,10 +136,9 @@ test('a document that is not a starter is offered no way to copy it', async ({ p
 
 test('From a template opens the editor on a copy with the starter tag gone', async ({ page }) => {
     await signIn(page)
-    await page.goto('/pipelines')
+    await page.goto('/pipelines/$new')
 
-    await page.getByRole('button', { name: LABELS.pipelines.more_ways }).click()
-    await page.getByRole('menuitem', { name: LABELS.pipelines.from_starter }).click()
+    await page.getByRole('button', { name: LABELS.editor.canvas.from_starter }).click()
 
     // The picker is the palette's own card: a search row over shelved rows.
     await page.getByPlaceholder(LABELS.pipelines.starters.placeholder).fill(STARTER)

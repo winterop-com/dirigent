@@ -384,15 +384,13 @@ test('two sealed secrets are told apart, and Replace opens only its own', async 
     await removeConnection(page.request, code)
 })
 
-test('the API chip stands with the verbs, and the create is the primary', async ({ page }) => {
+test('the create is the primary, and the heading carries no link out', async ({ page }) => {
     await signIn(page)
     await page.goto('/triggers')
-    const create = page.getByRole('button', { name: LABELS.triggers.schedule.new })
+    const create = pageHead(page).getByRole('button', { name: LABELS.triggers.schedule.new })
     await expect(create).toBeVisible()
-    const chip = pageHead(page).getByRole('link', { name: /API/ })
-    const [from, to] = await Promise.all([chip.boundingBox(), create.boundingBox()])
-    expect((to?.x ?? 0) - ((from?.x ?? 0) + (from?.width ?? 0))).toBeLessThan(20)
     await expect(create).toHaveClass(/bg-primary/)
+    await expect(pageHead(page).getByRole('link')).toHaveCount(0)
 })
 
 test('a column heading is a label, whatever face its cells are in', async ({ page }) => {

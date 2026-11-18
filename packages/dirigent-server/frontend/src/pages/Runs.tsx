@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 
-import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { TagFilter } from '@/components/list/TagFilter'
 import { PageHeader } from '@/components/PageHeader'
@@ -281,15 +280,12 @@ function FlatRuns({ filters, search, toolbar }: Bar & { filters: RunFilters }) {
             <PageHeader
                 title={LABELS.screen.runs.name}
                 lead={
-                    <>
-                        <ApiChip tag="runs" />
-                        {state.fresh > 0 && (
-                            <Button variant="outline" size="sm" onClick={note}>
-                                <ICONS.show_newer aria-hidden />
-                                {counted(state.fresh, LABELS.runs.fresh)(String(state.fresh))}
-                            </Button>
-                        )}
-                    </>
+                    state.fresh > 0 && (
+                        <Button variant="outline" size="sm" onClick={note}>
+                            <ICONS.show_newer aria-hidden />
+                            {counted(state.fresh, LABELS.runs.fresh)(String(state.fresh))}
+                        </Button>
+                    )
                 }
             />
 
@@ -332,7 +328,7 @@ function GroupedRuns({
     const asked = filters.pipeline !== '' || filters.status !== '' || filters.tags.length > 0
     return (
         <>
-            <PageHeader title={LABELS.screen.runs.name} lead={<ApiChip tag="runs" />} />
+            <PageHeader title={LABELS.screen.runs.name} />
 
             <RunsByPipeline
                 rows={summary.problem === null ? rows : []}

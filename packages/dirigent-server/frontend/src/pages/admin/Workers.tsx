@@ -1,6 +1,5 @@
 import { useCallback, useEffect } from 'react'
 
-import { ApiChip } from '@/components/ApiChip'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { WorkersTable } from '@/components/admin/WorkersTable'
 import { PageHeader } from '@/components/PageHeader'
@@ -62,7 +61,7 @@ function Workers() {
 
     return (
         <>
-            <PageHeader title={LABELS.screen.workers.name} lead={<ApiChip tag="workers" />} />
+            <PageHeader title={LABELS.screen.workers.name} />
             <WorkersTable state={workers.state} more={workers.more} reload={reload} />
         </>
     )

@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 import { LABELS } from '@/lib/labels'
 import {
     DASHBOARD_PATH,
+    apiDocsAt,
     NAV,
     entriesFor,
     entryAt,
@@ -205,5 +206,18 @@ describe('where signing in goes', () => {
         ]) {
             expect(onwardFrom(state)).toBe(DASHBOARD_PATH)
         }
+    })
+})
+
+describe('the API documentation from a screen', () => {
+    test("opens at the section behind the screen, a detail screen's included", () => {
+        expect(apiDocsAt('/pipelines')).toBe('/docs#/pipelines')
+        expect(apiDocsAt('/pipelines/$new')).toBe('/docs#/pipelines')
+        expect(apiDocsAt('/admin/alerting')).toBe('/docs#/alerts')
+        expect(apiDocsAt(DASHBOARD_PATH)).toBe('/docs#/runs')
+    })
+
+    test('opens at its start where no screen answers the address', () => {
+        expect(apiDocsAt('/nowhere')).toBe('/docs')
     })
 })

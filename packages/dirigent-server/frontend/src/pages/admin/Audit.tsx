@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { ApiChip } from '@/components/ApiChip'
 import { AdminOnly } from '@/components/admin/AdminOnly'
 import { DataTable, type DataColumn } from '@winterop-com/sokkel-ui/DataTable'
 import { InlineCode } from '@winterop-com/sokkel-ui/InlineCode'
@@ -121,7 +120,7 @@ function Audit() {
 
     return (
         <>
-            <PageHeader title={LABELS.screen.audit.name} lead={<ApiChip tag="audit" />} />
+            <PageHeader title={LABELS.screen.audit.name} />
 
             <DataTable
                 {...LISTING}

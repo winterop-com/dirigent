@@ -222,16 +222,18 @@ test('a run on the listing wears its state, and the row opens it', async ({ page
     await expect(page.locator('.react-flow__node').getByText('parse', { exact: true })).toBeVisible()
 })
 
-test('a file picked on the listing lands in the new-document editor, and applying lists it', async ({
+test('a file picked on the empty canvas lands in the new-document editor, and applying lists it', async ({
     page,
 }) => {
     await signIn(page)
     await page.goto('/pipelines')
 
-    // From a file… lives behind the split button's chevron and opens the OS picker directly.
-    await page.getByRole('button', { name: LABELS.pipelines.more_ways }).click()
+    // New is a plain button; From a file… is on the new document's empty canvas and opens the
+    // OS picker directly.
+    await page.getByRole('button', { name: LABELS.pipelines.new }).click()
+    await expect(page).toHaveURL(/\/pipelines\/\$new$/)
     const picking = page.waitForEvent('filechooser')
-    await page.getByRole('menuitem', { name: LABELS.pipelines.from_file }).click()
+    await page.getByRole('button', { name: LABELS.editor.canvas.from_file }).click()
     const chooser = await picking
     await chooser.setFiles({ name: 'typed.yaml', mimeType: 'text/yaml', buffer: Buffer.from(TYPED) })
 

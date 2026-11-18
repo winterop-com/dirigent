@@ -157,7 +157,6 @@ test('what a finger lands on is at least 44px tall', async ({ page }) => {
         expect((await tab.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
     }
 
-    // A LINK DRAWN AS A CONTROL IS A CONTROL. The `API` chip is a chip of the control size.
     await page.goto('/pipelines')
 
     // The listing's bar is a finger tall throughout: the search box and every filter chip.
@@ -168,10 +167,6 @@ test('what a finger lands on is at least 44px tall', async ({ page }) => {
         await expect(control).toBeVisible()
         expect((await control.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
     }
-
-    const api = page.locator('[data-slot="chip"]').filter({ has: page.getByRole('link', { name: 'API' }) })
-    await expect(api).toBeVisible()
-    expect((await api.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(FINGER)
 })
 
 test('the trail is the way back: the last screen above alone', async ({ page }) => {

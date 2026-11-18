@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-import { ApiChip } from '@/components/ApiChip'
 import { Instant } from '@/components/Instant'
 import { AccountDialog } from '@/components/admin/AccountDialog'
 import { AccountTokens } from '@/components/admin/AccountTokens'
@@ -148,7 +147,6 @@ function Users() {
         <>
             <PageHeader
                 title={LABELS.screen.users.name}
-                lead={<ApiChip tag="users" />}
                 primary={{
                     id: 'new',
                     label: LABELS.users.new_account,
