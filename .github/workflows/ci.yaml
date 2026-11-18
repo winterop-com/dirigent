@@ -5,9 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# A pull request keeps only its newest run. Every commit on main runs to the end in a group of
+# its own: release.yaml publishes a tag only once that commit's own run on main has passed.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
