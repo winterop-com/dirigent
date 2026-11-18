@@ -238,7 +238,7 @@ test('an empty listing states the fact and stops', async ({ page }) => {
     await expect(page.getByRole('button', { name: LABELS.alerting.new_rule.button })).toBeVisible()
 })
 
-test('the account menu holds the account, the settings, the appearance, the shortcuts, the way out and the instance', async ({
+test('the account menu holds the account, the settings, the appearance, the shortcuts, the API, the way out and the instance', async ({
     page,
 }) => {
     const row = page.getByRole('button', { name: /^Account: / })
@@ -264,9 +264,20 @@ test('the account menu holds the account, the settings, the appearance, the shor
     // The look is chosen in Settings and the palette, never here.
     await expect(page.getByRole('menuitemradio')).toHaveCount(0)
     await expect(page.getByRole('menuitem', { name: LABELS.action.sign_out })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: LABELS.shell.api_docs })).toBeVisible()
 
     await page.getByRole('menuitem', { name: LABELS.shell.account.shortcuts }).click()
     await expect(page.getByRole('dialog')).toBeVisible()
+})
+
+test("the account menu opens the API documentation at the screen's own section", async ({ page }) => {
+    await page.goto('/pipelines')
+    await page.getByRole('button', { name: /^Account: / }).click()
+    const opened = page.waitForEvent('popup')
+    await page.getByRole('menuitem', { name: LABELS.shell.api_docs }).click()
+    const docs = await opened
+    await expect.poll(() => docs.url()).toMatch(/\/docs#\/pipelines$/)
+    await docs.close()
 })
 
 test('the account menu is walked by keyboard', async ({ page }) => {

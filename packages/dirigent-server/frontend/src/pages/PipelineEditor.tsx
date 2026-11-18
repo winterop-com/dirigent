@@ -184,6 +184,7 @@ export function PipelineEditor() {
     })
     const [issues, setIssues] = useState<string | null>(null)
     const [picking, setPicking] = useState(false)
+    const filePicker = useRef<HTMLInputElement | null>(null)
 
     const local = state.code === code ? state.local : null
     const source = state.code === code ? state.source : null
@@ -480,6 +481,32 @@ export function PipelineEditor() {
                           run: () => {
                               if (applyRefusal === undefined) setDialog('apply')
                               else toast.info(applyRefusal)
+                          },
+                      },
+                  ]
+                : []),
+            ...(creating && mayWrite && !small
+                ? [
+                      {
+                          id: 'pipeline:from-starter',
+                          title: LABELS.pipelines.palette.from_starter,
+                          group: shelf,
+                          screen: true,
+                          icon: ICONS.example,
+                          keywords: ['example', 'copy', 'corpus', 'recipe'],
+                          run: () => {
+                              setPicking(true)
+                          },
+                      },
+                      {
+                          id: 'pipeline:from-file',
+                          title: LABELS.pipelines.palette.from_file,
+                          group: shelf,
+                          screen: true,
+                          icon: ICONS.upload,
+                          keywords: ['upload', 'yaml', 'apply', 'import'],
+                          run: () => {
+                              filePicker.current?.click()
                           },
                       },
                   ]
@@ -802,18 +829,31 @@ export function PipelineEditor() {
                             onRemoveStep={removeStep}
                             onRefuse={refuse}
                             emptyAction={
-                                // Copying a shipped document is a door nothing else here shows.
+                                // A shipped document copied, or one read off disk: the two doors
+                                // into a new document that nothing else here shows.
                                 creating && !small && mayWrite ? (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                            setPicking(true)
-                                        }}
-                                    >
-                                        <ICONS.example aria-hidden />
-                                        {LABELS.editor.canvas.from_starter}
-                                    </Button>
+                                    <div className="flex flex-wrap justify-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                setPicking(true)
+                                            }}
+                                        >
+                                            <ICONS.example aria-hidden />
+                                            {LABELS.editor.canvas.from_starter}
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                filePicker.current?.click()
+                                            }}
+                                        >
+                                            <ICONS.upload aria-hidden />
+                                            {LABELS.editor.canvas.from_file}
+                                        </Button>
+                                    </div>
                                 ) : undefined
                             }
                             readOnly={small}
@@ -823,6 +863,25 @@ export function PipelineEditor() {
             </Section>
 
             {leaving.dialog}
+
+            {creating && (
+                <input
+                    ref={filePicker}
+                    type="file"
+                    accept=".yaml,.yml,.json,text/yaml,application/json"
+                    className="hidden"
+                    aria-label={LABELS.editor.canvas.from_file}
+                    onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        event.target.value = ''
+                        if (file === undefined) return
+                        void file.text().then((document) => {
+                            startDocument(document)
+                            openPanelTab('source')
+                        })
+                    }}
+                />
+            )}
 
             {picking && (
                 <Suspense fallback={null}>

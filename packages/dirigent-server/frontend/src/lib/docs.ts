@@ -2,7 +2,7 @@
  * The escape hatch out of a screen and into the API that answers it.
  *
  * EVERY LISTING IS A READ SOMEBODY CAN MAKE THEMSELVES, and the screen is one rendering of it
- * rather than the only way to it. The chip in a listing's corner opens this instance's own
+ * rather than the only way to it. The account menu and the palette open this instance's own
  * OpenAPI document at the resource the screen is drawing.
  *
  * THE ANCHOR IS SWAGGER UI'S OWN. It writes `#/<tag>` on the heading of every tag section and
@@ -32,9 +32,6 @@ export type DocsTag =
 export function docsHref(tag: DocsTag): string {
     return `/docs#/${tag}`
 }
-
-/** What the chip says. Short, because it sits on a heading beside the screen's own actions. */
-export const API_LABEL = 'API'
 
 /** This instance's own OpenAPI document, rendered. It is at the root, whatever the API mounted at. */
 export const API_DOCS_URL = '/docs'

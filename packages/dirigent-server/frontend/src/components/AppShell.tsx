@@ -38,7 +38,7 @@ import { ICONS } from '@/lib/icons'
 import { addressOfId, idResults } from '@/lib/id-jump'
 import { LABELS } from '@/lib/labels'
 import { loadKindMarks } from '@/lib/marks'
-import { DASHBOARD_PATH, entriesFor, LOGIN_PATH, railGroups, screenPath } from '@/lib/nav'
+import { apiDocsAt, DASHBOARD_PATH, entriesFor, LOGIN_PATH, railGroups, screenPath } from '@/lib/nav'
 import {
     GO_GROUP,
     paletteActions,
@@ -177,6 +177,10 @@ export function AppShell() {
         setSettingsOpen(true)
     }, [])
 
+    const openApiDocs = useCallback(() => {
+        window.open(apiDocsAt(pathname), '_blank', 'noopener,noreferrer')
+    }, [pathname])
+
     const leave = useCallback(() => {
         chosen.current = true
         void signOut()
@@ -255,6 +259,14 @@ export function AppShell() {
                 run: openSettings,
             },
             {
+                id: 'view:api-docs',
+                title: LABELS.shell.api_docs,
+                group: VIEW_GROUP,
+                icon: ICONS.external,
+                keywords: ['docs', 'api', 'openapi', 'swagger', 'requests', 'reference'],
+                run: openApiDocs,
+            },
+            {
                 id: 'view:shortcuts',
                 title: LABELS.shell.shortcuts,
                 group: VIEW_GROUP,
@@ -277,7 +289,7 @@ export function AppShell() {
                   ]
                 : []),
         ]
-    }, [hidden, leave, navigate, openSettings, role, signedIn])
+    }, [hidden, leave, navigate, openApiDocs, openSettings, role, signedIn])
 
     useEffect(() => registerActions(shellActions), [shellActions])
 
@@ -327,6 +339,14 @@ export function AppShell() {
                                 onSettings={openSettings}
                                 onAppearance={openAppearancePane}
                                 onSignOut={leave}
+                                extra={[
+                                    {
+                                        id: 'api-docs',
+                                        label: LABELS.shell.api_docs,
+                                        icon: ICONS.external,
+                                        onSelect: openApiDocs,
+                                    },
+                                ]}
                                 words={accountWords(identity.username)}
                             />
                         )

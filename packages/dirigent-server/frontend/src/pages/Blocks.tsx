@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { ApiChip } from '@/components/ApiChip'
 import { KindChip } from '@/components/KindChip'
 import { Description } from '@/components/Description'
 import { Chip } from '@winterop-com/sokkel-ui/Chip'
@@ -152,7 +151,7 @@ export function Blocks() {
 
     return (
         <>
-            <PageHeader title={LABELS.screen.blocks.name} lead={<ApiChip tag="blocks" />} />
+            <PageHeader title={LABELS.screen.blocks.name} />
 
             <ListingBar
                 className="mb-4 px-0"

@@ -14,6 +14,7 @@
 import type { RailGroup } from '@winterop-com/sokkel-ui/Rail'
 
 import type { UserRole } from '@/lib/auth'
+import { API_DOCS_URL, docsHref, type DocsTag } from '@/lib/docs'
 import { ICONS, type Icon } from '@/lib/icons'
 import { LABELS } from '@/lib/labels'
 import { EDIT_SEGMENT } from '@/lib/step-address'
@@ -33,6 +34,8 @@ export interface NavEntry {
      */
     hint: string
     icon: Icon
+    /** The section of the API documentation that answers this screen's requests. */
+    docs: DocsTag
 }
 
 /** A run of entries under one heading. */
@@ -77,6 +80,7 @@ export const NAV: NavSection[] = [
                 label: LABELS.screen.dashboard.name,
                 hint: LABELS.screen.dashboard.hint,
                 icon: ICONS.dashboard,
+                docs: 'runs',
             },
         ],
     },
@@ -90,12 +94,14 @@ export const NAV: NavSection[] = [
                 label: LABELS.screen.runs.name,
                 hint: LABELS.screen.runs.hint,
                 icon: ICONS.run,
+                docs: 'runs',
             },
             {
                 path: '/triggers',
                 label: LABELS.screen.triggers.name,
                 hint: LABELS.screen.triggers.hint,
                 icon: ICONS.trigger,
+                docs: 'triggers',
             },
         ],
     },
@@ -109,18 +115,21 @@ export const NAV: NavSection[] = [
                 label: LABELS.screen.pipelines.name,
                 hint: LABELS.screen.pipelines.hint,
                 icon: ICONS.pipeline,
+                docs: 'pipelines',
             },
             {
                 path: '/connections',
                 label: LABELS.screen.connections.name,
                 hint: LABELS.screen.connections.hint,
                 icon: ICONS.connection,
+                docs: 'connections',
             },
             {
                 path: '/schemas',
                 label: LABELS.screen.schemas.name,
                 hint: LABELS.screen.schemas.hint,
                 icon: ICONS.schema,
+                docs: 'schemas',
             },
         ],
     },
@@ -134,12 +143,14 @@ export const NAV: NavSection[] = [
                 label: LABELS.screen.blocks.name,
                 hint: LABELS.screen.blocks.hint,
                 icon: ICONS.block,
+                docs: 'blocks',
             },
             {
                 path: '/examples',
                 label: LABELS.screen.examples.name,
                 hint: LABELS.screen.examples.hint,
                 icon: ICONS.example,
+                docs: 'examples',
             },
         ],
     },
@@ -153,24 +164,28 @@ export const NAV: NavSection[] = [
                 label: LABELS.screen.users.name,
                 hint: LABELS.screen.users.hint,
                 icon: ICONS.users,
+                docs: 'users',
             },
             {
                 path: '/admin/workers',
                 label: LABELS.screen.workers.name,
                 hint: LABELS.screen.workers.hint,
                 icon: ICONS.worker,
+                docs: 'workers',
             },
             {
                 path: '/admin/alerting',
                 label: LABELS.screen.alerting.name,
                 hint: LABELS.screen.alerting.hint,
                 icon: ICONS.alerting,
+                docs: 'alerts',
             },
             {
                 path: '/admin/audit',
                 label: LABELS.screen.audit.name,
                 hint: LABELS.screen.audit.hint,
                 icon: ICONS.recent,
+                docs: 'audit',
             },
         ],
     },
@@ -255,4 +270,10 @@ export function screenPath(pathname: string): string {
         return `/pipelines/${parts[1]}`
     if (parts[0] === 'connections' && parts.length > 1) return '/connections'
     return pathname
+}
+
+/** The API documentation at the section behind the screen at this address, or its start. */
+export function apiDocsAt(path: string): string {
+    const entry = entryAt(path)
+    return entry === null ? API_DOCS_URL : docsHref(entry.docs)
 }
