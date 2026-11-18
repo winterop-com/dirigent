@@ -5,7 +5,7 @@ import { LogView, type LogLevel, type LogLine } from '@winterop-com/sokkel-ui/Lo
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { formatClock } from '@/lib/format'
 import { LABELS } from '@/lib/labels'
-import { itemOfEntry } from '@/lib/run-detail'
+import { itemOfEntry, MAX_LOG_LINES } from '@/lib/run-detail'
 import { fieldsText } from '@/lib/terminal'
 import { followTails } from '@/lib/preferences'
 import type { LogEntryOut } from '@/lib/runs'
@@ -35,6 +35,7 @@ export function LogPane({
     entries,
     items,
     settled,
+    cut = false,
     className,
 }: {
     entries: LogEntryOut[]
@@ -42,6 +43,8 @@ export function LogPane({
     items?: ReadonlyMap<string, string>
     /** Whether nothing more will be written here, which is what decides the tense. */
     settled?: boolean
+    /** Whether the run's held lines have let older ones go, so an empty pane may be a cut one. */
+    cut?: boolean
     className?: string
 }) {
     const following = useStore(followTails)
@@ -64,7 +67,13 @@ export function LogPane({
             wrap
             numbered={false}
             words={{ jump: LABELS.terminal.newest }}
-            empty={settled === true ? LABELS.terminal.step_empty_settled : LABELS.terminal.step_empty}
+            empty={
+                cut
+                    ? LABELS.terminal.step_empty_cut(String(MAX_LOG_LINES))
+                    : settled === true
+                      ? LABELS.terminal.step_empty_settled
+                      : LABELS.terminal.step_empty
+            }
             className={className}
         />
     )

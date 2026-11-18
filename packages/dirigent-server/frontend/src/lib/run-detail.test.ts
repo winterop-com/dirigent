@@ -23,6 +23,7 @@ import {
     outputReading,
     progressOf,
     reduce,
+    reread,
     resumeCursor,
     retryStory,
     runSteps,
@@ -232,6 +233,13 @@ describe('an attempt that moved', () => {
         expect(state.order).toEqual(['a-1'])
     })
 
+    test('is news when a replay names the element it ran for, which the first frame could not', () => {
+        const unnamed = attempt({ id: 'a-1', status: 'running', item: null, item_index: null })
+        const named = attempt({ id: 'a-1', status: 'running', item: 'oslo', item_index: 2 })
+        const state = fed([unnamed, named])
+        expect([state.attempts['a-1']?.item, state.attempts['a-1']?.item_index]).toEqual(['oslo', 2])
+    })
+
     test('is news when only its waiting message changed, because that is what a poll says', () => {
         const waiting = attempt({ id: 'a-1', status: 'waiting', waiting_message: 'queued at the remote' })
         const later = attempt({ id: 'a-1', status: 'waiting', waiting_message: 'running at the remote' })
@@ -298,11 +306,35 @@ describe('a log frame', () => {
         }
         expect(state.logs).toHaveLength(MAX_LOG_LINES)
         expect(state.logs[0]?.id).toBe(11)
+        expect(state.logsDropped).toBe(10)
         expect(resumeCursor(state)).toBe(String(MAX_LOG_LINES + 10))
     })
 
     test('leaves the cursor unset before the stream has stated an id', () => {
         expect(resumeCursor(initialState(detail()))).toBeNull()
+    })
+})
+
+describe('a second read of the run', () => {
+    test('takes the graph it answers with and keeps what the stream delivered', () => {
+        let state = applyFrame(initialState(detail()), { kind: 'log', entry: entry({ id: 4 }) })
+        state = applyFrame(state, { kind: 'run', run: run({ status: 'completed_with_errors' }) })
+        const settledNode = node({ outcome: 'succeeded', fan_out: true, items_failed: 1 })
+        const read = reread(
+            state,
+            detail({
+                run: run({ status: 'completed_with_errors' }),
+                dag: { nodes: [settledNode], edges: [] },
+            }),
+        )
+        expect(read.dag.nodes).toEqual([settledNode])
+        expect(read.logs.map((one) => one.id)).toEqual([4])
+    })
+
+    test('does not move a settled run back, and is not taken for another run', () => {
+        const state = applyFrame(initialState(detail()), { kind: 'run', run: run({ status: 'succeeded' }) })
+        expect(reread(state, detail({ run: run({ status: 'running' }) })).run.status).toBe('succeeded')
+        expect(reread(state, detail({ run: run({ id: 'another' }) }))).toBe(state)
     })
 })
 

@@ -172,7 +172,13 @@ export function StepTab({
             </Group>
 
             <Group title={LABELS.word.log}>
-                <LogPane entries={entries} items={labels} settled={done} className="max-h-72 min-h-24" />
+                <LogPane
+                    entries={entries}
+                    items={labels}
+                    settled={done}
+                    cut={state.logsDropped > 0}
+                    className="max-h-72 min-h-24"
+                />
             </Group>
         </div>
     )

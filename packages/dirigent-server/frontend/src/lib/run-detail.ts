@@ -60,6 +60,8 @@ export interface RunDetailState {
     order: readonly string[]
     /** The run's whole log tail, oldest first, capped at `MAX_LOG_LINES`. */
     logs: readonly LogEntryOut[]
+    /** How many lines the cap has dropped from the head of the tail. */
+    logsDropped: number
     /** The highest log id applied, which is the only cursor a reconnect may resume past. */
     lastLogId: number | null
     stream: StreamState
@@ -83,6 +85,7 @@ export function initialState(detail: RunDetailOut): RunDetailState {
         attempts: {},
         order: [],
         logs: [],
+        logsDropped: 0,
         lastLogId: null,
         stream: 'connecting',
         waitingForWorkers: detail.waiting_for_workers,
@@ -120,6 +123,8 @@ function attemptFingerprint(attempt: AttemptEvent): string {
         String(attempt.waiting_progress ?? ''),
         attempt.error ?? '',
         attempt.output_uri ?? '',
+        attempt.item ?? '',
+        String(attempt.item_index ?? ''),
     ].join(' ')
 }
 
@@ -156,9 +161,11 @@ export function applyFrame(state: RunDetailState, frame: RunFrame): RunDetailSta
             const entry = frame.entry
             if (state.lastLogId !== null && entry.id <= state.lastLogId) return state
             const grown = [...state.logs, entry]
+            const over = Math.max(0, grown.length - MAX_LOG_LINES)
             return {
                 ...state,
-                logs: grown.length > MAX_LOG_LINES ? grown.slice(grown.length - MAX_LOG_LINES) : grown,
+                logs: over > 0 ? grown.slice(over) : grown,
+                logsDropped: state.logsDropped + over,
                 lastLogId: entry.id,
             }
         }
@@ -178,6 +185,7 @@ export function applyFrame(state: RunDetailState, frame: RunFrame): RunDetailSta
 export type RunAction =
     | { kind: 'reset' }
     | { kind: 'loaded'; detail: RunDetailOut }
+    | { kind: 'reread'; detail: RunDetailOut }
     | { kind: 'frame'; frame: RunFrame }
     | { kind: 'stream'; stream: StreamState }
 
@@ -196,8 +204,23 @@ export function reduce(state: RunDetailState | null, action: RunAction): RunDeta
     if (action.kind === 'reset') return null
     if (action.kind === 'loaded') return initialState(action.detail)
     if (state === null) return null
+    if (action.kind === 'reread') return reread(state, action.detail)
     if (action.kind === 'frame') return applyFrame(state, action.frame)
     return withStream(state, action.stream)
+}
+
+/**
+ * Take a second read of the run as the graph it draws.
+ *
+ * The stream carries attempts and the run but never the graph's nodes, so a run watched to its
+ * end is read once more as it settles: a node's outcome and its fan-out counts are what that
+ * read knows and the first did not. What the stream delivered is kept, and a read of another
+ * run is not this one's.
+ */
+export function reread(state: RunDetailState, detail: RunDetailOut): RunDetailState {
+    if (detail.run.id !== state.run.id) return state
+    const run = runSettled(state.run.status) && !runSettled(detail.run.status) ? state.run : detail.run
+    return { ...state, run, dag: detail.dag, waitingForWorkers: detail.waiting_for_workers }
 }
 
 /** Say where the stream is, without disturbing anything it has already delivered. */

@@ -30,6 +30,7 @@ import { shutWith } from '@/lib/roles'
 import { ICONS } from '@/lib/icons'
 import { ApiError, type JsonMap, type Problem } from '@/lib/api'
 import { elapsedBetween, formatBytes, formatDuration, formatInstant, shortId } from '@/lib/format'
+import { titleOf } from '@/lib/identity'
 import { LABELS } from '@/lib/labels'
 import { problemsIn, refusalLine, refusalOf } from '@/lib/refusal'
 import { fillPanel, openPanel, openPanelTab, panelOpen, panelSheet, type PanelTab } from '@/lib/panels'
@@ -137,6 +138,7 @@ export function RunDetail() {
     if (opened !== id) {
         setOpened(id)
         dispatch({ kind: 'reset' })
+        setDocument(null)
         setProblem(null)
         setReport(null)
         setReportProblem(null)
@@ -210,6 +212,15 @@ export function RunDetail() {
     useEffect(() => {
         if (!settled) return
         let cancelled = false
+        // The graph's nodes are not on the stream, so the run is read once more as it settles.
+        void readRun(id).then(
+            (detail) => {
+                if (!cancelled) dispatch({ kind: 'reread', detail })
+            },
+            () => {
+                // The graph keeps the nodes it was first read with.
+            },
+        )
         void readReport(id).then(
             (summary) => {
                 if (!cancelled) setReport(summary)
@@ -499,7 +510,7 @@ export function RunDetail() {
             : [
                   { label: LABELS.screen.runs.name, href: '/runs' },
                   {
-                      label: document?.name ?? state.run.pipeline,
+                      label: titleOf({ code: state.run.pipeline, name: document?.name }),
                       href: `/pipelines/${state.run.pipeline}`,
                       code: document === null || document.name === null,
                   },
@@ -549,7 +560,7 @@ export function RunDetail() {
                 <ShellHead>
                     <div>
                         <LibraryPageHeader
-                            title={document?.name ?? run.pipeline}
+                            title={titleOf({ code: run.pipeline, name: document?.name })}
                             code={run.pipeline}
                             meta={
                                 <span title={run.id}>

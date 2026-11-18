@@ -588,13 +588,17 @@ test('a fan-out over a step output waits for it, then draws its items as they ar
 
     await expect(each.getByText('3 items', { exact: true })).toBeVisible({ timeout: 30_000 })
     await expect(each.getByText('waits for list', { exact: true })).toHaveCount(0)
+    const chips = each.locator('[data-slot="graph-node-item"]')
+    await expect(chips).toHaveCount(3)
+    // Each element is named by its item, which arrived after the watcher connected, not by the step.
+    await expect(chips.getByText('each', { exact: true })).toHaveCount(0)
     await expect(statusChip(page, 'succeeded').first()).toBeVisible({
         timeout: 30_000,
     })
     await expect(each.locator('[data-slot="graph-node"]')).toHaveAttribute('data-status', 'succeeded')
     const expanded = await each.boundingBox()
     if (expanded === null) throw new Error('the fan-out box has no box on the screen')
-    expect(expanded.height, 'the box keeps its height when the grid expands into it').toBe(waiting.height)
+    expect((expanded.height - waiting.height) % 18, 'the box grows by whole strip lines').toBe(0)
 })
 
 /** One wait long enough that the run is still going whenever this file asks about it. */

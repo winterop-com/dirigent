@@ -109,7 +109,7 @@ export function RunTerminal({
     const shown = useMemo(() => visibleLines(state.logs, filters, labels), [state.logs, filters, labels])
     const drawn = useMemo(() => countLines(shown), [shown])
     const held = useMemo(() => countLines(state.logs), [state.logs])
-    const countNote = lineCount(drawn, held)
+    const countNote = lineCount(drawn, held, state.logsDropped > 0)
     const steps = stepChoices(state)
 
     // Each drawn line, and the entry it was drawn from, which is what its source opens.

@@ -237,6 +237,7 @@ describe('what the count line says', () => {
 
     test('says line rather than lines where there is one', () => {
         expect(lineCount(1, 1)).toBe('1 of 1 line')
+        expect(lineCount(3, 5000, true)).toBe('3 of the newest 5000 lines')
     })
 
     test('says nothing at all where the run has written no line to count', () => {

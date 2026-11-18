@@ -311,15 +311,16 @@ function Section({
 
 /** A pipeline headed the way every screen heads one, on one line that truncates. */
 function PipelineTitle({ code, name }: { code: string; name: string | null }) {
+    const heading = headingOf({ code, name })
     return (
         <span className="flex min-w-0 flex-1 items-baseline gap-2.5">
             <span
-                className={cn('min-w-0 truncate', name === null && 'font-mono text-xs')}
-                title={name ?? code}
+                className={cn('min-w-0 truncate', !heading.named && 'font-mono text-xs')}
+                title={heading.title}
             >
-                {name ?? code}
+                {heading.title}
             </span>
-            {name !== null && <InlineCode value={code} className="shrink" tone="muted" bare size="xs" />}
+            {heading.named && <InlineCode value={code} className="shrink" tone="muted" bare size="xs" />}
         </span>
     )
 }
@@ -328,6 +329,7 @@ function PipelineTitle({ code, name }: { code: string; name: string | null }) {
 function TroubledRow({ entry }: { entry: LookEntry }) {
     const { run } = entry
     const steps = useMemo(() => miniGraphSteps(entry.shape, entry.failedStep), [entry])
+    const heading = headingOf({ code: run.pipeline, name: entry.name })
     return (
         <Link
             to={`/runs/${run.id}`}
@@ -338,7 +340,7 @@ function TroubledRow({ entry }: { entry: LookEntry }) {
                 scale="natural"
                 align="start"
                 reduce
-                label={entry.name ?? run.pipeline}
+                label={heading.title}
                 className="h-13 w-59 shrink-0"
             />
             <div className="min-w-0 flex-[999_1_320px]">
@@ -346,12 +348,12 @@ function TroubledRow({ entry }: { entry: LookEntry }) {
                     <span
                         className={cn(
                             'min-w-0 truncate text-title font-semibold',
-                            entry.name === null && 'font-mono',
+                            !heading.named && 'font-mono',
                         )}
                     >
-                        {entry.name ?? run.pipeline}
+                        {heading.title}
                     </span>
-                    {entry.name !== null && <InlineCode value={run.pipeline} tone="muted" bare size="xs" />}
+                    {heading.named && <InlineCode value={run.pipeline} tone="muted" bare size="xs" />}
                 </div>
                 {(entry.failedStep !== null || run.error !== null) && (
                     <p className="mt-1.5 text-sm break-words">

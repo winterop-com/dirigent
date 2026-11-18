@@ -178,14 +178,15 @@ export function countLines(entries: readonly LogEntryOut[]): number {
 
 /**
  * What the count line says: how many lines are on screen out of how many the run has written,
- * or nothing at all where the run has written none.
+ * or nothing at all where the run has written none. Once the screen has let older lines go,
+ * the total is the newest it holds, and it says so.
  *
  * "0 OF 0 LINES" IS AN EMPTY STATE IN ARITHMETIC. The pane below already says nothing was
  * logged, so the count has a fact only once there is a line to count.
  */
-export function lineCount(shown: number, total: number): string | null {
+export function lineCount(shown: number, total: number, cut = false): string | null {
     if (total === 0) return null
-    const say = counted(total, LABELS.terminal.count)
+    const say = counted(total, cut ? LABELS.terminal.count_tail : LABELS.terminal.count)
     return say(String(shown), String(total))
 }
 

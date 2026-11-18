@@ -2670,6 +2670,11 @@ const terminal = {
         one: (shown: string, total: string) => `${shown} of ${total} line`,
         many: (shown: string, total: string) => `${shown} of ${total} lines`,
     },
+    /** The same count once the screen holds only the newest lines and has let older ones go. */
+    count_tail: {
+        one: (shown: string, total: string) => `${shown} of the newest ${total} line`,
+        many: (shown: string, total: string) => `${shown} of the newest ${total} lines`,
+    },
 
     // The lines themselves.
 
@@ -2702,6 +2707,9 @@ const terminal = {
     step_empty_settled: 'This step wrote nothing.',
     /** The step could still write. */
     step_empty: 'This step has written nothing.',
+    /** None of the step's lines are among the newest the screen holds; older ones were let go. */
+    step_empty_cut: (held: string) =>
+        `No line of this step is among the newest ${held}. Download the log for every line.`,
 } as const
 
 /**
