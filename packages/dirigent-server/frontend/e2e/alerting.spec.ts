@@ -103,7 +103,7 @@ test('a rule is declared from the screen, and appears in the listing it was decl
 
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
     await dialog.getByLabel(LABELS.word.name.label).fill(RULE.name)
-    await dialog.getByRole('button', { name: 'Failed' }).click()
+    await dialog.getByRole('button', { name: 'Failed', exact: true }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
 
     // A rule names one target and the sender follows from it: one picker, opened on the log.
@@ -155,7 +155,7 @@ test('escape on the target picker leaves the box saying what is chosen', async (
 
     // What the box reads is what is created.
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(RULE.code)
-    await dialog.getByRole('button', { name: 'Failed' }).click()
+    await dialog.getByRole('button', { name: 'Failed', exact: true }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
     await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -165,7 +165,7 @@ test('escape on the target picker leaves the box saying what is chosen', async (
     await page.getByRole('button', { name: LABELS.alerting.new_rule.button }).click()
     await expect(field).toContainText('The process log')
     await dialog.getByLabel(LABELS.word.code, { exact: true }).fill(WIDE.code)
-    await dialog.getByRole('button', { name: 'Failed' }).click()
+    await dialog.getByRole('button', { name: 'Failed', exact: true }).click()
     await dialog.getByRole('button', { name: LABELS.alerting.scope.global }).click()
     await dialog.getByRole('button', { name: LABELS.action.create.verb }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
