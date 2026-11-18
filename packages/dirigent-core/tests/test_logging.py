@@ -21,6 +21,7 @@ from dirigent_core.engine.context import (
 from dirigent_core.logging import (
     BRIDGED_LOGGERS,
     PACKAGE_LOGGER,
+    STEP_LOGGER,
     GrammarRenderer,
     ProcessLog,
     bind_context,
@@ -128,6 +129,15 @@ def test_the_queue_clients_are_floored_because_the_call_reports_their_failure() 
 def test_the_http_client_is_floored_because_its_info_line_writes_a_whole_url() -> None:
     configure_logging("DEBUG", "json")
     assert logging.getLogger("httpx2").getEffectiveLevel() == logging.WARNING
+
+
+def test_a_floor_an_earlier_configuration_set_is_lifted_by_the_next() -> None:
+    """``dg dev`` quiets the step lines; a later configuration in the process that names no such floor hears them."""
+    configure_logging("INFO", "json", floors={STEP_LOGGER: logging.WARNING})
+    assert not logging.getLogger(STEP_LOGGER).isEnabledFor(logging.INFO)
+    configure_logging("INFO", "json")
+    assert logging.getLogger(STEP_LOGGER).level == logging.NOTSET
+    assert logging.getLogger(STEP_LOGGER).isEnabledFor(logging.INFO)
 
 
 def test_configuring_twice_does_not_stack_handlers() -> None:

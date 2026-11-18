@@ -51,6 +51,9 @@ NOISY_LOGGERS: dict[str, int] = {
     "aiormq": logging.CRITICAL,
 }
 
+#: Every logger a configuration in this process has floored.
+_floored: set[str] = set()
+
 #: Marks the handler this module owns, so repeated configuration never stacks handlers.
 _OWNED = "_dirigent_handler"
 
@@ -252,10 +255,12 @@ def configure_logging(
         bridged.setLevel(logging.NOTSET)
         bridged.propagate = True
 
-    # Reset first, so lifting a floor actually lifts it: configuration is called more than
-    # once in a process and must be idempotent.
+    # Reset every floor any configuration in this process set, so lifting a floor or leaving
+    # one out actually lifts it: configuration is called more than once in a process and must
+    # be idempotent.
     applied = NOISY_LOGGERS if floors is None else floors
-    for name in {*NOISY_LOGGERS, *applied}:
+    _floored.update(NOISY_LOGGERS, applied)
+    for name in _floored:
         logging.getLogger(name).setLevel(logging.NOTSET)
     for name, floor in applied.items():
         logging.getLogger(name).setLevel(max(numeric_level, floor))

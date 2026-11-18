@@ -30,21 +30,32 @@ def _ignore_the_developer_environment(defaults_only_environment: None, monkeypat
 
 @pytest.fixture(autouse=True)
 def _logging_left_as_found() -> Iterator[None]:
-    """Put structlog's configuration and every logger's level back after each test.
+    """Put structlog's configuration and every logger's level, propagation and switch back after each test.
 
     A command run in-process configures logging for the whole process, and its level filter
-    would otherwise decide what a later test on the same worker can capture.
+    would otherwise decide what a later test on the same worker can capture. A logger the
+    test brought into being goes back to the defaults it was born with.
     """
     saved = structlog.get_config()
-    loggers = [
-        logging.getLogger(),
-        *(found for found in logging.Logger.manager.loggerDict.values() if isinstance(found, logging.Logger)),
-    ]
-    levels = [(logger, logger.level) for logger in loggers]
+    disabled = logging.root.manager.disable
+    found = {logging.getLogger(), *_existing_loggers()}
+    states = [(logger, logger.level, logger.propagate, logger.disabled) for logger in found]
     yield
     structlog.configure(**saved)
-    for logger, level in levels:
+    logging.disable(disabled)
+    for logger, level, propagate, off in states:
         logger.setLevel(level)
+        logger.propagate = propagate
+        logger.disabled = off
+    for born in _existing_loggers() - found:
+        born.setLevel(logging.NOTSET)
+        born.propagate = True
+        born.disabled = False
+
+
+def _existing_loggers() -> set[logging.Logger]:
+    """List every named logger the process has created so far."""
+    return {logger for logger in logging.Logger.manager.loggerDict.values() if isinstance(logger, logging.Logger)}
 
 
 @pytest.fixture
