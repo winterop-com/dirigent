@@ -262,6 +262,90 @@ describe('the document as YAML', () => {
         ])
     })
 
+    // Each expectation is what `dirigent_core.documents.safe_load` reads from the same text.
+    test('reads every scalar the way dg apply reads it', () => {
+        const text = [
+            'defaults: &defaults',
+            '  retries: 3',
+            'config:',
+            '  <<: *defaults',
+            '  country: NO',
+            '  enabled: yes',
+            '  flag: on',
+            '  letter: y',
+            '  at: 12:30',
+            '  late: 12:60',
+            '  mode: 0755',
+            '  nine: 09',
+            '  octal12: 0o17',
+            '  big: 1_000',
+            '  sci: 1e3',
+            '  signed: 1.5e+3',
+            '  unsigned: 1.5e3',
+            '  half: .5',
+            '  negative_half: -.5',
+            '  hex: 0x1F',
+            '  day: 2026-01-01',
+        ].join('\n')
+        const read = fromYaml(text)
+        expect(read.ok && read.document.config).toEqual({
+            retries: 3,
+            country: false,
+            enabled: true,
+            flag: true,
+            letter: 'y',
+            at: 750,
+            late: '12:60',
+            mode: 493,
+            nine: '09',
+            octal12: '0o17',
+            big: 1000,
+            sci: '1e3',
+            signed: 1500,
+            unsigned: '1.5e3',
+            half: 0.5,
+            negative_half: '-.5',
+            hex: 31,
+            day: '2026-01-01',
+        })
+    })
+
+    test('writes a string dg apply would read as something else in quotes, and a number as one', () => {
+        const config = {
+            country: 'NO',
+            enabled: 'yes',
+            flag: 'on',
+            at: '12:30',
+            big: '1_000',
+            octal: '0755',
+            huge: 1e21,
+            tiny: 1e-7,
+            ratio: 1.5,
+            count: 7,
+            letter: 'y',
+            day: '2026-01-01',
+            merge: '<<',
+            value: '=',
+        }
+        const text = toYaml({ code: 'quoted', steps: {}, config })
+        for (const said of [
+            '"NO"',
+            '"yes"',
+            '"on"',
+            '"12:30"',
+            '"1_000"',
+            '"0755"',
+            '1.0e+21',
+            '1.0e-7',
+            '"<<"',
+            '"="',
+        ]) {
+            expect(text).toContain(said)
+        }
+        const read = fromYaml(text)
+        expect(read.ok && read.document.config).toEqual(config)
+    })
+
     test('refuses text that is not YAML, saying what the parser said', () => {
         const read = fromYaml('steps:\n  parse: [')
         expect(read.ok).toBe(false)
