@@ -206,6 +206,7 @@ class Run(Entity):
         sa.Index("ix_runs_created_at", "created_at"),
         sa.Index("ix_runs_finished_at", "finished_at"),
         sa.Index("ix_runs_triggered_by_id_status", "triggered_by_id", "status"),
+        sa.Index("ix_runs_report_due_at", "report_due_at"),
     )
 
     pipeline_id: Mapped[UUID] = mapped_column(sa.ForeignKey("pipelines.id", ondelete="RESTRICT"), nullable=False)
@@ -244,6 +245,11 @@ class Run(Entity):
     finished_at: Mapped[datetime | None] = mapped_column(Timestamp)
     paused_at: Mapped[datetime | None] = mapped_column(Timestamp)
     """When an operator paused the run, which a resume moves its open deadlines on by."""
+
+    report_due_at: Mapped[datetime | None] = mapped_column(Timestamp)
+    """When a worker may next render the report document the run settled owing; null when it owes none.
+
+    The alerts the run raised are not delivered while it is set, so they can link the document."""
 
     window_start: Mapped[datetime | None] = mapped_column(Timestamp)
     """The logical data interval this run covers, half-open: ``[window_start, window_end)``.

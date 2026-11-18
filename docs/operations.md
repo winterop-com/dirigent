@@ -774,7 +774,7 @@ the stack is complete out of the box; see
 | `DIRIGENT_NOTIFICATION_LEASE` | `60s` | How long a claimed notification's lease is valid before another worker may take it. |
 | `DIRIGENT_ALERT_BASE_URL` | unset | The externally reachable base URL, so an alert can link back to the run it is about. Set it on the **workers** too, not only the server: the alert context is built by whichever worker settles the run, so a server-only setting means every alert links to nowhere. |
 | `DIRIGENT_REPORT_MAX_SIZE` | `1mb` | A run's report document larger than this is dropped with a warning in the run's log. The cap is enforced as the text is generated, so a runaway template stops at it rather than after it has built the whole document. |
-| `DIRIGENT_REPORT_RENDER_TIMEOUT` | `5s` | How long a run's report or an alert's subject or body may take to render before it falls back with a warning. A report renders on the worker that settles the run, inside the transaction that settles it; an alert renders on the worker that delivers it. |
+| `DIRIGENT_REPORT_RENDER_TIMEOUT` | `5s` | How long a run's report or an alert's subject or body may take to render before it falls back with a warning. A report renders on a worker once the transaction that settles the run has committed, never inside it; an alert renders on the worker that delivers it. |
 
 ### Endpoint intake and login
 
@@ -1505,7 +1505,7 @@ mean an instance running at a real cadence needs a policy.
 | `retention_logs` | Log entries, for runs too young to be pruned themselves |
 | `retention_inputs` | What arrived at a source, and what came of it |
 | `retention_firings` | When a schedule fired |
-| `retention_notifications` | Alerts already sent |
+| `retention_notifications` | Alerts already sent, or failed for good |
 | `retention_audit` | Entries of the [audit trail](security.md#the-audit-trail); `365d` unless set, the one age with a default |
 | `retention_scratch` | Whether a pruned run's artifacts are deleted from storage too, by retention or by deleting its pipeline |
 

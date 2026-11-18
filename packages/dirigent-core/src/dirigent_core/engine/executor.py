@@ -880,9 +880,24 @@ class Engine:
         # database aborted to break a deadlock is run again with the same entries.
         entries = logger.drain()
         logged = logger.recorded > unit.logged_entries
-        return await with_deadlock_retry(
+        stored = await with_deadlock_retry(
             lambda: self._record_once(unit, result, entries, now, storage=storage, seconds=seconds, logged=logged)
         )
+        await self._write_owed_report(unit.run_id, now)
+        return stored
+
+    async def _write_owed_report(self, run_id: UUID, now: datetime) -> None:
+        """Render the report a run this outcome settled owes, with the outcome already committed.
+
+        A failure here leaves the report owed, for a worker's next pass over owed reports.
+        """
+        # Imported here rather than at module scope: reporting imports alerting, which imports this module.
+        from dirigent_core.reporting import write_owed_report
+
+        try:
+            await write_owed_report(self.sessions, self.services, run_id, now=now)
+        except Exception as error:
+            _logger.warning("the run's report was left for a later pass", run_id=str(run_id), error=str(error))
 
     async def _record_once(
         self,
@@ -974,10 +989,10 @@ class Engine:
             # Imported here rather than at module scope: alerting imports this module back,
             # so naming it at import time closes a cycle.
             from dirigent_core.alerting import raise_for_status
-            from dirigent_core.reporting import render_run_report
+            from dirigent_core.reporting import owe_report
 
-            # The document is rendered before the alerts are raised, so an alert can link it.
-            rendered = await render_run_report(session, self.services, run, definition, now=now)
+            # The document renders once this commits, and the alerts wait for it.
+            owe_report(run, definition, now)
             # Queued in the same commit that settles the run, so a run cannot reach a
             # terminal state without the alerts it owes having been written down.
             await raise_for_status(
@@ -986,9 +1001,6 @@ class Engine:
                 run,
                 status,
                 now=now,
-                facts=rendered.facts,
-                report=rendered.markdown,
-                report_artifact_id=rendered.artifact_id,
             )
             await release_after_settle(session, self.services, run.pipeline_id)
             await wakeups.hasten_parent(session, run, now)
