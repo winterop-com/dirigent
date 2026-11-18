@@ -468,10 +468,25 @@ async def revalidate(
     )
 
 
-async def set_active(session: AsyncSession, code: str, *, active: bool) -> Pipeline:
-    """Activate or deactivate a pipeline, keeping its code and its history."""
+async def _require_locked(session: AsyncSession, code: str) -> Pipeline:
+    """Find a pipeline by code, take its row lock, and read it again under that lock.
+
+    A pipeline another transaction deleted while this one waited for the lock raises
+    :class:`UnknownPipeline`, the same as one deleted before the first read.
+    """
     pipeline = await require_pipeline(session, code)
     await lock_pipeline(session, pipeline.id)
+    fresh = await session.execute(
+        sa.select(Pipeline).where(Pipeline.id == pipeline.id).execution_options(populate_existing=True)
+    )
+    if fresh.scalar_one_or_none() is None:
+        raise UnknownPipeline(code)
+    return pipeline
+
+
+async def set_active(session: AsyncSession, code: str, *, active: bool) -> Pipeline:
+    """Activate or deactivate a pipeline, keeping its code and its history."""
+    pipeline = await _require_locked(session, code)
     was = pipeline.active
     pipeline.active = active
     pipeline.pruned = False
@@ -516,10 +531,9 @@ async def delete_pipeline(session: AsyncSession, services: EngineServices, code:
     off, since a prefix no row names is never found again. A storage failure raises before
     any row is deleted.
     """
-    pipeline = await require_pipeline(session, code)
     # Run creation takes the same lock, so a run that commits between the count and the
     # delete is either seen here or created against a pipeline this delete already removed.
-    await lock_pipeline(session, pipeline.id)
+    pipeline = await _require_locked(session, code)
     live = await count_runs(session, pipeline.id, Run.status.in_(IN_FLIGHT))
     if live:
         raise PipelineInUse(code, live)

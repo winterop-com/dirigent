@@ -188,13 +188,13 @@ async def _walk(
     if not documents:
         _logger.warning("directory apply found no documents", root=str(root))
         return set()
-    walked: dict[str, str] = {}
+    walked: dict[tuple[str, str], str] = {}
     for rank, path in sorted(((_walk_rank(path), path) for path in documents), key=lambda pair: pair[0]):
         if rank == _RANK_SCHEMA:
             await _apply_schema(sessions, root, path, summary, dry_run=dry_run)
         else:
             await _apply_one(sessions, services, root, path, summary, walked, dry_run=dry_run, paused=paused)
-    return set(walked)
+    return {code for _, code in walked}
 
 
 def _walk_rank(path: Path) -> int:
@@ -264,12 +264,16 @@ async def _apply_one(
     root: Path,
     path: Path,
     summary: DirectorySummary,
-    walked: dict[str, str],
+    walked: dict[tuple[str, str], str],
     *,
     dry_run: bool,
     paused: bool,
 ) -> None:
-    """Apply one document into the summary."""
+    """Apply one document into the summary.
+
+    ``walked`` is keyed by kind and code: a pipeline and a triggers document live in separate
+    tables, so the two may share a code, while a second document of one kind and code is refused.
+    """
     ref = path.relative_to(root).as_posix()
     try:
         definition = load_text(path.read_text())
@@ -277,12 +281,13 @@ async def _apply_one(
         summary.refused.append(RefusedDocument(path=ref, message=str(error)))
         _logger.warning("directory document refused", path=ref, error=str(error))
         return
-    if definition.code in walked:
-        message = f"code '{definition.code}' was already applied from {walked[definition.code]} in this walk"
+    key = (definition.kind, definition.code)
+    if key in walked:
+        message = f"{definition.kind} code '{definition.code}' was already applied from {walked[key]} in this walk"
         summary.refused.append(RefusedDocument(path=ref, code=definition.code, message=message))
         _logger.warning("directory document refused", path=ref, pipeline=definition.code, error=message)
         return
-    walked[definition.code] = ref
+    walked[key] = ref
     carried = carried_refusal(definition)
     if carried is not None:
         summary.refused.append(RefusedDocument(path=ref, code=definition.code, message=carried.message))

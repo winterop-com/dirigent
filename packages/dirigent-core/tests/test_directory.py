@@ -300,6 +300,24 @@ async def test_a_prune_deletes_the_triggers_documents_the_directory_dropped(
         assert await list_trigger_documents(session) == []
 
 
+async def test_a_triggers_document_may_share_its_pipelines_code(
+    tmp_path: Path, sessions: async_sessionmaker[AsyncSession], services: EngineServices
+) -> None:
+    """A pipeline and a triggers document live in separate tables, so one code names both."""
+    write(tmp_path, "orders.yaml", code="orders")
+    (tmp_path / "orders.triggers.yaml").write_text(CLOCKS.format(code="orders", pipeline="orders"))
+
+    summary = await apply_directory(sessions, services, tmp_path, prune=True)
+
+    assert summary.refused == []
+    assert summary.applied == ["orders", "orders"]
+    assert summary.pruned == []
+    assert summary.trigger_documents_removed == []
+    async with session_scope(sessions) as session:
+        assert [document.code for document in await list_trigger_documents(session)] == ["orders"]
+    assert await active_of(sessions, "orders")
+
+
 #: A plain JSON Schema, the shape a directory carries beside its documents.
 SCHEMA = """
 {
