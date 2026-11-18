@@ -10,6 +10,7 @@ from dirigent_cli.commands import paged, parse_importance, parse_log_levels, par
 from dirigent_cli.context import Session, client_for, state_of
 from dirigent_cli.messages import (
     AT_TAKES_AN_INSTANT,
+    BODY_FILE_UNREADABLE,
     NOT_AN_ALERT_EVENT,
     ONE_BODY,
     ONE_CLOCK,
@@ -314,7 +315,10 @@ def alerts_rules_create(
     if body is not None and body_file is not None:
         _fail(ONE_BODY)
     if body_file is not None:
-        body = body_file.read_text()
+        try:
+            body = body_file.read_text()
+        except OSError as error:
+            _fail(BODY_FILE_UNREADABLE, path=str(body_file), detail=error.strerror or str(error))
     floor = parse_importance(importance)
     with client_for(state_of(ctx)) as dg:
         created = dg.call(

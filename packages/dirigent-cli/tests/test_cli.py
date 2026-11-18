@@ -29,6 +29,7 @@ from dirigent_cli.main import (
     hoist_globals,
     warn_of_ignored_settings,
 )
+from dirigent_client.enums import UserRole
 from dirigent_core import __version__
 from dirigent_core.config import CONFIG_FILE_ENV, Settings, get_settings, redacted_url, reset_settings_cache
 from dirigent_core.database import create_engine, create_session_factory, session_scope
@@ -626,6 +627,28 @@ def test_a_wipe_does_not_delete_through_a_link(tmp_path: Path, monkeypatch: pyte
     assert (victim / "dirigent.db").read_text() == "somebody else's instance"
 
 
+@pytest.mark.parametrize("argv", [["dev", "--wipe-state"], ["dev"]])
+def test_dev_refuses_a_state_another_dev_is_running_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, argv: list[str]
+) -> None:
+    """A wipe in the wrong terminal must not delete the database under a running instance."""
+    state = tmp_path / ".dirigent" / "state"
+    state.mkdir(parents=True)
+    (state / "dirigent.db").write_text("a running instance's database")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DIRIGENT_DATABASE_URL", "sqlite+aiosqlite:///./.dirigent/state/dirigent.db")
+    reset_settings_cache()
+    running = main.hold_state(get_settings())
+    try:
+        result = runner.invoke(app, argv)
+    finally:
+        main.release_state(running)
+
+    assert result.exit_code == GUARD_EXIT, result.output
+    assert closing(result.stdout)["code"] == "cli.dev_state_in_use"
+    assert (state / "dirigent.db").read_text() == "a running instance's database"
+
+
 def test_dev_refuses_a_state_directory_that_is_a_link(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Whatever the link names, nothing is opened or migrated through it."""
     elsewhere = tmp_path / "elsewhere"
@@ -1012,6 +1035,32 @@ def test_dev_generates_no_key_when_one_is_configured_or_a_secret_is_sealed(
     assert not (tmp_path / ".env").exists()
 
 
+@pytest.mark.usefixtures("dotenv_layer")
+def test_dev_generates_no_key_over_a_sealed_signing_secret(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A signed source's secret is sealed with the same key a connection's is."""
+    from dirigent_core import migrations
+    from dirigent_core.models import Pipeline, Source
+
+    monkeypatch.chdir(tmp_path)
+    settings = get_settings()
+    migrations.upgrade("head", settings)
+
+    async def seal() -> None:
+        engine = create_engine(settings)
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                pipeline = Pipeline(code="hooks")
+                session.add(pipeline)
+                await session.flush()
+                session.add(Source(pipeline_id=pipeline.id, code="hook", kind="endpoint", signing_secret=b"sealed"))
+        finally:
+            await engine.dispose()
+
+    asyncio.run(seal())
+    assert asyncio.run(main.dev_secret_key(settings)) is None, "a new key could not open what an old one sealed"
+    assert not (tmp_path / ".env").exists()
+
+
 def test_an_instance_serving_neither_ui_nor_mcp_names_neither(tmp_path: Path) -> None:
     settings = Settings(
         database_url=f"sqlite+aiosqlite:///{tmp_path / 'state' / 'dirigent.db'}", ui_enabled=False, mcp_enabled=False
@@ -1079,7 +1128,6 @@ def test_a_server_announces_itself_without_the_dev_only_facts() -> None:
 
 def test_only_the_fixture_password_is_ever_announced() -> None:
     """The ready record names a password only while the dev admin still signs in with the fixed one."""
-    from dirigent_client.enums import UserRole
     from dirigent_core import migrations
     from dirigent_core.auth import create_user
 
@@ -1253,6 +1301,56 @@ def test_dev_names_the_admin_that_exists_rather_than_the_one_it_would_have_made(
 
     assert admin == "morten", "dev named an account that does not exist"
     assert token is None, "the instance's own admin already had its token handed over"
+
+
+def _accounts(settings: Settings, *accounts: tuple[str, UserRole]) -> None:
+    from dirigent_core.auth import create_user
+
+    async def make() -> None:
+        engine = create_engine(settings)
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                for username, role in accounts:
+                    await create_user(session, username, "a test password", role=role)
+        finally:
+            await engine.dispose()
+
+    asyncio.run(make())
+
+
+def _kept_state(tmp_path: Path) -> Settings:
+    from dirigent_core import migrations
+
+    settings = Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'state' / 'dirigent.db'}")
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+    migrations.upgrade("head", settings)
+    return settings
+
+
+def test_dev_names_an_active_admin_rather_than_the_first_account(tmp_path: Path) -> None:
+    settings = _kept_state(tmp_path)
+    _accounts(settings, ("a-viewer", UserRole.VIEWER), ("the-admin", UserRole.ADMIN))
+    assert asyncio.run(main.dev_admin(settings)) == ("the-admin", None)
+
+
+def test_a_seeding_start_revokes_the_seed_token_an_earlier_start_minted(tmp_path: Path) -> None:
+    from dirigent_core.auth import list_tokens
+
+    settings = _kept_state(tmp_path)
+    _accounts(settings, ("the-admin", UserRole.ADMIN))
+    asyncio.run(main.seed_token(settings))
+    asyncio.run(main.seed_token(settings))
+
+    async def live() -> int:
+        engine = create_engine(settings)
+        try:
+            async with session_scope(create_session_factory(engine)) as session:
+                rows = await list_tokens(session)
+                return sum(1 for row in rows if row.name == main.SEED_TOKEN_NAME and row.revoked_at is None)
+        finally:
+            await engine.dispose()
+
+    assert asyncio.run(live()) == 1
 
 
 @pytest.fixture

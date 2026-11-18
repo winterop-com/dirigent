@@ -3572,6 +3572,7 @@ def auth_login(
     with client_for(state, needs_token=False) as dg:
         dg.call(dg.auth.login(username, password))
         created = dg.call(dg.admin.tokens.create(f"cli-{username}"))
+        dg.call(dg.auth.logout())
     emit_fact(
         "token.issued",
         message="logged in",

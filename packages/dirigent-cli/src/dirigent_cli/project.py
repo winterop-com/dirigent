@@ -1,5 +1,6 @@
 """Pipeline projects: a uv project of documents, and the scaffolding that creates one."""
 
+import os
 import re
 import secrets
 from collections.abc import Sequence
@@ -1002,8 +1003,15 @@ def project_name(directory: Path) -> str:
 
 
 def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -> Scaffolded:
-    """Create a uv project: pyproject, the project file, a pipelines directory, and an example."""
+    """Create a uv project: pyproject, the project file, a pipelines directory, and an example.
+
+    Every file the template owns is checked before the first is written, so a refusal leaves
+    the directory as it was.
+    """
     check_choices(choices)
+    taken = [path for path in owned_files(directory, choices) if path.exists()]
+    if taken:
+        raise ProjectError(f"{', '.join(str(path) for path in taken)} already exists; dg init never overwrites")
     written: list[Path] = []
     skipped: list[Path] = []
     directory.mkdir(parents=True, exist_ok=True)
@@ -1026,6 +1034,24 @@ def scaffold(directory: Path, choices: InitChoices, *, version: str = "0.0.0") -
         written.append(_write(directory / "Dockerfile", dockerfile_document(choices, version)))
         written.append(_write(directory / ".env", env_document(choices, version, _an_instance_key()), mode=0o600))
     return Scaffolded(files=written, skipped=skipped)
+
+
+def owned_files(directory: Path, choices: InitChoices) -> list[Path]:
+    """Name every file a template writes and refuses to find already there, ``.env`` included."""
+    owned = [
+        directory / PROJECT_FILE,
+        *(directory / DEFAULT_PIPELINES_DIR / f"{code}.yaml" for code in starter_documents(choices.pipelines)),
+        directory / ".dirigent" / "profiles.yaml",
+        directory / ".dirigent" / ".gitignore",
+        directory / EXAMPLE_CONFIG_FILE,
+    ]
+    if choices.workflow:
+        owned.append(directory / ".github" / "workflows" / "dirigent.yaml")
+    if choices.stack:
+        owned.extend([directory / "compose.yaml", directory / "Dockerfile"])
+    if choices.stack or choices.instance:
+        owned.append(directory / ".env")
+    return owned
 
 
 def agent_notes(directory: Path) -> Scaffolded:
@@ -1082,7 +1108,9 @@ def _write(path: Path, content: str, *, mode: int | None = None) -> Path:
     if path.exists():
         raise ProjectError(f"{path} already exists; dg init never overwrites")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666 if mode is None else mode)
+    with os.fdopen(descriptor, "w") as handle:
+        handle.write(content)
     if mode is not None:
         path.chmod(mode)
     return path

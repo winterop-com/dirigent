@@ -329,6 +329,19 @@ def test_init_never_overwrites(tmp_path: Path) -> None:
     assert invoke("init", str(tmp_path / "twice"), "--template", "documents").exit_code == 1
 
 
+@pytest.mark.parametrize("template", ["local", "compose"])
+def test_init_refuses_a_directory_that_has_an_env_before_writing_anything(tmp_path: Path, template: str) -> None:
+    """An application checkout often has a .env; init refuses it whole rather than half-making an instance."""
+    root = tmp_path / "checkout"
+    root.mkdir()
+    (root / ".env").write_text("APP=1\n")
+    result = machine("init", str(root), "--template", template, "--password", "a test password", "--json")
+    assert result.exit_code == 1
+    assert ".env already exists" in only(result.stdout, "error")["message"]
+    assert sorted(path.name for path in root.iterdir()) == [".env"], "nothing beside it was written"
+    assert (root / ".env").read_text() == "APP=1\n"
+
+
 def test_an_unknown_template_is_refused(tmp_path: Path) -> None:
     result = invoke("init", str(tmp_path / "x"), "--template", "kubernetes")
     assert result.exit_code == 1
@@ -2294,6 +2307,32 @@ def test_logging_in_hands_over_the_token_it_minted(server: str) -> None:
     assert issued["username"] == "tester"
     assert issued["token"], "the token the login minted is lost unless the record carries it"
     assert issued["url"]
+
+
+def test_logging_in_leaves_no_browser_session_open(tmp_path: Path, server: str) -> None:
+    """The session only bootstraps the token; the token is what the CLI keeps."""
+    import sqlalchemy as sa
+
+    from dirigent_client.enums import TokenKind
+    from dirigent_core.database import create_engine
+    from dirigent_core.models import ApiToken
+
+    assert machine("auth", "login", "--username", "tester", "--password", "a test password").exit_code == 0
+
+    async def live_sessions() -> int:
+        engine = create_engine(Settings(database_url=f"sqlite+aiosqlite:///{tmp_path / 'dirigent.db'}"))
+        try:
+            async with engine.connect() as connection:
+                counted = await connection.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(ApiToken)
+                    .where(ApiToken.kind == TokenKind.SESSION, ApiToken.revoked_at.is_(None))
+                )
+                return int(counted or 0)
+        finally:
+            await engine.dispose()
+
+    assert asyncio.run(live_sessions()) == 0
 
 
 def test_the_rendered_login_shows_the_token_once(server: str) -> None:

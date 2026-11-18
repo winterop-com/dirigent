@@ -375,6 +375,10 @@ has a `pyproject.toml`, a `README.md` or either agent file keeps its own -- the 
 under `skipped`, and adding `dirigent-cli` to that `pyproject.toml` is then yours to do; an
 existing root `.gitignore` gains the missing lines instead. `dg init --agents` writes the two
 agent files alone, for a project made before `dg init` wrote them, and takes no other option.
+Every other file a template writes -- `dirigent.yaml`, the starters, `.dirigent/`, the
+workflow, the compose files, and the `.env` a `local` or `compose` template writes -- must not
+be there yet: all of them are checked before the first is written, so a directory that already
+has a `.env` is refused whole and left as it was.
 
 ### The dg a project pins
 
@@ -405,8 +409,9 @@ it: `uv tool upgrade dirigent-cli` brings one up to a version that does.
 It refuses to run over an instance that is already there: migrating and re-admining a live
 database is not what running it twice means. `--template documents` scaffolds beside one
 without touching it, which is what to use against a server somebody else runs. It writes no
-`.env`; a `dg dev` started in such a project with no `DIRIGENT_SECRET_KEY` configured, and no
-connection secret sealed in its state, generates one into the project's `.env` (created
+`.env`; a `dg dev` started in such a project with no `DIRIGENT_SECRET_KEY` configured, and
+nothing sealed in its state -- no connection secret and no source signing secret --
+generates one into the project's `.env` (created
 readable by you alone, or added to), and its `starting` record names the file in
 `secret_key_written` without ever carrying the key. Every scaffold's `.gitignore` keeps `.env`
 out of git.
@@ -414,6 +419,9 @@ out of git.
 Run the instance it made with `uv run dg dev`, in its own terminal in the project directory:
 it keeps running, and serves the UI at `http://127.0.0.1:3333`. `dg dev --wipe-state` would
 empty `.dirigent/state/` first, taking the admin and the token `dg init` just created with it.
+A running `dg dev` holds a lock in its state directory, so a second `dg dev` on the same state,
+with `--wipe-state` or without, is refused with `cli.dev_state_in_use` rather than deleting or
+sharing the database under it.
 A state an older dirigent wrote is refused at boot with `database.schema_stale`, naming the
 first column that differs, because before 1.0 the schema is not migrated between versions:
 wipe the state or point at a database this version created. A state a checkout could have

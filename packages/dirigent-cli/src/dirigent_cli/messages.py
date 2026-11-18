@@ -69,6 +69,11 @@ DEV_IS_SQLITE_ONLY = CLI.define("dev_is_sqlite_only", "dg dev is the SQLite stan
 
 USE_DG_SERVER = CLI.define("use_dg_server", "use dg server on PostgreSQL")
 
+DEV_STATE_IN_USE = CLI.define(
+    "dev_state_in_use",
+    "another dg dev is running on {state}; stop it before starting, or wiping, this instance again",
+)
+
 STATE_WAY_OUT = CLI.define(
     "state_way_out",
     "read what is there, remove it yourself if none of it is yours, and start again; "
@@ -122,6 +127,8 @@ PARAMS_REFUSED = CLI.define("params_refused", "{detail}")
 INPUT_REFUSED = CLI.define("input_refused", "--input is not JSON or YAML: {detail}")
 
 INPUT_FILE_UNREADABLE = CLI.define("input_file_unreadable", "--input names {path}, which cannot be read: {detail}")
+
+BODY_FILE_UNREADABLE = CLI.define("body_file_unreadable", "--body-file names {path}, which cannot be read: {detail}")
 
 TRIGGERS_DOCUMENT_NOT_RUNNABLE = CLI.define(
     "triggers_document_not_runnable",
