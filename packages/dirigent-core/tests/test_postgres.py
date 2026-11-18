@@ -1403,6 +1403,33 @@ def scheduled(code: str, step: str, schedule: str, cron: str) -> PipelineDefinit
     )
 
 
+@pytest.mark.parametrize("change", ["deactivate", "delete"])
+async def test_a_pipeline_deleted_while_a_change_waits_on_its_lock_is_unknown(
+    pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices, change: str
+) -> None:
+    """A change that read the row before a delete committed and locked it after answers not-found."""
+    definition = PipelineDefinition(code="deleted-under-a-change", steps={"a": StepDefinition(block="test.echo")})
+    async with session_scope(pg_sessions) as session:
+        await save_pipeline(session, definition)
+
+    async def waiting_change() -> None:
+        async with session_scope(pg_sessions) as session:
+            if change == "deactivate":
+                await pipelines.set_active(session, definition.code, active=False)
+            else:
+                await pipelines.delete_pipeline(session, pg_services, definition.code)
+
+    async with pg_sessions() as deleting:
+        await pipelines.delete_pipeline(deleting, pg_services, definition.code)
+        waiting = asyncio.ensure_future(waiting_change())
+        await asyncio.sleep(BLOCKED_ON_THE_LOCK)
+        assert not waiting.done(), "the change did not wait on the delete's row lock"
+        await deleting.commit()
+
+    with pytest.raises(pipelines.UnknownPipeline):
+        await waiting
+
+
 async def test_two_applies_of_one_code_leave_the_triggers_of_the_version_that_stands(
     pg_sessions: async_sessionmaker[AsyncSession], pg_services: EngineServices, monkeypatch: pytest.MonkeyPatch
 ) -> None:
