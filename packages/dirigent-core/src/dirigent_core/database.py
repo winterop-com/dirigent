@@ -13,7 +13,7 @@ import aiosqlite
 import sqlalchemy as sa
 import structlog
 from sqlalchemy import event
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -218,6 +218,23 @@ async def session_scope(factory: async_sessionmaker[AsyncSession]) -> AsyncGener
         except BaseException:
             await session.rollback()
             raise
+
+
+async def insert_unless_taken(session: AsyncSession, row: object, taken: Callable[[], Awaitable[bool]]) -> bool:
+    """Insert one row, answering False when a concurrent insert already holds its unique key.
+
+    The insert runs in a savepoint, so the transaction outlives a refusal. ``taken`` is asked
+    after one, and a constraint it does not account for is raised as it was.
+    """
+    try:
+        async with session.begin_nested():
+            session.add(row)
+            await session.flush()
+    except IntegrityError:
+        if await taken():
+            return False
+        raise
+    return True
 
 
 #: PostgreSQL's SQLSTATE for a deadlock it broke by aborting one of the transactions.

@@ -71,7 +71,7 @@ CONNECTION_REFERENCED = SERVER.define(
 REDACTED_SECRET = SERVER.define(
     "redacted_secret",
     "{fields} came back as {redacted}, which is what a read shows for a secret "
-    "that is set, not a secret. Send the real value, or leave the field out to keep what is stored.",
+    "that is set, and nothing is stored behind it. Send the real value, or leave the field out to set none.",
 )
 
 UNKNOWN_CONNECTION_KIND = SERVER.define("unknown_connection_kind", "no connection kind {kind} is installed ({known})")

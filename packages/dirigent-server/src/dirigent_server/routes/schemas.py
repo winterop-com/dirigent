@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.enums import AuditAction, AuditSubject
 from dirigent_client.schemas import CheckSchemaRequest, Page, SchemaCheck, SchemaIn, SchemaOut, SchemaUpdate
 from dirigent_core import audit
+from dirigent_core.database import insert_unless_taken
 from dirigent_core.messages import SCHEMA_CHECK_NAMES_ONE
 from dirigent_core.models import Schema
 from dirigent_core.schemas import (
@@ -105,12 +106,13 @@ async def create_schema(
     code, name, description = resolve_identity(
         payload.body, code=payload.code, name=payload.name, description=payload.description
     )
-    existing = (await session.execute(sa.select(Schema).where(Schema.code == code))).scalar_one_or_none()
-    if existing is not None:
-        raise Refusal(SCHEMA_EXISTS, status=status.HTTP_409_CONFLICT, code=repr(code))
     row = Schema(code=code, name=name, description=description, body=payload.body)
-    session.add(row)
-    await session.flush()
+
+    async def taken() -> bool:
+        return (await session.execute(sa.select(Schema.id).where(Schema.code == code))).first() is not None
+
+    if not await insert_unless_taken(session, row, taken):
+        raise Refusal(SCHEMA_EXISTS, status=status.HTTP_409_CONFLICT, code=repr(code))
     await audit.record(session, AuditAction.CREATED, AuditSubject.SCHEMA, code=row.code, subject_id=row.id)
     users = await schema_users(session, services.host.catalog())
     return render(row, users.get(row.code, ()))

@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from dirigent_client.enums import AuditAction, AuditSubject, TokenKind, TriggerKind, UserRole
 from dirigent_client.schemas.auth import MAX_PASSWORD_LENGTH
 from dirigent_core import audit
+from dirigent_core.database import insert_unless_taken
 from dirigent_core.errors import DomainError
 from dirigent_core.messages import DUPLICATE_EMAIL, DUPLICATE_USER, LAST_ADMIN, WEAK_PASSWORD, WRONG_PASSWORD
 from dirigent_core.models import ApiToken, User, utcnow
@@ -281,8 +282,15 @@ async def create_user(
         password_hash=await hashed(password),
         role=role,
     )
-    session.add(user)
-    await session.flush()
+
+    async def taken() -> bool:
+        if await find_user(session, username) is not None:
+            raise DuplicateUser(username)
+        if email is not None and await find_user_by_email(session, email) is not None:
+            raise DuplicateEmail(email)
+        return False
+
+    await insert_unless_taken(session, user, taken)
     await audit.record(session, AuditAction.CREATED, AuditSubject.USER, code=username, subject_id=user.id)
     return user
 
