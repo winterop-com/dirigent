@@ -10,7 +10,8 @@ import { SidePanel } from '@winterop-com/sokkel-ui/SidePanel'
 import { StatusItem, StatusLine } from '@winterop-com/sokkel-ui/StatusLine'
 import { TopBar } from '@winterop-com/sokkel-ui/TopBar'
 import { useIsMobile } from '@winterop-com/sokkel-ui/hooks/use-mobile'
-import { useScheme } from '@winterop-com/sokkel-ui/hooks/use-scheme'
+import { useAppearance } from '@winterop-com/sokkel-ui/hooks/use-appearance'
+import { appearanceCommands } from '@winterop-com/sokkel-ui/lib/commands'
 import { useScrollMemory } from '@winterop-com/sokkel-ui/hooks/use-scroll-memory'
 import { useShortcuts } from '@winterop-com/sokkel-ui/hooks/use-shortcuts'
 
@@ -19,6 +20,7 @@ import { refusedRead } from '@/components/Refusal'
 import { warmLayout } from '@/components/graph/elk'
 import { useStore } from '@winterop-com/sokkel-ui/hooks/use-store'
 import { ApiError, onUnauthorized, type Problem } from '@/lib/api'
+import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER, APPEARANCE_THEMES } from '@/lib/appearance'
 import { authStore, refreshIdentity, sessionLost, signOut } from '@/lib/auth'
 import {
     accountWords,
@@ -38,7 +40,6 @@ import { LABELS } from '@/lib/labels'
 import { loadKindMarks } from '@/lib/marks'
 import { DASHBOARD_PATH, entriesFor, LOGIN_PATH, railGroups, screenPath } from '@/lib/nav'
 import {
-    APPEARANCE_GROUP,
     GO_GROUP,
     paletteActions,
     paletteGroups,
@@ -79,13 +80,15 @@ import {
     serverStatus,
 } from '@/lib/server-status'
 import { applePlatform, RAIL_KEY, shortcuts, TERMINAL_KEY } from '@/lib/shortcuts'
-import { MODE_ICONS, MODES, MODE_LABELS } from '@/lib/theme'
 import { loadContributedWording } from '@/lib/wording'
 import { toggleTerminal } from '@/lib/terminal'
 import { warmEditor } from '@/components/pipeline/CodePane'
 
 /** The settings pane the top bar's dot opens on. */
 const SERVER_PANE = 'server'
+
+/** The settings pane the account menu's Appearance row opens on. */
+const APPEARANCE_PANE = 'appearance'
 
 /**
  * The settings dialog is fetched the first time somebody asks for it.
@@ -124,7 +127,7 @@ export function AppShell() {
     const server = useStore(serverStatus)
     const { pathname, search } = useLocation()
     const navigate = useNavigate()
-    const { scheme, setScheme } = useScheme()
+    const { settings, setSettings } = useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [settingsAsked, setSettingsAsked] = useState(false)
@@ -167,6 +170,12 @@ export function AppShell() {
 
     const openServerPane = useCallback(() => {
         setSettingsPane(SERVER_PANE)
+        setSettingsAsked(true)
+        setSettingsOpen(true)
+    }, [])
+
+    const openAppearancePane = useCallback(() => {
+        setSettingsPane(APPEARANCE_PANE)
         setSettingsAsked(true)
         setSettingsOpen(true)
     }, [])
@@ -258,16 +267,6 @@ export function AppShell() {
                     setShortcutsOpen(true)
                 },
             },
-            ...MODES.map((mode) => ({
-                id: `appearance:${mode}`,
-                title: MODE_LABELS[mode],
-                group: APPEARANCE_GROUP,
-                icon: MODE_ICONS[mode],
-                keywords: ['theme', 'appearance', mode],
-                run: () => {
-                    setScheme(mode)
-                },
-            })),
             ...(signedIn
                 ? [
                       {
@@ -281,11 +280,19 @@ export function AppShell() {
                   ]
                 : []),
         ]
-    }, [hidden, leave, navigate, openSettings, role, setScheme, signedIn])
+    }, [hidden, leave, navigate, openSettings, role, signedIn])
 
     useEffect(() => registerActions(shellActions), [shellActions])
 
-    const palette = useMemo(() => paletteGroups(actions), [actions])
+    // The look's groups are the library's, after the app's own and before the way out.
+    const palette = useMemo(() => {
+        const own = paletteGroups(actions)
+        return [
+            ...own.filter((group) => group.title !== SESSION_GROUP),
+            ...appearanceCommands(settings, setSettings, { themes: APPEARANCE_THEMES }),
+            ...own.filter((group) => group.title === SESSION_GROUP),
+        ]
+    }, [actions, settings, setSettings])
     const paletteSearch = useMemo<PaletteSearch>(
         () => ({
             search: idResults,
@@ -324,8 +331,7 @@ export function AppShell() {
                                 detail={identity.role}
                                 where={identityLine(server)}
                                 onSettings={openSettings}
-                                scheme={scheme}
-                                onSchemeChange={setScheme}
+                                onAppearance={openAppearancePane}
                                 onSignOut={leave}
                                 words={accountWords(identity.username)}
                             />

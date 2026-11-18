@@ -692,8 +692,7 @@ const screen = {
  * The frame every screen is drawn inside.
  *
  * The rail and the drawer, the top strip and the corner that names the instance, the right
- * panel and the sheet it becomes on a phone, the shortcuts dialog and the
- * theme controls -- plus the chrome a listing, a table and a page state wear on every screen,
+ * panel and the sheet it becomes on a phone, and the shortcuts dialog -- plus the chrome a listing, a table and a page state wear on every screen,
  * which belongs to the frame rather than to whichever screen is inside it.
  */
 const shell = {
@@ -752,7 +751,7 @@ const shell = {
         label: (username: string) => `Account: ${username}`,
         /** The row that opens the shortcuts dialog. */
         shortcuts: 'Keyboard shortcuts',
-        /** The submenu that sets the mode. */
+        /** The row that opens the settings on the Appearance section. */
         appearance: 'Appearance',
     },
 
@@ -766,19 +765,6 @@ const shell = {
     more_actions: 'More actions',
     /** What a split verb's chevron is called where the screen names no noun for it. */
     more_ways: 'More ways',
-
-    /** The mode axis: the Theme pane's control, the account menu's submenu, and the palette's rows. */
-    mode: {
-        light: 'Light',
-        dark: 'Dark',
-        system: 'System',
-    },
-    /** The colour palettes this build carries, as the Theme pane's cards name them. */
-    colours: {
-        amber: 'Amber',
-        paper: 'Paper',
-        contrast: 'Contrast',
-    },
 
     /** What each chord does, on the shortcuts dialog's rows. The palette's row says `open_palette`. */
     chord: {
@@ -955,7 +941,6 @@ const palette = {
         list: 'This listing',
         /** What the front door offers over the instance it describes, which is not a listing. */
         dashboard: 'This screen',
-        appearance: 'Appearance',
         session: 'Session',
     },
 } as const
@@ -3777,15 +3762,13 @@ const settings = {
     /** The left nav's entries. The Account entry is `word.account`. */
     category: {
         general: 'General',
-        theme: 'Theme',
+        appearance: 'Appearance',
         shortcuts: 'Shortcuts',
         server: 'Server',
     },
 
     /** What each row is called, where the word is this dialog's rather than the product's. */
     row: {
-        appearance: 'Appearance',
-        palette: 'Palette',
         follow_logs: 'Follow logs',
         current_line: 'Current line',
         signed_in_as: 'Signed in as',

@@ -23,7 +23,6 @@ import type { GraphLayoutMenuWords } from '@winterop-com/sokkel-ui-graph/GraphLa
 import type { RunGraphProps } from '@winterop-com/sokkel-ui-graph/RunGraph'
 import type { PlainMarkdownProps } from '@winterop-com/sokkel-ui/PlainMarkdown'
 import type { RailWords } from '@winterop-com/sokkel-ui/Rail'
-import type { SchemeChoiceWords } from '@winterop-com/sokkel-ui/SchemeChoice'
 import type { SchemaFormWords } from '@winterop-com/sokkel-ui/schema/SchemaForm'
 import { literal } from '@winterop-com/sokkel-ui/schema/read'
 import type { SearchFieldWords } from '@winterop-com/sokkel-ui/SearchField'
@@ -38,7 +37,6 @@ import type { ShortcutsDialogWords } from '@winterop-com/sokkel-ui/ShortcutsDial
 import type { SignInWords } from '@winterop-com/sokkel-ui/SignIn'
 import type { SplitButtonWords } from '@winterop-com/sokkel-ui/SplitButton'
 import type { TagChipsWords } from '@winterop-com/sokkel-ui/TagChips'
-import type { ThemeCardsWords } from '@winterop-com/sokkel-ui/ThemeCards'
 import type { TextLinkWords } from '@winterop-com/sokkel-ui/TextLink'
 import type { ToolbarWords } from '@winterop-com/sokkel-ui/Toolbar'
 import type { WindowedPaneWords } from '@winterop-com/sokkel-ui/WindowedPane'
@@ -368,10 +366,7 @@ export function accountWords(username: string): Partial<AccountMenuWords> {
         account: LABELS.shell.account.label(username),
         settings: LABELS.shell.settings,
         shortcuts: LABELS.shell.account.shortcuts,
-        scheme: LABELS.shell.account.appearance,
-        light: LABELS.shell.mode.light,
-        dark: LABELS.shell.mode.dark,
-        system: LABELS.shell.mode.system,
+        appearance: LABELS.shell.account.appearance,
         signOut: LABELS.action.sign_out,
     }
 }
@@ -388,14 +383,3 @@ export const SETTINGS_WORDS: Partial<SettingsDialogWords> = {
     close: LABELS.settings.close,
     back: LABELS.settings.back,
 }
-
-/** What the Theme pane's mode control says: the row it is, and its three settings. */
-export const SCHEME_WORDS: SchemeChoiceWords = {
-    scheme: LABELS.settings.row.appearance,
-    system: LABELS.shell.mode.system,
-    light: LABELS.shell.mode.light,
-    dark: LABELS.shell.mode.dark,
-}
-
-/** What the Theme pane's palette cards are called, for a screen reader. */
-export const THEME_CARDS_WORDS: ThemeCardsWords = { theme: LABELS.settings.row.palette }

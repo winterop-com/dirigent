@@ -18,7 +18,7 @@ import { elkEngine } from '@/components/graph/elk'
 import { servedByInstance } from '@/lib/docs'
 import { FALLBACK, STATUSES } from '@/lib/status'
 import { registerDirigentFormats } from '@/lib/schema-formats'
-import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER } from '@/lib/theme'
+import { APPEARANCE_DEFAULTS, APPEARANCE_OFFER } from '@/lib/appearance'
 import '@/index.css'
 
 // A rebuild replaces every hashed chunk, so a tab still holding the previous shell 404s the
@@ -46,7 +46,7 @@ setElkEngine(() => elkEngine())
 // The editor reads FHIRPath and CQL, and their media types, through the fhir plugin.
 registerPlugins([fhir])
 
-/** Wears the stored look on `<html>`, both theme axes, and follows it as it changes. */
+/** Wears the stored look on `<html>`, and follows it as it changes. */
 function Appearance() {
     useAppearance(APPEARANCE_DEFAULTS, APPEARANCE_OFFER)
     return null

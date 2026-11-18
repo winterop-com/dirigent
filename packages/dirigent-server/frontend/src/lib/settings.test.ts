@@ -1,5 +1,9 @@
 import { filterSettings } from '@winterop-com/sokkel-ui/SettingsDialog'
+import { themeSettings } from '@winterop-com/sokkel-ui/ThemePicker'
+import { CORNERS, DEFAULT_APPEARANCE, TYPEFACES } from '@winterop-com/sokkel-ui/lib/appearance'
 import { describe, expect, test } from 'vitest'
+
+import { APPEARANCE_DEFAULTS, APPEARANCE_THEMES } from '@/lib/appearance'
 
 import {
     FIRST_CATEGORY,
@@ -12,7 +16,23 @@ import {
 import { shortcuts } from '@/lib/shortcuts'
 
 const ROWS = settingsRows(false)
-const GROUPS = settingsGroups(ROWS, () => ({ control: null }))
+
+/** The Appearance section's settings, as the dialog hands them over. */
+const APPEARANCE = themeSettings({
+    value: { ...DEFAULT_APPEARANCE, ...APPEARANCE_DEFAULTS },
+    onChange: () => undefined,
+    themes: APPEARANCE_THEMES,
+    corners: CORNERS,
+    typefaces: TYPEFACES,
+    system: true,
+})
+
+const GROUPS = settingsGroups(
+    ROWS,
+    () => ({ control: null }),
+    undefined,
+    (category) => (category === 'appearance' ? APPEARANCE : []),
+)
 
 function inCategory(rows: readonly SettingsRow[], category: string): SettingsRow[] {
     return rows.filter((row) => row.category === category)
@@ -78,10 +98,21 @@ describe("the library's groups", () => {
     test('carry every row once, in the order the registry holds them within a category', () => {
         for (const category of SETTINGS_CATEGORIES) {
             const section = GROUPS.flatMap((group) => group.sections).find((one) => one.id === category.id)
-            expect(section?.settings.map((setting) => setting.id)).toEqual(
-                inCategory(ROWS, category.id).map((row) => row.id),
-            )
+            const given = category.id === 'appearance' ? APPEARANCE.map((setting) => setting.id) : []
+            expect(section?.settings.map((setting) => setting.id)).toEqual([
+                ...given,
+                ...inCategory(ROWS, category.id).map((row) => row.id),
+            ])
         }
+    })
+
+    test("make Appearance the library's settings, with no row of the app's own", () => {
+        expect(inCategory(ROWS, 'appearance')).toEqual([])
+        const section = GROUPS[0].sections.find((one) => one.id === 'appearance')
+        expect(section?.label).toBe('Appearance')
+        expect(section?.settings.map((setting) => setting.id)).toEqual(
+            expect.arrayContaining(['theme', 'scheme', 'density', 'corners', 'typeface']),
+        )
     })
 
     test('put the control the dialog chooses on each row', () => {
@@ -95,17 +126,17 @@ describe("the library's groups", () => {
     })
 
     test('leave out a category with no row', () => {
-        const groups = settingsGroups(inCategory(ROWS, 'theme'), () => ({
+        const groups = settingsGroups(inCategory(ROWS, 'general'), () => ({
             control: null,
         }))
         expect(groups.map((group) => group.id)).toEqual(['preferences'])
-        expect(groups[0].sections.map((section) => section.id)).toEqual(['theme'])
+        expect(groups[0].sections.map((section) => section.id)).toEqual(['general'])
     })
 })
 
 describe('the search box over these rows', () => {
     test('finds a row by a word in its own name', () => {
-        expect(found('appearance')).toEqual(['theme:appearance'])
+        expect(found('timezone')).toEqual(['general:times'])
     })
 
     test('finds a row by a word nothing renders', () => {
@@ -118,7 +149,8 @@ describe('the search box over these rows', () => {
     })
 
     test('reaches across categories, which is the whole point of one box', () => {
-        expect(sectionsFound('palette')).toEqual(['theme', 'shortcuts'])
+        expect(sectionsFound('theme')).toContain('appearance')
+        expect(sectionsFound('contrast')).toEqual(['appearance'])
     })
 
     test('every term has to match, so typing more words narrows', () => {

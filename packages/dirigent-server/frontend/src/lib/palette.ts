@@ -2,7 +2,7 @@
  * Everything the command palette can do, as data.
  *
  * A REGISTRY RATHER THAN A FUNCTION OF THE WHOLE APP. The shell registers the entries that are
- * always there -- every page, the appearance rows, sign out -- and a screen registers what only
+ * always there -- every page, the view rows, sign out -- and a screen registers what only
  * it can do while it is mounted, and takes those rows away again when it unmounts. So the
  * palette on the runs page offers what the runs page offers, and nothing has to hold a list of
  * every screen's actions in one place.
@@ -65,7 +65,6 @@ export const RUN_GROUP = LABELS.palette.shelf.run
 export const LIST_GROUP = LABELS.palette.shelf.list
 /** What the front door offers over the instance it is describing, which is not a listing. */
 export const DASHBOARD_GROUP = LABELS.palette.shelf.dashboard
-export const APPEARANCE_GROUP = LABELS.palette.shelf.appearance
 export const SESSION_GROUP = LABELS.palette.shelf.session
 
 /** Registered rows, oldest registration first. */

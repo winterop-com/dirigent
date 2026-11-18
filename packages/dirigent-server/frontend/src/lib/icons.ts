@@ -56,9 +56,7 @@ import {
     LogOut,
     Maximize2,
     Menu,
-    Monitor,
     Network,
-    Moon,
     PanelLeft,
     PanelRight,
     Pencil,
@@ -73,7 +71,6 @@ import {
     Search,
     ServerCrash,
     Settings,
-    Sun,
     Tag,
     Trash2,
     Undo2,
@@ -172,9 +169,6 @@ export const ICONS = {
     panel: PanelRight,
     shortcuts: Keyboard,
     help: CircleQuestionMark,
-    light: Sun,
-    dark: Moon,
-    system: Monitor,
 
     // Nouns: what a thing is.
     dashboard: House,

@@ -196,11 +196,11 @@ test('the settings dialog switches the appearance and the clock behind it', asyn
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
 
-    // Appearance lives under Theme, the same axis the header's own menu writes.
-    await dialog.getByRole('button', { name: LABELS.settings.category.theme, exact: true }).click()
-    await dialog.getByRole('button', { name: LABELS.shell.mode.dark, exact: true }).click()
+    // The scheme is one of the Appearance section's rows, sokkel-ui's own words on it.
+    await dialog.getByRole('button', { name: LABELS.settings.category.appearance, exact: true }).click()
+    await dialog.getByRole('button', { name: 'Dark', exact: true }).click()
     await expect(page.locator('html')).toHaveClass(/dark/)
-    await dialog.getByRole('button', { name: LABELS.shell.mode.light, exact: true }).click()
+    await dialog.getByRole('button', { name: 'Light', exact: true }).click()
     await expect(page.locator('html')).not.toHaveClass(/dark/)
 
     // The clock lives under General; the formatters read it, so a timestamp behind moves.
@@ -222,11 +222,12 @@ test('the settings search reaches across every category', async ({ page }) => {
         dialog.getByRole('button', { name: LABELS.settings.category.general, exact: true }),
     ).toHaveCount(0)
 
-    // One box across the renamed groups: a palette is a Theme row and a chord is a Shortcuts one.
-    await dialog.getByRole('searchbox').fill('palette')
+    // One box across every group: a theme is an Appearance row, the palette's chord a Shortcuts one.
+    await dialog.getByRole('searchbox').fill('theme')
     await expect(
-        dialog.getByRole('button', { name: LABELS.settings.category.theme, exact: true }),
+        dialog.getByRole('button', { name: LABELS.settings.category.appearance, exact: true }),
     ).toBeVisible()
+    await dialog.getByRole('searchbox').fill('palette')
     await expect(
         dialog.getByRole('button', { name: LABELS.settings.category.shortcuts, exact: true }),
     ).toBeVisible()
@@ -271,23 +272,20 @@ test('the nav is three groups and About is not one of them', async ({ page }) =>
     )
 })
 
-test('a palette is chosen from its card, by pointer and by the arrows', async ({ page }) => {
+test('a theme is chosen in Appearance from the themes this app carries', async ({ page }) => {
     await signIn(page)
     await openSettings(page)
     const dialog = page.getByRole('dialog')
-    await dialog.getByRole('button', { name: LABELS.settings.category.theme, exact: true }).click()
+    await dialog.getByRole('button', { name: LABELS.settings.category.appearance, exact: true }).click()
 
-    const paper = dialog.getByRole('radio', { name: LABELS.shell.colours.paper })
-    await paper.click()
+    await dialog.getByRole('combobox', { name: 'Theme', exact: true }).click()
+    const offered = page.getByRole('option')
+    await expect(offered).toHaveText([/^Amber/, /^Paper/, /^Contrast/])
+    await page.getByRole('option', { name: /^Paper/ }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'paper')
-    await expect(paper).toHaveAttribute('aria-checked', 'true')
-
-    // The card is the radio, so the arrows move and choose, and the ends wrap.
-    await paper.focus()
-    await page.keyboard.press('ArrowRight')
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'contrast')
-    await page.keyboard.press('ArrowRight')
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'amber')
+    expect(
+        await page.evaluate(() => JSON.parse(localStorage.getItem('sokkel-ui-appearance') ?? '{}').theme),
+    ).toBe('paper')
 })
 
 test('the password form expands under its row and states the refusal there', async ({ page }) => {

@@ -3,8 +3,8 @@
     <head>
         <meta charset="UTF-8" />
         <!--
-          sokkel-ui's pre-paint script: writes the stored scheme and palette on <html> before the
-          first paint, and the palette in its `data-theme` where nothing is stored yet. It has to
+          sokkel-ui's pre-paint script: writes the stored look on <html> before the first paint,
+          and the theme and scheme in its data attributes where nothing is stored yet. It has to
           stay a same-origin file, because the server's policy refuses inline script, and a classic
           script with neither async nor defer, so it runs before anything is drawn. `vite-ignore`
           leaves the tag as written, and the build drops the attribute.
@@ -12,6 +12,7 @@
         <script
             src="/appearance.js"
             data-theme="amber"
+            data-scheme="system"
             data-themes="amber paper contrast"
             vite-ignore
         ></script>

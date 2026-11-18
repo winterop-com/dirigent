@@ -237,7 +237,7 @@ test('an empty listing states the fact and stops', async ({ page }) => {
     await expect(page.getByRole('button', { name: LABELS.alerting.new_rule.button })).toBeVisible()
 })
 
-test('the account menu holds the account, the settings, the shortcuts, the mode, the way out and the instance', async ({
+test('the account menu holds the account, the settings, the appearance, the shortcuts, the way out and the instance', async ({
     page,
 }) => {
     const row = page.getByRole('button', { name: /^Account: / })
@@ -254,32 +254,35 @@ test('the account menu holds the account, the settings, the shortcuts, the mode,
     // The instance is said once, in the head.
     await expect(menu.getByText('local', { exact: false })).toHaveCount(1)
     await expect(page.getByRole('menuitem', { name: LABELS.shell.settings })).toBeVisible()
-    await expect(page.getByRole('menuitemradio', { name: LABELS.shell.mode.system })).toBeChecked()
+    await expect(page.getByRole('menuitem', { name: LABELS.shell.account.appearance })).toBeVisible()
+    // The look is chosen in Settings and the palette, never here.
+    await expect(page.getByRole('menuitemradio')).toHaveCount(0)
     await expect(page.getByRole('menuitem', { name: LABELS.action.sign_out })).toBeVisible()
 
     await page.getByRole('menuitem', { name: LABELS.shell.account.shortcuts }).click()
     await expect(page.getByRole('dialog')).toBeVisible()
 })
 
-test('the account menu is walked by keyboard, the mode included', async ({ page }) => {
-    await page.emulateMedia({ colorScheme: 'dark' })
+test('the account menu is walked by keyboard', async ({ page }) => {
     const row = page.getByRole('button', { name: /^Account: / })
     await row.focus()
     await page.keyboard.press('Enter')
     await expect(page.getByRole('menu')).toBeVisible()
 
-    const light = page.getByRole('menuitemradio', { name: LABELS.shell.mode.light })
-    await light.focus()
-    await page.keyboard.press('Enter')
-    await expect(page.locator('html')).not.toHaveClass(/dark/)
-    expect(await page.evaluate(() => localStorage.getItem('sokkel-ui-scheme'))).toBe('light')
-
     await page.keyboard.press('Escape')
     await expect(page.getByRole('menu')).toHaveCount(0)
     await expect(row).toBeFocused()
 
-    // The mode is said in the menu, so the top bar carries no flip of its own.
+    // The top bar carries no scheme flip either.
     await expect(page.getByRole('button', { name: /^Switch to / })).toHaveCount(0)
+})
+
+test("the account menu's Appearance opens the settings on the Appearance section", async ({ page }) => {
+    await page.getByRole('button', { name: /^Account: / }).click()
+    await page.getByRole('menuitem', { name: LABELS.shell.account.appearance }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: LABELS.settings.category.appearance })).toBeVisible()
+    await expect(dialog.getByRole('combobox', { name: 'Theme', exact: true })).toBeVisible()
 })
 
 test('signing out from the account menu goes to the door', async ({ page }) => {
