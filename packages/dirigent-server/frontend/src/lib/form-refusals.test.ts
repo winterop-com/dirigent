@@ -19,7 +19,7 @@ beforeAll(() => {
 /** `Size` as the catalog writes it: a humane string or a count of bytes. */
 const SIZE: JsonMap = {
     anyOf: [
-        { pattern: '^\\d+(?:\\.\\d+)?(?:[TtGgMmKk]?[Ii]?[Bb])?$', type: 'string' },
+        { pattern: '^\\d+(?:\\.\\d+)?(?:(?:[TtGgMmKk][Ii]?)?[Bb])?$', type: 'string' },
         { minimum: 0, type: 'integer' },
     ],
     format: 'size',

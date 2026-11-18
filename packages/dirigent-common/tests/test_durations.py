@@ -16,8 +16,10 @@ from dirigent_common.durations import (
     HumaneJsonSchema,
     NegativeDuration,
     format_duration,
+    is_duration,
     parse_duration,
 )
+from dirigent_core.documents import DocumentError, load_text
 from dirigent_core.engine.definition import RetryPolicy, ScheduleSpec, StepDefinition
 
 
@@ -57,6 +59,48 @@ def test_durations_a_document_may_write(text: str, expected: timedelta) -> None:
 def test_durations_the_format_refuses(text: str) -> None:
     with pytest.raises(ValidationError):
         Timed(every=text)  # pyright: ignore[reportArgumentType]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "999999999w",
+        "99999999999999999999",
+        "inf",
+        "Infinity",
+        "nan",
+        "1e20",
+        "1e3",
+        "1_0",
+        "+5",
+        "\u0661\u0662s",
+        1e20,
+        float("inf"),
+        float("nan"),
+    ],
+)
+def test_a_duration_out_of_range_or_off_the_grammar_is_refused_by_name(value: object) -> None:
+    with pytest.raises(DurationError):
+        parse_duration(value)
+    with pytest.raises(ValidationError):
+        Timed(every=value)  # pyright: ignore[reportArgumentType]
+    assert not is_duration(value)
+
+
+def test_a_document_with_a_duration_too_long_to_hold_is_refused_as_a_document() -> None:
+    text = (
+        "format: dirigent/v1\nkind: pipeline\ncode: p\n"
+        "steps:\n  a:\n    block: time.sleep\n    config: {for: 1s}\n    timeout: 999999999w\n"
+    )
+    with pytest.raises(DocumentError, match=r"steps\.a\.timeout"):
+        load_text(text)
+
+
+def test_a_duration_is_held_to_whole_milliseconds_so_its_export_reads_back() -> None:
+    assert Timed(every="0.0004s").every == timedelta(0)  # pyright: ignore[reportArgumentType]
+    assert Timed(every=0.0016).every == timedelta(milliseconds=2)  # pyright: ignore[reportArgumentType]
+    with pytest.raises(ValidationError):
+        Budgeted(timeout="0.0004s")  # pyright: ignore[reportArgumentType]
 
 
 def test_a_number_is_read_as_seconds_so_the_obvious_thing_works() -> None:

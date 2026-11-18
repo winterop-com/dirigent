@@ -8,6 +8,7 @@ therefore the same number, and the canonical rendering is the short spelling.
 import math
 import re
 import string
+from fractions import Fraction
 from typing import Annotated, Final
 
 from pydantic import AfterValidator, BeforeValidator, PlainSerializer, WithJsonSchema
@@ -28,11 +29,14 @@ ALIASES: Final[dict[str, str]] = {"tib": "tb", "gib": "gb", "mib": "mb", "kib": 
 
 #: A whole size: one number and one unit. Public, because it is the grammar an export must
 #: never write outside of.
-SIZE_PATTERN: Final = re.compile(r"^\d+(?:\.\d+)?(?:t|g|m|k)?i?b$", re.IGNORECASE)
+SIZE_PATTERN: Final = re.compile(r"^\d+(?:\.\d+)?(?:[tgmk]i?)?b$", re.IGNORECASE | re.ASCII)
 
 #: The same grammar spelled for JSON Schema, which has no portable case-insensitive flag,
 #: with the bare number of bytes allowed as well.
-SIZE_JSON_PATTERN: Final = r"^\d+(?:\.\d+)?(?:[TtGgMmKk]?[Ii]?[Bb])?$"
+SIZE_JSON_PATTERN: Final = r"^\d+(?:\.\d+)?(?:(?:[TtGgMmKk][Ii]?)?[Bb])?$"
+
+#: A bare number of bytes, signed so that a negative one is refused as negative.
+_BYTES: Final = re.compile(r"-?\d+(?:\.\d+)?", re.ASCII)
 
 #: How a zero size is written.
 ZERO: Final = "0b"
@@ -74,24 +78,21 @@ def parse_size(value: object) -> object:
 
 def _parse_text(text: str) -> int:
     """Parse the string form: a bare number of bytes, or one unit-suffixed amount."""
-    if not text:
-        raise SizeError(text)
-    try:
-        return _whole(float(text), text)
-    except ValueError:
-        pass
+    if _BYTES.fullmatch(text) is not None:
+        return _whole(Fraction(text), text)
     if SIZE_PATTERN.fullmatch(text) is None:
         raise SizeError(text)
     lowered = text.lower()
     sizes: dict[str, int] = dict(UNITS)
     suffix = next(unit for unit in (*ALIASES, *sizes) if lowered.endswith(unit))
-    amount = lowered[: -len(suffix)] or "0"
-    return _whole(float(amount) * sizes[ALIASES.get(suffix, suffix)], text)
+    return _whole(Fraction(lowered[: -len(suffix)]) * sizes[ALIASES.get(suffix, suffix)], text)
 
 
-def _whole(value: float, written: object) -> int:
+def _whole(value: float | Fraction, written: object) -> int:
     """Refuse a size that is not a whole number of bytes, which nothing can store."""
-    if not math.isfinite(value) or value != int(value):
+    if isinstance(value, float) and not math.isfinite(value):
+        raise SizeError(written)
+    if value != int(value):
         raise SizeError(written)
     return int(value)
 

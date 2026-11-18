@@ -22,7 +22,7 @@ import { fieldsOf, optionLabel, sameJson, type FieldDescriptor } from '@/lib/sch
 const DEFS: JsonMap = {
     Size: {
         anyOf: [
-            { pattern: '^\\d+(?:\\.\\d+)?(?:[TtGgMmKk]?[Ii]?[Bb])?$', type: 'string' },
+            { pattern: '^\\d+(?:\\.\\d+)?(?:(?:[TtGgMmKk][Ii]?)?[Bb])?$', type: 'string' },
             { minimum: 0, type: 'integer' },
         ],
         format: 'size',

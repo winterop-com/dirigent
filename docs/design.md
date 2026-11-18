@@ -1553,14 +1553,18 @@ wants the words is never made to decode a slug.
 **Durations are humane strings.** `30s`, `5m`, `6h`, `1h30m`, `250ms`, and a bare number of
 seconds. ISO 8601 (`PT5M`) is accepted by nothing human and would leak into every diff, so the
 format defines its own grammar, parsed to `timedelta` and rendered back deterministically:
-`90s` reads back out as `1m30s`, and reading that again yields the same value.
+`90s` reads back out as `1m30s`, and reading that again yields the same value. A duration is
+held to whole milliseconds, the finest unit the grammar writes, so `0.0004s` reads as `0s` and
+a bound such as `gt=0` refuses it when it is written rather than after an export. Digits are
+ASCII and there is no exponent or sign, and a duration too long to hold is refused by name.
 
 **Sizes are too.** `64mb`, `512kb`, `1.5gb`, `1tb`, and a bare number of bytes. Both unit
 families are accepted -- `mb` and `mib` are the same number -- and both are powers of 1024,
 which is what an operator means by "64 megabytes of memory" whatever the SI prefix says. The
 value is an `int` of bytes everywhere in the code; only the writing and the rendering are
 humane. Rendering picks the largest unit that divides the value exactly, so a size is never
-written as a decimal and `1.5gb` reads back out as `1536mb`. Both grammars live in
+written as a decimal and `1.5gb` reads back out as `1536mb`. A size is read exactly, however
+many digits it has, and never through a floating-point number. Both grammars live in
 `dirigent-common` beside the key grammars, because a third-party block writes a `Size` or a
 `Duration` in its own config model and must not have to depend on the engine to do it.
 
