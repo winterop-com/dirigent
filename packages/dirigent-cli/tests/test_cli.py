@@ -441,6 +441,33 @@ def test_the_server_refuses_to_embed_the_scheduler_on_sqlite() -> None:
     assert any("--no-scheduler" in one["message"] for one in problem["problems"])
 
 
+def test_the_server_leaves_uvicorn_logging_to_its_own(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The bridged handlers stay; uvicorn would otherwise put its own plain-text ones in their place."""
+    import uvicorn
+
+    ran: list[dict[str, object]] = []
+
+    def nothing(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    def run(*_args: object, **kwargs: object) -> None:
+        ran.append(kwargs)
+
+    monkeypatch.setattr(main, "keep_same_user_out", nothing)
+    monkeypatch.setattr(main, "check_state", nothing)
+    monkeypatch.setattr(main, "guard_schema", nothing)
+    monkeypatch.setattr(main, "_announce_once_answering", nothing)
+    monkeypatch.setattr(uvicorn, "run", run)
+
+    result = runner.invoke(app, ["server", "--no-scheduler"])
+
+    reset_settings_cache()
+    assert result.exit_code == 0, result.output
+    assert len(ran) == 1
+    assert "log_config" in ran[0]
+    assert ran[0]["log_config"] is None
+
+
 def test_the_server_flag_switches_the_ui_off(monkeypatch: pytest.MonkeyPatch) -> None:
     """`--no-ui` lands in the settings, through the environment, before anything reads them."""
     from dirigent_cli.main import UI_ENV
