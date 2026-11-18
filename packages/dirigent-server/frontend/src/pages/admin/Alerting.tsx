@@ -472,7 +472,7 @@ const RULE_COLUMNS: DataColumn<AlertRuleOut>[] = [
     {
         id: 'rule',
         header: LABELS.word.rule.label,
-        width: 'minmax(15.5rem,2fr)',
+        width: 'minmax(10.5rem,2fr)',
         stackTitle: 'free',
         cell: (rule) => <ItemHeading {...itemOf(rule)} as="span" />,
     },

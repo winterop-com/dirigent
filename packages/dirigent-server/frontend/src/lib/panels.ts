@@ -13,19 +13,11 @@
 
 import type { ReactNode } from 'react'
 
+import { RAIL_SIZE } from '@winterop-com/sokkel-ui/Rail'
 import { createStore } from '@winterop-com/sokkel-ui/lib/stored'
 
 import type { Icon } from '@/lib/icons'
 import '@/lib/stored-prefix'
-
-/** The rail's width when nobody has dragged it: its longest word, and room either side of it. */
-export const RAIL_WIDTH = 168
-
-/** Narrower than this and the rail's longest word no longer fits, so a drag stops here. */
-export const RAIL_MIN_WIDTH = 152
-
-/** Wider than this and the rail is taking the screen's room for nothing it can show. */
-export const RAIL_MAX_WIDTH = 320
 
 /** Where the right panel opens when nobody has dragged it yet. */
 export const PANEL_DEFAULT_WIDTH = 360
@@ -41,9 +33,9 @@ export function clampPanelWidth(width: number): number {
     return Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, Math.round(width)))
 }
 
-/** Hold a dragged rail width between what its words need and what the screen can spare. */
+/** Hold a dragged rail width inside the rail's own range, `RAIL_SIZE`. */
 export function clampRailWidth(width: number): number {
-    return Math.min(RAIL_MAX_WIDTH, Math.max(RAIL_MIN_WIDTH, Math.round(width)))
+    return Math.min(RAIL_SIZE.max, Math.max(RAIL_SIZE.min, Math.round(width)))
 }
 
 const isFlag = (value: unknown) => typeof value === 'boolean'
@@ -53,7 +45,7 @@ const isWidth = (value: unknown) => typeof value === 'number' && Number.isFinite
 export const railHidden = createStore(false, { key: 'railHidden', check: isFlag })
 
 /** The rail's width in pixels, which the reader drags and which is kept. */
-export const railWidth = createStore(RAIL_WIDTH, {
+export const railWidth = createStore(RAIL_SIZE.default, {
     key: 'railWidth',
     check: isWidth,
     normalize: clampRailWidth,

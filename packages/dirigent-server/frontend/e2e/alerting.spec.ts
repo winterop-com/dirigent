@@ -240,7 +240,7 @@ test.describe('on a phone', () => {
     })
 })
 
-test.describe('in the 792px column a 1024 window leaves', () => {
+test.describe('in the 720px column a 1024 window leaves', () => {
     test.use({ viewport: { width: 1024, height: 768 } })
 
     test('a picker popup grows to its longest row, past the half-width field it hangs from', async ({

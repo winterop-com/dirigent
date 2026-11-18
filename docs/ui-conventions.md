@@ -30,9 +30,9 @@ wrong is changed on this page first and in the code second.
 | Highlighting | `shiki`, the peer sokkel-ui's `Code` and `FilePreview` highlight with | Its core, its regex engine and each grammar are chunks of their own, fetched the first time something highlighted is drawn |
 | YAML | `yaml` | A document crosses the wire as JSON and is written by people as text, and `lib/pipeline-document` is the one place it is parsed and rendered. It reads and writes YAML 1.1 the way PyYAML does, so `NO`, `yes` and `12:30` mean in the editor what they mean to `dg apply`, and a string that would read as something else there is quoted. Nothing in the entry chunk reaches that module, so the parser rides in the chunks of the screens that read a document |
 | Markdown | sokkel-ui's `PlainMarkdown`, on react-markdown and remark-gfm | A description is authored markdown and has to render as prose. The library builds React elements from a syntax tree and leaves raw markup as text, so no HTML string reaches the DOM -- see `components/Description` |
-| Palette | cmdk | |
+| Palette | sokkel-ui's `CommandPalette`, on the library's own command list (cmdk's, without its dialog) | |
 | Toasts | sonner | |
-| Appearance | sokkel-ui's: `useAppearance`, `themeSettings` in Settings, `appearanceCommands` in the palette, and its `appearance.js` before the first paint | |
+| Appearance | sokkel-ui's: `useAppearance`, `useThemeSettings` in Settings, `appearanceCommands` in the palette, and its `appearance.js` before the first paint | |
 | Fonts | IBM Plex Sans and IBM Plex Mono, self-hosted through `@fontsource`, which sokkel-ui brings | No CDN: a UI served from a private network has to work on one |
 | Lint | oxlint, plus `scripts/check_ui_classes.py` and `scripts/check_ui_library.py` | A JS linter cannot see inside a `className`, so the type scale and the library rules get checks of their own |
 | Format | oxfmt, pinned exactly, configured in `.oxfmtrc.json` | Prettier's output from the linter's own project, and it sorts Tailwind classes against `src/index.css` rather than guessing at the theme |
@@ -189,7 +189,7 @@ lacks is added in sokkel-ui, never here. The typefaces offered are the library's
 whole, and index.css imports the Geist faces the Geist one is set in.
 
 **The look is chosen in Settings, in the Appearance section, and in the palette, and nowhere
-else.** The section is sokkel-ui's `themeSettings({ value, onChange, themes, corners, typefaces,
+else.** The section is sokkel-ui's `useThemeSettings({ value, onChange, themes, corners, typefaces,
 system: true })` handed to the dialog whole: Theme, Scheme (Dark, Light, System), Density, Corners,
 Typeface and Motion, each a row with its own words, found by its own words in the dialog's search.
 No row of it is dirigent's, and no word on it is in the catalogue: they are the library's. The
@@ -1408,7 +1408,7 @@ the phone's list to go into and the footer with its note and `Done`{ .label }. W
 it -- its control, and whether that control trails the title or sits under it -- is
 `components/settings/SettingsDialog.tsx`'s, keyed by the row's id: a choice from a set and a pair
 of buttons trail, an open password form sits under. The Appearance section has no rows of its own:
-`settingsGroups` takes sokkel-ui's `themeSettings` for it whole. The dialog opens on the
+`settingsGroups` takes sokkel-ui's `useThemeSettings` for it whole. The dialog opens on the
 category the thing that opened it is about, the server dot's on Server, and a phone then opens on
 that section rather than on the list. Its words are `SETTINGS_WORDS` in `lib/library-words`, and its
 search box says `Search`{ .label } like every other.
@@ -1456,9 +1456,10 @@ is the shell's: the keys the shell and the screens bind with sokkel-ui's `useSho
 
 ## Panels are sized in pixels
 
-**The rail is dragged by its right edge, and opens at 168px.** It holds between 152px, where
-its longest word still fits, and 320px. What it was dragged to is kept in pixels per browser, a
-double-click on the edge gives it back its 168px, and the edge is sokkel-ui's `ResizeHandle`, a
+**The rail is dragged by its right edge, and opens at the library's width.** Its range is
+sokkel-ui's `RAIL_SIZE`: it opens at 240px and holds between 200px and 360px. What it was dragged
+to is kept in pixels per browser, a double-click on the edge gives it back its 240px, and the edge
+is sokkel-ui's `ResizeHandle`, a
 `separator`: it takes the arrow keys, Home and End, and says what it resizes. The control at the
 rail's head narrows it to its marks and its edge pulled outward widens it again, which is kept
 too. Hiding it whole is the platform's modifier plus B and `Show navigation`; a hidden rail has no
@@ -1525,8 +1526,8 @@ window under 1280px.
 **The account stands in the window's bottom-left corner, at the start of the status line**, and
 the whole row is the control: sokkel-ui's `AccountMenu`, its avatar the username's first letter,
 the username beside it, and the account's role muted after that (`detail`), a plain word as a role
-is everywhere. The username keeps its room: on a row narrower than 13rem, the rail's own 168px
-included, the role leaves the row and is said only in the menu's head. **This is the one place a
+is everywhere. The username keeps its room: on a row narrower than 13rem, a rail dragged down
+toward its least width included, the role leaves the row and is said only in the menu's head. **This is the one place a
 code stands in the UI face.** The username is the account's code, and wherever it is addressed -- the accounts listing, the Account pane, a
 token's owner -- it is mono; here it is the reader's own name said back to them. The menu opens
 upward: its head is the username and the role with the instance's name and environment under it, then

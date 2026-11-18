@@ -1,6 +1,8 @@
 import { filterSettings } from '@winterop-com/sokkel-ui/SettingsDialog'
-import { themeSettings } from '@winterop-com/sokkel-ui/ThemePicker'
+import { useThemeSettings } from '@winterop-com/sokkel-ui/ThemePicker'
 import { CORNERS, DEFAULT_APPEARANCE, TYPEFACES } from '@winterop-com/sokkel-ui/lib/appearance'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, test } from 'vitest'
 
 import { APPEARANCE_DEFAULTS, APPEARANCE_THEMES } from '@/lib/appearance'
@@ -17,15 +19,33 @@ import { shortcuts } from '@/lib/shortcuts'
 
 const ROWS = settingsRows(false)
 
-/** The Appearance section's settings, as the dialog hands them over. */
-const APPEARANCE = themeSettings({
-    value: { ...DEFAULT_APPEARANCE, ...APPEARANCE_DEFAULTS },
-    onChange: () => undefined,
-    themes: APPEARANCE_THEMES,
-    corners: CORNERS,
-    typefaces: TYPEFACES,
-    system: true,
-})
+type AppearanceSettings = ReturnType<typeof useThemeSettings>
+
+/**
+ * The Appearance section's settings, as the dialog hands them over. `useThemeSettings` is a hook,
+ * so it is called while a component renders.
+ */
+function Appearance({ take }: { take: (settings: AppearanceSettings) => void }) {
+    take(
+        useThemeSettings({
+            value: { ...DEFAULT_APPEARANCE, ...APPEARANCE_DEFAULTS },
+            onChange: () => undefined,
+            themes: APPEARANCE_THEMES,
+            corners: CORNERS,
+            typefaces: TYPEFACES,
+            system: true,
+        }),
+    )
+    return null
+}
+
+function appearanceSettings(): AppearanceSettings {
+    const held: AppearanceSettings[] = []
+    renderToStaticMarkup(createElement(Appearance, { take: (settings) => held.push(settings) }))
+    return held[0] ?? []
+}
+
+const APPEARANCE = appearanceSettings()
 
 const GROUPS = settingsGroups(
     ROWS,

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { RAIL_SIZE } from '@winterop-com/sokkel-ui/Rail'
 
 import { LABELS } from '../src/lib/labels.ts'
 
@@ -115,8 +116,8 @@ test('the trail is the screens above, every crumb a link and none of them the pa
 })
 
 /** The rail's width before anything was dragged, and the widest it goes. */
-const RAIL_WIDTH = 168
-const RAIL_MAX_WIDTH = 320
+const RAIL_WIDTH = RAIL_SIZE.default
+const RAIL_MAX_WIDTH = RAIL_SIZE.max
 
 test('the rail is dragged by its edge, moved by the keys, kept, and reset by a double-click', async ({
     page,
@@ -242,10 +243,15 @@ test('the account menu holds the account, the settings, the appearance, the shor
 }) => {
     const row = page.getByRole('button', { name: /^Account: / })
     // The development admin is `admin` as username and role. At the rail's own width the row
-    // keeps the username whole and leaves the role to the menu's head.
+    // holds both, the username whole.
     const said = row.getByText('admin', { exact: true })
     await expect(said.first()).toBeVisible()
     expect(await said.first().evaluate((name) => name.scrollWidth <= name.clientWidth)).toBe(true)
+    await expect(said.nth(1)).toBeVisible()
+    // At the rail's least width the row is narrower than 13rem, and the role leaves it for the
+    // menu's head.
+    await page.getByRole('separator', { name: LABELS.shell.resize_nav }).focus()
+    await page.keyboard.press('Home')
     await expect(said.nth(1)).toBeHidden()
     await row.click()
     const menu = page.getByRole('menu')
