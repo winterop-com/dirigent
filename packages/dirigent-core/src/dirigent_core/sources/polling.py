@@ -29,10 +29,10 @@ from pydantic import BaseModel, ConfigDict, JsonValue
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from dirigent_client.enums import EntryVia, InputOutcome, TriggerKind
-from dirigent_common import JsonMap, format_duration, scrub
+from dirigent_common import JsonMap, build_client, format_duration, scrub
 from dirigent_core import telemetry
 from dirigent_core.database import session_scope
-from dirigent_core.engine.context import ConnectionRecord, build_http_client, load_connections, open_record
+from dirigent_core.engine.context import ConnectionRecord, load_connections, open_record
 from dirigent_core.engine.references import ReferenceScope, resolve
 from dirigent_core.engine.runs import Attribution, Entry, create_run
 from dirigent_core.engine.services import EngineServices
@@ -529,7 +529,7 @@ class _OutsideRun:
         model = self._services.connection_models.get(record.kind)
         if model is None:
             raise LookupError(UNKNOWN_CONNECTION_KIND.render(ref=repr(ref), kind=repr(record.kind)))
-        return build_http_client(self.connection(ref, model))
+        return build_client(self.connection(ref, model))
 
     def _record(self, ref: ConnectionRef) -> ConnectionRecord:
         """The connection a sensor names, or a refusal naming those there are."""

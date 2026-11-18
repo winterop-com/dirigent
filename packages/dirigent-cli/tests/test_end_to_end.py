@@ -46,7 +46,7 @@ def _fake_network(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:  # pyright
     """Replace only the transport: connections are still resolved and decrypted for real."""
     from dirigent_core.engine import context
 
-    original = context.build_http_client
+    original = context.build_client
 
     def patched(config: Any) -> httpx2.AsyncClient:
         real = original(config)
@@ -57,7 +57,7 @@ def _fake_network(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:  # pyright
             transport=httpx2.MockTransport(service),
         )
 
-    monkeypatch.setattr(context, "build_http_client", patched)
+    monkeypatch.setattr(context, "build_client", patched)
     RESPONSES.clear()
     REQUESTS.clear()
     yield
