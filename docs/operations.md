@@ -209,6 +209,10 @@ on a named `work` volume, which the `docker` sidecar mounts **at the same path**
 mount is resolved on the daemon's filesystem, not the worker's, so the path `docker.run` hands
 over has to mean the same directory on both sides.
 
+The worker's user must be able to write the work root. A volume first mounted from an image that
+did not own the path, or a host directory owned by root, refuses it, and every step that needs a
+work directory fails with `run.work_unwritable`, naming the directory it could not make.
+
 !!! warning "A work path holds on one worker only"
 
     A path a step leaves in the work directory is not one another worker can be handed. Two

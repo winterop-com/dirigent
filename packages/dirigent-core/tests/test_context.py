@@ -5,12 +5,14 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import httpx2
+import pytest
 from pydantic import BaseModel, SecretStr
 
 from dirigent_common import CredentialOnOrigin, CredentialParameterOnOrigin, base_format_checker
 from dirigent_core.engine.context import BufferedLogger, EngineStepContext, build_http_client
 from dirigent_core.secrets import SecretBox
 from dirigent_core.storage import Storage, build_storage
+from dirigent_plugin import BlockFailure
 from dirigent_testing import FakeRuns
 
 
@@ -119,6 +121,20 @@ def _context(
         runs=FakeRuns(),
         format_checker=base_format_checker(),
     )
+
+
+def test_a_work_root_the_worker_cannot_write_is_named(tmp_path: Path) -> None:
+    """A work root owned by someone else fails the step by name, not as an unexplained OSError."""
+    taken = tmp_path / "work"
+    taken.write_text("a file where the work root's directory should be")
+    context = _context(build_storage(f"file://{tmp_path}"), f"file://{tmp_path}/runs/one", taken)
+
+    with pytest.raises(BlockFailure) as raised:
+        _ = context.work
+
+    assert raised.value.code == "run.work_unwritable"
+    assert raised.value.params["path"] == str(taken / "runs" / str(context.run_id))
+    assert "DIRIGENT_WORK_ROOT" in raised.value.message
 
 
 async def test_a_capture_is_named_under_the_scratch_prefix_and_reads_back(tmp_path: Path) -> None:

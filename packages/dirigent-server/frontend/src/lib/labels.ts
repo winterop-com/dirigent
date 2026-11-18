@@ -1270,6 +1270,8 @@ const refused = {
             'The pipeline version this run started on can no longer be read by this release ({detail}), so the run failed. Rerun it on the current version.',
         unknown_schema:
             'This run holds no shape coded {code}. It checks against the shapes its document named when it started ({available}), and takes no others while it runs.',
+        work_unwritable:
+            "The worker could not make the run's work directory {path}: {detail}. Its work root (DIRIGENT_WORK_ROOT) must be writable by the user the worker runs as.",
     },
     schedule: {
         backfill_one_time:
