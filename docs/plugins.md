@@ -583,7 +583,9 @@ A free-form header map in a block's config or a connection's is stored as writte
 is validated and, for a block, when the document is applied, whether the value is a literal or a
 reference. Set `hide_input_in_errors` on the model as well, so a refusal at run time cannot repeat a
 value a reference resolved to. A credential goes in a `CredentialValue` field named `credential`,
-with `credential_header`, `credential_scheme` or `credential_query` beside it.
+with `credential_header`, `credential_scheme` or `credential_query` beside it. A URL that is its
+own credential, such as a webhook address, is a `SecretUrl` field: sealed like any secret, and
+refused when it is set unless it is an http or https address with a host, without repeating it.
 
 A free-form query map is typed `PlainQuery`, and a URL a person writes `PlainUrl`, on the same terms:
 the first refuses a name that carries a credential, the second that and a user or a password as well.

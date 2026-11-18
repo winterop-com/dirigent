@@ -276,6 +276,25 @@ async def test_an_operator_creates_a_connection_awaiting_its_secrets_whatever_it
     assert slack.json()["awaiting_secrets"] is True, "slack requires a credential and was given none"
 
 
+@pytest.mark.parametrize(
+    "pasted", ["copied text, not a hook", "hooks.slack.com/services/T/B/x", "ftp://hooks.invalid/x"]
+)
+async def test_a_webhook_url_that_is_not_an_address_is_refused_when_it_is_sealed(
+    admin: httpx2.AsyncClient, pasted: str
+) -> None:
+    """``dg connection set-secret`` sends the config back whole, so the server's check is every surface's."""
+    assert (await _create(admin, "ops-slack", "slack", {})).status_code == 201
+    refused = await admin.patch(f"{PREFIX}/connections/ops-slack", json={"config": {"webhook_url": pasted}})
+    assert refused.status_code == 422, refused.text
+    assert pasted not in refused.text, "a refused secret is never repeated"
+    assert "an http or https address with a host" in refused.text
+    sealed = await admin.patch(
+        f"{PREFIX}/connections/ops-slack", json={"config": {"webhook_url": "https://hooks.slack.invalid/T/B/x"}}
+    )
+    assert sealed.status_code == 200, sealed.text
+    assert sealed.json()["awaiting_secrets"] is False
+
+
 async def test_an_operator_creates_a_plain_http_connection_complete(operator: httpx2.AsyncClient) -> None:
     """A kind whose credential is optional, given none, is whole and usable at once."""
     web = await _create(operator, "web", "http", {"base_url": "https://svc.invalid", "bearer_token": None})

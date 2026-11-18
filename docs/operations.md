@@ -1358,7 +1358,7 @@ dg connection create slack ops-slack-bot --set bot_token=xoxb-000-xxxx --set 'ch
 
 | Field | Default | What it means |
 | --- | --- | --- |
-| `webhook_url` | unset | A Slack incoming webhook. Sealed: it is the address and the credential at once. Not combined with `bot_token` or `channel` |
+| `webhook_url` | unset | A Slack incoming webhook. Sealed: it is the address and the credential at once, and a value that is not an http or https URL is refused when it is set. Not combined with `bot_token` or `channel` |
 | `bot_token` | unset | A bot token, presented to `chat.postMessage`. Sealed. Needs `channel` |
 | `channel` | unset | Where the bot posts: a channel id such as `C0123456789`, or `#name` |
 | `verify_tls` | `true` | Whether the certificate is verified |

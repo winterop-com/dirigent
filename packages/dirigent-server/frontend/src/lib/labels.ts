@@ -1094,6 +1094,8 @@ const refused = {
             'The {parameter} query parameter carries a credential, and this URL is not shown to come from an earlier step output, so what names it is stored with the run. Put its value in the credential field of a connection, which is sealed, with its name in credential_query.',
         url_userinfo_refused:
             'A URL here cannot carry a user or a password, because it is stored as written. Put the credential in the sealed fields of a connection.',
+        secret_url_refused:
+            'This sealed field holds a URL: an http or https address with a host, such as https://hooks.example.org/.... What was given is not one, and is not repeated here.',
         url_password_refused:
             'A URL here cannot carry a password, because it is stored as written. Put it in the sealed field of the connection.',
         credential_header_refused:

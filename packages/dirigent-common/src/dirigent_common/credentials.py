@@ -207,6 +207,12 @@ BAD_CREDENTIAL = COMMON.define(
     "a scheme such as Bearer goes in credential_scheme",
 )
 
+SECRET_URL_REFUSED = COMMON.define(
+    "secret_url_refused",
+    "this sealed field holds a URL: an http or https address with a host, such as https://hooks.example.org/...; "
+    "what was given is not one, and is not repeated here",
+)
+
 BAD_CREDENTIAL_WORD = COMMON.define(
     "bad_credential_word", "credential_header and credential_scheme must each be one HTTP token"
 )
@@ -360,6 +366,19 @@ def _fits_a_header(credential: SecretStr | None) -> SecretStr | None:
     return credential
 
 
+def _is_a_web_address(secret: SecretStr | None) -> SecretStr | None:
+    """Read an empty URL as unset, and reject one that is not an http or https address without saying what it held."""
+    if secret is None or not secret.get_secret_value():
+        return None
+    try:
+        parts = urlsplit(secret.get_secret_value())
+    except ValueError:
+        parts = None
+    if parts is None or parts.scheme.lower() not in {"http", "https"} or not parts.hostname:
+        raise ValueError(SECRET_URL_REFUSED.render())
+    return secret
+
+
 def _is_a_token[Word: str | None](word: Word) -> Word:
     """Reject a header name or a scheme that is not an HTTP token."""
     if word is not None and HTTP_TOKEN.fullmatch(word) is None:
@@ -397,6 +416,9 @@ PlainUrl = Annotated[
 
 #: The sealed value of a credential sent in a header or a query parameter.
 CredentialValue = Annotated[SecretStr | None, AfterValidator(_fits_a_header)]
+
+#: The sealed value of a URL that is its own credential, such as a webhook address.
+SecretUrl = Annotated[SecretStr | None, AfterValidator(_is_a_web_address)]
 
 #: The header a credential is sent in, ``Authorization`` when neither this nor a query parameter is named.
 CredentialHeader = Annotated[str | None, AfterValidator(_is_a_token)]
