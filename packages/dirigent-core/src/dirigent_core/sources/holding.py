@@ -38,7 +38,7 @@ from dirigent_core.logging import ProcessLog, get_logger
 from dirigent_core.messages import RUN_UNKNOWN_CONNECTION, SOURCE_NOT_HELD
 from dirigent_core.models import Pipeline, Source, utcnow
 from dirigent_core.sources.polling import InputRefused, backoff_for, enter_input
-from dirigent_core.sources.rows import held, in_flight, max_in_flight
+from dirigent_core.sources.rows import held, in_flight, max_in_flight, unreadable_config
 from dirigent_plugin import ConnectionRef, Logger, Storage
 from dirigent_plugin.sources import HeldSource
 
@@ -103,6 +103,10 @@ class Holder:
         await _release(self.sessions, taken.source_id, owner=self.owner)
 
 
+class SourceUnreadable(Exception):
+    """The installed kind can no longer read the config a held source's row stores."""
+
+
 async def take_free(
     session: AsyncSession, services: EngineServices, *, owner: str, now: datetime, limit: int
 ) -> list[Taken]:
@@ -153,6 +157,9 @@ async def hold(
         connections = await load_connections(session)
         storage = await services.bound_storage(session)
     if row is None or found is None:
+        unread = unreadable_config(services.sources, row) if row is not None else None
+        if unread is not None:
+            raise SourceUnreadable(unread)
         return
     kind = found[0]
     declared = dict(row.config)

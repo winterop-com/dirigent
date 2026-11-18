@@ -49,7 +49,7 @@ from dirigent_core.messages import (
     UNKNOWN_CONNECTION_KIND,
 )
 from dirigent_core.models import Pipeline, PipelineVersion, Source, SourceInput, utcnow
-from dirigent_core.sources.rows import in_flight, max_in_flight, polled
+from dirigent_core.sources.rows import in_flight, max_in_flight, polled, unreadable_config
 from dirigent_plugin import BlockFailure, Capture, ConnectionRef, ErrorClass, Logger, Runs, StepContext, Storage
 from dirigent_plugin.sources import Polled, PolledSource
 
@@ -223,6 +223,9 @@ async def poll_one(
         connections = await load_connections(session)
         cursor = row.cursor if row is not None else None
     if row is None or found is None:
+        unread = unreadable_config(services.sources, row) if row is not None else None
+        if unread is not None:
+            return await _failed(sessions, services, claimed, owner=owner, error=unread)
         return PollOutcome(source_id=claimed.source_id, runs=[])
     kind = found[0]
     started = time.monotonic()

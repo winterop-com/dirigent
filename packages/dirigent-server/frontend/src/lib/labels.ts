@@ -1386,6 +1386,8 @@ const refused = {
         body_too_large: 'The body is larger than the {limit} bytes this endpoint reads.',
         body_without_type: 'The body arrived with no content type, and this endpoint takes {accepted}.',
         charset_refused: 'This endpoint reads a text body in {accepted}, and {charset} is not one of them.',
+        config_unreadable:
+            'Source {code} is of kind {kind}, which can no longer read its stored fields ({detail}). Apply its pipeline again.',
         endpoint_accepts_refused:
             'An endpoint reads JSON, urlencoded forms and text, and {accepts} is none of them. A file is posted as a URI in a JSON body.',
         endpoint_method_not_declared: 'The method {method} is not one this endpoint answers ({methods}).',

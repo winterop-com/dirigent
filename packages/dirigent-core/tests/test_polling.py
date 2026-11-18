@@ -19,6 +19,7 @@ from dirigent_core.documents import load_text
 from dirigent_core.engine.definition import LONGEST_CADENCE
 from dirigent_core.engine.runs import create_run
 from dirigent_core.engine.services import EngineServices
+from dirigent_core.messages import SOURCE_CONFIG_UNREADABLE
 from dirigent_core.models import Pipeline, Run, Source, SourceInput, StepAttempt, utcnow
 from dirigent_core.pipelines import apply_document, set_active
 from dirigent_core.sources import polling
@@ -177,6 +178,26 @@ async def test_a_failed_poll_keeps_the_cursor_and_backs_off(
     row = await the_source(sessions)
     assert (row.poll_failures, row.cursor, row.lease_owner) == (1, None, None)
     assert row.last_error == outcome.error
+    assert row.next_poll_at is not None
+    assert row.next_poll_at - datetime.now(UTC) > timedelta(seconds=20), "it waits out the backoff"
+    assert state_of(row, pipeline_active=True, unsettled=0, bound=None, is_polled=True) is SourceState.FAILING
+
+
+async def test_a_source_whose_stored_fields_its_kind_no_longer_reads_fails_by_name_and_backs_off(
+    sessions: async_sessionmaker[AsyncSession], services: EngineServices, tmp_path: Path
+) -> None:
+    """A pack upgrade can leave a row whose config the installed kind refuses."""
+    await apply(sessions, services, landing(inbox_of(tmp_path)))
+    async with session_scope(sessions) as session:
+        row = (await session.execute(sa.select(Source))).scalar_one()
+        row.config = {**row.config, "folder": "incoming"}
+    [outcome] = await polling.tick(sessions, services, owner=WORKER)
+    said = SOURCE_CONFIG_UNREADABLE.render(
+        code="arrived", kind="storage", detail="folder: Extra inputs are not permitted"
+    )
+    assert outcome.error == said
+    row = await the_source(sessions)
+    assert (row.poll_failures, row.last_error, row.lease_owner) == (1, said, None)
     assert row.next_poll_at is not None
     assert row.next_poll_at - datetime.now(UTC) > timedelta(seconds=20), "it waits out the backoff"
     assert state_of(row, pipeline_active=True, unsettled=0, bound=None, is_polled=True) is SourceState.FAILING
