@@ -138,7 +138,7 @@ class ShellRunOperator(Operator[ShellRunConfig, ShellRunOutput]):
         workspace = subprocess.workspace(ctx, "shell")
         directory = workspace / config.cwd if config.cwd else workspace
         directory.mkdir(parents=True, exist_ok=True)
-        code, out, err, stdout_uri, stderr_uri = await subprocess.run(
+        ran = await subprocess.run(
             directory=directory,
             ctx=ctx,
             timeout_seconds=config.timeout.total_seconds(),
@@ -146,6 +146,7 @@ class ShellRunOperator(Operator[ShellRunConfig, ShellRunOutput]):
             argv=config.argv or None,
             command=config.command,
         )
+        code, out, err, stdout_uri, stderr_uri = ran.code, ran.out, ran.err, ran.stdout_uri, ran.stderr_uri
         log_stream(ctx, "stdout", out)
         log_stream(ctx, "stderr", err)
         ctx.log.info("command finished", exit_code=code, stdout_bytes=out.total_bytes, stderr_bytes=err.total_bytes)

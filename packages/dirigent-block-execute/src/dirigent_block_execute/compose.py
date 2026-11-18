@@ -350,7 +350,7 @@ class DockerComposeUpOperator(Operator[DockerComposeUpConfig, DockerComposeUpOut
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
             try:
-                code, out, err, stdout_uri, stderr_uri = await subprocess.run(
+                ran = await subprocess.run(
                     directory=root,
                     ctx=ctx,
                     timeout_seconds=timeout,
@@ -361,6 +361,7 @@ class DockerComposeUpOperator(Operator[DockerComposeUpConfig, DockerComposeUpOut
                     what="docker compose up",
                     redact=material.secrets,
                 )
+                code, out, err, stdout_uri, stderr_uri = ran.code, ran.out, ran.err, ran.stdout_uri, ran.stderr_uri
             except BaseException:
                 # The bring-up timed out or the step was cancelled, and whatever compose had
                 # already started is running: tear it down before leaving, the same as a
@@ -420,7 +421,7 @@ class DockerComposeDownOperator(Operator[DockerComposeDownConfig, DockerComposeD
             environ = daemon_environment(
                 subprocess.environment([*DAEMON_ENV, *config.env_allowlist], config.env, root), material
             )
-            code, out, err, stdout_uri, stderr_uri = await subprocess.run(
+            ran = await subprocess.run(
                 directory=root,
                 ctx=ctx,
                 timeout_seconds=timeout,
@@ -431,6 +432,7 @@ class DockerComposeDownOperator(Operator[DockerComposeDownConfig, DockerComposeD
                 what="docker compose down",
                 redact=material.secrets,
             )
+            code, out, err, stdout_uri, stderr_uri = ran.code, ran.out, ran.err, ran.stdout_uri, ran.stderr_uri
         log_stream(ctx, "stdout", out, material.secrets)
         log_stream(ctx, "stderr", err, material.secrets)
         ctx.log.info("docker compose down finished", project=project, exit_code=code)
@@ -599,6 +601,11 @@ async def read_status(
     return services, sorted(networks), default_network
 
 
+def _port(text: str) -> int:
+    """A port the daemon wrote as ASCII digits, or 0 for anything else."""
+    return int(text) if text.isascii() and text.isdigit() else 0
+
+
 def _service_from(inspected: ContainerInspect) -> ComposeService:
     """Build one ``ComposeService`` from a container's inspect: its state, health and ports."""
     publishers: list[ComposePublisher] = []
@@ -608,8 +615,8 @@ def _service_from(inspected: ContainerInspect) -> ComposeService:
             publishers.append(
                 ComposePublisher(
                     url=binding.host_ip,
-                    target_port=int(port) if port.isdigit() else 0,
-                    published_port=int(binding.host_port) if binding.host_port.isdigit() else 0,
+                    target_port=_port(port),
+                    published_port=_port(binding.host_port),
                     protocol=protocol,
                 )
             )

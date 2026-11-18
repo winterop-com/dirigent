@@ -14,7 +14,9 @@ import os
 import signal
 from collections.abc import Coroutine, Sequence
 from pathlib import Path
-from typing import NamedTuple, cast
+from typing import cast
+
+from pydantic import BaseModel, ConfigDict
 
 from dirigent_block_execute.capture import Drained, LiveLines, drain
 from dirigent_block_execute.environment import allowed
@@ -34,8 +36,10 @@ EXIT_POLL_SECONDS = 0.1
 REAP_SECONDS = 1.0
 
 
-class Ran(NamedTuple):
+class Ran(BaseModel):
     """What one child process left behind: how it exited, both streams, and where they were written."""
+
+    model_config = ConfigDict(frozen=True)
 
     code: int
     out: Drained
@@ -164,7 +168,7 @@ async def run(
         raise BlockFailure(TIMED_OUT, error_class=ErrorClass.TRANSIENT, what=what, seconds=timeout_seconds) from error
     finally:
         await end(process, pgid)
-    return Ran(process.returncode or 0, out, err, out_sink.uri, err_sink.uri)
+    return Ran(code=process.returncode or 0, out=out, err=err, stdout_uri=out_sink.uri, stderr_uri=err_sink.uri)
 
 
 async def _drained(
