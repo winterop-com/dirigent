@@ -15,7 +15,7 @@
 # NO SECRET IS HERE. A rule that delivers somewhere names the connection by code, and the
 # connection's kind names the sender:
 #
-#   dg connection create ops-slack --kind slack ...
+#   dg connection create slack ops-slack ...
 #   connection: ops-slack                        # under a rule, below
 #
 # These two name none, so they write to the process log, which every instance has, and the

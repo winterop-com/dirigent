@@ -396,8 +396,8 @@ is just not somewhere more than one process may point.
 Between releases the baseline migration can move in place, so a development database
 from an older checkout would keep an older schema forever -- alembic sees its one revision
 as applied and upgrades nothing. `dg dev --wipe-state` is what to pass after a pull that
-moved the schema: a dev state is disposable, and the failure it would otherwise cause is a
-wrong answer rather than an error. A released schema only moves forward, and a plain `dg dev`
+moved the schema: a dev state is disposable, and without it every process refuses the stale
+state at boot with `database.schema_stale`, naming the first difference. A released schema only moves forward, and a plain `dg dev`
 migrates the instance it finds.
 
 The server applies a directory at boot when one is named. `DIRIGENT_APPLY_DIR` points at
@@ -490,8 +490,8 @@ that is not there still gets a problem document rather than HTML. A write to a c
 not a navigation and is refused rather than served.
 
 A bundle built while the server runs is served without a restart: the shell and the asset
-tree are read per request, so `make ui` lands under a running `dg dev`, and the moment a
-rebuild leaves empty answers the same refusal rather than an error.
+tree are read per request, so a rebuild of the bundle being served lands under a running
+`dg dev`, and the moment a rebuild leaves empty answers the same refusal rather than an error.
 
 **`DIRIGENT_UI_ENABLED=false`** -- or `--no-ui` on `dg server` and `dg dev`, which is the
 same switch for one invocation -- leaves the process an API and nothing else: no `/`, no
@@ -503,10 +503,11 @@ unavailable, and a blank `200` page would say the opposite to a browser and to w
 watching. Use the probes under `/health` to decide whether the instance is up; `/` is the UI's
 answer, not the instance's.
 
-**Building the bundle.** `make ui` builds it into `packages/dirigent-server/src/dirigent_server/static/`,
-which is where the wheel picks it up and where an installed server looks first. A checkout that
-has vite's dev output at `packages/dirigent-server/frontend/dist` is served from there instead,
-so the dev loop needs no reinstall. `make ui-wheel` builds the wheel and fails unless
+**Building the bundle.** `make ui` builds it into `packages/dirigent-server/frontend/dist`, and
+`make ui-static` copies that into `packages/dirigent-server/src/dirigent_server/static/`, which
+is where the wheel picks it up. A server looks in `static/` first and serves `frontend/dist`
+only when `static/` holds no bundle, so once a checkout has run `make ui-static`, a later
+`make ui` is not what it serves until `make ui-static` runs again. `make ui-wheel` builds the wheel and fails unless
 `dirigent_server/static/index.html` is inside it -- run it in the release job, because a wheel
 that quietly lost the bundle looks exactly like a wheel that has one until someone opens a
 browser.

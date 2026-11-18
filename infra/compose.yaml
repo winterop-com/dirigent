@@ -29,8 +29,8 @@ x-dirigent: &dirigent
     # path, so a bind docker.run hands over means the same directory on both sides.
     DIRIGENT_WORK_ROOT: /var/lib/dirigent/work
     DIRIGENT_ENABLED_UNSAFE_BLOCKS: ${DIRIGENT_ENABLED_UNSAFE_BLOCKS:-}
-    # Pool plus overflow must stay above DIRIGENT_WORKER_CONCURRENCY, which the instance
-    # enforces at start-up.
+    # Pool plus overflow must be at least DIRIGENT_WORKER_CONCURRENCY plus four, which the
+    # instance enforces at start-up.
     DIRIGENT_DATABASE_POOL_SIZE: ${DIRIGENT_DATABASE_POOL_SIZE:-12}
     DIRIGENT_DATABASE_MAX_OVERFLOW: ${DIRIGENT_DATABASE_MAX_OVERFLOW:-4}
     # The alert context is built by whichever worker settles the run, so this belongs on

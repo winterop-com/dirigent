@@ -162,8 +162,9 @@ stack it starts.
 
 ### Running under another ASGI server
 
-`dg server` runs the application under uvicorn, and uvicorn is a dependency of the CLI alone.
-`dirigent-server` only defines the application; nothing in it runs one.
+`dg server` runs the application under uvicorn. uvicorn is a dependency of the CLI and of
+`dirigent-mcp`, which serves its standalone MCP endpoint with it. `dirigent-server` only defines
+the application; nothing in it runs one.
 
 The application is plain ASGI. The factory is `dirigent_server.create_app`, which takes a
 `Settings` and reads `get_settings()` -- the `DIRIGENT_*` environment and the config file --

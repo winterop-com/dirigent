@@ -46,8 +46,9 @@ rather than leaving the gap for you to find.
   An absolute database path, a local repository path and a `file://` remote are refused when
   the connection is written and again when a step resolves it, so no connection, whoever made
   it, opens the instance's own database or state directory.
-- Brute force against the login endpoint, both as a flood from one address and as credential
-  stuffing spread across many.
+- Brute force against the login endpoint from one address, whether at one account or across
+  many. Guessing spread over many addresses is counted per address only, so a strong password is
+  what stops it (see the login limits below).
 - A cross-site write spending the session cookie, including a cross-site login: the browser
   says where the request came from, and one that came from elsewhere is refused.
 - Secrets appearing where they are read casually: API responses, pipeline documents, exports,
@@ -289,8 +290,8 @@ unmounts it, and `/mcp` then answers 404.
 - **A token is offered what its role may call.** Each role gets a server of its own, so a client
   never offers its model a call the API would refuse with 403: a viewer's leaves out every tool
   that writes and `plan_document`, whose dry run is an operator's route, and an operator's leaves
-  out `check_connection`, `create_schema`, `update_schema` and `delete_schema`, which are an
-  admin's. An operator's does carry the alert-rule writes and `delete_alert_rule`, as the API
+  out `check_connection`, `list_audit`, `create_schema`, `update_schema` and `delete_schema`, which
+  are an admin's. An operator's does carry the alert-rule writes and `delete_alert_rule`, as the API
   allows. Whatever a tool calls is still decided by the route it reaches. `DG_MCP_READ_ONLY=1` over
   stdio offers what a viewer is offered.
 - **An answer is bounded too.** Every tool's answer is held under 48 KB of JSON, cut with a note
@@ -1018,8 +1019,9 @@ Given what the code supports, rotating a key means re-entering the credentials:
    from wherever you actually keep them.
 2. Stop the writers, or accept a window in which runs needing a credential fail.
 3. Set the new `DIRIGENT_SECRET_KEY` on every process.
-4. Re-enter each connection's secret fields, which seals them with the new key. The CLI has no
-   update command, so this is `PATCH /api/v1/connections/{code}`, in place. A connection nothing
+4. Re-enter each connection's secret fields, which seals them with the new key:
+   `dg connection set-secret CODE`, which prompts for each, or `PATCH
+   /api/v1/connections/{code}`, both in place. A connection nothing
    uses can be deleted with `dg connection delete CODE` and made again with `dg connection create
    KIND CODE --set field=value` instead; one that a pipeline, an alert rule or a storage scheme
    names is refused the delete.
