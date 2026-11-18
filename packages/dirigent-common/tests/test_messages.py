@@ -18,7 +18,7 @@ from dirigent_common import (
     raised_detail,
     validation_issues,
 )
-from dirigent_common.messages import EXTRA_FORBIDDEN, RAISED_DETAIL_CHARS
+from dirigent_common.messages import EXTRA_FORBIDDEN, RAISED_DETAIL_CHARS, VALIDATION
 
 #: Every messages module the workspace holds, named so importing them all is what the walk
 #: below asserts against. A new package's catalogue is added here.
@@ -267,3 +267,20 @@ def test_an_exception_that_said_far_too_much_is_truncated() -> None:
 
     assert detail.startswith("x" * RAISED_DETAIL_CHARS)
     assert detail.endswith(f"[truncated, {RAISED_DETAIL_CHARS + 50} characters]")
+
+
+def test_two_threads_meeting_a_new_validation_type_together_both_get_its_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Each caller looks before the other has minted, the way two checks on two threads do."""
+
+    class LooksFirst(dict[str, Message]):
+        def get(self, key: str, default: Message | None = None) -> Message | None:  # type: ignore[override]
+            return default
+
+    monkeypatch.setattr(VALIDATION, "messages", LooksFirst(VALIDATION.messages))
+    detail = {"type": "a_type_nothing_has_raised_yet", "loc": ("x",), "msg": "said once", "input": 1}
+
+    first, second = validation_issues([detail]), validation_issues([detail])
+
+    assert first[0].code == second[0].code == "validation.a_type_nothing_has_raised_yet"

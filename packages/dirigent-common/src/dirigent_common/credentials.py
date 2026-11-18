@@ -13,7 +13,7 @@ to be. A query parameter's name is any API's data: ``page_token`` and ``sort_key
 import re
 from collections.abc import Mapping
 from typing import Annotated, Any, Final, cast
-from urllib.parse import parse_qsl, unquote_plus, urlsplit
+from urllib.parse import unquote_plus, urlsplit
 
 from pydantic import AfterValidator, Field, SecretStr, ValidationInfo
 
@@ -46,6 +46,7 @@ CREDENTIAL_WORDS: Final = (
     "bearer",
     "cookie",
     "credential",
+    "passphrase",
     "passwd",
     "password",
     "privatekey",
@@ -54,7 +55,7 @@ CREDENTIAL_WORDS: Final = (
 )
 
 #: A whole segment of a header's name that does the same.
-CREDENTIAL_SEGMENTS: Final = frozenset({"auth", "session"})
+CREDENTIAL_SEGMENTS: Final = frozenset({"auth", "jwt", "pwd", "session"})
 
 #: The segment before a final ``key`` that says the key addresses something rather than unlocks it.
 ADDRESSING_KEYS: Final = frozenset({"cache", "dedup", "deduplication", "idempotency", "partition", "routing", "sort"})
@@ -83,6 +84,7 @@ QUERY_CREDENTIAL_WORDS: Final = frozenset(
         "credential",
         "credentials",
         "jwt",
+        "passphrase",
         "passwd",
         "password",
         "pwd",
@@ -244,14 +246,29 @@ def carries_credential_parameter(name: str) -> bool:
     return words[-1] == "key" and before in QUERY_CREDENTIAL_KEYS
 
 
-def credential_parameter_in(url: str) -> str | None:
-    """The first name in a URL's query or fragment that carries a credential, if one does."""
+def _parts(url: str) -> tuple[str, str, str]:
+    """A URL's authority, query and fragment, read by hand from one ``urlsplit`` refuses to parse."""
     try:
         split = urlsplit(url)
     except ValueError:
-        return None
-    for part in (split.query, split.fragment):
-        for name, _value in parse_qsl(part, keep_blank_values=True):
+        head, _, fragment = url.partition("#")
+        before_query, _, query = head.partition("?")
+        _, slashes, rest = before_query.partition("//")
+        return (rest.split("/", 1)[0] if slashes else ""), query, fragment
+    return split.netloc, split.query, split.fragment
+
+
+def _pairs(part: str) -> list[tuple[str, str]]:
+    """Every name and value in a query or fragment, split on ``&`` and ``;`` alike and decoded."""
+    pairs = [piece.partition("=") for piece in re.split(r"[&;]", part) if piece]
+    return [(unquote_plus(name), unquote_plus(value)) for name, _, value in pairs]
+
+
+def credential_parameter_in(url: str) -> str | None:
+    """The first name in a URL's query or fragment that carries a credential, if one does."""
+    _, query, fragment = _parts(url)
+    for part in (query, fragment):
+        for name, _value in _pairs(part):
             if carries_credential_parameter(name):
                 return name
     return None
@@ -259,18 +276,12 @@ def credential_parameter_in(url: str) -> str | None:
 
 def userinfo_in(url: str) -> bool:
     """Whether a URL names a user, a password, or both, before its host."""
-    try:
-        return "@" in urlsplit(url).netloc
-    except ValueError:
-        return False
+    return "@" in _parts(url)[0]
 
 
 def password_in(url: str) -> bool:
     """Whether a URL names a password before its host."""
-    try:
-        return ":" in urlsplit(url).netloc.rpartition("@")[0]
-    except ValueError:
-        return False
+    return ":" in _parts(url)[0].rpartition("@")[0]
 
 
 def refuse_credential_parameter(url: str) -> str:
@@ -283,14 +294,11 @@ def refuse_credential_parameter(url: str) -> str:
 
 def credential_parameter_values(url: str) -> list[str]:
     """Every value a URL's query or fragment gives a name that carries a credential."""
-    try:
-        split = urlsplit(url)
-    except ValueError:
-        return []
+    _, query, fragment = _parts(url)
     return [
         value
-        for part in (split.query, split.fragment)
-        for name, value in parse_qsl(part, keep_blank_values=True)
+        for part in (query, fragment)
+        for name, value in _pairs(part)
         if value and carries_credential_parameter(name)
     ]
 

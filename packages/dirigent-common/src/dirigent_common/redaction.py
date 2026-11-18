@@ -7,11 +7,11 @@ takes once a library has quoted it.
 
 import base64
 import json
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from typing import Final, cast
 from urllib.parse import quote, quote_plus
 
-from pydantic import BaseModel, JsonValue, SecretStr
+from pydantic import BaseModel, JsonValue, SecretBytes, SecretStr
 
 from dirigent_common.types import JsonMap
 
@@ -84,7 +84,7 @@ def could_be_data(secret: str) -> bool:
 
 
 def secrets_of(config: BaseModel) -> set[str]:
-    """Name every spelling of every secret an opened config holds.
+    """Name every spelling of every secret an opened config holds, nested models, lists and maps included.
 
     A ``password`` or ``<prefix>_password`` beside a ``username`` or ``<prefix>_username`` is a basic
     credential, and adds the spellings of the pair as basic authentication sends it.
@@ -93,6 +93,7 @@ def secrets_of(config: BaseModel) -> set[str]:
     for name in type(config).model_fields:
         value = getattr(config, name, None)
         if not isinstance(value, SecretStr):
+            found |= _held_secrets(value)
             continue
         secret = value.get_secret_value()
         found |= spellings(secret)
@@ -100,6 +101,23 @@ def secrets_of(config: BaseModel) -> set[str]:
         if isinstance(user, str) and user and secret:
             found |= basic_spellings(user, secret)
     return found
+
+
+def _held_secrets(value: object) -> set[str]:
+    """Name every spelling of every secret a field's value holds inside a model, a list or a map."""
+    if isinstance(value, SecretStr):
+        return spellings(value.get_secret_value())
+    if isinstance(value, SecretBytes):
+        return spellings(value.get_secret_value().decode("utf-8", "surrogateescape"))
+    if isinstance(value, BaseModel):
+        return secrets_of(value)
+    if isinstance(value, Mapping):
+        return {
+            spelling for held in cast("Mapping[object, object]", value).values() for spelling in _held_secrets(held)
+        }
+    if isinstance(value, list | tuple | set | frozenset):
+        return {spelling for held in cast("Collection[object]", value) for spelling in _held_secrets(held)}
+    return set()
 
 
 def _username_beside(name: str) -> str:

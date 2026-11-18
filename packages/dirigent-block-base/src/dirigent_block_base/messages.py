@@ -28,6 +28,11 @@ VALUE_UNCHECKED = BASE.define(
     "the value was not checked against the schema within its timeout of {timeout}",
 )
 
+VALUE_TOO_DEEP = BASE.define(
+    "value_too_deep",
+    "the value was not checked: it nests deeper than its schema can be followed",
+)
+
 SCHEMA_REFERENCE_UNRESOLVED = BASE.define(
     "schema_reference_unresolved",
     "the schema's $ref {ref} names no schema this instance holds; a $ref reaches the schema "

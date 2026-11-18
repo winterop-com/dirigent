@@ -1387,9 +1387,9 @@ dg connection create email ops-mail --name "Ops mailbox" \
 | `security` | `starttls` | `starttls`, `tls` for implicit TLS, or `none`. A `starttls` session that is not offered STARTTLS is refused rather than sent in the clear |
 | `username` | unset | The submission account, where the server asks for one |
 | `password` | unset | Its password. Sealed |
-| `from_address` | unset | Who the alert is from |
-| `to` | unset | Who it goes to. One message is sent to all of them |
-| `subject_prefix` | `[dirigent]` | Written before the subject, so a mail rule can file alerts on sight |
+| `from_address` | unset | Who the alert is from: one address, refused when the connection is stored if it is not one |
+| `to` | unset | Who it goes to, each an address. One message is sent to all of them |
+| `subject_prefix` | `[dirigent]` | Written before the subject, so a mail rule can file alerts on sight. A line break is refused |
 | `timeout` | `15s` | How long the submission may take before the delivery is retried |
 
 The body is the subject, the alert body, and then the pipeline, the event and the run's URL,

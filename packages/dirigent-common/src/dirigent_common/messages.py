@@ -247,7 +247,11 @@ _TIMEDELTA_REPR: Final = re.compile(r"^datetime\.timedelta\(((?:\w+=-?[\d.]+(?:,
 def _validation_message(error_type: str) -> Message:
     """Name the message one pydantic error type renders through, minting it on first sight."""
     name = error_type if NAME_PATTERN.match(error_type) else re.sub(r"[^a-z0-9_]", "_", error_type.lower())
-    return VALIDATION.messages.get(name) or VALIDATION.define(name, _PYDANTIC_TEXT)
+    known = VALIDATION.messages.get(name)
+    if known is not None:
+        return known
+    # One step, so two threads meeting a new type together both get the one message.
+    return VALIDATION.messages.setdefault(name, Message(code=f"{VALIDATION.prefix}.{name}", text=_PYDANTIC_TEXT))
 
 
 def _plain(msg: str) -> str:

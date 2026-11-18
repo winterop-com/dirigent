@@ -614,7 +614,10 @@ contributes is handed no text longer than 8192 characters, and a longer text fai
 limit a pack's format runs as the pack wrote it, and a check of `format` stops at the next value
 once the bound has passed. A run's parameters are checked off the event loop, on the server and on a worker whose
 `pipeline.run` step starts a child, and that check stops after one second, or when its caller is
-cancelled, and refuses the run (`parameter.unchecked`).
+cancelled, and refuses the run (`parameter.unchecked`). A value whose every level takes its schema
+through enough keywords and references that following it runs out of the interpreter's recursion is
+refused by name rather than crashing the check: `base.value_too_deep` from a `validate.schema` step,
+classed `rejected`, and `schema.value_too_deep` from `POST /schemas/$check`.
 
 **A reply cannot act on the origin it shares with the UI.** An endpoint's reply is served on the
 UI's origin, so it answers with `X-Content-Type-Options: nosniff` and
@@ -1222,7 +1225,8 @@ Stated plainly, because a security page that lists only what exists is not much 
   A sealed value a service echoes into a step's output is scrubbed too. The engine walks what a
   block returns before it is stored or handed on, on a thread, and replaces inside strings and
   dict keys every spelling the scrubber knows, percent-encoded and JSON-escaped included, for every
-  secret the attempt opened; types and shape stay as they are, though two keys that differ only by a
+  secret the attempt opened, a secret held in a nested model, a list or a map of the connection's
+  config included; types and shape stay as they are, though two keys that differ only by a
   secret would become one. It reaches a step's output and nothing else: not what a block writes
   straight to storage, not a capture, not a remote handle, not a source's poll. Binary content in an
   output is base64 by then and is not recognised. A basic credential a server quotes from its

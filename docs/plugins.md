@@ -586,7 +586,9 @@ with `credential_header`, `credential_scheme` or `credential_query` beside it.
 A free-form query map is typed `PlainQuery`, and a URL a person writes `PlainUrl`, on the same terms:
 the first refuses a name that carries a credential, the second that and a user or a password as well.
 A query name is judged by its own rule, because a query is any API's data: `page_token`, `nextToken`,
-`sort_key` and a bare `key` pass, as do a presigned URL's `X-Amz-*` parameters.
+`sort_key` and a bare `key` pass, as do a presigned URL's `X-Amz-*` parameters. A query is read
+as pairs split on `&` and `;` alike, and a URL the standard parser refuses is still read for a user,
+a password and a credential's name rather than passed as clean.
 
 ## A pack in its own repository
 

@@ -1295,6 +1295,8 @@ const refused = {
         reference_unresolved:
             "The schema's $ref {ref} names no schema this instance holds. A $ref reaches the schema itself and the schemas held here by code, and nothing is ever fetched.",
         value_unchecked: 'The value was not checked against the schema within {timeout}.',
+        value_too_deep:
+            'The value was not checked: it nests deeper than this schema can be followed. Check a shallower value, or a schema with fewer references per level.',
         no_code:
             'This schema names no code. Give one, set $id, or store it from a file whose name is a code.',
     },

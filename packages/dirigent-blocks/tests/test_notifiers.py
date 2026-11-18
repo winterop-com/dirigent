@@ -729,6 +729,22 @@ def test_the_defaults_are_the_submission_a_modern_server_wants() -> None:
     assert settings.subject_prefix == "[dirigent]"
 
 
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"from_address": "dirigent@ops.test\nBcc: everyone@ops.test"},
+        {"from_address": "not an address"},
+        {"to": ["oncall@ops.test", "oncall@ops.test\r\nBcc: everyone@ops.test"]},
+        {"to": ["oncall"]},
+        {"subject_prefix": "[dirigent]\nBcc: everyone@ops.test"},
+    ],
+)
+def test_an_address_or_a_prefix_no_mail_header_can_carry_is_refused_when_configured(fields: dict[str, Any]) -> None:
+    """Refused where the connection is stored, rather than at every delivery attempt."""
+    with pytest.raises(ValidationError):
+        mail_settings(**fields)
+
+
 @pytest.mark.parametrize(("port", "security"), [(0, "starttls"), (70000, "starttls"), (587, "ssl")])
 def test_a_port_or_a_mode_no_server_speaks_is_refused(port: int, security: str) -> None:
     with pytest.raises(ValidationError):

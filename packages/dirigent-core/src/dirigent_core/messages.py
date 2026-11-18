@@ -221,6 +221,11 @@ SCHEMA_VALUE_UNCHECKED = SCHEMA.define(
     "the value was not checked against the schema within {timeout}",
 )
 
+SCHEMA_VALUE_TOO_DEEP = SCHEMA.define(
+    "value_too_deep",
+    "the value was not checked: it nests deeper than the schema can be followed",
+)
+
 SCHEMA_IN_USE = SCHEMA.define(
     "in_use",
     "schema {code} cannot be removed while it is named by {users}; each must stop naming it first",

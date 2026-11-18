@@ -5,7 +5,7 @@ import json
 from urllib.parse import quote, quote_plus
 
 import pytest
-from pydantic import BaseModel, JsonValue, SecretStr
+from pydantic import BaseModel, JsonValue, SecretBytes, SecretStr
 
 from dirigent_common import (
     MIN_OUTPUT_SPELLING,
@@ -186,3 +186,21 @@ def test_a_password_pairs_with_the_username_its_name_shares_a_prefix_with() -> N
 def test_a_password_with_no_username_adds_no_basic_spelling() -> None:
     config = HttpConnectionConfig(base_url="https://x.test", basic_password=SecretStr("s3cret-Token"))
     assert secrets_of(config) == spellings("s3cret-Token")
+
+
+class Replica(BaseModel):
+    host: str = "db-2"
+    password: SecretStr = SecretStr("r3plica-pw")
+
+
+class Cluster(BaseModel):
+    replicas: list[Replica] = [Replica()]
+    tokens: list[SecretStr] = [SecretStr("t0ken-in-a-list")]
+    keyed: dict[str, SecretStr] = {"eu": SecretStr("t0ken-in-a-map")}
+    certificate: SecretBytes = SecretBytes(b"c3rt-bytes")
+
+
+def test_a_secret_held_inside_a_model_a_list_or_a_map_is_scrubbed() -> None:
+    held = secrets_of(Cluster())
+    text = "r3plica-pw t0ken-in-a-list t0ken-in-a-map c3rt-bytes"
+    assert scrub(text, held) == " ".join([REDACTED] * 4)

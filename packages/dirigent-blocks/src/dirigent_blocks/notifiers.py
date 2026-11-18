@@ -33,6 +33,7 @@ from dirigent_common import (
     CredentialScheme,
     CredentialValue,
     Duration,
+    Email,
     HealthReport,
     PlainHeaders,
     PlainUrl,
@@ -400,13 +401,13 @@ class EmailNotifierConfig(BlockModel):
     password: SecretStr | None = None
     """The submission account's password."""
 
-    from_address: str = ""
+    from_address: Email | Literal[""] = ""
     """The sender every alert is mailed from."""
 
-    to: list[str] = Field(default_factory=list[str])
+    to: list[Email] = Field(default_factory=list[str])
     """Who receives the alert; one message is sent to all of them."""
 
-    subject_prefix: str = "[dirigent]"
+    subject_prefix: str = Field(default="[dirigent]", pattern=r"^[^\r\n]*$")
     """Written before the alert's subject, so a mail rule can file alerts on sight."""
 
     timeout: Duration = Field(default=DEFAULT_TIMEOUT, gt=timedelta(0))
