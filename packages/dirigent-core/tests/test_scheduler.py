@@ -3,18 +3,22 @@
 import asyncio
 import signal
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import pytest
 import sqlalchemy as sa
 from pydantic import ValidationError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.pool import QueuePool
+from sqlalchemy.util import await_only
 
 import dirigent_core.scheduler as scheduler_module
 from dirigent_client.enums import AttemptStatus, FiringOutcome, RunStatus, ScheduleKind, TriggerKind
 from dirigent_core import retention, telemetry
-from dirigent_core.database import session_scope
+from dirigent_core.database import create_session_factory, session_scope
 from dirigent_core.engine.definition import ConcurrencyPolicy, PipelineDefinition, StepDefinition
 from dirigent_core.engine.runs import Attribution, create_run, pause_run, save_pipeline
 from dirigent_core.engine.services import EngineServices
@@ -1147,6 +1151,35 @@ async def test_a_sweep_that_stopped_with_more_left_is_due_again_at_once(
     finally:
         scheduler.request_stop()
         await asyncio.wait_for(task, timeout=10)
+
+
+async def test_a_scheduler_stopped_while_its_sweep_connects_leaves_no_connection_open(
+    db_engine: AsyncEngine, services: EngineServices, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stop cancels the sweep inside the pool's connect listeners, and the pool closes what it opened."""
+    connecting = asyncio.Event()
+    held = asyncio.Event()
+
+    @event.listens_for(db_engine.sync_engine, "connect")
+    def _hold(_connection: Any, _record: Any) -> None:  # pyright: ignore[reportUnusedFunction] - the event registers it
+        if asyncio.current_task() is scheduler._sweeping:  # pyright: ignore[reportPrivateUsage] - the task to stop
+            connecting.set()
+            await_only(held.wait())
+
+    async def idle(*_args: object, **_kwargs: object) -> list[Fired]:
+        return []
+
+    monkeypatch.setattr(scheduler_module, "tick", idle)
+    await db_engine.dispose()
+    scheduler = SchedulerProcess(create_session_factory(db_engine), services, tick_seconds=60)
+    task = asyncio.create_task(scheduler.run())
+    await asyncio.wait_for(connecting.wait(), timeout=10)
+    scheduler.request_stop()
+    await asyncio.wait_for(task, timeout=10)
+
+    pool = db_engine.pool
+    assert isinstance(pool, QueuePool)
+    assert pool.checkedout() == 0
 
 
 async def test_the_listing_is_advisory_and_the_row_lock_decides_what_is_fired(

@@ -16,7 +16,7 @@ from dirigent_testing.environment import scrub_configuration
 #: The server the lanes that need a real PostgreSQL start for themselves.
 POSTGRES_IMAGE: Final = "postgres:17-alpine"
 
-#: Every database connection a pool has opened and not closed again, by identity.
+#: Every database connection a pool has handed out and not closed again, by identity.
 _open_connections: set[int] = set()
 
 #: Whether the listeners that fill the set above have been registered yet.
@@ -39,9 +39,11 @@ def _watch_pools() -> None:
     except ModuleNotFoundError:  # pragma: no cover - a suite without SQLAlchemy opens no pooled connection
         return
 
-    @event.listens_for(Pool, "connect")
-    def _connection_opened(dbapi_connection: Any, _record: Any) -> None:
-        """Record a connection a pool has just opened."""
+    # The pool closes a connection whose connect listeners raised, as they do when a
+    # cancellation lands in one, without a close event: only one handed out is sure of one.
+    @event.listens_for(Pool, "checkout")
+    def _connection_handed_out(dbapi_connection: Any, _record: Any, _proxy: Any) -> None:
+        """Record a connection a pool has handed out."""
         _open_connections.add(id(dbapi_connection))
 
     @event.listens_for(Pool, "close")
