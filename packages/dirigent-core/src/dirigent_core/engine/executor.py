@@ -43,7 +43,7 @@ from dirigent_common import (
 from dirigent_common.depth import MAX_STORED_DEPTH, nests_past
 from dirigent_core import telemetry, wakeups
 from dirigent_core.artifacts import canonical_json, persist_output
-from dirigent_core.database import session_scope, with_deadlock_retry
+from dirigent_core.database import session_scope, with_deadlock_retry, with_outcome_retry
 from dirigent_core.engine.claim import (
     CLAIMABLE_RUN_STATUSES,
     MAX_SETTLED_PER_CLAIM,
@@ -766,10 +766,10 @@ class Engine:
     async def record_handle(self, unit: ClaimedUnit, handle: RemoteHandle) -> None:
         """Commit the remote handle on its own, the moment execute returned it."""
         async with self.after_commit():
-            await with_deadlock_retry(lambda: self._record_handle_once(unit, handle))
+            await with_outcome_retry(lambda: self._record_handle_once(unit, handle))
 
     async def _record_handle_once(self, unit: ClaimedUnit, handle: RemoteHandle) -> None:
-        """Run that transaction once; the caller runs it again after a deadlock.
+        """Run that transaction once; the caller runs it again after a deadlock or a lost connection.
 
         It locks the run and then writes the attempt, the order every outcome uses and the
         opposite of the claim's. Nothing of it survives a rollback, so it is safe to repeat.
@@ -787,10 +787,10 @@ class Engine:
 
     async def _record_fetched(self, unit: ClaimedUnit, output: JsonMap) -> None:
         """Commit a fetched result on its own, before the outcome that settles it."""
-        await with_deadlock_retry(lambda: self._record_fetched_once(unit, output))
+        await with_outcome_retry(lambda: self._record_fetched_once(unit, output))
 
     async def _record_fetched_once(self, unit: ClaimedUnit, output: JsonMap) -> None:
-        """Run that transaction once; the caller runs it again after a deadlock.
+        """Run that transaction once; the caller runs it again after a deadlock or a lost connection.
 
         It locks the run and then writes the attempt, the order every outcome uses and the
         opposite of the claim's. Nothing of it survives a rollback, so it is safe to repeat.
@@ -877,10 +877,10 @@ class Engine:
     ) -> bool:
         """Record an outcome and everything it implies, in one transaction, and say whether it stored an output."""
         # Drained here rather than inside: draining empties the buffer, and a transaction the
-        # database aborted to break a deadlock is run again with the same entries.
+        # database aborted, or whose connection was lost, is run again with the same entries.
         entries = logger.drain()
         logged = logger.recorded > unit.logged_entries
-        stored = await with_deadlock_retry(
+        stored = await with_outcome_retry(
             lambda: self._record_once(unit, result, entries, now, storage=storage, seconds=seconds, logged=logged)
         )
         await self._write_owed_report(unit.run_id, now)
@@ -910,7 +910,7 @@ class Engine:
         seconds: float | None = None,
         logged: bool = False,
     ) -> bool:
-        """Run the outcome transaction once; the caller runs it again after a deadlock.
+        """Run the outcome transaction once; the caller runs it again after a deadlock or a lost connection.
 
         True means it committed with the output stored on the attempt.
         """

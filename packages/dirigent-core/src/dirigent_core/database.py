@@ -272,6 +272,48 @@ async def with_deadlock_retry[T](work: Callable[[], Awaitable[T]], *, attempts: 
     raise AssertionError("unreachable: the loop returns or raises")  # pragma: no cover
 
 
+#: How many times an outcome transaction that lost its connection is run again before it is raised.
+RECONNECT_ATTEMPTS: Final = 5
+
+#: The pause before the first reconnecting run, doubled before each one after it.
+RECONNECT_PAUSE_SECONDS: Final = 0.5
+
+
+def is_lost_connection(error: BaseException) -> bool:
+    """Report whether a transaction failed because its connection to the database was lost or never made."""
+    if isinstance(error, DBAPIError):
+        return error.connection_invalidated
+    return isinstance(error, OSError)
+
+
+async def with_outcome_retry[T](
+    work: Callable[[], Awaitable[T]],
+    *,
+    attempts: int = RECONNECT_ATTEMPTS,
+    pause: float = RECONNECT_PAUSE_SECONDS,
+) -> T:
+    """Run an outcome transaction again after a deadlock, or after its connection was lost.
+
+    The work must fence itself on the attempt's lease, as every outcome does: a connection
+    lost while the commit was answered may leave the first run committed, and the fence then
+    turns the second into a no-op rather than a second write.
+    """
+    for remaining in range(attempts - 1, -1, -1):
+        try:
+            return await with_deadlock_retry(work)
+        except (DBAPIError, OSError) as error:
+            if remaining == 0 or not is_lost_connection(error):
+                raise
+            _logger.warning(
+                "an outcome lost its database connection and is run again",
+                attempts_left=remaining,
+                error=str(error),
+            )
+            await asyncio.sleep(pause)
+            pause *= 2
+    raise AssertionError("unreachable: the loop returns or raises")  # pragma: no cover
+
+
 async def ping(engine: AsyncEngine) -> bool:
     """Report whether the database answers."""
     try:

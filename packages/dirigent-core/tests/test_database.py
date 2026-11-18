@@ -1,4 +1,4 @@
-"""How a transaction is opened, and running one again when the database broke a deadlock."""
+"""How a transaction is opened, and running one again when the database broke a deadlock or the connection."""
 
 import asyncio
 import json
@@ -21,10 +21,12 @@ from dirigent_core.database import (
     create_engine,
     create_session_factory,
     is_deadlock,
+    is_lost_connection,
     open_sqlite,
     session_scope,
     storable_json,
     with_deadlock_retry,
+    with_outcome_retry,
 )
 from dirigent_core.models import Notification, RunItem, SourceInput, StepAttempt
 from dirigent_core.types import SaidString, SaidText
@@ -114,6 +116,75 @@ async def test_a_result_is_returned_untouched_when_nothing_deadlocks() -> None:
         return {"claimed": 1}
 
     assert await with_deadlock_retry(work) == {"claimed": 1}
+
+
+def lost_connection() -> DBAPIError:
+    """A connection dropped under a statement, wrapped the way SQLAlchemy reports a disconnect."""
+    return DBAPIError("COMMIT", None, ConnectionResetError("connection reset"), connection_invalidated=True)
+
+
+def test_a_lost_connection_is_told_apart_from_every_other_database_error() -> None:
+    assert is_lost_connection(lost_connection())
+    assert is_lost_connection(ConnectionRefusedError("connect call failed")), "a connect the pool could not make"
+    assert not is_lost_connection(deadlock())
+    assert not is_lost_connection(IntegrityError("INSERT", None, Exception("duplicate key")))
+    assert not is_lost_connection(RuntimeError("not a database error at all"))
+
+
+async def test_an_outcome_whose_connection_was_lost_is_run_again() -> None:
+    attempts = 0
+
+    async def work() -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise lost_connection()
+        if attempts == 2:
+            raise ConnectionRefusedError("the database is restarting")
+        return "settled"
+
+    assert await with_outcome_retry(work, pause=0) == "settled"
+    assert attempts == 3
+
+
+async def test_an_outcome_also_survives_a_deadlock() -> None:
+    attempts = 0
+
+    async def work() -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise deadlock()
+        return "settled"
+
+    assert await with_outcome_retry(work, pause=0) == "settled"
+    assert attempts == 2
+
+
+async def test_a_connection_that_stays_lost_is_raised_after_the_last_attempt() -> None:
+    attempts = 0
+
+    async def work() -> None:
+        nonlocal attempts
+        attempts += 1
+        raise lost_connection()
+
+    with pytest.raises(DBAPIError):
+        await with_outcome_retry(work, attempts=4, pause=0)
+    assert attempts == 4, "it gives up, leaving the attempt to its lease"
+
+
+async def test_an_outcome_failure_that_is_not_a_lost_connection_is_raised_the_first_time() -> None:
+    attempts = 0
+
+    async def work() -> None:
+        nonlocal attempts
+        attempts += 1
+        raise IntegrityError("INSERT", None, Exception("duplicate key"))
+
+    with pytest.raises(IntegrityError):
+        await with_outcome_retry(work, pause=0)
+    assert attempts == 1
 
 
 @pytest.fixture

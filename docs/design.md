@@ -579,9 +579,13 @@ write, no transaction ever has to upgrade a share lock it already took through a
 key, which is how a pair of workers finishing at once would otherwise deadlock. The claim
 locks the attempt and then the run, the outcome the run and then the attempts, so two workers
 can still close a cycle between them: both transactions re-read everything they decide on, and
-the one PostgreSQL aborts to break a deadlock is run again. An attempt's buffered log is drained
-before that retry rather than inside it, since draining empties the buffer and a second pass
-would commit the outcome with no log. A pipeline's row lock serializes its concurrency slot,
+the one PostgreSQL aborts to break a deadlock is run again. An outcome, and the handle or
+fetched result committed ahead of it, is also run again when its connection to the database is
+lost or cannot be made, five times over about eight seconds, so a database restart does not leave
+a step that ran waiting out its lease to run a second time. Each of those transactions checks the
+attempt's lease first, so a second run after a commit that did land discards itself rather than
+writing twice. An attempt's buffered log is drained before any retry rather than inside it, since
+draining empties the buffer and a second pass would commit the outcome with no log. A pipeline's row lock serializes its concurrency slot,
 and every transaction that takes it with a run's takes it first: creating a run, cancelling,
 retrying and resuming one. The outcome that settles a run already holds the run's lock when it
 frees the slot, so it takes the pipeline lock only if it is free, and otherwise releases the
